@@ -1,0 +1,12 @@
+shaders/
+textures/
+models/
+
+include/
+lib/
+
+*.exe
+*.sublime-*
+*.build_output
+*.bat
+	
