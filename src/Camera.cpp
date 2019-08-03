@@ -15,7 +15,7 @@ struct Camera
 	glm::mat4 GetViewProjection()
 	{
 		// Todo(Leo): Obviously not correct >:(
-		glm::mat4 result = glm::lookAt(glm::vec3(distance, distance, distance), vector3_zero, vector3_world_up);
+		glm::mat4 result = glm::lookAt(glm::vec3(distance, distance, distance), target, vector3_world_up);
 		return result;
 	}
 

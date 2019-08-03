@@ -31,7 +31,13 @@ for opengl. Defining this we get 0.0 to 1.0 for vulkan. */
 /* TODO(Leo) extra: Use separate queuefamily thing for transfering between vertex
 staging buffer and actual vertex buffer. https://vulkan-tutorial.com/en/Vertex_buffers/Staging_buffer */
 
+/* TODO(Leo): study these materials
+    http://asawicki.info/news_1698_vulkan_sparse_binding_-_a_quick_overview.html
+
+*/
+
 #define class_member static
+#define local_persist static
 
 using int32 = int32_t;
 using uint8 = uint8_t;
@@ -367,9 +373,13 @@ private:
     VkDeviceSize characterBufferVertexOffset;
     VkDeviceSize characterBufferUniformOffset;
 
-    // Todo(Leo): Why there is many of these again??
-    std::vector<VkBuffer> uniformBuffers;
-    std::vector<VkDeviceMemory> uniformBufferMemories;
+    VkBuffer sceneUniformBuffer;
+    VkDeviceMemory sceneUniformBufferMemory;
+    std::vector<uint32> sceneUniformBufferOffsets;
+
+    // TODO(Leo): Do these and combine to same memory as scene buffer maybe
+    std::vector<VkBuffer> uniformModelBuffers;
+    std::vector<VkDeviceMemory> uniformModelBufferMemories;
 
     // IMAGE TEXTURE, Todo(Leo): these can be abstracted away, yay! :D
     uint32 textureMipLevels = 1;
@@ -454,7 +464,7 @@ private:
             &characterBuffer, &characterBufferMemory, &characterBufferIndexOffset,
             &characterBufferVertexOffset, &characterBufferUniformOffset, &characterModel);
 
-        std::cout << "Map offsets: " 
+        std::cout << "Character offsets: " 
             << characterBufferIndexOffset << ", "
             << characterBufferVertexOffset << ", "
             << characterBufferUniformOffset << "\n";
@@ -493,12 +503,8 @@ private:
         vkFreeMemory (logicalDevice, depthImageMemory, nullptr);
         vkDestroyImageView (logicalDevice, depthImageView, nullptr);
 
-        int imageCount = swapchainImages.size();
-        for (int i = 0; i < imageCount; ++i)
-        {
-            vkDestroyBuffer(logicalDevice, uniformBuffers[i], nullptr);
-            vkFreeMemory(logicalDevice, uniformBufferMemories[i], nullptr);
-        }
+        vkDestroyBuffer(logicalDevice, sceneUniformBuffer, nullptr);
+        vkFreeMemory(logicalDevice, sceneUniformBufferMemory, nullptr);
 
         vkDestroyDescriptorPool(logicalDevice, descriptorPool, nullptr);
 
@@ -1027,15 +1033,15 @@ private:
     {
         Array<VkDescriptorSetLayoutBinding, 2> layoutBindings = {};
         constexpr int32
-            uniform_buffer_id       = 0,
+            scene_uniform_buffer_id       = 0,
             sampler_id              = 1;
 
         // UNIFORM BUFFER OBJECT, camera projection matrices for now
-        layoutBindings[uniform_buffer_id].binding = uniform_buffer_id;
-        layoutBindings[uniform_buffer_id].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        layoutBindings[uniform_buffer_id].descriptorCount = 1;
-        layoutBindings[uniform_buffer_id].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-        layoutBindings[uniform_buffer_id].pImmutableSamplers = nullptr; // Note(Leo): relevant for sampler stuff, like textures
+        layoutBindings[scene_uniform_buffer_id].binding = scene_uniform_buffer_id;
+        layoutBindings[scene_uniform_buffer_id].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        layoutBindings[scene_uniform_buffer_id].descriptorCount = 1;
+        layoutBindings[scene_uniform_buffer_id].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+        layoutBindings[scene_uniform_buffer_id].pImmutableSamplers = nullptr; // Note(Leo): relevant for sampler stuff, like textures
 
         // SAMPLER
         layoutBindings[sampler_id].binding = sampler_id;
@@ -1454,7 +1460,7 @@ private:
         EndOneTimeCommandBuffer(logicalDevice, commandPool, transferQueue, commandBuffer);
     }
 
-    // Todo(Leo): This starts to make no sense, nice experiment though :))))
+    // Todo(Leo): This 'class_member' thing starts to make no sense, nice experiment though :))))
     class_member void
     CreateImage(
         VkDevice logicalDevice, 
@@ -1882,7 +1888,12 @@ private:
     uint64
     AlignUpTo(uint64 alignment, uint64 size)
     {
-        // size += alignment;
+        /*
+        Divide to get number of full multiples of alignment
+        Add one so we end up bigger
+        Multiply to get actual size, that is both bigger AND a multiple of alignment
+        */
+
         size /= alignment;
         size += 1;
         size *= alignment;
@@ -1910,7 +1921,7 @@ private:
         vkGetPhysicalDeviceProperties(physicalDevice, &physicalDeviceProperties);
         VkDeviceSize minUniformBufferOffsetAlignment = physicalDeviceProperties.limits.minUniformBufferOffsetAlignment;
 
-        std::cout << "Min uniform alignment: " << minUniformBufferOffsetAlignment;
+        std::cout << "Min uniform alignment: " << minUniformBufferOffsetAlignment << "\n";
 
         VkDeviceSize
             indexBufferOffset = 0,
@@ -1919,6 +1930,10 @@ private:
 
         totalBufferSize = uniformBufferOffset + modelProjectionSize;  
 
+        // WRITE RESULTS NOW
+        *resultIndexOffset = indexBufferOffset;
+        *resultVertexOffset = vertexBufferOffset;
+        *resultUniformOffset = uniformBufferOffset;
 
         VkBufferCreateInfo stagingBufferInfo = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
         stagingBufferInfo.size = totalBufferSize;        
@@ -1971,33 +1986,39 @@ private:
 
         vkDestroyBuffer(logicalDevice, stagingBuffer, nullptr);
         vkFreeMemory(logicalDevice, stagingBufferMemory, nullptr);
-
-
-        *resultIndexOffset  = 0;
-        *resultVertexOffset = indexBufferSize;
-        *resultUniformOffset = AlignUpTo(256, indexBufferSize + vertexBufferSize);
     }
 
 
     void 
     CreateUniformBuffers()
     {
-        VkDeviceSize bufferSize = sizeof(UniformBufferObject);
+        /* Todo(Leo): Uniform model buffer, first normal to get things running 
+        and then dynamic to enable separate values for each object */
+
+        /* Note(Leo):
+        Create single uniform buffer for scene info such as camera projection and lights.
+        Store offsets and use them to differentiate between regions.
+        */
 
         int32 imageCount = swapchainImages.size();
-        uniformBuffers.resize(imageCount);
-        uniformBufferMemories.resize(imageCount);
+        
+        VkPhysicalDeviceProperties physicalDeviceProperties;
+        vkGetPhysicalDeviceProperties(physicalDevice, &physicalDeviceProperties);
+        VkDeviceSize minUniformBufferOffsetAlignment = physicalDeviceProperties.limits.minUniformBufferOffsetAlignment;
 
-        for (int i = 0; i < imageCount; ++i)
+        uint64 memorySizePerObject = AlignUpTo(minUniformBufferOffsetAlignment, sizeof(UniformBufferObject));
+        VkDeviceSize fullSceneUniformBufferSize = imageCount * memorySizePerObject;
+
+        CreateBuffer(   logicalDevice, physicalDevice, fullSceneUniformBufferSize,
+                        VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                        VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
+                        &sceneUniformBuffer, &sceneUniformBufferMemory);
+
+        sceneUniformBufferOffsets.resize(imageCount);
+
+        for(int i = 0; i < imageCount; ++i)
         {
-            CreateBuffer(   
-                logicalDevice,
-                physicalDevice,
-                bufferSize,
-                VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-                VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
-                &uniformBuffers[i],
-                &uniformBufferMemories[i]);
+            sceneUniformBufferOffsets[i] = i * memorySizePerObject;
         }
     }
 
@@ -2006,12 +2027,12 @@ private:
     {
         Array<VkDescriptorPoolSize, 2> poolSizes = {};
         constexpr int32
-            uniform_buffer_id       = 0,
+            scene_uniform_buffer_id = 0,
             sampler_id              = 1;
 
 
-        poolSizes[uniform_buffer_id].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        poolSizes[uniform_buffer_id].descriptorCount = swapchainImages.size();
+        poolSizes[scene_uniform_buffer_id].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        poolSizes[scene_uniform_buffer_id].descriptorCount = swapchainImages.size();
 
         poolSizes[sampler_id].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         poolSizes[sampler_id].descriptorCount = swapchainImages.size();
@@ -2031,7 +2052,7 @@ private:
     CreateDescriptorSets()
     {
         constexpr int32
-            uniform_buffer_id       = 0,
+            scene_uniform_buffer_id = 0,
             sampler_id              = 1;
 
         int swapchainImageCount = swapchainImages.size();
@@ -2052,19 +2073,19 @@ private:
         {
             Array<VkWriteDescriptorSet, 2> descriptorWrites = {};
 
-            // UNIFORM BUFFER OBJECT
+            // SCENE UNIFORM BUFFER
             VkDescriptorBufferInfo bufferInfo = {};
-            bufferInfo.buffer = uniformBuffers[i];
-            bufferInfo.offset = 0;
+            bufferInfo.buffer = sceneUniformBuffer;
+            bufferInfo.offset = sceneUniformBufferOffsets[i];
             bufferInfo.range = sizeof(UniformBufferObject);
 
-            descriptorWrites[uniform_buffer_id].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-            descriptorWrites[uniform_buffer_id].dstSet = descriptorSets[i];
-            descriptorWrites[uniform_buffer_id].dstBinding = uniform_buffer_id;
-            descriptorWrites[uniform_buffer_id].dstArrayElement = 0;
-            descriptorWrites[uniform_buffer_id].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-            descriptorWrites[uniform_buffer_id].descriptorCount = 1;
-            descriptorWrites[uniform_buffer_id].pBufferInfo = &bufferInfo;
+            descriptorWrites[scene_uniform_buffer_id].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            descriptorWrites[scene_uniform_buffer_id].dstSet = descriptorSets[i];
+            descriptorWrites[scene_uniform_buffer_id].dstBinding = scene_uniform_buffer_id;
+            descriptorWrites[scene_uniform_buffer_id].dstArrayElement = 0;
+            descriptorWrites[scene_uniform_buffer_id].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+            descriptorWrites[scene_uniform_buffer_id].descriptorCount = 1;
+            descriptorWrites[scene_uniform_buffer_id].pBufferInfo = &bufferInfo;
 
             // IMAGE sampler_id
             VkDescriptorImageInfo imageInfo = {};
@@ -2079,7 +2100,6 @@ private:
             descriptorWrites[sampler_id].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
             descriptorWrites[sampler_id].descriptorCount = 1;
             descriptorWrites[sampler_id].pImageInfo = &imageInfo;
-
 
             // Note(Leo): Two first are write info, two latter are copy info
             vkUpdateDescriptorSets(logicalDevice, descriptorWrites.count(), &descriptorWrites[0], 0, nullptr);
@@ -2143,14 +2163,14 @@ private:
                                     0, 1, &descriptorSets[i], 0, nullptr);
 
             // Draw map           
-            VkDeviceSize offsets [] = {generatedMap.indices.size() * generatedMap.indexSize};
+            VkDeviceSize offsets [] = {generatedMapBufferVertexOffset};
             vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, &generatedMapBuffer, offsets);
             vkCmdBindIndexBuffer(commandBuffers[i], generatedMapBuffer, 0, generatedMap.indexType);
 
             vkCmdDrawIndexed(commandBuffers[i], generatedMap.indices.size(), 1, 0, 0, 0);
             
             // Draw character
-            VkDeviceSize characterMeshOffsets [] = {characterModel.indices.size() * characterModel.indexSize};
+            VkDeviceSize characterMeshOffsets [] = {characterBufferVertexOffset};
             vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, &characterBuffer, characterMeshOffsets);
             vkCmdBindIndexBuffer(commandBuffers[i], characterBuffer, 0, characterModel.indexType);
 
@@ -2196,19 +2216,27 @@ private:
     void
     UpdateUniformBuffer(uint32 imageIndex)
     {
-        static auto startTimeMark = std::chrono::high_resolution_clock::now();
+        local_persist auto startTimeMark = std::chrono::high_resolution_clock::now();
+        local_persist float lastTime = 0;
 
         auto currentTimeMark = std::chrono::high_resolution_clock::now();
         float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTimeMark - startTimeMark).count();
 
+        float dt = time - lastTime;
+        lastTime = time;
+
+        worldCamera.target.x += dt;
+
         // Note (Leo): map vulkan memory directly to right type so we can easily avoid one (small) memcpy per frame
         UniformBufferObject * pUbo;
-        vkMapMemory(logicalDevice, uniformBufferMemories[imageIndex], 0, sizeof(UniformBufferObject), 0, (void**)&pUbo);
+        // vkMapMemory(logicalDevice, uniformSceneBufferMemories[imageIndex], 0, sizeof(UniformBufferObject), 0, (void**)&pUbo);
+        vkMapMemory(logicalDevice, sceneUniformBufferMemory, sceneUniformBufferOffsets[imageIndex], sizeof(UniformBufferObject), 0, (void**)&pUbo);
 
         pUbo->view          = worldCamera.GetViewProjection();
         pUbo->projection    = worldCamera.GetPerspectiveProjection();
         
-        vkUnmapMemory(logicalDevice, uniformBufferMemories[imageIndex]);
+        vkUnmapMemory(logicalDevice, sceneUniformBufferMemory);
+        // vkUnmapMemory(logicalDevice, uniformSceneBufferMemories[imageIndex]);
 
         // *characterModelProjection = glm::rotate(glm::mat4(1.0f), time * glm::radians(60.0f), glm::vec3(0.0f, 1.0f, 0.0f));
     }
