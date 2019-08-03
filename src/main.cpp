@@ -59,13 +59,15 @@ Number Clamp(Number value, Number min, Number max)
 using BinaryAsset = std::vector<uint8>;
 
 constexpr char texture_path [] = "textures/chalet.jpg";
+
+#include "Array.hpp"
     
 // Note(Leo): make unity build
 #include "vulkan_debug_strings.cpp"
 #include "command_buffer.cpp"
 #include "vertex_data.cpp"
+#include "Camera.cpp"
 
-#include "Array.hpp"
 
 BinaryAsset
 ReadBinaryFile (const char * fileName)
@@ -351,14 +353,21 @@ private:
     Loop32<max_frames_in_flight> currentFrameIndex = 0;
     bool framebufferResized = false;
 
+    // MAP BUFFER Note(Leo): map is big and can have own memory and buffer
+    VkBuffer generatedMapBuffer;
+    VkDeviceMemory generatedMapBufferMemory;
+    VkDeviceSize generatedMapBufferIndexOffset;
+    VkDeviceSize generatedMapBufferVertexOffset;
+    VkDeviceSize generatedMapBufferUniformOffset;
 
+    // CHARACTER BUFFER Note(Leo): going to contain other things too, but later
+    VkBuffer characterBuffer;
+    VkDeviceMemory characterBufferMemory;
+    VkDeviceSize characterBufferIndexOffset;
+    VkDeviceSize characterBufferVertexOffset;
+    VkDeviceSize characterBufferUniformOffset;
 
-    VkBuffer vertexBuffer;
-    VkDeviceMemory vertexBufferMemory;
-    VkBuffer indexBuffer;
-    VkDeviceMemory indexBufferMemory;
-    VkDeviceMemory vertexAndIndexBufferMemory;
-
+    // Todo(Leo): Why there is many of these again??
     std::vector<VkBuffer> uniformBuffers;
     std::vector<VkDeviceMemory> uniformBufferMemories;
 
@@ -384,6 +393,8 @@ private:
     VkImage colorImage;
     VkDeviceMemory colorImageMemory;
     VkImageView colorImageView;
+
+    Camera worldCamera;
 
     void InitWindow()
     {
@@ -418,6 +429,7 @@ private:
         CreateDescriptorSetLayout();
         CreateGraphicsPipeline();
         CreateCommandPool();
+        CreateCamera();
 
         CreateColorResources();
         CreateDepthResources();
@@ -428,9 +440,24 @@ private:
         CreateTextureSampler();
 
         generatedMap = GenerateMap();
-        // CreateVertexBuffer();
-        // CreateIndexBuffer();
-        CreateModelBuffer();
+        CreateMeshBufferAndMemory(
+            &generatedMapBuffer, &generatedMapBufferMemory, &generatedMapBufferIndexOffset,
+            &generatedMapBufferVertexOffset, &generatedMapBufferUniformOffset, &generatedMap);
+
+        std::cout << "Map offsets: " 
+            << generatedMapBufferIndexOffset << ", "
+            << generatedMapBufferVertexOffset << ", "
+            << generatedMapBufferUniformOffset << "\n";
+
+        characterModel = LoadModel("models/character.obj");
+        CreateMeshBufferAndMemory(
+            &characterBuffer, &characterBufferMemory, &characterBufferIndexOffset,
+            &characterBufferVertexOffset, &characterBufferUniformOffset, &characterModel);
+
+        std::cout << "Map offsets: " 
+            << characterBufferIndexOffset << ", "
+            << characterBufferVertexOffset << ", "
+            << characterBufferUniformOffset << "\n";
 
         CreateUniformBuffers();
         CreateDescriptorPool();
@@ -507,11 +534,11 @@ private:
 
         vkDestroyDescriptorSetLayout(logicalDevice, descriptorSetLayout, nullptr);  
 
-        vkDestroyBuffer(logicalDevice, vertexBuffer, nullptr);
-        vkFreeMemory(logicalDevice, vertexBufferMemory, nullptr);
+        vkDestroyBuffer(logicalDevice, generatedMapBuffer, nullptr);
+        vkFreeMemory(logicalDevice, generatedMapBufferMemory, nullptr);
 
-        vkDestroyBuffer(logicalDevice, indexBuffer, nullptr);
-        vkFreeMemory(logicalDevice, indexBufferMemory, nullptr);
+        vkDestroyBuffer(logicalDevice, characterBuffer, nullptr);
+        vkFreeMemory(logicalDevice, characterBufferMemory, nullptr);
 
         for (int i = 0; i < max_frames_in_flight; ++i)
         {
@@ -999,23 +1026,23 @@ private:
     CreateDescriptorSetLayout()
     {
         Array<VkDescriptorSetLayoutBinding, 2> layoutBindings = {};
+        constexpr int32
+            uniform_buffer_id       = 0,
+            sampler_id              = 1;
 
-        constexpr int UBO = 0;
-        constexpr int SAMPLER = 1;
-
-        // UNIFORM BUFFER OBJECT, projection matrices for now
-        layoutBindings[UBO].binding = UBO;
-        layoutBindings[UBO].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        layoutBindings[UBO].descriptorCount = 1;
-        layoutBindings[UBO].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-        layoutBindings[UBO].pImmutableSamplers = nullptr; // Note(Leo): relevant for sampler stuff, like textures
+        // UNIFORM BUFFER OBJECT, camera projection matrices for now
+        layoutBindings[uniform_buffer_id].binding = uniform_buffer_id;
+        layoutBindings[uniform_buffer_id].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        layoutBindings[uniform_buffer_id].descriptorCount = 1;
+        layoutBindings[uniform_buffer_id].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+        layoutBindings[uniform_buffer_id].pImmutableSamplers = nullptr; // Note(Leo): relevant for sampler stuff, like textures
 
         // SAMPLER
-        layoutBindings[SAMPLER].binding = SAMPLER;
-        layoutBindings[SAMPLER].descriptorCount = 1;
-        layoutBindings[SAMPLER].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        layoutBindings[SAMPLER].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-        layoutBindings[SAMPLER].pImmutableSamplers = nullptr;
+        layoutBindings[sampler_id].binding = sampler_id;
+        layoutBindings[sampler_id].descriptorCount = 1;
+        layoutBindings[sampler_id].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        layoutBindings[sampler_id].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+        layoutBindings[sampler_id].pImmutableSamplers = nullptr;
 
         VkDescriptorSetLayoutCreateInfo layoutCreateInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO };
         layoutCreateInfo.bindingCount = layoutBindings.count();
@@ -1190,10 +1217,9 @@ private:
             throw std::runtime_error("failed to create graphics pipeline");
         }
 
-        // Note: These must be last
+        // Note: These can only be destroyed AFTER vkCreateGraphicsPipelines
         vkDestroyShaderModule(logicalDevice, fragmentShaderModule, nullptr);
         vkDestroyShaderModule(logicalDevice, vertexShaderModule, nullptr);
-        // Note: Are these two really last???
     }
 
     void
@@ -1249,6 +1275,21 @@ private:
         std::cout << "Created command pool\n";
     }
 
+    void
+    CreateCamera()
+    {
+        worldCamera = {};
+
+        worldCamera.target = vector3_zero;
+        worldCamera.distance = 10;
+        worldCamera.rotation = 0;
+
+        worldCamera.fieldOfView = 45;
+        worldCamera.nearClipPlane = 0.1f;
+        worldCamera.farClipPlane = 100.0f;
+        worldCamera.aspectRatio = (float)swapchainExtent.width / (float)swapchainExtent.height;
+    }
+
     VkFormat
     FindSupportedFormat(
         int32 candidateCount,
@@ -1296,7 +1337,8 @@ private:
                                 VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
     }
 
-    VkFormat FindSupportedDepthFormat()
+    VkFormat
+    FindSupportedDepthFormat()
     {
         VkFormat formats [] = { VK_FORMAT_D32_SFLOAT,
                                 VK_FORMAT_D32_SFLOAT_S8_UINT,
@@ -1362,7 +1404,6 @@ private:
         VkBuffer *              resultBuffer,
         VkDeviceMemory *        resultBufferMemory
     ){
-
         VkBufferCreateInfo bufferInfo = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
         bufferInfo.size = bufferSize;
         bufferInfo.usage = usage;
@@ -1383,6 +1424,8 @@ private:
                                             physicalDevice,
                                             memoryRequirements.memoryTypeBits,
                                             memoryProperties);
+
+        std::cout << "memoryTypeIndex : " << allocateInfo.memoryTypeIndex << "\n";
 
         /* Todo(Leo): do not actually always use new allocate, but instead allocate
         once and create allocator to handle multiple items */
@@ -1836,73 +1879,47 @@ private:
         }
     }
 
-
-    // void
-    // CreateVertexBuffer()
-    // {
-    //     VkDeviceSize bufferSize = generatedMap.vertices.size() * sizeof(generatedMap.vertices[0]);
-
-    //     VkBuffer stagingBuffer;
-    //     VkDeviceMemory stagingBufferMemory;
-    //     CreateBuffer(   logicalDevice, physicalDevice, bufferSize, 
-    //                     VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 
-    //                     VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-    //                     &stagingBuffer, &stagingBufferMemory);
-
-    //     void * vertexBufferData;
-    //     vkMapMemory(logicalDevice, stagingBufferMemory, 0, bufferSize, 0, &vertexBufferData);
-    //     memcpy(vertexBufferData, generatedMap.vertices.data(), bufferSize);
-    //     vkUnmapMemory(logicalDevice, stagingBufferMemory);
-
-    //     CreateBuffer(   logicalDevice, physicalDevice, bufferSize, 
-    //                     VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, 
-    //                     VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 
-    //                     &vertexBuffer, &vertexBufferMemory);
-
-    //     CopyBuffer(logicalDevice, commandPool, graphicsQueue, stagingBuffer, vertexBuffer, bufferSize);
-
-    //     vkDestroyBuffer(logicalDevice, stagingBuffer, nullptr);
-    //     vkFreeMemory(logicalDevice, stagingBufferMemory, nullptr);
-    // }
-
-    // void
-    // CreateIndexBuffer()
-    // {
-    //     VkDeviceSize bufferSize = generatedMap.indices.size() * sizeof(generatedMap.indices[0]);
-
-    //     VkBuffer stagingBuffer;
-    //     VkDeviceMemory stagingBufferMemory;
-    //     CreateBuffer(   logicalDevice, physicalDevice, bufferSize,
-    //                     VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-    //                     VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-    //                     &stagingBuffer, &stagingBufferMemory);
-
-    //     void * indexBufferData;
-    //     vkMapMemory(logicalDevice, stagingBufferMemory, 0, bufferSize, 0, &indexBufferData);
-    //     memcpy(indexBufferData, generatedMap.indices.data(), bufferSize);
-    //     vkUnmapMemory(logicalDevice, stagingBufferMemory);
-
-    //     CreateBuffer(   logicalDevice, physicalDevice, bufferSize,
-    //                     VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-    //                     VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-    //                     &indexBuffer, &indexBufferMemory);
-
-    //     CopyBuffer(logicalDevice, commandPool, graphicsQueue, stagingBuffer, indexBuffer, bufferSize);
-
-    //     vkDestroyBuffer(logicalDevice, stagingBuffer, nullptr);
-    //     vkFreeMemory(logicalDevice, stagingBufferMemory, nullptr);
-    // }
+    uint64
+    AlignUpTo(uint64 alignment, uint64 size)
+    {
+        // size += alignment;
+        size /= alignment;
+        size += 1;
+        size *= alignment;
+        return size;
+    }
 
     void
-    CreateModelBuffer()
-    {
+    CreateMeshBufferAndMemory(
+        VkBuffer *          resultBuffer,
+        VkDeviceMemory *    resultBufferMemory,
+        VkDeviceSize *      resultIndexOffset,
+        VkDeviceSize *      resultVertexOffset,
+        VkDeviceSize *      resultUniformOffset,
+        Mesh *              mesh
+    ){
         VkBuffer stagingBuffer;
         VkDeviceMemory stagingBufferMemory;
         
-        VkDeviceSize vertexBufferSize = generatedMap.vertices.size() * sizeof(generatedMap.vertices[0]);
-        VkDeviceSize indexBufferSize = generatedMap.indices.size() * sizeof(generatedMap.indices[0]);
-        VkDeviceSize totalBufferSize = vertexBufferSize + indexBufferSize;
+        VkDeviceSize vertexBufferSize       = mesh->vertices.size() * sizeof(mesh->vertices[0]);
+        VkDeviceSize indexBufferSize        = mesh->indices.size() * sizeof(mesh->indices[0]);
+        VkDeviceSize modelProjectionSize    = sizeof(glm::mat4);
+        VkDeviceSize totalBufferSize        = vertexBufferSize + indexBufferSize + modelProjectionSize;
         
+        VkPhysicalDeviceProperties physicalDeviceProperties;
+        vkGetPhysicalDeviceProperties(physicalDevice, &physicalDeviceProperties);
+        VkDeviceSize minUniformBufferOffsetAlignment = physicalDeviceProperties.limits.minUniformBufferOffsetAlignment;
+
+        std::cout << "Min uniform alignment: " << minUniformBufferOffsetAlignment;
+
+        VkDeviceSize
+            indexBufferOffset = 0,
+            vertexBufferOffset = indexBufferSize,
+            uniformBufferOffset = AlignUpTo(minUniformBufferOffsetAlignment, indexBufferSize + vertexBufferSize);
+
+        totalBufferSize = uniformBufferOffset + modelProjectionSize;  
+
+
         VkBufferCreateInfo stagingBufferInfo = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
         stagingBufferInfo.size = totalBufferSize;        
         stagingBufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
@@ -1930,41 +1947,35 @@ private:
         }
 
         vkBindBufferMemory(logicalDevice, stagingBuffer, stagingBufferMemory, 0);
-        
+
+        // COPY MESH INFO TO STAGING BUFFER, Todo(Leo): we could also load data directly here, avoiding memcpy        
         uint8 * data;
         vkMapMemory(logicalDevice, stagingBufferMemory, 0, totalBufferSize, 0, (void**)&data);
-
-        memcpy (data, &generatedMap.indices[0], indexBufferSize);
+        memcpy (data, &mesh->indices[0], indexBufferSize);
         data += indexBufferSize;
-        memcpy (data, &generatedMap.vertices[0], vertexBufferSize);
-
+        memcpy (data, &mesh->vertices[0], vertexBufferSize);
         vkUnmapMemory(logicalDevice, stagingBufferMemory);
 
-        // INDEX BUFFER
-        CreateBuffer(   logicalDevice, physicalDevice, indexBufferSize,
-                        VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+        // Todo(Leo): We can move these to command buffer below
+        CreateBuffer(   logicalDevice, physicalDevice, totalBufferSize,
+                        VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
                         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-                        &indexBuffer, &indexBufferMemory);
-
-        // VERTEX BUFFER
-        CreateBuffer(   logicalDevice, physicalDevice, vertexBufferSize, 
-                        VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, 
-                        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 
-                        &vertexBuffer, &vertexBufferMemory);
-
+                        resultBuffer, resultBufferMemory);
 
         VkCommandBuffer commandBuffer = BeginOneTimeCommandBuffer(logicalDevice, commandPool);
 
-        VkBufferCopy indexCopyRegion = { 0, 0, indexBufferSize};
-        vkCmdCopyBuffer(commandBuffer, stagingBuffer, indexBuffer, 1, &indexCopyRegion);
-
-        VkBufferCopy vertexCopyRegion = { indexBufferSize, 0, vertexBufferSize};
-        vkCmdCopyBuffer(commandBuffer, stagingBuffer, vertexBuffer, 1, &vertexCopyRegion);
+        VkBufferCopy combinedCopyRegion = { 0, 0, totalBufferSize };
+        vkCmdCopyBuffer(commandBuffer, stagingBuffer, *resultBuffer, 1, &combinedCopyRegion);
 
         EndOneTimeCommandBuffer(logicalDevice, commandPool, graphicsQueue, commandBuffer);
 
         vkDestroyBuffer(logicalDevice, stagingBuffer, nullptr);
         vkFreeMemory(logicalDevice, stagingBufferMemory, nullptr);
+
+
+        *resultIndexOffset  = 0;
+        *resultVertexOffset = indexBufferSize;
+        *resultUniformOffset = AlignUpTo(256, indexBufferSize + vertexBufferSize);
     }
 
 
@@ -1994,14 +2005,16 @@ private:
     CreateDescriptorPool()
     {
         Array<VkDescriptorPoolSize, 2> poolSizes = {};
-        constexpr int UBO = 0;
-        constexpr int SAMPLER = 1;
+        constexpr int32
+            uniform_buffer_id       = 0,
+            sampler_id              = 1;
 
-        poolSizes[UBO].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        poolSizes[UBO].descriptorCount = swapchainImages.size();
 
-        poolSizes[SAMPLER].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        poolSizes[SAMPLER].descriptorCount = swapchainImages.size();
+        poolSizes[uniform_buffer_id].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        poolSizes[uniform_buffer_id].descriptorCount = swapchainImages.size();
+
+        poolSizes[sampler_id].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        poolSizes[sampler_id].descriptorCount = swapchainImages.size();
 
         VkDescriptorPoolCreateInfo poolInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO };
         poolInfo.poolSizeCount = poolSizes.count();
@@ -2017,8 +2030,9 @@ private:
     void
     CreateDescriptorSets()
     {
-        constexpr int UBO = 0;
-        constexpr int SAMPLER = 1;
+        constexpr int32
+            uniform_buffer_id       = 0,
+            sampler_id              = 1;
 
         int swapchainImageCount = swapchainImages.size();
         std::vector<VkDescriptorSetLayout> layouts (swapchainImageCount, descriptorSetLayout);
@@ -2038,34 +2052,33 @@ private:
         {
             Array<VkWriteDescriptorSet, 2> descriptorWrites = {};
 
-
             // UNIFORM BUFFER OBJECT
             VkDescriptorBufferInfo bufferInfo = {};
             bufferInfo.buffer = uniformBuffers[i];
             bufferInfo.offset = 0;
             bufferInfo.range = sizeof(UniformBufferObject);
 
-            descriptorWrites[UBO].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-            descriptorWrites[UBO].dstSet = descriptorSets[i];
-            descriptorWrites[UBO].dstBinding = UBO;
-            descriptorWrites[UBO].dstArrayElement = 0;
-            descriptorWrites[UBO].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-            descriptorWrites[UBO].descriptorCount = 1;
-            descriptorWrites[UBO].pBufferInfo = &bufferInfo;
+            descriptorWrites[uniform_buffer_id].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            descriptorWrites[uniform_buffer_id].dstSet = descriptorSets[i];
+            descriptorWrites[uniform_buffer_id].dstBinding = uniform_buffer_id;
+            descriptorWrites[uniform_buffer_id].dstArrayElement = 0;
+            descriptorWrites[uniform_buffer_id].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+            descriptorWrites[uniform_buffer_id].descriptorCount = 1;
+            descriptorWrites[uniform_buffer_id].pBufferInfo = &bufferInfo;
 
-            // IMAGE SAMPLER
+            // IMAGE sampler_id
             VkDescriptorImageInfo imageInfo = {};
             imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
             imageInfo.imageView = textureImageView;
             imageInfo.sampler = textureSampler;
 
-            descriptorWrites[SAMPLER].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-            descriptorWrites[SAMPLER].dstSet = descriptorSets[i];
-            descriptorWrites[SAMPLER].dstBinding = SAMPLER;
-            descriptorWrites[SAMPLER].dstArrayElement = 0;
-            descriptorWrites[SAMPLER].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-            descriptorWrites[SAMPLER].descriptorCount = 1;
-            descriptorWrites[SAMPLER].pImageInfo = &imageInfo;
+            descriptorWrites[sampler_id].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            descriptorWrites[sampler_id].dstSet = descriptorSets[i];
+            descriptorWrites[sampler_id].dstBinding = sampler_id;
+            descriptorWrites[sampler_id].dstArrayElement = 0;
+            descriptorWrites[sampler_id].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            descriptorWrites[sampler_id].descriptorCount = 1;
+            descriptorWrites[sampler_id].pImageInfo = &imageInfo;
 
 
             // Note(Leo): Two first are write info, two latter are copy info
@@ -2126,16 +2139,23 @@ private:
             vkCmdBeginRenderPass(commandBuffers[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
             vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
 
-            VkBuffer vertexBuffers [] = {vertexBuffer};
-            VkDeviceSize offsets [] = {0};
-            vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers, offsets);
-            vkCmdBindIndexBuffer(commandBuffers[i], indexBuffer, 0, generatedMap.indexType);
-
             vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout,
                                     0, 1, &descriptorSets[i], 0, nullptr);
 
+            // Draw map           
+            VkDeviceSize offsets [] = {generatedMap.indices.size() * generatedMap.indexSize};
+            vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, &generatedMapBuffer, offsets);
+            vkCmdBindIndexBuffer(commandBuffers[i], generatedMapBuffer, 0, generatedMap.indexType);
 
             vkCmdDrawIndexed(commandBuffers[i], generatedMap.indices.size(), 1, 0, 0, 0);
+            
+            // Draw character
+            VkDeviceSize characterMeshOffsets [] = {characterModel.indices.size() * characterModel.indexSize};
+            vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, &characterBuffer, characterMeshOffsets);
+            vkCmdBindIndexBuffer(commandBuffers[i], characterBuffer, 0, characterModel.indexType);
+
+            vkCmdDrawIndexed(commandBuffers[i], characterModel.indices.size(), 1, 0, 0, 0);
+
             vkCmdEndRenderPass(commandBuffers[i]);
 
             if (vkEndCommandBuffer(commandBuffers[i]) != VK_SUCCESS)
@@ -2181,36 +2201,16 @@ private:
         auto currentTimeMark = std::chrono::high_resolution_clock::now();
         float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTimeMark - startTimeMark).count();
 
-        // Note (Leo): map vulkan memory directly to right type so we can avoid one memcpy
+        // Note (Leo): map vulkan memory directly to right type so we can easily avoid one (small) memcpy per frame
         UniformBufferObject * pUbo;
         vkMapMemory(logicalDevice, uniformBufferMemories[imageIndex], 0, sizeof(UniformBufferObject), 0, (void**)&pUbo);
 
-        pUbo->model = glm::rotate(glm::mat4(1.0f), time * glm::radians(60.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-        pUbo->view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-
-        /* Note(Leo): glm generates inverted y for opengl, so that needs to inverted.
-        Also affects triangle winding so be careful */
-        pUbo->projection = glm::perspective(glm::radians(45.0f), swapchainExtent.width / (float)swapchainExtent.height, 0.1f, 10.0f);
-        pUbo->projection[1][1] *= -1;
-
+        pUbo->view          = worldCamera.GetViewProjection();
+        pUbo->projection    = worldCamera.GetPerspectiveProjection();
+        
         vkUnmapMemory(logicalDevice, uniformBufferMemories[imageIndex]);
 
-/*
-        Note(Leo): This was in tutorial, and it works, keep here for future reference/backup
-
-        UniformBufferObject ubo = {};
-        ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-        ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-
-        // Todo(Leo): own projection functions for this. glm generates inverted y for opengl
-        ubo.projection = glm::perspective(glm::radians(45.0f), swapchainExtent.width / (float)swapchainExtent.height, 0.1f, 10.0f);
-        ubo.projection[1][1] *= -1;
-
-        void * data;
-        vkMapMemory(logicalDevice, uniformBufferMemories[imageIndex], 0, sizeof(ubo), 0, &data);
-        memcpy (data, &ubo, sizeof(ubo));
-        vkUnmapMemory(logicalDevice, uniformBufferMemories[imageIndex]);
-*/
+        // *characterModelProjection = glm::rotate(glm::mat4(1.0f), time * glm::radians(60.0f), glm::vec3(0.0f, 1.0f, 0.0f));
     }
 
     void
@@ -2319,6 +2319,8 @@ private:
         CreateDescriptorPool();
         CreateDescriptorSets();
         CreateCommandBuffers();
+
+        worldCamera.aspectRatio = (float)swapchainExtent.width / (float)swapchainExtent.height;
     }
 };
 

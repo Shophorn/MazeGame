@@ -50,6 +50,7 @@ struct Mesh
 	std::vector<Vertex> vertices;
 	std::vector<uint16> indices;
 	VkIndexType indexType;
+	uint32 indexSize;
 };
 
 Mesh generatedMap;
@@ -62,9 +63,10 @@ GenerateMap()
 {
 	Mesh result = {};
 	result.indexType = VK_INDEX_TYPE_UINT16;
+	result.indexSize = sizeof (uint16);
 
 	int tileCountPerDirection = 15;
-	float tileSize = 0.1f;
+	float tileSize = 1.0f;
 	float centeringValue = tileSize * tileCountPerDirection / 2.0f;
 	
 	int vertexCountPerDirection = tileCountPerDirection * 2;
@@ -113,6 +115,7 @@ LoadModel(const char * model_path)
 {
 	Mesh result = {};
 	result.indexType = VK_INDEX_TYPE_UINT16;
+	result.indexSize = sizeof(uint16);
 
 	tinyobj::attrib_t attrib;
 	std::vector<tinyobj::shape_t> shapes;
@@ -154,7 +157,6 @@ LoadModel(const char * model_path)
 // Note(Leo): these need to align properly
 struct UniformBufferObject
 {
-	alignas(16) glm::mat4 model;
 	alignas(16) glm::mat4 view;
 	alignas(16) glm::mat4 projection;
 };
