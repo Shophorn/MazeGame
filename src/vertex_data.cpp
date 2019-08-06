@@ -5,9 +5,9 @@
 
 struct Vertex
 {
-	glm::vec3 position;
-	glm::vec3 color;
-	glm::vec2 texCoord;
+	Vector3 position;
+	Vector3 color;
+	Vector2 texCoord;
 
 	static VkVertexInputBindingDescription
 	GetBindingDescription ()
@@ -90,7 +90,7 @@ GenerateMap()
 			result.vertices[vertexIndex + 3].position 	= { (x + 1) * tileSize - centeringValue, 0, (z + 1) * tileSize - centeringValue};
 
 			bool32 isBlack = ((z % 2) + x) % 2; 
-			glm::vec3 color = isBlack ? glm::vec3{0.25f, 0.25f, 0.25f} : glm::vec3{0.6f, 0.6f, 0.6f};
+			Vector3 color = isBlack ? Vector3{0.25f, 0.25f, 0.25f} : Vector3{0.6f, 0.6f, 0.6f};
 
 			result.vertices[vertexIndex].color = color;
 			result.vertices[vertexIndex + 1].color = color;

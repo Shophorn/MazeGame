@@ -1,6 +1,3 @@
-// Note(Leo): this is only here to manifest in sublime text autocomplete
-// VK_STRUCTURE_TYPE_
-
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
@@ -11,13 +8,7 @@
 #include <fstream>
 #include <array>
 #include <chrono>
-
-/* Note(Leo): glm default behaviour creates projection matrix ranging -1.0 to 1.0
-for opengl. Defining this we get 0.0 to 1.0 for vulkan. */ 
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE
-#define GLM_FORCE_RADIANS
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
+#include <type_traits>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
@@ -35,31 +26,14 @@ staging buffer and actual vertex buffer. https://vulkan-tutorial.com/en/Vertex_b
     http://asawicki.info/news_1698_vulkan_sparse_binding_-_a_quick_overview.html
 */
 
-#define class_member static
-#define local_persist static
-
-using int32 = int32_t;
-using uint8 = uint8_t;
-using uint16 = uint16_t;
-using uint32 = uint32_t;
-using uint64 = uint64_t;
-using bool32 = int32;
+#include "mazegame_platform.hpp"
+#include "mazegame_essentials.hpp"
 
 template <typename Number>
 static constexpr Number MinValue = std::numeric_limits<Number>::min();
 
 template <typename Number>
 static constexpr Number MaxValue = std::numeric_limits<Number>::max();
-
-template<typename Number>
-Number Clamp(Number value, Number min, Number max)
-{
-    if (value < min)
-        value = min;
-    if (value > max)
-        value = max;
-    return value;
-}
 
 using BinaryAsset = std::vector<uint8>;
 
@@ -68,11 +42,14 @@ constexpr char texture_path [] = "textures/chalet.jpg";
 #include "Array.hpp"
     
 // Note(Leo): make unity build
+#include "math.cpp"
+#include "vectors.cpp"
+#include "MatrixBase.cpp"
+
 #include "vulkan_debug_strings.cpp"
 #include "command_buffer.cpp"
 #include "vertex_data.cpp"
 #include "Camera.cpp"
-
 
 BinaryAsset
 ReadBinaryFile (const char * fileName)
@@ -86,7 +63,6 @@ ReadBinaryFile (const char * fileName)
 
     size_t fileSize = file.tellg();
     BinaryAsset result (fileSize);
-
 
     file.seekg(0);
     file.read(reinterpret_cast<char*>(result.data()), fileSize);
@@ -112,12 +88,10 @@ constexpr const char * deviceExtensions [] = {
 constexpr int deviceExtensionsCount = ARRAY_COUNT(deviceExtensions);
 
 #ifdef NDEBUG
-constexpr bool enableValidationLayers = false;
+constexpr bool32 enableValidationLayers = false;
 #else
-constexpr bool enableValidationLayers = true;
+constexpr bool32 enableValidationLayers = true;
 #endif
-
-
 
 /*
 LoopCounter provides repeating incrementing loop up to range
@@ -155,15 +129,15 @@ public:
 };
 
 template<int Range>
-using Loop32 = LoopCounter<uint32, Range>;
+using Int32Loop = LoopCounter<uint32, Range>;
 
 struct QueueFamilyIndices
 {
     uint32 graphics;
     uint32 present;
 
-    bool hasGraphics;
-    bool hasPresent;
+    bool32 hasGraphics;
+    bool32 hasPresent;
 
     uint32 getAt(int index)
     {
@@ -172,12 +146,11 @@ struct QueueFamilyIndices
         return -1;
     }
 
-    bool hasAll()
+    bool32 hasAll()
     {
         return hasGraphics && hasPresent;
     }
 };
-
 
 struct SwapchainSupportDetails
 {
@@ -235,7 +208,7 @@ ChooseSwapSurfaceFormat(std::vector<VkSurfaceFormatKHR>& availableFormats)
 VkPresentModeKHR
 ChooseSurfacePresentMode(std::vector<VkPresentModeKHR> & availablePresentModes)
 {
-    // Todo(Leo): Is it really
+    // Todo(Leo): Is it really preferred???
     constexpr VkPresentModeKHR preferredPresentMode = VK_PRESENT_MODE_MAILBOX_KHR;
 
     VkPresentModeKHR result = VK_PRESENT_MODE_FIFO_KHR;
@@ -260,7 +233,7 @@ FindQueueFamilies (VkPhysicalDevice device, VkSurfaceKHR surface)
 
     // std::cout << "queueFamilyCount: " << queueFamilyCount << "\n";
 
-    bool properQueueFamilyFound = false;
+    bool32 properQueueFamilyFound = false;
     // uint32 queueFamilyIndex = -1;
     for (int i = 0; i < queueFamilyCount; ++i)
     {
@@ -312,9 +285,25 @@ public:
     // Todo(Leo): Maybe unwind this
     void Run()
     {
-        InitWindow();
-        InitVulkan();
-        MainLoop();
+        InitializeWindow();
+        InitializeVulkan();
+        InitializeGame();
+
+        // ------- MAIN LOOP -------
+        while (glfwWindowShouldClose(window) == false)
+        {
+            glfwPollEvents();
+
+            GameInput input = {};
+
+            GameUpdateAndRender(&input);
+
+            DrawFrame();
+        }
+
+        // Note(Leo): All draw frame operations are asynchronous, must wait for them to finish
+        vkDeviceWaitIdle(logicalDevice);
+
         Cleanup();
     }
 
@@ -354,8 +343,8 @@ private:
     std::vector<VkSemaphore> imageAvailableSemaphores;
     std::vector<VkSemaphore> renderFinishedSemaphores;
     std::vector<VkFence> inFlightFences;
-    Loop32<max_frames_in_flight> currentFrameIndex = 0;
-    bool framebufferResized = false;
+    Int32Loop<max_frames_in_flight> currentFrameIndex = 0;
+    bool32 framebufferResized = false;
 
     // MAP BUFFER Note(Leo): map is big and can have own memory and buffer
     VkBuffer generatedMapBuffer;
@@ -378,10 +367,6 @@ private:
     VkBuffer modelUniformBuffer;
     VkDeviceMemory modelUniformBufferMemory;
     std::vector<uint32> modelUniformBufferOffsets;
-
-    // TODO(Leo): Do these and combine to same memory as scene buffer maybe
-    std::vector<VkBuffer> uniformModelBuffers;
-    std::vector<VkDeviceMemory> uniformModelBufferMemories;
 
     // IMAGE TEXTURE, Todo(Leo): these can be abstracted away, yay! :D
     uint32 textureMipLevels = 1;
@@ -416,7 +401,7 @@ private:
 
     constexpr static int32 MODEL_COUNT = 2;
 
-    void InitWindow()
+    void InitializeWindow()
     {
         glfwInit();
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
@@ -435,10 +420,10 @@ private:
     }
 
     void 
-    InitVulkan()
+    InitializeVulkan()
     {
         CreateInstance();
-        // Setup debug callbacks
+        // TODO(Leo): (if necessary) Setup debug callbacks, look vulkan-tutorial.com
         CreateSurface();
         PickPhysicalDevice();
         CreateLogicalDevice();
@@ -449,12 +434,19 @@ private:
         CreateDescriptorSetLayout();
         CreateGraphicsPipeline();
         CreateCommandPool();
-        CreateCamera();
 
         CreateColorResources();
         CreateDepthResources();
         CreateFrameBuffers();
+        CreateSyncObjects();
 
+        std::cout << "\nVulkan Initialized succesfully\n\n";
+    }
+
+    void
+    InitializeGame()
+    {
+        CreateCamera();
         CreateImageTexture();
         CreateTextureImageView();
         CreateTextureSampler();
@@ -474,23 +466,8 @@ private:
         CreateDescriptorSets();
 
         CreateCommandBuffers();
-        CreateSyncObjects();
-
-        std::cout << "\nVulkan Initialized succesfully\n";
     }
 
-    void
-    MainLoop()
-    {
-        while (glfwWindowShouldClose(window) == false)
-        {
-            glfwPollEvents();
-            DrawFrame();
-        }
-
-        // Note(Leo): All draw frame operations are asynchronous, must wait for them to finish
-        vkDeviceWaitIdle(logicalDevice);
-    }
 
     void
     CleanupSwapchain()
@@ -571,12 +548,12 @@ private:
     void
     CreateInstance()
     {
-        auto CheckValidationLayerSupport = [] () -> bool
+        auto CheckValidationLayerSupport = [] () -> bool32
         {
             VkLayerProperties availableLayers [50];
             uint32 availableLayersCount = ARRAY_COUNT(availableLayers);
 
-            bool result = true;
+            bool32 result = true;
             if (vkEnumerateInstanceLayerProperties (&availableLayersCount, availableLayers) == VK_SUCCESS)
             {
 
@@ -597,7 +574,7 @@ private:
                     validationLayerIndex < validationLayersCount;
                     ++validationLayerIndex)
                 {
-                    bool layerFound = false;
+                    bool32 layerFound = false;
                     for(
                         int availableLayerIndex = 0; 
                         availableLayerIndex < availableLayersCount; 
@@ -656,7 +633,6 @@ private:
             // Todo: Bad stuff happened, abort
         }
 
-
         // Todo(Leo): check if glfw extensions are found
         // VkExtensionProperties extensions [50];
         // uint32 extensionCount = ARRAY_COUNT(extensions);
@@ -690,7 +666,7 @@ private:
     void
     PickPhysicalDevice()
     {
-        auto CheckDeviceExtensionSupport = [] (VkPhysicalDevice testDevice) -> bool
+        auto CheckDeviceExtensionSupport = [] (VkPhysicalDevice testDevice) -> bool32
         {
             VkExtensionProperties availableExtensions [100];
             uint32 availableExtensionsCount = ARRAY_COUNT(availableExtensions);
@@ -702,13 +678,13 @@ private:
             //     std::cout << "\t" << availableExtensions[i].extensionName << "\n";
             // }
 
-            bool result = true;
+            bool32 result = true;
             for (int requiredIndex = 0;
                 requiredIndex < deviceExtensionsCount;
                 ++requiredIndex)
             {
 
-                bool requiredExtensionFound = false;
+                bool32 requiredExtensionFound = false;
                 for (int availableIndex = 0;
                     availableIndex < availableExtensionsCount;
                     ++availableIndex)
@@ -730,18 +706,18 @@ private:
             return result;
         };
 
-        auto IsPhysicalDeviceSuitable = [this, CheckDeviceExtensionSupport] (VkPhysicalDevice testDevice) -> bool
+        auto IsPhysicalDeviceSuitable = [this, CheckDeviceExtensionSupport] (VkPhysicalDevice testDevice) -> bool32
         {
             VkPhysicalDeviceProperties props;
             vkGetPhysicalDeviceProperties(testDevice, &props);
-            bool isDedicatedGPU = props.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU;
+            bool32 isDedicatedGPU = props.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU;
 
             VkPhysicalDeviceFeatures features;
             vkGetPhysicalDeviceFeatures(testDevice, &features);
 
-            bool extensionsAreSupported = CheckDeviceExtensionSupport(testDevice);
+            bool32 extensionsAreSupported = CheckDeviceExtensionSupport(testDevice);
 
-            bool swapchainIsOk = false;
+            bool32 swapchainIsOk = false;
             if (extensionsAreSupported)
             {
                 SwapchainSupportDetails swapchainSupport = QuerySwapChainSupport(testDevice, surface);
@@ -1295,6 +1271,7 @@ private:
         worldCamera = {};
 
         worldCamera.target = vector3_zero;
+        worldCamera.position = {0, 10, -10};
         worldCamera.distance = 10;
         worldCamera.rotation = 0;
 
@@ -1396,8 +1373,8 @@ private:
 
         for (int i = 0; i < memoryProperties.memoryTypeCount; ++i)
         {
-            bool filterMatch = (typeFilter & (1 << i)) != 0;
-            bool memoryTypeOk = (memoryProperties.memoryTypes[i].propertyFlags & properties) == properties;
+            bool32 filterMatch = (typeFilter & (1 << i)) != 0;
+            bool32 memoryTypeOk = (memoryProperties.memoryTypes[i].propertyFlags & properties) == properties;
             if (filterMatch && memoryTypeOk)
             {
                 return i;
@@ -2002,7 +1979,7 @@ private:
         vkGetPhysicalDeviceProperties(physicalDevice, &physicalDeviceProperties);
         VkDeviceSize minUniformBufferOffsetAlignment = physicalDeviceProperties.limits.minUniformBufferOffsetAlignment;
 
-        uint64 memorySizePerObject = AlignUpTo(minUniformBufferOffsetAlignment, sizeof(CameraProjectionsUniformBufferObject));
+        uint64 memorySizePerObject = AlignUpTo(minUniformBufferOffsetAlignment, sizeof(CameraUniformBufferObject));
         VkDeviceSize fullSceneUniformBufferSize = imageCount * memorySizePerObject;
 
         CreateBuffer(   logicalDevice, physicalDevice, fullSceneUniformBufferSize,
@@ -2010,7 +1987,7 @@ private:
                         VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
                         &sceneUniformBuffer, &sceneUniformBufferMemory);
 
-        uint64 memorySizePerModelMatrix = AlignUpTo(minUniformBufferOffsetAlignment, sizeof(glm::mat4));
+        uint64 memorySizePerModelMatrix = AlignUpTo(minUniformBufferOffsetAlignment, sizeof(Matrix44));
         VkDeviceSize fullModelUniformBufferSize = imageCount * memorySizePerModelMatrix * MODEL_COUNT;
 
 
@@ -2099,7 +2076,7 @@ private:
             VkDescriptorBufferInfo sceneBufferInfo = {};
             sceneBufferInfo.buffer = sceneUniformBuffer;
             sceneBufferInfo.offset = sceneUniformBufferOffsets[i];
-            sceneBufferInfo.range = sizeof(CameraProjectionsUniformBufferObject);
+            sceneBufferInfo.range = sizeof(CameraUniformBufferObject);
 
             descriptorWrites[DESC_scene_uniform_buffer_id].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
             descriptorWrites[DESC_scene_uniform_buffer_id].dstSet = descriptorSets[i];
@@ -2127,7 +2104,7 @@ private:
             VkDescriptorBufferInfo modelBufferInfo = {};
             modelBufferInfo.buffer = modelUniformBuffer;
             modelBufferInfo.offset = modelUniformBufferOffsets[i];
-            modelBufferInfo.range = sizeof(glm::mat4);
+            modelBufferInfo.range = sizeof(Matrix44);
 
             descriptorWrites[DESC_model_uniform_buffer_id].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
             descriptorWrites[DESC_model_uniform_buffer_id].dstSet = descriptorSets[i];
@@ -2195,7 +2172,6 @@ private:
             vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
 
             // Draw map           
-            // uint32 mapOffset = 0;
             vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout,
                                     0, 1, &descriptorSets[i], 1, &generatedMapUniformBufferOffset);
             VkDeviceSize offsets [] = {generatedMapBufferVertexOffset};
@@ -2205,7 +2181,6 @@ private:
             vkCmdDrawIndexed(commandBuffers[i], generatedMap.indices.size(), 1, 0, 0, 0);
             
             // Draw character
-            // uint32 characterOffset = 256;
             vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout,
                         0, 1, &descriptorSets[i], 1, &characterUniformBufferOffset);
             VkDeviceSize characterMeshOffsets [] = {characterBufferVertexOffset};
@@ -2264,35 +2239,36 @@ private:
 
         float dt = time - lastTime;
         lastTime = time;
+        worldCamera.position.x += dt;
         // worldCamera.target.x += dt;
         zPosition -= dt;
         // </mockup>
 
         // Todo(Leo): Single mapping is really enough, offsets can be used here too
-        glm::mat4 * pModelMatrix;
+        Matrix44 * pModelMatrix;
         vkMapMemory(logicalDevice, modelUniformBufferMemory,
                     modelUniformBufferOffsets[imageIndex],
                     sizeof(pModelMatrix), 0, (void**)&pModelMatrix);
 
-        *pModelMatrix = glm::translate(glm::mat4(1), glm::vec3(0, 0, zPosition));
+        *pModelMatrix = Matrix44::Diagonal(1);
 
         vkUnmapMemory(logicalDevice, modelUniformBufferMemory);
 
         vkMapMemory(logicalDevice, modelUniformBufferMemory,
                     modelUniformBufferOffsets[imageIndex] + characterUniformBufferOffset,
                     sizeof(pModelMatrix), 0, (void**)&pModelMatrix);
-        *pModelMatrix = glm::translate(glm::mat4(1), glm::vec3(0, 0, -zPosition));
+        *pModelMatrix = Matrix44::Translate(Vector3{0.0f, 0.0f, -zPosition});
+
         vkUnmapMemory(logicalDevice, modelUniformBufferMemory); 
 
         // Note (Leo): map vulkan memory directly to right type so we can easily avoid one (small) memcpy per frame
-        CameraProjectionsUniformBufferObject * pUbo;
+        CameraUniformBufferObject * pUbo;
         vkMapMemory(logicalDevice, sceneUniformBufferMemory,
                     sceneUniformBufferOffsets[imageIndex],
-                    sizeof(CameraProjectionsUniformBufferObject), 0, (void**)&pUbo);
+                    sizeof(CameraUniformBufferObject), 0, (void**)&pUbo);
 
-        pUbo->view          = worldCamera.GetViewProjection();
-        pUbo->perspective   = worldCamera.GetPerspectiveProjection();
-        
+        *pUbo = GetCameraUniforms(&worldCamera);
+
         vkUnmapMemory(logicalDevice, sceneUniformBufferMemory);
     }
 
@@ -2305,7 +2281,7 @@ private:
         VkResult result = vkAcquireNextImageKHR(
             logicalDevice,
             swapchain,
-            std::numeric_limits<uint64>::max(),
+            MaxValue<uint64>,
             imageAvailableSemaphores[currentFrameIndex],
             VK_NULL_HANDLE, // Note(Leo): here would be fence
             &imageIndex);
@@ -2407,11 +2383,15 @@ private:
     }
 };
 
+struct bool2
+{
+    bool a, b;
+};
+
 int main()
 {
-    MazegameApplication app;
-
     try {
+        MazegameApplication app = {};
         app.Run();
     } catch (const std::exception& e) {
         std::cerr << e.what() << std::endl;

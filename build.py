@@ -35,7 +35,7 @@ lib_names = [
 	"gdi32"
 ]
 
-sources = ['src/main.cpp']
+sources = ['src/win_mazegame.cpp src/mazegame.cpp']
 outputName = 'mazegame.exe'
 flags = ["-std=c++17"]
 
