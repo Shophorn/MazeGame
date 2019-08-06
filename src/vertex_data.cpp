@@ -65,7 +65,7 @@ GenerateMap()
 	result.indexType = VK_INDEX_TYPE_UINT16;
 	result.indexSize = sizeof (uint16);
 
-	int tileCountPerDirection = 5;
+	int tileCountPerDirection = 20;
 	float tileSize = 1.0f;
 	float centeringValue = tileSize * tileCountPerDirection / 2.0f;
 	
@@ -154,9 +154,3 @@ LoadModel(const char * model_path)
 	return result;
 }
 
-// Note(Leo): these need to align properly
-struct UniformBufferObject
-{
-	alignas(16) glm::mat4 view;
-	alignas(16) glm::mat4 projection;
-};

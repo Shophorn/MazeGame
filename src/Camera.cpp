@@ -1,6 +1,13 @@
 constexpr glm::vec3 vector3_world_up = {0.0f, 1.0f, 0.0f};
 constexpr glm::vec3 vector3_zero = {0, 0, 0};
 
+// Note(Leo): these need to align properly
+struct CameraProjectionsUniformBufferObject
+{
+	alignas(16) glm::mat4 view;
+	alignas(16) glm::mat4 perspective;
+};
+
 struct Camera
 {
 	glm::vec3 target;
@@ -28,3 +35,4 @@ struct Camera
 		return result;
 	}
 };
+
