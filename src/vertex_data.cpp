@@ -1,5 +1,3 @@
-#include "Array.hpp"
-	
 // Note (Leo): Only for tinyobj errors
 #include <string>
 

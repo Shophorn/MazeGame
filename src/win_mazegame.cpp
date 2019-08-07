@@ -6,7 +6,6 @@
 #include <functional>
 #include <vector>
 #include <fstream>
-#include <array>
 #include <chrono>
 #include <type_traits>
 
@@ -16,7 +15,7 @@
 #define TINYOBJLOADER_IMPLEMENTATION
 #include <tiny_obj_loader.h>
 
-// TODO(Leo): Make sure that arrays for getting extensions etc. counts are large enough
+// TODO(Leo): Make sure that arrays for getting extensions ana layers are large enough
 // TOdo(Leo): Combine to fewer functions and remove throws, instead returning specific enum value
 
 /* TODO(Leo) extra: Use separate queuefamily thing for transfering between vertex
@@ -39,12 +38,9 @@ using BinaryAsset = std::vector<uint8>;
 
 constexpr char texture_path [] = "textures/chalet.jpg";
 
-#include "Array.hpp"
     
 // Note(Leo): make unity build
-#include "math.cpp"
-#include "vectors.cpp"
-#include "MatrixBase.cpp"
+#include "Array.hpp"
 
 #include "vulkan_debug_strings.cpp"
 #include "command_buffer.cpp"
@@ -285,25 +281,28 @@ public:
     // Todo(Leo): Maybe unwind this
     void Run()
     {
+        // ---------- INITIALIZE PLATFORM ------------
         InitializeWindow();
         InitializeVulkan();
+
+        // --------- INITIALIZE GAME ---------------
         InitializeGame();
+        GameMemory gameMemory = {};
+        // Todo(Leo): Allocate lots of memory
 
         // ------- MAIN LOOP -------
         while (glfwWindowShouldClose(window) == false)
         {
+            GameInput input = {};
             glfwPollEvents();
 
-            GameInput input = {};
-
-            GameUpdateAndRender(&input);
-
+            GameUpdateAndRender(&input, &gameMemory);
             DrawFrame();
         }
 
+        // ------- FINISH
         // Note(Leo): All draw frame operations are asynchronous, must wait for them to finish
         vkDeviceWaitIdle(logicalDevice);
-
         Cleanup();
     }
 
@@ -2383,10 +2382,6 @@ private:
     }
 };
 
-struct bool2
-{
-    bool a, b;
-};
 
 int main()
 {

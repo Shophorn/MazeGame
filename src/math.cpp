@@ -83,7 +83,7 @@ Clamp(Number value, Number min, Number max)
     return value;
 }
 
-float
+inline float
 Tan(float value)
 {
     return tan(value);
