@@ -74,9 +74,16 @@ Diagonal(typename MatrixType::value_type value)
 	return result;
 }
 
-template <typename LeftMatrixType, typename RightMatrixType>
-auto operator * (LeftMatrixType lhs, RightMatrixType rhs)
-{
+// template <typename LeftMatrixType, typename RightMatrixType>
+// auto operator * (LeftMatrixType lhs, RightMatrixType rhs)
+template <typename ValueType, int LeftRows, int InnerSize, int RightColumns>
+auto operator * (
+	MatrixBase<ValueType, LeftRows, InnerSize> lhs,
+	MatrixBase<ValueType, InnerSize, RightColumns> rhs
+){
+	using LeftMatrixType = decltype(lhs);
+	using RightMatrixType = decltype (rhs);
+
 	static_assert(
 		std::is_same_v<typename LeftMatrixType::value_type, typename RightMatrixType::value_type>,
 		"Cannot multiply matrices of different value types");

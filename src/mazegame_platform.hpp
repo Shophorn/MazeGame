@@ -8,44 +8,57 @@
 
 struct GameInput
 {
-	real32 horizontal;
-	real32 vertical;
+	Vector2 move;
+	Vector2 look;
+
+	bool32 zoomIn;
+	bool32 zoomOut;
 
 	real32 timeDelta;
 };
 
 struct GameMemory
 {
-	/*
-	NOTICE:
-
-	Both persistentMemory and transientMemory must be initlalized
-	to all zeroes.
-	*/
+	/* NOTICE: Both persistentMemory and transientMemory must be initlalized
+	to all zeroes. */
 
 	void * persistentMemory;
-	int64 persistentMemorySize;
+	uint64 persistentMemorySize;
 
 	void * transientMemory;
-	int64 transientMemorySize;
+	uint64 transientMemorySize;
 
 	bool32 isInitialized;
 };
 
-void GameUpdateAndRender(GameInput * input, GameMemory * memory);
-
-/*
-Todo(Leo): Maybe like this, platform layer then fills these function pointers.
-struct PlatfromModelHandle
+// Note(Leo): these need to align properly
+struct CameraUniformBufferObject
 {
-	int handleValue;
+	alignas(16) Matrix44 view;
+	alignas(16) Matrix44 perspective;
 };
 
-PlatfromModelHandle
-PlatformLoadModelFunc(const char * path);
 
-inline decltype(PlatformLoadModelFunc) * PlatformLoadModel = nullptr;
-*/
+struct GameRenderInfo
+{
+	Matrix44 characterMatrix;
+
+	Matrix44 cameraView;
+	Matrix44 cameraPerspective;
+};
+
+struct GamePlatformInfo
+{
+	int32 screenWidth;
+	int32 screenHeight;
+};
+
+void GameUpdateAndRender(
+	GameInput * 		input,
+	GameMemory * 		memory,
+	GamePlatformInfo * 	platformInfo,
+
+	GameRenderInfo * 	outRenderInfo);
 
 #define MAZEGAME_PLATFORM_HPP
 #endif

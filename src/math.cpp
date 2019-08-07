@@ -1,6 +1,6 @@
 // TODO(Leo): Proper unit testing!!
 
-// Note(Leo): For now. Actually implement these ourself
+// Note(Leo): For now. Actually implement these ourself, for the kicks of course.
 #include <cmath>
 
 internal real32
@@ -83,8 +83,30 @@ Clamp(Number value, Number min, Number max)
     return value;
 }
 
-inline float
-Tan(float value)
+
+// Todo(Leo): Add namespace
+inline real32
+Sine (real32 value)
 {
-    return tan(value);
+    real32 result = sinf(value);
+    return result;
 }
+
+inline real32
+Cosine(real32 value)
+{
+    real32 result = cosf(value);
+    return result;
+}
+
+inline real32
+Tan(real32 value)
+{
+    real32 result = tanf(value);
+    return result;
+}
+
+internal constexpr real32 pi = 3.141592653589793f;
+
+internal constexpr real32 DegToRad = pi / 180.f;
+internal constexpr real32 RadToDeg = 180.0f / pi;

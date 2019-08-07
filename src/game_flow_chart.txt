@@ -1,0 +1,36 @@
+Game Flow Chart
+
+A. Menu
+	menu stuff
+	establish connection
+	start game
+
+B. Game
+1. Start
+	Loading scene while level is generated
+		Simple scene where both characters are on other sides of frosted glass.
+		They can move and when connection works can see other move but not clearly and never meet.
+		(refer to Assassins Creed III loading screens where Ratonhaketon can run around in random space)
+
+		Load character and input behaviour, and setup network.
+
+	Load full scene to memory / gpu.
+	Keep previous stuff loaded.
+
+2. Loop
+	Update input
+		Get input from platform and deliver it to game.
+
+	Update gamestate
+		duh
+
+	Render
+		Get updated positions for character and camera
+		(Do effects later)
+
+3. End
+
+c. Chatroom
+	chatroom
+	break connection
+	go to menu

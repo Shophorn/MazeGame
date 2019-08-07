@@ -397,6 +397,23 @@ Cross(VECTOR_TYPE lhs, VECTOR_TYPE rhs)
 	return result;
 }
 
+/*
+Todo(Leo): Are these correct???
+VECTOR_TEMPLATE VECTOR_TYPE
+Project(VECTOR_TYPE a, VECTOR_TYPE b)
+{
+	VECTOR_TYPE result = b * Dot(a, b) / Dot(b, b);
+	return result;
+}
+
+
+VECTOR_TEMPLATE VECTOR_TYPE
+Reject(VECTOR_TYPE a, VECTOR_TYPE b)
+{
+	VECTOR_TYPE result = a - Project(a, b);
+	return result;
+}*/
+
 // --------------- OTHER HANDY STUFF --------------------
 VECTOR_TEMPLATE ValueType
 Length (VECTOR_TYPE vec)

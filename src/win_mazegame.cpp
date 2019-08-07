@@ -1,3 +1,6 @@
+#include <Windows.h>
+#include <xinput.h>
+
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
@@ -45,7 +48,6 @@ constexpr char texture_path [] = "textures/chalet.jpg";
 #include "vulkan_debug_strings.cpp"
 #include "command_buffer.cpp"
 #include "vertex_data.cpp"
-#include "Camera.cpp"
 
 BinaryAsset
 ReadBinaryFile (const char * fileName)
@@ -68,8 +70,8 @@ ReadBinaryFile (const char * fileName)
 }
 
 constexpr int32 max_frames_in_flight = 2;
-constexpr int32 window_width = 800;
-constexpr int32 window_height = 600;
+constexpr int32 window_width = 960;
+constexpr int32 window_height = 540;
 
 #define ARRAY_COUNT(array) sizeof(array) / sizeof((array)[0])
 
@@ -274,6 +276,37 @@ CreateShaderModule(BinaryAsset code, VkDevice logicalDevice)
     return result;
 }
 
+#define X_INPUT_GET_STATE(name) DWORD WINAPI name(DWORD userIndex, XINPUT_STATE * outState)
+typedef X_INPUT_GET_STATE(x_input_get_state);
+X_INPUT_GET_STATE(XInputGetStateStub)
+{
+    return ERROR_DEVICE_NOT_CONNECTED;
+}
+static x_input_get_state * XInputGetState_ = XInputGetStateStub;
+#define XInputGetState XInputGetState_
+
+internal void
+LoadXInput()
+{
+    HMODULE xinputModule = LoadLibraryA("xinput1_3.dll");
+
+    if (xinputModule != nullptr)
+    {
+        XInputGetState_ = reinterpret_cast<x_input_get_state *> (GetProcAddress(xinputModule, "XInputGetState"));
+    }
+    else
+    {
+        XInputGetState_ = XInputGetStateStub;
+    }
+}
+
+internal real32
+ReadXInputJoystickValue(int16 value)
+{
+    real32 result = static_cast<real32>(value) / MaxValue<int16>;
+    return result;
+}
+
 class MazegameApplication
 {
 public:
@@ -284,20 +317,107 @@ public:
         // ---------- INITIALIZE PLATFORM ------------
         InitializeWindow();
         InitializeVulkan();
+            CreateDescriptorPool();
+
+        LoadXInput();
 
         // --------- INITIALIZE GAME ---------------
-        InitializeGame();
+        CreateImageTexture();
+        CreateTextureImageView();
+        CreateTextureSampler();
+
+        generatedMap = GenerateMap();
+        CreateMeshBufferAndMemory(
+            &generatedMapBuffer, &generatedMapBufferMemory, &generatedMapBufferIndexOffset,
+            &generatedMapBufferVertexOffset, &generatedMap);
+
+        characterModel = LoadModel("models/character.obj");
+        CreateMeshBufferAndMemory(
+            &characterBuffer, &characterBufferMemory, &characterBufferIndexOffset,
+            &characterBufferVertexOffset, &characterModel);
+
+        CreateUniformBuffers();
+        CreateDescriptorSets();
+
+        CreateCommandBuffers();
+
+        GameRenderInfo gameRenderInfo = {};
+
+        // ----- MEMORY ---------------------------
         GameMemory gameMemory = {};
-        // Todo(Leo): Allocate lots of memory
+        {
+            // Todo(Leo): Properly measure required amount
+            gameMemory.persistentMemorySize = Megabytes(64);
+            gameMemory.transientMemorySize = Gigabytes(2);
+            uint64 totalMemorySize = gameMemory.persistentMemorySize + gameMemory.transientMemorySize;
+       
+            // Todo(Leo): Check support for large pages
+            // Todo(Leo): specify base address
+
+            void * memoryBlock = VirtualAlloc(nullptr, totalMemorySize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+            
+            gameMemory.persistentMemory = memoryBlock;
+            gameMemory.transientMemory = (uint8 *)memoryBlock + gameMemory.persistentMemorySize;
+        }
+
+        // --------- TIMING ---------------------------
+        auto startTimeMark = std::chrono::high_resolution_clock::now();
+        real32 lastTime = 0;
+
 
         // ------- MAIN LOOP -------
         while (glfwWindowShouldClose(window) == false)
         {
             GameInput input = {};
+            
+            auto currentTimeMark = std::chrono::high_resolution_clock::now();
+            real32 time = std::chrono::duration<real32, std::chrono::seconds::period>(currentTimeMark - startTimeMark).count();
+            input.timeDelta = time - lastTime;
+            lastTime = time;
+
             glfwPollEvents();
 
-            GameUpdateAndRender(&input, &gameMemory);
-            DrawFrame();
+            // Get input
+            {
+                // Note(Leo): Only get input from first controller, locally this is single player game
+                XINPUT_STATE controllerState;
+                DWORD result = XInputGetState(0, &controllerState);
+
+                if (result == ERROR_SUCCESS)
+                {
+                    input.move =
+                    { 
+                        ReadXInputJoystickValue(controllerState.Gamepad.sThumbLX),
+                        ReadXInputJoystickValue(controllerState.Gamepad.sThumbLY)
+                    };
+                    input.look =
+                    {
+                        ReadXInputJoystickValue(controllerState.Gamepad.sThumbRX),
+                        ReadXInputJoystickValue(controllerState.Gamepad.sThumbRY)
+                    };
+
+                    uint16 pressedButtons = controllerState.Gamepad.wButtons;
+
+                    bool32 zoomIn = (pressedButtons & XINPUT_GAMEPAD_LEFT_SHOULDER) != 0;
+                    bool32 zoomOut = (pressedButtons & XINPUT_GAMEPAD_RIGHT_SHOULDER) != 0;
+
+                    input.zoomIn = zoomIn && !zoomOut;
+                    input.zoomOut = zoomOut && !zoomIn;
+                }
+                else 
+                {
+
+                }
+            }
+
+            // Note(Leo): Just recreate platformInfo each frame for now
+            GamePlatformInfo platformInfo = {};
+            platformInfo.screenWidth = swapchainExtent.width;
+            platformInfo.screenHeight = swapchainExtent.height;
+
+            GameUpdateAndRender(&input, &gameMemory, &platformInfo, &gameRenderInfo);
+            
+            DrawFrame(&gameRenderInfo);
         }
 
         // ------- FINISH
@@ -390,8 +510,6 @@ private:
     VkDeviceMemory colorImageMemory;
     VkImageView colorImageView;
 
-    Camera worldCamera;
-
     constexpr static int32
         DESC_scene_uniform_buffer_id = 0,
         DESC_model_uniform_buffer_id = 2,
@@ -441,32 +559,6 @@ private:
 
         std::cout << "\nVulkan Initialized succesfully\n\n";
     }
-
-    void
-    InitializeGame()
-    {
-        CreateCamera();
-        CreateImageTexture();
-        CreateTextureImageView();
-        CreateTextureSampler();
-
-        generatedMap = GenerateMap();
-        CreateMeshBufferAndMemory(
-            &generatedMapBuffer, &generatedMapBufferMemory, &generatedMapBufferIndexOffset,
-            &generatedMapBufferVertexOffset, &generatedMap);
-
-        characterModel = LoadModel("models/character.obj");
-        CreateMeshBufferAndMemory(
-            &characterBuffer, &characterBufferMemory, &characterBufferIndexOffset,
-            &characterBufferVertexOffset, &characterModel);
-
-        CreateUniformBuffers();
-        CreateDescriptorPool();
-        CreateDescriptorSets();
-
-        CreateCommandBuffers();
-    }
-
 
     void
     CleanupSwapchain()
@@ -1264,22 +1356,6 @@ private:
         std::cout << "Created command pool\n";
     }
 
-    void
-    CreateCamera()
-    {
-        worldCamera = {};
-
-        worldCamera.target = vector3_zero;
-        worldCamera.position = {0, 10, -10};
-        worldCamera.distance = 10;
-        worldCamera.rotation = 0;
-
-        worldCamera.fieldOfView = 45;
-        worldCamera.nearClipPlane = 0.1f;
-        worldCamera.farClipPlane = 100.0f;
-        worldCamera.aspectRatio = (float)swapchainExtent.width / (float)swapchainExtent.height;
-    }
-
     VkFormat
     FindSupportedFormat(
         int32 candidateCount,
@@ -2069,7 +2145,7 @@ private:
 
         for (int i = 0; i < swapchainImageCount; ++i)
         {
-            Array<VkWriteDescriptorSet, descriptor_set_count> descriptorWrites = {};
+            VkWriteDescriptorSet descriptorWrites [descriptor_set_count] = {};
 
             // SCENE UNIFORM BUFFER
             VkDescriptorBufferInfo sceneBufferInfo = {};
@@ -2114,7 +2190,83 @@ private:
             descriptorWrites[DESC_model_uniform_buffer_id].pBufferInfo = &modelBufferInfo;
 
             // Note(Leo): Two first are write info, two latter are copy info
-            vkUpdateDescriptorSets(logicalDevice, descriptorWrites.count(), &descriptorWrites[0], 0, nullptr);
+            vkUpdateDescriptorSets(logicalDevice, descriptor_set_count, &descriptorWrites[0], 0, nullptr);
+        }
+    }
+
+    struct RenderInfo
+    {
+        VkBuffer meshBuffer;
+
+        VkDeviceSize vertexOffset;
+        VkDeviceSize indexOffset;
+        
+        uint32 indexCount;
+        VkIndexType indexType;
+        
+        uint32 uniformBufferOffset;
+    };
+
+    // Todo (Leo): make free function
+    internal void
+    RecordFrameCommandBuffer (
+        VkCommandBuffer commandBuffer,
+        VkRenderPass renderPass,
+        VkExtent2D renderAreaSize,
+        VkFramebuffer framebuffer,
+        VkPipeline pipeline,
+        VkPipelineLayout pipelineLayout,
+        VkDescriptorSet descriptorSet,
+        std::vector<RenderInfo> & renderInfos
+    ){
+        VkCommandBufferBeginInfo beginInfo = {};
+        beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
+        beginInfo.pInheritanceInfo = nullptr;
+
+        if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS)
+        {
+            throw std::runtime_error("Failed to begin recording command buffer");
+        }
+
+        std::cout << "Started recording command buffers\n";
+
+        VkRenderPassBeginInfo renderPassInfo = {};
+        renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+        renderPassInfo.renderPass = renderPass;
+        renderPassInfo.framebuffer = framebuffer;
+        
+        renderPassInfo.renderArea.offset = {0, 0};
+        renderPassInfo.renderArea.extent = renderAreaSize;
+
+        // Todo(Leo): These should also use constexpr ids or unscoped enums
+        VkClearValue clearValues [2] = {};
+        clearValues[0].color = {0.0f, 0.0f, 0.0f, 1.0f};
+        clearValues[1].depthStencil = {1.0f, 0};
+
+        renderPassInfo.clearValueCount = 2;
+        renderPassInfo.pClearValues = &clearValues [0];
+
+        vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+
+        int32 infoCount = renderInfos.size();
+        for (int i = 0; i < infoCount; ++i)
+        {
+            vkCmdBindVertexBuffers(commandBuffer, 0, 1, &renderInfos[i].meshBuffer, &renderInfos[i].vertexOffset);
+            vkCmdBindIndexBuffer(commandBuffer, renderInfos[i].meshBuffer, renderInfos[i].indexOffset, renderInfos[i].indexType);
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1,
+                                    &descriptorSet, 1, &renderInfos[i].uniformBufferOffset);
+            vkCmdDrawIndexed(commandBuffer, renderInfos[i].indexCount, 1, 0, 0, 0);
+        }
+
+        // DONE
+
+        vkCmdEndRenderPass(commandBuffer);
+
+        if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS)
+        {
+            throw std::runtime_error("Failed to record command buffer");
         }
     }
 
@@ -2136,15 +2288,35 @@ private:
 
         std::cout << "Allocated command buffers\n";
 
-        for (int i = 0; i < commandBuffers.size(); ++i)
-        {
-            VkCommandBufferBeginInfo beginInfo = {};
 
+        int32 infoCount = 2;
+        std::vector<RenderInfo> infos (infoCount);
+
+        infos[0].meshBuffer             = generatedMapBuffer;
+        infos[0].vertexOffset           = generatedMapBufferVertexOffset;
+        infos[0].indexOffset            = generatedMapBufferIndexOffset;
+        infos[0].indexCount             = generatedMap.indices.size();
+        infos[0].indexType              = generatedMap.indexType;
+        infos[0].uniformBufferOffset    = generatedMapUniformBufferOffset;
+
+        infos[1].meshBuffer             = characterBuffer;
+        infos[1].vertexOffset           = characterBufferVertexOffset;
+        infos[1].indexOffset            = characterBufferIndexOffset;
+        infos[1].indexCount             = characterModel.indices.size();
+        infos[1].indexType              = characterModel.indexType;
+        infos[1].uniformBufferOffset    = characterUniformBufferOffset;
+
+
+        for (int frameIndex = 0; frameIndex < commandBuffers.size(); ++frameIndex)
+        {
+            VkCommandBuffer commandBuffer = commandBuffers[frameIndex];
+
+            VkCommandBufferBeginInfo beginInfo = {};
             beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
             beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
             beginInfo.pInheritanceInfo = nullptr;
 
-            if (vkBeginCommandBuffer(commandBuffers[i], &beginInfo) != VK_SUCCESS)
+            if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS)
             {
                 throw std::runtime_error("Failed to begin recording command buffer");
             }
@@ -2154,7 +2326,7 @@ private:
             VkRenderPassBeginInfo renderPassInfo = {};
             renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
             renderPassInfo.renderPass = renderPass;
-            renderPassInfo.framebuffer = swapchainFramebuffers[i];
+            renderPassInfo.framebuffer = swapchainFramebuffers[frameIndex];
             
             renderPassInfo.renderArea.offset = {0, 0};
             renderPassInfo.renderArea.extent = swapchainExtent;
@@ -2167,30 +2339,23 @@ private:
             renderPassInfo.clearValueCount = 2;
             renderPassInfo.pClearValues = &clearValues [0];
 
-            vkCmdBeginRenderPass(commandBuffers[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
-            vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
+            vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
 
-            // Draw map           
-            vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout,
-                                    0, 1, &descriptorSets[i], 1, &generatedMapUniformBufferOffset);
-            VkDeviceSize offsets [] = {generatedMapBufferVertexOffset};
-            vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, &generatedMapBuffer, offsets);
-            vkCmdBindIndexBuffer(commandBuffers[i], generatedMapBuffer, 0, generatedMap.indexType);
+            for (int i = 0; i < infoCount; ++i)
+            {
+                vkCmdBindVertexBuffers(commandBuffer, 0, 1, &infos[i].meshBuffer, &infos[i].vertexOffset);
+                vkCmdBindIndexBuffer(commandBuffer, infos[i].meshBuffer, infos[i].indexOffset, infos[i].indexType);
+                vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1,
+                                        &descriptorSets[frameIndex], 1, &infos[i].uniformBufferOffset);
+                vkCmdDrawIndexed(commandBuffer, infos[i].indexCount, 1, 0, 0, 0);
+            }
 
-            vkCmdDrawIndexed(commandBuffers[i], generatedMap.indices.size(), 1, 0, 0, 0);
-            
-            // Draw character
-            vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout,
-                        0, 1, &descriptorSets[i], 1, &characterUniformBufferOffset);
-            VkDeviceSize characterMeshOffsets [] = {characterBufferVertexOffset};
-            vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, &characterBuffer, characterMeshOffsets);
-            vkCmdBindIndexBuffer(commandBuffers[i], characterBuffer, 0, characterModel.indexType);
+            // DONE
 
-            vkCmdDrawIndexed(commandBuffers[i], characterModel.indices.size(), 1, 0, 0, 0);
+            vkCmdEndRenderPass(commandBuffer);
 
-            vkCmdEndRenderPass(commandBuffers[i]);
-
-            if (vkEndCommandBuffer(commandBuffers[i]) != VK_SUCCESS)
+            if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS)
             {
                 throw std::runtime_error("Failed to record command buffer");
             }
@@ -2226,38 +2391,26 @@ private:
     }
 
     void
-    UpdateUniformBuffer(uint32 imageIndex)
+    UpdateUniformBuffer(uint32 imageIndex, GameRenderInfo * renderInfo)
     {
         // Note(Leo): mockup update logic to see uniformbuffers updating
-        local_persist auto startTimeMark = std::chrono::high_resolution_clock::now();
-        local_persist float lastTime = 0;
-        local_persist float zPosition = 0;
-
-        auto currentTimeMark = std::chrono::high_resolution_clock::now();
-        float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTimeMark - startTimeMark).count();
-
-        float dt = time - lastTime;
-        lastTime = time;
-        worldCamera.position.x += dt;
-        // worldCamera.target.x += dt;
-        zPosition -= dt;
-        // </mockup>
 
         // Todo(Leo): Single mapping is really enough, offsets can be used here too
         Matrix44 * pModelMatrix;
+
+        // MAP
         vkMapMemory(logicalDevice, modelUniformBufferMemory,
                     modelUniformBufferOffsets[imageIndex],
                     sizeof(pModelMatrix), 0, (void**)&pModelMatrix);
 
         *pModelMatrix = Matrix44::Diagonal(1);
-
         vkUnmapMemory(logicalDevice, modelUniformBufferMemory);
 
+        // CHARACTER
         vkMapMemory(logicalDevice, modelUniformBufferMemory,
                     modelUniformBufferOffsets[imageIndex] + characterUniformBufferOffset,
                     sizeof(pModelMatrix), 0, (void**)&pModelMatrix);
-        *pModelMatrix = Matrix44::Translate(Vector3{0.0f, 0.0f, -zPosition});
-
+        *pModelMatrix = renderInfo->characterMatrix;
         vkUnmapMemory(logicalDevice, modelUniformBufferMemory); 
 
         // Note (Leo): map vulkan memory directly to right type so we can easily avoid one (small) memcpy per frame
@@ -2266,13 +2419,14 @@ private:
                     sceneUniformBufferOffsets[imageIndex],
                     sizeof(CameraUniformBufferObject), 0, (void**)&pUbo);
 
-        *pUbo = GetCameraUniforms(&worldCamera);
+        pUbo->view          = renderInfo->cameraView;
+        pUbo->perspective   = renderInfo->cameraPerspective;
 
         vkUnmapMemory(logicalDevice, sceneUniformBufferMemory);
     }
 
     void
-    DrawFrame()
+    DrawFrame(GameRenderInfo * gameRenderInfo)
     {
         vkWaitForFences(logicalDevice, 1, &inFlightFences[currentFrameIndex], VK_TRUE, std::numeric_limits<uint64>::max());
 
@@ -2296,7 +2450,7 @@ private:
             throw std::runtime_error("Failed to acquire swap chain image");
         }
 
-        UpdateUniformBuffer(imageIndex);
+        UpdateUniformBuffer(imageIndex, gameRenderInfo);
 
         VkSubmitInfo submitInfo[1] = {};
         submitInfo[0].sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -2361,7 +2515,6 @@ private:
             glfwWaitEvents();
         }
 
-
         vkDeviceWaitIdle(logicalDevice);
 
         CleanupSwapchain();
@@ -2378,7 +2531,7 @@ private:
         CreateDescriptorSets();
         CreateCommandBuffers();
 
-        worldCamera.aspectRatio = (float)swapchainExtent.width / (float)swapchainExtent.height;
+
     }
 };
 
