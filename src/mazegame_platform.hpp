@@ -41,7 +41,7 @@ struct Mesh
 
 
 using MeshHandle = uint64;
-// using LoadMeshFunc = MeshHandle(void * platform, Mesh * mesh);
+using PushMeshFunc = MeshHandle(void * platformContext, Mesh * mesh);
 
 struct GameMemory
 {
@@ -55,6 +55,15 @@ struct GameMemory
 
 	void * transientMemory;
 	uint64 transientMemorySize;
+
+	void * platformContext;
+	PushMeshFunc * PushMeshImpl;
+
+	MeshHandle PushMesh(Mesh * mesh)
+	{
+		MeshHandle result = PushMeshImpl(platformContext, mesh);
+		return result;
+	}
 };
 
 struct GameRenderInfo

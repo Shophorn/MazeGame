@@ -1,3 +1,5 @@
+#if !defined VERTEX_DATA_CPP
+
 // Note (Leo): Only for tinyobj errors
 #include <string>
 
@@ -7,7 +9,7 @@
 
 /* Todo(Leo): Add target pointer to memory as optional argument, so we can load 
 this directly where it is used */
-Mesh
+inline Mesh
 GenerateMap()
 {
 	Mesh result = {};
@@ -65,7 +67,7 @@ GenerateMap()
 
 }
 
-Mesh
+inline Mesh
 LoadModel(const char * modelPath)
 {
 	/*
@@ -121,3 +123,5 @@ LoadModel(const char * modelPath)
 	return result;
 }
 
+#define VERTEX_DATA_CPP
+#endif

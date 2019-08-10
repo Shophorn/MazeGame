@@ -2,6 +2,7 @@
 
 #include "mazegame_platform.hpp"
 #include "Camera.cpp"
+#include "vertex_data.cpp"
 
 struct GameState
 {
@@ -15,6 +16,8 @@ struct GameState
 
 	MeshHandle levelMeshHandle;
 	MeshHandle characterMeshHandle;
+	MeshHandle sceneryMeshHandles [2];
+
 };
 
 void
@@ -34,8 +37,21 @@ InitializeGameState(GameState * state, GameMemory * memory, GamePlatformInfo * p
     state->worldCamera.farClipPlane = 1000.0f;
     state->worldCamera.aspectRatio = (real32)platform->screenWidth / (real32)platform->screenHeight;	
 
-    state->levelMeshHandle = 0; //memory->LoadMesh(nullptr);
-    state->characterMeshHandle = 1; //memory->LoadMesh(nullptr);
+
+    Mesh levelMesh = GenerateMap();
+    Mesh characterMesh = LoadModel("models/character.obj");
+    
+    state->levelMeshHandle = memory->PushMesh(&levelMesh);
+    state->characterMeshHandle = memory->PushMesh(&characterMesh);
+    
+    Mesh sceneryMeshes [] = 
+    {
+    	LoadModel("models/tree.obj"),
+    	LoadModel("models/pillar.obj")
+    };
+
+    state->sceneryMeshHandles[0] = memory->PushMesh(&sceneryMeshes[0]);
+    state->sceneryMeshHandles[1] = memory->PushMesh(&sceneryMeshes[1]);
 }
 
 void
@@ -117,8 +133,9 @@ GameUpdateAndRender(
 	{
 		outRenderInfo->modelMatrixArray[state->levelMeshHandle] = Matrix44::Identity();
 		outRenderInfo->modelMatrixArray[state->characterMeshHandle] = Matrix44::Translate(state->characterPosition);
-		outRenderInfo->modelMatrixArray[2] = Matrix44::Identity();
-		outRenderInfo->modelMatrixArray[3] = Matrix44::Translate({5, 0, 0});
+
+		outRenderInfo->modelMatrixArray[state->sceneryMeshHandles[0]] = Matrix44::Identity();
+		outRenderInfo->modelMatrixArray[state->sceneryMeshHandles[1]] = Matrix44::Translate({5, 0, 0});
 
 	    outRenderInfo->cameraView = state->worldCamera.ViewProjection();
 	    outRenderInfo->cameraPerspective = state->worldCamera.PerspectiveProjection();
