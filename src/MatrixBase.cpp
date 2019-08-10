@@ -1,7 +1,7 @@
 /*=============================================================================
 Leo Tamminen
 
-Matrix structure declarations and definitions.
+Matrix structure declaration and definition.
 Matrices are column major.
 =============================================================================*/
 #define MATRIX_TEMPLATE template <typename ValueType, int RowsCount, int ColumnsCount>
@@ -22,6 +22,8 @@ union MatrixBase
 	using row_vector_type = VectorBase<ValueType, ColumnsCount>;
 	using column_vector_type = VectorBase<ValueType, RowsCount>;
 
+	// -------- CONTENTS -------------------
+	// Todo(Leo): Is this better than columns only?
 	ValueType values[columns_count * rows_count];
 	column_vector_type columns[ColumnsCount];
 
@@ -40,7 +42,16 @@ union MatrixBase
 		}
 		return result;
 	}
-	
+
+	class_member MATRIX_TYPE
+	Identity()
+	{
+		ASSERT_SQUARE_MATRIX;
+
+		MATRIX_TYPE result = Diagonal(1);
+		return result;
+	}
+
 	class_member MATRIX_TYPE
 	Translate(VectorBase<ValueType, 3> translation)
 	{
@@ -74,8 +85,6 @@ Diagonal(typename MatrixType::value_type value)
 	return result;
 }
 
-// template <typename LeftMatrixType, typename RightMatrixType>
-// auto operator * (LeftMatrixType lhs, RightMatrixType rhs)
 template <typename ValueType, int LeftRows, int InnerSize, int RightColumns>
 auto operator * (
 	MatrixBase<ValueType, LeftRows, InnerSize> lhs,

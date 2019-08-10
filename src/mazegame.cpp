@@ -9,10 +9,34 @@ struct GameState
 
 	real32 cameraOrbitDegrees;
 	real32 cameraTumbleDegrees;
-	real32 cameraDistance = 10.0f;
+	real32 cameraDistance = 20.0f;
 
 	Camera worldCamera;
+
+	MeshHandle levelMeshHandle;
+	MeshHandle characterMeshHandle;
 };
+
+void
+InitializeGameState(GameState * state, GameMemory * memory, GamePlatformInfo * platform)
+{
+	*state = {};
+
+	state->characterPosition = {0, 0, 0};
+
+    state->worldCamera = {};
+
+    state->worldCamera.position = {0, 10, -10};
+    state->worldCamera.LookAt(vector3_zero);
+
+    state->worldCamera.fieldOfView = 60;
+    state->worldCamera.nearClipPlane = 0.1f;
+    state->worldCamera.farClipPlane = 1000.0f;
+    state->worldCamera.aspectRatio = (real32)platform->screenWidth / (real32)platform->screenHeight;	
+
+    state->levelMeshHandle = 0; //memory->LoadMesh(nullptr);
+    state->characterMeshHandle = 1; //memory->LoadMesh(nullptr);
+}
 
 void
 GameUpdateAndRender(
@@ -26,20 +50,8 @@ GameUpdateAndRender(
 
 	if (memory->isInitialized == false)
 	{
-		*state = {};
-
+		InitializeGameState (state, memory, platform);
 		memory->isInitialized = true;
-		state->characterPosition = {0, 0, 0};
-
-        state->worldCamera = {};
-
-        state->worldCamera.position = {0, 10, -10};
-        state->worldCamera.LookAt(vector3_zero);
-
-        state->worldCamera.fieldOfView = 45;
-        state->worldCamera.nearClipPlane = 0.1f;
-        state->worldCamera.farClipPlane = 1000.0f;
-        state->worldCamera.aspectRatio = (real32)platform->screenWidth / (real32)platform->screenHeight;
 	}
 
 	// Update Character
@@ -61,10 +73,9 @@ GameUpdateAndRender(
 	    state->worldCamera.aspectRatio = (real32)platform->screenWidth / (real32)platform->screenHeight;
 
 		real32 cameraRotateSpeed = 90;
-		real32 cameraTumbleMin = 5;
-		real32 cameraTumbleMax = 80;
+		real32 cameraTumbleMin = -10;
+		real32 cameraTumbleMax = 85;
 
-		// real32 zoomSpeed = 5;
 		real32 relativeZoomSpeed = 0.1f;
 		real32 zoomSpeed = state->cameraDistance;
 		real32 minDistance = 5;
@@ -104,8 +115,11 @@ GameUpdateAndRender(
 
 	// Output Render info
 	{
-	    outRenderInfo->characterMatrix = Matrix44::Translate(state->characterPosition);
-	    
+		outRenderInfo->modelMatrixArray[state->levelMeshHandle] = Matrix44::Identity();
+		outRenderInfo->modelMatrixArray[state->characterMeshHandle] = Matrix44::Translate(state->characterPosition);
+		outRenderInfo->modelMatrixArray[2] = Matrix44::Identity();
+		outRenderInfo->modelMatrixArray[3] = Matrix44::Translate({5, 0, 0});
+
 	    outRenderInfo->cameraView = state->worldCamera.ViewProjection();
 	    outRenderInfo->cameraPerspective = state->worldCamera.PerspectiveProjection();
 	}

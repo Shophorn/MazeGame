@@ -1,5 +1,22 @@
 Game Flow Chart
 
+
+Load Platform
+	Vulkan
+	XInput
+	<audio>
+	Memory
+
+	Load Game
+		Menu 								| 1. loaded scene  	
+			*press new game*				|
+		Wait-for-connection Gameview		| 		use previous loaded scene
+		Wait-for-map-generate Gameview		| 2. loaded scene
+			*interpolate*					| 		unload 2nd after interpolating
+		Actual Gameview						| 3. loaded scene
+
+
+
 A. Menu
 	menu stuff
 	establish connection

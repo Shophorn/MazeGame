@@ -1,64 +1,9 @@
 // Note (Leo): Only for tinyobj errors
 #include <string>
 
-struct Vertex
-{
-	Vector3 position;
-	Vector3 normal;
-	Vector3 color;
-	Vector2 texCoord;
+#define TINYOBJLOADER_IMPLEMENTATION
+#include <tiny_obj_loader.h>
 
-	static VkVertexInputBindingDescription
-	GetBindingDescription ()
-	{
-		VkVertexInputBindingDescription value = {};
-
-		value.binding = 0;
-		value.stride = sizeof(Vertex);
-		value.inputRate = VK_VERTEX_INPUT_RATE_VERTEX; // Note(Leo): Other option here has to do with instancing
-
-		return value;
-	}
-
-	static Array<VkVertexInputAttributeDescription, 4>
-	GetAttributeDescriptions()
-	{
-		Array<VkVertexInputAttributeDescription, 4> value = {};
-
-		value[0].binding = 0;
-		value[0].location = 0;
-		value[0].format = VK_FORMAT_R32G32B32_SFLOAT;
-		value[0].offset = offsetof(Vertex, position);
-
-		value[1].binding = 0;
-		value[1].location = 1;
-		value[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-		value[1].offset = offsetof(Vertex, normal);
-
-		value[2].binding = 0;
-		value[2].location = 2;
-		value[2].format = VK_FORMAT_R32G32B32_SFLOAT;
-		value[2].offset = offsetof(Vertex, color);	
-
-		value[3].binding = 0;
-		value[3].location = 3;
-		value[3].format = VK_FORMAT_R32G32_SFLOAT;
-		value[3].offset = offsetof(Vertex, texCoord);
-
-		return value;
-	}	
-};
-
-struct Mesh
-{
-	std::vector<Vertex> vertices;
-	std::vector<uint16> indices;
-	VkIndexType indexType;
-	uint32 indexSize;
-};
-
-Mesh generatedMap;
-Mesh characterModel;
 
 /* Todo(Leo): Add target pointer to memory as optional argument, so we can load 
 this directly where it is used */
@@ -66,10 +11,10 @@ Mesh
 GenerateMap()
 {
 	Mesh result = {};
-	result.indexType = VK_INDEX_TYPE_UINT16;
+	result.indexType = IndexType::UInt16;
 	result.indexSize = sizeof (uint16);
 
-	int tileCountPerDirection = 20;
+	int tileCountPerDirection = 128;
 	float tileSize = 1.0f;
 	float centeringValue = tileSize * tileCountPerDirection / 2.0f;
 	
@@ -121,10 +66,16 @@ GenerateMap()
 }
 
 Mesh
-LoadModel(const char * model_path)
+LoadModel(const char * modelPath)
 {
+	/*
+	TODO(Leo): There is now no checking if attributes exist.
+	This means all below attributes must exist in file.
+	Of course in final game we know beforehand what there is.
+	*/
+
 	Mesh result = {};
-	result.indexType = VK_INDEX_TYPE_UINT16;
+	result.indexType = IndexType::UInt16;
 	result.indexSize = sizeof(uint16);
 
 	tinyobj::attrib_t attrib;
@@ -132,7 +83,7 @@ LoadModel(const char * model_path)
 	std::vector<tinyobj::material_t> materials;
 	std::string warning, error;
 
-	if (tinyobj::LoadObj(&attrib, &shapes, &materials, &warning, &error, model_path) == false)
+	if (tinyobj::LoadObj(&attrib, &shapes, &materials, &warning, &error, modelPath) == false)
 	{
 		throw std::runtime_error(warning + error);
 	}

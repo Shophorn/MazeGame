@@ -15,8 +15,6 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
-#define TINYOBJLOADER_IMPLEMENTATION
-#include <tiny_obj_loader.h>
 
 // TODO(Leo): Make sure that arrays for getting extensions ana layers are large enough
 // TOdo(Leo): Combine to fewer functions and remove throws, instead returning specific enum value
@@ -43,11 +41,11 @@ constexpr char texture_path [] = "textures/chalet.jpg";
 
     
 // Note(Leo): make unity build
-#include "Array.hpp"
+#include "win_Vulkan.cpp"
 
+#include "vertex_data.cpp"
 #include "vulkan_debug_strings.cpp"
 #include "command_buffer.cpp"
-#include "vertex_data.cpp"
 
 BinaryAsset
 ReadBinaryFile (const char * fileName)
@@ -90,44 +88,6 @@ constexpr bool32 enableValidationLayers = false;
 #else
 constexpr bool32 enableValidationLayers = true;
 #endif
-
-/*
-LoopCounter provides repeating incrementing loop up to range
-*/
-template<typename Number, int Range>
-class LoopCounter
-{
-    Number value;
-
-public:
-    using type = Number;
-    constexpr class_member int range = Range;
-
-    LoopCounter () : value (static_cast<type>(0)) {}  
-    LoopCounter (type value) : value (value % range) {}
-
-    operator type() { return value; }
-
-    // pre increment
-    type operator ++ ()
-    {
-        value += 1;
-        value %= range;
-        return value;        
-    }
-
-    // post increment
-    type operator ++ (int)
-    {
-        type result = value;
-        value += 1;
-        value %= range;
-        return result;
-    }
-};
-
-template<int Range>
-using Int32Loop = LoopCounter<uint32, Range>;
 
 struct QueueFamilyIndices
 {
@@ -276,13 +236,16 @@ CreateShaderModule(BinaryAsset code, VkDevice logicalDevice)
     return result;
 }
 
-#define X_INPUT_GET_STATE(name) DWORD WINAPI name(DWORD userIndex, XINPUT_STATE * outState)
-typedef X_INPUT_GET_STATE(x_input_get_state);
-X_INPUT_GET_STATE(XInputGetStateStub)
+// XInput things.
+using XInputGetStateFunc = decltype(XInputGetState);
+internal XInputGetStateFunc * XInputGetState_;
+DWORD WINAPI XInputGetStateStub (DWORD, XINPUT_STATE *)
 {
     return ERROR_DEVICE_NOT_CONNECTED;
 }
-static x_input_get_state * XInputGetState_ = XInputGetStateStub;
+
+/*Todo(Leo): see if we should get rid of #define below by creating
+a proper named struct/namespace to hold this pointer */
 #define XInputGetState XInputGetState_
 
 internal void
@@ -292,7 +255,7 @@ LoadXInput()
 
     if (xinputModule != nullptr)
     {
-        XInputGetState_ = reinterpret_cast<x_input_get_state *> (GetProcAddress(xinputModule, "XInputGetState"));
+        XInputGetState_ = reinterpret_cast<XInputGetStateFunc *> (GetProcAddress(xinputModule, "XInputGetState"));
     }
     else
     {
@@ -307,63 +270,149 @@ ReadXInputJoystickValue(int16 value)
     return result;
 }
 
+
+// Get input
+internal void
+UpdateControllerInput(GameInput * input)
+{
+    // Note(Leo): Only get input from first controller, locally this is a single player game
+    XINPUT_STATE controllerState;
+    DWORD result = XInputGetState(0, &controllerState);
+
+    if (result == ERROR_SUCCESS)
+    {
+        input->move =
+        { 
+            ReadXInputJoystickValue(controllerState.Gamepad.sThumbLX),
+            ReadXInputJoystickValue(controllerState.Gamepad.sThumbLY)
+        };
+        input->look =
+        {
+            ReadXInputJoystickValue(controllerState.Gamepad.sThumbRX),
+            ReadXInputJoystickValue(controllerState.Gamepad.sThumbRY)
+        };
+
+        uint16 pressedButtons = controllerState.Gamepad.wButtons;
+
+        bool32 zoomIn = (pressedButtons & XINPUT_GAMEPAD_LEFT_SHOULDER) != 0;
+        bool32 zoomOut = (pressedButtons & XINPUT_GAMEPAD_RIGHT_SHOULDER) != 0;
+
+        input->zoomIn = zoomIn && !zoomOut;
+        input->zoomOut = zoomOut && !zoomIn;
+    }
+    else 
+    {
+
+    }
+}
+
 class MazegameApplication
 {
 public:
     
-    // Todo(Leo): Maybe unwind this
     void Run()
     {
         // ---------- INITIALIZE PLATFORM ------------
         InitializeWindow();
-        InitializeVulkan();
+        VulkanInitialize();
             CreateDescriptorPool();
 
         LoadXInput();
+
+        // ----- MEMORY ---------------------------
+        GameMemory gameMemory = {};
+        {
+            // TODO [MEMORY] (Leo): Properly measure required amount
+            gameMemory.persistentMemorySize = Megabytes(64);
+            gameMemory.transientMemorySize = Gigabytes(2);
+            uint64 totalMemorySize = gameMemory.persistentMemorySize + gameMemory.transientMemorySize;
+       
+
+            // TODO [MEMORY] (Leo): Check support for large pages
+            // TODO [MEMORY] (Leo): specify base address for development builds
+            void * memoryBlock = VirtualAlloc(nullptr, totalMemorySize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+            
+            gameMemory.persistentMemory = memoryBlock;
+            gameMemory.transientMemory = (uint8 *)memoryBlock + gameMemory.persistentMemorySize;
+
+        
+       }
+
+       // ---------- GPU MEMORY ----------------------
+       {
+            // TODO [MEMORY] (Leo): Properly measure required amount
+            uint64 staticMeshPoolSize = Gigabytes(1);
+            uint64 modelUniformBufferSize = Megabytes(100);
+            uint64 sceneUniformBufferSize = Megabytes(100);
+
+            // Static mesh pool
+            Vulkan::CreateBufferResource(   logicalDevice, physicalDevice, staticMeshPoolSize,
+                                            VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+                                            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                                            &staticMeshPool);
+
+            // Uniform buffer for model matrices
+            Vulkan::CreateBufferResource(   logicalDevice, physicalDevice, modelUniformBufferSize,
+                                            VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                                            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                                            &modelUniformBuffer);
+
+            // Uniform buffer for scene data
+            Vulkan::CreateBufferResource(   logicalDevice, physicalDevice, sceneUniformBufferSize,
+                                            VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                                            VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
+                                            &sceneUniformBuffer);
+       }
 
         // --------- INITIALIZE GAME ---------------
         CreateImageTexture();
         CreateTextureImageView();
         CreateTextureSampler();
 
-        generatedMap = GenerateMap();
-        CreateMeshBufferAndMemory(
-            &generatedMapBuffer, &generatedMapBufferMemory, &generatedMapBufferIndexOffset,
-            &generatedMapBufferVertexOffset, &generatedMap);
+        constexpr uint32 kMaxModelCount = 100;
 
-        characterModel = LoadModel("models/character.obj");
-        CreateMeshBufferAndMemory(
-            &characterBuffer, &characterBufferMemory, &characterBufferIndexOffset,
-            &characterBufferVertexOffset, &characterModel);
+        // Create Models
+        {
+            /*
+            Todo(Leo): call these from game code and return handle for those.
+            We can then arbitrarily create, reuse and destroy meshes.
+            Also separate mesh and instances conceptually.
+            */
+            loadedModels = {};
 
-        CreateUniformBuffers();
+#if 0
+            Mesh generatedMapMesh   = GenerateMap();
+            Mesh characterMesh      = LoadModel("models/character.obj");
+            Mesh pillarMesh         = LoadModel("models/pillar.obj");
+            Mesh treeMesh           = LoadModel("models/tree.obj");
+
+            MeshHandle handles [kMaxModelCount];
+            handles[0] = PushMeshToBuffer(&staticMeshPool, &loadedModels, &generatedMapMesh);
+            handles[1] = PushMeshToBuffer(&staticMeshPool, &loadedModels, &characterMesh);
+            handles[2] = PushMeshToBuffer(&staticMeshPool, &loadedModels, &pillarMesh);
+            handles[3] = PushMeshToBuffer(&staticMeshPool, &loadedModels, &treeMesh);
+#else
+            Mesh meshes [] = {
+                GenerateMap(),
+                LoadModel("models/character.obj"),
+                LoadModel("models/pillar.obj"),
+                LoadModel("models/tree.obj") };
+            MeshHandle handles [kMaxModelCount];
+            PushMeshesToBuffer(&staticMeshPool, &loadedModels, 4, meshes, handles);
+#endif    
+        }
+
         CreateDescriptorSets();
-
         CreateCommandBuffers();
 
-        GameRenderInfo gameRenderInfo = {};
 
-        // ----- MEMORY ---------------------------
-        GameMemory gameMemory = {};
-        {
-            // Todo(Leo): Properly measure required amount
-            gameMemory.persistentMemorySize = Megabytes(64);
-            gameMemory.transientMemorySize = Gigabytes(2);
-            uint64 totalMemorySize = gameMemory.persistentMemorySize + gameMemory.transientMemorySize;
-       
-            // Todo(Leo): Check support for large pages
-            // Todo(Leo): specify base address
-
-            void * memoryBlock = VirtualAlloc(nullptr, totalMemorySize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-            
-            gameMemory.persistentMemory = memoryBlock;
-            gameMemory.transientMemory = (uint8 *)memoryBlock + gameMemory.persistentMemorySize;
-        }
 
         // --------- TIMING ---------------------------
         auto startTimeMark = std::chrono::high_resolution_clock::now();
         real32 lastTime = 0;
 
+        // -------- DRAWING ---------
+        int32 currentFrameIndex = 0;
 
         // ------- MAIN LOOP -------
         while (glfwWindowShouldClose(window) == false)
@@ -376,51 +425,51 @@ public:
             lastTime = time;
 
             glfwPollEvents();
-
-            // Get input
-            {
-                // Note(Leo): Only get input from first controller, locally this is single player game
-                XINPUT_STATE controllerState;
-                DWORD result = XInputGetState(0, &controllerState);
-
-                if (result == ERROR_SUCCESS)
-                {
-                    input.move =
-                    { 
-                        ReadXInputJoystickValue(controllerState.Gamepad.sThumbLX),
-                        ReadXInputJoystickValue(controllerState.Gamepad.sThumbLY)
-                    };
-                    input.look =
-                    {
-                        ReadXInputJoystickValue(controllerState.Gamepad.sThumbRX),
-                        ReadXInputJoystickValue(controllerState.Gamepad.sThumbRY)
-                    };
-
-                    uint16 pressedButtons = controllerState.Gamepad.wButtons;
-
-                    bool32 zoomIn = (pressedButtons & XINPUT_GAMEPAD_LEFT_SHOULDER) != 0;
-                    bool32 zoomOut = (pressedButtons & XINPUT_GAMEPAD_RIGHT_SHOULDER) != 0;
-
-                    input.zoomIn = zoomIn && !zoomOut;
-                    input.zoomOut = zoomOut && !zoomIn;
-                }
-                else 
-                {
-
-                }
-            }
+            UpdateControllerInput(&input);
 
             // Note(Leo): Just recreate platformInfo each frame for now
             GamePlatformInfo platformInfo = {};
             platformInfo.screenWidth = swapchainExtent.width;
             platformInfo.screenHeight = swapchainExtent.height;
 
+            Matrix44 modelMatrixArray [kMaxModelCount];
+
+            GameRenderInfo gameRenderInfo = {};
+            gameRenderInfo.modelMatrixArray = modelMatrixArray;
+            gameRenderInfo.modelMatrixCount = loadedModels.size();
+
             GameUpdateAndRender(&input, &gameMemory, &platformInfo, &gameRenderInfo);
             
-            DrawFrame(&gameRenderInfo);
+            // ---- DRAW -----    
+            {
+                vkWaitForFences(logicalDevice, 1, &inFlightFences[currentFrameIndex], VK_TRUE, MaxValue<uint64>);
+
+                uint32 imageIndex;
+                VkResult result = vkAcquireNextImageKHR(logicalDevice, swapchain, MaxValue<uint64>,
+                                                    imageAvailableSemaphores[currentFrameIndex],
+                                                    VK_NULL_HANDLE, &imageIndex);
+
+                switch (result)
+                {
+                    case VK_SUCCESS:
+                    case VK_SUBOPTIMAL_KHR:
+                        UpdateUniformBuffer(imageIndex, &gameRenderInfo);
+                        DrawFrame(imageIndex, currentFrameIndex);
+                        break;
+
+                    case VK_ERROR_OUT_OF_DATE_KHR:
+                        RecreateSwapchain();
+                        break;
+
+                    default:
+                        throw std::runtime_error("Failed to acquire swap chain image");
+                }
+
+                currentFrameIndex = (currentFrameIndex + 1) % max_frames_in_flight;
+            }
         }
 
-        // ------- FINISH
+        // ------- FINISH -----
         // Note(Leo): All draw frame operations are asynchronous, must wait for them to finish
         vkDeviceWaitIdle(logicalDevice);
         Cleanup();
@@ -430,9 +479,10 @@ private:
     GLFWwindow * window;
     VkInstance vulkanInstance;
     VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
+    VkPhysicalDeviceProperties physicalDeviceProperties;
     VkDevice logicalDevice;
-    VkSurfaceKHR surface;  // This is where we draw?
 
+    VkSurfaceKHR surface;  // This is where we draw?
     /* Note: We need both graphics and present queue, but they might be on
     separate devices (correct???), so we may need to end up with multiple queues */
     VkQueue graphicsQueue;
@@ -462,30 +512,41 @@ private:
     std::vector<VkSemaphore> imageAvailableSemaphores;
     std::vector<VkSemaphore> renderFinishedSemaphores;
     std::vector<VkFence> inFlightFences;
-    Int32Loop<max_frames_in_flight> currentFrameIndex = 0;
+
     bool32 framebufferResized = false;
 
-    // MAP BUFFER Note(Leo): map is big and can have own memory and buffer
-    VkBuffer generatedMapBuffer;
-    VkDeviceMemory generatedMapBufferMemory;
-    VkDeviceSize generatedMapBufferIndexOffset;
-    VkDeviceSize generatedMapBufferVertexOffset;
-    uint32 generatedMapUniformBufferOffset;
+    VulkanBufferResource staticMeshPool;
+    std::vector<VulkanLoadedModel> loadedModels;
 
-    // CHARACTER BUFFER Note(Leo): going to contain other things too, but later
-    VkBuffer characterBuffer;
-    VkDeviceMemory characterBufferMemory;
-    VkDeviceSize characterBufferIndexOffset;
-    VkDeviceSize characterBufferVertexOffset;
-    uint32 characterUniformBufferOffset;
 
-    VkBuffer sceneUniformBuffer;
-    VkDeviceMemory sceneUniformBufferMemory;
-    std::vector<uint32> sceneUniformBufferOffsets;
+    /* Todo(Leo): Define a proper struct (of which size is to be used) to
+    make it easier to change later. */
+    uint32 GetModelUniformBufferOffsetForSwapchainImages(int32 imageIndex)
+    {
+        uint32 memorySizePerModelMatrix = AlignUpTo(
+            physicalDeviceProperties.limits.minUniformBufferOffsetAlignment,
+            sizeof(Matrix44));
 
-    VkBuffer modelUniformBuffer;
-    VkDeviceMemory modelUniformBufferMemory;
-    std::vector<uint32> modelUniformBufferOffsets;
+        uint32 modelCount = loadedModels.size();
+
+        uint32 result = imageIndex * memorySizePerModelMatrix * modelCount;   
+        return result;
+    }
+
+    uint32 GetSceneUniformBufferOffsetForSwapchainImages(int32 imageIndex)
+    {
+        uint32 memorySizePerObject = AlignUpTo(
+            physicalDeviceProperties.limits.minUniformBufferOffsetAlignment,
+            sizeof(VulkanCameraUniformBufferObject));
+
+        // Note(Leo): so far we only have on of these
+        uint32 result = imageIndex * memorySizePerObject;
+        return result;
+    }
+
+    VulkanBufferResource modelUniformBuffer;
+    VulkanBufferResource sceneUniformBuffer;
+
 
     // IMAGE TEXTURE, Todo(Leo): these can be abstracted away, yay! :D
     uint32 textureMipLevels = 1;
@@ -510,13 +571,14 @@ private:
     VkDeviceMemory colorImageMemory;
     VkImageView colorImageView;
 
+    /* Note(leo): these are fixed per available renderpipeline thing. There describe
+    'kinds' of resources or something, so their amount does not change */
     constexpr static int32
-        DESC_scene_uniform_buffer_id = 0,
-        DESC_model_uniform_buffer_id = 2,
-        DESC_sampler_id = 1;
-    constexpr static int32 descriptor_set_count = 3;
+        kDescriptorSceneUniformBufferId = 0,
+        kDescriptorModelUniformBufferId = 2,
+        kDescriptorSamplerId = 1;
+    constexpr static int32 kDescriptorSetCount = 3;
 
-    constexpr static int32 MODEL_COUNT = 2;
 
     void InitializeWindow()
     {
@@ -537,7 +599,7 @@ private:
     }
 
     void 
-    InitializeVulkan()
+    VulkanInitialize()
     {
         CreateInstance();
         // TODO(Leo): (if necessary) Setup debug callbacks, look vulkan-tutorial.com
@@ -570,13 +632,6 @@ private:
         vkDestroyImage (logicalDevice, depthImage, nullptr);
         vkFreeMemory (logicalDevice, depthImageMemory, nullptr);
         vkDestroyImageView (logicalDevice, depthImageView, nullptr);
-
-        vkDestroyBuffer(logicalDevice, sceneUniformBuffer, nullptr);
-        vkFreeMemory(logicalDevice, sceneUniformBufferMemory, nullptr);
-
-        vkDestroyBuffer(logicalDevice, modelUniformBuffer, nullptr);
-        vkFreeMemory(logicalDevice, modelUniformBufferMemory, nullptr);
-
 
         vkDestroyDescriptorPool(logicalDevice, descriptorPool, nullptr);
 
@@ -612,11 +667,10 @@ private:
 
         vkDestroyDescriptorSetLayout(logicalDevice, descriptorSetLayout, nullptr);  
 
-        vkDestroyBuffer(logicalDevice, generatedMapBuffer, nullptr);
-        vkFreeMemory(logicalDevice, generatedMapBufferMemory, nullptr);
+        Vulkan::DestroyBufferResource(logicalDevice, &staticMeshPool);
+        Vulkan::DestroyBufferResource(logicalDevice, &modelUniformBuffer);
+        Vulkan::DestroyBufferResource(logicalDevice, &sceneUniformBuffer);
 
-        vkDestroyBuffer(logicalDevice, characterBuffer, nullptr);
-        vkFreeMemory(logicalDevice, characterBufferMemory, nullptr);
 
         for (int i = 0; i < max_frames_in_flight; ++i)
         {
@@ -867,6 +921,9 @@ private:
         {
             throw std::runtime_error("No suitable GPU device found");
         }
+
+
+        vkGetPhysicalDeviceProperties(physicalDevice, &physicalDeviceProperties);
     }
 
     void
@@ -1102,31 +1159,31 @@ private:
     void
     CreateDescriptorSetLayout()
     {
-        Array<VkDescriptorSetLayoutBinding, descriptor_set_count> layoutBindings = {};
+        VkDescriptorSetLayoutBinding layoutBindings [kDescriptorSetCount] = {};
 
         // UNIFORM BUFFER OBJECT, camera projection matrices for now
-        layoutBindings[DESC_scene_uniform_buffer_id].binding = DESC_scene_uniform_buffer_id;
-        layoutBindings[DESC_scene_uniform_buffer_id].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        layoutBindings[DESC_scene_uniform_buffer_id].descriptorCount = 1;
-        layoutBindings[DESC_scene_uniform_buffer_id].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-        layoutBindings[DESC_scene_uniform_buffer_id].pImmutableSamplers = nullptr; // Note(Leo): relevant for sampler stuff, like textures
+        layoutBindings[kDescriptorSceneUniformBufferId].binding = kDescriptorSceneUniformBufferId;
+        layoutBindings[kDescriptorSceneUniformBufferId].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        layoutBindings[kDescriptorSceneUniformBufferId].descriptorCount = 1;
+        layoutBindings[kDescriptorSceneUniformBufferId].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+        layoutBindings[kDescriptorSceneUniformBufferId].pImmutableSamplers = nullptr; // Note(Leo): relevant for sampler stuff, like textures
 
         // SAMPLER
-        layoutBindings[DESC_sampler_id].binding = DESC_sampler_id;
-        layoutBindings[DESC_sampler_id].descriptorCount = 1;
-        layoutBindings[DESC_sampler_id].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        layoutBindings[DESC_sampler_id].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-        layoutBindings[DESC_sampler_id].pImmutableSamplers = nullptr;
+        layoutBindings[kDescriptorSamplerId].binding = kDescriptorSamplerId;
+        layoutBindings[kDescriptorSamplerId].descriptorCount = 1;
+        layoutBindings[kDescriptorSamplerId].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        layoutBindings[kDescriptorSamplerId].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+        layoutBindings[kDescriptorSamplerId].pImmutableSamplers = nullptr;
 
         // MODEL TRANSFORM BUFFES
-        layoutBindings[DESC_model_uniform_buffer_id].binding = DESC_model_uniform_buffer_id;
-        layoutBindings[DESC_model_uniform_buffer_id].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
-        layoutBindings[DESC_model_uniform_buffer_id].descriptorCount = 1;
-        layoutBindings[DESC_model_uniform_buffer_id].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-        layoutBindings[DESC_model_uniform_buffer_id].pImmutableSamplers = nullptr;
+        layoutBindings[kDescriptorModelUniformBufferId].binding = kDescriptorModelUniformBufferId;
+        layoutBindings[kDescriptorModelUniformBufferId].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+        layoutBindings[kDescriptorModelUniformBufferId].descriptorCount = 1;
+        layoutBindings[kDescriptorModelUniformBufferId].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+        layoutBindings[kDescriptorModelUniformBufferId].pImmutableSamplers = nullptr;
 
         VkDescriptorSetLayoutCreateInfo layoutCreateInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO };
-        layoutCreateInfo.bindingCount = layoutBindings.count();
+        layoutCreateInfo.bindingCount = kDescriptorSetCount;
         layoutCreateInfo.pBindings = &layoutBindings[0];
 
         if(vkCreateDescriptorSetLayout(logicalDevice, &layoutCreateInfo, nullptr, &descriptorSetLayout) != VK_SUCCESS)
@@ -1163,11 +1220,11 @@ private:
         VkPipelineVertexInputStateCreateInfo vertexInputInfo = {};
         vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
         
-        auto bindingDescription = Vertex::GetBindingDescription();
+        auto bindingDescription = Vulkan::GetVertexBindingDescription();
         vertexInputInfo.vertexBindingDescriptionCount = 1;
         vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
         
-        auto attributeDescriptions = Vertex::GetAttributeDescriptions();
+        auto attributeDescriptions = Vulkan::GetVertexAttributeDescriptions();
         vertexInputInfo.vertexAttributeDescriptionCount = attributeDescriptions.count();
         vertexInputInfo.pVertexAttributeDescriptions = &attributeDescriptions[0];
 
@@ -1437,89 +1494,6 @@ private:
                                 VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
     }
 
-
-    // Todo(Leo): FindMemoryType and CreateBuffer could be free functions, se if we want to do that
-    // Todo(Leo): On the other hand, see if these should be proper member functions...
-    class_member uint32
-    FindMemoryType (VkPhysicalDevice physicalDevice, uint32 typeFilter, VkMemoryPropertyFlags properties)
-    {
-        VkPhysicalDeviceMemoryProperties memoryProperties;
-        vkGetPhysicalDeviceMemoryProperties (physicalDevice, &memoryProperties);
-
-        for (int i = 0; i < memoryProperties.memoryTypeCount; ++i)
-        {
-            bool32 filterMatch = (typeFilter & (1 << i)) != 0;
-            bool32 memoryTypeOk = (memoryProperties.memoryTypes[i].propertyFlags & properties) == properties;
-            if (filterMatch && memoryTypeOk)
-            {
-                return i;
-            }
-        }
-
-        throw std::runtime_error("Failed to find suitable memory type.");
-    }   
-
-    // Todo(Leo): see if we can change this to proper functional function
-    class_member void
-    CreateBuffer(
-        VkDevice                logicalDevice,
-        VkPhysicalDevice        physicalDevice,
-        VkDeviceSize            bufferSize,
-        VkBufferUsageFlags      usage,
-        VkMemoryPropertyFlags   memoryProperties,
-        VkBuffer *              resultBuffer,
-        VkDeviceMemory *        resultBufferMemory
-    ){
-        VkBufferCreateInfo bufferInfo = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
-        bufferInfo.size = bufferSize;
-        bufferInfo.usage = usage;
-        bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-        bufferInfo.flags = 0;
-
-        if (vkCreateBuffer(logicalDevice, &bufferInfo, nullptr, resultBuffer) != VK_SUCCESS)
-        {
-            throw std::runtime_error("Failed to create buffer");
-        }
-
-        VkMemoryRequirements memoryRequirements;
-        vkGetBufferMemoryRequirements(logicalDevice, *resultBuffer, &memoryRequirements);
-
-        VkMemoryAllocateInfo allocateInfo = { VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO };
-        allocateInfo.allocationSize = memoryRequirements.size;
-        allocateInfo.memoryTypeIndex = FindMemoryType(
-                                            physicalDevice,
-                                            memoryRequirements.memoryTypeBits,
-                                            memoryProperties);
-
-        std::cout << "memoryTypeIndex : " << allocateInfo.memoryTypeIndex << "\n";
-
-        /* Todo(Leo): do not actually always use new allocate, but instead allocate
-        once and create allocator to handle multiple items */
-        if (vkAllocateMemory(logicalDevice, &allocateInfo, nullptr, resultBufferMemory) != VK_SUCCESS)
-        {
-            throw std::runtime_error("Failed to allocate buffer memory");
-        }
-
-        vkBindBufferMemory(logicalDevice, *resultBuffer, *resultBufferMemory, 0); 
-    }
-
-    class_member void
-    CopyBuffer(
-        VkDevice logicalDevice,
-        VkCommandPool commandPool,
-        VkQueue transferQueue,
-        VkBuffer sourceBuffer, 
-        VkBuffer destinationBuffer, 
-        VkDeviceSize size)
-    {
-        VkCommandBuffer commandBuffer = BeginOneTimeCommandBuffer(logicalDevice, commandPool);
-
-        VkBufferCopy copyRegion = {0, 0, size};
-        vkCmdCopyBuffer(commandBuffer, sourceBuffer, destinationBuffer, 1, &copyRegion);
-
-        EndOneTimeCommandBuffer(logicalDevice, commandPool, transferQueue, commandBuffer);
-    }
-
     // Todo(Leo): This 'class_member' thing starts to make no sense, nice experiment though :))))
     class_member void
     CreateImage(
@@ -1561,7 +1535,7 @@ private:
 
         VkMemoryAllocateInfo allocateInfo = { VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO };
         allocateInfo.allocationSize = memoryRequirements.size;
-        allocateInfo.memoryTypeIndex = FindMemoryType (
+        allocateInfo.memoryTypeIndex = Vulkan::FindMemoryType (
                                         physicalDevice,
                                         memoryRequirements.memoryTypeBits,
                                         memoryFlags);
@@ -1829,7 +1803,8 @@ private:
 
         VkBuffer stagingBuffer;
         VkDeviceMemory stagingBufferMemory;
-        CreateBuffer(   logicalDevice, physicalDevice, imageSize,
+        Vulkan::CreateBuffer(   
+                        logicalDevice, physicalDevice, imageSize,
                         VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
                         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
                         &stagingBuffer, &stagingBufferMemory);
@@ -1945,7 +1920,7 @@ private:
         }
     }
 
-    uint64
+    inline uint64
     AlignUpTo(uint64 alignment, uint64 size)
     {
         /*
@@ -1960,156 +1935,108 @@ private:
         return size;
     }
 
-    void
-    CreateMeshBufferAndMemory(
-        VkBuffer *          resultBuffer,
-        VkDeviceMemory *    resultBufferMemory,
-        VkDeviceSize *      resultIndexOffset,
-        VkDeviceSize *      resultVertexOffset,
-        Mesh *              mesh
-    ){
+    MeshHandle
+    PushMeshToBuffer(VulkanBufferResource * resource, std::vector<VulkanLoadedModel> * loadedModelsArray, Mesh * mesh)
+    {
+        uint64 indexBufferSize = mesh->indices.size() * sizeof(mesh->indices[0]);
+        uint64 vertexBufferSize = mesh->vertices.size() * sizeof(mesh->vertices[0]);
+        uint64 totalBufferSize = indexBufferSize + vertexBufferSize;
+
+        uint64 indexOffset = 0;
+        uint64 vertexOffset = indexBufferSize;
+
         VkBuffer stagingBuffer;
         VkDeviceMemory stagingBufferMemory;
-        
-        VkDeviceSize vertexBufferSize       = mesh->vertices.size() * sizeof(mesh->vertices[0]);
-        VkDeviceSize indexBufferSize        = mesh->indices.size() * sizeof(mesh->indices[0]);
-        VkDeviceSize totalBufferSize        = vertexBufferSize + indexBufferSize;// + modelProjectionSize;
-        
-        VkDeviceSize
-            indexBufferOffset = 0,
-            vertexBufferOffset = indexBufferSize;
 
-        // WRITE RESULTS NOW
-        *resultIndexOffset = indexBufferOffset;
-        *resultVertexOffset = vertexBufferOffset;
+        Vulkan::CreateBuffer ( 
+                        logicalDevice, physicalDevice, totalBufferSize,
+                        VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                        &stagingBuffer, &stagingBufferMemory);
 
-        VkBufferCreateInfo stagingBufferInfo = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
-        stagingBufferInfo.size = totalBufferSize;        
-        stagingBufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-        stagingBufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-        stagingBufferInfo.flags = 0;
-
-        if (vkCreateBuffer (logicalDevice, &stagingBufferInfo, nullptr, &stagingBuffer) != VK_SUCCESS)
-        {
-            throw std::runtime_error("Failed to create staging buffer for vertices and indices");
-        }
-
-        VkMemoryRequirements memoryRequirements;
-        vkGetBufferMemoryRequirements(logicalDevice, stagingBuffer, &memoryRequirements);
-
-        VkMemoryAllocateInfo allocateInfo = { VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO };
-        allocateInfo.allocationSize = memoryRequirements.size;
-        allocateInfo.memoryTypeIndex = FindMemoryType(
-                                            physicalDevice,
-                                            memoryRequirements.memoryTypeBits,
-                                            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-
-        if (vkAllocateMemory(logicalDevice, &allocateInfo, nullptr, &stagingBufferMemory) != VK_SUCCESS)
-        {
-            throw std::runtime_error("Failed to allocate staging buffer memory for vertex and index buffer");
-        }
-
-        vkBindBufferMemory(logicalDevice, stagingBuffer, stagingBufferMemory, 0);
-
-        // COPY MESH INFO TO STAGING BUFFER, Todo(Leo): we could also load data directly here, avoiding memcpy        
         uint8 * data;
         vkMapMemory(logicalDevice, stagingBufferMemory, 0, totalBufferSize, 0, (void**)&data);
-        memcpy (data, &mesh->indices[0], indexBufferSize);
+        memcpy(data, &mesh->indices[0], indexBufferSize);
         data += indexBufferSize;
-        memcpy (data, &mesh->vertices[0], vertexBufferSize);
+        memcpy(data, &mesh->vertices[0], vertexBufferSize);
         vkUnmapMemory(logicalDevice, stagingBufferMemory);
-
-        // Todo(Leo): We can move these to command buffer below
-        CreateBuffer(   logicalDevice, physicalDevice, totalBufferSize,
-                        VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-                        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-                        resultBuffer, resultBufferMemory);
 
         VkCommandBuffer commandBuffer = BeginOneTimeCommandBuffer(logicalDevice, commandPool);
 
-        VkBufferCopy combinedCopyRegion = { 0, 0, totalBufferSize };
-        vkCmdCopyBuffer(commandBuffer, stagingBuffer, *resultBuffer, 1, &combinedCopyRegion);
+        VkBufferCopy copyRegion = { 0, resource->used, totalBufferSize };
+        vkCmdCopyBuffer(commandBuffer, stagingBuffer, resource->buffer, 1, &copyRegion);
 
         EndOneTimeCommandBuffer(logicalDevice, commandPool, graphicsQueue, commandBuffer);
 
         vkDestroyBuffer(logicalDevice, stagingBuffer, nullptr);
-        vkFreeMemory(logicalDevice, stagingBufferMemory, nullptr);
+        vkFreeMemory (logicalDevice, stagingBufferMemory, nullptr);
+
+        VulkanLoadedModel model = {};
+
+        model.buffer = resource->buffer;
+        model.memory = resource->memory;
+        model.vertexOffset = resource->used + vertexOffset;
+        model.indexOffset = resource->used + indexOffset;
+        
+        resource->used += totalBufferSize;
+
+        model.indexCount = mesh->indices.size();
+        model.indexType = Vulkan::ConvertIndexType(mesh->indexType);
+
+        uint32 modelIndex = loadedModels.size();
+
+        uint32 memorySizePerModelMatrix = AlignUpTo(
+            physicalDeviceProperties.limits.minUniformBufferOffsetAlignment,
+            sizeof(Matrix44));
+        model.uniformBufferOffset = modelIndex * memorySizePerModelMatrix;
+
+        loadedModelsArray->push_back(model);
+
+        MeshHandle result = modelIndex;
+        return result;
     }
 
+    void
+    PushMeshesToBuffer (
+        VulkanBufferResource *              resource, 
+        std::vector<VulkanLoadedModel> *    loadedModels, 
+        int32                               meshCount, 
+        Mesh *                              meshArray, 
+        MeshHandle *                        outHandleArray
+    ){
 
-    void 
-    CreateUniformBuffers()
-    {
-        /* Todo(Leo): Uniform model buffer, first normal to get things running 
-        and then dynamic to enable separate values for each object */
-
-        /* Note(Leo):
-        Create single uniform buffer for scene info such as camera projection and lights.
-        Store offsets and use them to differentiate between regions.
-        */
-
-        int32 imageCount = swapchainImages.size();
-        
-        VkPhysicalDeviceProperties physicalDeviceProperties;
-        vkGetPhysicalDeviceProperties(physicalDevice, &physicalDeviceProperties);
-        VkDeviceSize minUniformBufferOffsetAlignment = physicalDeviceProperties.limits.minUniformBufferOffsetAlignment;
-
-        uint64 memorySizePerObject = AlignUpTo(minUniformBufferOffsetAlignment, sizeof(CameraUniformBufferObject));
-        VkDeviceSize fullSceneUniformBufferSize = imageCount * memorySizePerObject;
-
-        CreateBuffer(   logicalDevice, physicalDevice, fullSceneUniformBufferSize,
-                        VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-                        VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
-                        &sceneUniformBuffer, &sceneUniformBufferMemory);
-
-        uint64 memorySizePerModelMatrix = AlignUpTo(minUniformBufferOffsetAlignment, sizeof(Matrix44));
-        VkDeviceSize fullModelUniformBufferSize = imageCount * memorySizePerModelMatrix * MODEL_COUNT;
-
-
-        CreateBuffer(   logicalDevice, physicalDevice, fullModelUniformBufferSize,
-                        VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-                        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                        &modelUniformBuffer, &modelUniformBufferMemory);
-
-        generatedMapUniformBufferOffset = 0;
-        characterUniformBufferOffset = memorySizePerModelMatrix;
-
-        sceneUniformBufferOffsets.resize(imageCount);
-        modelUniformBufferOffsets.resize(imageCount);
-
-        for(int i = 0; i < imageCount; ++i)
+        for (int i = 0; i < meshCount; ++i)
         {
-            sceneUniformBufferOffsets[i] = i * memorySizePerObject;
-            modelUniformBufferOffsets[i] = i * memorySizePerModelMatrix * MODEL_COUNT;
+            outHandleArray [i] = PushMeshToBuffer(resource, loadedModels, &meshArray[i]);
         }
     }
 
     void
     CreateDescriptorPool()
     {
-        int32 swapchainImageCount = swapchainImages.size();
+        int32 imageCount = swapchainImages.size();
 
         constexpr int32
-            kUniformDescriptorPool  = 0,
-            DYNAMIC_UNIFORM_BUFFER_POOL = 1,
-            kSamplerDescriptorPool  = 2,
-            kDescriptorPoolCount    = 3;
+            kUniformDescriptorPoolId    = 0,
+            kDynamicUniformPoolId       = 1,
+            kSamplerDescriptorPool      = 2,
+            kDescriptorPoolCount        = 3;
 
         // Note(Leo): there needs to only one per type, not one per user
         VkDescriptorPoolSize poolSizes [kDescriptorPoolCount] = {};
 
-        uint32 uniformBufferDescriptorCount = swapchainImageCount * 2;
-        poolSizes[kUniformDescriptorPool].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        uint32 uniformBufferDescriptorCount = imageCount * 2;
+        poolSizes[kUniformDescriptorPoolId].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 
         // Note(Leo): multiply by many to surely get enough
         // Todo(Leo): make a lot of more sensible number than arbitrary 10!!!!
-        poolSizes[kUniformDescriptorPool].descriptorCount = uniformBufferDescriptorCount * 10;
+        poolSizes[kUniformDescriptorPoolId].descriptorCount = uniformBufferDescriptorCount * 10;
 
-        poolSizes[DYNAMIC_UNIFORM_BUFFER_POOL].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
-        poolSizes[DYNAMIC_UNIFORM_BUFFER_POOL].descriptorCount = uniformBufferDescriptorCount * 10; 
+        poolSizes[kDynamicUniformPoolId].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+        poolSizes[kDynamicUniformPoolId].descriptorCount = uniformBufferDescriptorCount * 10; 
 
 
-        uint32 samplerDescriptorCount = swapchainImageCount;
+        uint32 samplerDescriptorCount = imageCount;
         poolSizes[kSamplerDescriptorPool].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         poolSizes[kSamplerDescriptorPool].descriptorCount = samplerDescriptorCount;
 
@@ -2127,70 +2054,70 @@ private:
     void
     CreateDescriptorSets()
     {
-        /* Note(Leo): Create vector of [swapchainImageCount] copies from descriptorSetLayout
+        /* Note(Leo): Create vector of [imageCount] copies from descriptorSetLayout
         for allocation */
-        int swapchainImageCount = swapchainImages.size();
-        std::vector<VkDescriptorSetLayout> layouts (swapchainImageCount, descriptorSetLayout);
+        int imageCount = swapchainImages.size();
+        std::vector<VkDescriptorSetLayout> layouts (imageCount, descriptorSetLayout);
 
         VkDescriptorSetAllocateInfo allocateInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO };
         allocateInfo.descriptorPool = descriptorPool;
-        allocateInfo.descriptorSetCount = swapchainImageCount;
+        allocateInfo.descriptorSetCount = imageCount;
         allocateInfo.pSetLayouts = &layouts[0];
 
-        descriptorSets.resize (swapchainImageCount);
+        descriptorSets.resize (imageCount);
         if (vkAllocateDescriptorSets(logicalDevice, &allocateInfo, &descriptorSets[0]) != VK_SUCCESS)
         {
             throw std::runtime_error("Failed to allocate DESCRIPTOR SETS");
         }
 
-        for (int i = 0; i < swapchainImageCount; ++i)
+        for (int imageIndex = 0; imageIndex < imageCount; ++imageIndex)
         {
-            VkWriteDescriptorSet descriptorWrites [descriptor_set_count] = {};
+            VkWriteDescriptorSet descriptorWrites [kDescriptorSetCount] = {};
 
             // SCENE UNIFORM BUFFER
             VkDescriptorBufferInfo sceneBufferInfo = {};
-            sceneBufferInfo.buffer = sceneUniformBuffer;
-            sceneBufferInfo.offset = sceneUniformBufferOffsets[i];
-            sceneBufferInfo.range = sizeof(CameraUniformBufferObject);
+            sceneBufferInfo.buffer = sceneUniformBuffer.buffer;
+            sceneBufferInfo.offset = GetSceneUniformBufferOffsetForSwapchainImages(imageIndex);
+            sceneBufferInfo.range = sizeof(VulkanCameraUniformBufferObject);
 
-            descriptorWrites[DESC_scene_uniform_buffer_id].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-            descriptorWrites[DESC_scene_uniform_buffer_id].dstSet = descriptorSets[i];
-            descriptorWrites[DESC_scene_uniform_buffer_id].dstBinding = DESC_scene_uniform_buffer_id;
-            descriptorWrites[DESC_scene_uniform_buffer_id].dstArrayElement = 0;
-            descriptorWrites[DESC_scene_uniform_buffer_id].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-            descriptorWrites[DESC_scene_uniform_buffer_id].descriptorCount = 1;
-            descriptorWrites[DESC_scene_uniform_buffer_id].pBufferInfo = &sceneBufferInfo;
+            descriptorWrites[kDescriptorSceneUniformBufferId].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            descriptorWrites[kDescriptorSceneUniformBufferId].dstSet = descriptorSets[imageIndex];
+            descriptorWrites[kDescriptorSceneUniformBufferId].dstBinding = kDescriptorSceneUniformBufferId;
+            descriptorWrites[kDescriptorSceneUniformBufferId].dstArrayElement = 0;
+            descriptorWrites[kDescriptorSceneUniformBufferId].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+            descriptorWrites[kDescriptorSceneUniformBufferId].descriptorCount = 1;
+            descriptorWrites[kDescriptorSceneUniformBufferId].pBufferInfo = &sceneBufferInfo;
 
-            // IMAGE DESC_sampler_id
+            // IMAGE kDescriptorSamplerId
             VkDescriptorImageInfo imageInfo = {};
             imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
             imageInfo.imageView = textureImageView;
             imageInfo.sampler = textureSampler;
 
-            descriptorWrites[DESC_sampler_id].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-            descriptorWrites[DESC_sampler_id].dstSet = descriptorSets[i];
-            descriptorWrites[DESC_sampler_id].dstBinding = DESC_sampler_id;
-            descriptorWrites[DESC_sampler_id].dstArrayElement = 0;
-            descriptorWrites[DESC_sampler_id].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-            descriptorWrites[DESC_sampler_id].descriptorCount = 1;
-            descriptorWrites[DESC_sampler_id].pImageInfo = &imageInfo;
+            descriptorWrites[kDescriptorSamplerId].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            descriptorWrites[kDescriptorSamplerId].dstSet = descriptorSets[imageIndex];
+            descriptorWrites[kDescriptorSamplerId].dstBinding = kDescriptorSamplerId;
+            descriptorWrites[kDescriptorSamplerId].dstArrayElement = 0;
+            descriptorWrites[kDescriptorSamplerId].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            descriptorWrites[kDescriptorSamplerId].descriptorCount = 1;
+            descriptorWrites[kDescriptorSamplerId].pImageInfo = &imageInfo;
 
             // MODEL UNIFORM BUFFERS
             VkDescriptorBufferInfo modelBufferInfo = {};
-            modelBufferInfo.buffer = modelUniformBuffer;
-            modelBufferInfo.offset = modelUniformBufferOffsets[i];
+            modelBufferInfo.buffer = modelUniformBuffer.buffer;
+            modelBufferInfo.offset = GetModelUniformBufferOffsetForSwapchainImages(imageIndex);
             modelBufferInfo.range = sizeof(Matrix44);
 
-            descriptorWrites[DESC_model_uniform_buffer_id].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-            descriptorWrites[DESC_model_uniform_buffer_id].dstSet = descriptorSets[i];
-            descriptorWrites[DESC_model_uniform_buffer_id].dstBinding = DESC_model_uniform_buffer_id;
-            descriptorWrites[DESC_model_uniform_buffer_id].dstArrayElement = 0;
-            descriptorWrites[DESC_model_uniform_buffer_id].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
-            descriptorWrites[DESC_model_uniform_buffer_id].descriptorCount = 1;
-            descriptorWrites[DESC_model_uniform_buffer_id].pBufferInfo = &modelBufferInfo;
+            descriptorWrites[kDescriptorModelUniformBufferId].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            descriptorWrites[kDescriptorModelUniformBufferId].dstSet = descriptorSets[imageIndex];
+            descriptorWrites[kDescriptorModelUniformBufferId].dstBinding = kDescriptorModelUniformBufferId;
+            descriptorWrites[kDescriptorModelUniformBufferId].dstArrayElement = 0;
+            descriptorWrites[kDescriptorModelUniformBufferId].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+            descriptorWrites[kDescriptorModelUniformBufferId].descriptorCount = 1;
+            descriptorWrites[kDescriptorModelUniformBufferId].pBufferInfo = &modelBufferInfo;
 
             // Note(Leo): Two first are write info, two latter are copy info
-            vkUpdateDescriptorSets(logicalDevice, descriptor_set_count, &descriptorWrites[0], 0, nullptr);
+            vkUpdateDescriptorSets(logicalDevice, kDescriptorSetCount, &descriptorWrites[0], 0, nullptr);
         }
     }
 
@@ -2206,69 +2133,6 @@ private:
         
         uint32 uniformBufferOffset;
     };
-
-    // Todo (Leo): make free function
-    internal void
-    RecordFrameCommandBuffer (
-        VkCommandBuffer commandBuffer,
-        VkRenderPass renderPass,
-        VkExtent2D renderAreaSize,
-        VkFramebuffer framebuffer,
-        VkPipeline pipeline,
-        VkPipelineLayout pipelineLayout,
-        VkDescriptorSet descriptorSet,
-        std::vector<RenderInfo> & renderInfos
-    ){
-        VkCommandBufferBeginInfo beginInfo = {};
-        beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-        beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
-        beginInfo.pInheritanceInfo = nullptr;
-
-        if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS)
-        {
-            throw std::runtime_error("Failed to begin recording command buffer");
-        }
-
-        std::cout << "Started recording command buffers\n";
-
-        VkRenderPassBeginInfo renderPassInfo = {};
-        renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-        renderPassInfo.renderPass = renderPass;
-        renderPassInfo.framebuffer = framebuffer;
-        
-        renderPassInfo.renderArea.offset = {0, 0};
-        renderPassInfo.renderArea.extent = renderAreaSize;
-
-        // Todo(Leo): These should also use constexpr ids or unscoped enums
-        VkClearValue clearValues [2] = {};
-        clearValues[0].color = {0.0f, 0.0f, 0.0f, 1.0f};
-        clearValues[1].depthStencil = {1.0f, 0};
-
-        renderPassInfo.clearValueCount = 2;
-        renderPassInfo.pClearValues = &clearValues [0];
-
-        vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
-        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
-
-        int32 infoCount = renderInfos.size();
-        for (int i = 0; i < infoCount; ++i)
-        {
-            vkCmdBindVertexBuffers(commandBuffer, 0, 1, &renderInfos[i].meshBuffer, &renderInfos[i].vertexOffset);
-            vkCmdBindIndexBuffer(commandBuffer, renderInfos[i].meshBuffer, renderInfos[i].indexOffset, renderInfos[i].indexType);
-            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1,
-                                    &descriptorSet, 1, &renderInfos[i].uniformBufferOffset);
-            vkCmdDrawIndexed(commandBuffer, renderInfos[i].indexCount, 1, 0, 0, 0);
-        }
-
-        // DONE
-
-        vkCmdEndRenderPass(commandBuffer);
-
-        if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS)
-        {
-            throw std::runtime_error("Failed to record command buffer");
-        }
-    }
 
     void
     CreateCommandBuffers()
@@ -2288,24 +2152,18 @@ private:
 
         std::cout << "Allocated command buffers\n";
 
+        int32 modelCount = loadedModels.size();
+        std::vector<RenderInfo> infos (modelCount);
 
-        int32 infoCount = 2;
-        std::vector<RenderInfo> infos (infoCount);
-
-        infos[0].meshBuffer             = generatedMapBuffer;
-        infos[0].vertexOffset           = generatedMapBufferVertexOffset;
-        infos[0].indexOffset            = generatedMapBufferIndexOffset;
-        infos[0].indexCount             = generatedMap.indices.size();
-        infos[0].indexType              = generatedMap.indexType;
-        infos[0].uniformBufferOffset    = generatedMapUniformBufferOffset;
-
-        infos[1].meshBuffer             = characterBuffer;
-        infos[1].vertexOffset           = characterBufferVertexOffset;
-        infos[1].indexOffset            = characterBufferIndexOffset;
-        infos[1].indexCount             = characterModel.indices.size();
-        infos[1].indexType              = characterModel.indexType;
-        infos[1].uniformBufferOffset    = characterUniformBufferOffset;
-
+        for (int modelIndex = 0; modelIndex < modelCount; ++modelIndex)
+        {
+            infos[modelIndex].meshBuffer             = loadedModels[modelIndex].buffer; 
+            infos[modelIndex].vertexOffset           = loadedModels[modelIndex].vertexOffset;
+            infos[modelIndex].indexOffset            = loadedModels[modelIndex].indexOffset;
+            infos[modelIndex].indexCount             = loadedModels[modelIndex].indexCount;
+            infos[modelIndex].indexType              = loadedModels[modelIndex].indexType;
+            infos[modelIndex].uniformBufferOffset    = loadedModels[modelIndex].uniformBufferOffset;
+        }
 
         for (int frameIndex = 0; frameIndex < commandBuffers.size(); ++frameIndex)
         {
@@ -2342,7 +2200,7 @@ private:
             vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
             vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
 
-            for (int i = 0; i < infoCount; ++i)
+            for (int i = 0; i < modelCount; ++i)
             {
                 vkCmdBindVertexBuffers(commandBuffer, 0, 1, &infos[i].meshBuffer, &infos[i].vertexOffset);
                 vkCmdBindIndexBuffer(commandBuffer, infos[i].meshBuffer, infos[i].indexOffset, infos[i].indexType);
@@ -2350,6 +2208,8 @@ private:
                                         &descriptorSets[frameIndex], 1, &infos[i].uniformBufferOffset);
                 vkCmdDrawIndexed(commandBuffer, infos[i].indexCount, 1, 0, 0, 0);
             }
+
+            std::cout << "Recorded commandBuffers for " << modelCount << " models\n";
 
             // DONE
 
@@ -2393,65 +2253,43 @@ private:
     void
     UpdateUniformBuffer(uint32 imageIndex, GameRenderInfo * renderInfo)
     {
-        // Note(Leo): mockup update logic to see uniformbuffers updating
-
         // Todo(Leo): Single mapping is really enough, offsets can be used here too
         Matrix44 * pModelMatrix;
+        uint32 startUniformBufferOffset = GetModelUniformBufferOffsetForSwapchainImages(imageIndex);
 
-        // MAP
-        vkMapMemory(logicalDevice, modelUniformBufferMemory,
-                    modelUniformBufferOffsets[imageIndex],
-                    sizeof(pModelMatrix), 0, (void**)&pModelMatrix);
+        int32 modelCount = loadedModels.size();
+        for (int modelIndex = 0; modelIndex < modelCount; ++modelIndex)
+        {
+            vkMapMemory(logicalDevice, modelUniformBuffer.memory, 
+                        startUniformBufferOffset + loadedModels[modelIndex].uniformBufferOffset,
+                        sizeof(pModelMatrix), 0, (void**)&pModelMatrix);
 
-        *pModelMatrix = Matrix44::Diagonal(1);
-        vkUnmapMemory(logicalDevice, modelUniformBufferMemory);
+            *pModelMatrix = renderInfo->modelMatrixArray[modelIndex];
 
-        // CHARACTER
-        vkMapMemory(logicalDevice, modelUniformBufferMemory,
-                    modelUniformBufferOffsets[imageIndex] + characterUniformBufferOffset,
-                    sizeof(pModelMatrix), 0, (void**)&pModelMatrix);
-        *pModelMatrix = renderInfo->characterMatrix;
-        vkUnmapMemory(logicalDevice, modelUniformBufferMemory); 
+            vkUnmapMemory(logicalDevice, modelUniformBuffer.memory);
+        }
 
         // Note (Leo): map vulkan memory directly to right type so we can easily avoid one (small) memcpy per frame
-        CameraUniformBufferObject * pUbo;
-        vkMapMemory(logicalDevice, sceneUniformBufferMemory,
-                    sceneUniformBufferOffsets[imageIndex],
-                    sizeof(CameraUniformBufferObject), 0, (void**)&pUbo);
+        VulkanCameraUniformBufferObject * pUbo;
+        vkMapMemory(logicalDevice, sceneUniformBuffer.memory,
+                    GetSceneUniformBufferOffsetForSwapchainImages(imageIndex),
+                    sizeof(VulkanCameraUniformBufferObject), 0, (void**)&pUbo);
 
         pUbo->view          = renderInfo->cameraView;
         pUbo->perspective   = renderInfo->cameraPerspective;
 
-        vkUnmapMemory(logicalDevice, sceneUniformBufferMemory);
+        vkUnmapMemory(logicalDevice, sceneUniformBuffer.memory);
+    }
+
+    bool32
+    IsSwapChainUpToDate ()
+    {
+        return true;
     }
 
     void
-    DrawFrame(GameRenderInfo * gameRenderInfo)
+    DrawFrame(uint32 imageIndex, uint32 currentFrameIndex)
     {
-        vkWaitForFences(logicalDevice, 1, &inFlightFences[currentFrameIndex], VK_TRUE, std::numeric_limits<uint64>::max());
-
-        uint32 imageIndex;
-        VkResult result = vkAcquireNextImageKHR(
-            logicalDevice,
-            swapchain,
-            MaxValue<uint64>,
-            imageAvailableSemaphores[currentFrameIndex],
-            VK_NULL_HANDLE, // Note(Leo): here would be fence
-            &imageIndex);
-
-        if (result == VK_ERROR_OUT_OF_DATE_KHR)
-        {
-            // Note(Leo): While VK_SUBOPTIMAL_KHR is success, it could be put here
-            RecreateSwapchain();
-            return;
-        }
-        else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)
-        {
-            throw std::runtime_error("Failed to acquire swap chain image");
-        }
-
-        UpdateUniformBuffer(imageIndex, gameRenderInfo);
-
         VkSubmitInfo submitInfo[1] = {};
         submitInfo[0].sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
@@ -2481,17 +2319,18 @@ private:
         presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
         presentInfo.waitSemaphoreCount = ARRAY_COUNT(signalSemaphores);
         presentInfo.pWaitSemaphores = signalSemaphores;
+        presentInfo.pResults = nullptr;
 
         VkSwapchainKHR swapchains [] = { swapchain };
         presentInfo.swapchainCount = ARRAY_COUNT(swapchains);
         presentInfo.pSwapchains = swapchains;
         presentInfo.pImageIndices = &imageIndex; // Todo(Leo): also an array, one for each swapchain
 
-        presentInfo.pResults = nullptr;
 
-        result = vkQueuePresentKHR(presentQueue, &presentInfo);
+        VkResult result = vkQueuePresentKHR(presentQueue, &presentInfo);
 
-        // Note(Leo): Do after present to make sure semaphores behave correctly
+        // Todo, Study(Leo): This may not be needed, 
+        // Note(Leo): Do after presenting to not interrupt semaphores at whrong time
         if(result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || framebufferResized)
         {
             framebufferResized = false;
@@ -2501,7 +2340,6 @@ private:
         {
             throw std::runtime_error("Failed to present swapchain");
         }
-        currentFrameIndex++;
     }
 
     void
@@ -2521,12 +2359,13 @@ private:
 
         CreateSwapchainAndImages();
         CreateSwapchainImageViews();
+
         CreateRenderPass();
         CreateGraphicsPipeline();
         CreateColorResources();
         CreateDepthResources();
         CreateFrameBuffers();
-        CreateUniformBuffers();
+        
         CreateDescriptorPool();
         CreateDescriptorSets();
         CreateCommandBuffers();
