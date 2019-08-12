@@ -1,10 +1,22 @@
-#ifndef MAZEGAME_ESSENTIALS_HPP
+/*=============================================================================
+Leo Tamminen
 
-// Note(Leo): for searchability
+Common essentials used all around in :MAZEGAME: project
+===============================================================================*/
+
+#if !defined MAZEGAME_ESSENTIALS_HPP
+
+// SEARCHABILITY BOOST
 #define class_member static
 #define local_persist static
 #define internal static
 
+#define ARRAY_COUNT(array) sizeof(array) / sizeof((array)[0])
+
+constexpr int BitSize(int bits) { return bits / 8; }
+
+/// SENSIBLE SIMPLE TYPES
+// Todo(Leo): These should come from platform layer, since that is where they are defined anyway
 using int8 = signed char;
 using int16 = signed short;
 using int32 = signed int;
@@ -31,6 +43,19 @@ using bool32 = int32;
 using real32 = float;
 using real64 = double;
 
+// Todo(Leo): Study Are there any other possibilities than these always being fixed
+static_assert(sizeof(real32) == BitSize(32), "Invalid type alias for real32");
+static_assert(sizeof(real64) == BitSize(64), "Invalid type alias for real64");
+
+/// NUMERIC LIMITS
+#include<limits>
+template <typename Number>
+static constexpr Number MinValue = std::numeric_limits<Number>::min();
+
+template <typename Number>
+static constexpr Number MaxValue = std::numeric_limits<Number>::max();
+
+/// SIZE MODIFIERS
 /* Todo(Leo): Study memory sizes around, maybe these should be actual multiples of 1000
 This seems to be just a Windows convention, correct? */
 constexpr uint64 Kilobytes (uint64 amount) { return 1024 * amount; }

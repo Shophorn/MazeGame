@@ -1,11 +1,17 @@
+/*=============================================================================
+Leo Tamminen
+
+Interface definition between Platform and Game.
+===============================================================================*/
+
 #if !defined MAZEGAME_PLATFORM_HPP
 
-#include "mazegame_essentials.hpp"
+#include "MazegameEssentials.hpp"
 #include "Array.hpp"
 
-#include "math.cpp"
-#include "vectors.cpp"
-#include "MatrixBase.cpp"
+#include "Math.cpp"
+#include "Vectors.cpp"
+#include "Matrices.cpp"
 
 #include <vector>
 #include <iostream>
@@ -36,12 +42,18 @@ struct Mesh
 	std::vector<Vertex> vertices;
 	std::vector<uint16> indices;
 	IndexType indexType;
-	uint32 indexSize;
+
+	// uint64 IndexSize()
+	// {
+	// 	switch (indexType)
+	// 	{
+	// 		case IndexType::UInt16: return sizeof(uint16);
+	// 		case IndexType::UInt32: return sizeof(uint32);
+	// 	}
+	// }
 };
 
-
 using MeshHandle = uint64;
-using PushMeshFunc = MeshHandle(void * platformContext, Mesh * mesh);
 
 struct GameMemory
 {
@@ -56,13 +68,19 @@ struct GameMemory
 	void * transientMemory;
 	uint64 transientMemorySize;
 
-	void * platformContext;
-	PushMeshFunc * PushMeshImpl;
+	void * graphicsContext;
+	
+	using PushMeshesFunc = void(void * graphicsContext, 
+								int meshCount,
+								Mesh * meshArray,
+								MeshHandle * outMeshHandleArray);
 
-	MeshHandle PushMesh(Mesh * mesh)
+	PushMeshesFunc * PushMeshesImpl;
+
+	void
+	PushMeshes(int meshCount, Mesh * meshArray, MeshHandle * outMeshHandleArray)
 	{
-		MeshHandle result = PushMeshImpl(platformContext, mesh);
-		return result;
+		PushMeshesImpl(graphicsContext, meshCount, meshArray, outMeshHandleArray);
 	}
 };
 
@@ -89,10 +107,18 @@ struct GamePlatformInfo
 };
 
 
+struct GameNetwork
+{
+	bool32 isConnected;
+	Vector3 characterPosition;
+	Vector3 otherCharacterPosition;
+};
+
 void GameUpdateAndRender(
-	GameInput * 		in_Input,
-	GameMemory * 		in_Memory,
-	GamePlatformInfo * 	in_PlatformInfo,
+	GameInput * 		input,
+	GameMemory * 		memory,
+	GamePlatformInfo * 	platformInfo,
+	GameNetwork *		network,
 	GameRenderInfo * 	out_RenderInfo);
 
 #define MAZEGAME_PLATFORM_HPP

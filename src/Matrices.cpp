@@ -9,8 +9,8 @@ Matrices are column major.
 
 #define MATRIX_LOOP_ELEMENTS for (int col = 0; col < columns_count; ++col) for (int row = 0; row < rows_count; ++row)
 
-#define ASSERT_SQUARE_MATRIX static_assert(RowsCount == ColumnsCount, "Matrix must be square matrix")
-#define ASSERT_TRANSFORM_MATRIX static_assert((RowsCount == 4) && (ColumnsCount == 4), "Matrix must be 4x4 transform matrix")
+#define STATIC_ASSERT_SQUARE_MATRIX static_assert(RowsCount == ColumnsCount, "Matrix must be square matrix")
+#define STATIC_ASSERT_TRANSFORM_MATRIX static_assert((RowsCount == 4) && (ColumnsCount == 4), "Matrix must be 4x4 transform matrix")
 
 MATRIX_TEMPLATE
 union MatrixBase
@@ -22,7 +22,7 @@ union MatrixBase
 	using row_vector_type = VectorBase<ValueType, ColumnsCount>;
 	using column_vector_type = VectorBase<ValueType, RowsCount>;
 
-	// -------- CONTENTS -------------------
+	/// -------- CONTENTS -------------------
 	// Todo(Leo): Is this better than columns only?
 	ValueType values[columns_count * rows_count];
 	column_vector_type columns[ColumnsCount];
@@ -30,10 +30,23 @@ union MatrixBase
 	column_vector_type & operator [] (int index) { return columns[index]; }
 	column_vector_type operator [] (int index) const { return columns[index]; }
 
+	/// ------- ACCESSORS ----------------------------
+	row_vector_type
+	GetRow(int row)
+	{
+		row_vector_type result;
+		for (int col = 0; col < columns_count; ++col)
+		{
+			result[col] = columns[col][row];
+		}
+		return result;
+	}
+
+	/// ------- BASIC CONSTRUCTORS ------------------------
 	class_member MATRIX_TYPE
 	Diagonal(ValueType value)
 	{
-		ASSERT_SQUARE_MATRIX;
+		STATIC_ASSERT_SQUARE_MATRIX;
 
 		MATRIX_TYPE result = {};
 		for (int i = 0; i < RowsCount; ++i)
@@ -46,44 +59,83 @@ union MatrixBase
 	class_member MATRIX_TYPE
 	Identity()
 	{
-		ASSERT_SQUARE_MATRIX;
+		STATIC_ASSERT_SQUARE_MATRIX;
 
 		MATRIX_TYPE result = Diagonal(1);
+		return result;
+	}
+
+	/// --------- TRANSFORMS ---------------------------
+	// Note(Leo): These are only available for 4x4 transform matrices
+	class_member MATRIX_TYPE
+	Translate(VectorBase<ValueType, 3> translate)
+	{
+		STATIC_ASSERT_TRANSFORM_MATRIX;
+
+		MATRIX_TYPE result = Diagonal(1);
+		result[3] = Vector4{translate.x, translate.y, translate.z, 1.0f};
 		return result;
 	}
 
 	class_member MATRIX_TYPE
-	Translate(VectorBase<ValueType, 3> translation)
+	Scale(VectorBase<ValueType, 3> scale)
 	{
-		ASSERT_TRANSFORM_MATRIX;
+		STATIC_ASSERT_TRANSFORM_MATRIX;
 
-		MATRIX_TYPE result = Diagonal(1);
-		result[3] = Vector4{translation.x, translation.y, translation.z, 1.0f};
+		MATRIX_TYPE result = {};
+		result[0][0] = scale [0];
+		result[1][1] = scale [1];
+		result[2][2] = scale [2];
+		result[3][3] = 1.0f;
 		return result;
 	}
 
-	row_vector_type
-	GetRow(int row)
+	class_member MATRIX_TYPE
+	Scale(ValueType value)
 	{
-		row_vector_type result;
-		for (int col = 0; col < columns_count; ++col)
-		{
-			result[col] = columns[col][row];
-		}
+		STATIC_ASSERT_TRANSFORM_MATRIX;
+
+		MATRIX_TYPE result = {};
+		result[0][0] = value;
+		result[1][1] = value;
+		result[2][2] = value;
+		result[3][3] = 1.0f;
+		return result;
+	}
+
+	class_member MATRIX_TYPE
+	Transform(VectorBase<ValueType, 3> translate, VectorBase<ValueType, 3>  scale)
+	{
+		STATIC_ASSERT_TRANSFORM_MATRIX;
+
+		MATRIX_TYPE result;
+
+		result[0][0] = scale[0];
+		result[1][1] = scale[1];
+		result[2][2] = scale[2];
+
+		result[3] = Vector4{translate.x, translate.y, translate.z, 1.0f};
+
+		return result;
+	}
+
+	class_member MATRIX_TYPE
+	Transform(VectorBase<ValueType, 3> translate, ValueType uniformScale)
+	{
+		STATIC_ASSERT_TRANSFORM_MATRIX;
+
+		MATRIX_TYPE result;
+
+		result[0][0] = uniformScale;
+		result[1][1] = uniformScale;
+		result[2][2] = uniformScale;
+
+		result[3] = Vector4{translate.x, translate.y, translate.z, 1.0f};
+
 		return result;
 	}
 };
 
-template<typename MatrixType> MatrixType
-Diagonal(typename MatrixType::value_type value)
-{
-	MatrixType result = {};
-	for (int i = 0; i < MatrixType::rows_count; ++i)
-	{
-		result(i, i) = value;
-	}
-	return result;
-}
 
 template <typename ValueType, int LeftRows, int InnerSize, int RightColumns>
 auto operator * (
@@ -107,6 +159,8 @@ auto operator * (
 
 	using result_type = MatrixBase<value_type, rows_count, columns_count>;
 
+	/* Todo(Leo): this would be better getting columns from transpose instead of
+	GetRow in each iteration */
 	result_type result;
 	MATRIX_LOOP_ELEMENTS { result[col][row] = Dot(lhs.GetRow(row), rhs[col]); }
 	return result;
@@ -116,7 +170,9 @@ auto operator * (
 #undef MATRIX_TEMPLATE
 #undef MATRIX_TYPE
 
-#undef ASSERT_SQUARE_MATRIX
-#undef ASSERT_TRANSFORM_MATRIX
+#undef MATRIX_LOOP_ELEMENTS
+
+#undef STATIC_ASSERT_SQUARE_MATRIX
+#undef STATIC_ASSERT_TRANSFORM_MATRIX
 
 using Matrix44 = MatrixBase<real32, 4, 4>;

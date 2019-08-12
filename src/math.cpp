@@ -1,5 +1,4 @@
 // TODO(Leo): Proper unit testing!!
-
 // Note(Leo): For now. Actually implement these ourself, for the kicks of course.
 #include <cmath>
 

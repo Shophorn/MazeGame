@@ -1,11 +1,9 @@
-#if !defined VERTEX_DATA_CPP
 
 // Note (Leo): Only for tinyobj errors
 #include <string>
 
 #define TINYOBJLOADER_IMPLEMENTATION
 #include <tiny_obj_loader.h>
-
 
 /* Todo(Leo): Add target pointer to memory as optional argument, so we can load 
 this directly where it is used */
@@ -14,7 +12,6 @@ GenerateMap()
 {
 	Mesh result = {};
 	result.indexType = IndexType::UInt16;
-	result.indexSize = sizeof (uint16);
 
 	int tileCountPerDirection = 128;
 	float tileSize = 1.0f;
@@ -26,6 +23,8 @@ GenerateMap()
 
 	int indexCount = tileCountPerDirection * tileCountPerDirection * 6;
 	result.indices.resize(indexCount);	
+
+	real32 uvStep = 1.0f / (real32)(tileCountPerDirection + 1);
 
 	for (int z = 0; z < tileCountPerDirection; ++z)
 	{
@@ -54,6 +53,11 @@ GenerateMap()
 			result.vertices[vertexIndex + 2].normal = normal;
 			result.vertices[vertexIndex + 3].normal = normal;
 
+			result.vertices[vertexIndex].texCoord = {x * uvStep, z * uvStep};
+			result.vertices[vertexIndex + 1].texCoord = {(x + 1) * uvStep, z * uvStep};
+			result.vertices[vertexIndex + 2].texCoord = {x * uvStep, (z + 1) * uvStep};
+			result.vertices[vertexIndex + 3].texCoord = {(x + 1) * uvStep, (z + 1) * uvStep};
+
 			result.indices[triangleIndex] = vertexIndex;
 			result.indices[triangleIndex + 1] = vertexIndex + 2;
 			result.indices[triangleIndex + 2] = vertexIndex + 1;
@@ -78,7 +82,6 @@ LoadModel(const char * modelPath)
 
 	Mesh result = {};
 	result.indexType = IndexType::UInt16;
-	result.indexSize = sizeof(uint16);
 
 	tinyobj::attrib_t attrib;
 	std::vector<tinyobj::shape_t> shapes;
@@ -123,5 +126,72 @@ LoadModel(const char * modelPath)
 	return result;
 }
 
-#define VERTEX_DATA_CPP
-#endif
+
+namespace MeshPrimitives
+{
+	constexpr real32 radius = 0.5f;
+
+	Mesh cube = {
+		/// VERTICES
+		{
+			/// LEFT fRce
+			{-radius, -radius,  radius, -1, 0, 0, 1, 1, 1, 0, 0},
+			{-radius, -radius, -radius, -1, 0, 0, 1, 1, 1, 1, 0},
+			{-radius,  radius,  radius, -1, 0, 0, 1, 1, 1, 0, 1},
+			{-radius,  radius, -radius, -1, 0, 0, 1, 1, 1, 1, 1},
+
+			/// RIGHT fRce
+			{radius, -radius, -radius, 1, 0, 0, 1, 1, 1, 0, 0},
+			{radius, -radius,  radius, 1, 0, 0, 1, 1, 1, 1, 0},
+			{radius,  radius, -radius, 1, 0, 0, 1, 1, 1, 0, 1},
+			{radius,  radius,  radius, 1, 0, 0, 1, 1, 1, 1, 1},
+	
+			/// BOTTOM face
+			{-radius, -radius,  radius, 0, -1, 0, 1, 1, 1, 0, 0},
+			{ radius, -radius,  radius, 0, -1, 0, 1, 1, 1, 1, 0},
+			{-radius, -radius, -radius, 0, -1, 0, 1, 1, 1, 0, 1},
+			{ radius, -radius, -radius, 0, -1, 0, 1, 1, 1, 1, 1},
+
+			/// TOP face
+			{-radius, radius, -radius, 0, 1, 0, 1, 1, 1, 0, 0},
+			{ radius, radius, -radius, 0, 1, 0, 1, 1, 1, 1, 0},
+			{-radius, radius,  radius, 0, 1, 0, 1, 1, 1, 0, 1},
+			{ radius, radius,  radius, 0, 1, 0, 1, 1, 1, 1, 1},
+
+			/// BACK face
+			{-radius, -radius, -radius, 0, 0, -1, 1, 1, 1, 0, 0},
+			{ radius, -radius, -radius, 0, 0, -1, 1, 1, 1, 1, 0},
+			{-radius,  radius, -radius, 0, 0, -1, 1, 1, 1, 0, 1},
+			{ radius,  radius, -radius, 0, 0, -1, 1, 1, 1, 1, 1},
+
+			/// FRONT face
+			{ radius, -radius, radius, 0, 0, 1, 1, 1, 1, 0, 0},
+			{-radius, -radius, radius, 0, 0, 1, 1, 1, 1, 1, 0},
+			{ radius,  radius, radius, 0, 0, 1, 1, 1, 1, 0, 1},
+			{-radius,  radius, radius, 0, 0, 1, 1, 1, 1, 1, 1}
+		},
+
+		/// INDICES
+		{
+			/// LEFT face
+			0, 2, 1, 1, 2, 3,
+
+			/// RIGHT face
+			4, 6, 5, 5, 6, 7,
+	
+			/// BOTTOM face
+			8, 10, 9, 9, 10, 11,
+
+			/// TOP face
+			12, 14, 13, 13, 14, 15,
+
+			/// BACK face
+			16, 18, 17, 17, 18, 19,
+
+			/// FRONT face
+			20, 22, 21, 21, 22, 23
+		},
+		IndexType::UInt16
+	};
+
+}

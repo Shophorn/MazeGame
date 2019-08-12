@@ -41,8 +41,56 @@ struct VulkanBufferResource
     bool32 created;
 };
 
+struct VulkanQueueFamilyIndices
+{
+    uint32 graphics;
+    uint32 present;
+
+    bool32 hasGraphics;
+    bool32 hasPresent;
+
+    uint32 getAt(int index)
+    {
+        if (index == 0) return graphics;
+        if (index == 1) return present;
+        return -1;
+    }
+
+    bool32 hasAll()
+    {
+        return hasGraphics && hasPresent;
+    }
+};
+
+struct VulkanSwapchainSupportDetails
+{
+    VkSurfaceCapabilitiesKHR capabilities;
+    std::vector<VkSurfaceFormatKHR> formats;
+    std::vector<VkPresentModeKHR> presentModes;
+};
+
+constexpr uint64 VULKAN_NO_TIME_OUT	= MaxValue<uint64>;
+
 namespace Vulkan
 {
+	// Todo(Leo): Probably going to roll custom for NDEBUG too
+	#ifdef NDEBUG
+	constexpr bool32 enableValidationLayers = false;
+	#else
+	constexpr bool32 enableValidationLayers = true;
+	#endif
+
+	constexpr const char * validationLayers[] = {
+	    "VK_LAYER_KHRONOS_validation"
+	};
+	constexpr int VALIDATION_LAYERS_COUNT = ARRAY_COUNT(validationLayers);
+
+	constexpr const char * deviceExtensions [] = {
+	    VK_KHR_SWAPCHAIN_EXTENSION_NAME
+	};
+	constexpr int DEVICE_EXTENSION_COUNT = ARRAY_COUNT(deviceExtensions);
+
+
 	internal VkVertexInputBindingDescription
 	GetVertexBindingDescription ();
 
@@ -79,6 +127,13 @@ namespace Vulkan
 
 	internal void
 	DestroyBufferResource(VkDevice logicalDevice, VulkanBufferResource * resource);
+
+    internal inline bool32
+    FormatHasStencilComponent(VkFormat format)
+    {
+        bool32 result = (format == VK_FORMAT_D32_SFLOAT_S8_UINT) || (format == VK_FORMAT_D24_UNORM_S8_UINT);
+        return result;
+    }
 }
 
 #define WIN_VULKAN_HPP

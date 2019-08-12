@@ -1,5 +1,9 @@
-# Build file for Vulkan tutorial
-# vulkan-tutorial.com
+'''
+Leo Tamminen
+
+Build program for :MAZEGAME:. Compiles game and platform layer programs
+using clang++.
+'''
 
 def SetArgument(switch, arguments):
 	if switch is None:
@@ -32,10 +36,11 @@ lib_path = [
 lib_names = [
 	"libglfw3",
 	"vulkan-1",
-	"gdi32"
+	"gdi32",
+	"ws2_32"
 ]
 
-sources = ['src/win_mazegame.cpp src/mazegame.cpp']
+sources = ['src/win_Mazegame.cpp src/Mazegame.cpp']
 outputName = 'mazegame.exe'
 flags = ["-std=c++17"]
 
@@ -57,8 +62,6 @@ call = "clang++ {} {} -o {} {} {} {}".format(
 if not silent:
 	print (call)
 
-output_file_name = "vkTutorial.build_output"
-
 result = subprocess.run(call)
 
 if not silent:
@@ -66,7 +69,6 @@ if not silent:
 		print ("Great SUCCESS")
 		# print ('\033[92m' + "Great SUCCESS" + '\033[0m')
 	else:
-		# os.system("editor file " + output_file_name)
 		print ("Did NOT WORK")
 
 exit(result.returncode)

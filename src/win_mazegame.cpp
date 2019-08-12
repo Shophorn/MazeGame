@@ -1,8 +1,18 @@
+/*=============================================================================
+Leo Tamminen
+
+Windows platform layer for mazegame
+=============================================================================*/
+
+#include <WinSock2.h>
 #include <Windows.h>
 #include <xinput.h>
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
+
+#define GLFW_EXPOSE_NATIVE_WIN32
+#include <GLFW/glfw3native.h>
 
 #include <iostream>
 #include <stdexcept>
@@ -10,7 +20,6 @@
 #include <vector>
 #include <fstream>
 #include <chrono>
-#include <type_traits>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
@@ -26,27 +35,18 @@ staging buffer and actual vertex buffer. https://vulkan-tutorial.com/en/Vertex_b
     http://asawicki.info/news_1698_vulkan_sparse_binding_-_a_quick_overview.html
 */
 
-#include "mazegame_platform.hpp"
-#include "mazegame_essentials.hpp"
-
-template <typename Number>
-static constexpr Number MinValue = std::numeric_limits<Number>::min();
-
-template <typename Number>
-static constexpr Number MaxValue = std::numeric_limits<Number>::max();
+#include "MazegamePlatform.hpp"
 
 using BinaryAsset = std::vector<uint8>;
 
 constexpr char texture_path [] = "textures/chalet.jpg";
 
-    
 // Note(Leo): make unity build
 #include "win_Vulkan.cpp"
+#include "win_VulkanDebugStrings.cpp"
+#include "win_VulkanCommandBuffers.cpp"
 
-// #include "vertex_data.cpp"
-#include "vulkan_debug_strings.cpp"
-#include "command_buffer.cpp"
-
+#include "win_WinSocketDebugStrings.cpp"
 BinaryAsset
 ReadBinaryFile (const char * fileName)
 {
@@ -67,61 +67,15 @@ ReadBinaryFile (const char * fileName)
     return result;    
 }
 
-constexpr int32 MAX_MODEL_COUNT = 4;
+constexpr int32 MAX_MODEL_COUNT = 100;
 constexpr int32 MAX_FRAMES_IN_FLIGHT = 2;
 constexpr int32 WINDOW_WIDTH = 960;
 constexpr int32 WINDOW_HEIGHT = 540;
 
-#define ARRAY_COUNT(array) sizeof(array) / sizeof((array)[0])
-
-constexpr const char * validationLayers[] = {
-    "VK_LAYER_KHRONOS_validation"
-};
-constexpr int validationLayersCount = ARRAY_COUNT(validationLayers);
-
-constexpr const char * deviceExtensions [] = {
-    VK_KHR_SWAPCHAIN_EXTENSION_NAME
-};
-constexpr int deviceExtensionsCount = ARRAY_COUNT(deviceExtensions);
-
-#ifdef NDEBUG
-constexpr bool32 enableValidationLayers = false;
-#else
-constexpr bool32 enableValidationLayers = true;
-#endif
-
-struct QueueFamilyIndices
-{
-    uint32 graphics;
-    uint32 present;
-
-    bool32 hasGraphics;
-    bool32 hasPresent;
-
-    uint32 getAt(int index)
-    {
-        if (index == 0) return graphics;
-        if (index == 1) return present;
-        return -1;
-    }
-
-    bool32 hasAll()
-    {
-        return hasGraphics && hasPresent;
-    }
-};
-
-struct SwapchainSupportDetails
-{
-    VkSurfaceCapabilitiesKHR capabilities;
-    std::vector<VkSurfaceFormatKHR> formats;
-    std::vector<VkPresentModeKHR> presentModes;
-};
-
-SwapchainSupportDetails
+VulkanSwapchainSupportDetails
 QuerySwapChainSupport(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface)
 {
-    SwapchainSupportDetails result = {};
+    VulkanSwapchainSupportDetails result = {};
 
     vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, surface, &result.capabilities);
 
@@ -181,10 +135,9 @@ ChooseSurfacePresentMode(std::vector<VkPresentModeKHR> & availablePresentModes)
     return result;
 }
 
-QueueFamilyIndices
+VulkanQueueFamilyIndices
 FindQueueFamilies (VkPhysicalDevice device, VkSurfaceKHR surface)
 {
-    QueueFamilyIndices result = {};
     // Note: A card must also have a graphics queue family available; We do want to draw after all
     VkQueueFamilyProperties queueFamilyProps [50];
     uint32 queueFamilyCount = ARRAY_COUNT(queueFamilyProps);
@@ -193,7 +146,7 @@ FindQueueFamilies (VkPhysicalDevice device, VkSurfaceKHR surface)
     // std::cout << "queueFamilyCount: " << queueFamilyCount << "\n";
 
     bool32 properQueueFamilyFound = false;
-    // uint32 queueFamilyIndex = -1;
+    VulkanQueueFamilyIndices result = {};
     for (int i = 0; i < queueFamilyCount; ++i)
     {
         if (queueFamilyProps[i].queueCount > 0 && (queueFamilyProps[i].queueFlags & VK_QUEUE_GRAPHICS_BIT))
@@ -218,7 +171,6 @@ FindQueueFamilies (VkPhysicalDevice device, VkSurfaceKHR surface)
     }
     return result;
 }
-
 
 VkShaderModule
 CreateShaderModule(BinaryAsset code, VkDevice logicalDevice)
@@ -252,6 +204,7 @@ a proper named struct/namespace to hold this pointer */
 internal void
 LoadXInput()
 {
+    // TODO(Leo): check other xinput versions and pick most proper
     HMODULE xinputModule = LoadLibraryA("xinput1_3.dll");
 
     if (xinputModule != nullptr)
@@ -272,26 +225,25 @@ ReadXInputJoystickValue(int16 value)
 }
 
 
-// Get input
 internal void
 UpdateControllerInput(GameInput * input)
 {
+    // We use pointer instead of return value, since we store other data to input too.
     // Note(Leo): Only get input from first controller, locally this is a single player game
     XINPUT_STATE controllerState;
     DWORD result = XInputGetState(0, &controllerState);
 
     if (result == ERROR_SUCCESS)
     {
-        input->move =
-        { 
+        input->move = { 
             ReadXInputJoystickValue(controllerState.Gamepad.sThumbLX),
-            ReadXInputJoystickValue(controllerState.Gamepad.sThumbLY)
-        };
-        input->look =
-        {
+            ReadXInputJoystickValue(controllerState.Gamepad.sThumbLY)};
+        input->move = ClampLength(input->move, 1.0f);
+
+        input->look = {
             ReadXInputJoystickValue(controllerState.Gamepad.sThumbRX),
-            ReadXInputJoystickValue(controllerState.Gamepad.sThumbRY)
-        };
+            ReadXInputJoystickValue(controllerState.Gamepad.sThumbRY)};
+        input->look = ClampLength(input->look, 1.0f);
 
         uint16 pressedButtons = controllerState.Gamepad.wButtons;
 
@@ -311,16 +263,13 @@ class MazegameApplication
 {
 public:
     
-    class_member MeshHandle
-    GamePushMesh(void * context, Mesh * mesh)
+    class_member void
+    GamePushMeshes(void * graphicsContext, int32 meshCount, Mesh * meshArray, MeshHandle * resultMeshHandleArray)
     {
-        MazegameApplication * application = reinterpret_cast<MazegameApplication *>(context);
-
-        MeshHandle result;
-        application->PushMeshesToBuffer(&application->staticMeshPool, &application->loadedModels, 1, mesh, &result);
-
-        return result;
-    }
+        MazegameApplication * platform = reinterpret_cast<MazegameApplication *>(graphicsContext);
+        platform->PushMeshesToBuffer(   &platform->staticMeshPool, &platform->loadedModels,
+                                        meshCount, meshArray, resultMeshHandleArray);
+    }   
 
     void Run()
     {
@@ -329,8 +278,9 @@ public:
         VulkanInitialize();
             CreateDescriptorPool();
 
-
         LoadXInput();
+
+        HWND thisWindow = glfwGetWin32Window(window);
 
         // ------- MEMORY ---------------------------
         GameMemory gameMemory = {};
@@ -348,8 +298,8 @@ public:
             gameMemory.persistentMemory = memoryBlock;
             gameMemory.transientMemory = (uint8 *)memoryBlock + gameMemory.persistentMemorySize;
 
-            gameMemory.PushMeshImpl = GamePushMesh;
-            gameMemory.platformContext = this;
+            gameMemory.PushMeshesImpl = GamePushMeshes;
+            gameMemory.graphicsContext = this;
        }
 
        // -------- GPU MEMORY ---------------------- 
@@ -383,63 +333,123 @@ public:
                                             VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
                                             VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
                                             &sceneUniformBuffer);
-       }
-
-        // --------- INITIALIZE GAME ---------------
-
-        CreateImageTexture();
-        CreateTextureImageView();
-        CreateTextureSampler();
-
-        // Note(Leo): After buffer creations!!
-        // Note(Leo): Also as is also after mockup texture creation!!
-        CreateDescriptorSets();
-        CreateCommandBuffers();
-
-        // Create Models
-        {
-            /*
-            Todo(Leo): call these from game code and return handle for those.
-            We can then arbitrarily create, reuse and destroy meshes.
-            Also separate mesh and instances conceptually.
-            */
-            loadedModels = {};
-
-            // Mesh meshes [] = {
-            //     GenerateMap(),
-            //     LoadModel("models/character.obj"),
-            //     LoadModel("models/pillar.obj"),
-            //     LoadModel("models/tree.obj")
-            // };
-            // MeshHandle handles [MAX_MODEL_COUNT];
-            // PushMeshesToBuffer(&staticMeshPool, &loadedModels, 4, meshes, handles);
         }
 
+        // -------- DRAWING ---------
+        int32 currentLoopingFrameIndex = 0;
+        {
+            CreateImageTexture();
+            CreateTextureImageView();
+            CreateTextureSampler();
+
+            // Note(Leo): After buffer creations!!
+            // Note(Leo): Also as is also after mockup texture creation!!
+            CreateDescriptorSets();
+            CreateCommandBuffers();
+        }
+
+        // -------- INITIALIZE NETWORK ---------
+        bool32 networkIsConnected   = false;
+        bool32 networkIsRuined      = false;
+        bool32 networkIsSending     = false;
+
+        GameNetwork gameNetwork = {};
+        SOCKET connectedSocket;
+        {
+            constexpr char LOCAL_HOST [] = "127.0.0.1";
+
+            int32 RESULT;
+            WSAData winsocketData;
+            WORD winsocketDllVersion = MAKEWORD(2, 1);
+            WSAStartup(winsocketDllVersion, &winsocketData);
+
+            connectedSocket = socket(AF_INET, SOCK_STREAM, 0);
+
+            SOCKADDR_IN address;
+            address.sin_addr.s_addr = inet_addr(LOCAL_HOST); 
+            address.sin_family = AF_INET;
+            address.sin_port = htons(444);
+
+            int32 addressLength = sizeof(address);
+
+            RESULT = connect(connectedSocket, (PSOCKADDR)&address, addressLength);
+            if (RESULT == 0)
+            {
+                // connect() was succedful
+                networkIsConnected = true;
+                networkIsSending = true;
+            }
+            else
+            {
+                // connect() failed, start listening
+                closesocket(connectedSocket);
+
+                SOCKET listeningSocket = socket(AF_INET, SOCK_STREAM, 0);
+                bind(listeningSocket, (PSOCKADDR)&address, addressLength);
+
+                // Note(Leo); This controls number of possible connections to listen/accept/?? at a time
+                int backlogCount = 10;
+                listen(listeningSocket, backlogCount);
+
+                connectedSocket = accept(listeningSocket, nullptr, nullptr);
+
+                if (connectedSocket != INVALID_SOCKET)
+                {
+                    networkIsConnected = true;
+                }
+                else
+                {
+                    RESULT = WSAGetLastError();
+                    std::cout << "Accepting socket error: " << WinSocketErrorString(RESULT) << "(" << RESULT << ")\n";
+                    networkIsRuined = true;
+                }
+
+                closesocket(listeningSocket);
+
+            }
+
+            u_long NON_BLOCKING_MODE = 1;
+            ioctlsocket(connectedSocket, FIONBIO, &NON_BLOCKING_MODE);
+            std::cout << "network tested\n";
+
+        }
 
         // --------- TIMING ---------------------------
         auto startTimeMark = std::chrono::high_resolution_clock::now();
-        real32 lastTime = 0;
+        real64 lastTime = 0;
 
-        // -------- DRAWING ---------
-        int32 currentFrameIndex = 0;
+        real64 networkSendDelay = 1.0 / 20;
+        real64 networkNextSendTime = 0;
 
         // ------- MAIN LOOP -------
         while (glfwWindowShouldClose(window) == false)
         {
-            GameInput input = {};
-            
+            // Note(Leo): just quit now if wsastartup failed
+            if (networkIsRuined)
+            {
+                break;
+            }
+
+            HWND foregroundWindow = GetForegroundWindow();
+            bool32 windowIsActive = thisWindow == foregroundWindow;
+
+            GameInput gameInput = {};
+
             auto currentTimeMark = std::chrono::high_resolution_clock::now();
-            real32 time = std::chrono::duration<real32, std::chrono::seconds::period>(currentTimeMark - startTimeMark).count();
-            input.timeDelta = time - lastTime;
+            real64 time = std::chrono::duration<real64, std::chrono::seconds::period>(currentTimeMark - startTimeMark).count();
+            gameInput.timeDelta = time - lastTime;
             lastTime = time;
 
             glfwPollEvents();
-            UpdateControllerInput(&input);
+            if (windowIsActive)
+            {
+                UpdateControllerInput(&gameInput);
+            }
 
-            // Note(Leo): Just recreate platformInfo each frame for now
-            GamePlatformInfo platformInfo = {};
-            platformInfo.screenWidth = swapchainExtent.width;
-            platformInfo.screenHeight = swapchainExtent.height;
+            // Note(Leo): Just recreate gamePlatformInfo each frame for now
+            GamePlatformInfo gamePlatformInfo = {};
+            gamePlatformInfo.screenWidth = swapchainExtent.width;
+            gamePlatformInfo.screenHeight = swapchainExtent.height;
 
             Matrix44 modelMatrixArray [MAX_MODEL_COUNT];
 
@@ -447,15 +457,39 @@ public:
             gameRenderInfo.modelMatrixArray = modelMatrixArray;
             gameRenderInfo.modelMatrixCount = loadedModels.size();
 
-            GameUpdateAndRender(&input, &gameMemory, &platformInfo, &gameRenderInfo);
+            GameUpdateAndRender(&gameInput, &gameMemory, &gamePlatformInfo,
+                                &gameNetwork, &gameRenderInfo);
+
+
+            // ----- OPERATE NETWORK ------
+            if (networkIsConnected)
+            {
+                constexpr int NETWORK_MESSAGE_LENGTH = 128;
+                char messageBuffer [NETWORK_MESSAGE_LENGTH] = {};
+
+                if (time > networkNextSendTime)
+                {
+                    networkNextSendTime = time + networkSendDelay;
+                    *reinterpret_cast<Vector3*>(messageBuffer) = gameNetwork.characterPosition;
+                    send(connectedSocket, messageBuffer, NETWORK_MESSAGE_LENGTH, 0);
+                }
+
+                int32 RESULT = recv(connectedSocket, messageBuffer, NETWORK_MESSAGE_LENGTH, 0);
+                if (RESULT == NETWORK_MESSAGE_LENGTH)
+                {
+                    Vector3 characterPosition = *reinterpret_cast<Vector3*>(messageBuffer);
+                    gameNetwork.otherCharacterPosition = characterPosition;
+                }
+            }
             
             // ---- DRAW -----    
             {
-                vkWaitForFences(logicalDevice, 1, &inFlightFences[currentFrameIndex], VK_TRUE, MaxValue<uint64>);
+                vkWaitForFences(logicalDevice, 1, &inFlightFences[currentLoopingFrameIndex],
+                                VK_TRUE, VULKAN_NO_TIME_OUT);
 
                 uint32 imageIndex;
                 VkResult result = vkAcquireNextImageKHR(logicalDevice, swapchain, MaxValue<uint64>,
-                                                    imageAvailableSemaphores[currentFrameIndex],
+                                                    imageAvailableSemaphores[currentLoopingFrameIndex],
                                                     VK_NULL_HANDLE, &imageIndex);
 
                 switch (result)
@@ -463,7 +497,7 @@ public:
                     case VK_SUCCESS:
                     case VK_SUBOPTIMAL_KHR:
                         UpdateUniformBuffer(imageIndex, &gameRenderInfo);
-                        DrawFrame(imageIndex, currentFrameIndex);
+                        DrawFrame(imageIndex, currentLoopingFrameIndex);
                         break;
 
                     case VK_ERROR_OUT_OF_DATE_KHR:
@@ -474,11 +508,18 @@ public:
                         throw std::runtime_error("Failed to acquire swap chain image");
                 }
 
-                currentFrameIndex = (currentFrameIndex + 1) % MAX_FRAMES_IN_FLIGHT;
+                currentLoopingFrameIndex = (currentLoopingFrameIndex + 1) % MAX_FRAMES_IN_FLIGHT;
             }
         }
 
-        // ------- FINISH -----
+        /// ------- CLEUNUP NETWORK ----------
+        {
+            int32 RESULT;
+            RESULT = closesocket(connectedSocket);
+            RESULT = WSACleanup();
+        }
+
+        /// ------- FINISH -----
         // Note(Leo): All draw frame operations are asynchronous, must wait for them to finish
         vkDeviceWaitIdle(logicalDevice);
         Cleanup();
@@ -497,36 +538,37 @@ private:
     VkQueue graphicsQueue;
     VkQueue presentQueue;
 
-    VkSwapchainKHR swapchain;
 
     /* Note(Leo): these images dont need explicit memory, it is managed by GPU
     We receive these from gpu for presenting. */
-    std::vector<VkImage> swapchainImages;
-    std::vector<VkImageView> swapchainImageViews;
-    std::vector<VkFramebuffer> swapchainFramebuffers;
+    VkSwapchainKHR              swapchain;
+    std::vector<VkImage>        swapchainImages;
+    std::vector<VkImageView>    swapchainImageViews;
+    std::vector<VkFramebuffer>  swapchainFramebuffers;
 
-    VkFormat swapchainImageFormat;
-    VkExtent2D swapchainExtent;
+    VkFormat    swapchainImageFormat;
+    VkExtent2D  swapchainExtent;
 
-    VkRenderPass renderPass;
-    VkDescriptorSetLayout descriptorSetLayout;
-    VkPipelineLayout pipelineLayout;
-    VkPipeline graphicsPipeline;
-    VkCommandPool commandPool;
+    VkRenderPass            renderPass;
+    VkPipelineLayout        pipelineLayout;
+    VkPipeline              graphicsPipeline;
 
-    VkDescriptorPool descriptorPool;
-    std::vector<VkDescriptorSet> descriptorSets;
+    VkDescriptorSetLayout           descriptorSetLayout;
+    VkDescriptorPool                descriptorPool;
+    std::vector<VkDescriptorSet>    descriptorSets;
 
-    std::vector<VkCommandBuffer> commandBuffers;
-    std::vector<VkSemaphore> imageAvailableSemaphores;
-    std::vector<VkSemaphore> renderFinishedSemaphores;
-    std::vector<VkFence> inFlightFences;
+    VkCommandPool                   commandPool;
+    std::vector<VkCommandBuffer>    commandBuffers;
+    
+    std::vector<VkSemaphore>    imageAvailableSemaphores;
+    std::vector<VkSemaphore>    renderFinishedSemaphores;
+    std::vector<VkFence>        inFlightFences;
 
     bool32 framebufferResized = false;
 
-    VulkanBufferResource staticMeshPool;
-    std::vector<VulkanLoadedModel> loadedModels;
-    VulkanBufferResource stagingBufferPool;
+    VulkanBufferResource            staticMeshPool;
+    std::vector<VulkanLoadedModel>  loadedModels;
+    VulkanBufferResource            stagingBufferPool;
 
     /* Todo(Leo): Define a proper struct (of which size is to be used) to
     make it easier to change later. */
@@ -557,11 +599,11 @@ private:
     VulkanBufferResource sceneUniformBuffer;
 
 
-    // IMAGE TEXTURE, Todo(Leo): these can be abstracted away, yay! :D
-    uint32 textureMipLevels = 1;
-    VkImage textureImage;
-    VkDeviceMemory textureImageMemory;
-    VkImageView textureImageView;
+    // mockup IMAGE TEXTURE
+    uint32          textureMipLevels = 1;
+    VkImage         textureImage;
+    VkDeviceMemory  textureImageMemory;
+    VkImageView     textureImageView;
 
     /* Note(Leo): image and sampler are now (as in Vulkan) unrelated, and same
     sampler can be used with multiple images, noice */
@@ -569,23 +611,24 @@ private:
     
     // MULTISAMPLING
     VkSampleCountFlagBits msaaSamples;
+    VkSampleCountFlagBits msaaMaxSamples = VK_SAMPLE_COUNT_2_BIT;
 
     // DEPTH RESOURCES
-    VkImage depthImage;
-    VkDeviceMemory depthImageMemory;
-    VkImageView depthImageView;
+    VkImage         depthImage;
+    VkDeviceMemory  depthImageMemory;
+    VkImageView     depthImageView;
 
     // COLOR RESOURCES
-    VkImage colorImage;
-    VkDeviceMemory colorImageMemory;
-    VkImageView colorImageView;
+    VkImage         colorImage;
+    VkDeviceMemory  colorImageMemory;
+    VkImageView     colorImageView;
 
     /* Note(leo): these are fixed per available renderpipeline thing. There describe
     'kinds' of resources or something, so their amount does not change */
     constexpr static int32
         DESCRIPTOR_SCENE_UNIFORM_BUFFER_ID = 0,
         DESCRIPTOR_MODEL_UNIFORM_BUFFER_ID = 2,
-        kDescriptorSamplerId = 1;
+        DESCRIPTOR_SAMPLER_ID              = 1;
     constexpr static int32 DESCRIPTOR_SET_COUNT = 3;
 
 
@@ -600,7 +643,7 @@ private:
 
         auto FramebufferResizeCallback = [] (GLFWwindow * window, int width, int height)
         {
-            auto application = reinterpret_cast<MazegameApplication*>(glfwGetWindowUserPointer(window));
+            auto application = reinterpret_cast<MazegameApplication *>(glfwGetWindowUserPointer(window));
             application->framebufferResized = true;
         };
 
@@ -711,21 +754,9 @@ private:
             if (vkEnumerateInstanceLayerProperties (&availableLayersCount, availableLayers) == VK_SUCCESS)
             {
 
-                // for (int i = 0; i < availableLayersCount; ++i)
-                // {
-                //     std::cout << availableLayers[i].layerName << "\n";
-                // }
-
-                // std::cout << "\n";
-
-                // for (int i = 0; i < validationLayersCount; ++i)
-                // {
-                //     std::cout << validationLayers[i] << "\n";
-                // }
-
                 for (
                     int validationLayerIndex = 0;
-                    validationLayerIndex < validationLayersCount;
+                    validationLayerIndex < Vulkan::VALIDATION_LAYERS_COUNT;
                     ++validationLayerIndex)
                 {
                     bool32 layerFound = false;
@@ -734,7 +765,7 @@ private:
                         availableLayerIndex < availableLayersCount; 
                         ++availableLayerIndex)
                     {
-                        if (strcmp (validationLayers[validationLayerIndex], availableLayers[availableLayerIndex].layerName) == 0)
+                        if (strcmp (Vulkan::validationLayers[validationLayerIndex], availableLayers[availableLayerIndex].layerName) == 0)
                         {
                             layerFound = true;
                             break;
@@ -752,7 +783,7 @@ private:
             return result;
         };
 
-        if (enableValidationLayers && CheckValidationLayerSupport() == false)
+        if (Vulkan::enableValidationLayers && CheckValidationLayerSupport() == false)
         {
             throw std::runtime_error("Validation layers required but not present");
         }
@@ -772,10 +803,10 @@ private:
         instanceInfo.enabledExtensionCount = glfwExtensionCount;
         instanceInfo.ppEnabledExtensionNames = glfwExtensions;
 
-        if constexpr (enableValidationLayers)
+        if constexpr (Vulkan::enableValidationLayers)
         {
-            instanceInfo.enabledLayerCount = validationLayersCount;
-            instanceInfo.ppEnabledLayerNames = validationLayers;
+            instanceInfo.enabledLayerCount = Vulkan::VALIDATION_LAYERS_COUNT;
+            instanceInfo.ppEnabledLayerNames = Vulkan::validationLayers;
         }
         else
         {
@@ -791,21 +822,6 @@ private:
         // VkExtensionProperties extensions [50];
         // uint32 extensionCount = ARRAY_COUNT(extensions);
         // vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, extensions); 
-
-
-        // for (int i = 0; i < glfwExtensionCount; ++i)
-        // {
-        //     std::cout << "\t" << glfwExtensions [i] << "\n";
-        // }
-
-        // std::cout << "\n";
-
-        // for (int i = 0; i < extensionCount; ++i)
-        // {
-        //     std::cout << "\t" << extensions[i].extensionName << "\n";   
-        // }
-
-        // std::cout << "extensionCount: " << extensionCount << "\n";
     }
 
     void
@@ -826,15 +842,9 @@ private:
             uint32 availableExtensionsCount = ARRAY_COUNT(availableExtensions);
             vkEnumerateDeviceExtensionProperties (testDevice, nullptr, &availableExtensionsCount, availableExtensions);
 
-            // std::cout << "Device extensions found: " << availableExtensionsCount << "\n";
-            // for (int i = 0; i < availableExtensionsCount; ++i)
-            // {
-            //     std::cout << "\t" << availableExtensions[i].extensionName << "\n";
-            // }
-
             bool32 result = true;
             for (int requiredIndex = 0;
-                requiredIndex < deviceExtensionsCount;
+                requiredIndex < Vulkan::DEVICE_EXTENSION_COUNT;
                 ++requiredIndex)
             {
 
@@ -843,7 +853,7 @@ private:
                     availableIndex < availableExtensionsCount;
                     ++availableIndex)
                 {
-                    if (strcmp(deviceExtensions[requiredIndex], availableExtensions[availableIndex].extensionName) == 0)
+                    if (strcmp(Vulkan::deviceExtensions[requiredIndex], availableExtensions[availableIndex].extensionName) == 0)
                     {
                         requiredExtensionFound = true;
                         break;
@@ -874,11 +884,11 @@ private:
             bool32 swapchainIsOk = false;
             if (extensionsAreSupported)
             {
-                SwapchainSupportDetails swapchainSupport = QuerySwapChainSupport(testDevice, surface);
+                VulkanSwapchainSupportDetails swapchainSupport = QuerySwapChainSupport(testDevice, surface);
                 swapchainIsOk = !swapchainSupport.formats.empty() && !swapchainSupport.presentModes.empty();
             }
 
-            QueueFamilyIndices indices = FindQueueFamilies(testDevice, surface);
+            VulkanQueueFamilyIndices indices = FindQueueFamilies(testDevice, surface);
             return  isDedicatedGPU 
                     && indices.hasAll()
                     && extensionsAreSupported
@@ -888,6 +898,10 @@ private:
 
         auto GetMaxUsableMsaaSampleCount = [] (VkPhysicalDevice physicalDevice) -> VkSampleCountFlagBits
         {
+            // Todo(Leo): to be easier on machine when developing for 2 players at same time
+            return VK_SAMPLE_COUNT_1_BIT;
+
+
             VkPhysicalDeviceProperties physicalDeviceProperties;
             vkGetPhysicalDeviceProperties(physicalDevice, &physicalDeviceProperties);
 
@@ -931,15 +945,13 @@ private:
             throw std::runtime_error("No suitable GPU device found");
         }
 
-
         vkGetPhysicalDeviceProperties(physicalDevice, &physicalDeviceProperties);
     }
 
     void
     CreateLogicalDevice()
     {
-        QueueFamilyIndices queueIndices = FindQueueFamilies(physicalDevice, surface);
-
+        VulkanQueueFamilyIndices queueIndices = FindQueueFamilies(physicalDevice, surface);
 
         /* Note: We need both graphics and present queue, but they might be on
         separate devices (correct???), so we may need to end up with multiple queues */
@@ -964,13 +976,13 @@ private:
         deviceCreateInfo.queueCreateInfoCount = 1;
         deviceCreateInfo.pQueueCreateInfos = queueCreateInfos;
         deviceCreateInfo.pEnabledFeatures = &physicalDeviceFeatures;
-        deviceCreateInfo.enabledExtensionCount = deviceExtensionsCount;
-        deviceCreateInfo.ppEnabledExtensionNames = deviceExtensions;
+        deviceCreateInfo.enabledExtensionCount = Vulkan::DEVICE_EXTENSION_COUNT;
+        deviceCreateInfo.ppEnabledExtensionNames = Vulkan::deviceExtensions;
 
-        if constexpr (enableValidationLayers)
+        if constexpr (Vulkan::enableValidationLayers)
         {
-            deviceCreateInfo.enabledLayerCount = validationLayersCount;
-            deviceCreateInfo.ppEnabledLayerNames = validationLayers;
+            deviceCreateInfo.enabledLayerCount = Vulkan::VALIDATION_LAYERS_COUNT;
+            deviceCreateInfo.ppEnabledLayerNames = Vulkan::validationLayers;
         }
         else
         {
@@ -989,7 +1001,7 @@ private:
     void
     CreateSwapchainAndImages()
     {
-        SwapchainSupportDetails swapchainSupport = QuerySwapChainSupport(physicalDevice, surface);
+        VulkanSwapchainSupportDetails swapchainSupport = QuerySwapChainSupport(physicalDevice, surface);
 
         VkSurfaceFormatKHR surfaceFormat = ChooseSwapSurfaceFormat(swapchainSupport.formats);
         VkPresentModeKHR presentMode = ChooseSurfacePresentMode(swapchainSupport.presentModes);
@@ -1031,7 +1043,7 @@ private:
         createInfo.imageArrayLayers = 1;
         createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 
-        QueueFamilyIndices queueIndices = FindQueueFamilies(physicalDevice, surface);
+        VulkanQueueFamilyIndices queueIndices = FindQueueFamilies(physicalDevice, surface);
         uint32 queueIndicesArray [2] = {queueIndices.graphics, queueIndices.present};
 
         if (queueIndices.graphics == queueIndices.present)
@@ -1178,11 +1190,11 @@ private:
         layoutBindings[DESCRIPTOR_SCENE_UNIFORM_BUFFER_ID].pImmutableSamplers = nullptr; // Note(Leo): relevant for sampler stuff, like textures
 
         // SAMPLER
-        layoutBindings[kDescriptorSamplerId].binding = kDescriptorSamplerId;
-        layoutBindings[kDescriptorSamplerId].descriptorCount = 1;
-        layoutBindings[kDescriptorSamplerId].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        layoutBindings[kDescriptorSamplerId].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-        layoutBindings[kDescriptorSamplerId].pImmutableSamplers = nullptr;
+        layoutBindings[DESCRIPTOR_SAMPLER_ID].binding = DESCRIPTOR_SAMPLER_ID;
+        layoutBindings[DESCRIPTOR_SAMPLER_ID].descriptorCount = 1;
+        layoutBindings[DESCRIPTOR_SAMPLER_ID].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        layoutBindings[DESCRIPTOR_SAMPLER_ID].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+        layoutBindings[DESCRIPTOR_SAMPLER_ID].pImmutableSamplers = nullptr;
 
         // MODEL TRANSFORM BUFFES
         layoutBindings[DESCRIPTOR_MODEL_UNIFORM_BUFFER_ID].binding = DESCRIPTOR_MODEL_UNIFORM_BUFFER_ID;
@@ -1204,27 +1216,28 @@ private:
     void
     CreateGraphicsPipeline()
     {
-        // Todo: these can be removed totally from here, just call inline in next functions
         BinaryAsset vertexShaderCode = ReadBinaryFile("shaders/vert.spv");
         BinaryAsset fragmentShaderCode = ReadBinaryFile("shaders/frag.spv");
 
         VkShaderModule vertexShaderModule = CreateShaderModule(vertexShaderCode, logicalDevice);
         VkShaderModule fragmentShaderModule = CreateShaderModule(fragmentShaderCode, logicalDevice);
 
-        VkPipelineShaderStageCreateInfo shaderStages [2] = {};
         constexpr uint32 
-            vertex_stage_id     = 0,
-            fragment_stage_id   = 1;
+            VERTEX_STAGE_ID     = 0,
+            FRAGMENT_STAGE_ID   = 1,
+            SHADER_STAGE_COUNT  = 2;
+        VkPipelineShaderStageCreateInfo shaderStages [SHADER_STAGE_COUNT] = {};
 
-        shaderStages[vertex_stage_id].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-        shaderStages[vertex_stage_id].stage = VK_SHADER_STAGE_VERTEX_BIT;
-        shaderStages[vertex_stage_id].module = vertexShaderModule;
-        shaderStages[vertex_stage_id].pName = "main";
 
-        shaderStages[fragment_stage_id].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-        shaderStages[fragment_stage_id].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-        shaderStages[fragment_stage_id].module = fragmentShaderModule;
-        shaderStages[fragment_stage_id].pName = "main";
+        shaderStages[VERTEX_STAGE_ID].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        shaderStages[VERTEX_STAGE_ID].stage = VK_SHADER_STAGE_VERTEX_BIT;
+        shaderStages[VERTEX_STAGE_ID].module = vertexShaderModule;
+        shaderStages[VERTEX_STAGE_ID].pName = "main";
+
+        shaderStages[FRAGMENT_STAGE_ID].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        shaderStages[FRAGMENT_STAGE_ID].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+        shaderStages[FRAGMENT_STAGE_ID].module = fragmentShaderModule;
+        shaderStages[FRAGMENT_STAGE_ID].pName = "main";
 
         VkPipelineVertexInputStateCreateInfo vertexInputInfo = {};
         vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
@@ -1287,8 +1300,10 @@ private:
 
         // Note: This attachment is per framebuffer
         VkPipelineColorBlendAttachmentState colorBlendAttachment = {};
-        colorBlendAttachment.colorWriteMask = 
-            VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+        colorBlendAttachment.colorWriteMask =   VK_COLOR_COMPONENT_R_BIT 
+                                                | VK_COLOR_COMPONENT_G_BIT 
+                                                | VK_COLOR_COMPONENT_B_BIT 
+                                                | VK_COLOR_COMPONENT_A_BIT;
         colorBlendAttachment.blendEnable = VK_FALSE;
         colorBlendAttachment.srcColorBlendFactor =  VK_BLEND_FACTOR_ONE;
         colorBlendAttachment.dstColorBlendFactor =  VK_BLEND_FACTOR_ZERO;
@@ -1338,10 +1353,10 @@ private:
 
         VkGraphicsPipelineCreateInfo pipelineInfo = {};
         pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-        pipelineInfo.stageCount = 2;
+        pipelineInfo.stageCount = SHADER_STAGE_COUNT;
         pipelineInfo.pStages = shaderStages;
 
-        // Note: Fixed-function stages
+        // Note: Fixed-function stages???
         pipelineInfo.pVertexInputState      = &vertexInputInfo;
         pipelineInfo.pInputAssemblyState    = &inputAssembly;
         pipelineInfo.pViewportState         = &viewportState;
@@ -1408,7 +1423,7 @@ private:
     void
     CreateCommandPool()
     {
-        QueueFamilyIndices queueFamilyIndices = FindQueueFamilies(physicalDevice, surface);
+        VulkanQueueFamilyIndices queueFamilyIndices = FindQueueFamilies(physicalDevice, surface);
 
         VkCommandPoolCreateInfo poolInfo = {};
         poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
@@ -1558,13 +1573,6 @@ private:
         vkBindImageMemory(logicalDevice, *resultImage, *resultImageMemory, 0);   
     }
 
-    bool32
-    FormatHasStencilComponent(VkFormat format)
-    {
-        bool32 result = (format == VK_FORMAT_D32_SFLOAT_S8_UINT) || (format == VK_FORMAT_D24_UNORM_S8_UINT);
-        return result;
-    }
-
 
     // Change image layout from stored pixel array layout to device optimal layout
     void
@@ -1575,7 +1583,7 @@ private:
         VkImageLayout oldLayout,
         VkImageLayout newLayout
     ){
-        VkCommandBuffer commandBuffer = BeginOneTimeCommandBuffer(logicalDevice, commandPool);
+        VkCommandBuffer commandBuffer = Vulkan::BeginOneTimeCommandBuffer(logicalDevice, commandPool);
 
         VkImageMemoryBarrier barrier = { VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER };
         barrier.oldLayout = oldLayout; // Note(Leo): Can be VK_IMAGE_LAYOUT_UNDEFINED if we dont care??
@@ -1591,7 +1599,7 @@ private:
         if (newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
         {
             barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-            if (FormatHasStencilComponent(format))
+            if (Vulkan::FormatHasStencilComponent(format))
             {
                 barrier.subresourceRange.aspectMask |= VK_IMAGE_ASPECT_STENCIL_BIT;
             }
@@ -1672,14 +1680,14 @@ private:
                                 0, nullptr,
                                 1, &barrier);
 
-        EndOneTimeCommandBuffer (logicalDevice, commandPool, graphicsQueue, commandBuffer);
+        Vulkan::EndOneTimeCommandBuffer (logicalDevice, commandPool, graphicsQueue, commandBuffer);
     }
 
     // Note(Leo): expect image layout be VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
     void
     CopyBufferToImage(VkBuffer srcBuffer, VkImage dstImage, uint32 width, uint32 height)
     {
-        VkCommandBuffer commandBuffer = BeginOneTimeCommandBuffer(logicalDevice, commandPool);
+        VkCommandBuffer commandBuffer = Vulkan::BeginOneTimeCommandBuffer(logicalDevice, commandPool);
 
         VkBufferImageCopy region = {};
         region.bufferOffset = 0;
@@ -1696,7 +1704,7 @@ private:
 
         vkCmdCopyBufferToImage (commandBuffer, srcBuffer, dstImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 
-        EndOneTimeCommandBuffer (logicalDevice, commandPool, graphicsQueue, commandBuffer);
+        Vulkan::EndOneTimeCommandBuffer (logicalDevice, commandPool, graphicsQueue, commandBuffer);
     }
 
     uint32
@@ -1718,7 +1726,7 @@ private:
         }
 
 
-        VkCommandBuffer commandBuffer = BeginOneTimeCommandBuffer(logicalDevice, commandPool);
+        VkCommandBuffer commandBuffer = Vulkan::BeginOneTimeCommandBuffer(logicalDevice, commandPool);
 
         VkImageMemoryBarrier barrier = { VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER };
         barrier.image = image;
@@ -1791,7 +1799,7 @@ private:
             VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr,
             1, &barrier);
 
-        EndOneTimeCommandBuffer (logicalDevice, commandPool, graphicsQueue, commandBuffer);
+        Vulkan::EndOneTimeCommandBuffer (logicalDevice, commandPool, graphicsQueue, commandBuffer);
     }
 
     void
@@ -1811,18 +1819,10 @@ private:
             throw std::runtime_error("Failed to load image");
         }
 
-        VkBuffer stagingBuffer;
-        VkDeviceMemory stagingBufferMemory;
-        Vulkan::CreateBuffer(   
-                        logicalDevice, physicalDevice, imageSize,
-                        VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                        &stagingBuffer, &stagingBufferMemory);
-
         void * data;
-        vkMapMemory(logicalDevice, stagingBufferMemory, 0, imageSize, 0, &data);
+        vkMapMemory(logicalDevice, stagingBufferPool.memory, 0, imageSize, 0, &data);
         memcpy (data, pixels, imageSize);
-        vkUnmapMemory(logicalDevice, stagingBufferMemory);
+        vkUnmapMemory(logicalDevice, stagingBufferPool.memory);
         stbi_image_free(pixels);
 
         CreateImage(logicalDevice, physicalDevice,
@@ -1847,7 +1847,7 @@ private:
                                 VK_IMAGE_LAYOUT_UNDEFINED,
                                 VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
-        CopyBufferToImage(stagingBuffer, textureImage, texWidth, texHeight);
+        CopyBufferToImage(stagingBufferPool.buffer, textureImage, texWidth, texHeight);
 
         /* Note(Leo): mipmap generator will be doing the transition top proper layout for now
         Eventually miplevels will be stored in file instead and we need to transition manually */
@@ -1856,9 +1856,6 @@ private:
         //                         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);        
 
         GenerateMipMaps(textureImage, VK_FORMAT_R8G8B8A8_UNORM, texWidth, texHeight, textureMipLevels);
-
-        vkDestroyBuffer(logicalDevice, stagingBuffer, nullptr);
-        vkFreeMemory(logicalDevice, stagingBufferMemory, nullptr);
     }
 
     class_member VkImageView
@@ -1973,12 +1970,12 @@ private:
             memcpy(data, &mesh->vertices[0], vertexBufferSize);
             vkUnmapMemory(logicalDevice, stagingBufferPool.memory);
 
-            VkCommandBuffer commandBuffer = BeginOneTimeCommandBuffer(logicalDevice, commandPool);
+            VkCommandBuffer commandBuffer = Vulkan::BeginOneTimeCommandBuffer(logicalDevice, commandPool);
 
             VkBufferCopy copyRegion = { 0, destination->used, totalBufferSize };
             vkCmdCopyBuffer(commandBuffer, stagingBufferPool.buffer, destination->buffer, 1, &copyRegion);
 
-            EndOneTimeCommandBuffer(logicalDevice, commandPool, graphicsQueue, commandBuffer);
+            Vulkan::EndOneTimeCommandBuffer(logicalDevice, commandPool, graphicsQueue, commandBuffer);
 
             VulkanLoadedModel model = {};
 
@@ -2017,34 +2014,28 @@ private:
     void
     CreateDescriptorPool()
     {
+        /*
+        Note(Leo): 
+        There needs to only one per type, not one per user
+
+        We create a single big buffer and then use offsets to divide it to smaller chunks
+        */
+
         int32 imageCount = swapchainImages.size();
 
-        constexpr int32
-            UNIFORM_DESCRIPTOR_POOL_ID          = 0,
-            DYNAMIC_UNIFOR_DESCRIPTOR_POOL_ID   = 1,
-            SAMPLER_DESCRIPTOR_POOL_ID          = 2,
-            DESCRIPTOR_POOL_COUNT               = 3;
+        VkDescriptorPoolSize poolSizes [DESCRIPTOR_SET_COUNT] = {};
 
-        // Note(Leo): there needs to only one per type, not one per user
-        VkDescriptorPoolSize poolSizes [DESCRIPTOR_POOL_COUNT] = {};
+        poolSizes[DESCRIPTOR_SCENE_UNIFORM_BUFFER_ID].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        poolSizes[DESCRIPTOR_SCENE_UNIFORM_BUFFER_ID].descriptorCount = imageCount;
 
-        uint32 uniformBufferDescriptorCount = imageCount * 2;
-        poolSizes[UNIFORM_DESCRIPTOR_POOL_ID].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        poolSizes[DESCRIPTOR_MODEL_UNIFORM_BUFFER_ID].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+        poolSizes[DESCRIPTOR_MODEL_UNIFORM_BUFFER_ID].descriptorCount = imageCount; 
 
-        // Note(Leo): multiply by many to surely get enough
-        // Todo(Leo): make a lot of more sensible number than arbitrary 10!!!!
-        poolSizes[UNIFORM_DESCRIPTOR_POOL_ID].descriptorCount = uniformBufferDescriptorCount * 10;
-
-        poolSizes[DYNAMIC_UNIFOR_DESCRIPTOR_POOL_ID].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
-        poolSizes[DYNAMIC_UNIFOR_DESCRIPTOR_POOL_ID].descriptorCount = uniformBufferDescriptorCount * 10; 
-
-
-        uint32 samplerDescriptorCount = imageCount;
-        poolSizes[SAMPLER_DESCRIPTOR_POOL_ID].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        poolSizes[SAMPLER_DESCRIPTOR_POOL_ID].descriptorCount = samplerDescriptorCount;
+        poolSizes[DESCRIPTOR_SAMPLER_ID].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        poolSizes[DESCRIPTOR_SAMPLER_ID].descriptorCount = imageCount;
 
         VkDescriptorPoolCreateInfo poolInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO };
-        poolInfo.poolSizeCount = DESCRIPTOR_POOL_COUNT;
+        poolInfo.poolSizeCount = DESCRIPTOR_SET_COUNT;
         poolInfo.pPoolSizes = &poolSizes[0];
         poolInfo.maxSets = swapchainImages.size();
 
@@ -2091,20 +2082,6 @@ private:
             descriptorWrites[DESCRIPTOR_SCENE_UNIFORM_BUFFER_ID].descriptorCount = 1;
             descriptorWrites[DESCRIPTOR_SCENE_UNIFORM_BUFFER_ID].pBufferInfo = &sceneBufferInfo;
 
-            // IMAGE kDescriptorSamplerId
-            VkDescriptorImageInfo imageInfo = {};
-            imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-            imageInfo.imageView = textureImageView;
-            imageInfo.sampler = textureSampler;
-
-            descriptorWrites[kDescriptorSamplerId].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-            descriptorWrites[kDescriptorSamplerId].dstSet = descriptorSets[imageIndex];
-            descriptorWrites[kDescriptorSamplerId].dstBinding = kDescriptorSamplerId;
-            descriptorWrites[kDescriptorSamplerId].dstArrayElement = 0;
-            descriptorWrites[kDescriptorSamplerId].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-            descriptorWrites[kDescriptorSamplerId].descriptorCount = 1;
-            descriptorWrites[kDescriptorSamplerId].pImageInfo = &imageInfo;
-
             // MODEL UNIFORM BUFFERS
             VkDescriptorBufferInfo modelBufferInfo = {};
             modelBufferInfo.buffer = modelUniformBuffer.buffer;
@@ -2118,6 +2095,20 @@ private:
             descriptorWrites[DESCRIPTOR_MODEL_UNIFORM_BUFFER_ID].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
             descriptorWrites[DESCRIPTOR_MODEL_UNIFORM_BUFFER_ID].descriptorCount = 1;
             descriptorWrites[DESCRIPTOR_MODEL_UNIFORM_BUFFER_ID].pBufferInfo = &modelBufferInfo;
+
+            // MOCKUP: IMAGE DESCRIPTOR_SAMPLER_ID
+            VkDescriptorImageInfo imageInfo = {};
+            imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            imageInfo.imageView = textureImageView;
+            imageInfo.sampler = textureSampler;
+
+            descriptorWrites[DESCRIPTOR_SAMPLER_ID].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            descriptorWrites[DESCRIPTOR_SAMPLER_ID].dstSet = descriptorSets[imageIndex];
+            descriptorWrites[DESCRIPTOR_SAMPLER_ID].dstBinding = DESCRIPTOR_SAMPLER_ID;
+            descriptorWrites[DESCRIPTOR_SAMPLER_ID].dstArrayElement = 0;
+            descriptorWrites[DESCRIPTOR_SAMPLER_ID].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            descriptorWrites[DESCRIPTOR_SAMPLER_ID].descriptorCount = 1;
+            descriptorWrites[DESCRIPTOR_SAMPLER_ID].pImageInfo = &imageInfo;
 
             // Note(Leo): Two first are write info, two latter are copy info
             vkUpdateDescriptorSets(logicalDevice, DESCRIPTOR_SET_COUNT, &descriptorWrites[0], 0, nullptr);
@@ -2299,12 +2290,12 @@ private:
     }
 
     void
-    DrawFrame(uint32 imageIndex, uint32 currentFrameIndex)
+    DrawFrame(uint32 imageIndex, uint32 frameIndex)
     {
         VkSubmitInfo submitInfo[1] = {};
         submitInfo[0].sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
-        VkSemaphore waitSemaphores [] = { imageAvailableSemaphores[currentFrameIndex] };
+        VkSemaphore waitSemaphores [] = { imageAvailableSemaphores[frameIndex] };
         VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
         submitInfo[0].waitSemaphoreCount = 1;
         submitInfo[0].pWaitSemaphores = waitSemaphores;
@@ -2313,15 +2304,15 @@ private:
         submitInfo[0].commandBufferCount = 1;
         submitInfo[0].pCommandBuffers = &commandBuffers[imageIndex];
 
-        VkSemaphore signalSemaphores[] = { renderFinishedSemaphores[currentFrameIndex] };
+        VkSemaphore signalSemaphores[] = { renderFinishedSemaphores[frameIndex] };
         submitInfo[0].signalSemaphoreCount = ARRAY_COUNT(signalSemaphores);
         submitInfo[0].pSignalSemaphores = signalSemaphores;
 
         /* Note(Leo): reset here, so that if we have recreated swapchain above,
         our fences will be left in signaled state */
-        vkResetFences(logicalDevice, 1, &inFlightFences[currentFrameIndex]);
+        vkResetFences(logicalDevice, 1, &inFlightFences[frameIndex]);
 
-        if (vkQueueSubmit(graphicsQueue, 1, submitInfo, inFlightFences[currentFrameIndex]) != VK_SUCCESS)
+        if (vkQueueSubmit(graphicsQueue, 1, submitInfo, inFlightFences[frameIndex]) != VK_SUCCESS)
         {
             throw std::runtime_error("Failed to submit draw command buffer");
         }

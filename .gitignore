@@ -5,8 +5,8 @@ models/
 include/
 lib/
 
+misc/
 *.exe
 *.sublime-*
 *.build_output
 *.bat
-	

@@ -438,6 +438,17 @@ Normalize(VECTOR_TYPE vec)
 	return result;
 }
 
+VECTOR_TEMPLATE VECTOR_TYPE
+ClampLength(VECTOR_TYPE vec, ValueType requestedLength)
+{
+	ValueType length = Length(vec);
+	if (requestedLength < length)
+	{
+		vec *= (requestedLength / length);
+	}
+	return vec;
+}
+
 #undef VECTOR_TEMPLATE
 #undef VECTOR_TYPE
 #undef VECTOR_LOOP_ELEMENTS

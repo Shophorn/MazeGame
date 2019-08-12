@@ -10,14 +10,14 @@ layout(binding = 1) uniform sampler2D texSampler;
 
 
 const vec3 lightDirection = normalize(vec3(0.7, -1, 0.3));
-const float ambientIntensity = 0.15;
+const float ambientIntensity = 0.5;
 
 void main()
 {
 	float intensity = dot(-lightDirection, fragNormal) + ambientIntensity;
 
-	outColor.rgb = texture (texSampler, fragTexCoord).rgb * fragColor *intensity;
 	outColor.rgb = fragNormal * 0.5 + 0.5;
 	outColor.rgb = fragColor * intensity;
+	outColor.rgb = texture (texSampler, fragTexCoord).rgb * fragColor *intensity;
 	outColor.a = 1.0;
 }

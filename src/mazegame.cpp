@@ -1,12 +1,18 @@
+/*=============================================================================
+Leo Tamminen
+
+:MAZEGAME: project's main file.
+=============================================================================*/
 #include <iostream>
 
-#include "mazegame_platform.hpp"
+#include "MazegamePlatform.hpp"
 #include "Camera.cpp"
 #include "vertex_data.cpp"
 
 struct GameState
 {
 	Vector3 characterPosition;
+	Vector3 otherCharacterPosition;
 
 	real32 cameraOrbitDegrees;
 	real32 cameraTumbleDegrees;
@@ -16,8 +22,14 @@ struct GameState
 
 	MeshHandle levelMeshHandle;
 	MeshHandle characterMeshHandle;
-	MeshHandle sceneryMeshHandles [2];
+	MeshHandle otherCharacterMeshHandle;
+	MeshHandle sceneryMeshHandles [16];
 
+	Vector3 sceneryPositions [16];
+
+	MeshHandle cubeHandle;
+	Vector3 cubePosition;
+	Vector3 cubeScale;
 };
 
 void
@@ -37,21 +49,62 @@ InitializeGameState(GameState * state, GameMemory * memory, GamePlatformInfo * p
     state->worldCamera.farClipPlane = 1000.0f;
     state->worldCamera.aspectRatio = (real32)platform->screenWidth / (real32)platform->screenHeight;	
 
-
-    Mesh levelMesh = GenerateMap();
-    Mesh characterMesh = LoadModel("models/character.obj");
-    
-    state->levelMeshHandle = memory->PushMesh(&levelMesh);
-    state->characterMeshHandle = memory->PushMesh(&characterMesh);
-    
-    Mesh sceneryMeshes [] = 
+    Mesh meshes [] = 
     {
+    	GenerateMap(),
+    	LoadModel("models/character.obj"),
     	LoadModel("models/tree.obj"),
+
+    	LoadModel("models/pillar.obj"),
+    	LoadModel("models/pillar.obj"),
+    	LoadModel("models/pillar.obj"),
+    	LoadModel("models/pillar.obj"),
+    	LoadModel("models/pillar.obj"),
+    	LoadModel("models/pillar.obj"),
+    	LoadModel("models/pillar.obj"),
+    	LoadModel("models/pillar.obj"),
+    	LoadModel("models/pillar.obj"),
+    	LoadModel("models/pillar.obj"),
+    	LoadModel("models/pillar.obj"),
+    	LoadModel("models/pillar.obj"),
+    	LoadModel("models/pillar.obj"),
+    	LoadModel("models/pillar.obj"),
     	LoadModel("models/pillar.obj")
     };
+    MeshHandle handles[18] = {};
+    memory->PushMeshes(18, meshes, handles);
 
-    state->sceneryMeshHandles[0] = memory->PushMesh(&sceneryMeshes[0]);
-    state->sceneryMeshHandles[1] = memory->PushMesh(&sceneryMeshes[1]);
+	state->levelMeshHandle = handles[0];
+    state->characterMeshHandle = handles[1];
+
+    int32 sceneryCount = 16;
+    int32 sceneryCountOffset = 2;
+    for (int i = 0; i < sceneryCount; ++i)
+    {
+    	state->sceneryMeshHandles[i] = handles[i + sceneryCountOffset];
+    }
+
+    state->sceneryPositions[0] = {0, 0, 0};
+
+    int32 pillarCount = 15;
+    real32 pillarRadius = 15;
+    real32 pillarAngleStep = 360.0f / pillarCount;
+    int32 pillarCounOffset = 1;
+
+    for (int i = 0; i < pillarCount; ++i)
+    {
+    	real32 angle = DegToRad * pillarAngleStep * i;
+    	real32 x = Sine(angle) * pillarRadius;
+    	real32 z = Cosine(angle) * pillarRadius;
+    	state->sceneryPositions[i + pillarCounOffset]= {x, 0, z};
+    }
+
+   	memory->PushMeshes(1, &MeshPrimitives::cube, &state->cubeHandle);
+   	state->cubePosition = {0, 5, 0};
+   	state->cubeScale = {1, 1, 1};
+
+   	memory->PushMeshes(1, &meshes[1], &state->otherCharacterMeshHandle);
+   	state->otherCharacterPosition = {0, 0, 0};
 }
 
 void
@@ -59,6 +112,7 @@ GameUpdateAndRender(
 	GameInput * 		input,
 	GameMemory * 		memory,
 	GamePlatformInfo * 	platform,
+	GameNetwork	*		network,
 
 	GameRenderInfo * 	outRenderInfo
 ){
@@ -72,7 +126,7 @@ GameUpdateAndRender(
 
 	// Update Character
 	{
-		real32 characterSpeed = 5;
+		real32 characterSpeed = 8;
 
 		Vector3 viewForward = state->worldCamera.forward;
 		viewForward.y = 0;
@@ -81,6 +135,22 @@ GameUpdateAndRender(
 
 		state->characterPosition += viewRight * input->move.x * characterSpeed * input->timeDelta;
 		state->characterPosition += viewForward * input->move.y * characterSpeed * input->timeDelta;
+
+		if (state->characterPosition.x > 0)
+		{
+			state->cubeScale = {1, 1, 20};
+		}
+		else
+		{
+			state->cubeScale = {1, 1, 1};
+		}
+
+	}
+
+	// Update network
+	{
+		network->characterPosition = state->characterPosition;
+		state->otherCharacterPosition = network->otherCharacterPosition;
 	}
 
 	// Update Camera
@@ -133,9 +203,16 @@ GameUpdateAndRender(
 	{
 		outRenderInfo->modelMatrixArray[state->levelMeshHandle] = Matrix44::Identity();
 		outRenderInfo->modelMatrixArray[state->characterMeshHandle] = Matrix44::Translate(state->characterPosition);
+		outRenderInfo->modelMatrixArray[state->otherCharacterMeshHandle] = Matrix44::Translate(state->otherCharacterPosition);
 
-		outRenderInfo->modelMatrixArray[state->sceneryMeshHandles[0]] = Matrix44::Identity();
-		outRenderInfo->modelMatrixArray[state->sceneryMeshHandles[1]] = Matrix44::Translate({5, 0, 0});
+		int32 sceneryCount = 16;
+		for (int i = 0; i < sceneryCount; ++i)
+		{
+			outRenderInfo->modelMatrixArray[state->sceneryMeshHandles[i]] = Matrix44::Translate(state->sceneryPositions[i]);
+		}
+
+		auto cubeTransform = Matrix44::Transform(state->cubePosition, state->cubeScale);
+		outRenderInfo->modelMatrixArray[state->cubeHandle] = cubeTransform;
 
 	    outRenderInfo->cameraView = state->worldCamera.ViewProjection();
 	    outRenderInfo->cameraPerspective = state->worldCamera.PerspectiveProjection();
