@@ -1,0 +1,12 @@
+Notes
+
+Drawing and Projections
+	Vulkan NDC is right handed
+		top left is [-1, -1], +z goes away from screen
+
+		range is [(-1, -1, 0), (1, 1, 1)]
+		top left near to bottom right far
+
+Coordinate System:
+	Right handed, z up, y forward
+	Right handed rotations

@@ -1,10 +1,14 @@
+# Asset files
 shaders/
 textures/
 models/
+sounds/
 
+# External code
 include/
 lib/
 
+# Stuff
 misc/
 *.exe
 *.sublime-*

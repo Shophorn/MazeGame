@@ -8,22 +8,23 @@ Windows platform layer for mazegame
 #include <Windows.h>
 #include <xinput.h>
 
+#include <objbase.h>
+#include <mmdeviceapi.h>
+#include <audioclient.h>
+
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
 #define GLFW_EXPOSE_NATIVE_WIN32
 #include <GLFW/glfw3native.h>
 
-#include <iostream>
 #include <stdexcept>
-#include <functional>
 #include <vector>
 #include <fstream>
 #include <chrono>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
-
 
 // TODO(Leo): Make sure that arrays for getting extensions ana layers are large enough
 // TOdo(Leo): Combine to fewer functions and remove throws, instead returning specific enum value
@@ -37,16 +38,28 @@ staging buffer and actual vertex buffer. https://vulkan-tutorial.com/en/Vertex_b
 
 #include "MazegamePlatform.hpp"
 
+
+// Todo(Leo): hack to get two controller on single pc and still use 1st controller when online
+global_variable int globalXinputControllerIndex;
+
+#include "win_VulkanDebugStrings.cpp"
+#include "win_WinSocketDebugStrings.cpp"
+#include "win_ErrorStrings.hpp"
+
+#include "win_Mazegame.hpp"
+#include "win_Audio.cpp"
+#include "win_Network.cpp"
+
 using BinaryAsset = std::vector<uint8>;
 
 constexpr char texture_path [] = "textures/chalet.jpg";
 
+
 // Note(Leo): make unity build
 #include "win_Vulkan.cpp"
-#include "win_VulkanDebugStrings.cpp"
 #include "win_VulkanCommandBuffers.cpp"
 
-#include "win_WinSocketDebugStrings.cpp"
+
 BinaryAsset
 ReadBinaryFile (const char * fileName)
 {
@@ -69,125 +82,14 @@ ReadBinaryFile (const char * fileName)
 
 constexpr int32 MAX_MODEL_COUNT = 100;
 constexpr int32 MAX_FRAMES_IN_FLIGHT = 2;
+
+#if 1
 constexpr int32 WINDOW_WIDTH = 960;
 constexpr int32 WINDOW_HEIGHT = 540;
-
-VulkanSwapchainSupportDetails
-QuerySwapChainSupport(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface)
-{
-    VulkanSwapchainSupportDetails result = {};
-
-    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, surface, &result.capabilities);
-
-    uint32 formatCount = 0;
-    vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surface, &formatCount, nullptr);
-    if (formatCount > 0)
-    {
-        result.formats.resize(formatCount);
-        vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surface, &formatCount, result.formats.data());
-    }
-
-    // std::cout << "physicalDevice surface formats count: " << formatCount << "\n";
-
-    uint32 presentModeCount = 0;
-    vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, surface, &presentModeCount, nullptr);
-
-    if (presentModeCount > 0)
-    {
-        result.presentModes.resize(presentModeCount);
-        vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, surface, &presentModeCount, result.presentModes.data());
-    }
-
-    return result;
-}
-
-VkSurfaceFormatKHR
-ChooseSwapSurfaceFormat(std::vector<VkSurfaceFormatKHR>& availableFormats)
-{
-    constexpr VkFormat preferredFormat = VK_FORMAT_R8G8B8A8_UNORM;
-    constexpr VkColorSpaceKHR preferredColorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
-
-    VkSurfaceFormatKHR result = availableFormats [0];
-    for (int i = 0; i < availableFormats.size(); ++i)
-    {
-        if (availableFormats[i].format == preferredFormat && availableFormats[i].colorSpace == preferredColorSpace)
-        {
-            result = availableFormats [i];
-        }   
-    }
-    return result;
-}
-
-VkPresentModeKHR
-ChooseSurfacePresentMode(std::vector<VkPresentModeKHR> & availablePresentModes)
-{
-    // Todo(Leo): Is it really preferred???
-    constexpr VkPresentModeKHR preferredPresentMode = VK_PRESENT_MODE_MAILBOX_KHR;
-
-    VkPresentModeKHR result = VK_PRESENT_MODE_FIFO_KHR;
-    for (int i = 0; i < availablePresentModes.size(); ++i)
-    {
-        if (availablePresentModes[i] == preferredPresentMode)
-        {
-            result = availablePresentModes[i];
-        }
-    }
-    return result;
-}
-
-VulkanQueueFamilyIndices
-FindQueueFamilies (VkPhysicalDevice device, VkSurfaceKHR surface)
-{
-    // Note: A card must also have a graphics queue family available; We do want to draw after all
-    VkQueueFamilyProperties queueFamilyProps [50];
-    uint32 queueFamilyCount = ARRAY_COUNT(queueFamilyProps);
-    vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilyProps);
-
-    // std::cout << "queueFamilyCount: " << queueFamilyCount << "\n";
-
-    bool32 properQueueFamilyFound = false;
-    VulkanQueueFamilyIndices result = {};
-    for (int i = 0; i < queueFamilyCount; ++i)
-    {
-        if (queueFamilyProps[i].queueCount > 0 && (queueFamilyProps[i].queueFlags & VK_QUEUE_GRAPHICS_BIT))
-        {
-            result.graphics = i;
-            result.hasGraphics = true;
-        }
-
-        VkBool32 presentSupport = false;
-        vkGetPhysicalDeviceSurfaceSupportKHR(device, i, surface, &presentSupport);
-
-        if (queueFamilyProps[i].queueCount > 0 && presentSupport)
-        {
-            result.present = i;
-            result.hasPresent = true;
-        }
-
-        if (result.hasAll())
-        {
-            break;
-        }
-    }
-    return result;
-}
-
-VkShaderModule
-CreateShaderModule(BinaryAsset code, VkDevice logicalDevice)
-{
-    VkShaderModuleCreateInfo createInfo = {};
-    createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-    createInfo.codeSize = code.size();
-    createInfo.pCode = reinterpret_cast<uint32 *>(code.data());
-
-    VkShaderModule result;
-    if (vkCreateShaderModule (logicalDevice, &createInfo, nullptr, &result) != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to create shader module");
-    }
-
-    return result;
-}
+#else
+constexpr int32 WINDOW_WIDTH = 800;
+constexpr int32 WINDOW_HEIGHT = WINDOW_WIDTH;
+#endif
 
 // XInput things.
 using XInputGetStateFunc = decltype(XInputGetState);
@@ -228,10 +130,16 @@ ReadXInputJoystickValue(int16 value)
 internal void
 UpdateControllerInput(GameInput * input)
 {
+    local_persist bool32 xButtonWasDown = false;
+
+
     // We use pointer instead of return value, since we store other data to input too.
     // Note(Leo): Only get input from first controller, locally this is a single player game
     XINPUT_STATE controllerState;
-    DWORD result = XInputGetState(0, &controllerState);
+
+    // Note(Leo): Use global controller index depending on network status to test multiplayering
+    // DWORD result = XInputGetState(0, &controllerState);
+    DWORD result = XInputGetState(globalXinputControllerIndex, &controllerState);
 
     if (result == ERROR_SUCCESS)
     {
@@ -252,6 +160,11 @@ UpdateControllerInput(GameInput * input)
 
         input->zoomIn = zoomIn && !zoomOut;
         input->zoomOut = zoomOut && !zoomIn;
+
+        bool32 xButtonIsDown = (pressedButtons & XINPUT_GAMEPAD_A) != 0;
+
+        input->jump = xButtonIsDown + 2 * xButtonWasDown;
+        xButtonWasDown = xButtonIsDown;
     }
     else 
     {
@@ -273,6 +186,7 @@ public:
 
     void Run()
     {
+
         // ---------- INITIALIZE PLATFORM ------------
         InitializeWindow();
         VulkanInitialize();
@@ -280,7 +194,7 @@ public:
 
         LoadXInput();
 
-        HWND thisWindow = glfwGetWin32Window(window);
+        HWND thisWinApiWindow = glfwGetWin32Window(window);
 
         // ------- MEMORY ---------------------------
         GameMemory gameMemory = {};
@@ -310,6 +224,7 @@ public:
             uint64 modelUniformBufferSize   = Megabytes(100);
             uint64 sceneUniformBufferSize   = Megabytes(100);
             
+            // TODO[MEMORY] (Leo): This will need guarding against multithreads once we get there
             // Static mesh pool
             Vulkan::CreateBufferResource(   logicalDevice, physicalDevice, staticMeshPoolSize,
                                             VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
@@ -320,7 +235,6 @@ public:
                                             VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
                                             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
                                             &stagingBufferPool);
-
 
             // Uniform buffer for model matrices
             Vulkan::CreateBufferResource(   logicalDevice, physicalDevice, modelUniformBufferSize,
@@ -349,139 +263,105 @@ public:
         }
 
         // -------- INITIALIZE NETWORK ---------
-        bool32 networkIsConnected   = false;
-        bool32 networkIsRuined      = false;
-        bool32 networkIsSending     = false;
-
+        bool32 networkIsRuined = false;
+        WinApiNetwork network = WinApi::CreateNetwork();
         GameNetwork gameNetwork = {};
-        SOCKET connectedSocket;
-        {
-            constexpr char LOCAL_HOST [] = "127.0.0.1";
+        
 
-            int32 RESULT;
-            WSAData winsocketData;
-            WORD winsocketDllVersion = MAKEWORD(2, 1);
-            WSAStartup(winsocketDllVersion, &winsocketData);
+        /// --------- INITIALIZE AUDIO ----------------
+        WinApiAudio audio = WinApi::CreateAudio();
+        WinApi::StartPlaying(&audio);                
 
-            connectedSocket = socket(AF_INET, SOCK_STREAM, 0);
 
-            SOCKADDR_IN address;
-            address.sin_addr.s_addr = inet_addr(LOCAL_HOST); 
-            address.sin_family = AF_INET;
-            address.sin_port = htons(444);
-
-            int32 addressLength = sizeof(address);
-
-            RESULT = connect(connectedSocket, (PSOCKADDR)&address, addressLength);
-            if (RESULT == 0)
-            {
-                // connect() was succedful
-                networkIsConnected = true;
-                networkIsSending = true;
-            }
-            else
-            {
-                // connect() failed, start listening
-                closesocket(connectedSocket);
-
-                SOCKET listeningSocket = socket(AF_INET, SOCK_STREAM, 0);
-                bind(listeningSocket, (PSOCKADDR)&address, addressLength);
-
-                // Note(Leo); This controls number of possible connections to listen/accept/?? at a time
-                int backlogCount = 10;
-                listen(listeningSocket, backlogCount);
-
-                connectedSocket = accept(listeningSocket, nullptr, nullptr);
-
-                if (connectedSocket != INVALID_SOCKET)
-                {
-                    networkIsConnected = true;
-                }
-                else
-                {
-                    RESULT = WSAGetLastError();
-                    std::cout << "Accepting socket error: " << WinSocketErrorString(RESULT) << "(" << RESULT << ")\n";
-                    networkIsRuined = true;
-                }
-
-                closesocket(listeningSocket);
-
-            }
-
-            u_long NON_BLOCKING_MODE = 1;
-            ioctlsocket(connectedSocket, FIONBIO, &NON_BLOCKING_MODE);
-            std::cout << "network tested\n";
-
-        }
-
-        // --------- TIMING ---------------------------
+        /// --------- TIMING ---------------------------
         auto startTimeMark = std::chrono::high_resolution_clock::now();
         real64 lastTime = 0;
 
         real64 networkSendDelay = 1.0 / 20;
         real64 networkNextSendTime = 0;
 
-        // ------- MAIN LOOP -------
+        /// ------- MAIN LOOP -------
         while (glfwWindowShouldClose(window) == false)
         {
-            // Note(Leo): just quit now if wsastartup failed
+            // Note(Leo): just quit now if some unhandled network error occured
             if (networkIsRuined)
             {
+                auto error = WSAGetLastError();
+                std::cout << "NETWORK failed: " << WinSocketErrorString(error) << " (" << error << ")\n"; 
                 break;
             }
 
-            HWND foregroundWindow = GetForegroundWindow();
-            bool32 windowIsActive = thisWindow == foregroundWindow;
+            /// --------- TIME -----------------
+            real64 time;
+            real64 deltaTime;
+            {
+                auto currentTimeMark = std::chrono::high_resolution_clock::now();
+                time = std::chrono::duration<real64, std::chrono::seconds::period>(currentTimeMark - startTimeMark).count();
+                deltaTime = time - lastTime;
+                lastTime = time;
+            }
 
+            /// --------- HANDLE INPUT -----------
             GameInput gameInput = {};
-
-            auto currentTimeMark = std::chrono::high_resolution_clock::now();
-            real64 time = std::chrono::duration<real64, std::chrono::seconds::period>(currentTimeMark - startTimeMark).count();
-            gameInput.timeDelta = time - lastTime;
-            lastTime = time;
-
-            glfwPollEvents();
-            if (windowIsActive)
             {
-                UpdateControllerInput(&gameInput);
+                // Note(Leo): this is not input only...
+                glfwPollEvents();
+
+                HWND foregroundWindow = GetForegroundWindow();
+                bool32 windowIsActive = thisWinApiWindow == foregroundWindow;
+
+                // Note(Leo): this is disables because we want to use two controllers in separate processes at same time
+                // if (windowIsActive)
+                {
+                    UpdateControllerInput(&gameInput);
+                }
+
+                gameInput.timeDelta = deltaTime;
             }
 
-            // Note(Leo): Just recreate gamePlatformInfo each frame for now
-            GamePlatformInfo gamePlatformInfo = {};
-            gamePlatformInfo.screenWidth = swapchainExtent.width;
-            gamePlatformInfo.screenHeight = swapchainExtent.height;
+            /// ------ PRE-UPDATE NETWORK PASS ---------
+            if (network.isListening)
+            {
+                WinApi::NetworkListen(&network);
+            }
+            else if (network.isConnected)
+            {
+                WinApi::NetworkReceive(&network, &gameNetwork.inPackage);
+            }
 
-            Matrix44 modelMatrixArray [MAX_MODEL_COUNT];
-
+            /// --------- UPDATE GAME -------------
             GameRenderInfo gameRenderInfo = {};
-            gameRenderInfo.modelMatrixArray = modelMatrixArray;
-            gameRenderInfo.modelMatrixCount = loadedModels.size();
-
-            GameUpdateAndRender(&gameInput, &gameMemory, &gamePlatformInfo,
-                                &gameNetwork, &gameRenderInfo);
-
-
-            // ----- OPERATE NETWORK ------
-            if (networkIsConnected)
             {
-                constexpr int NETWORK_MESSAGE_LENGTH = 128;
-                char messageBuffer [NETWORK_MESSAGE_LENGTH] = {};
+                // Note(Leo): Just recreate gamePlatformInfo each frame for now
+                GamePlatformInfo gamePlatformInfo = {};
+                gamePlatformInfo.screenWidth = swapchainExtent.width;
+                gamePlatformInfo.screenHeight = swapchainExtent.height;
 
-                if (time > networkNextSendTime)
-                {
-                    networkNextSendTime = time + networkSendDelay;
-                    *reinterpret_cast<Vector3*>(messageBuffer) = gameNetwork.characterPosition;
-                    send(connectedSocket, messageBuffer, NETWORK_MESSAGE_LENGTH, 0);
-                }
+                Matrix44 modelMatrixArray [MAX_MODEL_COUNT];
 
-                int32 RESULT = recv(connectedSocket, messageBuffer, NETWORK_MESSAGE_LENGTH, 0);
-                if (RESULT == NETWORK_MESSAGE_LENGTH)
-                {
-                    Vector3 characterPosition = *reinterpret_cast<Vector3*>(messageBuffer);
-                    gameNetwork.otherCharacterPosition = characterPosition;
-                }
+                gameRenderInfo.modelMatrixArray = modelMatrixArray;
+                gameRenderInfo.modelMatrixCount = loadedModels.size();
+
+                gameNetwork.isConnected = network.isConnected;
+
+
+                GameSoundOutput gameSoundOutput = {};
+                WinApi::GetAudioBuffer(&audio, &gameSoundOutput.sampleCount, &gameSoundOutput.samples);
+
+                GameUpdateAndRender(&gameInput, &gameMemory, &gamePlatformInfo,
+                                    &gameNetwork, &gameSoundOutput, &gameRenderInfo);
+
+                WinApi::ReleaseAudioBuffer(&audio, gameSoundOutput.sampleCount);
             }
-            
+
+
+            // ----- POST-UPDATW NETWORK PASS ------
+            if (network.isConnected && time > networkNextSendTime)
+            {
+                networkNextSendTime = time + networkSendDelay;
+                WinApi::NetworkSend(&network, &gameNetwork.outPackage);
+            }
+
             // ---- DRAW -----    
             {
                 vkWaitForFences(logicalDevice, 1, &inFlightFences[currentLoopingFrameIndex],
@@ -512,17 +392,19 @@ public:
             }
         }
 
-        /// ------- CLEUNUP NETWORK ----------
-        {
-            int32 RESULT;
-            RESULT = closesocket(connectedSocket);
-            RESULT = WSACleanup();
-        }
+        /// -------- CLEANUP ---------
+        WinApi::StopPlaying(&audio);
+        WinApi::ReleaseAudio(&audio);
 
-        /// ------- FINISH -----
-        // Note(Leo): All draw frame operations are asynchronous, must wait for them to finish
-        vkDeviceWaitIdle(logicalDevice);
-        Cleanup();
+        WinApi::CloseNetwork(&network);
+
+        /// ------- CLEANUP VULKAN -----
+        {
+            // Note(Leo): All draw frame operations are asynchronous, must wait for them to finish
+            vkDeviceWaitIdle(logicalDevice);
+            Cleanup();
+            std::cout << "[VULKAN]: shut down\n";
+        }
     }
 
 private:
@@ -884,11 +766,11 @@ private:
             bool32 swapchainIsOk = false;
             if (extensionsAreSupported)
             {
-                VulkanSwapchainSupportDetails swapchainSupport = QuerySwapChainSupport(testDevice, surface);
+                VulkanSwapchainSupportDetails swapchainSupport = Vulkan::QuerySwapChainSupport(testDevice, surface);
                 swapchainIsOk = !swapchainSupport.formats.empty() && !swapchainSupport.presentModes.empty();
             }
 
-            VulkanQueueFamilyIndices indices = FindQueueFamilies(testDevice, surface);
+            VulkanQueueFamilyIndices indices = Vulkan::FindQueueFamilies(testDevice, surface);
             return  isDedicatedGPU 
                     && indices.hasAll()
                     && extensionsAreSupported
@@ -951,7 +833,7 @@ private:
     void
     CreateLogicalDevice()
     {
-        VulkanQueueFamilyIndices queueIndices = FindQueueFamilies(physicalDevice, surface);
+        VulkanQueueFamilyIndices queueIndices = Vulkan::FindQueueFamilies(physicalDevice, surface);
 
         /* Note: We need both graphics and present queue, but they might be on
         separate devices (correct???), so we may need to end up with multiple queues */
@@ -1001,10 +883,10 @@ private:
     void
     CreateSwapchainAndImages()
     {
-        VulkanSwapchainSupportDetails swapchainSupport = QuerySwapChainSupport(physicalDevice, surface);
+        VulkanSwapchainSupportDetails swapchainSupport = Vulkan::QuerySwapChainSupport(physicalDevice, surface);
 
-        VkSurfaceFormatKHR surfaceFormat = ChooseSwapSurfaceFormat(swapchainSupport.formats);
-        VkPresentModeKHR presentMode = ChooseSurfacePresentMode(swapchainSupport.presentModes);
+        VkSurfaceFormatKHR surfaceFormat = Vulkan::ChooseSwapSurfaceFormat(swapchainSupport.formats);
+        VkPresentModeKHR presentMode = Vulkan::ChooseSurfacePresentMode(swapchainSupport.presentModes);
 
         // Find extent ie. size of drawing window
         /* Note(Leo): max value is special value denoting that all are okay.
@@ -1043,7 +925,7 @@ private:
         createInfo.imageArrayLayers = 1;
         createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 
-        VulkanQueueFamilyIndices queueIndices = FindQueueFamilies(physicalDevice, surface);
+        VulkanQueueFamilyIndices queueIndices = Vulkan::FindQueueFamilies(physicalDevice, surface);
         uint32 queueIndicesArray [2] = {queueIndices.graphics, queueIndices.present};
 
         if (queueIndices.graphics == queueIndices.present)
@@ -1219,15 +1101,14 @@ private:
         BinaryAsset vertexShaderCode = ReadBinaryFile("shaders/vert.spv");
         BinaryAsset fragmentShaderCode = ReadBinaryFile("shaders/frag.spv");
 
-        VkShaderModule vertexShaderModule = CreateShaderModule(vertexShaderCode, logicalDevice);
-        VkShaderModule fragmentShaderModule = CreateShaderModule(fragmentShaderCode, logicalDevice);
+        VkShaderModule vertexShaderModule = Vulkan::CreateShaderModule(vertexShaderCode, logicalDevice);
+        VkShaderModule fragmentShaderModule = Vulkan::CreateShaderModule(fragmentShaderCode, logicalDevice);
 
         constexpr uint32 
             VERTEX_STAGE_ID     = 0,
             FRAGMENT_STAGE_ID   = 1,
             SHADER_STAGE_COUNT  = 2;
         VkPipelineShaderStageCreateInfo shaderStages [SHADER_STAGE_COUNT] = {};
-
 
         shaderStages[VERTEX_STAGE_ID].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
         shaderStages[VERTEX_STAGE_ID].stage = VK_SHADER_STAGE_VERTEX_BIT;
@@ -1280,8 +1161,11 @@ private:
         rasterizer.rasterizerDiscardEnable = VK_FALSE;
         rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
         rasterizer.lineWidth = 1.0f;
+
+        // TODO[DRAWINg](Leo): Sort out culling and vertex winding
         rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
-        rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+        rasterizer.cullMode = VK_CULL_MODE_NONE;
+        rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
         rasterizer.depthBiasEnable = VK_FALSE;
         rasterizer.depthBiasConstantFactor = 0.0f;
         rasterizer.depthBiasClamp = 0.0f;
@@ -1296,7 +1180,6 @@ private:
         multisampling.alphaToCoverageEnable = VK_FALSE;
         multisampling.alphaToOneEnable = VK_FALSE;
 
-        // Todo: Depth and stencil
 
         // Note: This attachment is per framebuffer
         VkPipelineColorBlendAttachmentState colorBlendAttachment = {};
@@ -1423,7 +1306,7 @@ private:
     void
     CreateCommandPool()
     {
-        VulkanQueueFamilyIndices queueFamilyIndices = FindQueueFamilies(physicalDevice, surface);
+        VulkanQueueFamilyIndices queueFamilyIndices = Vulkan::FindQueueFamilies(physicalDevice, surface);
 
         VkCommandPoolCreateInfo poolInfo = {};
         poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
@@ -1952,8 +1835,6 @@ private:
     ){
         for (int meshIndex = 0; meshIndex < meshCount; ++meshIndex)
         {
-            // outHandleArray [meshIndex] = PushMeshToBuffer(destination, loadedModels, &meshArray[meshIndex]);
-
             Mesh * mesh = &meshArray[meshIndex];
 
             uint64 indexBufferSize = mesh->indices.size() * sizeof(mesh->indices[0]);
@@ -2378,8 +2259,19 @@ private:
 };
 
 
-int main()
+int main(int argc, char ** argv)
 {
+    if (argc == 3)
+    {
+        networkOwnIpAddress = argv[1];
+        networkOtherIpAddress = argv[2];
+
+        std::cout
+            << "Set ip addresses:\n"
+            << "\town   " << networkOwnIpAddress << "\n"
+            << "\tother " << networkOtherIpAddress << "\n\n\n";
+    }
+
     try {
         MazegameApplication app = {};
         app.Run();
@@ -2388,6 +2280,5 @@ int main()
         return EXIT_FAILURE;
     }
 
-    std::cout << "Vulkan shut down succesfully\n";
     return EXIT_SUCCESS;
 }

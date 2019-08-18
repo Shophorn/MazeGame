@@ -23,9 +23,11 @@ layout (location = 2) out vec3 fragNormal;
 void main ()
 {
 	gl_Position = camera.projection * camera.view * model.model * vec4(inPosition, 1.0);
+
+	// TODO(Leo): transform this too
+	fragNormal = (transpose(inverse(model.model)) * vec4(inNormal, 0)).xyz;
 	
 	fragColor = inColor;
 	fragTexCoord = inTexCoord;
-	fragNormal = inNormal;
 }
 

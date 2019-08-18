@@ -10,6 +10,7 @@ Common essentials used all around in :MAZEGAME: project
 #define class_member static
 #define local_persist static
 #define internal static
+#define global_variable static
 
 #define ARRAY_COUNT(array) sizeof(array) / sizeof((array)[0])
 

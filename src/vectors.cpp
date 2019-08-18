@@ -1,3 +1,5 @@
+
+
 // TODO(Leo): heavy-weight testing
 
 // ------------------ DEFINITIONS ---------------------------------
@@ -19,6 +21,8 @@ union VectorBase
 	using value_type = ValueType;
 	static constexpr int dimension = Dimension;
 
+	static_assert(dimension > 1, "No vectors of 1 dimension allowed");
+
 	VECTOR_SUBSCRIPT_OPERATORS;
 };
 
@@ -38,6 +42,11 @@ union VectorBase<ValueType, 2>
 using Point2 = VectorBase<int32, 2>;
 using Vector2 = VectorBase<real32, 2>;
 
+// Note(Leo): These are coordinatesystem dependent interpretations
+#define COORDINATE_SYSTEM_X right
+#define COORDINATE_SYSTEM_Y forward
+#define COORDINATE_SYSTEM_Z up
+
 template<typename ValueType>
 union VectorBase<ValueType, 3>
 {
@@ -45,13 +54,32 @@ union VectorBase<ValueType, 3>
 	struct { ValueType r, g, b; };
 	ValueType values[3];
 
+	struct { ValueType COORDINATE_SYSTEM_X, COORDINATE_SYSTEM_Y, COORDINATE_SYSTEM_Z; };
+
 	using value_type = ValueType;
 	static constexpr int dimension = 3;
 
 	VECTOR_SUBSCRIPT_OPERATORS;
 };
 
+#define VECTOR_3_TEMPLATE 	template<typename ValueType>
+#define VECTOR_3_TYPE		VectorBase<ValueType, 3>
+
 using Vector3 = VectorBase<real32, 3>;
+
+namespace CoordinateSystem
+{
+	/*
+	Note(Leo): Right handed coordinate system, z up, y forward
+	*/
+
+	static constexpr Vector3 Left 		= {-1,  0,  0};
+	static constexpr Vector3 Right 		= { 1,  0,  0};
+	static constexpr Vector3 Back 		= { 0, -1,  0};
+	static constexpr Vector3 Forward 	= { 0,  1,  0};
+	static constexpr Vector3 Down 		= { 0,  0, -1};
+	static constexpr Vector3 Up 		= { 0,  0,  1};
+};
 
 template<typename ValueType>
 union VectorBase<ValueType, 4>
@@ -378,17 +406,15 @@ CoeffGreaterThanOrEqual(VECTOR_TYPE rhs, VECTOR_TYPE lhs)
 VECTOR_TEMPLATE ValueType
 Dot(VECTOR_TYPE a, VECTOR_TYPE b)
 {
-	ValueType result;
+	ValueType result = 0;
 	VECTOR_LOOP_ELEMENTS { result += a[i] * b[i]; }
 	return result;
 }
 
-VECTOR_TEMPLATE VECTOR_TYPE
-Cross(VECTOR_TYPE lhs, VECTOR_TYPE rhs)
+VECTOR_3_TEMPLATE VECTOR_3_TYPE
+Cross(VECTOR_3_TYPE lhs, VECTOR_3_TYPE rhs)
 {
-	static_assert (Dimension == 3, "Cross product is only defined for 3 dimensional vectors");
-
-	VECTOR_TYPE result = {
+	VECTOR_3_TYPE result = {
 		lhs.y * rhs.z - lhs.z * rhs.y,
 		lhs.z * rhs.x - lhs.x * rhs.z,
 		lhs.x * rhs.y - lhs.y * rhs.x
@@ -449,6 +475,40 @@ ClampLength(VECTOR_TYPE vec, ValueType requestedLength)
 	return vec;
 }
 
+VECTOR_3_TEMPLATE ValueType
+SignedAngle(VECTOR_3_TYPE from, VECTOR_3_TYPE to, VECTOR_3_TYPE referenceUp = CoordinateSystem::Up)
+{
+	ValueType a = Dot(Cross(from, to), referenceUp);
+	ValueType b = Dot(to, from);
+
+	ValueType result = ArcTan2(a, b);
+	return result;
+}
+
+
+#if MAZEGAME_INCLUDE_STD_IOSTREAM
+
+namespace std
+{	
+	VECTOR_TEMPLATE ostream &
+	operator << (ostream & os, VECTOR_TYPE vec)
+	{
+		os << "(" << vec[0];
+		for (int i = 1; i < Dimension; ++i)
+		{
+			os << "," << vec[i];
+		}
+		os << ")";
+		return os;
+	}
+}
+
+#endif
+
+
 #undef VECTOR_TEMPLATE
 #undef VECTOR_TYPE
 #undef VECTOR_LOOP_ELEMENTS
+
+#undef VECTOR_3_TEMPLATE
+#undef VECTOR_3_TYPE

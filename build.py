@@ -4,18 +4,6 @@ Leo Tamminen
 Build program for :MAZEGAME:. Compiles game and platform layer programs
 using clang++.
 '''
-
-def SetArgument(switch, arguments):
-	if switch is None:
-		switch = ''
-
-	if len(arguments) == 0:
-		return ''
-
-	# Add leading space here
-	result = ' ' + ' '.join([switch + item for item in arguments])
-	return result
-
 import subprocess
 import os
 import sys
@@ -23,41 +11,17 @@ import sys
 silent = '--silent' in sys.argv
 
 # Build settings
-include = [
-	"include", 
-	"C:/VulkanSDK/1.1.108.0/Include"
-]
+outputName 	= "mazegame.exe"
+flags 		= "-static -std=c++17"
+definitions = "-DMAZEGAME_DEVELOPMENT=1"
+sources 	= "src/win_Mazegame.cpp src/Mazegame.cpp"
+includePath	= "-Iinclude -IC:/VulkanSDK/1.1.108.0/Include"
+libPath 	= "-Llib -LC:/VulkanSDK/1.1.108.0/Lib"
+libLinks	= "-llibglfw3 -lvulkan-1 -lgdi32 -lws2_32 -lole32 -lwinmm"
 
-lib_path = [
-	"lib",
-	"C:/VulkanSDK/1.1.108.0/Lib"
-]
-
-lib_names = [
-	"libglfw3",
-	"vulkan-1",
-	"gdi32",
-	"ws2_32"
-]
-
-sources = ['src/win_Mazegame.cpp src/Mazegame.cpp']
-outputName = 'mazegame.exe'
-flags = ["-std=c++17"]
-
-# call = CompileClangPlusPlusCall()
-include_str = SetArgument('-I', include)
-libPath_str = SetArgument('-L', lib_path)
-link_str 	= SetArgument('-l', lib_names)
-sources_str = SetArgument(None, sources)
-flags_str 	= SetArgument(None, flags)
-
-call = "clang++ {} {} -o {} {} {} {}".format(
-			flags_str,
-			include_str,
-			outputName,
-			sources_str,
-			libPath_str,
-			link_str)
+call = "clang++ {} {} {} -o {} {} {} {}".format(
+			flags, definitions, includePath, outputName,
+			sources, libPath, libLinks)
 
 if not silent:
 	print (call)

@@ -82,6 +82,13 @@ Clamp(Number value, Number min, Number max)
     return value;
 }
 
+template<typename Float> inline Float
+Modulo(Float dividend, Float divisor)
+{
+    Float result = fmod(dividend, divisor);
+    return result;
+}
+
 
 // Todo(Leo): Add namespace
 inline real32
@@ -105,7 +112,55 @@ Tan(real32 value)
     return result;
 }
 
+inline real32
+ArcSine(real32 value)
+{
+    real32 result = asinf(value);
+    return result;
+}
+
+inline real32
+ArcCosine(real32 value)
+{
+    real32 result = acosf(value);
+    return result;
+}
+
+inline real32
+ArcTan2(real32 cosValue, real32 sinValue)
+{
+    real32 result = atan2f(cosValue, sinValue);
+    return result;
+}
+
+template<typename Number>
+inline Number
+Sign(Number value)
+{
+    if (value < 0) return -1;
+    if (value > 0) return 1;
+    return 0;
+}
+
 internal constexpr real32 pi = 3.141592653589793f;
 
+internal constexpr real32 degToRad = pi / 180.f;
+internal constexpr real32 radToDeg = 180.0f / pi;
+
+// Todo(Leo): remove or convert to functions
 internal constexpr real32 DegToRad = pi / 180.f;
 internal constexpr real32 RadToDeg = 180.0f / pi;
+
+template<typename Number>
+Number ToDegrees(Number radians)
+{
+    Number result = 180.0f * radians / pi;
+    return result; 
+}
+
+template<typename Number>
+Number ToRadians(Number degrees)
+{
+    Number result = pi * degrees / 180.0f;
+    return result;
+}

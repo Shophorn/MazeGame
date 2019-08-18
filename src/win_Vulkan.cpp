@@ -156,3 +156,122 @@ Vulkan::ConvertIndexType(IndexType type)
 			return VK_INDEX_TYPE_NONE_NV;
 	};
 }
+
+internal VulkanSwapchainSupportDetails
+Vulkan::QuerySwapChainSupport(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface)
+{
+    VulkanSwapchainSupportDetails result = {};
+
+    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, surface, &result.capabilities);
+
+    uint32 formatCount = 0;
+    vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surface, &formatCount, nullptr);
+    if (formatCount > 0)
+    {
+        result.formats.resize(formatCount);
+        vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surface, &formatCount, result.formats.data());
+    }
+
+    // std::cout << "physicalDevice surface formats count: " << formatCount << "\n";
+
+    uint32 presentModeCount = 0;
+    vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, surface, &presentModeCount, nullptr);
+
+    if (presentModeCount > 0)
+    {
+        result.presentModes.resize(presentModeCount);
+        vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, surface, &presentModeCount, result.presentModes.data());
+    }
+
+    return result;
+}
+
+internal VkSurfaceFormatKHR
+Vulkan::ChooseSwapSurfaceFormat(std::vector<VkSurfaceFormatKHR>& availableFormats)
+{
+    constexpr VkFormat preferredFormat = VK_FORMAT_R8G8B8A8_UNORM;
+    constexpr VkColorSpaceKHR preferredColorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
+
+    VkSurfaceFormatKHR result = availableFormats [0];
+    for (int i = 0; i < availableFormats.size(); ++i)
+    {
+        if (availableFormats[i].format == preferredFormat && availableFormats[i].colorSpace == preferredColorSpace)
+        {
+            result = availableFormats [i];
+        }   
+    }
+    return result;
+}
+
+internal VkPresentModeKHR
+Vulkan::ChooseSurfacePresentMode(std::vector<VkPresentModeKHR> & availablePresentModes)
+{
+    // Todo(Leo): Is it really preferred???
+    constexpr VkPresentModeKHR preferredPresentMode = VK_PRESENT_MODE_MAILBOX_KHR;
+
+    VkPresentModeKHR result = VK_PRESENT_MODE_FIFO_KHR;
+    for (int i = 0; i < availablePresentModes.size(); ++i)
+    {
+        if (availablePresentModes[i] == preferredPresentMode)
+        {
+            result = availablePresentModes[i];
+        }
+    }
+    return result;
+}
+
+
+VulkanQueueFamilyIndices
+Vulkan::FindQueueFamilies (VkPhysicalDevice device, VkSurfaceKHR surface)
+{
+    // Note: A card must also have a graphics queue family available; We do want to draw after all
+    VkQueueFamilyProperties queueFamilyProps [50];
+    uint32 queueFamilyCount = ARRAY_COUNT(queueFamilyProps);
+    vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilyProps);
+
+    // std::cout << "queueFamilyCount: " << queueFamilyCount << "\n";
+
+    bool32 properQueueFamilyFound = false;
+    VulkanQueueFamilyIndices result = {};
+    for (int i = 0; i < queueFamilyCount; ++i)
+    {
+        if (queueFamilyProps[i].queueCount > 0 && (queueFamilyProps[i].queueFlags & VK_QUEUE_GRAPHICS_BIT))
+        {
+            result.graphics = i;
+            result.hasGraphics = true;
+        }
+
+        VkBool32 presentSupport = false;
+        vkGetPhysicalDeviceSurfaceSupportKHR(device, i, surface, &presentSupport);
+
+        if (queueFamilyProps[i].queueCount > 0 && presentSupport)
+        {
+            result.present = i;
+            result.hasPresent = true;
+        }
+
+        if (result.hasAll())
+        {
+            break;
+        }
+    }
+    return result;
+}
+
+
+VkShaderModule
+Vulkan::CreateShaderModule(BinaryAsset code, VkDevice logicalDevice)
+{
+    VkShaderModuleCreateInfo createInfo = {};
+    createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+    createInfo.codeSize = code.size();
+    createInfo.pCode = reinterpret_cast<uint32 *>(code.data());
+
+    VkShaderModule result;
+    if (vkCreateShaderModule (logicalDevice, &createInfo, nullptr, &result) != VK_SUCCESS)
+    {
+        throw std::runtime_error("failed to create shader module");
+    }
+
+    return result;
+}

@@ -34,10 +34,10 @@ GenerateMap()
 			int vertexIndex = tileIndex * 4;
 			int triangleIndex = tileIndex * 6;
 
-			result.vertices[vertexIndex].position		= { x * tileSize - centeringValue, 	0,  z * tileSize - centeringValue};
-			result.vertices[vertexIndex + 1].position	= { (x + 1) * tileSize - centeringValue, 0,  z * tileSize - centeringValue};
-			result.vertices[vertexIndex + 2].position	= { x * tileSize - centeringValue, 	0, (z + 1) * tileSize - centeringValue};
-			result.vertices[vertexIndex + 3].position 	= { (x + 1) * tileSize - centeringValue, 0, (z + 1) * tileSize - centeringValue};
+			result.vertices[vertexIndex].position		= { x * tileSize - centeringValue, z * tileSize - centeringValue, 0};
+			result.vertices[vertexIndex + 1].position	= { (x + 1) * tileSize - centeringValue, z * tileSize - centeringValue, 0};
+			result.vertices[vertexIndex + 2].position	= { x * tileSize - centeringValue, (z + 1) * tileSize - centeringValue, 0};
+			result.vertices[vertexIndex + 3].position 	= { (x + 1) * tileSize - centeringValue, (z + 1) * tileSize - centeringValue, 0};
 
 			bool32 isBlack = ((z % 2) + x) % 2; 
 			Vector3 color = isBlack ? Vector3{0.25f, 0.25f, 0.25f} : Vector3{0.6f, 0.6f, 0.6f};
@@ -134,37 +134,37 @@ namespace MeshPrimitives
 	Mesh cube = {
 		/// VERTICES
 		{
-			/// LEFT fRce
+			/// LEFT face
 			{-radius, -radius,  radius, -1, 0, 0, 1, 1, 1, 0, 0},
 			{-radius, -radius, -radius, -1, 0, 0, 1, 1, 1, 1, 0},
 			{-radius,  radius,  radius, -1, 0, 0, 1, 1, 1, 0, 1},
 			{-radius,  radius, -radius, -1, 0, 0, 1, 1, 1, 1, 1},
 
-			/// RIGHT fRce
+			/// RIGHT face
 			{radius, -radius, -radius, 1, 0, 0, 1, 1, 1, 0, 0},
 			{radius, -radius,  radius, 1, 0, 0, 1, 1, 1, 1, 0},
 			{radius,  radius, -radius, 1, 0, 0, 1, 1, 1, 0, 1},
 			{radius,  radius,  radius, 1, 0, 0, 1, 1, 1, 1, 1},
 	
-			/// BOTTOM face
+			/// BACK face
 			{-radius, -radius,  radius, 0, -1, 0, 1, 1, 1, 0, 0},
 			{ radius, -radius,  radius, 0, -1, 0, 1, 1, 1, 1, 0},
 			{-radius, -radius, -radius, 0, -1, 0, 1, 1, 1, 0, 1},
 			{ radius, -radius, -radius, 0, -1, 0, 1, 1, 1, 1, 1},
 
-			/// TOP face
+			/// FORWARD face
 			{-radius, radius, -radius, 0, 1, 0, 1, 1, 1, 0, 0},
 			{ radius, radius, -radius, 0, 1, 0, 1, 1, 1, 1, 0},
 			{-radius, radius,  radius, 0, 1, 0, 1, 1, 1, 0, 1},
 			{ radius, radius,  radius, 0, 1, 0, 1, 1, 1, 1, 1},
 
-			/// BACK face
+			/// BOTTOM face
 			{-radius, -radius, -radius, 0, 0, -1, 1, 1, 1, 0, 0},
 			{ radius, -radius, -radius, 0, 0, -1, 1, 1, 1, 1, 0},
 			{-radius,  radius, -radius, 0, 0, -1, 1, 1, 1, 0, 1},
 			{ radius,  radius, -radius, 0, 0, -1, 1, 1, 1, 1, 1},
 
-			/// FRONT face
+			/// UP face
 			{ radius, -radius, radius, 0, 0, 1, 1, 1, 1, 0, 0},
 			{-radius, -radius, radius, 0, 0, 1, 1, 1, 1, 1, 0},
 			{ radius,  radius, radius, 0, 0, 1, 1, 1, 1, 0, 1},
@@ -193,5 +193,4 @@ namespace MeshPrimitives
 		},
 		IndexType::UInt16
 	};
-
 }

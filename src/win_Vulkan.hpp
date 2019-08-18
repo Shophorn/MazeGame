@@ -74,7 +74,7 @@ constexpr uint64 VULKAN_NO_TIME_OUT	= MaxValue<uint64>;
 namespace Vulkan
 {
 	// Todo(Leo): Probably going to roll custom for NDEBUG too
-	#ifdef NDEBUG
+	#if MAZEGAME_DEVELOPMENT
 	constexpr bool32 enableValidationLayers = false;
 	#else
 	constexpr bool32 enableValidationLayers = true;
@@ -134,6 +134,21 @@ namespace Vulkan
         bool32 result = (format == VK_FORMAT_D32_SFLOAT_S8_UINT) || (format == VK_FORMAT_D24_UNORM_S8_UINT);
         return result;
     }
+	
+	internal VulkanSwapchainSupportDetails
+	QuerySwapChainSupport(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface);
+
+	internal VkSurfaceFormatKHR
+	ChooseSwapSurfaceFormat(std::vector<VkSurfaceFormatKHR>& availableFormats);
+
+	internal VkPresentModeKHR
+	ChooseSurfacePresentMode(std::vector<VkPresentModeKHR> & availablePresentModes);
+
+	VulkanQueueFamilyIndices
+	FindQueueFamilies (VkPhysicalDevice device, VkSurfaceKHR surface);
+
+	VkShaderModule
+	CreateShaderModule(BinaryAsset code, VkDevice logicalDevice);
 }
 
 #define WIN_VULKAN_HPP

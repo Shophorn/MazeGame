@@ -12,6 +12,10 @@ Matrices are column major.
 #define STATIC_ASSERT_SQUARE_MATRIX static_assert(RowsCount == ColumnsCount, "Matrix must be square matrix")
 #define STATIC_ASSERT_TRANSFORM_MATRIX static_assert((RowsCount == 4) && (ColumnsCount == 4), "Matrix must be 4x4 transform matrix")
 
+/* This is a tag to mark variables explicitly as not initialized.
+By convention variables should be initialized or marked MATRIX_NO_INIT */
+#define MATRIX_NO_INIT
+
 MATRIX_TEMPLATE
 union MatrixBase
 {
@@ -19,18 +23,22 @@ union MatrixBase
 	constexpr static int rows_count 	= RowsCount;
 	constexpr static int columns_count 	= ColumnsCount;
 
+	using matrix_type = MatrixBase<value_type, rows_count, columns_count>;
+
 	using row_vector_type = VectorBase<ValueType, ColumnsCount>;
 	using column_vector_type = VectorBase<ValueType, RowsCount>;
 
+
 	/// -------- CONTENTS -------------------
 	// Todo(Leo): Is this better than columns only?
-	ValueType values[columns_count * rows_count];
-	column_vector_type columns[ColumnsCount];
+	column_vector_type 	columns [columns_count];
+	value_type 			values 	[rows_count * columns_count];
 
-	column_vector_type & operator [] (int index) { return columns[index]; }
-	column_vector_type operator [] (int index) const { return columns[index]; }
 
 	/// ------- ACCESSORS ----------------------------
+	column_vector_type & operator [] (int index) { return columns[index]; }
+	column_vector_type operator [] (int index) const { return columns[index]; }
+	
 	row_vector_type
 	GetRow(int row)
 	{
@@ -43,12 +51,12 @@ union MatrixBase
 	}
 
 	/// ------- BASIC CONSTRUCTORS ------------------------
-	class_member MATRIX_TYPE
+	class_member matrix_type
 	Diagonal(ValueType value)
 	{
 		STATIC_ASSERT_SQUARE_MATRIX;
 
-		MATRIX_TYPE result = {};
+		matrix_type result = {};
 		for (int i = 0; i < RowsCount; ++i)
 		{
 			result [i][i] = value;
@@ -56,33 +64,47 @@ union MatrixBase
 		return result;
 	}
 
-	class_member MATRIX_TYPE
+	class_member matrix_type
 	Identity()
 	{
 		STATIC_ASSERT_SQUARE_MATRIX;
 
-		MATRIX_TYPE result = Diagonal(1);
+		matrix_type result = Diagonal(1);
+		return result;
+	}
+
+	auto Transpose()
+	{
+		using transpose_type = MatrixBase<ValueType, columns_count, rows_count>;
+		
+		MATRIX_NO_INIT transpose_type result;
+
+		for (int row = 0; row < rows_count; ++row)
+		{
+			result.columns[row] = GetRow(row);
+		}
+
 		return result;
 	}
 
 	/// --------- TRANSFORMS ---------------------------
 	// Note(Leo): These are only available for 4x4 transform matrices
-	class_member MATRIX_TYPE
+	class_member matrix_type
 	Translate(VectorBase<ValueType, 3> translate)
 	{
 		STATIC_ASSERT_TRANSFORM_MATRIX;
 
-		MATRIX_TYPE result = Diagonal(1);
+		matrix_type result = Diagonal(1);
 		result[3] = Vector4{translate.x, translate.y, translate.z, 1.0f};
 		return result;
 	}
 
-	class_member MATRIX_TYPE
+	class_member matrix_type
 	Scale(VectorBase<ValueType, 3> scale)
 	{
 		STATIC_ASSERT_TRANSFORM_MATRIX;
 
-		MATRIX_TYPE result = {};
+		matrix_type result = {};
 		result[0][0] = scale [0];
 		result[1][1] = scale [1];
 		result[2][2] = scale [2];
@@ -90,12 +112,12 @@ union MatrixBase
 		return result;
 	}
 
-	class_member MATRIX_TYPE
+	class_member matrix_type
 	Scale(ValueType value)
 	{
 		STATIC_ASSERT_TRANSFORM_MATRIX;
 
-		MATRIX_TYPE result = {};
+		matrix_type result = {};
 		result[0][0] = value;
 		result[1][1] = value;
 		result[2][2] = value;
@@ -103,12 +125,12 @@ union MatrixBase
 		return result;
 	}
 
-	class_member MATRIX_TYPE
+	class_member matrix_type
 	Transform(VectorBase<ValueType, 3> translate, VectorBase<ValueType, 3>  scale)
 	{
 		STATIC_ASSERT_TRANSFORM_MATRIX;
 
-		MATRIX_TYPE result;
+		matrix_type result = {};
 
 		result[0][0] = scale[0];
 		result[1][1] = scale[1];
@@ -119,12 +141,12 @@ union MatrixBase
 		return result;
 	}
 
-	class_member MATRIX_TYPE
+	class_member matrix_type
 	Transform(VectorBase<ValueType, 3> translate, ValueType uniformScale)
 	{
 		STATIC_ASSERT_TRANSFORM_MATRIX;
 
-		MATRIX_TYPE result;
+		matrix_type result = {};
 
 		result[0][0] = uniformScale;
 		result[1][1] = uniformScale;
@@ -167,6 +189,46 @@ auto operator * (
 }
 
 
+#if MAZEGAME_INCLUDE_STD_IOSTREAM
+namespace std
+{
+	MATRIX_TEMPLATE ostream &
+	operator << (ostream & os, MATRIX_TYPE mat)
+	{
+		os << "(" << mat[0];
+		for (int i = 1; i < ColumnsCount; ++i)
+		{
+			os << ";" << mat[i];
+		}
+		os << ")";
+		return os;
+	}
+}
+#endif
+
+
+using Matrix44 = MatrixBase<real32, 4, 4>;
+
+// Todo (Leo): make template
+inline Vector3 
+operator * (Matrix44 mat, Vector3 vec)
+{
+	MatrixBase<real32, 4, 1> vecMatrix = { vec.x, vec.y, vec.z, 1.0	};
+	MatrixBase<real32, 4, 1> product = mat * vecMatrix;
+
+	std::cout << vec << ", " << product << "\n";
+
+	Vector3 result = {
+		product[0][0] / product[0][3],
+		product[0][1] / product[0][3],
+		product[0][2] / product[0][3]
+	};
+	return result;
+}
+
+
+
+
 #undef MATRIX_TEMPLATE
 #undef MATRIX_TYPE
 
@@ -174,5 +236,3 @@ auto operator * (
 
 #undef STATIC_ASSERT_SQUARE_MATRIX
 #undef STATIC_ASSERT_TRANSFORM_MATRIX
-
-using Matrix44 = MatrixBase<real32, 4, 4>;

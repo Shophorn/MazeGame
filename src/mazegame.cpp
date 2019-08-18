@@ -3,16 +3,21 @@ Leo Tamminen
 
 :MAZEGAME: project's main file.
 =============================================================================*/
-#include <iostream>
-
 #include "MazegamePlatform.hpp"
 #include "Camera.cpp"
 #include "vertex_data.cpp"
+#include "AudioFile.cpp"
+
 
 struct GameState
 {
 	Vector3 characterPosition;
+	real32 characterZSpeed;
+	Quaternion characterRotation;
+	real32 characterZRotationRadians;
+
 	Vector3 otherCharacterPosition;
+	Quaternion otherCharacterRotation;
 
 	real32 cameraOrbitDegrees;
 	real32 cameraTumbleDegrees;
@@ -23,13 +28,10 @@ struct GameState
 	MeshHandle levelMeshHandle;
 	MeshHandle characterMeshHandle;
 	MeshHandle otherCharacterMeshHandle;
-	MeshHandle sceneryMeshHandles [16];
 
-	Vector3 sceneryPositions [16];
-
-	MeshHandle cubeHandle;
-	Vector3 cubePosition;
-	Vector3 cubeScale;
+	int32 sceneryCount = 5;
+	MeshHandle sceneryMeshHandles [5];
+	Vector3 sceneryPositions [5];
 };
 
 void
@@ -38,74 +40,98 @@ InitializeGameState(GameState * state, GameMemory * memory, GamePlatformInfo * p
 	*state = {};
 
 	state->characterPosition = {0, 0, 0};
+	state->characterRotation = Quaternion::Identity();
+   	state->otherCharacterPosition = {0, 0, 0};
 
     state->worldCamera = {};
 
-    state->worldCamera.position = {0, 10, -10};
-    state->worldCamera.LookAt(vector3_zero);
+    // Note(Leo): We probably wont need these as camera is updated in first frame already
+    // state->worldCamera.position = {0, 10, -10};
+    state->worldCamera.forward = CoordinateSystem::Forward;
 
     state->worldCamera.fieldOfView = 60;
     state->worldCamera.nearClipPlane = 0.1f;
     state->worldCamera.farClipPlane = 1000.0f;
     state->worldCamera.aspectRatio = (real32)platform->screenWidth / (real32)platform->screenHeight;	
 
+    {
+	    Vector3 testNear = {0, 0, state->worldCamera.nearClipPlane};
+	    Vector3 testFar = {0, 0, state->worldCamera.farClipPlane};
+
+	    auto cameraProjection = state->worldCamera.PerspectiveProjection();
+	    std::cout << "test near: " << cameraProjection * testNear << "\ntest far: " << cameraProjection * testFar << "\n"; 
+	    std::cout << "camera projection: " << cameraProjection << "\n\n";
+    }
+
     Mesh meshes [] = 
     {
     	GenerateMap(),
     	LoadModel("models/character.obj"),
-    	LoadModel("models/tree.obj"),
+	};
 
-    	LoadModel("models/pillar.obj"),
-    	LoadModel("models/pillar.obj"),
-    	LoadModel("models/pillar.obj"),
-    	LoadModel("models/pillar.obj"),
-    	LoadModel("models/pillar.obj"),
-    	LoadModel("models/pillar.obj"),
-    	LoadModel("models/pillar.obj"),
-    	LoadModel("models/pillar.obj"),
-    	LoadModel("models/pillar.obj"),
-    	LoadModel("models/pillar.obj"),
-    	LoadModel("models/pillar.obj"),
-    	LoadModel("models/pillar.obj"),
-    	LoadModel("models/pillar.obj"),
-    	LoadModel("models/pillar.obj"),
-    	LoadModel("models/pillar.obj")
+    memory->PushMeshes(1, &meshes[0], &state->levelMeshHandle);
+    memory->PushMeshes(1, &meshes[1], &state->characterMeshHandle);
+    memory->PushMeshes(1, &meshes[1], &state->otherCharacterMeshHandle);
+
+	Mesh sceneryMeshes [] =
+	{
+		LoadModel("models/pillar.obj"),			// Center
+		LoadModel("models/pillar.obj"),			// left
+    	LoadModel("models/tree.obj"),			// front
+    	LoadModel("models/character.obj"),		// right
+    	MeshPrimitives::cube 					// back
     };
-    MeshHandle handles[18] = {};
-    memory->PushMeshes(18, meshes, handles);
 
-	state->levelMeshHandle = handles[0];
-    state->characterMeshHandle = handles[1];
+    memory->PushMeshes(state->sceneryCount, sceneryMeshes, state->sceneryMeshHandles);
 
-    int32 sceneryCount = 16;
-    int32 sceneryCountOffset = 2;
-    for (int i = 0; i < sceneryCount; ++i)
-    {
-    	state->sceneryMeshHandles[i] = handles[i + sceneryCountOffset];
-    }
+    real32 radius = 15;
 
-    state->sceneryPositions[0] = {0, 0, 0};
+    state->sceneryPositions[0] = {};
 
-    int32 pillarCount = 15;
-    real32 pillarRadius = 15;
-    real32 pillarAngleStep = 360.0f / pillarCount;
-    int32 pillarCounOffset = 1;
-
-    for (int i = 0; i < pillarCount; ++i)
-    {
-    	real32 angle = DegToRad * pillarAngleStep * i;
-    	real32 x = Sine(angle) * pillarRadius;
-    	real32 z = Cosine(angle) * pillarRadius;
-    	state->sceneryPositions[i + pillarCounOffset]= {x, 0, z};
-    }
-
-   	memory->PushMeshes(1, &MeshPrimitives::cube, &state->cubeHandle);
-   	state->cubePosition = {0, 5, 0};
-   	state->cubeScale = {1, 1, 1};
-
-   	memory->PushMeshes(1, &meshes[1], &state->otherCharacterMeshHandle);
-   	state->otherCharacterPosition = {0, 0, 0};
+    state->sceneryPositions[1] = {};
+    state->sceneryPositions[1].right = -radius;
+ 
+    state->sceneryPositions[2] = {};
+    state->sceneryPositions[2].forward = radius;
+ 
+    state->sceneryPositions[3] = {};
+    state->sceneryPositions[3].right = radius;
+ 
+    state->sceneryPositions[4] = {};
+    state->sceneryPositions[4].forward = -radius;
+    state->sceneryPositions[4].up = 2;
 }
+
+void
+OutputSound(int frameCount, GameStereoSoundSample * samples)
+{
+	local_persist int runningSampleIndex = 0;
+	local_persist AudioFile<float> file;
+	local_persist bool32 fileLoaded = false;
+	local_persist int32 fileSampleCount;
+	local_persist int32 fileSampleIndex;
+
+	if (fileLoaded == false)
+	{
+		fileLoaded = true;
+		
+		file.load("sounds/Wind-Mark_DiAngelo-1940285615.wav");
+		fileSampleCount = file.getNumSamplesPerChannel();
+	}
+
+	// Todo(Leo): Input these
+	real32 volume = 0.5f;
+
+	for (int sampleIndex = 0; sampleIndex < frameCount; ++sampleIndex)
+	{
+		samples[sampleIndex].left = file.samples[0][fileSampleIndex] * volume;
+		samples[sampleIndex].right = file.samples[1][fileSampleIndex] * volume;
+
+		fileSampleIndex += 1;
+		fileSampleIndex %= fileSampleCount;
+	}
+}
+
 
 void
 GameUpdateAndRender(
@@ -113,6 +139,7 @@ GameUpdateAndRender(
 	GameMemory * 		memory,
 	GamePlatformInfo * 	platform,
 	GameNetwork	*		network,
+	GameSoundOutput * 	soundOutput,
 
 	GameRenderInfo * 	outRenderInfo
 ){
@@ -124,36 +151,69 @@ GameUpdateAndRender(
 		memory->isInitialized = true;
 	}
 
-	// Update Character
+	/// Update Character
+	Vector3 characterMovementVector;
 	{
-		real32 characterSpeed = 8;
+		real32 characterSpeed = 6;
 
 		Vector3 viewForward = state->worldCamera.forward;
-		viewForward.y = 0;
+		viewForward.z = 0;
 		viewForward = Normalize(viewForward);
-		Vector3 viewRight = Cross(viewForward, vector3_world_up);
+		Vector3 viewRight = Cross(viewForward, CoordinateSystem::Up);
 
-		state->characterPosition += viewRight * input->move.x * characterSpeed * input->timeDelta;
-		state->characterPosition += viewForward * input->move.y * characterSpeed * input->timeDelta;
+		Vector3 viewAlignedInputVector = viewRight * input->move.x + viewForward * input->move.y;
+		characterMovementVector = viewAlignedInputVector;
 
-		if (state->characterPosition.x > 0)
+		state->characterPosition += viewAlignedInputVector * characterSpeed * input->timeDelta;
+
+		bool32 grounded = state->characterPosition.z < 0.1f;
+
+		if (grounded && input->jump == GAME_BUTTON_WENT_DOWN)
 		{
-			state->cubeScale = {1, 1, 20};
+			state->characterZSpeed = 6;
+		}
+
+		state->characterPosition.z += state->characterZSpeed * input->timeDelta;
+
+		if (state->characterPosition.z > 0)
+		{	
+			state->characterZSpeed -= 2 * 9.81 * input->timeDelta;
 		}
 		else
 		{
-			state->cubeScale = {1, 1, 1};
+			state->characterZSpeed = 0;
 		}
 
+		real32 epsilon = 0.001f;
+		if (Abs(input->move.x) > epsilon || Abs(input->move.y) > epsilon)
+		{
+			Vector3 characterForward = Normalize(viewAlignedInputVector);
+			// std::cout 
+			// 	<< characterForward 
+			// 	<< " || " << state->characterPosition 
+			// 	<< " || " << viewForward
+			// 	<< " || " << viewRight 
+			// 	<< " || " << state->worldCamera.position << "\n";
+
+			real32 angleToWorldForward = SignedAngle(CoordinateSystem::Forward, characterForward);
+			state->characterZRotationRadians = angleToWorldForward;
+		}
+
+		state->characterRotation = Quaternion::AxisAngle(CoordinateSystem::Up, state->characterZRotationRadians);
 	}
 
-	// Update network
+	/// Update network
 	{
-		network->characterPosition = state->characterPosition;
-		state->otherCharacterPosition = network->otherCharacterPosition;
+		network->outPackage = {};
+		network->outPackage.characterPosition = state->characterPosition;
+		network->outPackage.characterRotation = state->characterRotation;
+
+		state->otherCharacterPosition = network->inPackage.characterPosition;
+		state->otherCharacterRotation = network->inPackage.characterRotation;
 	}
 
-	// Update Camera
+	/// Update Camera
+	// Todo[camera] (Leo): view projection seems wrong!!!!!
 	{
 		// Note(Leo): Update aspect ratio each frame, in case screen size has changed.
 	    state->worldCamera.aspectRatio = (real32)platform->screenWidth / (real32)platform->screenHeight;
@@ -167,17 +227,23 @@ GameUpdateAndRender(
 		real32 minDistance = 5;
 		real32 maxDistance = 100;
 
-		Vector3 cameraBasePosition = {0, 2.0f, 0};
+		Vector3 cameraOffsetFromTarget = CoordinateSystem::Up * 2.0f;
 
 		if (input->zoomIn)
 		{
-			state->cameraDistance -= zoomSpeed * input->timeDelta;
-			state->cameraDistance = Max(state->cameraDistance, minDistance);
+			state->worldCamera.fieldOfView -= input->timeDelta * 15;
+			state->worldCamera.fieldOfView = Max(state->worldCamera.fieldOfView, 10.0f);
+			std::cout << state->worldCamera.fieldOfView << "\n";
+			// state->cameraDistance -= zoomSpeed * input->timeDelta;
+			// state->cameraDistance = Max(state->cameraDistance, minDistance);
 		}
 		else if(input->zoomOut)
 		{
-			state->cameraDistance += zoomSpeed * input->timeDelta;
-			state->cameraDistance = Min(state->cameraDistance, maxDistance);
+			state->worldCamera.fieldOfView += input->timeDelta * 15;
+			state->worldCamera.fieldOfView = Min(state->worldCamera.fieldOfView, 100.0f);
+			std::cout << state->worldCamera.fieldOfView << "\n";
+			// state->cameraDistance += zoomSpeed * input->timeDelta;
+			// state->cameraDistance = Min(state->cameraDistance, maxDistance);
 		}
 
 	    state->cameraOrbitDegrees += input->look.x * cameraRotateSpeed * input->timeDelta;
@@ -189,32 +255,59 @@ GameUpdateAndRender(
 	    real32 cameraHorizontalDistance = Cosine(DegToRad * state->cameraTumbleDegrees) * cameraDistance;
 	    Vector3 localPosition 
 	    {
+			Sine(DegToRad * state->cameraOrbitDegrees) * cameraHorizontalDistance,
 			Cosine(DegToRad * state->cameraOrbitDegrees) * cameraHorizontalDistance,
-			Sine(DegToRad * state->cameraTumbleDegrees) * cameraDistance,
-			Sine(DegToRad * state->cameraOrbitDegrees) * cameraHorizontalDistance
+			Sine(DegToRad * state->cameraTumbleDegrees) * cameraDistance
 	    };
 
-	    state->worldCamera.position = state->characterPosition + cameraBasePosition + localPosition;
 
-		state->worldCamera.LookAt(state->characterPosition);
+	    /*
+	    Todo[Camera] (Leo): This is good effect, but its too rough like this,
+	    make it good whren projections work
+
+	    real32 cameraAdvanceAmount = 5;
+	    Vector3 cameraAdvanceVector = characterMovementVector * cameraAdvanceAmount;
+	    Vector3 cameraParentPosition = state->characterPosition + cameraAdvanceVector + cameraOffsetFromTarget;
+	    */
+
+
+	    Vector3 cameraParentPosition = state->characterPosition + cameraOffsetFromTarget;
+
+	    
+	    state->worldCamera.position = cameraParentPosition + localPosition;
+
+		state->worldCamera.LookAt(cameraParentPosition);
 	}
 
-	// Output Render info
+	/// Output Render info
 	{
 		outRenderInfo->modelMatrixArray[state->levelMeshHandle] = Matrix44::Identity();
-		outRenderInfo->modelMatrixArray[state->characterMeshHandle] = Matrix44::Translate(state->characterPosition);
-		outRenderInfo->modelMatrixArray[state->otherCharacterMeshHandle] = Matrix44::Translate(state->otherCharacterPosition);
 
-		int32 sceneryCount = 16;
-		for (int i = 0; i < sceneryCount; ++i)
+		outRenderInfo->modelMatrixArray[state->characterMeshHandle]
+			= Matrix44::Translate(state->characterPosition) * state->characterRotation.ToRotationMatrix();
+
+		if (network->isConnected)
 		{
-			outRenderInfo->modelMatrixArray[state->sceneryMeshHandles[i]] = Matrix44::Translate(state->sceneryPositions[i]);
+			outRenderInfo->modelMatrixArray[state->otherCharacterMeshHandle]
+				= Matrix44::Translate(state->otherCharacterPosition) * state->otherCharacterRotation.ToRotationMatrix();
+		}
+		else
+		{
+			outRenderInfo->modelMatrixArray[state->otherCharacterMeshHandle] = {};
 		}
 
-		auto cubeTransform = Matrix44::Transform(state->cubePosition, state->cubeScale);
-		outRenderInfo->modelMatrixArray[state->cubeHandle] = cubeTransform;
+		for (int sceneryIndex = 0; sceneryIndex < state->sceneryCount; ++sceneryIndex)
+		{
+			outRenderInfo->modelMatrixArray[state->sceneryMeshHandles[sceneryIndex]]
+				= Matrix44::Translate(state->sceneryPositions[sceneryIndex]);
+		}
 
 	    outRenderInfo->cameraView = state->worldCamera.ViewProjection();
 	    outRenderInfo->cameraPerspective = state->worldCamera.PerspectiveProjection();
+	}
+
+	/// Output sound
+	{
+		OutputSound(soundOutput->sampleCount, soundOutput->samples);
 	}
 }
