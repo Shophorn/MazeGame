@@ -59,10 +59,10 @@ GenerateMap()
 			result.vertices[vertexIndex + 3].texCoord = {(x + 1) * uvStep, (z + 1) * uvStep};
 
 			result.indices[triangleIndex] = vertexIndex;
-			result.indices[triangleIndex + 1] = vertexIndex + 2;
-			result.indices[triangleIndex + 2] = vertexIndex + 1;
-			result.indices[triangleIndex + 3] = vertexIndex + 1;
-			result.indices[triangleIndex + 4] = vertexIndex + 2;
+			result.indices[triangleIndex + 1] = vertexIndex + 1;
+			result.indices[triangleIndex + 2] = vertexIndex + 2;
+			result.indices[triangleIndex + 3] = vertexIndex + 2;
+			result.indices[triangleIndex + 4] = vertexIndex + 1;
 			result.indices[triangleIndex + 5] = vertexIndex + 3;
 		}
 	}

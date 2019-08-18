@@ -83,13 +83,8 @@ ReadBinaryFile (const char * fileName)
 constexpr int32 MAX_MODEL_COUNT = 100;
 constexpr int32 MAX_FRAMES_IN_FLIGHT = 2;
 
-#if 1
 constexpr int32 WINDOW_WIDTH = 960;
 constexpr int32 WINDOW_HEIGHT = 540;
-#else
-constexpr int32 WINDOW_WIDTH = 800;
-constexpr int32 WINDOW_HEIGHT = WINDOW_WIDTH;
-#endif
 
 // XInput things.
 using XInputGetStateFunc = decltype(XInputGetState);
@@ -1161,11 +1156,8 @@ private:
         rasterizer.rasterizerDiscardEnable = VK_FALSE;
         rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
         rasterizer.lineWidth = 1.0f;
-
-        // TODO[DRAWINg](Leo): Sort out culling and vertex winding
         rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
-        rasterizer.cullMode = VK_CULL_MODE_NONE;
-        rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
+        rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
         rasterizer.depthBiasEnable = VK_FALSE;
         rasterizer.depthBiasConstantFactor = 0.0f;
         rasterizer.depthBiasClamp = 0.0f;

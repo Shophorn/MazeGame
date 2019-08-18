@@ -70,16 +70,17 @@ Camera::ViewProjection()
 	Vector3 xAxis 	= Normalize(Cross(CoordinateSystem::Up, zAxis));
 	Vector3 yAxis 	= Cross (zAxis, xAxis);
 
-	/* Todo(Leo): Translation can be done inline with matrix initialization
-	instead of as separate function call */
 	Matrix44 orientation = {
 		xAxis[0], yAxis[0], zAxis[0], 0,
 		xAxis[1], yAxis[1], zAxis[1], 0,
 		xAxis[2], yAxis[2], zAxis[2], 0,
 		0, 0, 0, 1
 	};
+	
+	/* Todo(Leo): Translation can be done inline with matrix initialization
+	instead of as separate function call */
 	Matrix44 translation = Matrix44::Translate(-position);
-
 	Matrix44 result = orientation * translation;
+
 	return result;	
 }
