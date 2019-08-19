@@ -1,7 +1,7 @@
 /*=============================================================================
 Leo Tamminen
 
-:MAZEGAME: project's main file.
+:MAZEGAME: game code main file.
 =============================================================================*/
 #include "MazegamePlatform.hpp"
 #include "Camera.cpp"
@@ -133,8 +133,8 @@ OutputSound(int frameCount, GameStereoSoundSample * samples)
 }
 
 
-void
-GameUpdateAndRender(
+extern "C" void
+GameUpdate(
 	GameInput * 		input,
 	GameMemory * 		memory,
 	GamePlatformInfo * 	platform,
@@ -233,7 +233,6 @@ GameUpdateAndRender(
 		{
 			state->worldCamera.fieldOfView -= input->timeDelta * 15;
 			state->worldCamera.fieldOfView = Max(state->worldCamera.fieldOfView, 10.0f);
-			std::cout << state->worldCamera.fieldOfView << "\n";
 			// state->cameraDistance -= zoomSpeed * input->timeDelta;
 			// state->cameraDistance = Max(state->cameraDistance, minDistance);
 		}
@@ -241,7 +240,6 @@ GameUpdateAndRender(
 		{
 			state->worldCamera.fieldOfView += input->timeDelta * 15;
 			state->worldCamera.fieldOfView = Min(state->worldCamera.fieldOfView, 100.0f);
-			std::cout << state->worldCamera.fieldOfView << "\n";
 			// state->cameraDistance += zoomSpeed * input->timeDelta;
 			// state->cameraDistance = Min(state->cameraDistance, maxDistance);
 		}

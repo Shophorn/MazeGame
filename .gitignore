@@ -11,6 +11,7 @@ lib/
 # Stuff
 misc/
 *.exe
+*.dll
 *.sublime-*
 *.build_output
 *.bat

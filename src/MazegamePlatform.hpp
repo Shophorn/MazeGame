@@ -117,6 +117,7 @@ struct GameNetworkPackage
 };
 
 constexpr int32 GAME_NETWORK_PACKAGE_SIZE = sizeof(GameNetworkPackage);
+static_assert(GAME_NETWORK_PACKAGE_SIZE <= 512, "Time to deak with bigger network packages");
 
 struct GameNetwork
 {
@@ -139,7 +140,8 @@ struct GameSoundOutput
 };
 
 
-void GameUpdateAndRender(
+extern "C" void
+GameUpdate(
 	GameInput * 		input,
 	GameMemory * 		memory,
 	GamePlatformInfo * 	platformInfo,

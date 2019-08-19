@@ -15,3 +15,16 @@ WinApiLog(const char * message, HRESULT result)
     }
     #endif
 }
+
+constexpr static char GAMECODE_DLL_FILE_NAME [] = "Mazegame.dll";
+constexpr static char GAMECODE_DLL_FILE_NAME_TEMP [] = "Mazegame_temp.dll";
+constexpr static char GAMECODE_UPDATE_FUNC_NAME [] = "GameUpdate";
+
+struct WinApiGame
+{
+	HMODULE dllHandle;
+	bool32 IsLoaded() { return dllHandle != nullptr; }
+
+	using UpdateFunc = decltype(GameUpdate);
+	UpdateFunc * Update;	
+};

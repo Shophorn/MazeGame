@@ -12,6 +12,8 @@ Common essentials used all around in :MAZEGAME: project
 #define internal static
 #define global_variable static
 
+#define MAZEGAME_NO_INIT /* This is a tag to explicitly indicate that variable is intentionally left unitialized */
+
 #define ARRAY_COUNT(array) sizeof(array) / sizeof((array)[0])
 
 constexpr int BitSize(int bits) { return bits / 8; }
@@ -62,6 +64,21 @@ This seems to be just a Windows convention, correct? */
 constexpr uint64 Kilobytes (uint64 amount) { return 1024 * amount; }
 constexpr uint64 Megabytes (uint64 amount) { return 1024 * Kilobytes(amount); }
 constexpr uint64 Gigabytes (uint64 amount) { return 1024 * Megabytes(amount); }
+
+inline uint64
+AlignUpTo(uint64 alignment, uint64 size)
+{
+    /*
+    Divide to get number of full multiples of alignment
+    Add one so we end up bigger
+    Multiply to get actual size, that is both bigger AND a multiple of alignment
+    */
+
+    size /= alignment;
+    size += 1;
+    size *= alignment;
+    return size;
+}
 
 #define MAZEGAME_ESSENTIALS_HPP
 #endif

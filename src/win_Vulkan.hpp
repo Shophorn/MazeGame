@@ -69,6 +69,59 @@ struct VulkanSwapchainSupportDetails
     std::vector<VkPresentModeKHR> presentModes;
 };
 
+struct VulkanSwapchainItems
+{
+    VkSwapchainKHR swapchain;
+    VkExtent2D extent;
+
+    VkFormat imageFormat;
+    std::vector<VkImage> images;
+    std::vector<VkImageView> imageViews;
+};
+
+struct VulkanPipelineItems
+{
+	VkPipeline pipeline;
+	VkPipelineLayout layout;
+};
+
+struct VulkanSyncObjects
+{
+    std::vector<VkSemaphore>    imageAvailableSemaphores;
+    std::vector<VkSemaphore>    renderFinishedSemaphores;
+    std::vector<VkFence>        inFlightFences;
+};
+
+struct VulkanRenderInfo
+{
+    VkBuffer meshBuffer;
+
+    VkDeviceSize vertexOffset;
+    VkDeviceSize indexOffset;
+    
+    uint32 indexCount;
+    VkIndexType indexType;
+    
+    uint32 uniformBufferOffset;
+};
+
+struct VulkanDrawingResources
+{
+	VkDeviceMemory memory;
+
+	VkImage colorImage;
+	VkImageView colorImageView;
+
+	VkImage depthImage;
+	VkImageView depthImageView;
+};
+
+struct VulkanContext
+{
+	VkPhysicalDevice physicalDevice;
+	VkPhysicalDeviceProperties physicalDeviceProperties;
+};
+
 constexpr uint64 VULKAN_NO_TIME_OUT	= MaxValue<uint64>;
 
 namespace Vulkan
