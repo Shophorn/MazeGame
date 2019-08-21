@@ -62,6 +62,15 @@ struct Mesh
 /* Todo(Leo): Define INVALID_MESH_HANDLE to be zero, so it becomes default value */
 using MeshHandle = uint64;
 
+struct TextureAsset
+{
+	std::vector<uint32> pixels;
+
+	int32 	width;
+	int32 	height;
+	int32 	channels;
+};
+
 struct GameMemory
 {
 	bool32 isInitialized;

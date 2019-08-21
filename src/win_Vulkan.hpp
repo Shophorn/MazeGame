@@ -19,6 +19,13 @@ struct VulkanCameraUniformBufferObject
 	alignas(16) Matrix44 perspective;
 };
 
+
+// TOdo[rendering] (Leo): Use this VulkanModelUniformBufferObject
+// struct VulkanModelUniformBufferObject
+// {
+// 	alignas(16) Matrix44 modelMatrix;
+// };
+
 struct VulkanLoadedModel
 {
     VkBuffer        buffer;
@@ -35,6 +42,7 @@ struct VulkanBufferResource
     VkBuffer buffer;
     VkDeviceMemory memory;
     
+    // Todo[memory, vulkan](Leo): Enforce/track these
     uint64 used;
     uint64 size;
 
@@ -103,6 +111,8 @@ struct VulkanRenderInfo
     VkIndexType indexType;
     
     uint32 uniformBufferOffset;
+
+    uint32 materialIndex;
 };
 
 struct VulkanDrawingResources
@@ -116,21 +126,50 @@ struct VulkanDrawingResources
 	VkImageView depthImageView;
 };
 
-struct VulkanContext
+struct VulkanTexture
 {
-	VkPhysicalDevice physicalDevice;
-	VkPhysicalDeviceProperties physicalDeviceProperties;
+	VkImage 		image;
+	VkImageView 	view;
+	uint32 			mipLevels;
+
+
+	// TODO(Leo): totally not allocate like this
+	VkDeviceMemory memory;
 };
 
+struct VulkanContext
+{
+	VkInstance 					instance;
+	VkDevice 					device; // Note(Leo): this is logical device.
+	VkPhysicalDevice 			physicalDevice;
+	VkPhysicalDeviceProperties 	physicalDeviceProperties;
+	VkCommandPool 				commandPool;
+
+	VkSurfaceKHR 				surface;
+	VkQueue 					graphicsQueue;
+	VkQueue 					presentQueue;
+};
+
+struct VulkanDescriptorLayouts
+{
+	VkDescriptorSetLayout modelUniform;
+	VkDescriptorSetLayout sceneUniform;
+	VkDescriptorSetLayout material;
+};
+
+constexpr int32 MAX_FRAMES_IN_FLIGHT = 2;
 constexpr uint64 VULKAN_NO_TIME_OUT	= MaxValue<uint64>;
+constexpr real32 VULKAN_MAX_LOD_FLOAT = 100.0f;
+
+constexpr int32 VULKAN_MAX_MODEL_COUNT = 100;
+constexpr int32 VULKAN_MAX_MATERIAL_COUNT = 100;
 
 namespace Vulkan
 {
-	// Todo(Leo): Probably going to roll custom for NDEBUG too
 	#if MAZEGAME_DEVELOPMENT
-	constexpr bool32 enableValidationLayers = false;
-	#else
 	constexpr bool32 enableValidationLayers = true;
+	#else
+	constexpr bool32 enableValidationLayers = false;
 	#endif
 
 	constexpr const char * validationLayers[] = {
@@ -187,6 +226,31 @@ namespace Vulkan
         bool32 result = (format == VK_FORMAT_D32_SFLOAT_S8_UINT) || (format == VK_FORMAT_D24_UNORM_S8_UINT);
         return result;
     }
+
+    /* Todo(Leo): Define a proper struct (of which size is to be used) to
+	make it easier to change later. */
+	internal inline uint32
+	GetModelUniformBufferOffsetForSwapchainImages(VulkanContext * context, int32 imageIndex)
+	{
+	    uint32 memorySizePerModelMatrix = AlignUpTo(
+	        context->physicalDeviceProperties.limits.minUniformBufferOffsetAlignment,
+	        sizeof(Matrix44));
+
+	    uint32 result = imageIndex * memorySizePerModelMatrix * VULKAN_MAX_MODEL_COUNT;   
+	    return result;
+	}
+
+	internal inline uint32
+	GetSceneUniformBufferOffsetForSwapchainImages(VulkanContext * context, int32 imageIndex)
+	{
+	    uint32 memorySizePerObject = AlignUpTo(
+	        context->physicalDeviceProperties.limits.minUniformBufferOffsetAlignment,
+	        sizeof(VulkanCameraUniformBufferObject));
+
+	    // Note(Leo): so far we only have on of these
+	    uint32 result = imageIndex * memorySizePerObject;
+	    return result;
+	}
 	
 	internal VulkanSwapchainSupportDetails
 	QuerySwapChainSupport(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface);
