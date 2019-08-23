@@ -15,7 +15,7 @@ struct WinApiAudio
 constexpr int64 REFERENCE_TIMES_PER_SECOND = 10000000;     // seconds to REFERENCE_TIME
 constexpr int64 REFERENCE_TIMES_PER_MILLISECOND = 10000;   // milliseconds to REFERENCE_TIME
 
-namespace WinApi
+namespace winapi
 {
 	internal WinApiAudio
 	CreateAudio();			
@@ -65,7 +65,7 @@ UNKNOWN_GetFormatTag( const WAVEFORMATEX* wfx )
 }
 
 internal WinApiAudio
-WinApi::CreateAudio ()
+winapi::CreateAudio ()
 {
     const CLSID CLSID_MMDeviceEnumerator =   __uuidof(MMDeviceEnumerator);
     const IID IID_IMMDeviceEnumerator =      __uuidof(IMMDeviceEnumerator);
@@ -111,7 +111,7 @@ WinApi::CreateAudio ()
 }
 
 internal void
-WinApi::ReleaseAudio(WinApiAudio * audio)
+winapi::ReleaseAudio(WinApiAudio * audio)
 {
     CoTaskMemFree(audio->pFormat);
 
@@ -129,19 +129,19 @@ WinApi::ReleaseAudio(WinApiAudio * audio)
 }
 
 internal void
-WinApi::StartPlaying(WinApiAudio * audio)
+winapi::StartPlaying(WinApiAudio * audio)
 {
     WinApiLog("Start playing audio", audio->pClient->Start());
 }
 
 internal void
-WinApi::StopPlaying(WinApiAudio * audio)
+winapi::StopPlaying(WinApiAudio * audio)
 {
     WinApiLog("Stop playing audio", audio->pClient->Stop());
 }
 
 internal void
-WinApi::GetAudioBuffer(WinApiAudio * audio, int * frameCount, GameStereoSoundSample ** samples)
+winapi::GetAudioBuffer(WinApiAudio * audio, int * frameCount, GameStereoSoundSample ** samples)
 {
     uint32 currentPadding;
     WinApiLog("Get audio padding", audio->pClient->GetCurrentPadding(&currentPadding));
@@ -154,7 +154,7 @@ WinApi::GetAudioBuffer(WinApiAudio * audio, int * frameCount, GameStereoSoundSam
 }
 
 internal void
-WinApi::ReleaseAudioBuffer(WinApiAudio * audio, int32 frameCount)
+winapi::ReleaseAudioBuffer(WinApiAudio * audio, int32 frameCount)
 {
     WinApiLog("Release audio buffer", audio->pRenderClient->ReleaseBuffer(frameCount, 0));
 }

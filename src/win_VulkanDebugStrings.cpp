@@ -1,36 +1,30 @@
-constexpr const char invalid_value_string [] = "INVALID_VALUE";
-
-constexpr const char 
-	sample_count_1_bit_string [] 			= "VK_SAMPLE_COUNT_1_BIT",
-	sample_count_2_bit_string [] 			= "VK_SAMPLE_COUNT_2_BIT",
-	sample_count_4_bit_string [] 			= "VK_SAMPLE_COUNT_4_BIT",
-	sample_count_8_bit_string [] 			= "VK_SAMPLE_COUNT_8_BIT",
-	sample_count_16_bit_string [] 			= "VK_SAMPLE_COUNT_16_BIT",
-	sample_count_32_bit_string [] 			= "VK_SAMPLE_COUNT_32_BIT",
-	sample_count_64_bit_string [] 			= "VK_SAMPLE_COUNT_64_BIT",
-	sample_count_flag_bits_max_string []	= "VK_SAMPLE_COUNT_FLAG_BITS_MAX_ENUM";
-
-const char *
-VulkanSampleCountFlagBitsString(VkSampleCountFlagBits bit)
+namespace vulkan
 {
+	template<typename VulkanEnumType>
+	const char * EnumToString(VulkanEnumType value);
+}
 
-	switch(bit)
+template <> const char *
+vulkan::EnumToString<VkSampleCountFlagBits>(VkSampleCountFlagBits value)
+{
+	switch(value)
 	{
-		case VK_SAMPLE_COUNT_1_BIT: 				return sample_count_1_bit_string;
-		case VK_SAMPLE_COUNT_2_BIT: 				return sample_count_2_bit_string;
-		case VK_SAMPLE_COUNT_4_BIT: 				return sample_count_4_bit_string;
-		case VK_SAMPLE_COUNT_8_BIT: 				return sample_count_8_bit_string;
-		case VK_SAMPLE_COUNT_16_BIT: 				return sample_count_16_bit_string;
-		case VK_SAMPLE_COUNT_32_BIT: 				return sample_count_32_bit_string;
-		case VK_SAMPLE_COUNT_64_BIT: 				return sample_count_64_bit_string;
-		case VK_SAMPLE_COUNT_FLAG_BITS_MAX_ENUM: 	return sample_count_flag_bits_max_string;
+		case VK_SAMPLE_COUNT_1_BIT: 				return "VK_SAMPLE_COUNT_1_BIT";
+		case VK_SAMPLE_COUNT_2_BIT: 				return "VK_SAMPLE_COUNT_2_BIT";
+		case VK_SAMPLE_COUNT_4_BIT: 				return "VK_SAMPLE_COUNT_4_BIT";
+		case VK_SAMPLE_COUNT_8_BIT: 				return "VK_SAMPLE_COUNT_8_BIT";
+		case VK_SAMPLE_COUNT_16_BIT: 				return "VK_SAMPLE_COUNT_16_BIT";
+		case VK_SAMPLE_COUNT_32_BIT: 				return "VK_SAMPLE_COUNT_32_BIT";
+		case VK_SAMPLE_COUNT_64_BIT: 				return "VK_SAMPLE_COUNT_64_BIT";
+		case VK_SAMPLE_COUNT_FLAG_BITS_MAX_ENUM: 	return "VK_SAMPLE_COUNT_FLAG_BITS_MAX_ENUM";
 
-		default: return invalid_value_string;
+		default:
+			return "Unknown VkSampleCountFlagBits";
 	}
 }
 
-const char * 
-VulkanVkResultString(VkResult value)
+template <> const char *
+vulkan::EnumToString <VkResult> (VkResult value)
 {
 	switch(value)
 	{	
@@ -67,6 +61,7 @@ VulkanVkResultString(VkResult value)
 		case VK_ERROR_INVALID_DEVICE_ADDRESS_EXT:                   return "VK_ERROR_INVALID_DEVICE_ADDRESS_EXT";
 		case VK_ERROR_FULL_SCREEN_EXCLUSIVE_MODE_LOST_EXT:          return "VK_ERROR_FULL_SCREEN_EXCLUSIVE_MODE_LOST_EXT";
 	
-		default: return "Unknown VkResult";
+		default:
+			return "Unknown VkResult";
 	}
 }

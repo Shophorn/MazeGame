@@ -4,7 +4,7 @@ Leo Tamminen
 This file implements common Vulkan command buffer operations
 =============================================================================*/
 
-namespace Vulkan
+namespace vulkan
 {
     internal VkCommandBuffer
     BeginOneTimeCommandBuffer(
@@ -20,7 +20,7 @@ namespace Vulkan
 }
 
 internal VkCommandBuffer
-Vulkan::BeginOneTimeCommandBuffer(VkDevice logicalDevice, VkCommandPool commandPool)
+vulkan::BeginOneTimeCommandBuffer(VkDevice logicalDevice, VkCommandPool commandPool)
 {
     VkCommandBufferAllocateInfo allocateInfo = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO };
     allocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
@@ -40,7 +40,7 @@ Vulkan::BeginOneTimeCommandBuffer(VkDevice logicalDevice, VkCommandPool commandP
 }
 
 internal void
-Vulkan::EndOneTimeCommandBuffer(
+vulkan::EndOneTimeCommandBuffer(
     VkDevice logicalDevice,
     VkCommandPool commandPool,
     VkQueue submitQueue,

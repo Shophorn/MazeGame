@@ -34,7 +34,7 @@ void main()
 
 
 	vec3 metalColor = vec3(0.67, 0.7, 0.75);
-	outColor.rgb = mix(albedo, metalColor, metallic);
+	outColor.rgb = mix(albedo, metalColor, metallic) * intensity;
 
 
 	outColor.a = 1.0;

@@ -8,6 +8,9 @@ Leo Tamminen
 #include "vertex_data.cpp"
 #include "AudioFile.cpp"
 
+#define STB_IMAGE_IMPLEMENTATION
+#include <stb_image.h>
+
 
 struct GameState
 {
@@ -32,11 +35,59 @@ struct GameState
 	int32 sceneryCount = 5;
 	MeshHandle sceneryMeshHandles [5];
 	Vector3 sceneryPositions [5];
+
+	MaterialHandle characterMaterial;
+	MaterialHandle sceneryMaterial;
 };
+
+internal TextureAsset
+LoadTextureAsset(const char * assetPath)
+{
+    TextureAsset resultTexture = {};
+    stbi_uc * pixels = stbi_load(assetPath, &resultTexture.width, &resultTexture.height,
+                                        &resultTexture.channels, STBI_rgb_alpha);
+
+    if(pixels == nullptr)
+    {
+        // Todo[Error](Leo): Proper handling and logging
+        throw std::runtime_error("Failed to load image");
+    }
+
+    // rgba channels
+    resultTexture.channels = 4;
+
+    int32 pixelCount = resultTexture.width * resultTexture.height;
+    resultTexture.pixels.resize(pixelCount);
+
+    uint64 imageMemorySize = resultTexture.width * resultTexture.height * resultTexture.channels;
+    memcpy((uint8*)resultTexture.pixels.data(), pixels, imageMemorySize);
+
+    stbi_image_free(pixels);
+    return resultTexture;
+}
+
 
 void
 InitializeGameState(GameState * state, GameMemory * memory, GamePlatformInfo * platform)
 {
+    TextureAsset textureAssets [] = {
+        LoadTextureAsset("textures/chalet.jpg"),
+        LoadTextureAsset("textures/lava.jpg"),
+        LoadTextureAsset("textures/texture.jpg"),
+    };
+
+	TextureHandle a = memory->PushTexture(memory->graphicsContext, &textureAssets[0]);
+	TextureHandle b = memory->PushTexture(memory->graphicsContext, &textureAssets[1]);
+	TextureHandle c = memory->PushTexture(memory->graphicsContext, &textureAssets[2]);
+
+	GameMaterial mA = {0, a, a};
+	GameMaterial mB = {0, b, c};
+
+	state->characterMaterial = memory->PushMaterial(memory->graphicsContext, &mA);
+	state->sceneryMaterial = memory->PushMaterial(memory->graphicsContext, &mB);
+
+	memory->ApplyGraphicsContext(memory->graphicsContext);
+
 	*state = {};
 
 	state->characterPosition = {0, 0, 0};
@@ -69,9 +120,9 @@ InitializeGameState(GameState * state, GameMemory * memory, GamePlatformInfo * p
     	LoadModel("models/character.obj"),
 	};
 
-    memory->PushMeshes(1, &meshes[0], &state->levelMeshHandle);
-    memory->PushMeshes(1, &meshes[1], &state->characterMeshHandle);
-    memory->PushMeshes(1, &meshes[1], &state->otherCharacterMeshHandle);
+	state->levelMeshHandle 			= memory->PushMesh(memory->graphicsContext, &meshes[0]);
+	state->characterMeshHandle 		= memory->PushMesh(memory->graphicsContext, &meshes[1]);
+	state->otherCharacterMeshHandle = memory->PushMesh(memory->graphicsContext, &meshes[1]);
 
 	Mesh sceneryMeshes [] =
 	{
@@ -82,7 +133,12 @@ InitializeGameState(GameState * state, GameMemory * memory, GamePlatformInfo * p
     	MeshPrimitives::cube 					// back
     };
 
-    memory->PushMeshes(state->sceneryCount, sceneryMeshes, state->sceneryMeshHandles);
+    for (int sceneryIndex = 0; sceneryIndex < state->sceneryCount; ++sceneryIndex)
+    {
+    	state->sceneryMeshHandles[sceneryIndex] = memory->PushMesh(memory->graphicsContext, &sceneryMeshes[sceneryIndex]);
+    }
+
+    memory->ApplyGraphicsContext(memory->graphicsContext);
 
     real32 radius = 15;
 

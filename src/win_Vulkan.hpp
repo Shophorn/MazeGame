@@ -128,6 +128,7 @@ struct VulkanDrawingResources
 
 struct VulkanTexture
 {
+	VkSampler 		sampler;
 	VkImage 		image;
 	VkImageView 	view;
 	uint32 			mipLevels;
@@ -137,17 +138,70 @@ struct VulkanTexture
 	VkDeviceMemory memory;
 };
 
+using VulkanMaterial = VkDescriptorSet;
+
 struct VulkanContext
 {
 	VkInstance 					instance;
 	VkDevice 					device; // Note(Leo): this is logical device.
 	VkPhysicalDevice 			physicalDevice;
 	VkPhysicalDeviceProperties 	physicalDeviceProperties;
+
 	VkCommandPool 				commandPool;
+    std::vector<VkCommandBuffer>    frameCommandBuffers;
 
 	VkSurfaceKHR 				surface;
 	VkQueue 					graphicsQueue;
 	VkQueue 					presentQueue;
+
+    VkDescriptorSetLayout 		descriptorSetLayouts [3];
+    VkDescriptorPool      		materialDescriptorPool;
+
+    std::vector<VkFramebuffer>      frameBuffers;
+
+
+	std::vector<VulkanTexture> 	loadedTextures;
+	std::vector<VulkanMaterial>	loadedMaterials;
+
+    /* Note(Leo): image and sampler are now (as in Vulkan) unrelated, and same
+    sampler can be used with multiple images, noice */
+    VkSampler textureSampler;			
+
+    VulkanBufferResource       	stagingBufferPool;
+
+    std::vector<VulkanLoadedModel>  loadedModels;
+
+    // Todo(Leo): frame buffer size things do not belong here
+    VkExtent2D framebufferSize;
+    bool32 framebufferResized = false;
+
+
+    VkRenderPass            renderPass;
+    VulkanSwapchainItems swapchainItems;
+    VulkanPipelineItems     pipelineItems;
+    VulkanSyncObjects       syncObjects;
+
+    VkDescriptorPool      uniformDescriptorPool;
+
+    std::vector<VkDescriptorSet>    descriptorSets;
+    std::vector<VkDescriptorSet>    sceneDescriptorSets;
+
+    VulkanBufferResource staticMeshPool;
+
+    VulkanBufferResource modelUniformBuffer;
+    VulkanBufferResource sceneUniformBuffer;
+
+
+    int32 textureCount = 3;
+
+    
+    // MULTISAMPLING
+    VkSampleCountFlagBits msaaSamples;
+    VkSampleCountFlagBits msaaMaxSamples = VK_SAMPLE_COUNT_2_BIT;
+
+    /* Note(Leo): color and depth images for initial writing. These are
+    afterwards resolved to actual framebufferimage */
+    VulkanDrawingResources drawingResources;
 };
 
 struct VulkanDescriptorLayouts
@@ -164,7 +218,7 @@ constexpr real32 VULKAN_MAX_LOD_FLOAT = 100.0f;
 constexpr int32 VULKAN_MAX_MODEL_COUNT = 100;
 constexpr int32 VULKAN_MAX_MATERIAL_COUNT = 100;
 
-namespace Vulkan
+namespace vulkan
 {
 	#if MAZEGAME_DEVELOPMENT
 	constexpr bool32 enableValidationLayers = true;
@@ -266,6 +320,15 @@ namespace Vulkan
 
 	VkShaderModule
 	CreateShaderModule(BinaryAsset code, VkDevice logicalDevice);
+
+	internal void
+	UpdateUniformBuffer(VulkanContext * context, uint32 imageIndex, GameRenderInfo * renderInfo);
+
+	internal void
+	DrawFrame(VulkanContext * context, uint32 imageIndex, uint32 frameIndex);
+
+	internal void
+	RecreateSwapchain(VulkanContext * context);
 }
 
 #define WIN_VULKAN_HPP

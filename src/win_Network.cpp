@@ -28,7 +28,7 @@ global_variable const char * networkOwnIpAddress = NETWORK_LOCAL_HOST;
 global_variable const char * networkOtherIpAddress = NETWORK_LOCAL_HOST;
 global_variable bool32 networkIsRuined = false;
 
-namespace WinApi
+namespace winapi
 {
 	internal WinApiNetwork
 	CreateNetwork();
@@ -47,7 +47,7 @@ namespace WinApi
 }
 
 internal WinApiNetwork
-WinApi::CreateNetwork()
+winapi::CreateNetwork()
 {
     // Todo(Leo): Somehow use WinApiLog function for these results too
     using network_result = int;
@@ -133,7 +133,7 @@ WinApi::CreateNetwork()
 }
 
 internal void
-WinApi::NetworkSend(WinApiNetwork * network, GameNetworkPackage * packageToSend)
+winapi::NetworkSend(WinApiNetwork * network, GameNetworkPackage * packageToSend)
 {
 	if (network->isConnected == false)
 	{
@@ -149,7 +149,7 @@ WinApi::NetworkSend(WinApiNetwork * network, GameNetworkPackage * packageToSend)
 }
 
 internal void
-WinApi::NetworkReceive(WinApiNetwork * network, GameNetworkPackage * resultAddress)
+winapi::NetworkReceive(WinApiNetwork * network, GameNetworkPackage * resultAddress)
 {
 	if (network->isConnected == false)
 	{
@@ -213,7 +213,7 @@ WinApi::NetworkReceive(WinApiNetwork * network, GameNetworkPackage * resultAddre
 }
 
 internal void
-WinApi::NetworkListen(WinApiNetwork * network)
+winapi::NetworkListen(WinApiNetwork * network)
 {
     if (network->isListening == false)
     {
@@ -244,7 +244,7 @@ WinApi::NetworkListen(WinApiNetwork * network)
 }
 
 internal void
-WinApi::CloseNetwork(WinApiNetwork * network)
+winapi::CloseNetwork(WinApiNetwork * network)
 {
     /* Note(Leo): sockets return sometimes meaningful values, these stand for reminder
     to handle those at some point

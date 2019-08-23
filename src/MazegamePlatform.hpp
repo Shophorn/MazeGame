@@ -19,6 +19,11 @@ Interface definition between Platform and Game.
 
 #include <vector>
 
+struct Handle
+{
+	uint64 index = -1;
+	operator uint64 () { return index; }
+};
 
 
 using GameButtonState = int32;
@@ -59,8 +64,7 @@ struct Mesh
 	IndexType indexType;
 };
 
-/* Todo(Leo): Define INVALID_MESH_HANDLE to be zero, so it becomes default value */
-using MeshHandle = uint64;
+struct MeshHandle : Handle {};
 
 struct TextureAsset
 {
@@ -70,6 +74,19 @@ struct TextureAsset
 	int32 	height;
 	int32 	channels;
 };
+
+struct TextureHandle : Handle {};
+
+struct GameMaterial
+{
+    // Note(Leo): Ignore now, later we use this to differentiate different material layouts
+    int32 materialType;
+
+    TextureHandle albedo;
+    TextureHandle metallic;
+};
+
+struct MaterialHandle : Handle {};
 
 struct GameMemory
 {
@@ -83,18 +100,11 @@ struct GameMemory
 
 	void * graphicsContext;
 	
-	using PushMeshesFunc = void(void * graphicsContext, 
-								int meshCount,
-								Mesh * meshArray,
-								MeshHandle * outMeshHandleArray);
-
-	PushMeshesFunc * PushMeshesImpl;
-
-	void
-	PushMeshes(int meshCount, Mesh * meshArray, MeshHandle * outMeshHandleArray)
-	{
-		PushMeshesImpl(graphicsContext, meshCount, meshArray, outMeshHandleArray);
-	}
+	MeshHandle 		(*PushMesh)		(void * graphicsContext, Mesh * mesh);
+	TextureHandle 	(*PushTexture)	(void * graphicsContext, TextureAsset * asset);
+	MaterialHandle 	(*PushMaterial)	(void * graphicsContext, GameMaterial * material);
+	
+	void 			(*ApplyGraphicsContext)(void * graphicsContext);
 };
 
 struct GameRenderInfo
