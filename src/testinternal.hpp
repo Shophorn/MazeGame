@@ -1,0 +1,1 @@
+internal int GlobalInternalTestValue = 0;

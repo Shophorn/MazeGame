@@ -8,9 +8,19 @@ but helpers and combos of things commonly used together in this game.
 
 TODO(Leo): Maybe rename to communicate more clearly that these hide actual
 vulkan api.
+
+STUDY: https://devblogs.nvidia.com/vulkan-dos-donts/
 =============================================================================*/
 
 #ifndef WIN_VULKAN_HPP
+
+constexpr int32 MAX_FRAMES_IN_FLIGHT = 2;
+constexpr uint64 VULKAN_NO_TIME_OUT	= MaxValue<uint64>;
+constexpr real32 VULKAN_MAX_LOD_FLOAT = 100.0f;
+
+constexpr int32 VULKAN_MAX_MODEL_COUNT = 100;
+constexpr int32 VULKAN_MAX_MATERIAL_COUNT = 100;
+
 
 // Note(Leo): these need to align properly
 struct VulkanCameraUniformBufferObject
@@ -32,10 +42,17 @@ struct VulkanLoadedModel
     VkDeviceMemory  memory;
     VkDeviceSize    vertexOffset;
     VkDeviceSize    indexOffset;
-    uint32          uniformBufferOffset;
     uint32          indexCount;
     VkIndexType     indexType;
 };
+
+struct VulkanRenderedObject
+{
+	MeshHandle 		mesh;
+	MaterialHandle 	material;
+    uint32         	uniformBufferOffset;
+};
+
 
 struct VulkanBufferResource
 {
@@ -122,7 +139,7 @@ struct VulkanDrawingResources
 	VkImage colorImage;
 	VkImageView colorImageView;
 
-	VkImage depthImage;
+	VkImage depthImage;	
 	VkImageView depthImageView;
 };
 
@@ -138,9 +155,11 @@ struct VulkanTexture
 	VkDeviceMemory memory;
 };
 
+
+
 using VulkanMaterial = VkDescriptorSet;
 
-struct VulkanContext
+struct VulkanContext : platform::IGraphicsContext
 {
 	VkInstance 					instance;
 	VkDevice 					device; // Note(Leo): this is logical device.
@@ -160,20 +179,17 @@ struct VulkanContext
     std::vector<VkFramebuffer>      frameBuffers;
 
 
-	std::vector<VulkanTexture> 	loadedTextures;
-	std::vector<VulkanMaterial>	loadedMaterials;
+    std::vector<VulkanLoadedModel>  loadedModels;
+	std::vector<VulkanTexture> 		loadedTextures;
+	std::vector<VulkanMaterial>		loadedMaterials;
+
+	std::vector<VulkanRenderedObject>	loadedRenderedObjects;
 
     /* Note(Leo): image and sampler are now (as in Vulkan) unrelated, and same
     sampler can be used with multiple images, noice */
     VkSampler textureSampler;			
 
     VulkanBufferResource       	stagingBufferPool;
-
-    std::vector<VulkanLoadedModel>  loadedModels;
-
-    // Todo(Leo): frame buffer size things do not belong here
-    VkExtent2D framebufferSize;
-    bool32 framebufferResized = false;
 
 
     VkRenderPass            renderPass;
@@ -202,6 +218,13 @@ struct VulkanContext
     /* Note(Leo): color and depth images for initial writing. These are
     afterwards resolved to actual framebufferimage */
     VulkanDrawingResources drawingResources;
+
+    // IGraphicsContext interface implementation
+    MeshHandle PushMesh(Mesh * mesh);
+    TextureHandle PushTexture (TextureAsset * texture);
+    MaterialHandle PushMaterial (GameMaterial * material);
+    RenderedObjectHandle PushRenderedObject(MeshHandle mesh, MaterialHandle material);
+    void Apply();
 };
 
 struct VulkanDescriptorLayouts
@@ -211,12 +234,6 @@ struct VulkanDescriptorLayouts
 	VkDescriptorSetLayout material;
 };
 
-constexpr int32 MAX_FRAMES_IN_FLIGHT = 2;
-constexpr uint64 VULKAN_NO_TIME_OUT	= MaxValue<uint64>;
-constexpr real32 VULKAN_MAX_LOD_FLOAT = 100.0f;
-
-constexpr int32 VULKAN_MAX_MODEL_COUNT = 100;
-constexpr int32 VULKAN_MAX_MATERIAL_COUNT = 100;
 
 namespace vulkan
 {
@@ -322,13 +339,13 @@ namespace vulkan
 	CreateShaderModule(BinaryAsset code, VkDevice logicalDevice);
 
 	internal void
-	UpdateUniformBuffer(VulkanContext * context, uint32 imageIndex, GameRenderInfo * renderInfo);
+	UpdateUniformBuffer(VulkanContext * context, uint32 imageIndex, game::RenderInfo * renderInfo);
 
 	internal void
 	DrawFrame(VulkanContext * context, uint32 imageIndex, uint32 frameIndex);
 
 	internal void
-	RecreateSwapchain(VulkanContext * context);
+	RecreateSwapchain(VulkanContext * context, VkExtent2D frameBufferSize);
 }
 
 #define WIN_VULKAN_HPP

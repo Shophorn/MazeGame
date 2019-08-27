@@ -4,12 +4,14 @@ Leo Tamminen
 :MAZEGAME: game code main file.
 =============================================================================*/
 #include "MazegamePlatform.hpp"
-#include "Camera.cpp"
-#include "vertex_data.cpp"
-#include "AudioFile.cpp"
 
-#define STB_IMAGE_IMPLEMENTATION
-#include <stb_image.h>
+// Note(Leo): Make unity build here
+#include "MapGenerator.cpp"
+#include "Camera.cpp"
+
+#include "AudioFile.cpp"
+#include "MeshLoader.cpp"
+#include "TextureLoader.cpp"
 
 
 struct GameState
@@ -28,138 +30,108 @@ struct GameState
 
 	Camera worldCamera;
 
-	MeshHandle levelMeshHandle;
-	MeshHandle characterMeshHandle;
-	MeshHandle otherCharacterMeshHandle;
-
-	int32 sceneryCount = 5;
-	MeshHandle sceneryMeshHandles [5];
-	Vector3 sceneryPositions [5];
-
 	MaterialHandle characterMaterial;
 	MaterialHandle sceneryMaterial;
+
+	RenderedObjectHandle levelObjectHandle;
+	RenderedObjectHandle characterObjectHandle;
+	RenderedObjectHandle otherCharacterObjectHandle;
+
+	int32 sceneryCount = 5;
+	ArenaArray<Vector3>					sceneryPositions;
+	ArenaArray<RenderedObjectHandle> 	sceneryObjectHandles;
+
+	/// Memory
+	MemoryArena persistentMemoryArena;
+	MemoryArena transientMemoryArena;
 };
 
-internal TextureAsset
-LoadTextureAsset(const char * assetPath)
-{
-    TextureAsset resultTexture = {};
-    stbi_uc * pixels = stbi_load(assetPath, &resultTexture.width, &resultTexture.height,
-                                        &resultTexture.channels, STBI_rgb_alpha);
-
-    if(pixels == nullptr)
-    {
-        // Todo[Error](Leo): Proper handling and logging
-        throw std::runtime_error("Failed to load image");
-    }
-
-    // rgba channels
-    resultTexture.channels = 4;
-
-    int32 pixelCount = resultTexture.width * resultTexture.height;
-    resultTexture.pixels.resize(pixelCount);
-
-    uint64 imageMemorySize = resultTexture.width * resultTexture.height * resultTexture.channels;
-    memcpy((uint8*)resultTexture.pixels.data(), pixels, imageMemorySize);
-
-    stbi_image_free(pixels);
-    return resultTexture;
-}
-
-
 void
-InitializeGameState(GameState * state, GameMemory * memory, GamePlatformInfo * platform)
+InitializeGameState(GameState * state, game::Memory * memory, game::PlatformInfo * platformInfo)
 {
+	*state = {};
+
+	state->persistentMemoryArena = CreateMemoryArena(
+										reinterpret_cast<byte*>(memory->persistentMemory) + sizeof(GameState),
+										memory->persistentMemorySize - sizeof(GameState));
+
+	state->transientMemoryArena = CreateMemoryArena(
+										reinterpret_cast<byte*>(memory->transientMemory),
+										memory->transientMemorySize);
+
     TextureAsset textureAssets [] = {
-        LoadTextureAsset("textures/chalet.jpg"),
-        LoadTextureAsset("textures/lava.jpg"),
-        LoadTextureAsset("textures/texture.jpg"),
+        LoadTextureAsset("textures/chalet.jpg", &state->transientMemoryArena),
+        LoadTextureAsset("textures/lava.jpg", &state->transientMemoryArena),
+        LoadTextureAsset("textures/texture.jpg", &state->transientMemoryArena),
     };
 
-	TextureHandle a = memory->PushTexture(memory->graphicsContext, &textureAssets[0]);
-	TextureHandle b = memory->PushTexture(memory->graphicsContext, &textureAssets[1]);
-	TextureHandle c = memory->PushTexture(memory->graphicsContext, &textureAssets[2]);
+	TextureHandle a = platformInfo->graphicsContext->PushTexture(&textureAssets[0]);
+	TextureHandle b = platformInfo->graphicsContext->PushTexture(&textureAssets[1]);
+	TextureHandle c = platformInfo->graphicsContext->PushTexture(&textureAssets[2]);
 
 	GameMaterial mA = {0, a, a};
 	GameMaterial mB = {0, b, c};
 
-	state->characterMaterial = memory->PushMaterial(memory->graphicsContext, &mA);
-	state->sceneryMaterial = memory->PushMaterial(memory->graphicsContext, &mB);
-
-	memory->ApplyGraphicsContext(memory->graphicsContext);
-
-	*state = {};
+	state->characterMaterial = platformInfo->graphicsContext->PushMaterial(&mA);
+	state->sceneryMaterial = platformInfo->graphicsContext->PushMaterial(&mB);
 
 	state->characterPosition = {0, 0, 0};
 	state->characterRotation = Quaternion::Identity();
    	state->otherCharacterPosition = {0, 0, 0};
 
     state->worldCamera = {};
-
-    // Note(Leo): We probably wont need these as camera is updated in first frame already
-    // state->worldCamera.position = {0, 10, -10};
     state->worldCamera.forward = CoordinateSystem::Forward;
 
     state->worldCamera.fieldOfView = 60;
     state->worldCamera.nearClipPlane = 0.1f;
     state->worldCamera.farClipPlane = 1000.0f;
-    state->worldCamera.aspectRatio = (real32)platform->screenWidth / (real32)platform->screenHeight;	
+    state->worldCamera.aspectRatio = (real32)platformInfo->windowWidth / (real32)platformInfo->windowHeight;	
 
-    {
-	    Vector3 testNear = {0, 0, state->worldCamera.nearClipPlane};
-	    Vector3 testFar = {0, 0, state->worldCamera.farClipPlane};
-
-	    auto cameraProjection = state->worldCamera.PerspectiveProjection();
-	    std::cout << "test near: " << cameraProjection * testNear << "\ntest far: " << cameraProjection * testFar << "\n"; 
-	    std::cout << "camera projection: " << cameraProjection << "\n\n";
-    }
-
-    Mesh meshes [] = 
-    {
-    	GenerateMap(),
-    	LoadModel("models/character.obj"),
-	};
-
-	state->levelMeshHandle 			= memory->PushMesh(memory->graphicsContext, &meshes[0]);
-	state->characterMeshHandle 		= memory->PushMesh(memory->graphicsContext, &meshes[1]);
-	state->otherCharacterMeshHandle = memory->PushMesh(memory->graphicsContext, &meshes[1]);
-
-	Mesh sceneryMeshes [] =
+	// Characters
 	{
-		LoadModel("models/pillar.obj"),			// Center
-		LoadModel("models/pillar.obj"),			// left
-    	LoadModel("models/tree.obj"),			// front
-    	LoadModel("models/character.obj"),		// right
-    	MeshPrimitives::cube 					// back
-    };
+		auto characterMesh 					= LoadModel(&state->transientMemoryArena, "models/character.obj");
+		auto characterMeshHandle 			= platformInfo->graphicsContext->PushMesh(&characterMesh);
 
-    for (int sceneryIndex = 0; sceneryIndex < state->sceneryCount; ++sceneryIndex)
+		state->characterObjectHandle 		= platformInfo->graphicsContext->PushRenderedObject(characterMeshHandle, state->characterMaterial);
+		state->otherCharacterObjectHandle 	= platformInfo->graphicsContext->PushRenderedObject(characterMeshHandle, state->characterMaterial);
+	}
+
+ 	// Level
+	{
+		auto levelMesh 				= GenerateMap(&state->transientMemoryArena);
+		auto levelMeshHandle 		= platformInfo->graphicsContext->PushMesh(&levelMesh);
+	    state->levelObjectHandle 	= platformInfo->graphicsContext->PushRenderedObject(levelMeshHandle, state->sceneryMaterial);
+	}	
+
+	// Scenery
     {
-    	state->sceneryMeshHandles[sceneryIndex] = memory->PushMesh(memory->graphicsContext, &sceneryMeshes[sceneryIndex]);
-    }
+		state->sceneryPositions = PushArray<Vector3>(&state->persistentMemoryArena, state->sceneryCount);
+		state->sceneryObjectHandles = PushArray<RenderedObjectHandle>(&state->persistentMemoryArena, state->sceneryCount);
 
-    memory->ApplyGraphicsContext(memory->graphicsContext);
+	    Mesh treeMesh =	LoadModel(&state->transientMemoryArena, "models/tree.obj");
+	    MeshHandle treeMeshHandle = platformInfo->graphicsContext->PushMesh(&treeMesh);
 
-    real32 radius = 15;
+	    for (int i = 0; i < state->sceneryCount; ++i)
+	    {
+	    	state->sceneryObjectHandles[i] = platformInfo->graphicsContext->PushRenderedObject(treeMeshHandle, state->sceneryMaterial);
+	    }
 
-    state->sceneryPositions[0] = {};
+	    real32 radius = 15;
+	    state->sceneryPositions[0] = {};
+	    state->sceneryPositions[1] = {-radius, 0, 0};
+	    state->sceneryPositions[2] = {0, radius, 0};
+	    state->sceneryPositions[3] = {radius, 0, 0};
+	    state->sceneryPositions[4] = {0, -radius, 0};
+ 	}
 
-    state->sceneryPositions[1] = {};
-    state->sceneryPositions[1].right = -radius;
- 
-    state->sceneryPositions[2] = {};
-    state->sceneryPositions[2].forward = radius;
- 
-    state->sceneryPositions[3] = {};
-    state->sceneryPositions[3].right = radius;
- 
-    state->sceneryPositions[4] = {};
-    state->sceneryPositions[4].forward = -radius;
-    state->sceneryPositions[4].up = 2;
+
+ 	// Note(Leo): Apply all pushed changes and flush transient memory
+    platformInfo->graphicsContext->Apply();
+    FlushArena(&state->transientMemoryArena);
 }
 
 void
-OutputSound(int frameCount, GameStereoSoundSample * samples)
+OutputSound(int frameCount, game::StereoSoundSample * samples)
 {
 	local_persist int runningSampleIndex = 0;
 	local_persist AudioFile<float> file;
@@ -188,18 +160,17 @@ OutputSound(int frameCount, GameStereoSoundSample * samples)
 	}
 }
 
-
 extern "C" void
 GameUpdate(
-	GameInput * 		input,
-	GameMemory * 		memory,
-	GamePlatformInfo * 	platform,
-	GameNetwork	*		network,
-	GameSoundOutput * 	soundOutput,
-
-	GameRenderInfo * 	outRenderInfo
+	game::Input * 			input,
+	game::Memory * 			memory,
+	game::PlatformInfo * 	platform,
+	game::Network *			network,
+	game::SoundOutput * 	soundOutput,
+	game::RenderInfo * 		outRenderInfo
 ){
 	GameState * state = reinterpret_cast<GameState*>(memory->persistentMemory);
+
 
 	if (memory->isInitialized == false)
 	{
@@ -224,7 +195,7 @@ GameUpdate(
 
 		bool32 grounded = state->characterPosition.z < 0.1f;
 
-		if (grounded && input->jump == GAME_BUTTON_WENT_DOWN)
+		if (grounded && input->jump == game::InputButtonState::WentDown)
 		{
 			state->characterZSpeed = 6;
 		}
@@ -244,13 +215,6 @@ GameUpdate(
 		if (Abs(input->move.x) > epsilon || Abs(input->move.y) > epsilon)
 		{
 			Vector3 characterForward = Normalize(viewAlignedInputVector);
-			// std::cout 
-			// 	<< characterForward 
-			// 	<< " || " << state->characterPosition 
-			// 	<< " || " << viewForward
-			// 	<< " || " << viewRight 
-			// 	<< " || " << state->worldCamera.position << "\n";
-
 			real32 angleToWorldForward = SignedAngle(CoordinateSystem::Forward, characterForward);
 			state->characterZRotationRadians = angleToWorldForward;
 		}
@@ -269,10 +233,9 @@ GameUpdate(
 	}
 
 	/// Update Camera
-	// Todo[camera] (Leo): view projection seems wrong!!!!!
 	{
 		// Note(Leo): Update aspect ratio each frame, in case screen size has changed.
-	    state->worldCamera.aspectRatio = (real32)platform->screenWidth / (real32)platform->screenHeight;
+	    state->worldCamera.aspectRatio = (real32)platform->windowWidth / (real32)platform->windowHeight;
 
 		real32 cameraRotateSpeed = 90;
 		real32 cameraTumbleMin = -10;
@@ -287,17 +250,17 @@ GameUpdate(
 
 		if (input->zoomIn)
 		{
-			state->worldCamera.fieldOfView -= input->timeDelta * 15;
-			state->worldCamera.fieldOfView = Max(state->worldCamera.fieldOfView, 10.0f);
-			// state->cameraDistance -= zoomSpeed * input->timeDelta;
-			// state->cameraDistance = Max(state->cameraDistance, minDistance);
+			// state->worldCamera.fieldOfView -= input->timeDelta * 15;
+			// state->worldCamera.fieldOfView = Max(state->worldCamera.fieldOfView, 10.0f);
+			state->cameraDistance -= zoomSpeed * input->timeDelta;
+			state->cameraDistance = Max(state->cameraDistance, minDistance);
 		}
 		else if(input->zoomOut)
 		{
-			state->worldCamera.fieldOfView += input->timeDelta * 15;
-			state->worldCamera.fieldOfView = Min(state->worldCamera.fieldOfView, 100.0f);
-			// state->cameraDistance += zoomSpeed * input->timeDelta;
-			// state->cameraDistance = Min(state->cameraDistance, maxDistance);
+			// state->worldCamera.fieldOfView += input->timeDelta * 15;
+			// state->worldCamera.fieldOfView = Min(state->worldCamera.fieldOfView, 100.0f);
+			state->cameraDistance += zoomSpeed * input->timeDelta;
+			state->cameraDistance = Min(state->cameraDistance, maxDistance);
 		}
 
 	    state->cameraOrbitDegrees += input->look.x * cameraRotateSpeed * input->timeDelta;
@@ -317,7 +280,7 @@ GameUpdate(
 
 	    /*
 	    Todo[Camera] (Leo): This is good effect, but its too rough like this,
-	    make it good whren projections work
+	    make it good later when projections work
 
 	    real32 cameraAdvanceAmount = 5;
 	    Vector3 cameraAdvanceVector = characterMovementVector * cameraAdvanceAmount;
@@ -329,33 +292,34 @@ GameUpdate(
 
 	    
 	    state->worldCamera.position = cameraParentPosition + localPosition;
-
 		state->worldCamera.LookAt(cameraParentPosition);
 	}
 
 	/// Output Render info
+	// Todo(Leo): Get info about limits of render output and constraint to those
 	{
-		outRenderInfo->modelMatrixArray[state->levelMeshHandle] = Matrix44::Identity();
+		outRenderInfo->modelMatrixArray[state->levelObjectHandle] = Matrix44::Identity();
 
-		outRenderInfo->modelMatrixArray[state->characterMeshHandle]
+		outRenderInfo->modelMatrixArray[state->characterObjectHandle]
 			= Matrix44::Translate(state->characterPosition) * state->characterRotation.ToRotationMatrix();
 
 		if (network->isConnected)
 		{
-			outRenderInfo->modelMatrixArray[state->otherCharacterMeshHandle]
+			outRenderInfo->modelMatrixArray[state->otherCharacterObjectHandle]
 				= Matrix44::Translate(state->otherCharacterPosition) * state->otherCharacterRotation.ToRotationMatrix();
 		}
 		else
 		{
-			outRenderInfo->modelMatrixArray[state->otherCharacterMeshHandle] = {};
+			outRenderInfo->modelMatrixArray[state->otherCharacterObjectHandle] = {};
 		}
 
 		for (int sceneryIndex = 0; sceneryIndex < state->sceneryCount; ++sceneryIndex)
 		{
-			outRenderInfo->modelMatrixArray[state->sceneryMeshHandles[sceneryIndex]]
+			outRenderInfo->modelMatrixArray[state->sceneryObjectHandles[sceneryIndex]]
 				= Matrix44::Translate(state->sceneryPositions[sceneryIndex]);
 		}
 
+		// Ccamera
 	    outRenderInfo->cameraView = state->worldCamera.ViewProjection();
 	    outRenderInfo->cameraPerspective = state->worldCamera.PerspectiveProjection();
 	}
@@ -364,4 +328,4 @@ GameUpdate(
 	{
 		OutputSound(soundOutput->sampleCount, soundOutput->samples);
 	}
-}
+	}

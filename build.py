@@ -37,7 +37,8 @@ if compiler == 'clang++':
 
 
 	### COMPILE PLATFORM LAYER
-	platform_call = "clang++ {} {} {} -o win_Mazegame.exe src/win_Mazegame.cpp {} {}".format(
+	# Specify '-mwindows' to get .exe to launch without console
+	platform_call = "clang++ {} {} {} -o winapi_Mazegame.exe src/winapi_Mazegame.cpp {} {}".format(
 				flags, definitions, includePath, libPath, libLinks)
 
 	### COMPILE GAME CODE DLL

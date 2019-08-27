@@ -3,7 +3,7 @@ Leo Tamminen
 
 Implementations of vulkan related functions
 =============================================================================*/
-#include "win_Vulkan.hpp"
+#include "winapi_Vulkan.hpp"
 
 internal uint32
 vulkan::FindMemoryType (VkPhysicalDevice physicalDevice, uint32 typeFilter, VkMemoryPropertyFlags properties)
@@ -20,7 +20,7 @@ vulkan::FindMemoryType (VkPhysicalDevice physicalDevice, uint32 typeFilter, VkMe
             return i;
         }
     }
-
+    
     throw std::runtime_error("Failed to find suitable memory type.");
 }   
 
@@ -679,13 +679,11 @@ CreateSwapchainAndImages(VulkanContext * context, VkExtent2D frameBufferSize)
     }
     else
     {   
-
         VkExtent2D min = swapchainSupport.capabilities.minImageExtent;
         VkExtent2D max = swapchainSupport.capabilities.maxImageExtent;
 
         resultSwapchain.extent.width = Clamp(static_cast<uint32>(frameBufferSize.width), min.width, max.width);
         resultSwapchain.extent.height = Clamp(static_cast<uint32>(frameBufferSize.height), min.height, max.height);
-
     }
 
     std::cout << "Creating swapchain actually, width: " << resultSwapchain.extent.width << ", height: " << resultSwapchain.extent.height << "\n";
@@ -1717,7 +1715,7 @@ CreateImageTexture(TextureAsset * asset, VulkanContext * context)
 
     void * data;
     vkMapMemory(context->device, context->stagingBufferPool.memory, 0, imageSize, 0, &data);
-    memcpy (data, (void*)asset->pixels.data(), imageSize);
+    memcpy (data, (void*)asset->pixels.memory, imageSize);
     vkUnmapMemory(context->device, context->stagingBufferPool.memory);
 
     CreateImageAndMemory(context->device, context->physicalDevice,
@@ -1855,8 +1853,6 @@ Cleanup(VulkanContext * context)
     vkDestroyInstance(context->instance, nullptr);
 }
 
-
-
 internal void
 CreateCommandBuffers(VulkanContext * context)
 {
@@ -1874,22 +1870,25 @@ CreateCommandBuffers(VulkanContext * context)
         throw std::runtime_error("Failed to allocate command buffers");
     }
 
-    std::cout << "Allocated command buffers\n";
 
-    int32 modelCount = context->loadedModels.size();
-    std::vector<VulkanRenderInfo> renderInfos (modelCount);
+    int32 objectCount = context->loadedRenderedObjects.size();
+    std::cout << "Allocated command buffers for " << objectCount << " objects\n";
+    VulkanRenderInfo renderInfos [VULKAN_MAX_MODEL_COUNT];
 
-    uint32 materialIndex = 0;
-
-    for (int modelIndex = 0; modelIndex < modelCount; ++modelIndex)
+    for (int objectIndex = 0; objectIndex < objectCount; ++objectIndex)
     {
-        renderInfos[modelIndex].meshBuffer             = context->loadedModels[modelIndex].buffer; 
-        renderInfos[modelIndex].vertexOffset           = context->loadedModels[modelIndex].vertexOffset;
-        renderInfos[modelIndex].indexOffset            = context->loadedModels[modelIndex].indexOffset;
-        renderInfos[modelIndex].indexCount             = context->loadedModels[modelIndex].indexCount;
-        renderInfos[modelIndex].indexType              = context->loadedModels[modelIndex].indexType;
-        renderInfos[modelIndex].uniformBufferOffset    = context->loadedModels[modelIndex].uniformBufferOffset;
-        renderInfos[modelIndex].materialIndex          = modelIndex % 2;
+        MeshHandle meshHandle           = context->loadedRenderedObjects[objectIndex].mesh;
+        MaterialHandle materialHandle   = context->loadedRenderedObjects[objectIndex].material;
+
+        renderInfos[objectIndex].meshBuffer             = context->loadedModels[meshHandle].buffer; 
+        renderInfos[objectIndex].vertexOffset           = context->loadedModels[meshHandle].vertexOffset;
+        renderInfos[objectIndex].indexOffset            = context->loadedModels[meshHandle].indexOffset;
+        renderInfos[objectIndex].indexCount             = context->loadedModels[meshHandle].indexCount;
+        renderInfos[objectIndex].indexType              = context->loadedModels[meshHandle].indexType;
+
+        renderInfos[objectIndex].uniformBufferOffset    = context->loadedRenderedObjects[objectIndex].uniformBufferOffset;
+        
+        renderInfos[objectIndex].materialIndex          = materialHandle;
     }
 
     for (int frameIndex = 0; frameIndex < context->frameCommandBuffers.size(); ++frameIndex)
@@ -1929,23 +1928,22 @@ CreateCommandBuffers(VulkanContext * context)
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, context->pipelineItems.layout,
                                 0, 1, &context->sceneDescriptorSets[frameIndex], 0, nullptr);
 
-        for (int modelIndex = 0; modelIndex < modelCount; ++modelIndex)
+        for (int objectIndex = 0; objectIndex < objectCount; ++objectIndex)
         {
             // Bind material
-            auto materialIndex = renderInfos[modelIndex].materialIndex;
+            auto materialIndex = renderInfos[objectIndex].materialIndex;
+
             vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, context->pipelineItems.layout,
                                     1, 1, &context->loadedMaterials[materialIndex], 0, nullptr);
-                                    // 1, 1, &materialDescriptorSets[materialIndex], 0, nullptr);
-
             // Bind model info
-            vkCmdBindVertexBuffers(commandBuffer, 0, 1, &renderInfos[modelIndex].meshBuffer, &renderInfos[modelIndex].vertexOffset);
-            vkCmdBindIndexBuffer(commandBuffer, renderInfos[modelIndex].meshBuffer, renderInfos[modelIndex].indexOffset, renderInfos[modelIndex].indexType);
-            
+            vkCmdBindVertexBuffers(commandBuffer, 0, 1, &renderInfos[objectIndex].meshBuffer, &renderInfos[objectIndex].vertexOffset);
+            vkCmdBindIndexBuffer(commandBuffer, renderInfos[objectIndex].meshBuffer, renderInfos[objectIndex].indexOffset, renderInfos[objectIndex].indexType);
+
             // Bind entity transform
             vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, context->pipelineItems.layout,
-                                    2, 1, &context->descriptorSets[frameIndex], 1,&renderInfos[modelIndex].uniformBufferOffset);
+                                    2, 1, &context->descriptorSets[frameIndex], 1,&renderInfos[objectIndex].uniformBufferOffset);
 
-            vkCmdDrawIndexed(commandBuffer, renderInfos[modelIndex].indexCount, 1, 0, 0, 0);
+            vkCmdDrawIndexed(commandBuffer, renderInfos[objectIndex].indexCount, 1, 0, 0, 0);
         }
 
         vkCmdEndRenderPass(commandBuffer);
@@ -1955,6 +1953,7 @@ CreateCommandBuffers(VulkanContext * context)
             throw std::runtime_error("Failed to record command buffer");
         }
     }
+
 }
 
 internal void
@@ -1964,18 +1963,20 @@ RefreshCommandBuffers(VulkanContext * context)
     CreateCommandBuffers(context);
 }
 
+
+
 internal void
-vulkan::UpdateUniformBuffer(VulkanContext * context, uint32 imageIndex, GameRenderInfo * renderInfo)
+vulkan::UpdateUniformBuffer(VulkanContext * context, uint32 imageIndex, game::RenderInfo * renderInfo)
 {
     // Todo(Leo): Single mapping is really enough, offsets can be used here too
     Matrix44 * pModelMatrix;
     uint32 startUniformBufferOffset = vulkan::GetModelUniformBufferOffsetForSwapchainImages(context, imageIndex);
 
-    int32 modelCount = context->loadedModels.size();
+    int32 modelCount = context->loadedRenderedObjects.size();
     for (int modelIndex = 0; modelIndex < modelCount; ++modelIndex)
     {
         vkMapMemory(context->device, context->modelUniformBuffer.memory, 
-                    startUniformBufferOffset + context->loadedModels[modelIndex].uniformBufferOffset,
+                    startUniformBufferOffset + context->loadedRenderedObjects[modelIndex].uniformBufferOffset,
                     sizeof(pModelMatrix), 0, (void**)&pModelMatrix);
 
         *pModelMatrix = renderInfo->modelMatrixArray[modelIndex];
@@ -1996,15 +1997,15 @@ vulkan::UpdateUniformBuffer(VulkanContext * context, uint32 imageIndex, GameRend
 }
 
 internal void
-vulkan::RecreateSwapchain(VulkanContext * context)
+vulkan::RecreateSwapchain(VulkanContext * context, VkExtent2D frameBufferSize)
 {
     vkDeviceWaitIdle(context->device);
 
     CleanupSwapchain(context);
 
-    std::cout << "Recreating swapchain, width: " << context->framebufferSize.width << ", height: " << context->framebufferSize.height <<"\n";
+    std::cout << "Recreating swapchain, width: " << frameBufferSize.width << ", height: " << frameBufferSize.height <<"\n";
 
-    context->swapchainItems      = CreateSwapchainAndImages(context, context->framebufferSize);
+    context->swapchainItems      = CreateSwapchainAndImages(context, frameBufferSize);
     context->renderPass          = CreateRenderPass(context, &context->swapchainItems, context->msaaSamples);
     context->pipelineItems       = CreateGraphicsPipeline(context->device, context->descriptorSetLayouts, 3, context->renderPass, &context->swapchainItems, context->msaaSamples);
     context->drawingResources    = CreateDrawingResources(context->device, context->physicalDevice, context->commandPool, context->graphicsQueue, &context->swapchainItems, context->msaaSamples);
@@ -2028,6 +2029,7 @@ vulkan::DrawFrame(VulkanContext * context, uint32 imageIndex, uint32 frameIndex)
     VkSubmitInfo submitInfo[1] = {};
     submitInfo[0].sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
+    // Note(Leo): We wait for these BEFORE drawing
     VkSemaphore waitSemaphores [] = { context->syncObjects.imageAvailableSemaphores[frameIndex] };
     VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
     submitInfo[0].waitSemaphoreCount = 1;
@@ -2037,6 +2039,7 @@ vulkan::DrawFrame(VulkanContext * context, uint32 imageIndex, uint32 frameIndex)
     submitInfo[0].commandBufferCount = 1;
     submitInfo[0].pCommandBuffers = &context->frameCommandBuffers[imageIndex];
 
+    // Note(Leo): We signal these AFTER drawing
     VkSemaphore signalSemaphores[] = { context->syncObjects.renderFinishedSemaphores[frameIndex] };
     submitInfo[0].signalSemaphoreCount = ARRAY_COUNT(signalSemaphores);
     submitInfo[0].pSignalSemaphores = signalSemaphores;
@@ -2056,23 +2059,118 @@ vulkan::DrawFrame(VulkanContext * context, uint32 imageIndex, uint32 frameIndex)
     presentInfo.pWaitSemaphores = signalSemaphores;
     presentInfo.pResults = nullptr;
 
-    VkSwapchainKHR swapchains [] = { context->swapchainItems.swapchain };
-    presentInfo.swapchainCount = ARRAY_COUNT(swapchains);
-    presentInfo.pSwapchains = swapchains;
-    presentInfo.pImageIndices = &imageIndex; // Todo(Leo): also an array, one for each swapchain
+    presentInfo.swapchainCount = 1;
+    presentInfo.pSwapchains = &context->swapchainItems.swapchain;
+    presentInfo.pImageIndices = &imageIndex;
 
+    // Todo(Leo): Should we do something about this??
     VkResult result = vkQueuePresentKHR(context->presentQueue, &presentInfo);
 
-    // Todo, Study(Leo): This may not be needed, 
-    // Note(Leo): Do after presenting to not interrupt semaphores at whrong time
-    if(result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || context->framebufferResized)
-    {
-        context->framebufferResized = false;
-        RecreateSwapchain(context);
-    }
-    else if (result != VK_SUCCESS)
-    {
-        throw std::runtime_error("Failed to present swapchain");
-    }
+    // // Todo, Study(Leo): Somebody on interenet told us to do this. No Idea why???
+    // // Note(Leo): Do after presenting to not interrupt semaphores at whrong time
+    // if(result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || context->framebufferResized)
+    // {
+    //     context->framebufferResized = false;
+    //     RecreateSwapchain(context);
+    // }
+    // else if (result != VK_SUCCESS)
+    // {
+    //     throw std::runtime_error("Failed to present swapchain");
+    // }
 }
 
+void
+VulkanContext::Apply()
+{
+    RefreshCommandBuffers (this);
+}
+
+MeshHandle
+VulkanContext::PushMesh(Mesh * mesh)
+{
+    uint64 indexBufferSize = mesh->indices.count * sizeof(mesh->indices[0]);
+    uint64 vertexBufferSize = mesh->vertices.count * sizeof(mesh->vertices[0]);
+    uint64 totalBufferSize = indexBufferSize + vertexBufferSize;
+
+    uint64 indexOffset = 0;
+    uint64 vertexOffset = indexBufferSize;
+
+    uint8 * data;
+    vkMapMemory(this->device, this->stagingBufferPool.memory, 0, totalBufferSize, 0, (void**)&data);
+    memcpy(data, &mesh->indices[0], indexBufferSize);
+    data += indexBufferSize;
+    memcpy(data, &mesh->vertices[0], vertexBufferSize);
+    vkUnmapMemory(this->device, this->stagingBufferPool.memory);
+
+    VkCommandBuffer commandBuffer = vulkan::BeginOneTimeCommandBuffer(this->device, this->commandPool);
+
+    VkBufferCopy copyRegion = { 0, this->staticMeshPool.used, totalBufferSize };
+    vkCmdCopyBuffer(commandBuffer, this->stagingBufferPool.buffer, this->staticMeshPool.buffer, 1, &copyRegion);
+
+    vulkan::EndOneTimeCommandBuffer(this->device, this->commandPool, this->graphicsQueue, commandBuffer);
+
+    VulkanLoadedModel model = {};
+
+    model.buffer = this->staticMeshPool.buffer;
+    model.memory = this->staticMeshPool.memory;
+    model.vertexOffset = this->staticMeshPool.used + vertexOffset;
+    model.indexOffset = this->staticMeshPool.used + indexOffset;
+    
+    this->staticMeshPool.used += totalBufferSize;
+
+    model.indexCount = mesh->indices.count;
+    model.indexType = vulkan::ConvertIndexType(mesh->indexType);
+
+    uint32 modelIndex = this->loadedModels.size();
+
+    this->loadedModels.push_back(model);
+
+    MeshHandle resultHandle = { modelIndex };
+
+    return resultHandle;
+}
+
+TextureHandle
+VulkanContext::PushTexture (TextureAsset * texture)
+{
+    TextureHandle handle = { this->loadedTextures.size() };
+    this->loadedTextures.push_back(CreateImageTexture(texture, this));
+    return handle;
+}
+
+MaterialHandle
+VulkanContext::PushMaterial (GameMaterial * material)
+{
+    /* Todo(Leo): Select descriptor layout depending on materialtype
+    'material' pointer is going be void * and it is to be cast to right kind of material */
+
+    MaterialHandle resultHandle = {this->loadedMaterials.size()};
+    this->loadedMaterials.push_back(CreateMaterialDescriptorSets(this, material->albedo, material->metallic));
+
+    return resultHandle;
+}
+
+RenderedObjectHandle
+VulkanContext::PushRenderedObject(MeshHandle mesh, MaterialHandle material)
+{
+    uint32 objectIndex = loadedRenderedObjects.size();
+
+    MAZEGAME_NO_INIT VulkanRenderedObject object;
+    object.mesh = mesh;
+    object.material = material;
+
+    uint32 memorySizePerModelMatrix = AlignUpTo(
+        this->physicalDeviceProperties.limits.minUniformBufferOffsetAlignment,
+        sizeof(Matrix44));
+    object.uniformBufferOffset = objectIndex * memorySizePerModelMatrix;
+
+    loadedRenderedObjects.push_back(object);
+
+    RenderedObjectHandle resultHandle = { objectIndex };
+
+
+    std::cout << "VulkanRenderedObject(mesh: "<< mesh << ", material: " << material << ", handle: " << resultHandle << ")\n"; 
+
+
+    return resultHandle;    
+}

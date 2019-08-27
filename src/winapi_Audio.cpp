@@ -30,7 +30,7 @@ namespace winapi
     StopPlaying(WinApiAudio * audio);
 
     internal void
-    GetAudioBuffer(WinApiAudio * audio, int * sampleCount, GameStereoSoundSample ** samples);
+    GetAudioBuffer(WinApiAudio * audio, int * sampleCount, game::StereoSoundSample ** samples);
 
     internal void
     ReleaseAudioBuffer(WinApiAudio * audio, int sampleCount);
@@ -73,6 +73,8 @@ winapi::CreateAudio ()
     const IID IID_IAudioRenderClient =       __uuidof(IAudioRenderClient);
 
     WinApiAudio audio = {};    
+
+    CoInitializeEx(nullptr, COINIT_MULTITHREADED);
 
     WinApiLog(  "Create audio device enumerator",
                 CoCreateInstance(   CLSID_MMDeviceEnumerator, nullptr,
@@ -126,6 +128,8 @@ winapi::ReleaseAudio(WinApiAudio * audio)
 
     audio->pRenderClient->Release();
     audio->pRenderClient = nullptr;
+
+    CoUninitialize();
 }
 
 internal void
@@ -141,7 +145,7 @@ winapi::StopPlaying(WinApiAudio * audio)
 }
 
 internal void
-winapi::GetAudioBuffer(WinApiAudio * audio, int * frameCount, GameStereoSoundSample ** samples)
+winapi::GetAudioBuffer(WinApiAudio * audio, int * frameCount, game::StereoSoundSample ** samples)
 {
     uint32 currentPadding;
     WinApiLog("Get audio padding", audio->pClient->GetCurrentPadding(&currentPadding));
@@ -157,4 +161,5 @@ internal void
 winapi::ReleaseAudioBuffer(WinApiAudio * audio, int32 frameCount)
 {
     WinApiLog("Release audio buffer", audio->pRenderClient->ReleaseBuffer(frameCount, 0));
+
 }

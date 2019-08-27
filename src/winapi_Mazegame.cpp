@@ -35,10 +35,11 @@ staging buffer and actual vertex buffer. https://vulkan-tutorial.com/en/Vertex_b
 // Todo(Leo): hack to get two controller on single pc and still use 1st controller when online
 global_variable int globalXinputControllerIndex;
 
-#include "win_VulkanDebugStrings.cpp"
-#include "win_WinSocketDebugStrings.cpp"
-#include "win_ErrorStrings.hpp"
-#include "win_Mazegame.hpp"
+#include "winapi_WindowMessages.cpp"
+#include "winapi_VulkanDebugStrings.cpp"
+#include "winapi_WinSocketDebugStrings.cpp"
+#include "winapi_ErrorStrings.hpp"
+#include "winapi_Mazegame.hpp"
 
 constexpr int32 WINDOW_WIDTH = 960;
 constexpr int32 WINDOW_HEIGHT = 540;
@@ -67,15 +68,15 @@ ReadBinaryFile (const char * fileName)
 
 constexpr static int32
     DESCRIPTOR_SET_LAYOUT_SCENE_UNIFORM = 0,
-    DESCRIPTOR_SET_LAYOUT_MATERIAL = 1,
+    DESCRIPTOR_SET_LAYOUT_MATERIAL      = 1,
     DESCRIPTOR_SET_LAYOUT_MODEL_UNIFORM = 2;
 
 
 // Note(Leo): make unity build
-#include "win_VulkanCommandBuffers.cpp"
-#include "win_Vulkan.cpp"
-#include "win_Audio.cpp"
-#include "win_Network.cpp"
+#include "winapi_VulkanCommandBuffers.cpp"
+#include "winapi_Vulkan.cpp"
+#include "winapi_Audio.cpp"
+#include "winapi_Network.cpp"
 
 // XInput things.
 using XInputGetStateFunc = decltype(XInputGetState);
@@ -114,7 +115,7 @@ ReadXInputJoystickValue(int16 value)
 
 
 internal void
-UpdateControllerInput(GameInput * input)
+UpdateControllerInput(game::Input * input)
 {
     local_persist bool32 aButtonWasDown = false;
 
@@ -148,7 +149,7 @@ UpdateControllerInput(GameInput * input)
 
         bool32 aButtonIsDown = (pressedButtons & XINPUT_GAMEPAD_A) != 0;
 
-        input->jump = aButtonIsDown + 2 * aButtonWasDown;
+        input->jump = static_cast<game::InputButtonState>(aButtonIsDown + 2 * aButtonWasDown);
         aButtonWasDown = aButtonIsDown;
     }
     else 
@@ -296,6 +297,26 @@ namespace winapi
                 winapi::State * state = winapi::GetStateFromWindow(window);
                 state->windowWidth = LOWORD(lParam);
                 state->windowHeight = HIWORD(lParam);
+
+                switch (wParam)
+                {
+                    case SIZE_RESTORED:
+                    case SIZE_MAXIMIZED:
+                        state->windowIsMinimized = false;
+                        break;
+
+                    case SIZE_MINIMIZED:
+                        state->windowIsMinimized = true;
+                        break;
+                }
+
+            } break;
+
+            case WM_CLOSE:
+            {
+                winapi::State * state = winapi::GetStateFromWindow(window);
+                state->isRunning = false;
+                std::cout << "window callback: WM_CLOSE\n";
             } break;
 
             case WM_EXITSIZEMOVE:
@@ -313,16 +334,13 @@ namespace winapi
     internal void
     ProcessPendingMessages(winapi::State * state, HWND winWindow)
     {
+        // Note(Leo): Apparently Windows requires us to do this.
+
         MSG message;
         while (PeekMessageW(&message, winWindow, 0, 0, PM_REMOVE))
         {
             switch (message.message)
             {
-                case WM_QUIT:
-                {
-                    state->isRunning = false;
-                } break;
-
                 default:
                     TranslateMessage(&message);
                     DispatchMessage(&message);
@@ -331,163 +349,67 @@ namespace winapi
     }
 }
 
-internal MeshHandle
-PushMesh (VulkanContext * context, Mesh * mesh)
-{
-    uint64 indexBufferSize = mesh->indices.size() * sizeof(mesh->indices[0]);
-    uint64 vertexBufferSize = mesh->vertices.size() * sizeof(mesh->vertices[0]);
-    uint64 totalBufferSize = indexBufferSize + vertexBufferSize;
-
-    uint64 indexOffset = 0;
-    uint64 vertexOffset = indexBufferSize;
-
-    uint8 * data;
-    vkMapMemory(context->device, context->stagingBufferPool.memory, 0, totalBufferSize, 0, (void**)&data);
-    memcpy(data, &mesh->indices[0], indexBufferSize);
-    data += indexBufferSize;
-    memcpy(data, &mesh->vertices[0], vertexBufferSize);
-    vkUnmapMemory(context->device, context->stagingBufferPool.memory);
-
-    VkCommandBuffer commandBuffer = vulkan::BeginOneTimeCommandBuffer(context->device, context->commandPool);
-
-    VkBufferCopy copyRegion = { 0, context->staticMeshPool.used, totalBufferSize };
-    vkCmdCopyBuffer(commandBuffer, context->stagingBufferPool.buffer, context->staticMeshPool.buffer, 1, &copyRegion);
-
-    vulkan::EndOneTimeCommandBuffer(context->device, context->commandPool, context->graphicsQueue, commandBuffer);
-
-    VulkanLoadedModel model = {};
-
-    model.buffer = context->staticMeshPool.buffer;
-    model.memory = context->staticMeshPool.memory;
-    model.vertexOffset = context->staticMeshPool.used + vertexOffset;
-    model.indexOffset = context->staticMeshPool.used + indexOffset;
-    
-    context->staticMeshPool.used += totalBufferSize;
-
-    model.indexCount = mesh->indices.size();
-    model.indexType = vulkan::ConvertIndexType(mesh->indexType);
-
-    uint32 modelIndex = context->loadedModels.size();
-
-    uint32 memorySizePerModelMatrix = AlignUpTo(
-        context->physicalDeviceProperties.limits.minUniformBufferOffsetAlignment,
-        sizeof(Matrix44));
-    model.uniformBufferOffset = modelIndex * memorySizePerModelMatrix;
-
-    context->loadedModels.push_back(model);
-
-    MeshHandle resultHandle = { modelIndex };
-    std::cout << "MeshHandle " << resultHandle << "\n";
-
-    return resultHandle;
-}
-
-internal TextureHandle
-PushTexture(VulkanContext * context, TextureAsset * asset)
-{
-    // Todo(Leo): Assert that there is room left for new texture
-
-    TextureHandle handle = { context->loadedTextures.size() };
-    context->loadedTextures.push_back(CreateImageTexture(asset, context));
-    return handle;
-}
-
-internal MaterialHandle
-PushMaterial(VulkanContext * context, GameMaterial * material)
-{
-    /* Todo(Leo): Select descriptor layout depending on materialtype
-    'material' pointer is going be null * and it is to be cast to right kind of material */
-
-    MaterialHandle resultHandle = {context->loadedMaterials.size()};
-    context->loadedMaterials.push_back(CreateMaterialDescriptorSets(context, material->albedo, material->metallic));
-    return resultHandle;
-}
-
 internal void
 Run(HINSTANCE winInstance)
 {
     winapi::State state = {};
-
-    // ---------- INITIALIZE PLATFORM ------------
-
-    wchar windowClassName [] = L"MazegameWindowClass";
-    wchar windowTitle [] = L"Mazegame";
-
-    WNDCLASSW windowClass = {};
-    windowClass.style           = CS_VREDRAW | CS_HREDRAW;
-    windowClass.lpfnWndProc     = winapi::MainWindowCallback;
-    windowClass.hInstance       = winInstance;
-    windowClass.lpszClassName   = windowClassName;
-
-    // Study: https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-makeintresourcew
-    auto defaultArrowCursor = MAKEINTRESOURCEW(32512);
-    windowClass.hCursor = LoadCursorW(nullptr, defaultArrowCursor);
-
-    if (RegisterClassW(&windowClass) == 0)
-    {
-        // Todo(Leo): Logging and backup plan for class invalidness
-        std::cout << "Failed to register window class\n";
-        return;
-    }
-
-    HWND winWindow = CreateWindowExW (
-        0, windowClassName, windowTitle, WS_OVERLAPPEDWINDOW | WS_VISIBLE,
-        CW_USEDEFAULT, CW_USEDEFAULT, WINDOW_WIDTH, WINDOW_HEIGHT,
-        nullptr, nullptr, winInstance, &state);
-
-    if (winWindow == nullptr)
-    {
-        // Todo[Logging] (Leo): Log this and make backup plan
-        std::cout << "Failed to create window\n";
-        return;
-    }
-
-    VulkanContext context = winapi::VulkanInitialize(winInstance, winWindow);
     LoadXInput();
 
+    // ---------- INITIALIZE PLATFORM ------------
+    HWND winWindow;
+    VulkanContext context;
+    game::PlatformInfo gamePlatformInfo = {};
+    {
+        wchar windowClassName [] = L"MazegameWindowClass";
+        wchar windowTitle [] = L"Mazegame";
+
+        WNDCLASSW windowClass = {};
+        windowClass.style           = CS_VREDRAW | CS_HREDRAW;
+        windowClass.lpfnWndProc     = winapi::MainWindowCallback;
+        windowClass.hInstance       = winInstance;
+        windowClass.lpszClassName   = windowClassName;
+
+        // Study: https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-makeintresourcew
+        auto defaultArrowCursor = MAKEINTRESOURCEW(32512);
+        windowClass.hCursor = LoadCursorW(nullptr, defaultArrowCursor);
+
+        if (RegisterClassW(&windowClass) == 0)
+        {
+            // Todo(Leo): Logging and backup plan for class invalidness
+            std::cout << "Failed to register window class\n";
+            return;
+        }
+
+        winWindow = CreateWindowExW (
+            0, windowClassName, windowTitle, WS_OVERLAPPEDWINDOW | WS_VISIBLE,
+            CW_USEDEFAULT, CW_USEDEFAULT, WINDOW_WIDTH, WINDOW_HEIGHT,
+            nullptr, nullptr, winInstance, &state);
+
+        if (winWindow == nullptr)
+        {
+            // Todo[Logging] (Leo): Log this and make backup plan
+            std::cout << "Failed to create window\n";
+            return;
+        }
+
+        context = winapi::VulkanInitialize(winInstance, winWindow);
+        gamePlatformInfo.graphicsContext = &context;
+    }
+
     // ------- MEMORY ---------------------------
-    GameMemory gameMemory = {};
+    game::Memory gameMemory = {};
     {
         // TODO [MEMORY] (Leo): Properly measure required amount
         gameMemory.persistentMemorySize = Megabytes(64);
-        gameMemory.transientMemorySize = Gigabytes(2);
+        gameMemory.transientMemorySize  = Gigabytes(2);
         uint64 totalMemorySize = gameMemory.persistentMemorySize + gameMemory.transientMemorySize;
    
         // TODO [MEMORY] (Leo): Check support for large pages
         // TODO [MEMORY] (Leo): specify base address for development builds
         void * memoryBlock = VirtualAlloc(nullptr, totalMemorySize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
         
-        gameMemory.persistentMemory = memoryBlock;
-        gameMemory.transientMemory = (uint8 *)memoryBlock + gameMemory.persistentMemorySize;
-
-        gameMemory.graphicsContext = &context;
-
-        gameMemory.PushMesh = [] (void * graphicsContext, Mesh * mesh) -> MeshHandle
-        {
-            VulkanContext * context = reinterpret_cast<VulkanContext*>(graphicsContext);
-            MeshHandle resultHandle = PushMesh(context, mesh);
-            return resultHandle;
-        };
-
-        gameMemory.PushTexture = [] (void * graphicsContext, TextureAsset * asset) -> TextureHandle
-        {
-            VulkanContext * context = reinterpret_cast<VulkanContext*>(graphicsContext);
-            TextureHandle resultHandle = PushTexture(context, asset);
-            return resultHandle;
-        };
-        
-        gameMemory.PushMaterial = [] (void * graphicsContext, GameMaterial * material) -> MaterialHandle
-        {
-            VulkanContext * context = reinterpret_cast<VulkanContext*>(graphicsContext);
-            MaterialHandle resultHandle = PushMaterial(context, material);
-            return resultHandle;
-        };
-        
-        gameMemory.ApplyGraphicsContext = [] (void * graphicsContext)
-        {
-            VulkanContext * context = reinterpret_cast<VulkanContext*>(graphicsContext);
-            RefreshCommandBuffers(context);
-        };
+        gameMemory.persistentMemory     = memoryBlock;
+        gameMemory.transientMemory      = (uint8 *)memoryBlock + gameMemory.persistentMemorySize;
    }
 
    // -------- GPU MEMORY ---------------------- 
@@ -544,7 +466,7 @@ Run(HINSTANCE winInstance)
     // -------- INITIALIZE NETWORK ---------
     bool32 networkIsRuined = false;
     WinApiNetwork network = winapi::CreateNetwork();
-    GameNetwork gameNetwork = {};
+    game::Network gameNetwork = {};
     
     /// --------- INITIALIZE AUDIO ----------------
     WinApiAudio audio = winapi::CreateAudio();
@@ -553,20 +475,21 @@ Run(HINSTANCE winInstance)
     /// --------- TIMING ---------------------------
     auto startTimeMark = std::chrono::high_resolution_clock::now();
     real64 lastTime = 0;
+    real64 frameTimeSeconds = 1.0 / 60.0;
 
     real64 networkSendDelay = 1.0 / 20;
     real64 networkNextSendTime = 0;
 
     /// ---------- LOAD GAME CODE ----------------------
     // Todo(Leo): Only when in development
-    WinApiGame game = {};
+    winapi::Game game = {};
     FILETIME dllWriteTime;
     {
         CopyFileA(GAMECODE_DLL_FILE_NAME, GAMECODE_DLL_FILE_NAME_TEMP, false);
         game.dllHandle = LoadLibraryA(GAMECODE_DLL_FILE_NAME_TEMP);
         if (game.dllHandle != nullptr)
         {
-            game.Update = reinterpret_cast<WinApiGame::UpdateFunc *> (GetProcAddress(game.dllHandle, GAMECODE_UPDATE_FUNC_NAME));
+            game.Update = reinterpret_cast<winapi::Game::UpdateFunc *> (GetProcAddress(game.dllHandle, GAMECODE_UPDATE_FUNC_NAME));
             dllWriteTime = winapi::GetFileLastWriteTime(GAMECODE_DLL_FILE_NAME);
         }
     }
@@ -583,6 +506,18 @@ Run(HINSTANCE winInstance)
             break;
         }
 
+        /// --------- TIME -----------------
+        real64 time;
+        real64 deltaTime;
+        real64 frameStartTime;
+        {
+            auto currentTimeMark = std::chrono::high_resolution_clock::now();
+            time = std::chrono::duration<real64, std::chrono::seconds::period>(currentTimeMark - startTimeMark).count();
+            frameStartTime = time;
+            deltaTime = time - lastTime;
+            lastTime = time;
+        }
+
         /// -------- RELOAD GAME CODE --------
         FILETIME dllLatestWriteTime = winapi::GetFileLastWriteTime(GAMECODE_DLL_FILE_NAME);
         if (CompareFileTime(&dllLatestWriteTime, &dllWriteTime) > 0)
@@ -594,38 +529,22 @@ Run(HINSTANCE winInstance)
             game.dllHandle = LoadLibraryA(GAMECODE_DLL_FILE_NAME_TEMP);
             if(game.IsLoaded())
             {
-                game.Update = reinterpret_cast<WinApiGame::UpdateFunc *>(GetProcAddress(game.dllHandle, GAMECODE_UPDATE_FUNC_NAME));
+                game.Update = reinterpret_cast<winapi::Game::UpdateFunc *>(GetProcAddress(game.dllHandle, GAMECODE_UPDATE_FUNC_NAME));
                 dllWriteTime = dllLatestWriteTime;
             }
         }
 
-        /// --------- TIME -----------------
-        real64 time;
-        real64 deltaTime;
-        {
-            auto currentTimeMark = std::chrono::high_resolution_clock::now();
-            time = std::chrono::duration<real64, std::chrono::seconds::period>(currentTimeMark - startTimeMark).count();
-            deltaTime = time - lastTime;
-            lastTime = time;
-        }
 
         /// --------- HANDLE INPUT -----------
-        GameInput gameInput = {};
+        game::Input gameInput = {};
         {
             // Note(Leo): this is not input only...
-            // TODO(LEO): Important!!! Handle windows events and input
             winapi::ProcessPendingMessages(&state, winWindow);
 
             HWND foregroundWindow = GetForegroundWindow();
             bool32 windowIsActive = winWindow == foregroundWindow;
 
             UpdateControllerInput(&gameInput);
-
-            if (gameInput.jump == GAME_BUTTON_WENT_DOWN)
-            {
-                state.isRunning = false;
-            }
-
             gameInput.timeDelta = deltaTime;
         }
 
@@ -640,12 +559,10 @@ Run(HINSTANCE winInstance)
         }
 
         /// --------- UPDATE GAME -------------
-        GameRenderInfo gameRenderInfo = {};
+        game::RenderInfo gameRenderInfo = {};
         {
-            // Note(Leo): Just recreate gamePlatformInfo each frame for now
-            GamePlatformInfo gamePlatformInfo = {};
-            gamePlatformInfo.screenWidth = context.swapchainItems.extent.width;
-            gamePlatformInfo.screenHeight = context.swapchainItems.extent.height;
+            gamePlatformInfo.windowWidth = context.swapchainItems.extent.width;
+            gamePlatformInfo.windowHeight = context.swapchainItems.extent.height;
 
             Matrix44 modelMatrixArray [VULKAN_MAX_MODEL_COUNT];
 
@@ -655,7 +572,7 @@ Run(HINSTANCE winInstance)
             gameNetwork.isConnected = network.isConnected;
 
 
-            GameSoundOutput gameSoundOutput = {};
+            game::SoundOutput gameSoundOutput = {};
             winapi::GetAudioBuffer(&audio, &gameSoundOutput.sampleCount, &gameSoundOutput.samples);
 
 
@@ -676,8 +593,17 @@ Run(HINSTANCE winInstance)
             winapi::NetworkSend(&network, &gameNetwork.outPackage);
         }
 
-        // ---- DRAW -----    
+        /// ---- DRAW -----    
+        /*
+        Note(Leo): Only draw image if we have window that is not minimized. Vulkan on windows MUST not
+        have framebuffer size 0, which minimized window would result in.
+
+        'currentLoopingFrameIndex' does not need to be incremented if we do not draw since it refers to
+        next available swapchain frame/image, and we do not use one if we do not draw.
+        */
+        if (state.isRunning && state.windowIsDrawable())
         {
+            // Todo(Leo): Study fences
             vkWaitForFences(context.device, 1, &context.syncObjects.inFlightFences[currentLoopingFrameIndex],
                             VK_TRUE, VULKAN_NO_TIME_OUT);
 
@@ -686,19 +612,17 @@ Run(HINSTANCE winInstance)
                                                 context.syncObjects.imageAvailableSemaphores[currentLoopingFrameIndex],
                                                 VK_NULL_HANDLE, &imageIndex);
 
-
-
-
             switch (result)
             {
                 case VK_SUCCESS:
-                case VK_SUBOPTIMAL_KHR:
                     vulkan::UpdateUniformBuffer(&context, imageIndex, &gameRenderInfo);
                     vulkan::DrawFrame(&context, imageIndex, currentLoopingFrameIndex);
                     break;
 
+                case VK_SUBOPTIMAL_KHR:
                 case VK_ERROR_OUT_OF_DATE_KHR:
-                    vulkan::RecreateSwapchain(&context);
+
+                    vulkan::RecreateSwapchain(&context, state.GetFrameBufferSize());
                     break;
 
                 default:
@@ -708,12 +632,23 @@ Run(HINSTANCE winInstance)
             // Todo(Leo): should this be in switch case where we draw succesfully???
             currentLoopingFrameIndex = (currentLoopingFrameIndex + 1) % MAX_FRAMES_IN_FLIGHT;
         }
+
+        {
+        #if 0
+            // Note(Leo): debug print time
+            auto currentTimeMark = std::chrono::high_resolution_clock::now();
+            real64 currentTimeSeconds = std::chrono::duration<real64, std::chrono::seconds::period>(currentTimeMark - startTimeMark).count();
+            real64 frameTimeElapsed = currentTimeSeconds - frameStartTime;
+
+            std::cout << frameTimeSeconds << "s\n";
+        #endif
+        }
+
     }
 
     /// -------- CLEANUP ---------
     winapi::StopPlaying(&audio);
     winapi::ReleaseAudio(&audio);
-
     winapi::CloseNetwork(&network);
 
     /// ------- CLEANUP VULKAN -----

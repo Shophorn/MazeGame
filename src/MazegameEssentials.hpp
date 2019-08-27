@@ -47,6 +47,7 @@ using real32 = float;
 using real64 = double;
 
 using wchar = wchar_t;
+using byte = uint8;
 
 // Todo(Leo): Study Are there any other possibilities than these always being fixed
 static_assert(sizeof(real32) == BitSize(32), "Invalid type alias for real32");
