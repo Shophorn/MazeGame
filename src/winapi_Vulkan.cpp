@@ -291,8 +291,6 @@ internal VkSampleCountFlagBits
 GetMaxUsableMsaaSampleCount (VkPhysicalDevice physicalDevice)
 {
     // Todo(Leo): to be easier on machine when developing for 2 players at same time
-    return VK_SAMPLE_COUNT_1_BIT;
-
     VkPhysicalDeviceProperties physicalDeviceProperties;
     vkGetPhysicalDeviceProperties(physicalDevice, &physicalDeviceProperties);
 
@@ -301,14 +299,21 @@ GetMaxUsableMsaaSampleCount (VkPhysicalDevice physicalDevice)
             physicalDeviceProperties.limits.framebufferDepthSampleCounts
         );
 
-    if (counts & VK_SAMPLE_COUNT_64_BIT) { return VK_SAMPLE_COUNT_64_BIT; }
-    if (counts & VK_SAMPLE_COUNT_32_BIT) { return VK_SAMPLE_COUNT_32_BIT; }
-    if (counts & VK_SAMPLE_COUNT_16_BIT) { return VK_SAMPLE_COUNT_16_BIT; }
-    if (counts & VK_SAMPLE_COUNT_8_BIT) { return VK_SAMPLE_COUNT_8_BIT; }
-    if (counts & VK_SAMPLE_COUNT_4_BIT) { return VK_SAMPLE_COUNT_4_BIT; }
-    if (counts & VK_SAMPLE_COUNT_2_BIT) { return VK_SAMPLE_COUNT_2_BIT; }
+    VkSampleCountFlagBits result;
 
-    return VK_SAMPLE_COUNT_1_BIT;
+    if (counts & VK_SAMPLE_COUNT_64_BIT) { result = VK_SAMPLE_COUNT_64_BIT; }
+    if (counts & VK_SAMPLE_COUNT_32_BIT) { result = VK_SAMPLE_COUNT_32_BIT; }
+    if (counts & VK_SAMPLE_COUNT_16_BIT) { result = VK_SAMPLE_COUNT_16_BIT; }
+    if (counts & VK_SAMPLE_COUNT_8_BIT) { result = VK_SAMPLE_COUNT_8_BIT; }
+    if (counts & VK_SAMPLE_COUNT_4_BIT) { result = VK_SAMPLE_COUNT_4_BIT; }
+    if (counts & VK_SAMPLE_COUNT_2_BIT) { result = VK_SAMPLE_COUNT_2_BIT; }
+
+    if (result > VULKAN_MAX_MSAA_SAMPLE_COUNT)
+    {
+        result = VULKAN_MAX_MSAA_SAMPLE_COUNT;
+    }
+
+    return result;
 }
 
 internal VkInstance
@@ -2086,7 +2091,7 @@ VulkanContext::Apply()
 }
 
 MeshHandle
-VulkanContext::PushMesh(Mesh * mesh)
+VulkanContext::PushMesh(MeshAsset * mesh)
 {
     uint64 indexBufferSize = mesh->indices.count * sizeof(mesh->indices[0]);
     uint64 vertexBufferSize = mesh->vertices.count * sizeof(mesh->vertices[0]);
@@ -2139,7 +2144,7 @@ VulkanContext::PushTexture (TextureAsset * texture)
 }
 
 MaterialHandle
-VulkanContext::PushMaterial (GameMaterial * material)
+VulkanContext::PushMaterial (MaterialAsset * material)
 {
     /* Todo(Leo): Select descriptor layout depending on materialtype
     'material' pointer is going be void * and it is to be cast to right kind of material */

@@ -16,6 +16,7 @@ Common essentials used all around in :MAZEGAME: project
 
 #define ARRAY_COUNT(array) sizeof(array) / sizeof((array)[0])
 
+// Todo(Leo): does this make sense
 constexpr int BitSize(int bits) { return bits / 8; }
 
 /// SENSIBLE SIMPLE TYPES
@@ -43,11 +44,11 @@ static_assert(sizeof(uint64) == 8, "Invalid type alias for int64");
 using bool8 = int8;
 using bool32 = int32;
 
-using real32 = float;
-using real64 = double;
-
 using wchar = wchar_t;
 using byte = uint8;
+
+using real32 = float;
+using real64 = double;
 
 // Todo(Leo): Study Are there any other possibilities than these always being fixed
 static_assert(sizeof(real32) == BitSize(32), "Invalid type alias for real32");

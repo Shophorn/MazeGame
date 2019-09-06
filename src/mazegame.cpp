@@ -24,7 +24,7 @@ struct GameState
 	Vector3 otherCharacterPosition;
 	Quaternion otherCharacterRotation;
 
-	real32 cameraOrbitDegrees;
+	real32 cameraOrbitDegrees = 180;
 	real32 cameraTumbleDegrees;
 	real32 cameraDistance = 20.0f;
 
@@ -37,11 +37,14 @@ struct GameState
 	RenderedObjectHandle characterObjectHandle;
 	RenderedObjectHandle otherCharacterObjectHandle;
 
-	int32 sceneryCount = 5;
+	int32 sceneryCount = 7;
 	ArenaArray<Vector3>					sceneryPositions;
 	ArenaArray<RenderedObjectHandle> 	sceneryObjectHandles;
 
-	/// Memory
+	/* Note(Leo): MEMORY
+	'persistentMemoryArena' is used to store things from frame to frame.
+	'transientMemoryArena' is flushed at the start/end of each frame 
+	and is intended to be used in asset loading etc.*/
 	MemoryArena persistentMemoryArena;
 	MemoryArena transientMemoryArena;
 };
@@ -59,21 +62,24 @@ InitializeGameState(GameState * state, game::Memory * memory, game::PlatformInfo
 										reinterpret_cast<byte*>(memory->transientMemory),
 										memory->transientMemorySize);
 
-    TextureAsset textureAssets [] = {
-        LoadTextureAsset("textures/chalet.jpg", &state->transientMemoryArena),
-        LoadTextureAsset("textures/lava.jpg", &state->transientMemoryArena),
-        LoadTextureAsset("textures/texture.jpg", &state->transientMemoryArena),
-    };
+	// Create MateriaLs
+	{
+	    TextureAsset textureAssets [] = {
+	        LoadTextureAsset("textures/chalet.jpg", &state->transientMemoryArena),
+	        LoadTextureAsset("textures/lava.jpg", &state->transientMemoryArena),
+	        LoadTextureAsset("textures/texture.jpg", &state->transientMemoryArena),
+	    };
 
-	TextureHandle a = platformInfo->graphicsContext->PushTexture(&textureAssets[0]);
-	TextureHandle b = platformInfo->graphicsContext->PushTexture(&textureAssets[1]);
-	TextureHandle c = platformInfo->graphicsContext->PushTexture(&textureAssets[2]);
+		TextureHandle a = platformInfo->graphicsContext->PushTexture(&textureAssets[0]);
+		TextureHandle b = platformInfo->graphicsContext->PushTexture(&textureAssets[1]);
+		TextureHandle c = platformInfo->graphicsContext->PushTexture(&textureAssets[2]);
 
-	GameMaterial mA = {0, a, a};
-	GameMaterial mB = {0, b, c};
+		MaterialAsset mA = {0, b, c};
+		MaterialAsset mB = {0, a, a};
 
-	state->characterMaterial = platformInfo->graphicsContext->PushMaterial(&mA);
-	state->sceneryMaterial = platformInfo->graphicsContext->PushMaterial(&mB);
+		state->characterMaterial = platformInfo->graphicsContext->PushMaterial(&mA);
+		state->sceneryMaterial = platformInfo->graphicsContext->PushMaterial(&mB);
+	}
 
 	state->characterPosition = {0, 0, 0};
 	state->characterRotation = Quaternion::Identity();
@@ -98,7 +104,7 @@ InitializeGameState(GameState * state, game::Memory * memory, game::PlatformInfo
 
  	// Level
 	{
-		auto levelMesh 				= GenerateMap(&state->transientMemoryArena);
+		auto levelMesh 				= map::Generate(&state->transientMemoryArena);
 		auto levelMeshHandle 		= platformInfo->graphicsContext->PushMesh(&levelMesh);
 	    state->levelObjectHandle 	= platformInfo->graphicsContext->PushRenderedObject(levelMeshHandle, state->sceneryMaterial);
 	}	
@@ -108,7 +114,7 @@ InitializeGameState(GameState * state, game::Memory * memory, game::PlatformInfo
 		state->sceneryPositions = PushArray<Vector3>(&state->persistentMemoryArena, state->sceneryCount);
 		state->sceneryObjectHandles = PushArray<RenderedObjectHandle>(&state->persistentMemoryArena, state->sceneryCount);
 
-	    Mesh treeMesh =	LoadModel(&state->transientMemoryArena, "models/tree.obj");
+	    MeshAsset treeMesh =	LoadModel(&state->transientMemoryArena, "models/tree.obj");
 	    MeshHandle treeMeshHandle = platformInfo->graphicsContext->PushMesh(&treeMesh);
 
 	    for (int i = 0; i < state->sceneryCount; ++i)
@@ -120,8 +126,10 @@ InitializeGameState(GameState * state, game::Memory * memory, game::PlatformInfo
 	    state->sceneryPositions[0] = {};
 	    state->sceneryPositions[1] = {-radius, 0, 0};
 	    state->sceneryPositions[2] = {0, radius, 0};
-	    state->sceneryPositions[3] = {radius, 0, 0};
-	    state->sceneryPositions[4] = {0, -radius, 0};
+	    state->sceneryPositions[3] = {0, radius + 3, 0};
+	    state->sceneryPositions[4] = {radius, 0, 0};
+	    state->sceneryPositions[5] = {radius + 3, 0, 0};
+	    state->sceneryPositions[6] = {0, -radius, 0};
  	}
 
 

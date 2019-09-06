@@ -31,8 +31,6 @@ Interface definition between Platform and Game.
 #include "Matrices.cpp"
 #include "Quaternion.cpp"
 
-// #include <vector>
-
 struct MemoryArena
 {
 	byte * 	memory;
@@ -107,6 +105,11 @@ struct Handle
 };
 
 
+struct MeshHandle : Handle {};
+struct TextureHandle : Handle {};
+struct MaterialHandle : Handle {};
+
+
 struct Vertex
 {
 	Vector3 position;
@@ -117,7 +120,7 @@ struct Vertex
 
 enum struct IndexType : uint32 { UInt16, UInt32 };
 
-struct Mesh
+struct MeshAsset
 {
 	ArenaArray<Vertex> vertices;
 	ArenaArray<uint16> indices;
@@ -127,7 +130,6 @@ struct Mesh
 	void * indexData;
 };
 
-struct MeshHandle : Handle {};
 
 struct TextureAsset
 {
@@ -138,9 +140,8 @@ struct TextureAsset
 	int32 	channels;
 };
 
-struct TextureHandle : Handle {};
 
-struct GameMaterial
+struct MaterialAsset
 {
     // Note(Leo): Ignore now, later we use this to differentiate different material layouts
     int32 materialType;
@@ -149,7 +150,6 @@ struct GameMaterial
     TextureHandle metallic;
 };
 
-struct MaterialHandle : Handle {};
 
 
 struct RenderedObjectHandle : Handle {};
@@ -160,9 +160,9 @@ namespace platform
 	unease about using even this kind of simple inheritance */
 	struct IGraphicsContext
 	{
-		virtual MeshHandle 		PushMesh(Mesh * mesh) 					= 0;
+		virtual MeshHandle 		PushMesh(MeshAsset * mesh) 					= 0;
 		virtual TextureHandle 	PushTexture (TextureAsset * asset) 		= 0;
-		virtual MaterialHandle 	PushMaterial (GameMaterial * material) 	= 0;
+		virtual MaterialHandle 	PushMaterial (MaterialAsset * material) 	= 0;
 		
 		virtual RenderedObjectHandle PushRenderedObject(MeshHandle mesh, MaterialHandle material) = 0;
 

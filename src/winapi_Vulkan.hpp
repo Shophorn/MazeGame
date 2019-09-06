@@ -21,6 +21,7 @@ constexpr real32 VULKAN_MAX_LOD_FLOAT = 100.0f;
 constexpr int32 VULKAN_MAX_MODEL_COUNT = 100;
 constexpr int32 VULKAN_MAX_MATERIAL_COUNT = 100;
 
+constexpr VkSampleCountFlagBits VULKAN_MAX_MSAA_SAMPLE_COUNT = VK_SAMPLE_COUNT_2_BIT;
 
 // Note(Leo): these need to align properly
 struct VulkanCameraUniformBufferObject
@@ -213,16 +214,15 @@ struct VulkanContext : platform::IGraphicsContext
     
     // MULTISAMPLING
     VkSampleCountFlagBits msaaSamples;
-    VkSampleCountFlagBits msaaMaxSamples = VK_SAMPLE_COUNT_2_BIT;
 
     /* Note(Leo): color and depth images for initial writing. These are
     afterwards resolved to actual framebufferimage */
     VulkanDrawingResources drawingResources;
 
     // IGraphicsContext interface implementation
-    MeshHandle PushMesh(Mesh * mesh);
+    MeshHandle PushMesh(MeshAsset * mesh);
     TextureHandle PushTexture (TextureAsset * texture);
-    MaterialHandle PushMaterial (GameMaterial * material);
+    MaterialHandle PushMaterial (MaterialAsset * material);
     RenderedObjectHandle PushRenderedObject(MeshHandle mesh, MaterialHandle material);
     void Apply();
 };

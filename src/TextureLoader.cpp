@@ -26,6 +26,17 @@ LoadTextureAsset(const char * assetPath, MemoryArena * memoryArena)
     resultTexture.pixels = PushArray<uint32>(memoryArena, pixelCount);
 
     uint64 imageMemorySize = resultTexture.width * resultTexture.height * resultTexture.channels;
+
+    // for (int v = 0; v < resultTexture.height; ++v)
+    // {
+    //     for (int u = 0; u < resultTexture.height; ++v)
+    //     {
+            
+    //     }
+    // }
+
+
+
     memcpy((uint8*)resultTexture.pixels.memory, pixels, imageMemorySize);
 
     stbi_image_free(pixels);

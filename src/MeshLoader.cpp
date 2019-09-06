@@ -5,13 +5,14 @@ Mesh Loader
 
 Todo[Assets](Leo): look into gltf format or make own. 
 =============================================================================*/
-// Note (Leo): Only for tinyobj errors
-#include <string>
 
+// Note(Leo): this also includes string and vector apparently
 #define TINYOBJLOADER_IMPLEMENTATION
 #include <tiny_obj_loader.h>
+// #include <string>
+// #include <vector>
 
-internal Mesh
+internal MeshAsset
 LoadModel(MemoryArena * memoryArena, const char * modelPath)
 {
 	/*
@@ -20,7 +21,7 @@ LoadModel(MemoryArena * memoryArena, const char * modelPath)
 	Of course in final game we know beforehand what there is.
 	*/
 
-	Mesh result = {};
+	MeshAsset result = {};
 	result.indexType = IndexType::UInt16;
 
 	tinyobj::attrib_t attrib;
@@ -33,8 +34,6 @@ LoadModel(MemoryArena * memoryArena, const char * modelPath)
 		throw std::runtime_error(warning + error);
 	}
 
-	// for (const auto & shape : shapes)
-	// {
 	//Note(Leo): there might be more than one shape, but we don't use that here
 	int32 indexCount = shapes[0].mesh.indices.size();
 
@@ -67,38 +66,7 @@ LoadModel(MemoryArena * memoryArena, const char * modelPath)
 		result.vertices[i] = vertex;
 		result.indices[i] = i;
 
-		// result.vertices.push_back(vertex);
-		// result.indices.push_back(result.indices.size());
 	}
-/*
-		for (const auto & index : shape.mesh.indices)
-		{
-			Vertex vertex = {};
-
-			vertex.position = {
-				attrib.vertices[3 * index.vertex_index + 0],
-				attrib.vertices[3 * index.vertex_index + 1],
-				attrib.vertices[3 * index.vertex_index + 2]
-			};
-
-			vertex.texCoord = {
-				attrib.texcoords[2 * index.texcoord_index + 0],
-				1.0f - attrib.texcoords[2 * index.texcoord_index + 1]
-			};
-
-			vertex.color = {0.8f, 1.0f, 1.0f};
-
-			vertex.normal = {
-				attrib.normals[3 * index.normal_index + 0],
-				attrib.normals[3 * index.normal_index + 1],
-				attrib.normals[3 * index.normal_index + 2]
-			};
-
-			result.vertices.push_back(vertex);
-			result.indices.push_back(result.indices.size());
-		}
-*/
-	// }
 
 	return result;
 }
@@ -109,7 +77,7 @@ namespace MeshPrimitives
 	constexpr real32 radius = 0.5f;
 
 	/*
-	Mesh cube = {
+	MeshAsset cube = {
 		/// VERTICES
 		{
 			/// LEFT face

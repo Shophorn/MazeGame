@@ -24,7 +24,7 @@ void main ()
 {
 	gl_Position = camera.projection * camera.view * model.model * vec4(inPosition, 1.0);
 
-	// TODO(Leo): transform this too
+	// Todo(Leo): Check correctness???
 	fragNormal = (transpose(inverse(model.model)) * vec4(inNormal, 0)).xyz;
 	
 	fragColor = inColor;

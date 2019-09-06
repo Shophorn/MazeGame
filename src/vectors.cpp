@@ -251,7 +251,7 @@ auto size_cast(VECTOR_TYPE vec)
 	constexpr int new_dimension = NewVectorType::dimension;
 	using result_type = VectorBase<ValueType, new_dimension>;
 
-	static_assert(std::is_same_v<NewVectorType::value_type, ValueType>, "Must size_cast to a vector of same value type");
+	static_assert(std::is_same_v<typename NewVectorType::value_type, ValueType>, "Must size_cast to a vector of same value type");
 
 	result_type result;
 
