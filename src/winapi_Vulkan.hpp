@@ -18,10 +18,11 @@ constexpr int32 MAX_FRAMES_IN_FLIGHT = 2;
 constexpr uint64 VULKAN_NO_TIME_OUT	= MaxValue<uint64>;
 constexpr real32 VULKAN_MAX_LOD_FLOAT = 100.0f;
 
-constexpr int32 VULKAN_MAX_MODEL_COUNT = 100;
+constexpr int32 VULKAN_MAX_MODEL_COUNT = 2000;
 constexpr int32 VULKAN_MAX_MATERIAL_COUNT = 100;
 
-constexpr VkSampleCountFlagBits VULKAN_MAX_MSAA_SAMPLE_COUNT = VK_SAMPLE_COUNT_2_BIT;
+
+constexpr VkSampleCountFlagBits VULKAN_MAX_MSAA_SAMPLE_COUNT = VK_SAMPLE_COUNT_1_BIT;
 
 // Note(Leo): these need to align properly
 struct VulkanCameraUniformBufferObject
@@ -37,22 +38,6 @@ struct VulkanCameraUniformBufferObject
 // 	alignas(16) Matrix44 modelMatrix;
 // };
 
-struct VulkanLoadedModel
-{
-    VkBuffer        buffer;
-    VkDeviceMemory  memory;
-    VkDeviceSize    vertexOffset;
-    VkDeviceSize    indexOffset;
-    uint32          indexCount;
-    VkIndexType     indexType;
-};
-
-struct VulkanRenderedObject
-{
-	MeshHandle 		mesh;
-	MaterialHandle 	material;
-    uint32         	uniformBufferOffset;
-};
 
 
 struct VulkanBufferResource
@@ -60,7 +45,7 @@ struct VulkanBufferResource
     VkBuffer buffer;
     VkDeviceMemory memory;
     
-    // Todo[memory, vulkan](Leo): Enforce/track these
+    // Todo[memory, vulkan](Leo): IMPORTANT Enforce/track these
     uint64 used;
     uint64 size;
 
@@ -151,67 +136,55 @@ struct VulkanTexture
 	VkImageView 	view;
 	uint32 			mipLevels;
 
-
-	// TODO(Leo): totally not allocate like this
+	// TODO(Leo): totally not allocate like this, we need texture pool
 	VkDeviceMemory memory;
 };
 
+struct VulkanModel
+{
+    VkBuffer        buffer;
+    VkDeviceMemory  memory;
 
+    VkDeviceSize    vertexOffset;
+    VkDeviceSize    indexOffset;
+    uint32          indexCount;
+    VkIndexType     indexType;
+};
+
+struct VulkanRenderedObject
+{
+	MeshHandle 		mesh;
+	MaterialHandle 	material;
+    uint32         	uniformBufferOffset;
+};
 
 using VulkanMaterial = VkDescriptorSet;
 
 struct VulkanContext : platform::IGraphicsContext
 {
-	VkInstance 					instance;
-	VkDevice 					device; // Note(Leo): this is logical device.
-	VkPhysicalDevice 			physicalDevice;
-	VkPhysicalDeviceProperties 	physicalDeviceProperties;
+	VkInstance 						instance;
+	VkDevice 						device; // Note(Leo): this is logical device.
+	VkPhysicalDevice 				physicalDevice;
+	VkPhysicalDeviceProperties 		physicalDeviceProperties;
 
-	VkCommandPool 				commandPool;
+	VkCommandPool 					commandPool;
     std::vector<VkCommandBuffer>    frameCommandBuffers;
 
-	VkSurfaceKHR 				surface;
-	VkQueue 					graphicsQueue;
-	VkQueue 					presentQueue;
-
-    VkDescriptorSetLayout 		descriptorSetLayouts [3];
-    VkDescriptorPool      		materialDescriptorPool;
+	VkSurfaceKHR 					surface;
+	VkQueue 						graphicsQueue;
+	VkQueue 						presentQueue;
+	
+	// Todo(Leo): Why are there 3 of descrtiptorSetLayouts
+    VkDescriptorSetLayout 			descriptorSetLayouts [3];
 
     std::vector<VkFramebuffer>      frameBuffers;
 
 
-    std::vector<VulkanLoadedModel>  loadedModels;
-	std::vector<VulkanTexture> 		loadedTextures;
-	std::vector<VulkanMaterial>		loadedMaterials;
-
-	std::vector<VulkanRenderedObject>	loadedRenderedObjects;
-
-    /* Note(Leo): image and sampler are now (as in Vulkan) unrelated, and same
-    sampler can be used with multiple images, noice */
-    VkSampler textureSampler;			
-
-    VulkanBufferResource       	stagingBufferPool;
-
-
     VkRenderPass            renderPass;
-    VulkanSwapchainItems swapchainItems;
+    VulkanSwapchainItems 	swapchainItems;
     VulkanPipelineItems     pipelineItems;
     VulkanSyncObjects       syncObjects;
 
-    VkDescriptorPool      uniformDescriptorPool;
-
-    std::vector<VkDescriptorSet>    descriptorSets;
-    std::vector<VkDescriptorSet>    sceneDescriptorSets;
-
-    VulkanBufferResource staticMeshPool;
-
-    VulkanBufferResource modelUniformBuffer;
-    VulkanBufferResource sceneUniformBuffer;
-
-
-    int32 textureCount = 3;
-
-    
     // MULTISAMPLING
     VkSampleCountFlagBits msaaSamples;
 
@@ -219,12 +192,38 @@ struct VulkanContext : platform::IGraphicsContext
     afterwards resolved to actual framebufferimage */
     VulkanDrawingResources drawingResources;
 
+    /* Note(Leo): image and sampler are now (as in Vulkan) unrelated, and same
+    sampler can be used with multiple images, noice */
+    VkSampler textureSampler;			
+
+    VkDescriptorPool      		uniformDescriptorPool;
+    VkDescriptorPool      		materialDescriptorPool;
+
+
+
+    // Note(Leo): After this these need to be recreated on unload as empty containers
+    VulkanBufferResource       	stagingBufferPool;
+    VulkanBufferResource 		staticMeshPool;
+    VulkanBufferResource 		modelUniformBuffer;
+    VulkanBufferResource 		sceneUniformBuffer;
+
+
+    std::vector<VulkanModel>  			loadedModels;
+	std::vector<VulkanTexture> 			loadedTextures;
+	std::vector<VulkanMaterial>			loadedMaterials;
+	std::vector<VulkanRenderedObject>	loadedRenderedObjects;
+
+    std::vector<VkDescriptorSet>    descriptorSets;
+    std::vector<VkDescriptorSet>    sceneDescriptorSets;
+
+
     // IGraphicsContext interface implementation
     MeshHandle PushMesh(MeshAsset * mesh);
     TextureHandle PushTexture (TextureAsset * texture);
     MaterialHandle PushMaterial (MaterialAsset * material);
     RenderedObjectHandle PushRenderedObject(MeshHandle mesh, MaterialHandle material);
     void Apply();
+    void UnloadAll();
 };
 
 struct VulkanDescriptorLayouts
@@ -253,6 +252,8 @@ namespace vulkan
 	};
 	constexpr int DEVICE_EXTENSION_COUNT = ARRAY_COUNT(deviceExtensions);
 
+    constexpr int32 TEXTURES_PER_MATERIAL = 3;
+    constexpr int32 MAX_LOADED_TEXTURES = 100;
 
 	internal VkVertexInputBindingDescription
 	GetVertexBindingDescription ();
@@ -281,8 +282,7 @@ namespace vulkan
 
 	internal void
 	CreateBufferResource(
-		VkDevice 				logicalDevice,
-		VkPhysicalDevice 		physicalDevice,
+		VulkanContext *			context,
 		VkDeviceSize			size,
 		VkBufferUsageFlags		usage,
 		VkMemoryPropertyFlags	memoryProperties,
@@ -346,6 +346,18 @@ namespace vulkan
 
 	internal void
 	RecreateSwapchain(VulkanContext * context, VkExtent2D frameBufferSize);
+
+	internal void
+	RefreshCommandBuffers(VulkanContext * context);
+
+	internal VulkanTexture
+	CreateImageTexture(TextureAsset * asset, VulkanContext * context);
+
+	internal VkDescriptorSet
+	CreateMaterialDescriptorSets(	VulkanContext * context,
+									TextureHandle albedoHandle,
+									TextureHandle metallicHandle,
+									TextureHandle testMaskHandle);
 }
 
 #define WIN_VULKAN_HPP

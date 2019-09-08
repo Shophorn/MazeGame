@@ -64,12 +64,19 @@ struct TextureAsset
 };
 
 
+enum struct MaterialType : int32
+{
+	Character,
+	Terrain
+};
+
 struct MaterialAsset
 {
     // Note(Leo): Ignore now, later we use this to differentiate different material layouts
-    int32 materialType;
+    MaterialType type;
 
     TextureHandle albedo;
     TextureHandle metallic;
+    TextureHandle testMask;
 };
 

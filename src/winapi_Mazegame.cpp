@@ -258,11 +258,11 @@ namespace winapi
         resultContext.descriptorSetLayouts[DESCRIPTOR_SET_LAYOUT_MATERIAL]        = CreateMaterialDescriptorSetLayout(resultContext.device);
         resultContext.descriptorSetLayouts[DESCRIPTOR_SET_LAYOUT_MODEL_UNIFORM]   = CreateModelDescriptorSetLayout(resultContext.device);
 
-        resultContext.pipelineItems       = CreateGraphicsPipeline(resultContext.device, resultContext.descriptorSetLayouts, 3, resultContext.renderPass, &resultContext.swapchainItems, resultContext.msaaSamples);
-        resultContext.drawingResources    = CreateDrawingResources(resultContext.device, resultContext.physicalDevice, resultContext.commandPool, resultContext.graphicsQueue, &resultContext.swapchainItems, resultContext.msaaSamples);
-        resultContext.frameBuffers        = CreateFrameBuffers(resultContext.device, resultContext.renderPass, &resultContext.swapchainItems, &resultContext.drawingResources);
-        resultContext.uniformDescriptorPool      = CreateDescriptorPool(resultContext.device, resultContext.swapchainItems.images.size(), resultContext.textureCount);
-        resultContext.materialDescriptorPool      = CreateDescriptorPool(resultContext.device, resultContext.swapchainItems.images.size(), resultContext.textureCount);
+        resultContext.pipelineItems             = CreateGraphicsPipeline(resultContext.device, resultContext.descriptorSetLayouts, 3, resultContext.renderPass, &resultContext.swapchainItems, resultContext.msaaSamples);
+        resultContext.drawingResources          = CreateDrawingResources(resultContext.device, resultContext.physicalDevice, resultContext.commandPool, resultContext.graphicsQueue, &resultContext.swapchainItems, resultContext.msaaSamples);
+        resultContext.frameBuffers              = CreateFrameBuffers(resultContext.device, resultContext.renderPass, &resultContext.swapchainItems, &resultContext.drawingResources);
+        resultContext.uniformDescriptorPool     = CreateDescriptorPool(resultContext.device, resultContext.swapchainItems.images.size());
+        resultContext.materialDescriptorPool    = CreateMaterialDescriptorPool(resultContext.device);
 
         std::cout << "\nVulkan Initialized succesfully\n\n";
 
@@ -423,24 +423,24 @@ Run(HINSTANCE winInstance)
 
         // TODO[MEMORY] (Leo): This will need guarding against multithreads once we get there
         // Static mesh pool
-        vulkan::CreateBufferResource(   context.device, context.physicalDevice, staticMeshPoolSize,
+        vulkan::CreateBufferResource(   &context, staticMeshPoolSize,
                                         VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
                                         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
                                         &context.staticMeshPool);
         // Staging buffer
-        vulkan::CreateBufferResource(   context.device, context.physicalDevice, stagingBufferPoolSize,
+        vulkan::CreateBufferResource(   &context, stagingBufferPoolSize,
                                         VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
                                         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
                                         &context.stagingBufferPool);
 
         // Uniform buffer for model matrices
-        vulkan::CreateBufferResource(   context.device, context.physicalDevice, modelUniformBufferSize,
+        vulkan::CreateBufferResource(   &context, modelUniformBufferSize,
                                         VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
                                         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
                                         &context.modelUniformBuffer);
 
         // Uniform buffer for scene data
-        vulkan::CreateBufferResource(   context.device, context.physicalDevice, sceneUniformBufferSize,
+        vulkan::CreateBufferResource(   &context, sceneUniformBufferSize,
                                         VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
                                         VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
                                         &context.sceneUniformBuffer);
@@ -449,16 +449,9 @@ Run(HINSTANCE winInstance)
     // -------- DRAWING ---------
     {
         // Note(Leo): After buffer creations!!
-        context.descriptorSets = CreateModelDescriptorSets( &context, context.uniformDescriptorPool,
-                                                    context.descriptorSetLayouts[DESCRIPTOR_SET_LAYOUT_MODEL_UNIFORM],
-                                                    &context.swapchainItems, &context.modelUniformBuffer); 
-
-        context.sceneDescriptorSets = CreateSceneDescriptorSets(&context, context.uniformDescriptorPool,
-                                                        context.descriptorSetLayouts[DESCRIPTOR_SET_LAYOUT_SCENE_UNIFORM],
-                                                        &context.swapchainItems, &context.sceneUniformBuffer);
-        
-        context.textureSampler = CreateTextureSampler(&context);
-
+        context.descriptorSets      = CreateModelDescriptorSets(&context);
+        context.sceneDescriptorSets = CreateSceneDescriptorSets(&context);
+        context.textureSampler      = CreateTextureSampler(&context);
         CreateCommandBuffers(&context);
     }
     int32 currentLoopingFrameIndex = 0;
@@ -532,6 +525,7 @@ Run(HINSTANCE winInstance)
                 game.Update = reinterpret_cast<winapi::Game::UpdateFunc *>(GetProcAddress(game.dllHandle, GAMECODE_UPDATE_FUNC_NAME));
                 dllWriteTime = dllLatestWriteTime;
             }
+
         }
 
 

@@ -6,7 +6,9 @@ Leo Tamminen
 #include "MazegamePlatform.hpp"
 
 #include "Mazegame.hpp"
+
 // Note(Leo): Make unity build here
+#include "Random.cpp"
 #include "MapGenerator.cpp"
 #include "Camera.cpp"
 
@@ -33,19 +35,19 @@ struct GameState
 
 	MaterialHandle characterMaterial;
 	MaterialHandle sceneryMaterial;
+	MaterialHandle terrainMaterial;
 
 	RenderedObjectHandle levelObjectHandle;
 	RenderedObjectHandle characterObjectHandle;
 	RenderedObjectHandle otherCharacterObjectHandle;
 
-	int32 sceneryCount = 7;
+	int32 sceneryCount;
 	ArenaArray<Vector3>					sceneryPositions;
 	ArenaArray<RenderedObjectHandle> 	sceneryObjectHandles;
 
 	/* Note(Leo): MEMORY
 	'persistentMemoryArena' is used to store things from frame to frame.
-	'transientMemoryArena' is flushed at the start/end of each frame 
-	and is intended to be used in asset loading etc.*/
+	'transientMemoryArena' is intended to be used in asset loading etc.*/
 	MemoryArena persistentMemoryArena;
 	MemoryArena transientMemoryArena;
 };
@@ -65,21 +67,40 @@ InitializeGameState(GameState * state, game::Memory * memory, game::PlatformInfo
 
 	// Create MateriaLs
 	{
+		TextureAsset whiteTextureAsset = {};
+		whiteTextureAsset.pixels = PushArray<uint32>(&state->transientMemoryArena, 1);
+		whiteTextureAsset.pixels[0] = 0xffffffff;
+		whiteTextureAsset.width = 1;
+		whiteTextureAsset.height = 1;
+		whiteTextureAsset.channels = 4;
+
+		TextureAsset blackTextureAsset = {};
+		blackTextureAsset.pixels = PushArray<uint32>(&state->transientMemoryArena, 1);
+		blackTextureAsset.pixels[0] = 0xff000000;
+		blackTextureAsset.width = 1;
+		blackTextureAsset.height = 1;
+		blackTextureAsset.channels = 4;
+
+		TextureHandle whiteTexture = platformInfo->graphicsContext->PushTexture(&whiteTextureAsset);
+		TextureHandle blackTexture = platformInfo->graphicsContext->PushTexture(&blackTextureAsset);
+
 	    TextureAsset textureAssets [] = {
 	        LoadTextureAsset("textures/chalet.jpg", &state->transientMemoryArena),
 	        LoadTextureAsset("textures/lava.jpg", &state->transientMemoryArena),
 	        LoadTextureAsset("textures/texture.jpg", &state->transientMemoryArena),
 	    };
 
-		TextureHandle a = platformInfo->graphicsContext->PushTexture(&textureAssets[0]);
-		TextureHandle b = platformInfo->graphicsContext->PushTexture(&textureAssets[1]);
-		TextureHandle c = platformInfo->graphicsContext->PushTexture(&textureAssets[2]);
+		TextureHandle texA = platformInfo->graphicsContext->PushTexture(&textureAssets[0]);
+		TextureHandle texB = platformInfo->graphicsContext->PushTexture(&textureAssets[1]);
+		TextureHandle texC = platformInfo->graphicsContext->PushTexture(&textureAssets[2]);
 
-		MaterialAsset mA = {0, b, c};
-		MaterialAsset mB = {0, a, a};
+		MaterialAsset characterMaterialAsset = {MaterialType::Character, texB, texC, blackTexture};
+		MaterialAsset sceneryMaterialAsset = {MaterialType::Terrain, texA, texA, blackTexture};
+		MaterialAsset terrainMaterialAsset = {MaterialType::Terrain, texA, texA, whiteTexture};
 
-		state->characterMaterial = platformInfo->graphicsContext->PushMaterial(&mA);
-		state->sceneryMaterial = platformInfo->graphicsContext->PushMaterial(&mB);
+		state->characterMaterial = platformInfo->graphicsContext->PushMaterial(&characterMaterialAsset);
+		state->sceneryMaterial = platformInfo->graphicsContext->PushMaterial(&sceneryMaterialAsset);
+		state->terrainMaterial = platformInfo->graphicsContext->PushMaterial(&terrainMaterialAsset);
 	}
 
 	state->characterPosition = {0, 0, 0};
@@ -104,38 +125,54 @@ InitializeGameState(GameState * state, game::Memory * memory, game::PlatformInfo
 	}
 
  	// Level
+ 	HexMap levelMap;
 	{
-		auto levelMesh 				= map::Generate(&state->transientMemoryArena);
+		levelMap 					= map::GenerateMap(&state->transientMemoryArena);
+		auto levelMesh 				= map::GenerateMapMesh(&state->transientMemoryArena, &levelMap);
 		auto levelMeshHandle 		= platformInfo->graphicsContext->PushMesh(&levelMesh);
-	    state->levelObjectHandle 	= platformInfo->graphicsContext->PushRenderedObject(levelMeshHandle, state->sceneryMaterial);
+	    state->levelObjectHandle 	= platformInfo->graphicsContext->PushRenderedObject(levelMeshHandle, state->terrainMaterial);
 	}	
 
 	// Scenery
     {
-		state->sceneryPositions = PushArray<Vector3>(&state->persistentMemoryArena, state->sceneryCount);
-		state->sceneryObjectHandles = PushArray<RenderedObjectHandle>(&state->persistentMemoryArena, state->sceneryCount);
+    	int worstCaseSceneryCount = levelMap.cellCountPerDirection * levelMap.cellCountPerDirection;
+    	state->sceneryPositions = PushArray<Vector3>(&state->persistentMemoryArena, worstCaseSceneryCount);
 
-	    MeshAsset treeMesh =	LoadModel(&state->transientMemoryArena, "models/tree.obj");
-	    MeshHandle treeMeshHandle = platformInfo->graphicsContext->PushMesh(&treeMesh);
+    	int actualSceneryCount = 0;
+    	for (int y = 0; y < levelMap.cellCountPerDirection; ++y)
+    	{
+    		for (int x = 0; x < levelMap.cellCountPerDirection; ++x)
+    		{
+    			if (levelMap.Cell(x, y) == 0)
+    			{
+    				state->sceneryPositions[actualSceneryCount] = levelMap.GetCellPosition(x,y);
+    				state->sceneryPositions[actualSceneryCount].x += RandomValue() - 0.5f;
+    				state->sceneryPositions[actualSceneryCount].y += RandomValue() - 0.5f;
+    				state->sceneryPositions[actualSceneryCount].z -= 2.0f;
 
+    				++actualSceneryCount;
+    			}
+    		}
+    	}
+    	ShrinkLastArray(&state->persistentMemoryArena, &state->sceneryPositions, actualSceneryCount);
+
+    	state->sceneryObjectHandles = PushArray<RenderedObjectHandle>(&state->persistentMemoryArena, actualSceneryCount);
+
+		// Note(Miida): Puiden läpi ei voi mennä, muahahahahahaaa
+	    MeshAsset treeMesh 			= LoadModel(&state->transientMemoryArena, "models/tree.obj");
+	    MeshHandle treeMeshHandle 	= platformInfo->graphicsContext->PushMesh(&treeMesh);
+
+    	state->sceneryCount = actualSceneryCount;
 	    for (int i = 0; i < state->sceneryCount; ++i)
 	    {
 	    	state->sceneryObjectHandles[i] = platformInfo->graphicsContext->PushRenderedObject(treeMeshHandle, state->sceneryMaterial);
 	    }
-
-	    real32 radius = 15;
-	    state->sceneryPositions[0] = {};
-	    state->sceneryPositions[1] = {-radius, 0, 0};
-	    state->sceneryPositions[2] = {0, radius, 0};
-	    state->sceneryPositions[3] = {0, radius + 3, 0};
-	    state->sceneryPositions[4] = {radius, 0, 0};
-	    state->sceneryPositions[5] = {radius + 3, 0, 0};
-	    state->sceneryPositions[6] = {0, -radius, 0};
  	}
 
 
  	// Note(Leo): Apply all pushed changes and flush transient memory
     platformInfo->graphicsContext->Apply();
+
     FlushArena(&state->transientMemoryArena);
 }
 
@@ -322,10 +359,12 @@ GameUpdate(
 			outRenderInfo->modelMatrixArray[state->otherCharacterObjectHandle] = {};
 		}
 
+		// Trees
 		for (int sceneryIndex = 0; sceneryIndex < state->sceneryCount; ++sceneryIndex)
 		{
 			outRenderInfo->modelMatrixArray[state->sceneryObjectHandles[sceneryIndex]]
-				= Matrix44::Translate(state->sceneryPositions[sceneryIndex]);
+				= Matrix44::Translate(state->sceneryPositions[sceneryIndex])
+				* Matrix44::Scale(2.0f);
 		}
 
 		// Ccamera
@@ -337,4 +376,4 @@ GameUpdate(
 	{
 		OutputSound(soundOutput->sampleCount, soundOutput->samples);
 	}
-	}
+}

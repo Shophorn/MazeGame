@@ -5,6 +5,8 @@ Implementations of vulkan related functions
 =============================================================================*/
 #include "winapi_Vulkan.hpp"
 
+#include "winapi_VulkanIGraphicsContext.cpp"
+
 internal uint32
 vulkan::FindMemoryType (VkPhysicalDevice physicalDevice, uint32 typeFilter, VkMemoryPropertyFlags properties)
 {
@@ -70,8 +72,7 @@ vulkan::CreateBuffer(
 
 internal void
 vulkan::CreateBufferResource(
-    VkDevice                logicalDevice,
-    VkPhysicalDevice        physicalDevice,
+    VulkanContext *         context,
     VkDeviceSize            size,
     VkBufferUsageFlags      usage,
     VkMemoryPropertyFlags   memoryProperties,
@@ -85,7 +86,7 @@ vulkan::CreateBufferResource(
     }
     
     // TODO(Leo): inline this
-    vulkan::CreateBuffer(   logicalDevice, physicalDevice, size,
+    vulkan::CreateBuffer(   context->device, context->physicalDevice, size,
                             usage, memoryProperties, &result->buffer, &result->memory);
 
     result->size = size;
@@ -280,8 +281,8 @@ vulkan::CreateShaderModule(BinaryAsset code, VkDevice logicalDevice)
 /******************************************************************************
 
 Todo[Vulkan](Leo):
-AFTER THIS THESE FUNCTIONS ARE JUST YEETED HERE, SET THEM PROPERLY IN 'Vulkan'
-NAMESPACE AND SPLIT TO MULTIPLE FILES IF NECEESSARY
+AFTER THIS THESE FUNCTIONS ARE JUST YEETED HERE, SET THEM PROPERLY IN 'vulkan'
+NAMESPACE AND SPLIT TO MULTIPLE FILES IF APPROPRIATE
 
 
 *****************************************************************************/
@@ -893,7 +894,7 @@ CreateRenderPass(VulkanContext * context, VulkanSwapchainItems * swapchainItems,
     return resultRenderPass;
 }
 
-/* Note(leo): these are fixed per available renderpipeline thing. There describe
+/* Note(leo): these are fixed per available renderpipeline thing. They describe
 'kinds' of resources or something, so their amount does not change
 
 IMPORTANT(Leo): These must be same in shaders
@@ -933,11 +934,10 @@ CreateModelDescriptorSetLayout(VkDevice device)
 internal VkDescriptorSetLayout
 CreateMaterialDescriptorSetLayout(VkDevice device)
 {
-    int32 texturesPerMaterial = 2;
 
     MAZEGAME_NO_INIT VkDescriptorSetLayoutBinding binding;
     binding.binding             = DESCRIPTOR_LAYOUT_SAMPLER_BINDING;
-    binding.descriptorCount     = texturesPerMaterial;
+    binding.descriptorCount     = vulkan::TEXTURES_PER_MATERIAL;
     binding.descriptorType      = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     binding.stageFlags          = VK_SHADER_STAGE_FRAGMENT_BIT;
     binding.pImmutableSamplers  = nullptr;
@@ -1377,57 +1377,72 @@ CreateDrawingResources(
 }
 
 internal VkDescriptorPool
-CreateDescriptorPool(VkDevice device, int32 swapchainImageCount, int32 textureCount)
+CreateDescriptorPool(VkDevice device, int32 swapchainImageCount)
 {
     /*
     Note(Leo): 
     There needs to only one per type, not one per user
 
     We create a single big buffer and then use offsets to divide it to smaller chunks
+
+    'count' is one for actor (characters, animated scenery) uniform buffers which are dynamic and 
+    one for static scenery.
     */
 
-    VkDescriptorPoolSize poolSizes [DESCRIPTOR_SET_COUNT] = {};
-
-    int randomMultiplierForTesting = 20;
-
+    constexpr int32 count = 2;
+    VkDescriptorPoolSize poolSizes [count] = {};
 
     poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
     poolSizes[0].descriptorCount = swapchainImageCount; 
 
-    poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    poolSizes[1].descriptorCount = swapchainImageCount * textureCount * randomMultiplierForTesting;
-
-    poolSizes[2].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    poolSizes[2].descriptorCount = swapchainImageCount * randomMultiplierForTesting;
+    // TODO(Leo): Hack from past, REMOVE
+    int randomMultiplierForTesting = 20;
+    poolSizes[1].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    poolSizes[1].descriptorCount = swapchainImageCount * randomMultiplierForTesting;
 
     VkDescriptorPoolCreateInfo poolInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO };
-    poolInfo.poolSizeCount = DESCRIPTOR_SET_COUNT;
+    poolInfo.poolSizeCount = count;
     poolInfo.pPoolSizes = &poolSizes[0];
     poolInfo.maxSets = swapchainImageCount * randomMultiplierForTesting;
 
     MAZEGAME_NO_INIT VkDescriptorPool resultDescriptorPool;
-    if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &resultDescriptorPool) != VK_SUCCESS)
-    {
-        throw std::runtime_error("Failed to create descriptor pool");
-    }
+    MAZEGAME_ASSERT(
+        vkCreateDescriptorPool(device, &poolInfo, nullptr, &resultDescriptorPool) == VK_SUCCESS,
+        "Failed to create descriptor pool"
+    );
     return resultDescriptorPool;
 }
 
+internal VkDescriptorPool
+CreateMaterialDescriptorPool(VkDevice device)
+{
+    VkDescriptorPoolSize poolSize = {};
+    poolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    poolSize.descriptorCount = vulkan::MAX_LOADED_TEXTURES;
+
+    VkDescriptorPoolCreateInfo poolCreateInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO };
+    poolCreateInfo.poolSizeCount = 1;
+    poolCreateInfo.pPoolSizes = &poolSize;
+    poolCreateInfo.maxSets = vulkan::MAX_LOADED_TEXTURES;
+
+    MAZEGAME_NO_INIT VkDescriptorPool result;
+    MAZEGAME_ASSERT(
+        vkCreateDescriptorPool(device, &poolCreateInfo, nullptr, &result) == VK_SUCCESS,
+        "Failed to create descriptor pool for materials!");
+    return result;
+
+}
+
 internal std::vector<VkDescriptorSet>
-CreateModelDescriptorSets(
-    VulkanContext * context,
-    VkDescriptorPool descriptorPool,
-    VkDescriptorSetLayout descriptorSetLayout,
-    VulkanSwapchainItems * swapchainItems,
-    VulkanBufferResource * modelUniformBuffer)
+CreateModelDescriptorSets(VulkanContext * context)
 {
     /* Note(Leo): Create vector of [imageCount] copies from descriptorSetLayout
     for allocation */
-    int imageCount = swapchainItems->images.size();
-    std::vector<VkDescriptorSetLayout> layouts (imageCount, descriptorSetLayout);
+    int imageCount = context->swapchainItems.images.size();
+    std::vector<VkDescriptorSetLayout> layouts (imageCount, context->descriptorSetLayouts[DESCRIPTOR_SET_LAYOUT_MODEL_UNIFORM]);
 
     VkDescriptorSetAllocateInfo allocateInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO };
-    allocateInfo.descriptorPool = descriptorPool;
+    allocateInfo.descriptorPool = context->uniformDescriptorPool;
     allocateInfo.descriptorSetCount = imageCount;
     allocateInfo.pSetLayouts = &layouts[0];
 
@@ -1443,7 +1458,7 @@ CreateModelDescriptorSets(
 
         // MODEL UNIFORM BUFFERS
         VkDescriptorBufferInfo modelBufferInfo = {};
-        modelBufferInfo.buffer = modelUniformBuffer->buffer;
+        modelBufferInfo.buffer = context->modelUniformBuffer.buffer;
         modelBufferInfo.offset = vulkan::GetModelUniformBufferOffsetForSwapchainImages(context, imageIndex);
         modelBufferInfo.range = sizeof(Matrix44);
 
@@ -1463,10 +1478,11 @@ CreateModelDescriptorSets(
 }
 
 internal VkDescriptorSet
-CreateMaterialDescriptorSets(
+vulkan::CreateMaterialDescriptorSets(
     VulkanContext * context,
     TextureHandle albedoHandle,
-    TextureHandle metallicHandle)
+    TextureHandle metallicHandle,
+    TextureHandle testMaskHandle)
 {
     VkDescriptorSetAllocateInfo allocateInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO };
     allocateInfo.descriptorPool = context->materialDescriptorPool;
@@ -1479,8 +1495,7 @@ CreateMaterialDescriptorSets(
         throw std::runtime_error("Failed to allocate DESCRIPTOR SETS");
     }
 
-    int texturesPerMaterial = 2;
-    MAZEGAME_NO_INIT VkDescriptorImageInfo samplerInfos [texturesPerMaterial];
+    MAZEGAME_NO_INIT VkDescriptorImageInfo samplerInfos [vulkan::TEXTURES_PER_MATERIAL];
 
     samplerInfos[0].sampler = context->textureSampler;
     samplerInfos[0].imageView = context->loadedTextures[albedoHandle].view;;
@@ -1490,12 +1505,16 @@ CreateMaterialDescriptorSets(
     samplerInfos[1].imageView = context->loadedTextures[metallicHandle].view;;
     samplerInfos[1].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
+    samplerInfos[2].sampler = context->textureSampler;
+    samplerInfos[2].imageView = context->loadedTextures[testMaskHandle].view;;
+    samplerInfos[2].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
     VkWriteDescriptorSet writing = { VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET };
     writing.dstSet = resultSet;
     writing.dstBinding = DESCRIPTOR_LAYOUT_SAMPLER_BINDING;
     writing.dstArrayElement = 0;
     writing.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    writing.descriptorCount = texturesPerMaterial;
+    writing.descriptorCount = vulkan::TEXTURES_PER_MATERIAL;
     writing.pImageInfo = &samplerInfos[0];
 
     // Note(Leo): Two first are write info, two latter are copy info
@@ -1505,20 +1524,14 @@ CreateMaterialDescriptorSets(
 }
 
 internal std::vector<VkDescriptorSet>
-CreateSceneDescriptorSets(
-    VulkanContext * context,
-    VkDescriptorPool descriptorPool,
-    VkDescriptorSetLayout layout,
-    VulkanSwapchainItems * swapchainItems,
-    VulkanBufferResource * sceneUniformBuffer)
+CreateSceneDescriptorSets(VulkanContext * context)
 {
-    /* Note(Leo): Create vector of [imageCount] copies from layout
-    for allocation */
-    int imageCount = swapchainItems->images.size();
-    std::vector<VkDescriptorSetLayout> layouts (imageCount, layout);
+    /* Note(Leo): Create vector of [imageCount] copies from layout for allocation */
+    int imageCount = context->swapchainItems.images.size();
+    std::vector<VkDescriptorSetLayout> layouts (imageCount, context->descriptorSetLayouts[DESCRIPTOR_SET_LAYOUT_SCENE_UNIFORM]);
 
     VkDescriptorSetAllocateInfo allocateInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO };
-    allocateInfo.descriptorPool = descriptorPool;
+    allocateInfo.descriptorPool = context->uniformDescriptorPool;
     allocateInfo.descriptorSetCount = imageCount;
     allocateInfo.pSetLayouts = &layouts[0];
 
@@ -1534,7 +1547,7 @@ CreateSceneDescriptorSets(
 
         // SCENE UNIFORM BUFFER
         VkDescriptorBufferInfo sceneBufferInfo = {};
-        sceneBufferInfo.buffer = sceneUniformBuffer->buffer;
+        sceneBufferInfo.buffer = context->sceneUniformBuffer.buffer;
         sceneBufferInfo.offset = vulkan::GetSceneUniformBufferOffsetForSwapchainImages(context, imageIndex);
         sceneBufferInfo.range = sizeof(VulkanCameraUniformBufferObject);
 
@@ -1712,7 +1725,7 @@ GenerateMipMaps(VkDevice device, VkPhysicalDevice physicalDevice, VkCommandPool 
 }
 
 internal VulkanTexture
-CreateImageTexture(TextureAsset * asset, VulkanContext * context)
+vulkan::CreateImageTexture(TextureAsset * asset, VulkanContext * context)
 {
     VulkanTexture resultTexture = {};
     resultTexture.mipLevels = ComputeMipmapLevels(asset->width, asset->height);
@@ -1741,14 +1754,22 @@ CreateImageTexture(TextureAsset * asset, VulkanContext * context)
         benefits from this verbose nonsense :D
     */
     // Todo(Leo): begin and end command buffers once only and then just add commands from inside these
-    TransitionImageLayout(  context->device, context->commandPool, context->graphicsQueue, resultTexture.image, VK_FORMAT_R8G8B8A8_UNORM, resultTexture.mipLevels,
+    TransitionImageLayout(  context->device, context->commandPool, context->graphicsQueue,
+                            resultTexture.image, VK_FORMAT_R8G8B8A8_UNORM, resultTexture.mipLevels,
                             VK_IMAGE_LAYOUT_UNDEFINED,
                             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
-    CopyBufferToImage(context->device, context->commandPool, context->graphicsQueue, context->stagingBufferPool.buffer, resultTexture.image, asset->width, asset->height);
+    CopyBufferToImage(  context->device, context->commandPool, context->graphicsQueue,
+                        context->stagingBufferPool.buffer, resultTexture.image,
+                        asset->width, asset->height);
 
-    GenerateMipMaps(context->device, context->physicalDevice, context->commandPool, context->graphicsQueue, resultTexture.image, VK_FORMAT_R8G8B8A8_UNORM, asset->width, asset->height, resultTexture.mipLevels);
-    resultTexture.view = CreateImageView(context->device, resultTexture.image, resultTexture.mipLevels, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT);
+    GenerateMipMaps(    context->device, context->physicalDevice, context->commandPool,
+                        context->graphicsQueue, resultTexture.image, VK_FORMAT_R8G8B8A8_UNORM,
+                        asset->width, asset->height, resultTexture.mipLevels);
+
+    resultTexture.view = CreateImageView(   context->device, resultTexture.image,
+                                            resultTexture.mipLevels,
+                                            VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT);
 
     return resultTexture;
 }
@@ -1962,7 +1983,7 @@ CreateCommandBuffers(VulkanContext * context)
 }
 
 internal void
-RefreshCommandBuffers(VulkanContext * context)
+vulkan::RefreshCommandBuffers(VulkanContext * context)
 {
     vkFreeCommandBuffers(context->device, context->commandPool, context->frameCommandBuffers.size(), &context->frameCommandBuffers[0]);        
     CreateCommandBuffers(context);
@@ -2015,15 +2036,12 @@ vulkan::RecreateSwapchain(VulkanContext * context, VkExtent2D frameBufferSize)
     context->pipelineItems       = CreateGraphicsPipeline(context->device, context->descriptorSetLayouts, 3, context->renderPass, &context->swapchainItems, context->msaaSamples);
     context->drawingResources    = CreateDrawingResources(context->device, context->physicalDevice, context->commandPool, context->graphicsQueue, &context->swapchainItems, context->msaaSamples);
     context->frameBuffers        = CreateFrameBuffers(context->device, context->renderPass, &context->swapchainItems, &context->drawingResources);
-    context->uniformDescriptorPool      = CreateDescriptorPool(context->device, context->swapchainItems.images.size(), context->textureCount);
+    context->uniformDescriptorPool      = CreateDescriptorPool(context->device, context->swapchainItems.images.size());
 
-    context->descriptorSets
-        = CreateModelDescriptorSets(context, context->uniformDescriptorPool, context->descriptorSetLayouts[DESCRIPTOR_SET_LAYOUT_MODEL_UNIFORM],
-                                    &context->swapchainItems, &context->modelUniformBuffer); 
 
-    context->sceneDescriptorSets 
-        = CreateSceneDescriptorSets(context, context->uniformDescriptorPool, context->descriptorSetLayouts[DESCRIPTOR_SET_LAYOUT_SCENE_UNIFORM],
-                                    &context->swapchainItems, &context->sceneUniformBuffer);
+    context->descriptorSets = CreateModelDescriptorSets(context);
+
+    context->sceneDescriptorSets = CreateSceneDescriptorSets(context);
 
     RefreshCommandBuffers(context);
 }
@@ -2082,100 +2100,4 @@ vulkan::DrawFrame(VulkanContext * context, uint32 imageIndex, uint32 frameIndex)
     // {
     //     throw std::runtime_error("Failed to present swapchain");
     // }
-}
-
-void
-VulkanContext::Apply()
-{
-    RefreshCommandBuffers (this);
-}
-
-MeshHandle
-VulkanContext::PushMesh(MeshAsset * mesh)
-{
-    uint64 indexBufferSize = mesh->indices.count * sizeof(mesh->indices[0]);
-    uint64 vertexBufferSize = mesh->vertices.count * sizeof(mesh->vertices[0]);
-    uint64 totalBufferSize = indexBufferSize + vertexBufferSize;
-
-    uint64 indexOffset = 0;
-    uint64 vertexOffset = indexBufferSize;
-
-    uint8 * data;
-    vkMapMemory(this->device, this->stagingBufferPool.memory, 0, totalBufferSize, 0, (void**)&data);
-    memcpy(data, &mesh->indices[0], indexBufferSize);
-    data += indexBufferSize;
-    memcpy(data, &mesh->vertices[0], vertexBufferSize);
-    vkUnmapMemory(this->device, this->stagingBufferPool.memory);
-
-    VkCommandBuffer commandBuffer = vulkan::BeginOneTimeCommandBuffer(this->device, this->commandPool);
-
-    VkBufferCopy copyRegion = { 0, this->staticMeshPool.used, totalBufferSize };
-    vkCmdCopyBuffer(commandBuffer, this->stagingBufferPool.buffer, this->staticMeshPool.buffer, 1, &copyRegion);
-
-    vulkan::EndOneTimeCommandBuffer(this->device, this->commandPool, this->graphicsQueue, commandBuffer);
-
-    VulkanLoadedModel model = {};
-
-    model.buffer = this->staticMeshPool.buffer;
-    model.memory = this->staticMeshPool.memory;
-    model.vertexOffset = this->staticMeshPool.used + vertexOffset;
-    model.indexOffset = this->staticMeshPool.used + indexOffset;
-    
-    this->staticMeshPool.used += totalBufferSize;
-
-    model.indexCount = mesh->indices.count;
-    model.indexType = vulkan::ConvertIndexType(mesh->indexType);
-
-    uint32 modelIndex = this->loadedModels.size();
-
-    this->loadedModels.push_back(model);
-
-    MeshHandle resultHandle = { modelIndex };
-
-    return resultHandle;
-}
-
-TextureHandle
-VulkanContext::PushTexture (TextureAsset * texture)
-{
-    TextureHandle handle = { this->loadedTextures.size() };
-    this->loadedTextures.push_back(CreateImageTexture(texture, this));
-    return handle;
-}
-
-MaterialHandle
-VulkanContext::PushMaterial (MaterialAsset * material)
-{
-    /* Todo(Leo): Select descriptor layout depending on materialtype
-    'material' pointer is going be void * and it is to be cast to right kind of material */
-
-    MaterialHandle resultHandle = {this->loadedMaterials.size()};
-    this->loadedMaterials.push_back(CreateMaterialDescriptorSets(this, material->albedo, material->metallic));
-
-    return resultHandle;
-}
-
-RenderedObjectHandle
-VulkanContext::PushRenderedObject(MeshHandle mesh, MaterialHandle material)
-{
-    uint32 objectIndex = loadedRenderedObjects.size();
-
-    MAZEGAME_NO_INIT VulkanRenderedObject object;
-    object.mesh = mesh;
-    object.material = material;
-
-    uint32 memorySizePerModelMatrix = AlignUpTo(
-        this->physicalDeviceProperties.limits.minUniformBufferOffsetAlignment,
-        sizeof(Matrix44));
-    object.uniformBufferOffset = objectIndex * memorySizePerModelMatrix;
-
-    loadedRenderedObjects.push_back(object);
-
-    RenderedObjectHandle resultHandle = { objectIndex };
-
-
-    std::cout << "VulkanRenderedObject(mesh: "<< mesh << ", material: " << material << ", handle: " << resultHandle << ")\n"; 
-
-
-    return resultHandle;    
 }

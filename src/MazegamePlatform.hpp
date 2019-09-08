@@ -45,12 +45,13 @@ namespace platform
 	struct IGraphicsContext
 	{
 		virtual MeshHandle 		PushMesh(MeshAsset * mesh) 					= 0;
-		virtual TextureHandle 	PushTexture (TextureAsset * asset) 		= 0;
+		virtual TextureHandle 	PushTexture (TextureAsset * asset) 			= 0;
 		virtual MaterialHandle 	PushMaterial (MaterialAsset * material) 	= 0;
 		
 		virtual RenderedObjectHandle PushRenderedObject(MeshHandle mesh, MaterialHandle material) = 0;
 
 		virtual void Apply() = 0;
+		virtual void UnloadAll() = 0;
 	};
 }
 

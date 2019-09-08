@@ -6,12 +6,15 @@ layout(location = 2) in vec3 fragNormal;
 
 layout(location = 0) out vec4 outColor;
 
-// Set these from c++ side
+// TODO(Leo): Set these from c++ side
 const int ALBEDO_INDEX = 0;
 const int METALLIC_INDEX = 1;
+const int TEST_MASK_INDEX = 2;
+const int TEXTURE_COUNT = 3;
+
 const int SAMPLER_BIND_ID = 0;
 
-layout(binding = SAMPLER_BIND_ID, set = 1) uniform sampler2D texSampler[2];
+layout(binding = SAMPLER_BIND_ID, set = 1) uniform sampler2D texSampler[TEXTURE_COUNT];
 
 const vec3 lightDirection = normalize(vec3(0.7, 0.3, -1));
 const float ambientIntensity = 0.4;
@@ -27,11 +30,12 @@ void main()
 
 
 	vec3 metalColor = vec3(0.67, 0.7, 0.75);
-	outColor.rgb = mix(albedo, metalColor, metallic) * intensity;
+	vec3 color = mix(albedo, metalColor, metallic) * intensity;
 
+	float testMask = texture(texSampler[TEST_MASK_INDEX], fragTexCoord).r;
+	vec3 testColor = fragColor * intensity;
 
-	// outColor.rg = fragTexCoord;
-	// outColor.b = 0;
+	outColor.rgb = mix (color, testColor, testMask);
 
 	outColor.a = 1.0;
 }
