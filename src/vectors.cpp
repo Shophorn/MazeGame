@@ -1,6 +1,16 @@
+/*=============================================================================
+Leo Tamminen
 
+:MAZEGAME:'s vector structures and functions.
 
-// TODO(Leo): heavy-weight testing
+TODO(Leo): I would like to get some unary operator type functions (like normalize())
+as member functions, but I have not yet figured good way to do that
+
+TODO(Leo):
+	- Full testing
+	- SIMD / SSE / AVX
+=============================================================================*/
+
 
 // ------------------ DEFINITIONS ---------------------------------
 #define VECTOR_TEMPLATE 	template<typename ValueType, int Dimension>
@@ -8,8 +18,8 @@
 
 #define VECTOR_LOOP_ELEMENTS for (int i = 0; i < Dimension; ++i)
 
-#define VECTOR_SUBSCRIPT_OPERATORS \
-	value_type & operator [](int index) { return values[index]; }\
+#define VECTOR_SUBSCRIPT_OPERATORS 											\
+	value_type & operator [](int index) { return values[index]; }			\
 	value_type operator [] (int index) const { return values[index]; }
 
 
@@ -42,19 +52,12 @@ union VectorBase<ValueType, 2>
 using Point2 = VectorBase<int32, 2>;
 using Vector2 = VectorBase<real32, 2>;
 
-// Note(Leo): These are coordinatesystem dependent interpretations
-#define COORDINATE_SYSTEM_X right
-#define COORDINATE_SYSTEM_Y forward
-#define COORDINATE_SYSTEM_Z up
-
 template<typename ValueType>
 union VectorBase<ValueType, 3>
 {
 	struct { ValueType x, y, z; };
 	struct { ValueType r, g, b; };
 	ValueType values[3];
-
-	struct { ValueType COORDINATE_SYSTEM_X, COORDINATE_SYSTEM_Y, COORDINATE_SYSTEM_Z; };
 
 	using value_type = ValueType;
 	static constexpr int dimension = 3;
@@ -66,20 +69,6 @@ union VectorBase<ValueType, 3>
 #define VECTOR_3_TYPE		VectorBase<ValueType, 3>
 
 using Vector3 = VectorBase<real32, 3>;
-
-namespace CoordinateSystem
-{
-	/*
-	Note(Leo): Right handed coordinate system, z up, y forward
-	*/
-
-	static constexpr Vector3 Left 		= {-1,  0,  0};
-	static constexpr Vector3 Right 		= { 1,  0,  0};
-	static constexpr Vector3 Back 		= { 0, -1,  0};
-	static constexpr Vector3 Forward 	= { 0,  1,  0};
-	static constexpr Vector3 Down 		= { 0,  0, -1};
-	static constexpr Vector3 Up 		= { 0,  0,  1};
-};
 
 template<typename ValueType>
 union VectorBase<ValueType, 4>
@@ -476,7 +465,7 @@ ClampLength(VECTOR_TYPE vec, ValueType requestedLength)
 }
 
 VECTOR_3_TEMPLATE ValueType
-SignedAngle(VECTOR_3_TYPE from, VECTOR_3_TYPE to, VECTOR_3_TYPE referenceUp = CoordinateSystem::Up)
+SignedAngle(VECTOR_3_TYPE from, VECTOR_3_TYPE to, VECTOR_3_TYPE referenceUp)
 {
 	ValueType a = Dot(Cross(from, to), referenceUp);
 	ValueType b = Dot(to, from);
@@ -506,6 +495,8 @@ namespace std
 #endif
 
 
+/* Note(Leo): Undefine macros here, since they definetly are not intended
+to be used around. */
 #undef VECTOR_TEMPLATE
 #undef VECTOR_TYPE
 #undef VECTOR_LOOP_ELEMENTS

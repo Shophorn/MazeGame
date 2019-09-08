@@ -8,5 +8,5 @@ Drawing and Projections
 		top left near to bottom right far
 
 Coordinate System:
-	Right handed, z up, y forward
+	Right handed; x right, y forward, z up. Same as blender
 	Right handed rotations

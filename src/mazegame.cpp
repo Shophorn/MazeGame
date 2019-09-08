@@ -5,6 +5,7 @@ Leo Tamminen
 =============================================================================*/
 #include "MazegamePlatform.hpp"
 
+#include "Mazegame.hpp"
 // Note(Leo): Make unity build here
 #include "MapGenerator.cpp"
 #include "Camera.cpp"
@@ -86,7 +87,7 @@ InitializeGameState(GameState * state, game::Memory * memory, game::PlatformInfo
    	state->otherCharacterPosition = {0, 0, 0};
 
     state->worldCamera = {};
-    state->worldCamera.forward = CoordinateSystem::Forward;
+    state->worldCamera.forward = World::Forward;
 
     state->worldCamera.fieldOfView = 60;
     state->worldCamera.nearClipPlane = 0.1f;
@@ -155,7 +156,7 @@ OutputSound(int frameCount, game::StereoSoundSample * samples)
 		fileSampleCount = file.getNumSamplesPerChannel();
 	}
 
-	// Todo(Leo): Input these
+	// Todo(Leo): get volume from some input structure
 	real32 volume = 0.5f;
 
 	for (int sampleIndex = 0; sampleIndex < frameCount; ++sampleIndex)
@@ -194,7 +195,7 @@ GameUpdate(
 		Vector3 viewForward = state->worldCamera.forward;
 		viewForward.z = 0;
 		viewForward = Normalize(viewForward);
-		Vector3 viewRight = Cross(viewForward, CoordinateSystem::Up);
+		Vector3 viewRight = Cross(viewForward, World::Up);
 
 		Vector3 viewAlignedInputVector = viewRight * input->move.x + viewForward * input->move.y;
 		characterMovementVector = viewAlignedInputVector;
@@ -223,11 +224,11 @@ GameUpdate(
 		if (Abs(input->move.x) > epsilon || Abs(input->move.y) > epsilon)
 		{
 			Vector3 characterForward = Normalize(viewAlignedInputVector);
-			real32 angleToWorldForward = SignedAngle(CoordinateSystem::Forward, characterForward);
+			real32 angleToWorldForward = SignedAngle(World::Forward, characterForward, World::Up);
 			state->characterZRotationRadians = angleToWorldForward;
 		}
 
-		state->characterRotation = Quaternion::AxisAngle(CoordinateSystem::Up, state->characterZRotationRadians);
+		state->characterRotation = Quaternion::AxisAngle(World::Up, state->characterZRotationRadians);
 	}
 
 	/// Update network
@@ -254,7 +255,7 @@ GameUpdate(
 		real32 minDistance = 5;
 		real32 maxDistance = 100;
 
-		Vector3 cameraOffsetFromTarget = CoordinateSystem::Up * 2.0f;
+		Vector3 cameraOffsetFromTarget = World::Up * 2.0f;
 
 		if (input->zoomIn)
 		{
