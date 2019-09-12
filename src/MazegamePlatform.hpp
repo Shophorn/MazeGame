@@ -65,7 +65,14 @@ namespace game
 		WentDown 	= 1,
 		WentUp 		= 2,
 		IsDown 		= 3
+	
 	};
+
+	bool32 IsPressed(InputButtonState button)
+	{
+		bool32 result = (button == InputButtonState::IsDown) || (button == InputButtonState::WentDown);
+		return result;
+	}
 
 	struct Input
 	{
@@ -73,6 +80,10 @@ namespace game
 		Vector2 look;
 
 		InputButtonState jump;
+
+		// Note(Leo): Start and Select as in controller
+		InputButtonState start;
+		InputButtonState select;
 
 		bool32 zoomIn;
 		bool32 zoomOut;
@@ -144,6 +155,28 @@ namespace game
 		StereoSoundSample * samples;
 	};
 }
+
+#if MAZEGAME_INCLUDE_STD_IOSTREAM
+namespace std
+{
+	ostream & operator << (ostream & os, game::InputButtonState buttonState)
+	{
+		switch (buttonState)
+		{
+			case game::InputButtonState::IsUp: 		os << "InputButtonState::IsUp"; 		break;
+			case game::InputButtonState::WentDown: 	os << "InputButtonState::WentDown"; 	break;
+			case game::InputButtonState::WentUp: 		os << "InputButtonState::WentUp"; 		break;
+			case game::InputButtonState::IsDown: 		os << "InputButtonState::IsDown"; 		break;
+
+			default: os << "INVALID InputButtonState VALUE";
+		}
+
+		return os;
+	}
+}
+
+#endif
+
 
 extern "C" void
 GameUpdate(

@@ -90,6 +90,17 @@ DWORD WINAPI XInputGetStateStub (DWORD, XINPUT_STATE *)
 a proper named struct/namespace to hold this pointer */
 #define XInputGetState XInputGetState_
 
+using XInputSetStateFunc = decltype(XInputSetState);
+internal XInputSetStateFunc * XInputSetState_;
+DWORD WINAPI XInputSetStateStub (DWORD, XINPUT_VIBRATION *)
+{
+    return ERROR_DEVICE_NOT_CONNECTED;
+}
+
+/*Todo(Leo): see if we should get rid of #define below by creating
+a proper named struct/namespace to hold this pointer */
+#define XInputSetState XInputSetState_
+
 internal void
 LoadXInput()
 {
@@ -99,10 +110,12 @@ LoadXInput()
     if (xinputModule != nullptr)
     {
         XInputGetState_ = reinterpret_cast<XInputGetStateFunc *> (GetProcAddress(xinputModule, "XInputGetState"));
+        XInputSetState_ = reinterpret_cast<XInputSetStateFunc *> (GetProcAddress(xinputModule, "XInputSetState"));
     }
     else
     {
         XInputGetState_ = XInputGetStateStub;
+        XInputSetState_ = XInputSetStateStub;
     }
 }
 
@@ -114,10 +127,24 @@ ReadXInputJoystickValue(int16 value)
 }
 
 
+
 internal void
 UpdateControllerInput(game::Input * input)
 {
-    local_persist bool32 aButtonWasDown = false;
+    /* TODO[Input](Leo): Obviously not to stay static for too long, but when we
+    remove the qualifier, we need to also take care of controllers being connected
+    and disconnected and possibly ending at different index. 
+
+    TODO [Input](Leo): Test controller and index behaviour when being connected and
+    disconnected
+
+    TODO [Input] (Leo): Went down happenings are missed, maybe do controller checking
+    other thread even more frequently or look for sticky buttons.
+    */
+    local_persist bool32
+        aButtonWasDown      = false,
+        startButtonWasDown  = false,
+        backButtonWasDown   = false;
 
     // We use pointer instead of return value, since we store other data to input too.
     // Note(Leo): Only get input from first controller, locally this is a single player game
@@ -141,16 +168,24 @@ UpdateControllerInput(game::Input * input)
 
         uint16 pressedButtons = controllerState.Gamepad.wButtons;
 
+        // TOdo(Leo): use InputButtonState
         bool32 zoomIn = (pressedButtons & XINPUT_GAMEPAD_LEFT_SHOULDER) != 0;
         bool32 zoomOut = (pressedButtons & XINPUT_GAMEPAD_RIGHT_SHOULDER) != 0;
 
         input->zoomIn = zoomIn && !zoomOut;
         input->zoomOut = zoomOut && !zoomIn;
 
-        bool32 aButtonIsDown = (pressedButtons & XINPUT_GAMEPAD_A) != 0;
+        auto ProcessButton = [pressedButtons](uint32 button, bool32 * wasDown) -> game::InputButtonState
+        {
+            bool32 isDown = (pressedButtons & button) != 0;
+            auto result = static_cast<game::InputButtonState>(isDown + 2 * (*wasDown));
+            *wasDown = isDown;
+            return result;
+        };
 
-        input->jump = static_cast<game::InputButtonState>(aButtonIsDown + 2 * aButtonWasDown);
-        aButtonWasDown = aButtonIsDown;
+        input->jump = ProcessButton(XINPUT_GAMEPAD_A, &aButtonWasDown);
+        input->start = ProcessButton(XINPUT_GAMEPAD_START, &startButtonWasDown);
+        input->select = ProcessButton(XINPUT_GAMEPAD_BACK, &backButtonWasDown);
     }
     else 
     {
@@ -258,9 +293,10 @@ namespace winapi
         resultContext.descriptorSetLayouts[DESCRIPTOR_SET_LAYOUT_MATERIAL]        = CreateMaterialDescriptorSetLayout(resultContext.device);
         resultContext.descriptorSetLayouts[DESCRIPTOR_SET_LAYOUT_MODEL_UNIFORM]   = CreateModelDescriptorSetLayout(resultContext.device);
 
-        resultContext.pipelineItems             = CreateGraphicsPipeline(resultContext.device, resultContext.descriptorSetLayouts, 3, resultContext.renderPass, &resultContext.swapchainItems, resultContext.msaaSamples);
-        resultContext.drawingResources          = CreateDrawingResources(resultContext.device, resultContext.physicalDevice, resultContext.commandPool, resultContext.graphicsQueue, &resultContext.swapchainItems, resultContext.msaaSamples);
-        resultContext.frameBuffers              = CreateFrameBuffers(resultContext.device, resultContext.renderPass, &resultContext.swapchainItems, &resultContext.drawingResources);
+        // Todo(Leo): This seems rather stupid way to organize creation of these...
+        resultContext.pipelineItems             = CreateGraphicsPipeline(&resultContext, 3);
+        resultContext.drawingResources          = CreateDrawingResources(&resultContext);
+        resultContext.frameBuffers              = CreateFrameBuffers(&resultContext);
         resultContext.uniformDescriptorPool     = CreateDescriptorPool(resultContext.device, resultContext.swapchainItems.images.size());
         resultContext.materialDescriptorPool    = CreateMaterialDescriptorPool(resultContext.device);
 
@@ -460,21 +496,47 @@ Run(HINSTANCE winInstance)
     bool32 networkIsRuined = false;
     WinApiNetwork network = winapi::CreateNetwork();
     game::Network gameNetwork = {};
+    real64 networkSendDelay     = 1.0 / 20;
+    real64 networkNextSendTime  = 0;
     
     /// --------- INITIALIZE AUDIO ----------------
     WinApiAudio audio = winapi::CreateAudio();
     winapi::StartPlaying(&audio);                
 
     /// --------- TIMING ---------------------------
-    auto startTimeMark = std::chrono::high_resolution_clock::now();
-    real64 lastTime = 0;
-    real64 frameTimeSeconds = 1.0 / 60.0;
+    auto startTimeMark          = std::chrono::high_resolution_clock::now();
+    real64 lastFrameStartTime   = 0;
 
-    real64 networkSendDelay = 1.0 / 20;
-    real64 networkNextSendTime = 0;
+    MAZEGAME_NO_INIT real64 targetFrameTime;
+    MAZEGAME_NO_INIT uint32 deviceMinSchedulerGranularity;
+    {
+        TIMECAPS timeCaps;
+        timeGetDevCaps(&timeCaps, sizeof(timeCaps));
+        deviceMinSchedulerGranularity = timeCaps.wPeriodMin;
+
+        int32 gameUpdateRate = 60;
+        {
+            HDC deviceContext = GetDC(winWindow);
+            int monitorRefreshRate = GetDeviceCaps(deviceContext, VREFRESH);
+            ReleaseDC(winWindow, deviceContext);
+
+            real64 targetFrameTimeThreshold = 60;
+            if (monitorRefreshRate > 1)
+            {  
+                gameUpdateRate = monitorRefreshRate;
+
+                while((gameUpdateRate / 2.0f) > targetFrameTimeThreshold)
+                {
+                    gameUpdateRate /= 2.0f;
+                }
+            }
+        }
+        targetFrameTime = 1.0f / gameUpdateRate;
+    }
+    std::cout << "Target frame time = " << targetFrameTime << ", (fps = " << 1.0 / targetFrameTime << ")\n";
 
     /// ---------- LOAD GAME CODE ----------------------
-    // Todo(Leo): Only when in development
+    // Note(Leo): Only load game dynamically in development.
     winapi::Game game = {};
     FILETIME dllWriteTime;
     {
@@ -487,31 +549,18 @@ Run(HINSTANCE winInstance)
         }
     }
 
-    /// ------- MAIN LOOP -------
+    ////////////////////////////////////////////////////
+    ///             MAIN LOOP                        ///
+    ////////////////////////////////////////////////////
     state.isRunning = true;
     while(state.isRunning)
     {
-        // Note(Leo): just quit now if some unhandled network error occured
-        if (networkIsRuined)
-        {
-            auto error = WSAGetLastError();
-            std::cout << "NETWORK failed: " << WinSocketErrorString(error) << " (" << error << ")\n"; 
-            break;
-        }
 
-        /// --------- TIME -----------------
-        real64 time;
-        real64 deltaTime;
-        real64 frameStartTime;
-        {
-            auto currentTimeMark = std::chrono::high_resolution_clock::now();
-            time = std::chrono::duration<real64, std::chrono::seconds::period>(currentTimeMark - startTimeMark).count();
-            frameStartTime = time;
-            deltaTime = time - lastTime;
-            lastTime = time;
-        }
+        /// ----- START TIME -----
+        auto currentTimeMark = std::chrono::high_resolution_clock::now();
+        real64 frameStartTime = std::chrono::duration<real64, std::chrono::seconds::period>(currentTimeMark - startTimeMark).count();
 
-        /// -------- RELOAD GAME CODE --------
+        /// ----- RELOAD GAME CODE -----
         FILETIME dllLatestWriteTime = winapi::GetFileLastWriteTime(GAMECODE_DLL_FILE_NAME);
         if (CompareFileTime(&dllLatestWriteTime, &dllWriteTime) > 0)
         {
@@ -528,8 +577,7 @@ Run(HINSTANCE winInstance)
 
         }
 
-
-        /// --------- HANDLE INPUT -----------
+        /// ----- HANDLE INPUT -----
         game::Input gameInput = {};
         {
             // Note(Leo): this is not input only...
@@ -539,17 +587,27 @@ Run(HINSTANCE winInstance)
             bool32 windowIsActive = winWindow == foregroundWindow;
 
             UpdateControllerInput(&gameInput);
-            gameInput.timeDelta = deltaTime;
+            gameInput.timeDelta = targetFrameTime;
         }
 
-        /// ------ PRE-UPDATE NETWORK PASS ---------
-        if (network.isListening)
+        /// ----- PRE-UPDATE NETWORK PASS -----
         {
-            winapi::NetworkListen(&network);
-        }
-        else if (network.isConnected)
-        {
-            winapi::NetworkReceive(&network, &gameNetwork.inPackage);
+            // Todo(Leo): just quit now if some unhandled network error occured
+            if (networkIsRuined)
+            {
+                auto error = WSAGetLastError();
+                std::cout << "NETWORK failed: " << WinSocketErrorString(error) << " (" << error << ")\n"; 
+                break;
+            }
+
+            if (network.isListening)
+            {
+                winapi::NetworkListen(&network);
+            }
+            else if (network.isConnected)
+            {
+                winapi::NetworkReceive(&network, &gameNetwork.inPackage);
+            }
         }
 
         /// --------- UPDATE GAME -------------
@@ -565,10 +623,8 @@ Run(HINSTANCE winInstance)
 
             gameNetwork.isConnected = network.isConnected;
 
-
             game::SoundOutput gameSoundOutput = {};
             winapi::GetAudioBuffer(&audio, &gameSoundOutput.sampleCount, &gameSoundOutput.samples);
-
 
             if(game.IsLoaded())
             {
@@ -581,9 +637,10 @@ Run(HINSTANCE winInstance)
 
 
         // ----- POST-UPDATE NETWORK PASS ------
-        if (network.isConnected && time > networkNextSendTime)
+        // TODO[network](Leo): Now that we have fixed frame rate, we should count frames passed instead of time
+        if (network.isConnected && frameStartTime > networkNextSendTime)
         {
-            networkNextSendTime = time + networkSendDelay;
+            networkNextSendTime = frameStartTime + networkSendDelay;
             winapi::NetworkSend(&network, &gameNetwork.outPackage);
         }
 
@@ -603,8 +660,8 @@ Run(HINSTANCE winInstance)
 
             uint32 imageIndex;
             VkResult result = vkAcquireNextImageKHR(context.device, context.swapchainItems.swapchain, MaxValue<uint64>,
-                                                context.syncObjects.imageAvailableSemaphores[currentLoopingFrameIndex],
-                                                VK_NULL_HANDLE, &imageIndex);
+                                                    context.syncObjects.imageAvailableSemaphores[currentLoopingFrameIndex],
+                                                    VK_NULL_HANDLE, &imageIndex);
 
             switch (result)
             {
@@ -627,17 +684,23 @@ Run(HINSTANCE winInstance)
             currentLoopingFrameIndex = (currentLoopingFrameIndex + 1) % MAX_FRAMES_IN_FLIGHT;
         }
 
+        /// ----- WAIT FOR TARGET FRAME TIME -----
         {
-        #if 0
-            // Note(Leo): debug print time
             auto currentTimeMark = std::chrono::high_resolution_clock::now();
             real64 currentTimeSeconds = std::chrono::duration<real64, std::chrono::seconds::period>(currentTimeMark - startTimeMark).count();
-            real64 frameTimeElapsed = currentTimeSeconds - frameStartTime;
 
-            std::cout << frameTimeSeconds << "s\n";
-        #endif
+            real64 elapsedSeconds = currentTimeSeconds - frameStartTime;
+            real64 timeToSleepSeconds = targetFrameTime - elapsedSeconds;
+            
+            MAZEGAME_ASSERT (timeToSleepSeconds < targetFrameTime, "Bad sleep duration");
+
+            // TODO[time](Leo): Maybe move sleeping to end of frame
+            if (timeToSleepSeconds > 0)
+            {
+                DWORD timeToSleepMilliSeconds = static_cast<DWORD>(1000 * timeToSleepSeconds);
+                Sleep(timeToSleepMilliSeconds);
+            }
         }
-
     }
 
     /// -------- CLEANUP ---------
@@ -653,8 +716,13 @@ Run(HINSTANCE winInstance)
 
         std::cout << "[VULKAN]: shut down\n";
     }
-    /// ----- Cleanup Window
-    // Note(Leo): Windows will clean up after us once process exits :)
+    /// ----- Cleanup Windows
+    {
+        // Note(Leo): Windows will mostly clean up after us once process exits :)
+
+        timeEndPeriod(deviceMinSchedulerGranularity);
+        std::cout << "[WINDOWS]: shut down\n";
+    }
 }
 
 

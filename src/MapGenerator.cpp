@@ -36,13 +36,20 @@ struct HexMap
 	}
 };
 
+
 namespace map
 {
+	struct CreateInfo
+	{
+		int32 cellCountPerDirection;
+		real32 cellSize;
+	};
+
 	internal HexMap
-	GenerateMap(MemoryArena * memoryArena);
+	GenerateMap(MemoryArena & memoryArena, CreateInfo & info);
 
 	internal MeshAsset
-	GenerateMapMesh (MemoryArena * memoryArena, HexMap * map);
+	GenerateMapMesh (MemoryArena & memoryArena, HexMap & map);
 }
 
 
@@ -57,6 +64,8 @@ AddHexCell(Vector3 cellPosition, HexMap * map, bool blocked, uint16 * vertexInde
 	Vector3 normal = {0, 0, 1};
 
 	real32 padding = 0.02f;
+	
+	// Note(Leo): math stolen from catlike coding hex tutorial
 	real32 cellTileOuterRadius = map->cellSize - 2.0f * padding;
 	real32 cellTileInnerRadius = 0.866025404f * cellTileOuterRadius;
 
@@ -132,14 +141,14 @@ AddHexCell(Vector3 cellPosition, HexMap * map, bool blocked, uint16 * vertexInde
 }
 
 internal HexMap
-map::GenerateMap(MemoryArena * memoryArena)
+map::GenerateMap(MemoryArena & memoryArena, map::CreateInfo & info)
 {
 	HexMap map = {};
 
-	map.cellCountPerDirection = 60;
-	map.cellSize = 3.0f;
+	map.cellCountPerDirection = info.cellCountPerDirection;;
+	map.cellSize = info.cellSize;
 
-	map.cells = PushArray<uint32>(memoryArena, map.cellCountPerDirection * map.cellCountPerDirection);
+	map.cells = PushArray<uint32>(&memoryArena, map.cellCountPerDirection * map.cellCountPerDirection);
 
 	for (int32 y = 0; y < map.cellCountPerDirection; ++y)
 	{
@@ -152,31 +161,31 @@ map::GenerateMap(MemoryArena * memoryArena)
 }
 
 internal MeshAsset
-map::GenerateMapMesh(MemoryArena * memoryArena, HexMap * map)
+map::GenerateMapMesh(MemoryArena & memoryArena, HexMap & map)
 {
 	MeshAsset result = {};
 	result.indexType = IndexType::UInt16;
 
-	int32 vCount = map->cellCountPerDirection * map->cellCountPerDirection * 7;
-	int32 iCount = map->cellCountPerDirection * map->cellCountPerDirection * 6 * 3;
+	int32 vCount = map.cellCountPerDirection * map.cellCountPerDirection * 7;
+	int32 iCount = map.cellCountPerDirection * map.cellCountPerDirection * 6 * 3;
 
-	result.vertices = PushArray<Vertex>(memoryArena, vCount);
-	result.indices 	= PushArray<uint16>(memoryArena, iCount);
+	result.vertices = PushArray<Vertex>(&memoryArena, vCount);
+	result.indices 	= PushArray<uint16>(&memoryArena, iCount);
 
 	uint16 vertexIndex = 0;
 	uint16 triangleIndex = 0;
 
-	for (int32 y = 0; y < map->cellCountPerDirection; ++y)
+	for (int32 y = 0; y < map.cellCountPerDirection; ++y)
 	{
-		for (int32 x = 0; x < map->cellCountPerDirection; ++x)
+		for (int32 x = 0; x < map.cellCountPerDirection; ++x)
 		{
 			Vertex * vertexLocation = result.vertices.memory + vertexIndex;
 			uint16 * indexLocation = result.indices.memory + triangleIndex;
 
 			// Todo(Leo): Lol clean :P
-			AddHexCell(	map->GetCellPosition(x,y),
-						map,
-						map->Cell(x, y) == 0,
+			AddHexCell(	map.GetCellPosition(x,y),
+						&map,
+						map.Cell(x, y) == 0,
 						&vertexIndex, result.vertices.memory,
 						&triangleIndex, result.indices.memory);
 

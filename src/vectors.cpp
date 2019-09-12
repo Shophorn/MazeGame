@@ -433,7 +433,7 @@ Reject(VECTOR_TYPE a, VECTOR_TYPE b)
 VECTOR_TEMPLATE ValueType
 Length (VECTOR_TYPE vec)
 {
-	ValueType result = {};
+	ValueType result = 0;
 	VECTOR_LOOP_ELEMENTS { result += vec.values[i] * vec.values[i]; }
 	result = Root2(result);
 	return result;
@@ -443,6 +443,14 @@ VECTOR_TEMPLATE ValueType
 Distance(VECTOR_TYPE a, VECTOR_TYPE b)
 {
 	ValueType result = Length(a - b);
+	return result;
+}
+
+VECTOR_TEMPLATE ValueType
+SqrLength(VECTOR_TYPE vec)
+{
+	ValueType result = 0;
+	VECTOR_LOOP_ELEMENTS { result += vec.values[i] * vec.values[i]; }
 	return result;
 }
 

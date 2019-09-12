@@ -127,8 +127,12 @@ InitializeGameState(GameState * state, game::Memory * memory, game::PlatformInfo
  	// Level
  	HexMap levelMap;
 	{
-		levelMap 					= map::GenerateMap(&state->transientMemoryArena);
-		auto levelMesh 				= map::GenerateMapMesh(&state->transientMemoryArena, &levelMap);
+		map::CreateInfo mapInfo = {};
+		mapInfo.cellCountPerDirection = 60;
+		mapInfo.cellSize = 5.0f;
+
+		levelMap 					= map::GenerateMap(state->transientMemoryArena, mapInfo);
+		auto levelMesh 				= map::GenerateMapMesh(state->transientMemoryArena, levelMap);
 		auto levelMeshHandle 		= platformInfo->graphicsContext->PushMesh(&levelMesh);
 	    state->levelObjectHandle 	= platformInfo->graphicsContext->PushRenderedObject(levelMeshHandle, state->terrainMaterial);
 	}	
@@ -145,10 +149,11 @@ InitializeGameState(GameState * state, game::Memory * memory, game::PlatformInfo
     		{
     			if (levelMap.Cell(x, y) == 0)
     			{
+    				real32 randomRange = 2.5f;
+
     				state->sceneryPositions[actualSceneryCount] = levelMap.GetCellPosition(x,y);
-    				state->sceneryPositions[actualSceneryCount].x += RandomValue() - 0.5f;
-    				state->sceneryPositions[actualSceneryCount].y += RandomValue() - 0.5f;
-    				state->sceneryPositions[actualSceneryCount].z -= 2.0f;
+    				state->sceneryPositions[actualSceneryCount].x += (RandomValue() * 2 - 1) * randomRange;
+    				state->sceneryPositions[actualSceneryCount].y += (RandomValue() * 2 - 1) * randomRange;
 
     				++actualSceneryCount;
     			}
@@ -206,6 +211,18 @@ OutputSound(int frameCount, game::StereoSoundSample * samples)
 	}
 }
 
+internal bool32
+CircleCircleCollision(Vector2 pointA, real32 radiusA, Vector2 pointB, real32 radiusB)
+{
+	real32 distanceThreshold = radiusA + radiusB;
+	real32 sqrDistanceThreshold = distanceThreshold * distanceThreshold;
+
+	real32 sqrDistance = SqrLength (pointA - pointB);
+
+	bool32 result = sqrDistance < sqrDistanceThreshold;
+	return result;
+}
+
 extern "C" void
 GameUpdate(
 	game::Input * 			input,
@@ -217,7 +234,6 @@ GameUpdate(
 ){
 	GameState * state = reinterpret_cast<GameState*>(memory->persistentMemory);
 
-
 	if (memory->isInitialized == false)
 	{
 		InitializeGameState (state, memory, platform);
@@ -226,8 +242,9 @@ GameUpdate(
 
 	/// Update Character
 	Vector3 characterMovementVector;
+	real32 characterScale = 1;
 	{
-		real32 characterSpeed = 6;
+		real32 characterSpeed = 5;
 
 		Vector3 viewForward = state->worldCamera.forward;
 		viewForward.z = 0;
@@ -237,16 +254,51 @@ GameUpdate(
 		Vector3 viewAlignedInputVector = viewRight * input->move.x + viewForward * input->move.y;
 		characterMovementVector = viewAlignedInputVector;
 
-		state->characterPosition += viewAlignedInputVector * characterSpeed * input->timeDelta;
+		Vector3 characterNewPosition = state->characterPosition + viewAlignedInputVector * characterSpeed * input->timeDelta;
+
+		// Collisions
+		real32 treeCollisionRadius = 0.5f;
+		real32 characterCollisionRadius = 0.5f;
+		int treeCount = state->sceneryCount;
+
+		bool32 collide = false;
+		for (int treeIndex = 0; treeIndex < treeCount; ++treeIndex)
+		{
+			Vector2 characterPosition2 = size_cast<Vector2>(characterNewPosition);
+			Vector2 treePosition2 = size_cast<Vector2>(state->sceneryPositions[treeIndex]);
+
+			bool32 treeCollide = CircleCircleCollision(	characterPosition2, characterCollisionRadius,
+														treePosition2, treeCollisionRadius);
+
+			// Note(Leo): Do not reset on subsequent trees
+			if (treeCollide)
+			{
+				collide = true;
+			}
+		}
+
+		if (collide == false)
+		{
+			state->characterPosition = characterNewPosition;
+		}
 
 		bool32 grounded = state->characterPosition.z < 0.1f;
 
-		if (grounded && input->jump == game::InputButtonState::WentDown)
+		bool32 jumped = false;
+		if (grounded && input->jump == game::InputButtonState::WentDown)//IsPressed(input->jump))
 		{
+            // std::cout << "JUMPPPP\n";
+            state->characterPosition.z = 0;
 			state->characterZSpeed = 6;
+			jumped = true;
 		}
 
 		state->characterPosition.z += state->characterZSpeed * input->timeDelta;
+
+		if (jumped)
+		{
+			std::cout << state->characterPosition.z << ", dt: " << input->timeDelta << "\n";
+		}
 
 		if (state->characterPosition.z > 0)
 		{	
@@ -257,6 +309,7 @@ GameUpdate(
 			state->characterZSpeed = 0;
 		}
 
+		
 		real32 epsilon = 0.001f;
 		if (Abs(input->move.x) > epsilon || Abs(input->move.y) > epsilon)
 		{
@@ -266,6 +319,16 @@ GameUpdate(
 		}
 
 		state->characterRotation = Quaternion::AxisAngle(World::Up, state->characterZRotationRadians);
+
+		// Test(Leo): start and select buttons
+		if (IsPressed(input->start))
+		{
+			characterScale = 2.0f;
+		}
+		else if(IsPressed(input->select))
+		{
+			characterScale = 0.5f;
+		}
 	}
 
 	/// Update network
@@ -347,7 +410,9 @@ GameUpdate(
 		outRenderInfo->modelMatrixArray[state->levelObjectHandle] = Matrix44::Identity();
 
 		outRenderInfo->modelMatrixArray[state->characterObjectHandle]
-			= Matrix44::Translate(state->characterPosition) * state->characterRotation.ToRotationMatrix();
+			= Matrix44::Translate(state->characterPosition) 
+				* state->characterRotation.ToRotationMatrix()
+				* Matrix44::Scale(characterScale);
 
 		if (network->isConnected)
 		{
@@ -362,9 +427,10 @@ GameUpdate(
 		// Trees
 		for (int sceneryIndex = 0; sceneryIndex < state->sceneryCount; ++sceneryIndex)
 		{
+			real32 treeScale = 4.0f;
 			outRenderInfo->modelMatrixArray[state->sceneryObjectHandles[sceneryIndex]]
 				= Matrix44::Translate(state->sceneryPositions[sceneryIndex])
-				* Matrix44::Scale(2.0f);
+				* Matrix44::Scale(treeScale);
 		}
 
 		// Ccamera

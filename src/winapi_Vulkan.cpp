@@ -900,8 +900,6 @@ CreateRenderPass(VulkanContext * context, VulkanSwapchainItems * swapchainItems,
 IMPORTANT(Leo): These must be same in shaders
 */
 
-constexpr static int32 DESCRIPTOR_SET_COUNT = 3;
-
 constexpr static int32 DESCRIPTOR_LAYOUT_SCENE_BINDING = 0;
 constexpr static int32 DESCRIPTOR_LAYOUT_MODEL_BINDING = 0;
 constexpr static int32 DESCRIPTOR_LAYOUT_SAMPLER_BINDING = 0;
@@ -982,22 +980,17 @@ CreateSceneDescriptorSetLayout(VkDevice device)
 
 internal VulkanPipelineItems
 CreateGraphicsPipeline(
-    VkDevice device,
-    VkDescriptorSetLayout * descriptorSetLayouts,
-    int32 descriptorSetLayoutCount,
-    VkRenderPass renderPass,
-    VulkanSwapchainItems * swapchainItems,
-    VkSampleCountFlagBits msaaSamples
-){
-
+    VulkanContext * context,
+    int32 descriptorSetLayoutCount)
+{
     VulkanPipelineItems resultPipelineItems = {};
 
     // Todo(Leo): unhardcode these
     BinaryAsset vertexShaderCode = ReadBinaryFile("shaders/vert.spv");
     BinaryAsset fragmentShaderCode = ReadBinaryFile("shaders/frag.spv");
 
-    VkShaderModule vertexShaderModule = vulkan::CreateShaderModule(vertexShaderCode, device);
-    VkShaderModule fragmentShaderModule = vulkan::CreateShaderModule(fragmentShaderCode, device);
+    VkShaderModule vertexShaderModule = vulkan::CreateShaderModule(vertexShaderCode, context->device);
+    VkShaderModule fragmentShaderModule = vulkan::CreateShaderModule(fragmentShaderCode, context->device);
 
     constexpr uint32 
         VERTEX_STAGE_ID     = 0,
@@ -1034,14 +1027,14 @@ CreateGraphicsPipeline(
     VkViewport viewport = {};
     viewport.x = 0.0f;
     viewport.y = 0.0f;
-    viewport.width = (float) swapchainItems->extent.width;
-    viewport.height = (float) swapchainItems->extent.height;
+    viewport.width = (float) context->swapchainItems.extent.width;
+    viewport.height = (float) context->swapchainItems.extent.height;
     viewport.minDepth = 0.0f;
     viewport.maxDepth = 1.0f;
 
     VkRect2D scissor = {};
     scissor.offset = {0, 0};
-    scissor.extent = swapchainItems->extent;
+    scissor.extent = context->swapchainItems.extent;
 
     VkPipelineViewportStateCreateInfo viewportState = {};
     viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
@@ -1066,7 +1059,7 @@ CreateGraphicsPipeline(
     VkPipelineMultisampleStateCreateInfo multisampling = {};
     multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
     multisampling.sampleShadingEnable = VK_FALSE;
-    multisampling.rasterizationSamples = msaaSamples;
+    multisampling.rasterizationSamples = context->msaaSamples;
     multisampling.minSampleShading = 1.0f;
     multisampling.pSampleMask = nullptr;
     multisampling.alphaToCoverageEnable = VK_FALSE;
@@ -1116,12 +1109,12 @@ CreateGraphicsPipeline(
     VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipelineLayoutInfo.setLayoutCount = descriptorSetLayoutCount;
-    pipelineLayoutInfo.pSetLayouts = descriptorSetLayouts;
+    pipelineLayoutInfo.pSetLayouts = context->descriptorSetLayouts;
     pipelineLayoutInfo.pushConstantRangeCount = 0;
     pipelineLayoutInfo.pPushConstantRanges = nullptr;
 
     // Todo(Leo): does this need to be returned
-    if (vkCreatePipelineLayout (device, &pipelineLayoutInfo, nullptr, &resultPipelineItems.layout) != VK_SUCCESS)
+    if (vkCreatePipelineLayout (context->device, &pipelineLayoutInfo, nullptr, &resultPipelineItems.layout) != VK_SUCCESS)
     {
         throw std::runtime_error("failed to create pipeline layout");
     }
@@ -1143,7 +1136,7 @@ CreateGraphicsPipeline(
 
     pipelineInfo.layout = resultPipelineItems.layout;
 
-    pipelineInfo.renderPass = renderPass;
+    pipelineInfo.renderPass = context->renderPass;
     pipelineInfo.subpass = 0;
 
     // Note: These are for cheaper re-use of pipelines, not used right now
@@ -1151,14 +1144,14 @@ CreateGraphicsPipeline(
     pipelineInfo.basePipelineIndex = -1;
 
 
-    if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &resultPipelineItems.pipeline) != VK_SUCCESS)
+    if (vkCreateGraphicsPipelines(context->device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &resultPipelineItems.pipeline) != VK_SUCCESS)
     {
         throw std::runtime_error("failed to create graphics pipeline");
     }
 
     // Note: These can only be destroyed AFTER vkCreateGraphicsPipelines
-    vkDestroyShaderModule(device, fragmentShaderModule, nullptr);
-    vkDestroyShaderModule(device, vertexShaderModule, nullptr);
+    vkDestroyShaderModule(context->device, fragmentShaderModule, nullptr);
+    vkDestroyShaderModule(context->device, vertexShaderModule, nullptr);
 
     return resultPipelineItems;
 }
@@ -1308,33 +1301,27 @@ TransitionImageLayout(
 
 
 internal VulkanDrawingResources
-CreateDrawingResources(
-    VkDevice device,
-    VkPhysicalDevice physicalDevice,
-    VkCommandPool commandPool,
-    VkQueue graphicsQueue,
-    VulkanSwapchainItems * swapchainItems,
-    VkSampleCountFlagBits msaaSamples)
+CreateDrawingResources(VulkanContext * context)
 {
     VulkanDrawingResources resultResources = {};
 
-    VkFormat colorFormat = swapchainItems->imageFormat;
-    resultResources.colorImage = CreateImage(  device, physicalDevice,
-                                                swapchainItems->extent.width, swapchainItems->extent.height,
+    VkFormat colorFormat = context->swapchainItems.imageFormat;
+    resultResources.colorImage = CreateImage(  context->device, context->physicalDevice,
+                                                context->swapchainItems.extent.width, context->swapchainItems.extent.height,
                                                 1, colorFormat, VK_IMAGE_TILING_OPTIMAL,
                                                 VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-                                                msaaSamples);
+                                                context->msaaSamples);
 
-    VkFormat depthFormat = FindSupportedDepthFormat(physicalDevice);
-    resultResources.depthImage = CreateImage(  device, physicalDevice,
-                                                swapchainItems->extent.width, swapchainItems->extent.height,
+    VkFormat depthFormat = FindSupportedDepthFormat(context->physicalDevice);
+    resultResources.depthImage = CreateImage(  context->device, context->physicalDevice,
+                                                context->swapchainItems.extent.width, context->swapchainItems.extent.height,
                                                 1, depthFormat, VK_IMAGE_TILING_OPTIMAL,
                                                 VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
-                                                msaaSamples);
+                                                context->msaaSamples);
 
     VkMemoryRequirements colorMemoryRequirements, depthMemoryRequirements;
-    vkGetImageMemoryRequirements(device, resultResources.colorImage, &colorMemoryRequirements);
-    vkGetImageMemoryRequirements(device, resultResources.depthImage, &depthMemoryRequirements);
+    vkGetImageMemoryRequirements(context->device, resultResources.colorImage, &colorMemoryRequirements);
+    vkGetImageMemoryRequirements(context->device, resultResources.depthImage, &depthMemoryRequirements);
 
 
     // Todo(Leo): Do these need to be aligned like below????
@@ -1344,7 +1331,7 @@ CreateDrawingResources(
     // uint64 depthMemorySize = AlignUpTo(depthMemoryRequirements.alignment, depthMemoryRequirements.size);
 
     uint32 memoryTypeIndex = vulkan::FindMemoryType(
-                                physicalDevice,
+                                context->physicalDevice,
                                 colorMemoryRequirements.memoryTypeBits | depthMemoryRequirements.memoryTypeBits,
                                 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
@@ -1352,25 +1339,25 @@ CreateDrawingResources(
     allocateInfo.allocationSize = (colorMemorySize + depthMemorySize);
     allocateInfo.memoryTypeIndex = memoryTypeIndex;
 
-    if (vkAllocateMemory(device, &allocateInfo, nullptr, &resultResources.memory))
+    if (vkAllocateMemory(context->device, &allocateInfo, nullptr, &resultResources.memory))
     {
         throw std::runtime_error("Failed to allocate drawing resource memory");
     }            
 
     // Todo(Leo): Result check binding memories
-    vkBindImageMemory(device, resultResources.colorImage, resultResources.memory, 0);
-    vkBindImageMemory(device, resultResources.depthImage, resultResources.memory, colorMemorySize);
+    vkBindImageMemory(context->device, resultResources.colorImage, resultResources.memory, 0);
+    vkBindImageMemory(context->device, resultResources.depthImage, resultResources.memory, colorMemorySize);
 
-    resultResources.colorImageView = CreateImageView(  device, resultResources.colorImage,
+    resultResources.colorImageView = CreateImageView(  context->device, resultResources.colorImage,
                                                         1, colorFormat, VK_IMAGE_ASPECT_COLOR_BIT);
 
-    resultResources.depthImageView = CreateImageView(  device, resultResources.depthImage,
+    resultResources.depthImageView = CreateImageView(  context->device, resultResources.depthImage,
                                                         1, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT);
 
-    TransitionImageLayout(  device, commandPool, graphicsQueue, resultResources.colorImage, colorFormat, 1,
+    TransitionImageLayout(  context->device, context->commandPool, context->graphicsQueue, resultResources.colorImage, colorFormat, 1,
                             VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 
-    TransitionImageLayout(  device, commandPool, graphicsQueue, resultResources.depthImage, depthFormat, 1,
+    TransitionImageLayout(  context->device, context->commandPool, context->graphicsQueue, resultResources.depthImage, depthFormat, 1,
                             VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
 
     return resultResources;
@@ -1567,16 +1554,12 @@ CreateSceneDescriptorSets(VulkanContext * context)
 }
 
 internal std::vector<VkFramebuffer>
-CreateFrameBuffers(
-    VkDevice                    device, 
-    VkRenderPass                renderPass,
-    VulkanSwapchainItems *      swapchainItems,
-    VulkanDrawingResources *    drawingResources)
-{   
+CreateFrameBuffers(VulkanContext * context)
+{ 
     /* Note(Leo): This is basially allocating right, there seems to be no
     need for VkDeviceMemory for swapchainimages??? */
     
-    int imageCount = swapchainItems->imageViews.size();
+    int imageCount = context->swapchainItems.imageViews.size();
     // frameBuffers.resize(imageCount);
     std::vector<VkFramebuffer> resultFrameBuffers (imageCount);
 
@@ -1584,20 +1567,20 @@ CreateFrameBuffers(
     {
         constexpr int ATTACHMENT_COUNT = 3;
         VkImageView attachments[ATTACHMENT_COUNT] = {
-            drawingResources->colorImageView,
-            drawingResources->depthImageView,
-            swapchainItems->imageViews[i]
+            context->drawingResources.colorImageView,
+            context->drawingResources.depthImageView,
+            context->swapchainItems.imageViews[i]
         };
 
         VkFramebufferCreateInfo framebufferInfo = { VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO };
-        framebufferInfo.renderPass      = renderPass;
+        framebufferInfo.renderPass      = context->renderPass;
         framebufferInfo.attachmentCount = ATTACHMENT_COUNT;
         framebufferInfo.pAttachments    = &attachments[0];
-        framebufferInfo.width           = swapchainItems->extent.width;
-        framebufferInfo.height          = swapchainItems->extent.height;
+        framebufferInfo.width           = context->swapchainItems.extent.width;
+        framebufferInfo.height          = context->swapchainItems.extent.height;
         framebufferInfo.layers          = 1;
 
-        if (vkCreateFramebuffer(device, &framebufferInfo, nullptr, &resultFrameBuffers[i]) != VK_SUCCESS)
+        if (vkCreateFramebuffer(context->device, &framebufferInfo, nullptr, &resultFrameBuffers[i]) != VK_SUCCESS)
         {
             throw std::runtime_error("failed to create framebuffer");
         }
@@ -2033,9 +2016,9 @@ vulkan::RecreateSwapchain(VulkanContext * context, VkExtent2D frameBufferSize)
 
     context->swapchainItems      = CreateSwapchainAndImages(context, frameBufferSize);
     context->renderPass          = CreateRenderPass(context, &context->swapchainItems, context->msaaSamples);
-    context->pipelineItems       = CreateGraphicsPipeline(context->device, context->descriptorSetLayouts, 3, context->renderPass, &context->swapchainItems, context->msaaSamples);
-    context->drawingResources    = CreateDrawingResources(context->device, context->physicalDevice, context->commandPool, context->graphicsQueue, &context->swapchainItems, context->msaaSamples);
-    context->frameBuffers        = CreateFrameBuffers(context->device, context->renderPass, &context->swapchainItems, &context->drawingResources);
+    context->pipelineItems       = CreateGraphicsPipeline(context, 3);
+    context->drawingResources    = CreateDrawingResources(context);
+    context->frameBuffers        = CreateFrameBuffers(context);
     context->uniformDescriptorPool      = CreateDescriptorPool(context->device, context->swapchainItems.images.size());
 
 
