@@ -10,7 +10,8 @@ enum struct HandleType
 	Mesh = 1, 
 	Texture,
 	Material,
-	RenderedObject
+	RenderedObject,
+	Gui
 };
 
 template<HandleType Type>
@@ -25,6 +26,7 @@ using MeshHandle = 				BaseHandle<HandleType::Mesh>;
 using TextureHandle = 			BaseHandle<HandleType::Texture>;
 using MaterialHandle = 			BaseHandle<HandleType::Material>;
 using RenderedObjectHandle = 	BaseHandle<HandleType::RenderedObject>;
+using GuiHandle =				BaseHandle<HandleType::Gui>;
 
 struct Vertex
 {

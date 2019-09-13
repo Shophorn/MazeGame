@@ -183,6 +183,7 @@ struct VulkanContext : platform::IGraphicsContext
     VkRenderPass            renderPass;
     VulkanSwapchainItems 	swapchainItems;
     VulkanPipelineItems     pipelineItems;
+    VulkanPipelineItems     guiPipelineItems;
     VulkanSyncObjects       syncObjects;
 
     // MULTISAMPLING
@@ -199,29 +200,30 @@ struct VulkanContext : platform::IGraphicsContext
     VkDescriptorPool      		uniformDescriptorPool;
     VkDescriptorPool      		materialDescriptorPool;
 
-
-
     // Note(Leo): After this these need to be recreated on unload as empty containers
     VulkanBufferResource       	stagingBufferPool;
     VulkanBufferResource 		staticMeshPool;
     VulkanBufferResource 		modelUniformBuffer;
     VulkanBufferResource 		sceneUniformBuffer;
 
-
     std::vector<VulkanModel>  			loadedModels;
 	std::vector<VulkanTexture> 			loadedTextures;
 	std::vector<VulkanMaterial>			loadedMaterials;
 	std::vector<VulkanRenderedObject>	loadedRenderedObjects;
+	std::vector<VulkanRenderedObject>	loadedGuiObjects;
 
     std::vector<VkDescriptorSet>    descriptorSets;
     std::vector<VkDescriptorSet>    sceneDescriptorSets;
 
 
     // IGraphicsContext interface implementation
-    MeshHandle PushMesh(MeshAsset * mesh);
-    TextureHandle PushTexture (TextureAsset * texture);
-    MaterialHandle PushMaterial (MaterialAsset * material);
-    RenderedObjectHandle PushRenderedObject(MeshHandle mesh, MaterialHandle material);
+    MeshHandle 		PushMesh(MeshAsset * mesh);
+    TextureHandle 	PushTexture (TextureAsset * texture);
+    MaterialHandle 	PushMaterial (MaterialAsset * material);
+    
+    RenderedObjectHandle 	PushRenderedObject(MeshHandle mesh, MaterialHandle material);
+    GuiHandle 				PushGui(MeshHandle mesh, MaterialHandle material);
+
     void Apply();
     void UnloadAll();
 };

@@ -12,23 +12,19 @@ struct MemoryArena
 	byte * lastPushed = nullptr;
 
 	uint64 Available () { return size - used; }
+
+	class_member MemoryArena
+	Create(byte * memory, uint64 size)
+	{
+		MemoryArena resultArena = {};
+		resultArena.memory = memory;
+		resultArena.size = size;
+		resultArena.used = 0;
+		return resultArena;
+	}
+
+	void Flush() { used = 0; }
 };
-
-internal MemoryArena
-CreateMemoryArena(byte * memory, uint64 size)
-{
-	MemoryArena resultArena = {};
-	resultArena.memory = memory;
-	resultArena.size = size;
-	resultArena.used = 0;
-	return resultArena;
-}
-
-internal void
-FlushArena(MemoryArena * arena)
-{
-	arena->used = 0;
-}
 
 template<typename Type>
 struct ArenaArray
@@ -39,8 +35,7 @@ struct ArenaArray
 	Type & operator [] (int index)
 	{
 		{
-			MAZEGAME_ASSERT(count > 0, "Array count is zero");
-
+			// TODO(Leo): Find a way to macro this away too
 			char message [200];
 			sprintf(message,"Index (%d) is more than count (%d)", index, count);
 			MAZEGAME_ASSERT (index < count, message);

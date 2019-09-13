@@ -48,7 +48,8 @@ namespace platform
 		virtual TextureHandle 	PushTexture (TextureAsset * asset) 			= 0;
 		virtual MaterialHandle 	PushMaterial (MaterialAsset * material) 	= 0;
 		
-		virtual RenderedObjectHandle PushRenderedObject(MeshHandle mesh, MaterialHandle material) = 0;
+		virtual RenderedObjectHandle 	PushRenderedObject(MeshHandle mesh, MaterialHandle material) = 0;
+		virtual GuiHandle 				PushGui(MeshHandle mesh, MaterialHandle material) = 0;
 
 		virtual void Apply() = 0;
 		virtual void UnloadAll() = 0;
@@ -115,15 +116,37 @@ namespace game
 		/* Todo(Leo): Make a proper container for these
 		It should be such that items are stored as per vulkan physical device's
 		min uniformbuffer alignment, so we can just map the whole container at
-		once to gpu memory. */
+		once to gpu memory. ALthough that may not work, since platform requirements
+		should not leak on game layers.... */
 
 		// Scene (camera, lights, etc)
 		Matrix44 cameraView;
 		Matrix44 cameraPerspective;
 
+
+		// Todo(Leo): Make typesafe arrays here using templated Handles from assets.cpp
 		// Models
 		uint32 modelMatrixCount;
 		Matrix44 * modelMatrixArray;
+
+		void SetModelMatrix(RenderedObjectHandle handle, Matrix44 matrix)
+		{
+			MAZEGAME_ASSERT(handle < modelMatrixCount, "Handle is out of bounds");
+			modelMatrixArray[handle] = matrix;	
+		}
+
+		// Gui
+		uint32 guiCount;
+		Matrix44 * guiMatrixArray;
+
+		void SetGuiMatrix(GuiHandle handle, Matrix44 matrix)
+		{
+			char message [200];
+			sprintf (message, "Handle (%d) is out of bounds (%d)", handle, guiCount);
+
+			MAZEGAME_ASSERT(handle < guiCount, message);
+			guiMatrixArray [handle] = matrix;
+		}
 	};
 	
 	struct NetworkPackage
@@ -180,8 +203,8 @@ namespace std
 
 extern "C" void
 GameUpdate(
-	game::Input * 			input,
-	game::Memory * 			memory,
+	game::Input * 			inpM,
+	§		game::Memory * 			memory,
 	game::PlatformInfo * 	platformInfo,
 	game::Network *			network,
 	game::SoundOutput *		soundOutput,

@@ -1,3 +1,5 @@
+// TODO(Leo): This was early mockup, do somethin useful or REMOVE altogether
+
 #ifndef ARRAY_HPP
 
 template <typename Type, int Count>

@@ -4,7 +4,6 @@ Leo Tamminen
 :MAZEGAME: game code main file.
 =============================================================================*/
 #include "MazegamePlatform.hpp"
-
 #include "Mazegame.hpp"
 
 // Note(Leo): Make unity build here
@@ -12,6 +11,8 @@ Leo Tamminen
 #include "MapGenerator.cpp"
 #include "Camera.cpp"
 
+
+/// Note(Leo): These still use external libraries we may want to get rid of
 #include "AudioFile.cpp"
 #include "MeshLoader.cpp"
 #include "TextureLoader.cpp"
@@ -50,6 +51,11 @@ struct GameState
 	'transientMemoryArena' is intended to be used in asset loading etc.*/
 	MemoryArena persistentMemoryArena;
 	MemoryArena transientMemoryArena;
+
+
+
+
+	GuiHandle testQuad;
 };
 
 void
@@ -57,14 +63,20 @@ InitializeGameState(GameState * state, game::Memory * memory, game::PlatformInfo
 {
 	*state = {};
 
-	state->persistentMemoryArena = CreateMemoryArena(
+	// Note(Leo): Create persistent arena in the same memoryblock as game state, right after it.
+	state->persistentMemoryArena = MemoryArena::Create(
 										reinterpret_cast<byte*>(memory->persistentMemory) + sizeof(GameState),
 										memory->persistentMemorySize - sizeof(GameState));
 
-	state->transientMemoryArena = CreateMemoryArena(
+	state->transientMemoryArena = MemoryArena::Create(
 										reinterpret_cast<byte*>(memory->transientMemory),
 										memory->transientMemorySize);
 
+}
+	
+void 
+LoadMainLevel(GameState * state, game::Memory * memory, game::PlatformInfo * platformInfo)
+{
 	// Create MateriaLs
 	{
 		TextureAsset whiteTextureAsset = {};
@@ -115,14 +127,6 @@ InitializeGameState(GameState * state, game::Memory * memory, game::PlatformInfo
     state->worldCamera.farClipPlane = 1000.0f;
     state->worldCamera.aspectRatio = (real32)platformInfo->windowWidth / (real32)platformInfo->windowHeight;	
 
-	// Characters
-	{
-		auto characterMesh 					= LoadModel(&state->transientMemoryArena, "models/character.obj");
-		auto characterMeshHandle 			= platformInfo->graphicsContext->PushMesh(&characterMesh);
-
-		state->characterObjectHandle 		= platformInfo->graphicsContext->PushRenderedObject(characterMeshHandle, state->characterMaterial);
-		state->otherCharacterObjectHandle 	= platformInfo->graphicsContext->PushRenderedObject(characterMeshHandle, state->characterMaterial);
-	}
 
  	// Level
  	HexMap levelMap;
@@ -136,6 +140,15 @@ InitializeGameState(GameState * state, game::Memory * memory, game::PlatformInfo
 		auto levelMeshHandle 		= platformInfo->graphicsContext->PushMesh(&levelMesh);
 	    state->levelObjectHandle 	= platformInfo->graphicsContext->PushRenderedObject(levelMeshHandle, state->terrainMaterial);
 	}	
+
+	// Characters
+	{
+		auto characterMesh 					= LoadModel(&state->transientMemoryArena, "models/character.obj");
+		auto characterMeshHandle 			= platformInfo->graphicsContext->PushMesh(&characterMesh);
+
+		state->characterObjectHandle 		= platformInfo->graphicsContext->PushRenderedObject(characterMeshHandle, state->characterMaterial);
+		state->otherCharacterObjectHandle 	= platformInfo->graphicsContext->PushRenderedObject(characterMeshHandle, state->characterMaterial);
+	}
 
 	// Scenery
     {
@@ -174,11 +187,14 @@ InitializeGameState(GameState * state, game::Memory * memory, game::PlatformInfo
 	    }
  	}
 
+ 	MeshAsset quadAsset = mesh_primitives::CreateQuad(&state->transientMemoryArena);
+ 	MeshHandle testQuadMesh = platformInfo->graphicsContext->PushMesh(&quadAsset);
+ 	state->testQuad = platformInfo->graphicsContext->PushGui(testQuadMesh, state->characterMaterial);
+
 
  	// Note(Leo): Apply all pushed changes and flush transient memory
     platformInfo->graphicsContext->Apply();
-
-    FlushArena(&state->transientMemoryArena);
+    state->transientMemoryArena.Flush();
 }
 
 void
@@ -223,6 +239,17 @@ CircleCircleCollision(Vector2 pointA, real32 radiusA, Vector2 pointB, real32 rad
 	return result;
 }
 
+internal void 
+UpdateMainLevel(
+	GameState *				state,
+	game::Input * 			input,
+	game::Memory * 			memory,
+	game::PlatformInfo * 	platform,
+	game::Network *			network,
+	game::SoundOutput * 	soundOutput,
+	game::RenderInfo * 		outRenderInfo);
+
+
 extern "C" void
 GameUpdate(
 	game::Input * 			input,
@@ -238,8 +265,28 @@ GameUpdate(
 	{
 		InitializeGameState (state, memory, platform);
 		memory->isInitialized = true;
+
+		LoadMainLevel(state, memory, platform);
 	}
 
+	UpdateMainLevel(state, input, memory, platform, network, soundOutput, outRenderInfo);
+
+	/// Output sound
+	{
+		OutputSound(soundOutput->sampleCount, soundOutput->samples);
+	}
+}
+
+internal void 
+UpdateMainLevel(
+	GameState *				state,
+	game::Input * 			input,
+	game::Memory * 			memory,
+	game::PlatformInfo * 	platform,
+	game::Network *			network,
+	game::SoundOutput * 	soundOutput,
+	game::RenderInfo * 		outRenderInfo)
+{
 	/// Update Character
 	Vector3 characterMovementVector;
 	real32 characterScale = 1;
@@ -284,21 +331,12 @@ GameUpdate(
 
 		bool32 grounded = state->characterPosition.z < 0.1f;
 
-		bool32 jumped = false;
 		if (grounded && input->jump == game::InputButtonState::WentDown)//IsPressed(input->jump))
 		{
-            // std::cout << "JUMPPPP\n";
-            state->characterPosition.z = 0;
-			state->characterZSpeed = 6;
-			jumped = true;
+			state->characterZSpeed = 5;
 		}
 
 		state->characterPosition.z += state->characterZSpeed * input->timeDelta;
-
-		if (jumped)
-		{
-			std::cout << state->characterPosition.z << ", dt: " << input->timeDelta << "\n";
-		}
 
 		if (state->characterPosition.z > 0)
 		{	
@@ -307,6 +345,7 @@ GameUpdate(
 		else
 		{
 			state->characterZSpeed = 0;
+            state->characterPosition.z = 0;
 		}
 
 		
@@ -396,9 +435,9 @@ GameUpdate(
 	    Vector3 cameraParentPosition = state->characterPosition + cameraAdvanceVector + cameraOffsetFromTarget;
 	    */
 
-
-	    Vector3 cameraParentPosition = state->characterPosition + cameraOffsetFromTarget;
-
+	    Vector3 characterGroundedPosition = state->characterPosition;
+	    characterGroundedPosition.z = 0;
+	    Vector3 cameraParentPosition = characterGroundedPosition + cameraOffsetFromTarget;
 	    
 	    state->worldCamera.position = cameraParentPosition + localPosition;
 		state->worldCamera.LookAt(cameraParentPosition);
@@ -413,6 +452,11 @@ GameUpdate(
 			= Matrix44::Translate(state->characterPosition) 
 				* state->characterRotation.ToRotationMatrix()
 				* Matrix44::Scale(characterScale);
+
+
+		// outRenderInfo->modelMatrixArray[state->testQuad] = Matrix44::Translate({0, 0, 0.5});
+		outRenderInfo->SetGuiMatrix(state->testQuad, Matrix44::Translate({0, 0, 0.5}));
+
 
 		if (network->isConnected)
 		{
@@ -436,10 +480,5 @@ GameUpdate(
 		// Ccamera
 	    outRenderInfo->cameraView = state->worldCamera.ViewProjection();
 	    outRenderInfo->cameraPerspective = state->worldCamera.PerspectiveProjection();
-	}
-
-	/// Output sound
-	{
-		OutputSound(soundOutput->sampleCount, soundOutput->samples);
 	}
 }

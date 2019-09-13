@@ -295,6 +295,7 @@ namespace winapi
 
         // Todo(Leo): This seems rather stupid way to organize creation of these...
         resultContext.pipelineItems             = CreateGraphicsPipeline(&resultContext, 3);
+        resultContext.guiPipelineItems          = CreateGuiPipeline(&resultContext, 3);
         resultContext.drawingResources          = CreateDrawingResources(&resultContext);
         resultContext.frameBuffers              = CreateFrameBuffers(&resultContext);
         resultContext.uniformDescriptorPool     = CreateDescriptorPool(resultContext.device, resultContext.swapchainItems.images.size());
@@ -617,9 +618,14 @@ Run(HINSTANCE winInstance)
             gamePlatformInfo.windowHeight = context.swapchainItems.extent.height;
 
             Matrix44 modelMatrixArray [VULKAN_MAX_MODEL_COUNT];
+            Matrix44 guiMatrixArray [VULKAN_MAX_MODEL_COUNT];
 
-            gameRenderInfo.modelMatrixCount = context.loadedModels.size();
+            // TOdo(Leo): is wrong!!!
+            gameRenderInfo.modelMatrixCount = 0;//context.loadedModels.size();
             gameRenderInfo.modelMatrixArray = modelMatrixArray;
+
+            gameRenderInfo.guiCount = context.loadedGuiObjects.size();
+            gameRenderInfo.guiMatrixArray = guiMatrixArray;
 
             gameNetwork.isConnected = network.isConnected;
 
@@ -684,17 +690,18 @@ Run(HINSTANCE winInstance)
             currentLoopingFrameIndex = (currentLoopingFrameIndex + 1) % MAX_FRAMES_IN_FLIGHT;
         }
 
-        /// ----- WAIT FOR TARGET FRAME TIME -----
+        /// ----- WAIT FOR TARGET FRAMETIME -----
         {
             auto currentTimeMark = std::chrono::high_resolution_clock::now();
             real64 currentTimeSeconds = std::chrono::duration<real64, std::chrono::seconds::period>(currentTimeMark - startTimeMark).count();
 
             real64 elapsedSeconds = currentTimeSeconds - frameStartTime;
             real64 timeToSleepSeconds = targetFrameTime - elapsedSeconds;
-            
-            MAZEGAME_ASSERT (timeToSleepSeconds < targetFrameTime, "Bad sleep duration");
 
-            // TODO[time](Leo): Maybe move sleeping to end of frame
+            /* TODO[time](Leo): It seems okay to sleep 0 milliseconds in case the time to sleep ends up being
+            less than 1 millisecond on floating point representation. Also we may want to do a busy loop over
+            remainder time after sleep. This is due to windows scheduler granularity, that is at best on 
+            one millisecond scale. */
             if (timeToSleepSeconds > 0)
             {
                 DWORD timeToSleepMilliSeconds = static_cast<DWORD>(1000 * timeToSleepSeconds);

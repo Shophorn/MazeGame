@@ -94,8 +94,29 @@ VulkanContext::PushRenderedObject(MeshHandle mesh, MaterialHandle material)
     return resultHandle;    
 }
 
+GuiHandle
+VulkanContext::PushGui(MeshHandle mesh, MaterialHandle material)
+{
+    uint32 objectIndex = loadedGuiObjects.size();
+
+    MAZEGAME_NO_INIT VulkanRenderedObject object;
+    object.mesh = mesh;
+    object.material = material;
+
+    uint32 memorySizePerModelMatrix = AlignUpTo(
+        this->physicalDeviceProperties.limits.minUniformBufferOffsetAlignment,
+        sizeof(Matrix44));
+    object.uniformBufferOffset = objectIndex * memorySizePerModelMatrix;
+
+    loadedGuiObjects.push_back(object);
+
+    GuiHandle resultHandle = { objectIndex };
+    return resultHandle;    
+}
+
 void 
 VulkanContext::UnloadAll()
 {
     // TODO(Leo): Actually do this
+    MAZEGAME_ASSERT(false, "Bad function call");
 }
