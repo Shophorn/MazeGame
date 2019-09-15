@@ -3,6 +3,33 @@ Leo Tamminen
 
 Memory managing things in :MAZEGAME:
 =============================================================================*/
+using default_index_type = uint64;
+
+template<typename Type, typename IndexType = default_index_type>
+struct ArenaArray
+{
+	Type * data;
+	uint64 count;
+
+	Type & operator [] (IndexType index)
+	{
+		#if MAZEGAME_DEVELOPMENT
+			char message [200];
+			sprintf(message,"Index (%d) is more than count (%d)", index, count);
+			MAZEGAME_ASSERT (index < count, message);
+		#endif
+
+		return data [index];
+	}
+};
+
+/* 
+Todo(Leo): Think of hiding some members of this, eg. 'lastPushed'.
+
+Todo(Leo): Think if we need to flush more smartly, or actually keep track of
+items more smartly maybe like track item generations, and maybe add per item
+deallocation
+*/
 struct MemoryArena
 {
 	byte * 	memory;
@@ -26,59 +53,34 @@ struct MemoryArena
 	void Flush() { used = 0; }
 };
 
-template<typename Type>
-struct ArenaArray
-{
-	Type * memory;
-	uint64 count;
-
-	Type & operator [] (int index)
-	{
-		{
-			// TODO(Leo): Find a way to macro this away too
-			char message [200];
-			sprintf(message,"Index (%d) is more than count (%d)", index, count);
-			MAZEGAME_ASSERT (index < count, message);
-		}
-
-		return memory [index];
-	}
-};
-
-template<typename Type>
-internal ArenaArray<Type>
+template<typename Type, typename IndexType = default_index_type>
+internal ArenaArray<Type, IndexType>
 PushArray(MemoryArena * arena, uint64 count)
 {
 	uint64 requiredSize = sizeof(Type) * count;
 
-	if (requiredSize <= arena->Available())
-	{
-		// Todo[Memory](Leo): Alignment
-		MAZEGAME_NO_INIT ArenaArray<Type> resultArray;
+	MAZEGAME_ASSERT(requiredSize <= arena->Available(), "Not enough memory available in arena");
 
+	ArenaArray<Type, IndexType> resultArray = {};
 
-		byte * memory = arena->memory + arena->used;
-		resultArray.memory = reinterpret_cast<Type *>(memory);
-		resultArray.count = count;
+	// Todo[Memory](Leo): Alignment
+	byte * memory = arena->memory + arena->used;
+	resultArray.data = reinterpret_cast<Type *>(memory);
+	resultArray.count = count;
 
-		arena->used += requiredSize;
+	arena->used += requiredSize;
 
-		/* Note(Leo): This is saved that we can assure that when we trim latest
-		it actually is the latest */
-		arena->lastPushed = memory;
+	/* Note(Leo): This is saved that we can assure that when we trim latest
+	it actually is the latest */
+	arena->lastPushed = memory;
 
-		return resultArray;
-	}
-	else
-	{
-		MAZEGAME_ASSERT(false, "Not enough memory available in arena");
-	}
+	return resultArray;
 }
 
 template<typename Type> internal void
 ShrinkLastArray(MemoryArena * arena, ArenaArray<Type> * array, uint64 newCount)
 {
-	MAZEGAME_ASSERT(arena->lastPushed == reinterpret_cast<byte *>(array->memory), "Can only shrink last pushed array!");
+	MAZEGAME_ASSERT(arena->lastPushed == reinterpret_cast<byte *>(array->data), "Can only shrink last pushed array!");
 
 	uint64 delta = array->count - newCount;
 	MAZEGAME_ASSERT(delta >= 0, "Can only shrink array to a smaller size");
@@ -88,3 +90,14 @@ ShrinkLastArray(MemoryArena * arena, ArenaArray<Type> * array, uint64 newCount)
 
 	// Note(Leo): We do not to change the lastPushed, because it is still the same address
 }
+
+#if MAZEGAME_DEVELOPMENT
+internal real32 
+GetArenaUsedPercent(MemoryArena * memoryArena)
+{
+	real64 used = memoryArena->used;
+	real64 total = memoryArena->size;
+	real32 result = static_cast<real32>(used / total * 100.0);
+	return result;
+}
+#endif

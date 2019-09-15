@@ -37,5 +37,8 @@ void main()
 
 	outColor.rgb = mix (color, testColor, testMask);
 
+	// outColor.rg = fragTexCoord;
+	// outColor.b = 0;
+
 	outColor.a = 1.0;
 }

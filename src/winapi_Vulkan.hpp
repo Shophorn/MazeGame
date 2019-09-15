@@ -40,6 +40,7 @@ struct VulkanCameraUniformBufferObject
 
 
 
+// Todo (Leo): important this is used like an memory arena somewhere, and like somthing else elsewhere.
 struct VulkanBufferResource
 {
     VkBuffer buffer;
@@ -174,11 +175,12 @@ struct VulkanContext : platform::IGraphicsContext
 	VkQueue 						graphicsQueue;
 	VkQueue 						presentQueue;
 	
-	// Todo(Leo): Why are there 3 of descrtiptorSetLayouts
-    VkDescriptorSetLayout 			descriptorSetLayouts [3];
+	/* Todo(Leo): There is one layout for each [models, scene data, materials].
+	They were originally in array for ease of use, but this is no longer true.*/
+    VkDescriptorSetLayout 	descriptorSetLayouts [3];
+    VkDescriptorSetLayout 	guiDescriptorSetLayout;
 
     std::vector<VkFramebuffer>      frameBuffers;
-
 
     VkRenderPass            renderPass;
     VulkanSwapchainItems 	swapchainItems;
@@ -197,26 +199,38 @@ struct VulkanContext : platform::IGraphicsContext
     sampler can be used with multiple images, noice */
     VkSampler textureSampler;			
 
+    /* Note(Leo): uniform descriptor pool os recreated on swapchain recreate,
+	since they are written and read each frame and thus there needs to be one for
+	every swapchain image. Materials are only read each frame so one set of those
+	is sufficient. However there is one set per material, so the pool is bigger.*/
     VkDescriptorPool      		uniformDescriptorPool;
     VkDescriptorPool      		materialDescriptorPool;
 
-    // Note(Leo): After this these need to be recreated on unload as empty containers
+    std::vector<VkDescriptorSet>    descriptorSets;
+    std::vector<VkDescriptorSet>    sceneDescriptorSets;
+    std::vector<VkDescriptorSet>	guiDescriptorSets;
+
     VulkanBufferResource       	stagingBufferPool;
+    
+    // Note(Leo): After this these need to be recreated on unload as empty containers
     VulkanBufferResource 		staticMeshPool;
     VulkanBufferResource 		modelUniformBuffer;
     VulkanBufferResource 		sceneUniformBuffer;
+    VulkanBufferResource		guiUniformBuffer;
+    
 
+    // Todo(Leo): Use our own arena arrays for these.
     std::vector<VulkanModel>  			loadedModels;
 	std::vector<VulkanTexture> 			loadedTextures;
-	std::vector<VulkanMaterial>			loadedMaterials;
+	std::vector<VulkanMaterial>			loadedMaterials;  // Note(Leo): this is secretly just a VkDescriptorSet
+	
 	std::vector<VulkanRenderedObject>	loadedRenderedObjects;
 	std::vector<VulkanRenderedObject>	loadedGuiObjects;
 
-    std::vector<VkDescriptorSet>    descriptorSets;
-    std::vector<VkDescriptorSet>    sceneDescriptorSets;
 
-
-    // IGraphicsContext interface implementation
+    /// ----- IGraphicsContext interface implementation -----
+	/* Todo(Leo): Making this struct have these and others up is kinda bad mix
+	of different styles, so make that better */
     MeshHandle 		PushMesh(MeshAsset * mesh);
     TextureHandle 	PushTexture (TextureAsset * texture);
     MaterialHandle 	PushMaterial (MaterialAsset * material);
@@ -360,6 +374,10 @@ namespace vulkan
 									TextureHandle albedoHandle,
 									TextureHandle metallicHandle,
 									TextureHandle testMaskHandle);
+
+	internal void
+	DestroyImageTexture(VulkanContext * context, VulkanTexture * texture);
+
 }
 
 #define WIN_VULKAN_HPP

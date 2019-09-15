@@ -37,6 +37,7 @@ VulkanContext::PushMesh(MeshAsset * mesh)
 
     model.buffer = this->staticMeshPool.buffer;
     model.memory = this->staticMeshPool.memory;
+
     model.vertexOffset = this->staticMeshPool.used + vertexOffset;
     model.indexOffset = this->staticMeshPool.used + indexOffset;
     
@@ -97,7 +98,7 @@ VulkanContext::PushRenderedObject(MeshHandle mesh, MaterialHandle material)
 GuiHandle
 VulkanContext::PushGui(MeshHandle mesh, MaterialHandle material)
 {
-    uint32 objectIndex = loadedGuiObjects.size();
+    uint32 guiIndex = loadedGuiObjects.size();
 
     MAZEGAME_NO_INIT VulkanRenderedObject object;
     object.mesh = mesh;
@@ -106,17 +107,37 @@ VulkanContext::PushGui(MeshHandle mesh, MaterialHandle material)
     uint32 memorySizePerModelMatrix = AlignUpTo(
         this->physicalDeviceProperties.limits.minUniformBufferOffsetAlignment,
         sizeof(Matrix44));
-    object.uniformBufferOffset = objectIndex * memorySizePerModelMatrix;
+    object.uniformBufferOffset = guiIndex * memorySizePerModelMatrix;
 
     loadedGuiObjects.push_back(object);
 
-    GuiHandle resultHandle = { objectIndex };
+    GuiHandle resultHandle = { guiIndex };
     return resultHandle;    
 }
 
 void 
 VulkanContext::UnloadAll()
 {
-    // TODO(Leo): Actually do this
-    MAZEGAME_ASSERT(false, "Bad function call");
+    vkDeviceWaitIdle(device);
+
+    // Meshes
+    staticMeshPool.used = 0;
+    loadedModels.resize (0);
+
+    // Textures
+    for (int32 imageIndex = 0; imageIndex < loadedTextures.size(); ++imageIndex)
+    {
+        vulkan::DestroyImageTexture(this, &loadedTextures[imageIndex]);
+    }
+    loadedTextures.resize(0);
+
+    // Materials
+    vkResetDescriptorPool(device, materialDescriptorPool, 0);   
+    loadedMaterials.resize(0);
+
+    // Rendered objects
+    loadedRenderedObjects.resize(0);
+
+    // Gui objects
+    loadedGuiObjects.resize(0);
 }

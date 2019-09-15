@@ -58,38 +58,63 @@ namespace platform
 
 namespace game
 {
-	enum struct InputButtonState
+	struct InputButtonState
 	{
-		/* Note(Leo): These specific values have been selected so that it 
-		is easy to compute value with simple addition based on input values*/
-		IsUp 		= 0,
-		WentDown 	= 1,
-		WentUp 		= 2,
-		IsDown 		= 3
-	
+		enum : int32
+		{
+			/* Note(Leo): These specific values have been selected so that it 
+			is easy to compute value with simple addition based on input values*/
+			IsUp 		= 0,
+			WentDown 	= 1,
+			WentUp 		= 2,
+			IsDown 		= 3
+		} value;
+
+		class_member InputButtonState
+		FromCurrentAndPrevious(bool32 current, bool32 previous)
+		{
+			/* Note(Leo): Sadly bool32 may be other values than 0 or 1.
+			Alternatively we could have taken in actual bool parameters,
+			but it would probably just done same conversion as here, but
+			implicitly, which is not nice. Not sure about this though, but
+			this is not high pressure function so it does not matter so much.*/
+
+			bool32 current01 = current ? 1 : 0;
+			bool32 previous01 = previous ? 1 : 0;
+		
+			InputButtonState result = { (decltype(value))(current01 + 2 * previous01) };
+			return result;
+		}
+
+		bool32 IsClicked() { return value == WentDown; }
+		bool32 IsReleased() { return value == WentUp; }
+		bool32 IsPressed() { return (value == IsDown) || (value == WentDown); }
 	};
 
-	bool32 IsPressed(InputButtonState button)
-	{
-		bool32 result = (button == InputButtonState::IsDown) || (button == InputButtonState::WentDown);
-		return result;
-	}
 
 	struct Input
 	{
 		Vector2 move;
 		Vector2 look;
 
+
+		// Todo(Leo): Do a proper separate mapping struct of meanings of specific buttons
 		InputButtonState jump;
+		InputButtonState confirm;
 
 		// Note(Leo): Start and Select as in controller
 		InputButtonState start;
 		InputButtonState select;
 
-		bool32 zoomIn;
-		bool32 zoomOut;
+		InputButtonState left;
+		InputButtonState right;
+		InputButtonState down;
+		InputButtonState up;
 
-		real32 timeDelta;
+		InputButtonState zoomIn;
+		InputButtonState zoomOut;
+
+		real32 elapsedTime;
 	};
 
 	struct PlatformInfo
@@ -113,40 +138,13 @@ namespace game
 	
 	struct RenderInfo
 	{
-		/* Todo(Leo): Make a proper container for these
-		It should be such that items are stored as per vulkan physical device's
-		min uniformbuffer alignment, so we can just map the whole container at
-		once to gpu memory. ALthough that may not work, since platform requirements
-		should not leak on game layers.... */
-
 		// Scene (camera, lights, etc)
 		Matrix44 cameraView;
 		Matrix44 cameraPerspective;
 
-
-		// Todo(Leo): Make typesafe arrays here using templated Handles from assets.cpp
-		// Models
-		uint32 modelMatrixCount;
-		Matrix44 * modelMatrixArray;
-
-		void SetModelMatrix(RenderedObjectHandle handle, Matrix44 matrix)
-		{
-			MAZEGAME_ASSERT(handle < modelMatrixCount, "Handle is out of bounds");
-			modelMatrixArray[handle] = matrix;	
-		}
-
-		// Gui
-		uint32 guiCount;
-		Matrix44 * guiMatrixArray;
-
-		void SetGuiMatrix(GuiHandle handle, Matrix44 matrix)
-		{
-			char message [200];
-			sprintf (message, "Handle (%d) is out of bounds (%d)", handle, guiCount);
-
-			MAZEGAME_ASSERT(handle < guiCount, message);
-			guiMatrixArray [handle] = matrix;
-		}
+		// Todo(Leo): Are these cool, since they kinda are just pointers to data somewhere else....?? How to know???
+		ArenaArray<Matrix44, RenderedObjectHandle> renderedObjects;
+		ArenaArray<Matrix44, GuiHandle> guiObjects;
 	};
 	
 	struct NetworkPackage
@@ -177,6 +175,11 @@ namespace game
 		int32 sampleCount;
 		StereoSoundSample * samples;
 	};
+
+	struct UpdateResult
+	{
+		bool32 exit;
+	};
 }
 
 #if MAZEGAME_INCLUDE_STD_IOSTREAM
@@ -184,12 +187,12 @@ namespace std
 {
 	ostream & operator << (ostream & os, game::InputButtonState buttonState)
 	{
-		switch (buttonState)
+		switch (buttonState.value)
 		{
-			case game::InputButtonState::IsUp: 		os << "InputButtonState::IsUp"; 		break;
-			case game::InputButtonState::WentDown: 	os << "InputButtonState::WentDown"; 	break;
-			case game::InputButtonState::WentUp: 		os << "InputButtonState::WentUp"; 		break;
-			case game::InputButtonState::IsDown: 		os << "InputButtonState::IsDown"; 		break;
+			case game::InputButtonState::IsUp: 		os << "IsUp"; 		break;
+			case game::InputButtonState::WentDown: 	os << "WentDown"; 	break;
+			case game::InputButtonState::WentUp: 	os << "WentUp"; 	break;
+			case game::InputButtonState::IsDown: 	os << "IsDown"; 	break;
 
 			default: os << "INVALID InputButtonState VALUE";
 		}
@@ -200,11 +203,11 @@ namespace std
 
 #endif
 
-
-extern "C" void
+// TODO(Leo): can we put this into namespace?
+extern "C" game::UpdateResult
 GameUpdate(
 	game::Input * 			inpM,
-	§		game::Memory * 			memory,
+	game::Memory * 			memory,
 	game::PlatformInfo * 	platformInfo,
 	game::Network *			network,
 	game::SoundOutput *		soundOutput,

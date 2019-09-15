@@ -179,6 +179,14 @@ operator /= (VECTOR_TYPE & vec, ValueType num)
 	return vec;
 }
 
+VECTOR_TEMPLATE VECTOR_TYPE
+operator / (VECTOR_TYPE a, VECTOR_TYPE b)
+{
+	VECTOR_TYPE result;
+	VECTOR_LOOP_ELEMENTS { result[i] = a[i] / b[i]; }
+	return result; 
+}
+
 // %%%%%%%%%%%%%% MODULUS %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 VECTOR_TEMPLATE VECTOR_TYPE
 operator % (VECTOR_TYPE vec, ValueType num)

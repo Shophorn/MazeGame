@@ -37,7 +37,7 @@ LoadTextureAsset(const char * assetPath, MemoryArena * memoryArena)
 
 
 
-    memcpy((uint8*)resultTexture.pixels.memory, pixels, imageMemorySize);
+    memcpy((uint8*)resultTexture.pixels.data, pixels, imageMemorySize);
 
     stbi_image_free(pixels);
     return resultTexture;

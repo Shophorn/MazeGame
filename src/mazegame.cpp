@@ -17,6 +17,11 @@ Leo Tamminen
 #include "MeshLoader.cpp"
 #include "TextureLoader.cpp"
 
+struct GuiButton
+{
+	Vector2 position;
+	Vector2 size;
+};
 
 struct GameState
 {
@@ -52,10 +57,14 @@ struct GameState
 	MemoryArena persistentMemoryArena;
 	MemoryArena transientMemoryArena;
 
+	static constexpr int guiButtonCount = 4;
+	GuiButton guiButtons [guiButtonCount];
+	GuiHandle guiButtonHandles[guiButtonCount];
+
+	int32 selectedGuiButtonIndex;
 
 
-
-	GuiHandle testQuad;
+	bool32 levelLoaded = false;
 };
 
 void
@@ -71,6 +80,9 @@ InitializeGameState(GameState * state, game::Memory * memory, game::PlatformInfo
 	state->transientMemoryArena = MemoryArena::Create(
 										reinterpret_cast<byte*>(memory->transientMemory),
 										memory->transientMemorySize);
+
+
+	std::cout << "Screen size = (" << platformInfo->windowWidth << "," << platformInfo->windowHeight << ")\n";
 
 }
 	
@@ -187,10 +199,65 @@ LoadMainLevel(GameState * state, game::Memory * memory, game::PlatformInfo * pla
 	    }
  	}
 
- 	MeshAsset quadAsset = mesh_primitives::CreateQuad(&state->transientMemoryArena);
- 	MeshHandle testQuadMesh = platformInfo->graphicsContext->PushMesh(&quadAsset);
- 	state->testQuad = platformInfo->graphicsContext->PushGui(testQuadMesh, state->characterMaterial);
 
+ 	// Note(Leo): Apply all pushed changes and flush transient memory
+    platformInfo->graphicsContext->Apply();
+    state->transientMemoryArena.Flush();
+}
+
+void
+LoadMenu(GameState * state, game::Memory * memory, game::PlatformInfo * platformInfo)
+{
+	// Create MateriaLs
+	{
+		TextureAsset whiteTextureAsset = {};
+		whiteTextureAsset.pixels = PushArray<uint32>(&state->transientMemoryArena, 1);
+		whiteTextureAsset.pixels[0] = 0xffffffff;
+		whiteTextureAsset.width = 1;
+		whiteTextureAsset.height = 1;
+		whiteTextureAsset.channels = 4;
+
+		TextureAsset blackTextureAsset = {};
+		blackTextureAsset.pixels = PushArray<uint32>(&state->transientMemoryArena, 1);
+		blackTextureAsset.pixels[0] = 0xff000000;
+		blackTextureAsset.width = 1;
+		blackTextureAsset.height = 1;
+		blackTextureAsset.channels = 4;
+
+		TextureHandle whiteTexture = platformInfo->graphicsContext->PushTexture(&whiteTextureAsset);
+		TextureHandle blackTexture = platformInfo->graphicsContext->PushTexture(&blackTextureAsset);
+
+	    TextureAsset textureAssets [] = {
+	        LoadTextureAsset("textures/chalet.jpg", &state->transientMemoryArena),
+	        LoadTextureAsset("textures/lava.jpg", &state->transientMemoryArena),
+	        LoadTextureAsset("textures/texture.jpg", &state->transientMemoryArena),
+	    };
+
+		TextureHandle texA = platformInfo->graphicsContext->PushTexture(&textureAssets[0]);
+		TextureHandle texB = platformInfo->graphicsContext->PushTexture(&textureAssets[1]);
+		TextureHandle texC = platformInfo->graphicsContext->PushTexture(&textureAssets[2]);
+
+		MaterialAsset characterMaterialAsset = {MaterialType::Character, texB, texC, blackTexture};
+		MaterialAsset sceneryMaterialAsset = {MaterialType::Terrain, texA, texA, blackTexture};
+		MaterialAsset terrainMaterialAsset = {MaterialType::Terrain, texA, texA, whiteTexture};
+
+		state->characterMaterial = platformInfo->graphicsContext->PushMaterial(&characterMaterialAsset);
+		state->sceneryMaterial = platformInfo->graphicsContext->PushMaterial(&sceneryMaterialAsset);
+		state->terrainMaterial = platformInfo->graphicsContext->PushMaterial(&terrainMaterialAsset);
+	}
+
+	state->guiButtons[0] = {380, 200, 180, 40};
+	state->guiButtons[1] = {380, 260, 180, 40};
+	state->guiButtons[2] = {380, 320, 180, 40};
+	state->guiButtons[3] = {380, 380, 180, 40};
+
+	MeshAsset quadAsset = mesh_primitives::CreateQuad(&state->transientMemoryArena);
+ 	MeshHandle quadHandle = platformInfo->graphicsContext->PushMesh(&quadAsset);
+
+	for (int guiButtonIndex = 0; guiButtonIndex < 4; ++guiButtonIndex)
+	{
+		state->guiButtonHandles[guiButtonIndex] = platformInfo->graphicsContext->PushGui(quadHandle, state->characterMaterial);
+	}
 
  	// Note(Leo): Apply all pushed changes and flush transient memory
     platformInfo->graphicsContext->Apply();
@@ -239,6 +306,8 @@ CircleCircleCollision(Vector2 pointA, real32 radiusA, Vector2 pointB, real32 rad
 	return result;
 }
 
+enum MenuResult { MENU_NONE, MENU_EXIT, MENU_LOADLEVEL };
+
 internal void 
 UpdateMainLevel(
 	GameState *				state,
@@ -249,8 +318,19 @@ UpdateMainLevel(
 	game::SoundOutput * 	soundOutput,
 	game::RenderInfo * 		outRenderInfo);
 
+internal MenuResult 
+UpdateMenu(
+	GameState *				state,
+	game::Input * 			input,
+	game::Memory * 			memory,
+	game::PlatformInfo * 	platform,
+	game::Network *			network,
+	game::SoundOutput * 	soundOutput,
+	game::RenderInfo * 		outRenderInfo);
 
-extern "C" void
+
+
+extern "C" game::UpdateResult
 GameUpdate(
 	game::Input * 			input,
 	game::Memory * 			memory,
@@ -266,15 +346,115 @@ GameUpdate(
 		InitializeGameState (state, memory, platform);
 		memory->isInitialized = true;
 
-		LoadMainLevel(state, memory, platform);
+		LoadMenu(state, memory, platform);
 	}
 
-	UpdateMainLevel(state, input, memory, platform, network, soundOutput, outRenderInfo);
+	game::UpdateResult result = { false };
+	if (state->levelLoaded == false)
+	{
+		MenuResult menuResult = UpdateMenu(state, input, memory, platform, network, soundOutput, outRenderInfo);
+		if (menuResult == MENU_EXIT)
+		{
+			result = { true };
+		}
+		else if (menuResult == MENU_LOADLEVEL)
+		{
+			platform->graphicsContext->UnloadAll();
+			LoadMainLevel(state, memory, platform);
+			state->levelLoaded = true;
+		}
+	}
+	else
+	{
+		UpdateMainLevel(state, input, memory, platform, network, soundOutput, outRenderInfo);
+	}
 
+
+	
 	/// Output sound
 	{
 		OutputSound(soundOutput->sampleCount, soundOutput->samples);
 	}
+
+	return result;
+}
+
+internal MenuResult 
+UpdateMenu(
+	GameState *				state,
+	game::Input * 			input,
+	game::Memory * 			memory,
+	game::PlatformInfo * 	platform,
+	game::Network *			network,
+	game::SoundOutput * 	soundOutput,
+	game::RenderInfo * 		outRenderInfo)
+{
+	// Input
+	MenuResult result = MENU_NONE;
+	{
+		if (input->down.IsClicked())
+		{
+			state->selectedGuiButtonIndex += 1;
+			state->selectedGuiButtonIndex %= GameState::guiButtonCount;
+		}
+
+		if (input->up.IsClicked())
+		{
+			state->selectedGuiButtonIndex -= 1;
+			if (state->selectedGuiButtonIndex < 0)
+			{
+				state->selectedGuiButtonIndex = GameState::guiButtonCount - 1;
+			}
+		}
+
+		if (input->confirm.IsClicked())
+		{
+			switch (state->selectedGuiButtonIndex)
+			{
+				case 0: 
+					std::cout << "Start game\n";
+					result = MENU_LOADLEVEL;
+					break;
+
+				case 1: std::cout << "Options\n"; break;
+				case 2: std::cout << "Credits\n"; break;
+				
+				case 3:
+					std::cout << "Exit\n";
+					result = MENU_EXIT;
+					break;
+			}
+		}
+	}
+
+	/// Output Render info
+	{
+		Vector2 windowSize = {(real32)platform->windowWidth, (real32)platform->windowHeight};
+		Vector2 halfWindowSize = windowSize / 2.0f;
+
+		for (int  guiButtonIndex = 0; guiButtonIndex < 4; ++guiButtonIndex)
+		{
+			Vector2 guiTranslate = state->guiButtons[guiButtonIndex].position / halfWindowSize - 1.0f;
+			Vector2 guiScale = state->guiButtons[guiButtonIndex].size / halfWindowSize;
+
+			if (guiButtonIndex == state->selectedGuiButtonIndex)
+			{
+				guiTranslate = (state->guiButtons[guiButtonIndex].position - Vector2{15, 15}) / halfWindowSize - 1.0f;
+				guiScale = (state->guiButtons[guiButtonIndex].size + Vector2{30, 30}) / halfWindowSize;
+			}
+
+			Matrix44 guiTransform = Matrix44::Translate({guiTranslate.x, guiTranslate.y, 0}) * Matrix44::Scale({guiScale.x, guiScale.y, 1.0});
+
+			outRenderInfo->guiObjects[state->guiButtonHandles[guiButtonIndex]] = guiTransform;
+
+		}
+
+		// Ccamera
+	    outRenderInfo->cameraView = state->worldCamera.ViewProjection();
+	    outRenderInfo->cameraPerspective = state->worldCamera.PerspectiveProjection();
+	}
+
+	return result;
 }
 
 internal void 
@@ -301,7 +481,7 @@ UpdateMainLevel(
 		Vector3 viewAlignedInputVector = viewRight * input->move.x + viewForward * input->move.y;
 		characterMovementVector = viewAlignedInputVector;
 
-		Vector3 characterNewPosition = state->characterPosition + viewAlignedInputVector * characterSpeed * input->timeDelta;
+		Vector3 characterNewPosition = state->characterPosition + viewAlignedInputVector * characterSpeed * input->elapsedTime;
 
 		// Collisions
 		real32 treeCollisionRadius = 0.5f;
@@ -331,16 +511,16 @@ UpdateMainLevel(
 
 		bool32 grounded = state->characterPosition.z < 0.1f;
 
-		if (grounded && input->jump == game::InputButtonState::WentDown)//IsPressed(input->jump))
+		if (grounded && input->jump.IsClicked())// == game::InputButtonState::WentDown)//IsPressed(input->jump))
 		{
 			state->characterZSpeed = 5;
 		}
 
-		state->characterPosition.z += state->characterZSpeed * input->timeDelta;
+		state->characterPosition.z += state->characterZSpeed * input->elapsedTime;
 
 		if (state->characterPosition.z > 0)
 		{	
-			state->characterZSpeed -= 2 * 9.81 * input->timeDelta;
+			state->characterZSpeed -= 2 * 9.81 * input->elapsedTime;
 		}
 		else
 		{
@@ -360,11 +540,11 @@ UpdateMainLevel(
 		state->characterRotation = Quaternion::AxisAngle(World::Up, state->characterZRotationRadians);
 
 		// Test(Leo): start and select buttons
-		if (IsPressed(input->start))
+		if (input->start.IsPressed())
 		{
 			characterScale = 2.0f;
 		}
-		else if(IsPressed(input->select))
+		else if(input->select.IsPressed())
 		{
 			characterScale = 0.5f;
 		}
@@ -396,24 +576,24 @@ UpdateMainLevel(
 
 		Vector3 cameraOffsetFromTarget = World::Up * 2.0f;
 
-		if (input->zoomIn)
+		if (input->zoomIn.IsPressed())
 		{
-			// state->worldCamera.fieldOfView -= input->timeDelta * 15;
+			// state->worldCamera.fieldOfView -= input->elapsedTime * 15;
 			// state->worldCamera.fieldOfView = Max(state->worldCamera.fieldOfView, 10.0f);
-			state->cameraDistance -= zoomSpeed * input->timeDelta;
+			state->cameraDistance -= zoomSpeed * input->elapsedTime;
 			state->cameraDistance = Max(state->cameraDistance, minDistance);
 		}
-		else if(input->zoomOut)
+		else if(input->zoomOut.IsPressed())
 		{
-			// state->worldCamera.fieldOfView += input->timeDelta * 15;
+			// state->worldCamera.fieldOfView += input->elapsedTime * 15;
 			// state->worldCamera.fieldOfView = Min(state->worldCamera.fieldOfView, 100.0f);
-			state->cameraDistance += zoomSpeed * input->timeDelta;
+			state->cameraDistance += zoomSpeed * input->elapsedTime;
 			state->cameraDistance = Min(state->cameraDistance, maxDistance);
 		}
 
-	    state->cameraOrbitDegrees += input->look.x * cameraRotateSpeed * input->timeDelta;
+	    state->cameraOrbitDegrees += input->look.x * cameraRotateSpeed * input->elapsedTime;
 	    
-	    state->cameraTumbleDegrees += input->look.y * cameraRotateSpeed * input->timeDelta;
+	    state->cameraTumbleDegrees += input->look.y * cameraRotateSpeed * input->elapsedTime;
 	    state->cameraTumbleDegrees = Clamp(state->cameraTumbleDegrees, cameraTumbleMin, cameraTumbleMax);
 
 	    real32 cameraDistance = state->cameraDistance;
@@ -444,35 +624,30 @@ UpdateMainLevel(
 	}
 
 	/// Output Render info
-	// Todo(Leo): Get info about limits of render output and constraint to those
+	// Todo(Leo): Get info about limits of render output array sizes and constraint to those
 	{
-		outRenderInfo->modelMatrixArray[state->levelObjectHandle] = Matrix44::Identity();
+		outRenderInfo->renderedObjects[state->levelObjectHandle] = Matrix44::Identity();
 
-		outRenderInfo->modelMatrixArray[state->characterObjectHandle]
+		outRenderInfo->renderedObjects[state->characterObjectHandle]
 			= Matrix44::Translate(state->characterPosition) 
 				* state->characterRotation.ToRotationMatrix()
 				* Matrix44::Scale(characterScale);
 
-
-		// outRenderInfo->modelMatrixArray[state->testQuad] = Matrix44::Translate({0, 0, 0.5});
-		outRenderInfo->SetGuiMatrix(state->testQuad, Matrix44::Translate({0, 0, 0.5}));
-
-
 		if (network->isConnected)
 		{
-			outRenderInfo->modelMatrixArray[state->otherCharacterObjectHandle]
+			outRenderInfo->renderedObjects[state->otherCharacterObjectHandle]
 				= Matrix44::Translate(state->otherCharacterPosition) * state->otherCharacterRotation.ToRotationMatrix();
 		}
 		else
 		{
-			outRenderInfo->modelMatrixArray[state->otherCharacterObjectHandle] = {};
+			outRenderInfo->renderedObjects[state->otherCharacterObjectHandle] = {};
 		}
 
 		// Trees
 		for (int sceneryIndex = 0; sceneryIndex < state->sceneryCount; ++sceneryIndex)
 		{
 			real32 treeScale = 4.0f;
-			outRenderInfo->modelMatrixArray[state->sceneryObjectHandles[sceneryIndex]]
+			outRenderInfo->renderedObjects[state->sceneryObjectHandles[sceneryIndex]]
 				= Matrix44::Translate(state->sceneryPositions[sceneryIndex])
 				* Matrix44::Scale(treeScale);
 		}

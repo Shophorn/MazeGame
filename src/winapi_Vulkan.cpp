@@ -1225,7 +1225,7 @@ CreateGuiPipeline(VulkanContext * context, int32 descriptorSetLayoutCount)
     rasterizer.rasterizerDiscardEnable = VK_FALSE;
     rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
     rasterizer.lineWidth = 1.0f;
-    rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
+    rasterizer.cullMode = VK_CULL_MODE_NONE;
     rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
     rasterizer.depthBiasEnable = VK_FALSE;
     rasterizer.depthBiasConstantFactor = 0.0f;
@@ -1556,7 +1556,7 @@ CreateDescriptorPool(VkDevice device, int32 swapchainImageCount)
     VkDescriptorPoolSize poolSizes [count] = {};
 
     poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
-    poolSizes[0].descriptorCount = swapchainImageCount; 
+    poolSizes[0].descriptorCount = swapchainImageCount * 2; // Note(Leo): 2 = 1 for 3d models and 1 for gui 
 
     // TODO(Leo): Hack from past, REMOVE
     int randomMultiplierForTesting = 20;
@@ -1594,6 +1594,50 @@ CreateMaterialDescriptorPool(VkDevice device)
         "Failed to create descriptor pool for materials!");
     return result;
 
+}
+
+internal std::vector<VkDescriptorSet>
+CreateGuiDescriptorSets(VulkanContext * context)
+{
+    /* Note(Leo): Create vector of [imageCount] copies from descriptorSetLayout
+    for allocation */
+    int imageCount = context->swapchainItems.images.size();
+    std::vector<VkDescriptorSetLayout> layouts (imageCount, context->guiDescriptorSetLayout);
+
+    VkDescriptorSetAllocateInfo allocateInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO };
+    allocateInfo.descriptorPool = context->uniformDescriptorPool;
+    allocateInfo.descriptorSetCount = imageCount;
+    allocateInfo.pSetLayouts = &layouts[0];
+
+    std::vector<VkDescriptorSet> resultDescriptorSets(imageCount);
+    if (vkAllocateDescriptorSets(context->device, &allocateInfo, &resultDescriptorSets[0]) != VK_SUCCESS)
+    {
+        throw std::runtime_error("Failed to allocate DESCRIPTOR SETS");
+    }
+
+    for (int imageIndex = 0; imageIndex < imageCount; ++imageIndex)
+    {
+        VkWriteDescriptorSet descriptorWrites [1] = {};
+
+        // MODEL UNIFORM BUFFERS
+        VkDescriptorBufferInfo guiBufferInfo = {};
+        guiBufferInfo.buffer = context->guiUniformBuffer.buffer;
+        guiBufferInfo.offset = vulkan::GetModelUniformBufferOffsetForSwapchainImages(context, imageIndex);
+        guiBufferInfo.range = sizeof(Matrix44);
+
+        descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[0].dstSet = resultDescriptorSets[imageIndex];
+        descriptorWrites[0].dstBinding = DESCRIPTOR_LAYOUT_MODEL_BINDING;
+        descriptorWrites[0].dstArrayElement = 0;
+        descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+        descriptorWrites[0].descriptorCount = 1;
+        descriptorWrites[0].pBufferInfo = &guiBufferInfo;
+
+        // Note(Leo): Two first are write info, two latter are copy info
+        vkUpdateDescriptorSets(context->device, 1, &descriptorWrites[0], 0, nullptr);
+    }
+
+    return resultDescriptorSets;
 }
 
 internal std::vector<VkDescriptorSet>
@@ -1892,7 +1936,7 @@ vulkan::CreateImageTexture(TextureAsset * asset, VulkanContext * context)
 
     void * data;
     vkMapMemory(context->device, context->stagingBufferPool.memory, 0, imageSize, 0, &data);
-    memcpy (data, (void*)asset->pixels.memory, imageSize);
+    memcpy (data, (void*)asset->pixels.data, imageSize);
     vkUnmapMemory(context->device, context->stagingBufferPool.memory);
 
     CreateImageAndMemory(context->device, context->physicalDevice,
@@ -1934,7 +1978,7 @@ vulkan::CreateImageTexture(TextureAsset * asset, VulkanContext * context)
 }
 
 internal void
-DestroyImageTexture(VulkanContext * context, VulkanTexture * texture)
+vulkan::DestroyImageTexture(VulkanContext * context, VulkanTexture * texture)
 {
     vkDestroyImage(context->device, texture->image, nullptr);
     vkFreeMemory(context->device, texture->memory, nullptr);
@@ -1989,8 +2033,14 @@ CleanupSwapchain(VulkanContext * context)
         vkDestroyFramebuffer(context->device, framebuffer, nullptr);
     }
 
+    // Normal graphics
     vkDestroyPipeline(context->device, context->pipelineItems.pipeline, nullptr);
     vkDestroyPipelineLayout(context->device, context->pipelineItems.layout, nullptr);
+
+    // Gui graphics
+    vkDestroyPipeline(context->device, context->guiPipelineItems.pipeline, nullptr);
+    vkDestroyPipelineLayout(context->device, context->guiPipelineItems.layout, nullptr);    
+
     vkDestroyRenderPass(context->device, context->renderPass, nullptr);
 
     for (auto imageView : context->swapchainItems.imageViews)
@@ -2009,7 +2059,7 @@ Cleanup(VulkanContext * context)
 
     for (int i = 0; i < context->loadedTextures.size(); ++i)
     {
-        DestroyImageTexture(context, &context->loadedTextures[i]);
+        vulkan::DestroyImageTexture(context, &context->loadedTextures[i]);
     }
 
     vkDestroySampler(context->device, context->textureSampler, nullptr);
@@ -2017,11 +2067,13 @@ Cleanup(VulkanContext * context)
     vkDestroyDescriptorSetLayout(context->device, context->descriptorSetLayouts[DESCRIPTOR_SET_LAYOUT_MODEL_UNIFORM], nullptr);  
     vkDestroyDescriptorSetLayout(context->device, context->descriptorSetLayouts[DESCRIPTOR_SET_LAYOUT_SCENE_UNIFORM], nullptr);  
     vkDestroyDescriptorSetLayout(context->device, context->descriptorSetLayouts[DESCRIPTOR_SET_LAYOUT_MATERIAL], nullptr);  
+    vkDestroyDescriptorSetLayout(context->device, context->guiDescriptorSetLayout, nullptr);  
 
     vulkan::DestroyBufferResource(context->device, &context->staticMeshPool);
     vulkan::DestroyBufferResource(context->device, &context->stagingBufferPool);
     vulkan::DestroyBufferResource(context->device, &context->modelUniformBuffer);
     vulkan::DestroyBufferResource(context->device, &context->sceneUniformBuffer);
+    vulkan::DestroyBufferResource(context->device, &context->guiUniformBuffer);
 
     for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i)
     {
@@ -2076,6 +2128,25 @@ CreateCommandBuffers(VulkanContext * context)
         renderInfos[objectIndex].materialIndex          = materialHandle;
     }
 
+    int32 guiCount = context->loadedGuiObjects.size();
+    VulkanRenderInfo guiInfos [VULKAN_MAX_MODEL_COUNT];
+
+    for (int32 guiIndex = 0; guiIndex < guiCount; ++guiIndex)
+    {
+        MeshHandle meshHandle           = context->loadedGuiObjects[guiIndex].mesh;
+        MaterialHandle materialHandle   = context->loadedGuiObjects[guiIndex].material;
+
+        guiInfos[guiIndex].meshBuffer             = context->loadedModels[meshHandle].buffer; 
+        guiInfos[guiIndex].vertexOffset           = context->loadedModels[meshHandle].vertexOffset;
+        guiInfos[guiIndex].indexOffset            = context->loadedModels[meshHandle].indexOffset;
+        guiInfos[guiIndex].indexCount             = context->loadedModels[meshHandle].indexCount;
+        guiInfos[guiIndex].indexType              = context->loadedModels[meshHandle].indexType;
+
+        guiInfos[guiIndex].uniformBufferOffset    = context->loadedGuiObjects[guiIndex].uniformBufferOffset;
+        
+        guiInfos[guiIndex].materialIndex          = materialHandle;   
+    }
+
     for (int frameIndex = 0; frameIndex < context->frameCommandBuffers.size(); ++frameIndex)
     {
         VkCommandBuffer commandBuffer = context->frameCommandBuffers[frameIndex];
@@ -2107,28 +2178,65 @@ CreateCommandBuffers(VulkanContext * context)
         renderPassInfo.pClearValues = &clearValues [0];
 
         vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
-        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, context->pipelineItems.pipeline);
-
-
-        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, context->pipelineItems.layout,
-                                0, 1, &context->sceneDescriptorSets[frameIndex], 0, nullptr);
-
-        for (int objectIndex = 0; objectIndex < objectCount; ++objectIndex)
+        
+        // Normal 3d graphics
         {
-            // Bind material
-            auto materialIndex = renderInfos[objectIndex].materialIndex;
+            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, context->pipelineItems.pipeline);
 
-            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, context->pipelineItems.layout,
-                                    1, 1, &context->loadedMaterials[materialIndex], 0, nullptr);
-            // Bind model info
-            vkCmdBindVertexBuffers(commandBuffer, 0, 1, &renderInfos[objectIndex].meshBuffer, &renderInfos[objectIndex].vertexOffset);
-            vkCmdBindIndexBuffer(commandBuffer, renderInfos[objectIndex].meshBuffer, renderInfos[objectIndex].indexOffset, renderInfos[objectIndex].indexType);
 
-            // Bind entity transform
-            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, context->pipelineItems.layout,
-                                    2, 1, &context->descriptorSets[frameIndex], 1,&renderInfos[objectIndex].uniformBufferOffset);
+            vkCmdBindDescriptorSets(    commandBuffer,
+                                        VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                        context->pipelineItems.layout,
+                                        0, 1, 
+                                        &context->sceneDescriptorSets[frameIndex],
+                                        0, nullptr);
 
-            vkCmdDrawIndexed(commandBuffer, renderInfos[objectIndex].indexCount, 1, 0, 0, 0);
+            for (int objectIndex = 0; objectIndex < objectCount; ++objectIndex)
+            {
+                // Bind material
+                auto materialIndex = renderInfos[objectIndex].materialIndex;
+                vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, context->pipelineItems.layout,
+                                        1, 1, &context->loadedMaterials[materialIndex], 0, nullptr);
+                // Bind model info
+                vkCmdBindVertexBuffers(commandBuffer, 0, 1, &renderInfos[objectIndex].meshBuffer, &renderInfos[objectIndex].vertexOffset);
+                vkCmdBindIndexBuffer(commandBuffer, renderInfos[objectIndex].meshBuffer, renderInfos[objectIndex].indexOffset, renderInfos[objectIndex].indexType);
+
+                // Bind entity transform
+                vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, context->pipelineItems.layout,
+                                        2, 1, &context->descriptorSets[frameIndex], 1,&renderInfos[objectIndex].uniformBufferOffset);
+
+                vkCmdDrawIndexed(commandBuffer, renderInfos[objectIndex].indexCount, 1, 0, 0, 0);
+            }
+        }
+
+        // 2d gui pipeline
+        {
+            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, context->guiPipelineItems.pipeline);
+
+
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, context->guiPipelineItems.layout,
+                                    0, 1, &context->sceneDescriptorSets[frameIndex], 0, nullptr);
+
+            for (int guiIndex = 0; guiIndex < guiCount; ++guiIndex)
+            {
+                // Bind material
+                auto materialIndex = guiInfos[guiIndex].materialIndex;
+
+                vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, context->guiPipelineItems.layout,
+                                        1, 1, &context->loadedMaterials[materialIndex], 0, nullptr);
+                // Bind model info
+                vkCmdBindVertexBuffers(commandBuffer, 0, 1, &guiInfos[guiIndex].meshBuffer, &guiInfos[guiIndex].vertexOffset);
+                vkCmdBindIndexBuffer(commandBuffer, guiInfos[guiIndex].meshBuffer, guiInfos[guiIndex].indexOffset, guiInfos[guiIndex].indexType);
+
+                // Bind entity transform
+                vkCmdBindDescriptorSets(    commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                            context->guiPipelineItems.layout,
+                                            2, 1, 
+                                            &context->guiDescriptorSets[frameIndex], 1,
+                                            &guiInfos[guiIndex].uniformBufferOffset);
+
+                vkCmdDrawIndexed(commandBuffer, guiInfos[guiIndex].indexCount, 1, 0, 0, 0);
+            }
         }
 
         vkCmdEndRenderPass(commandBuffer);
@@ -2154,19 +2262,31 @@ internal void
 vulkan::UpdateUniformBuffer(VulkanContext * context, uint32 imageIndex, game::RenderInfo * renderInfo)
 {
     // Todo(Leo): Single mapping is really enough, offsets can be used here too
-    Matrix44 * pModelMatrix;
     uint32 startUniformBufferOffset = vulkan::GetModelUniformBufferOffsetForSwapchainImages(context, imageIndex);
 
     int32 modelCount = context->loadedRenderedObjects.size();
-    for (int modelIndex = 0; modelIndex < modelCount; ++modelIndex)
+    for (RenderedObjectHandle handle = {0}; handle < modelCount; ++handle.index)
     {
+        Matrix44 * pModelMatrix;
         vkMapMemory(context->device, context->modelUniformBuffer.memory, 
-                    startUniformBufferOffset + context->loadedRenderedObjects[modelIndex].uniformBufferOffset,
+                    startUniformBufferOffset + context->loadedRenderedObjects[handle].uniformBufferOffset,
                     sizeof(pModelMatrix), 0, (void**)&pModelMatrix);
 
-        *pModelMatrix = renderInfo->modelMatrixArray[modelIndex];
-
+        *pModelMatrix = renderInfo->renderedObjects[handle];
         vkUnmapMemory(context->device, context->modelUniformBuffer.memory);
+
+    }
+
+    int guiCount = context->loadedGuiObjects.size();
+    for (GuiHandle handle = {0}; handle < guiCount; ++handle.index)
+    {
+        Matrix44 * pGuiMatrix;
+        vkMapMemory(context->device, context->guiUniformBuffer.memory,
+                    startUniformBufferOffset + context->loadedGuiObjects[handle].uniformBufferOffset,
+                    sizeof(pGuiMatrix), 0, (void**)&pGuiMatrix);
+
+        *pGuiMatrix = renderInfo->guiObjects[handle];
+        vkUnmapMemory(context->device, context->guiUniformBuffer.memory);
     }
 
     // Note (Leo): map vulkan memory directly to right type so we can easily avoid one (small) memcpy per frame
@@ -2200,6 +2320,7 @@ vulkan::RecreateSwapchain(VulkanContext * context, VkExtent2D frameBufferSize)
 
 
     context->descriptorSets = CreateModelDescriptorSets(context);
+    context->guiDescriptorSets = CreateGuiDescriptorSets(context);
 
     context->sceneDescriptorSets = CreateSceneDescriptorSets(context);
 

@@ -84,12 +84,11 @@ namespace mesh_primitives
 		int vertexCount = 4;
 		result.vertices = PushArray<Vertex>(memoryArena, vertexCount);
 
-		// 					   position			   normal 	color 	 uv
-		result.vertices[0] = {-radius, -radius, 0, 0, 0, 1, 1, 1, 1, 0, 0};
-		result.vertices[1] = { radius, -radius, 0, 0, 0, 1, 1, 1, 1, 1, 0};
-		result.vertices[2] = {-radius,  radius, 0, 0, 0, 1, 1, 1, 1, 0, 1};
-		result.vertices[3] = { radius,  radius, 0, 0, 0, 1, 1, 1, 1, 1, 1};
-
+		// 					  position normal   color    uv
+		result.vertices[0] = {0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0};
+		result.vertices[1] = {1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0};
+		result.vertices[2] = {0, 1, 0, 0, 0, 1, 1, 1, 1, 0, 1};
+		result.vertices[3] = {1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1};
 
 		int indexCount = 6;
 		result.indices = PushArray<uint16>(memoryArena, indexCount);
@@ -100,7 +99,6 @@ namespace mesh_primitives
 		result.indices [3] = 2;
 		result.indices [4] = 1;
 		result.indices [5] = 3;
-
 
 		return result;
 	}

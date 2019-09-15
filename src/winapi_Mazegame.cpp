@@ -136,22 +136,26 @@ UpdateControllerInput(game::Input * input)
     and disconnected and possibly ending at different index. 
 
     TODO [Input](Leo): Test controller and index behaviour when being connected and
-    disconnected
-
-    TODO [Input] (Leo): Went down happenings are missed, maybe do controller checking
-    other thread even more frequently or look for sticky buttons.
-    */
+    disconnected */
     local_persist bool32
-        aButtonWasDown      = false,
-        startButtonWasDown  = false,
-        backButtonWasDown   = false;
+        aButtonWasDown          = false,
+        bButtonWasDown          = false,
 
-    // We use pointer instead of return value, since we store other data to input too.
-    // Note(Leo): Only get input from first controller, locally this is a single player game
+        startButtonWasDown      = false,
+        backButtonWasDown       = false,
+        zoomInButtonWasDown     = false,
+        zoomOutButtonWasDown    = false,
+
+        leftButtonWasDown       = false,
+        rightButtonWasDown      = false,
+        downButtonWasDown       = false,
+        upButtonWasDown         = false;
+
+
+    /* Note(Leo): Only get input from a single controller, locally this is a single
+    player game. Use global controller index depending on network status to test
+    multiplayering */
     XINPUT_STATE controllerState;
-
-    // Note(Leo): Use global controller index depending on network status to test multiplayering
-    // DWORD result = XInputGetState(0, &controllerState);
     DWORD result = XInputGetState(globalXinputControllerIndex, &controllerState);
 
     if (result == ERROR_SUCCESS)
@@ -167,29 +171,30 @@ UpdateControllerInput(game::Input * input)
         input->look = ClampLength(input->look, 1.0f);
 
         uint16 pressedButtons = controllerState.Gamepad.wButtons;
-
-        // TOdo(Leo): use InputButtonState
-        bool32 zoomIn = (pressedButtons & XINPUT_GAMEPAD_LEFT_SHOULDER) != 0;
-        bool32 zoomOut = (pressedButtons & XINPUT_GAMEPAD_RIGHT_SHOULDER) != 0;
-
-        input->zoomIn = zoomIn && !zoomOut;
-        input->zoomOut = zoomOut && !zoomIn;
-
         auto ProcessButton = [pressedButtons](uint32 button, bool32 * wasDown) -> game::InputButtonState
         {
             bool32 isDown = (pressedButtons & button) != 0;
-            auto result = static_cast<game::InputButtonState>(isDown + 2 * (*wasDown));
+            auto result = game::InputButtonState::FromCurrentAndPrevious(7 * isDown, 18 * (*wasDown));
             *wasDown = isDown;
             return result;
         };
 
-        input->jump = ProcessButton(XINPUT_GAMEPAD_A, &aButtonWasDown);
-        input->start = ProcessButton(XINPUT_GAMEPAD_START, &startButtonWasDown);
-        input->select = ProcessButton(XINPUT_GAMEPAD_BACK, &backButtonWasDown);
+        input->jump     = ProcessButton(XINPUT_GAMEPAD_A, &aButtonWasDown);
+        input->confirm  = ProcessButton(XINPUT_GAMEPAD_B, &bButtonWasDown);
+
+        input->start    = ProcessButton(XINPUT_GAMEPAD_START, &startButtonWasDown);
+        input->select   = ProcessButton(XINPUT_GAMEPAD_BACK, &backButtonWasDown);
+        input->zoomIn   = ProcessButton(XINPUT_GAMEPAD_LEFT_SHOULDER, &zoomInButtonWasDown);
+        input->zoomOut  = ProcessButton(XINPUT_GAMEPAD_RIGHT_SHOULDER, &zoomInButtonWasDown);
+
+        input->left     = ProcessButton(XINPUT_GAMEPAD_DPAD_LEFT, &leftButtonWasDown);
+        input->right    = ProcessButton(XINPUT_GAMEPAD_DPAD_RIGHT, &rightButtonWasDown);
+        input->down     = ProcessButton(XINPUT_GAMEPAD_DPAD_DOWN, &downButtonWasDown);
+        input->up       = ProcessButton(XINPUT_GAMEPAD_DPAD_UP, &upButtonWasDown);
     }
     else 
     {
-
+        // No controller?????
     }
 }
 
@@ -290,8 +295,10 @@ namespace winapi
         resultContext.renderPass          = CreateRenderPass(&resultContext, &resultContext.swapchainItems, resultContext.msaaSamples);
         
         resultContext.descriptorSetLayouts[DESCRIPTOR_SET_LAYOUT_SCENE_UNIFORM]   = CreateSceneDescriptorSetLayout(resultContext.device);
-        resultContext.descriptorSetLayouts[DESCRIPTOR_SET_LAYOUT_MATERIAL]        = CreateMaterialDescriptorSetLayout(resultContext.device);
+        resultContext.descriptorSetLayouts[DESCRIPTOR_SET_LAYOUT_MATERIAL]       = CreateMaterialDescriptorSetLayout(resultContext.device);
         resultContext.descriptorSetLayouts[DESCRIPTOR_SET_LAYOUT_MODEL_UNIFORM]   = CreateModelDescriptorSetLayout(resultContext.device);
+
+        resultContext.guiDescriptorSetLayout = CreateModelDescriptorSetLayout(resultContext.device);
 
         // Todo(Leo): This seems rather stupid way to organize creation of these...
         resultContext.pipelineItems             = CreateGraphicsPipeline(&resultContext, 3);
@@ -435,28 +442,38 @@ Run(HINSTANCE winInstance)
 
     // ------- MEMORY ---------------------------
     game::Memory gameMemory = {};
+    MemoryArena platformTransientMemoryArena;
     {
         // TODO [MEMORY] (Leo): Properly measure required amount
+        // TODO [MEMORY] (Leo): Think of alignment
         gameMemory.persistentMemorySize = Megabytes(64);
-        gameMemory.transientMemorySize  = Gigabytes(2);
-        uint64 totalMemorySize = gameMemory.persistentMemorySize + gameMemory.transientMemorySize;
+        gameMemory.transientMemorySize  = Gigabytes(1);
+
+        uint64 totalGameMemorySize = gameMemory.persistentMemorySize + gameMemory.transientMemorySize;
+
+        uint64 platformTransientMemorySize = Megabytes(1);
+        uint64 totalMemorySize = totalGameMemorySize + platformTransientMemorySize;
    
         // TODO [MEMORY] (Leo): Check support for large pages
         // TODO [MEMORY] (Leo): specify base address for development builds
         void * memoryBlock = VirtualAlloc(nullptr, totalMemorySize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
         
         gameMemory.persistentMemory     = memoryBlock;
-        gameMemory.transientMemory      = (uint8 *)memoryBlock + gameMemory.persistentMemorySize;
-   }
+        gameMemory.transientMemory      = (byte *)memoryBlock + gameMemory.persistentMemorySize;
+
+        platformTransientMemoryArena = MemoryArena::Create((byte *)memoryBlock + totalGameMemorySize, platformTransientMemorySize);
+
+    }
 
    // -------- GPU MEMORY ---------------------- 
    {
         // TODO [MEMORY] (Leo): Properly measure required amount
         // TODO[memory] (Leo): Log usage
-        uint64 staticMeshPoolSize       = Gigabytes(1);
+        uint64 staticMeshPoolSize       = Megabytes(500);
         uint64 stagingBufferPoolSize    = Megabytes(100);
         uint64 modelUniformBufferSize   = Megabytes(100);
         uint64 sceneUniformBufferSize   = Megabytes(100);
+        uint64 guiUniformBufferSize     = Megabytes(100);
 
         // TODO[MEMORY] (Leo): This will need guarding against multithreads once we get there
         // Static mesh pool
@@ -470,23 +487,30 @@ Run(HINSTANCE winInstance)
                                         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
                                         &context.stagingBufferPool);
 
-        // Uniform buffer for model matrices
+        // Uniform buffer for model matrices. This means every model including scenery.
         vulkan::CreateBufferResource(   &context, modelUniformBufferSize,
                                         VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
                                         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
                                         &context.modelUniformBuffer);
 
-        // Uniform buffer for scene data
+        // Uniform buffer for scene data, ie. camera, lights etc.
         vulkan::CreateBufferResource(   &context, sceneUniformBufferSize,
                                         VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
                                         VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
                                         &context.sceneUniformBuffer);
+
+        // Uniform buffer for gui elements
+        vulkan::CreateBufferResource(   &context, guiUniformBufferSize,
+                                        VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                                        VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
+                                        &context.guiUniformBuffer);
     }
 
     // -------- DRAWING ---------
     {
         // Note(Leo): After buffer creations!!
         context.descriptorSets      = CreateModelDescriptorSets(&context);
+        context.guiDescriptorSets   = CreateGuiDescriptorSets(&context);
         context.sceneDescriptorSets = CreateSceneDescriptorSets(&context);
         context.textureSampler      = CreateTextureSampler(&context);
         CreateCommandBuffers(&context);
@@ -515,13 +539,34 @@ Run(HINSTANCE winInstance)
         timeGetDevCaps(&timeCaps, sizeof(timeCaps));
         deviceMinSchedulerGranularity = timeCaps.wPeriodMin;
 
-        int32 gameUpdateRate = 60;
+        /* NOTE(Leo): Change to lower framerate if on battery. My development
+        laptop at least changes to slower processing speed when not on power,
+        though this probably depends on power settings. These are just some
+        arbitrary values that happen to work on development laptop. */
+        SYSTEM_POWER_STATUS powerStatus;
+        GetSystemPowerStatus (&powerStatus);
+
+        real64 targetFrameTimeYesPower = 60;
+        real64 targetFrameTimeNoPower = 30;
+
+        constexpr BYTE AC_ONLINE = 1;
+        real64 targetFrameTimeThreshold = (powerStatus.ACLineStatus == AC_ONLINE) ? targetFrameTimeYesPower : targetFrameTimeNoPower;
+
+        if (powerStatus.ACLineStatus == AC_ONLINE)
+        {
+            std::cout << "Power detected\n";
+        }
+        else
+        {
+            std::cout << "No power detected\n";
+        }
+
+        int32 gameUpdateRate = targetFrameTimeThreshold;
         {
             HDC deviceContext = GetDC(winWindow);
             int monitorRefreshRate = GetDeviceCaps(deviceContext, VREFRESH);
             ReleaseDC(winWindow, deviceContext);
 
-            real64 targetFrameTimeThreshold = 60;
             if (monitorRefreshRate > 1)
             {  
                 gameUpdateRate = monitorRefreshRate;
@@ -533,8 +578,9 @@ Run(HINSTANCE winInstance)
             }
         }
         targetFrameTime = 1.0f / gameUpdateRate;
+        
+        std::cout << "Target frame time = " << targetFrameTime << ", (fps = " << 1.0 / targetFrameTime << ")\n";
     }
-    std::cout << "Target frame time = " << targetFrameTime << ", (fps = " << 1.0 / targetFrameTime << ")\n";
 
     /// ---------- LOAD GAME CODE ----------------------
     // Note(Leo): Only load game dynamically in development.
@@ -588,7 +634,7 @@ Run(HINSTANCE winInstance)
             bool32 windowIsActive = winWindow == foregroundWindow;
 
             UpdateControllerInput(&gameInput);
-            gameInput.timeDelta = targetFrameTime;
+            gameInput.elapsedTime = targetFrameTime;
         }
 
         /// ----- PRE-UPDATE NETWORK PASS -----
@@ -617,15 +663,13 @@ Run(HINSTANCE winInstance)
             gamePlatformInfo.windowWidth = context.swapchainItems.extent.width;
             gamePlatformInfo.windowHeight = context.swapchainItems.extent.height;
 
-            Matrix44 modelMatrixArray [VULKAN_MAX_MODEL_COUNT];
-            Matrix44 guiMatrixArray [VULKAN_MAX_MODEL_COUNT];
-
-            // TOdo(Leo): is wrong!!!
-            gameRenderInfo.modelMatrixCount = 0;//context.loadedModels.size();
-            gameRenderInfo.modelMatrixArray = modelMatrixArray;
-
-            gameRenderInfo.guiCount = context.loadedGuiObjects.size();
-            gameRenderInfo.guiMatrixArray = guiMatrixArray;
+            /* Todo(Leo): We are currently pushing for worst case. It is ok because
+            PushArray is super cheap and memory is available anyway. However we may
+            want to be more exact */
+            gameRenderInfo.renderedObjects = PushArray<Matrix44, RenderedObjectHandle>(
+                                                &platformTransientMemoryArena, VULKAN_MAX_MODEL_COUNT);
+            gameRenderInfo.guiObjects = PushArray<Matrix44, GuiHandle>(
+                                            &platformTransientMemoryArena, VULKAN_MAX_MODEL_COUNT);
 
             gameNetwork.isConnected = network.isConnected;
 
@@ -634,8 +678,14 @@ Run(HINSTANCE winInstance)
 
             if(game.IsLoaded())
             {
-                game.Update(&gameInput, &gameMemory, &gamePlatformInfo,
-                            &gameNetwork, &gameSoundOutput, &gameRenderInfo);
+                game::UpdateResult updateResult = game.Update(  &gameInput, &gameMemory,
+                                                                &gamePlatformInfo, &gameNetwork, 
+                                                                &gameSoundOutput, &gameRenderInfo);
+
+                if (updateResult.exit)
+                {
+                    state.isRunning = false;
+                }
             }
 
             winapi::ReleaseAudioBuffer(&audio, gameSoundOutput.sampleCount);
@@ -690,6 +740,9 @@ Run(HINSTANCE winInstance)
             currentLoopingFrameIndex = (currentLoopingFrameIndex + 1) % MAX_FRAMES_IN_FLIGHT;
         }
 
+        /// ----- CLEAR MEMORY ------
+        platformTransientMemoryArena.Flush();
+
         /// ----- WAIT FOR TARGET FRAMETIME -----
         {
             auto currentTimeMark = std::chrono::high_resolution_clock::now();
@@ -705,10 +758,16 @@ Run(HINSTANCE winInstance)
             if (timeToSleepSeconds > 0)
             {
                 DWORD timeToSleepMilliSeconds = static_cast<DWORD>(1000 * timeToSleepSeconds);
+                // std::cout << "Sleep for " << timeToSleepMilliSeconds << " ms\n";
                 Sleep(timeToSleepMilliSeconds);
+
             }
         }
     }
+    ///////////////////////////////////////
+    ///         END OF MAIN LOOP        ///
+    ///////////////////////////////////////
+
 
     /// -------- CLEANUP ---------
     winapi::StopPlaying(&audio);
@@ -727,6 +786,9 @@ Run(HINSTANCE winInstance)
     {
         // Note(Leo): Windows will mostly clean up after us once process exits :)
 
+
+        /* TODO(Leo): If there are multiple of these it means we had crash previously
+        and want to reset this. This should be handled betterly though.... :( */
         timeEndPeriod(deviceMinSchedulerGranularity);
         std::cout << "[WINDOWS]: shut down\n";
     }
