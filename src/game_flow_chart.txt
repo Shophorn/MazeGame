@@ -4,7 +4,7 @@ Game Flow Chart
 Load Platform
 	Vulkan
 	XInput
-	<audio>
+	CoreAudio
 	Memory
 
 	Load Game

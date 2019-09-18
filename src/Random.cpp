@@ -21,9 +21,21 @@ uint32 xor128()
 internal real32
 RandomValue()
 {
-	real32 value 	= static_cast<real32>(xor128());
-	real32 max 		= static_cast<real32>(MaxValue<uint32>);
-	real32 result 	= value / max;
+  	real32 value 	= static_cast<real32>(xor128());
+  	real32 max 		= static_cast<real32>(MaxValue<uint32>);
+  	real32 result 	= value / max;
 
-	return result;
+  	return result;
+}
+
+internal real32
+RandomRange(real32 min, real32 max)
+{
+    MAZEGAME_ASSERT (min <= max, "'min' must be smaller than 'max'");
+
+    real32 value = static_cast<real32>(xor128()) / static_cast<real32>(MaxValue<uint32>);
+    real32 range = max - min;
+    real32 result = min + (value * range);
+
+    return result;    
 }

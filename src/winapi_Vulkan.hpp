@@ -334,7 +334,7 @@ namespace vulkan
 	        context->physicalDeviceProperties.limits.minUniformBufferOffsetAlignment,
 	        sizeof(VulkanCameraUniformBufferObject));
 
-	    // Note(Leo): so far we only have on of these
+	    // Note(Leo): so far we only have one of these
 	    uint32 result = imageIndex * memorySizePerObject;
 	    return result;
 	}

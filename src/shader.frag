@@ -16,7 +16,7 @@ const int SAMPLER_BIND_ID = 0;
 
 layout(binding = SAMPLER_BIND_ID, set = 1) uniform sampler2D texSampler[TEXTURE_COUNT];
 
-const vec3 lightDirection = normalize(vec3(0.7, 0.3, -1));
+const vec3 lightDirection = normalize(vec3(0.7, 0.3, -2));
 const float ambientIntensity = 0.4;
 
 void main()
@@ -29,7 +29,7 @@ void main()
 	float metallic = texture(texSampler[METALLIC_INDEX], fragTexCoord).r;
 
 
-	vec3 metalColor = vec3(0.67, 0.7, 0.75);
+	vec3 metalColor = albedo;//vec3(0.67, 0.7, 0.75);
 	vec3 color = mix(albedo, metalColor, metallic) * intensity;
 
 	float testMask = texture(texSampler[TEST_MASK_INDEX], fragTexCoord).r;
