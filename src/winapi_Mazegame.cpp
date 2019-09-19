@@ -202,6 +202,48 @@ UpdateControllerInput(game::Input * input)
 
 namespace winapi
 {
+    internal void
+    SetWindowedOrFullscreen(HWND winWindow, winapi::State * state, bool32 setWindowed)
+    {
+        // Study(Leo): https://devblogs.microsoft.com/oldnewthing/20100412-00/?p=14353
+        DWORD style = GetWindowLongPtr(winWindow, GWL_STYLE);
+        bool32 isWindowed = (style & WS_OVERLAPPEDWINDOW);
+
+        if (isWindowed && setWindowed == false)
+        {
+            // Todo(Leo): Actually use this value to check for potential errors
+            bool32 success;
+
+            success = GetWindowPlacement(winWindow, &state->windowedWindowPosition); 
+
+            HMONITOR monitor = MonitorFromWindow(winWindow, MONITOR_DEFAULTTOPRIMARY);
+            MONITORINFO monitorInfo = { sizeof(MONITORINFO) };
+            success = GetMonitorInfoW(monitor, &monitorInfo);
+
+            DWORD fullScreenStyle = (style & ~WS_OVERLAPPEDWINDOW);
+            SetWindowLongPtrW(winWindow, GWL_STYLE, fullScreenStyle);
+
+            // Note(Leo): Remember that height value starts from top and grows towards bottom
+            LONG left = monitorInfo.rcMonitor.left;
+            LONG top = monitorInfo.rcMonitor.top;
+            LONG width = monitorInfo.rcMonitor.right - left;
+            LONG heigth = monitorInfo.rcMonitor.bottom - top;
+            SetWindowPos(winWindow, HWND_TOP, left, top, width, heigth, SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+
+            state->windowIsFullscreen = true;
+        }
+
+        else if (isWindowed == false && setWindowed)
+        {
+            SetWindowLongPtr(winWindow, GWL_STYLE, style | WS_OVERLAPPEDWINDOW);
+            SetWindowPlacement(winWindow, &state->windowedWindowPosition);
+            SetWindowPos(   winWindow, NULL, 0, 0, 0, 0,
+                            SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+
+            state->windowIsFullscreen = false;
+        }
+    }
+
     internal FILETIME
     GetFileLastWriteTime(const char * fileName)
     {
@@ -662,6 +704,7 @@ Run(HINSTANCE winInstance)
         {
             gamePlatformInfo.windowWidth = context.swapchainItems.extent.width;
             gamePlatformInfo.windowHeight = context.swapchainItems.extent.height;
+            gamePlatformInfo.windowIsFullscreen = state.windowIsFullscreen;
 
             /* Todo(Leo): We are currently pushing for worst case. It is ok because
             PushArray is super cheap and memory is available anyway. However we may
@@ -686,6 +729,21 @@ Run(HINSTANCE winInstance)
                 {
                     state.isRunning = false;
                 }
+
+                switch (updateResult.setWindow)
+                {
+                    case game::UpdateResult::SET_WINDOW_FULLSCREEN:
+                        winapi::SetWindowedOrFullscreen(winWindow, &state, false);
+                        break;
+
+                    case game::UpdateResult::SET_WINDOW_WINDOWED:
+                        winapi::SetWindowedOrFullscreen(winWindow, &state, true);
+                        break;
+
+                    case game::UpdateResult::SET_WINDOW_NONE:
+                        break;
+                }
+
             }
 
             winapi::ReleaseAudioBuffer(&audio, gameSoundOutput.sampleCount);

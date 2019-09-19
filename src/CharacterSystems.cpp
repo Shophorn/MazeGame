@@ -14,3 +14,4 @@ struct Character
 	real32 zSpeed;
 	real32 zRotationRadians;
 };
+

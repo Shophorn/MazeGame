@@ -23,6 +23,12 @@ struct Rectangle
 	Vector2 size;
 };
 
+struct Circle
+{
+	Vector2 position;
+	real32 radius;
+};
+
 struct GameState
 {
 	Character character;
@@ -58,6 +64,11 @@ struct GameState
 	ArenaArray<Quaternion>				keyholeRotations;
 	ArenaArray<RenderedObjectHandle> 	keyholeRenderHandles;
 	real32								keyholeCollisionRadius;
+	ArenaArray<Circle>					keyholeTriggerColliders;
+
+
+	int32 staticColliderCount;
+	ArenaArray<Circle> staticColliders;
 
 	/* Note(Leo): MEMORY
 	'persistentMemoryArena' is used to store things from frame to frame.
@@ -207,7 +218,6 @@ LoadMainLevel(GameState * state, game::Memory * memory, game::PlatformInfo * pla
     	}
     	ShrinkLastArray(&state->persistentMemoryArena, &state->treePositions, actualSceneryCount);
 
-
 		// Note(Miida): Puiden läpi ei voi mennä, muahahahahahaaa
 	    MeshAsset treeMesh 			= LoadModel(&state->transientMemoryArena, "models/tree.obj");
 	    MeshHandle treeMeshHandle 	= platformInfo->graphicsContext->PushMesh(&treeMesh);
@@ -221,7 +231,7 @@ LoadMainLevel(GameState * state, game::Memory * memory, game::PlatformInfo * pla
 	    	real32 rotation = RandomValue() * 360.0f;
 	    	state->treeRotations[treeIndex] = Quaternion::AxisAngle(World::Up, rotation);
 
-	    	state->treeScales[treeIndex] = RandomRange(3.5, 4.5);
+	    	state->treeScales[treeIndex] = RandomRange(3, 5);
 
 	    	state->treeRenderHandles[treeIndex] = platformInfo->graphicsContext->PushRenderedObject(treeMeshHandle, state->sceneryMaterial);
 	    }
@@ -252,15 +262,21 @@ LoadMainLevel(GameState * state, game::Memory * memory, game::PlatformInfo * pla
 	    MeshAsset keyholeMesh 			= LoadModel(&state->transientMemoryArena, "models/keyhole.obj");
 	    MeshHandle keyholeMeshHandle 	= platformInfo->graphicsContext->PushMesh(&keyholeMesh);
 
-    	state->keyholeCount 		= actualKeyholeCount;
-    	state->keyholeRotations 	= PushArray<Quaternion>(&state->persistentMemoryArena, state->keyholeCount);
-    	state->keyholeRenderHandles = PushArray<RenderedObjectHandle>(&state->persistentMemoryArena, state->keyholeCount);
+    	state->keyholeCount 			= actualKeyholeCount;
+    	state->keyholeRotations 		= PushArray<Quaternion>(&state->persistentMemoryArena, state->keyholeCount);
+    	state->keyholeRenderHandles 	= PushArray<RenderedObjectHandle>(&state->persistentMemoryArena, state->keyholeCount);
+    	
+    	real32 keyholeTriggerRadius = 0.3f;
+    	state->keyholeTriggerColliders 	= PushArray<Circle>(&state->persistentMemoryArena, state->keyholeCount);
+
 	    for (int keyholeIndex = 0; keyholeIndex < state->keyholeCount; ++keyholeIndex)
 	    {
 			real32 rotation = RandomValue() * 360.0f;
 			state->keyholeRotations[keyholeIndex] = Quaternion::AxisAngle(World::Up, rotation);
 
 	    	state->keyholeRenderHandles[keyholeIndex] = platformInfo->graphicsContext->PushRenderedObject(keyholeMeshHandle, state->paletteMaterial);
+
+	    	state->keyholeTriggerColliders[keyholeIndex] = {state->keyholePositions[keyholeIndex].x, state->keyholePositions[keyholeIndex].y, keyholeTriggerRadius};
 	    }
 
 	    state->keyholeCollisionRadius = 0.1f;
@@ -283,6 +299,30 @@ LoadMainLevel(GameState * state, game::Memory * memory, game::PlatformInfo * pla
 
 	state->selectedGuiButtonIndex = 0;
 	state->showGameMenu = false;
+
+
+	// Generate static, unchanging colliders
+	state->staticColliderCount = state->treeCount + state->keyholeCount;
+	state->staticColliders = PushArray<Circle>(&state->persistentMemoryArena, state->staticColliderCount);
+
+	int32 colliderIndex = 0;
+	for (int treeIndex = 0; treeIndex < state->treeCount; ++treeIndex, ++colliderIndex)
+	{
+		state->staticColliders[colliderIndex] = {
+			state->treePositions[treeIndex].x,
+			state->treePositions[treeIndex].y,
+			state->treeCollisionRadius
+		};
+	}
+
+	for (int32 keyholeIndex = 0; keyholeIndex < state->keyholeCount; ++keyholeIndex, ++colliderIndex)
+	{
+		state->staticColliders[colliderIndex] = {
+			state->keyholePositions[keyholeIndex].x,
+			state->keyholePositions[keyholeIndex].y,
+			state->keyholeCollisionRadius
+		};
+	}
 
  	// Note(Leo): Apply all pushed changes and flush transient memory
     platformInfo->graphicsContext->Apply();
@@ -396,6 +436,18 @@ CircleCircleCollision(Vector2 pointA, real32 radiusA, Vector2 pointB, real32 rad
 	return result;
 }
 
+internal bool32
+CircleCircleCollision(Circle a, Circle b)
+{
+	real32 distanceThreshold = a.radius + b.radius;
+	real32 sqrDistanceThreshold = distanceThreshold * distanceThreshold;
+
+	real32 sqrDistance = SqrLength (a.position - b.position);
+
+	bool32 result = sqrDistance < sqrDistanceThreshold;
+	return result;
+}
+
 enum MenuResult { MENU_NONE, MENU_EXIT, MENU_LOADLEVEL, MENU_CONTINUE };
 
 internal MenuResult 
@@ -439,7 +491,8 @@ GameUpdate(
 		LoadMenu(state, memory, platform);
 	}
 
-	game::UpdateResult result = { false };
+	game::UpdateResult result = {};
+	result.exit = false;
 	if (state->levelLoaded == false)
 	{
 		MenuResult menuResult = UpdateMenu(state, input, memory, platform, network, soundOutput, outRenderInfo);
@@ -469,6 +522,14 @@ GameUpdate(
 		}
 	}
 	
+	if (input->select.IsClicked())
+	{
+		if (platform->windowIsFullscreen)
+			result.setWindow = game::UpdateResult::SET_WINDOW_WINDOWED;
+		else
+			result.setWindow = game::UpdateResult::SET_WINDOW_FULLSCREEN;
+	}
+
 	/// Output sound
 	{
 		OutputSound(soundOutput->sampleCount, soundOutput->samples);
@@ -564,6 +625,8 @@ UpdateMainLevel(
 	game::SoundOutput * 	soundOutput,
 	game::RenderInfo * 		outRenderInfo)
 {
+	state->transientMemoryArena.Flush();
+
 	/// Update Character
 	Vector3 characterMovementVector;
 	{
@@ -578,40 +641,21 @@ UpdateMainLevel(
 		Vector3 viewAlignedInputVector = viewRight * input->move.x + viewForward * input->move.y;
 		characterMovementVector = viewAlignedInputVector;
 
-		real32 speed = grounded ? characterSpeed : characterSpeed / 2.0f;
-		Vector3 characterNewPosition = state->character.position + viewAlignedInputVector * speed * input->elapsedTime;
+		Vector3 characterNewPosition = state->character.position + viewAlignedInputVector * characterSpeed * input->elapsedTime;
 
 		// Collisions
 		real32 characterCollisionRadius = 0.5f;
-		Vector2 characterPosition2 = size_cast<Vector2>(characterNewPosition);
+		Circle characterCollisionCircle = {characterNewPosition.x, characterNewPosition.y, characterCollisionRadius};
 
 		bool32 collide = false;
-		for (int treeIndex = 0; treeIndex < state->treeCount; ++treeIndex)
+		for (int colliderIndex = 0; colliderIndex < state->staticColliderCount; ++colliderIndex)
 		{
-			Vector2 treePosition2 = size_cast<Vector2>(state->treePositions[treeIndex]);
-			bool32 treeCollide = CircleCircleCollision(	characterPosition2, characterCollisionRadius,
-														treePosition2, state->treeCollisionRadius);
+			bool32 currentCollide = CircleCircleCollision(characterCollisionCircle, state->staticColliders[colliderIndex]);
 
-			// Note(Leo): Do not reset on subsequent trees
-			if (treeCollide)
+			// Note(Leo): Do not reset on subsequent colliders.
+			if (currentCollide)
 			{
 				collide = true;
-			}
-		}
-
-		if (collide == false)
-		{
-			for (int keyholeIndex = 0; keyholeIndex < state->keyholeCount; ++keyholeIndex)
-			{
-				Vector2 keyholePosition2 = size_cast<Vector2>(state->keyholePositions[keyholeIndex]);
-				bool32 keyholeCollide = CircleCircleCollision(	characterPosition2, characterCollisionRadius,
-															keyholePosition2, state->keyholeCollisionRadius);
-
-				// Note(Leo): Do not reset on subsequent keyholes
-				if (keyholeCollide)
-				{
-					collide = true;
-				}
 			}
 		}
 
@@ -620,8 +664,23 @@ UpdateMainLevel(
 			state->character.position = characterNewPosition;
 		}
 
+		int32 triggeredKeyholeIndex = -1;
+		for (int triggerIndex = 0; triggerIndex < state->keyholeCount; ++triggerIndex)
+		{
+			bool32 currentCollide = CircleCircleCollision(characterCollisionCircle, state->keyholeTriggerColliders[triggerIndex]);
 
-		if (grounded && input->jump.IsClicked())// == game::InputButtonState::WentDown)//IsPressed(input->jump))
+			if (currentCollide)
+			{
+				triggeredKeyholeIndex = triggerIndex;
+			}
+		}
+		if (triggeredKeyholeIndex >= 0)
+		{
+			std::cout << triggeredKeyholeIndex << "\n";
+		}
+
+
+		if (grounded && input->jump.IsClicked())
 		{
 			state->character.zSpeed = 5;
 		}

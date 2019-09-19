@@ -121,8 +121,9 @@ namespace game
 	{
 		platform::IGraphicsContext * graphicsContext;
 
-		int32 windowWidth;
-		int32 windowHeight;
+		int32 	windowWidth;
+		int32 	windowHeight;
+		bool32 	windowIsFullscreen;
 	};
 	
 	struct Memory
@@ -179,6 +180,7 @@ namespace game
 	struct UpdateResult
 	{
 		bool32 exit;
+		enum { SET_WINDOW_NONE, SET_WINDOW_FULLSCREEN, SET_WINDOW_WINDOWED } setWindow;
 	};
 }
 

@@ -41,6 +41,9 @@ namespace winapi
         int32 windowHeight;
         bool32 windowIsMinimized;
 
+        bool32 windowIsFullscreen;
+        WINDOWPLACEMENT windowedWindowPosition;        
+
         bool32 windowIsDrawable()
         {
             bool32 isDrawable = (windowIsMinimized == false)
@@ -49,6 +52,7 @@ namespace winapi
             return isDrawable;
         }
 
+        // Todo(Leo): frame buffer size things do not belong here
         VkExtent2D GetFrameBufferSize ()
         {
             VkExtent2D result = {
@@ -57,9 +61,6 @@ namespace winapi
             };
             return result;
         }
-
-        // Todo(Leo): frame buffer size things do not belong here
-        // VkExtent2D framebufferSize;
         bool32 framebufferResized = false;
 
     };  
