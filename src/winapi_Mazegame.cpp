@@ -181,6 +181,7 @@ UpdateControllerInput(game::Input * input)
 
         input->jump     = ProcessButton(XINPUT_GAMEPAD_A, &aButtonWasDown);
         input->confirm  = ProcessButton(XINPUT_GAMEPAD_B, &bButtonWasDown);
+        input->interact = input->confirm;
 
         input->start    = ProcessButton(XINPUT_GAMEPAD_START, &startButtonWasDown);
         input->select   = ProcessButton(XINPUT_GAMEPAD_BACK, &backButtonWasDown);
@@ -761,7 +762,7 @@ Run(HINSTANCE winInstance)
         /// ---- DRAW -----    
         /*
         Note(Leo): Only draw image if we have window that is not minimized. Vulkan on windows MUST not
-        have framebuffer size 0, which minimized window would result in.
+        have framebuffer size 0, which is what minimized window is.
 
         'currentLoopingFrameIndex' does not need to be incremented if we do not draw since it refers to
         next available swapchain frame/image, and we do not use one if we do not draw.

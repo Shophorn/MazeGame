@@ -51,7 +51,7 @@ union MatrixBase
 	}
 
 	/// ------- BASIC CONSTRUCTORS ------------------------
-	class_member matrix_type
+	constexpr class_member matrix_type
 	Diagonal(ValueType value)
 	{
 		STATIC_ASSERT_SQUARE_MATRIX;
@@ -64,7 +64,7 @@ union MatrixBase
 		return result;
 	}
 
-	class_member matrix_type
+	constexpr class_member matrix_type
 	Identity()
 	{
 		STATIC_ASSERT_SQUARE_MATRIX;
@@ -126,23 +126,29 @@ union MatrixBase
 	}
 
 	class_member matrix_type
-	Transform(VectorBase<ValueType, 3> translate, VectorBase<ValueType, 3>  scale)
+	Rotate(Quaternion rotation)
 	{
 		STATIC_ASSERT_TRANSFORM_MATRIX;
 
-		matrix_type result = {};
+		real32 	x = rotation.x,
+				y = rotation.y,
+				z = rotation.z,
+				w = rotation.w;
 
-		result[0][0] = scale[0];
-		result[1][1] = scale[1];
-		result[2][2] = scale[2];
+		matrix_type result =
+		{
+			1 - 2*y*y - 2*z*z, 	2*x*y-2*w*z, 		2*x*z + 2*w*y, 		0,
+			2*x*y + 2*w*z, 		1 - 2*x*x - 2*z*z,	2*y*z - 2*w*x,		0,
+			2*x*z - 2*w*y,		2*y*z + 2*w*x,		1 - 2*x*x - 2*y*y,	0,
+			0,					0,					0,					1
+		};
 
-		result[3] = Vector4{translate.x, translate.y, translate.z, 1.0f};
-
-		return result;
+		return result;	
 	}
 
+
 	class_member matrix_type
-	Transform(VectorBase<ValueType, 3> translate, ValueType uniformScale)
+	Transform(Vector3 translation, real32 uniformScale = 1.0f)
 	{
 		STATIC_ASSERT_TRANSFORM_MATRIX;
 
@@ -152,9 +158,33 @@ union MatrixBase
 		result[1][1] = uniformScale;
 		result[2][2] = uniformScale;
 
-		result[3] = Vector4{translate.x, translate.y, translate.z, 1.0f};
+		result[3] = { translation.x, translation.y, translation.z, 1.0f };
 
 		return result;
+	}
+
+	class_member matrix_type
+	Transform(Vector3 translation, Quaternion rotation, real32 uniformScale = 1.0f)
+	{
+		STATIC_ASSERT_TRANSFORM_MATRIX;
+
+		real32 	x = rotation.x,
+				y = rotation.y,
+				z = rotation.z,
+				w = rotation.w;
+
+		real32 s = uniformScale;
+
+		// Note(Leo): Using SSE could be faster than this.
+		matrix_type result =
+		{
+			s * (1 - 2*y*y - 2*z*z), 	s * (2*x*y-2*w*z), 			s * (2*x*z + 2*w*y),		0,
+			s * (2*x*y + 2*w*z), 		s * (1 - 2*x*x - 2*z*z),	s * (2*y*z - 2*w*x),		0,
+			s * (2*x*z - 2*w*y),		s * (2*y*z + 2*w*x),		s * (1 - 2*x*x - 2*y*y),	0,
+			translation.x,				translation.y,				translation.z,				1
+		};
+
+		return result;	
 	}
 };
 

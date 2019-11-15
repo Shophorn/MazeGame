@@ -32,8 +32,8 @@ Also makes actual build commands a lot cleaner and easier, since only this file
 needs to be specified for compiler. */
 #include "Math.cpp"
 #include "Vectors.cpp"
-#include "Matrices.cpp"
 #include "Quaternion.cpp"
+#include "Matrices.cpp"
 
 #include "Memory.cpp"
 #include "Assets.cpp"
@@ -101,6 +101,7 @@ namespace game
 		// Todo(Leo): Do a proper separate mapping struct of meanings of specific buttons
 		InputButtonState jump;
 		InputButtonState confirm;
+		InputButtonState interact;
 
 		// Note(Leo): Start and Select as in controller
 		InputButtonState start;

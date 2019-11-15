@@ -11,6 +11,9 @@ struct ArenaArray
 	Type * data;
 	uint64 count;
 
+	Type * begin() { return data; }
+	Type * end() { return data + count; }	
+
 	Type & operator [] (IndexType index)
 	{
 		#if MAZEGAME_DEVELOPMENT

@@ -8,7 +8,7 @@ struct Quaternion
 	
 	real32 w;
 
-	class_member Quaternion
+	constexpr class_member Quaternion
 	Identity()
 	{
 		constexpr Quaternion identity = {0, 0, 0, 1};
@@ -25,19 +25,6 @@ struct Quaternion
 
 		result.w = Cosine(halfAngle);
 		result.vector = axis * Sine(halfAngle);
-
-		return result;
-	}
-
-	Matrix44
-	ToRotationMatrix()
-	{
-		Matrix44 result = {
-			1 - 2*y*y - 2*z*z, 	2*x*y-2*w*z, 		2*x*z + 2*w*y, 		0,
-			2*x*y + 2*w*z, 		1 - 2*x*x - 2*z*z,	2*y*z - 2*w*x,		0,
-			2*x*z - 2*w*y,		2*y*z + 2*w*x,		1 - 2*x*x - 2*y*y,	0,
-			0,					0,					0,					1
-		};
 
 		return result;
 	}
