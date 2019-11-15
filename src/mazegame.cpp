@@ -39,10 +39,10 @@ struct Transform3D
 struct GameState
 {
 	Character character;
-	Character otherCharacter;
+	// Character otherCharacter;
 
-	Vector3 keyLocalPosition;
-	Quaternion keyLocalRotation;
+	// Vector3 keyLocalPosition;
+	// Quaternion keyLocalRotation;
 
 	real32 cameraOrbitDegrees = 180;
 	real32 cameraTumbleDegrees;
@@ -51,27 +51,26 @@ struct GameState
 	Camera worldCamera;
 
 	MaterialHandle characterMaterial;
-	MaterialHandle sceneryMaterial;
-	MaterialHandle terrainMaterial;
-	MaterialHandle paletteMaterial;
+	// MaterialHandle sceneryMaterial;
+	// MaterialHandle terrainMaterial;
+	// MaterialHandle paletteMaterial;
 
-	RenderedObjectHandle levelObjectHandle;
+	// RenderedObjectHandle levelObjectHandle;
 	RenderedObjectHandle characterObjectHandle;
-	RenderedObjectHandle otherCharacterObjectHandle;
-	RenderedObjectHandle keyObjectHandle;
+	// RenderedObjectHandle otherCharacterObjectHandle;
+	// RenderedObjectHandle keyObjectHandle;
 
-	int32 								treeCount;
-	ArenaArray<Transform3D>				treeTransforms;
-	ArenaArray<RenderedObjectHandle> 	treeRenderHandles;
-	real32 								treeCollisionRadius;
+	// int32 								treeCount;
+	// ArenaArray<Transform3D>				treeTransforms;
+	// ArenaArray<RenderedObjectHandle> 	treeRenderHandles;
+	// real32 								treeCollisionRadius;
 
 
-	int32 								keyholeCount;
-	ArenaArray<Transform3D>				keyholeTransforms;
-	ArenaArray<RenderedObjectHandle> 	keyholeRenderHandles;
-	real32								keyholeCollisionRadius;
-	ArenaArray<Circle>					keyholeTriggerColliders;
-
+	// int32 								keyholeCount;
+	// ArenaArray<Transform3D>				keyholeTransforms;
+	// ArenaArray<RenderedObjectHandle> 	keyholeRenderHandles;
+	// real32								keyholeCollisionRadius;
+	// ArenaArray<Circle>					keyholeTriggerColliders;
 
 	int32 staticColliderCount;
 	ArenaArray<Circle> staticColliders;
@@ -143,30 +142,15 @@ LoadMainLevel(GameState * state, game::Memory * memory, game::PlatformInfo * pla
 		TextureHandle blackTexture = platformInfo->graphicsContext->PushTexture(&blackTextureAsset);
 
 	    TextureAsset textureAssets [] = {
-	        LoadTextureAsset("textures/chalet.jpg", &state->transientMemoryArena),
 	        LoadTextureAsset("textures/lava.jpg", &state->transientMemoryArena),
 	        LoadTextureAsset("textures/texture.jpg", &state->transientMemoryArena),
-	        LoadTextureAsset("textures/PaletteColor.jpg", &state->transientMemoryArena),
-	        LoadTextureAsset("textures/PaletteMetals.jpg", &state->transientMemoryArena),
 	    };
 
-		TextureHandle texA = platformInfo->graphicsContext->PushTexture(&textureAssets[0]);
-		TextureHandle texB = platformInfo->graphicsContext->PushTexture(&textureAssets[1]);
-		TextureHandle texC = platformInfo->graphicsContext->PushTexture(&textureAssets[2]);
-
-		TextureHandle paletteColors = platformInfo->graphicsContext->PushTexture(&textureAssets[3]);
-		TextureHandle paletteMetals = platformInfo->graphicsContext->PushTexture(&textureAssets[4]);
+		TextureHandle texB = platformInfo->graphicsContext->PushTexture(&textureAssets[0]);
+		TextureHandle texC = platformInfo->graphicsContext->PushTexture(&textureAssets[1]);
 
 		MaterialAsset characterMaterialAsset = {MaterialType::Character, texB, texC, blackTexture};
-		MaterialAsset sceneryMaterialAsset = {MaterialType::Terrain, texA, texA, blackTexture};
-		MaterialAsset terrainMaterialAsset = {MaterialType::Terrain, texA, texA, whiteTexture};
-
-		MaterialAsset paletteMaterialAsset = {MaterialType::Character, paletteColors, paletteMetals, blackTexture};
-
 		state->characterMaterial = platformInfo->graphicsContext->PushMaterial(&characterMaterialAsset);
-		state->sceneryMaterial = platformInfo->graphicsContext->PushMaterial(&sceneryMaterialAsset);
-		state->terrainMaterial = platformInfo->graphicsContext->PushMaterial(&terrainMaterialAsset);
-		state->paletteMaterial = platformInfo->graphicsContext->PushMaterial(&paletteMaterialAsset);
 	}
 
     state->worldCamera = {};
@@ -177,19 +161,6 @@ LoadMainLevel(GameState * state, game::Memory * memory, game::PlatformInfo * pla
     state->worldCamera.farClipPlane = 1000.0f;
     state->worldCamera.aspectRatio = (real32)platformInfo->windowWidth / (real32)platformInfo->windowHeight;	
 
- 	// Level
- 	HexMap levelMap;
-	{
-		map::CreateInfo mapInfo = {};
-		mapInfo.cellCountPerDirection = 60;
-		mapInfo.cellSize = 5.0f;
-
-		levelMap 					= map::GenerateMap(state->transientMemoryArena, mapInfo);
-		auto levelMesh 				= map::GenerateMapMesh(state->transientMemoryArena, levelMap);
-		auto levelMeshHandle 		= platformInfo->graphicsContext->PushMesh(&levelMesh);
-	    state->levelObjectHandle 	= platformInfo->graphicsContext->PushRenderedObject(levelMeshHandle, state->terrainMaterial);
-	}	
-
 	// Characters
 	{
 		auto characterMesh 					= LoadModel(&state->transientMemoryArena, "models/character.obj");
@@ -197,103 +168,10 @@ LoadMainLevel(GameState * state, game::Memory * memory, game::PlatformInfo * pla
 	
 		state->character.position = {0, 0, 0};
 		state->character.rotation = Quaternion::Identity();
-	   	state->otherCharacter.position = {0, 0, 0};
 
 		state->characterObjectHandle 		= platformInfo->graphicsContext->PushRenderedObject(characterMeshHandle, state->characterMaterial);
-		state->otherCharacterObjectHandle 	= platformInfo->graphicsContext->PushRenderedObject(characterMeshHandle, state->characterMaterial);
 		state->character.scale = 1;
-
-		auto keyMesh		= LoadModel(&state->transientMemoryArena, "models/key.obj");
-		auto keyMeshHandle 	= platformInfo->graphicsContext->PushMesh(&keyMesh);
-
-		state->keyLocalPosition = {0.75f, 0, 1.5f};
-		state->keyLocalRotation = Quaternion::Identity();
-		state->keyObjectHandle = platformInfo->graphicsContext->PushRenderedObject(keyMeshHandle, state->paletteMaterial);
 	}
-
-	// Scenery
-    {
-		real32 randomRange 			= 2.5f;
-    	int worstCaseSceneryCount 	= levelMap.cellCountPerDirection * levelMap.cellCountPerDirection;
-    	state->treeTransforms		= PushArray<Transform3D>(&state->persistentMemoryArena, worstCaseSceneryCount);
-
-    	int actualSceneryCount = 0;
-    	for (int y = 0; y < levelMap.cellCountPerDirection; ++y)
-    	{
-    		for (int x = 0; x < levelMap.cellCountPerDirection; ++x)
-    		{
-    			if (levelMap.Cell(x, y) == 0)
-    			{
-    				state->treeTransforms[actualSceneryCount].position = levelMap.GetCellPosition(x,y);
-    				state->treeTransforms[actualSceneryCount].position.x += (RandomValue() * 2 - 1) * randomRange;
-    				state->treeTransforms[actualSceneryCount].position.y += (RandomValue() * 2 - 1) * randomRange;
-
-    				state->treeTransforms[actualSceneryCount].scale = RandomRange(3.0f, 5.0f);
-    				state->treeTransforms[actualSceneryCount].rotation = Quaternion::AxisAngle(World::Up, RandomValue() * 360.0f);
-
-    				++actualSceneryCount;
-    			}
-    		}
-    	}
-    	ShrinkLastArray(&state->persistentMemoryArena, &state->treeTransforms, actualSceneryCount);
-
-		// Note(Miida): Puiden läpi ei voi mennä, muahahahahahaaa
-	    MeshAsset treeMesh 			= LoadModel(&state->transientMemoryArena, "models/tree.obj");
-	    MeshHandle treeMeshHandle 	= platformInfo->graphicsContext->PushMesh(&treeMesh);
-
-    	state->treeCount = actualSceneryCount;
-    	state->treeRenderHandles 	= PushArray<RenderedObjectHandle>(&state->persistentMemoryArena, state->treeCount);
-	    for (int treeIndex = 0; treeIndex < state->treeCount; ++treeIndex)
-	    {
-	    	state->treeRenderHandles[treeIndex] = platformInfo->graphicsContext->PushRenderedObject(treeMeshHandle, state->sceneryMaterial);
-	    }
-	    state->treeCollisionRadius = 0.5f;
-
-	    /// ----- Keyholes -----
-	    real32 keyholeProbability 	= 0.1f;
-	    int32 worstCaseKeyholeCount = worstCaseSceneryCount;
-	    state->keyholeTransforms 	= PushArray<Transform3D>(&state->persistentMemoryArena, worstCaseKeyholeCount);
-
-	    int32 actualKeyholeCount = 0;
-	    for (int y = 0; y < levelMap.cellCountPerDirection; ++y)
-	    {
-	  		for (int x = 0; x < levelMap.cellCountPerDirection; ++x)
-	  		{
-				if (levelMap.Cell(x, y) == 1 && RandomValue() < keyholeProbability)
-				{
-					real32 xOffset = RandomRange(-randomRange, randomRange);
-					real32 yOffset = RandomRange(-randomRange, randomRange);
-					Vector3 position = levelMap.GetCellPosition(x, y) + Vector3{xOffset, yOffset, 0};
-
-					Quaternion rotation = Quaternion::AxisAngle(World::Up, RandomValue() * 360.0f);
-
-					state->keyholeTransforms[actualKeyholeCount] = { position, 1.0f, rotation };
-    				++actualKeyholeCount;	
-				}
-	  		}  	
-	    }
-    	ShrinkLastArray(&state->persistentMemoryArena, &state->keyholeTransforms, actualKeyholeCount);
-
-	    MeshAsset keyholeMesh 			= LoadModel(&state->transientMemoryArena, "models/keyhole.obj");
-	    MeshHandle keyholeMeshHandle 	= platformInfo->graphicsContext->PushMesh(&keyholeMesh);
-
-    	state->keyholeCount 			= actualKeyholeCount;
-    	state->keyholeRenderHandles 	= PushArray<RenderedObjectHandle>(&state->persistentMemoryArena, state->keyholeCount);
-    	
-    	real32 keyholeTriggerRadius = 0.5f;
-    	state->keyholeTriggerColliders 	= PushArray<Circle>(&state->persistentMemoryArena, state->keyholeCount);
-
-	    for (int keyholeIndex = 0; keyholeIndex < state->keyholeCount; ++keyholeIndex)
-	    {
-	    	state->keyholeRenderHandles[keyholeIndex] = platformInfo->graphicsContext->PushRenderedObject(keyholeMeshHandle, state->paletteMaterial);
-	    	state->keyholeTriggerColliders[keyholeIndex] = {
-	    		state->keyholeTransforms[keyholeIndex].position.x, 
-	    		state->keyholeTransforms[keyholeIndex].position.y, 
-	    		keyholeTriggerRadius};
-	    }
-
-	    state->keyholeCollisionRadius = 0.1f;
- 	}
 
 	state->gameGuiButtonCount = 2;
 	state->gameGuiButtons = PushArray<Rectangle>(&state->persistentMemoryArena, state->gameGuiButtonCount);
@@ -315,27 +193,7 @@ LoadMainLevel(GameState * state, game::Memory * memory, game::PlatformInfo * pla
 
 	// Generate static, unchanging colliders
 	{
-		state->staticColliderCount = state->treeCount + state->keyholeCount;
-		state->staticColliders = PushArray<Circle>(&state->persistentMemoryArena, state->staticColliderCount);
-
-		int32 colliderIndex = 0;
-		for (int treeIndex = 0; treeIndex < state->treeCount; ++treeIndex, ++colliderIndex)
-		{
-			state->staticColliders[colliderIndex] = {
-				state->treeTransforms[treeIndex].position.x,
-				state->treeTransforms[treeIndex].position.y,
-				state->treeCollisionRadius
-			};
-		}
-
-		for (int32 keyholeIndex = 0; keyholeIndex < state->keyholeCount; ++keyholeIndex, ++colliderIndex)
-		{
-			state->staticColliders[colliderIndex] = {
-				state->keyholeTransforms[keyholeIndex].position.x,
-				state->keyholeTransforms[keyholeIndex].position.y,
-				state->keyholeCollisionRadius
-			};
-		}
+		// Nothing here now
 	}
 
  	// Note(Leo): Apply all pushed changes and flush transient memory
@@ -366,22 +224,15 @@ LoadMenu(GameState * state, game::Memory * memory, game::PlatformInfo * platform
 		TextureHandle blackTexture = platformInfo->graphicsContext->PushTexture(&blackTextureAsset);
 
 	    TextureAsset textureAssets [] = {
-	        LoadTextureAsset("textures/chalet.jpg", &state->transientMemoryArena),
 	        LoadTextureAsset("textures/lava.jpg", &state->transientMemoryArena),
 	        LoadTextureAsset("textures/texture.jpg", &state->transientMemoryArena),
 	    };
 
-		TextureHandle texA = platformInfo->graphicsContext->PushTexture(&textureAssets[0]);
-		TextureHandle texB = platformInfo->graphicsContext->PushTexture(&textureAssets[1]);
-		TextureHandle texC = platformInfo->graphicsContext->PushTexture(&textureAssets[2]);
+		TextureHandle texB = platformInfo->graphicsContext->PushTexture(&textureAssets[0]);
+		TextureHandle texC = platformInfo->graphicsContext->PushTexture(&textureAssets[1]);
 
 		MaterialAsset characterMaterialAsset = {MaterialType::Character, texB, texC, blackTexture};
-		MaterialAsset sceneryMaterialAsset = {MaterialType::Terrain, texA, texA, blackTexture};
-		MaterialAsset terrainMaterialAsset = {MaterialType::Terrain, texA, texA, whiteTexture};
-
 		state->characterMaterial = platformInfo->graphicsContext->PushMaterial(&characterMaterialAsset);
-		state->sceneryMaterial = platformInfo->graphicsContext->PushMaterial(&sceneryMaterialAsset);
-		state->terrainMaterial = platformInfo->graphicsContext->PushMaterial(&terrainMaterialAsset);
 	}
 
 	state->menuGuiButtonCount = 4;
@@ -636,15 +487,6 @@ UpdateMainLevel(
 			state->character.position = characterNewPosition;
 		}
 
-		if (input->interact.IsClicked())
-		{
-			auto collision = GetCollisions(characterCollisionCircle, state->keyholeTriggerColliders);
-			if (collision.isCollision)
-			{
-				std::cout << collision.otherColliderIndex << "\n";
-			}
-		}
-
 		if (grounded && input->jump.IsClicked())
 		{
 			state->character.zSpeed = 5;
@@ -676,12 +518,9 @@ UpdateMainLevel(
 
 	/// Update network
 	{
-		network->outPackage = {};
-		network->outPackage.characterPosition = state->character.position;
-		network->outPackage.characterRotation = state->character.rotation;
-
-		state->otherCharacter.position = network->inPackage.characterPosition;
-		state->otherCharacter.rotation = network->inPackage.characterRotation;
+		// network->outPackage = {};
+		// network->outPackage.characterPosition = state->character.position;
+		// network->outPackage.characterRotation = state->character.rotation;
 	}
 
 	/// Update Camera
@@ -796,38 +635,8 @@ UpdateMainLevel(
 	/// Output Render info
 	// Todo(Leo): Get info about limits of render output array sizes and constraint to those
 	{
-		outRenderInfo->renderedObjects[state->levelObjectHandle] = Matrix44::Identity();
-
-
 		Matrix44 characterTransform = state->character.transform.GetMatrix();
-
 		outRenderInfo->renderedObjects[state->characterObjectHandle] = characterTransform;
-
-		Matrix44 keyTransform = Matrix44::Translate(state->keyLocalPosition) * Matrix44::Rotate(state->keyLocalRotation);
-		outRenderInfo->renderedObjects[state->keyObjectHandle] = characterTransform * keyTransform;
-
-		if (network->isConnected)
-		{
-			outRenderInfo->renderedObjects[state->otherCharacterObjectHandle]
-				= Matrix44::Translate(state->otherCharacter.position) * Matrix44::Rotate(state->otherCharacter.rotation);
-		}
-		else
-		{
-			outRenderInfo->renderedObjects[state->otherCharacterObjectHandle] = {};
-		}
-
-		// Trees
-		for (int treeIndex = 0; treeIndex < state->treeCount; ++treeIndex)
-		{
-			outRenderInfo->renderedObjects[state->treeRenderHandles[treeIndex]] = state->treeTransforms[treeIndex].GetMatrix();
-		}
-
-
-		for (int keyholeIndex = 0; keyholeIndex < state->keyholeCount; ++keyholeIndex)
-		{
-			outRenderInfo->renderedObjects[state->keyholeRenderHandles[keyholeIndex]]
-				= state->keyholeTransforms[keyholeIndex].GetMatrix();
-		}
 
 		if (state->showGameMenu)
 		{
