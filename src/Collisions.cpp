@@ -46,11 +46,11 @@ struct CollisionResult
 };
 
 internal CollisionResult
-GetCollisions(Circle collider, ArenaArray<Circle> otherColliders)
+GetCollisions(Circle collider, ArenaArray<Circle> * otherColliders)
 {
-	for (int otherIndex = 0; otherIndex < otherColliders.count; ++otherIndex)
+	for (int otherIndex = 0; otherIndex < otherColliders->count; ++otherIndex)
 	{
-		if (CircleCircleCollision(collider, otherColliders[otherIndex]))
+		if (CircleCircleCollision(collider, (*otherColliders)[otherIndex]))
 		{
 			return {true, otherIndex};
 		}
@@ -59,11 +59,11 @@ GetCollisions(Circle collider, ArenaArray<Circle> otherColliders)
 }
 
 internal CollisionResult
-GetCollisions(Circle collider, ArenaArray<Rectangle> otherColliders)
+GetCollisions(Circle collider, ArenaArray<Rectangle> * otherColliders)
 {
-	for (int otherIndex = 0; otherIndex < otherColliders.count; ++otherIndex)
+	for (int otherIndex = 0; otherIndex < otherColliders->count; ++otherIndex)
 	{
-		if (CircleRectangleCollisionAABB(collider, otherColliders[otherIndex]))
+		if (CircleRectangleCollisionAABB(collider, (*otherColliders)[otherIndex]))
 		{
 			return { true, otherIndex };
 		}

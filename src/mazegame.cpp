@@ -23,13 +23,13 @@ struct Transform3D
 	}
 };
 
-
 // Note(Leo): Make unity build here
 #include "Random.cpp"
 #include "MapGenerator.cpp"
 #include "Camera.cpp"
 #include "Collisions.cpp"
 #include "CharacterSystems.cpp"
+#include "CameraController.cpp"
 
 /// Note(Leo): These still use external libraries we may want to get rid of
 #include "AudioFile.cpp"
@@ -41,16 +41,15 @@ using float3 = Vector3;
 struct GameState
 {
 	Character character;
+	CharacterControllerSideScroller characterController;
 	// Character otherCharacter;
 
 	// Vector3 keyLocalPosition;
 	// Quaternion keyLocalRotation;
 
-	real32 cameraOrbitDegrees = 180;
-	real32 cameraTumbleDegrees;
-	real32 cameraDistance = 20.0f;
-
 	Camera worldCamera;
+	// CameraController3rdPerson cameraController;
+	CameraControllerSideScroller cameraController;
 
 	struct
 	{
@@ -60,6 +59,8 @@ struct GameState
 
 	ArenaArray<RenderedObjectHandle> environmentObjects;
 	ArenaArray<Transform3D> environmentTransforms;
+
+	CollisionManager collisionManager;
 
 	// RenderedObjectHandle levelObjectHandle;
 	RenderedObjectHandle characterObjectHandle;
@@ -77,7 +78,6 @@ struct GameState
 	// ArenaArray<RenderedObjectHandle> 	keyholeRenderHandles;
 	// real32								keyholeCollisionRadius;
 	// ArenaArray<Circle>					keyholeTriggerColliders;
-
 
 
 	int32 staticColliderCount;
@@ -129,6 +129,13 @@ LoadMainLevel(GameState * state, game::Memory * memory, game::PlatformInfo * pla
 	structures to graphics context. Afterwards, just flush memoryarena.
 	*/
 
+	state->collisionManager =
+	{
+		.runningColliderIndex = 0,
+		.colliders = PushArray<Collider>(&state->persistentMemoryArena, 100),
+		.collisions = PushArray<Collision>(&state->persistentMemoryArena, 100) // Todo(Leo): Not enough..
+	};
+
 	// Create MateriaLs
 	{
 		TextureAsset whiteTextureAsset = {};
@@ -173,17 +180,35 @@ LoadMainLevel(GameState * state, game::Memory * memory, game::PlatformInfo * pla
 			MaterialHandle handle = platformInfo->graphicsContext->PushMaterial(&asset);
 			return handle;
 		};
-		state->materials.character 		= PushMaterial(MaterialType::Character, lavaTexture, textureTexture, blackTexture);
-		state->materials.environment 	= PushMaterial(MaterialType::Character, tilesTexture, blackTexture, blackTexture);
+
+		state->materials =
+		{
+			.character  	= PushMaterial(	MaterialType::Character,
+											lavaTexture,
+											textureTexture,
+											blackTexture),
+
+			.environment 	= PushMaterial(	MaterialType::Character,
+											tilesTexture,
+											blackTexture,
+											blackTexture)
+		};
 	}
 
-    state->worldCamera = {};
-    state->worldCamera.forward = World::Forward;
+    state->worldCamera =
+    {
+    	.forward = World::Forward,
+    	.fieldOfView = 60,
+    	.nearClipPlane = 0.1f,
+    	.farClipPlane = 1000.0f,
+    	.aspectRatio = (real32)platformInfo->windowWidth / (real32)platformInfo->windowHeight	
+    };
 
-    state->worldCamera.fieldOfView = 60;
-    state->worldCamera.nearClipPlane = 0.1f;
-    state->worldCamera.farClipPlane = 1000.0f;
-    state->worldCamera.aspectRatio = (real32)platformInfo->windowWidth / (real32)platformInfo->windowHeight;	
+    state->cameraController =
+    {
+    	.camera 		= &state->worldCamera,
+    	.target 		= &state->character.transform
+    };
 
     auto PushMesh = [platformInfo] (MeshAsset * asset) -> MeshHandle
     {
@@ -199,20 +224,22 @@ LoadMainLevel(GameState * state, game::Memory * memory, game::PlatformInfo * pla
 
 	// Characters
 	{
-		auto characterMesh 				= LoadModel(&state->transientMemoryArena, "models/character.obj");
-		auto characterMeshHandle 		= PushMesh(&characterMesh);
-	
-		state->character.position 		= {0, 0, 0};
-		state->character.rotation 		= Quaternion::Identity();
+		auto characterMesh 					= LoadModel(&state->transientMemoryArena, "models/character.obj");
+		auto characterMeshHandle 			= PushMesh(&characterMesh);
 
-		state->characterObjectHandle 	= PushRenderer(characterMeshHandle, state->materials.character);
-		state->character.scale 			= 1;
+		state->characterObjectHandle 		= PushRenderer(	characterMeshHandle,
+															state->materials.character);
+		state->characterController = 
+		{
+			.character 	= &state->character,
+			.collider 	= state->collisionManager.PushCollider(&state->character.transform, 0.5f)
+		};
 	}
 
 
 	// Environment
 	{
-		int environmentObjectCount 		= 5;
+		int environmentObjectCount 		= 3;
 
 		state->environmentObjects 		= PushArray<RenderedObjectHandle>(&state->persistentMemoryArena, environmentObjectCount);
 		state->environmentTransforms 	= PushArray<Transform3D>(&state->persistentMemoryArena, environmentObjectCount);
@@ -233,21 +260,18 @@ LoadMainLevel(GameState * state, game::Memory * memory, game::PlatformInfo * pla
 		auto pillarMeshHandle 			= PushMesh(&pillarMesh);
 		state->environmentObjects[1]	= PushRenderer(pillarMeshHandle, state->materials.environment);
 		state->environmentObjects[2]	= PushRenderer(pillarMeshHandle, state->materials.environment);
-		state->environmentObjects[3]	= PushRenderer(pillarMeshHandle, state->materials.environment);
-		state->environmentObjects[4]	= PushRenderer(pillarMeshHandle, state->materials.environment);
 
-		state->environmentTransforms [1] = {-width / 4, -depth / 4, 0};
-		state->environmentTransforms [2] = {width / 4, -depth / 4, 0};
-		state->environmentTransforms [3] = {-width / 4, depth / 4, 0};
-		state->environmentTransforms [4] = {width / 4, depth / 4, 0};
+		state->environmentTransforms [1] = {-width / 4, 0, 0};
+		state->environmentTransforms [2] = {width / 4, 0, 0};
 
-		Vector2 colliderSize = {4.0f, 4.0f};
-		Vector2 halfColliderSize = colliderSize / 2.0f;
-		state->staticColliders 			= PushArray<Rectangle>(&state->persistentMemoryArena, 4);
-		state->staticColliders[0] 		= { Vector2{-width / 4, -depth / 4} - halfColliderSize, colliderSize};
-		state->staticColliders[1] 		= { Vector2{width / 4, -depth / 4} - halfColliderSize, colliderSize};
-		state->staticColliders[2] 		= { Vector2{-width / 4, depth / 4} - halfColliderSize, colliderSize};
-		state->staticColliders[3] 		= { Vector2{width / 4, depth / 4} - halfColliderSize, colliderSize};
+		// Vector2 colliderSize = {4.0f, 4.0f};
+		// Vector2 halfColliderSize = colliderSize / 2.0f;
+		// state->staticColliders 			= PushArray<Rectangle>(&state->persistentMemoryArena, 2);
+		// state->staticColliders[0] 		= { Vector2{-width / 4, -depth / 4} - halfColliderSize, colliderSize};
+		// state->staticColliders[1] 		= { Vector2{width / 4, -depth / 4} - halfColliderSize, colliderSize};
+
+		state->collisionManager.PushCollider(&state->environmentTransforms[1], 2);
+		state->collisionManager.PushCollider(&state->environmentTransforms[2], 2);
 	}
 
 	state->gameGuiButtonCount = 2;
@@ -543,56 +567,11 @@ UpdateMainLevel(
 {
 	state->transientMemoryArena.Flush();
 
+	state->collisionManager.DoCollisions();
+
 	/// Update Character
-	Vector3 characterMovementVector;
-	{
-		real32 characterSpeed = 10;
-		bool32 grounded = state->character.position.z < 0.1f;
-
-		characterMovementVector = ProcessCharacterInput(input, &state->worldCamera);
-
-		Vector3 characterNewPosition = state->character.position + characterMovementVector * characterSpeed * input->elapsedTime;
-
-		// Collisions
-		real32 characterCollisionRadius = 0.5f;
-		Circle characterCollisionCircle = {characterNewPosition.x, characterNewPosition.y, characterCollisionRadius};
-
-		auto collisionResult = GetCollisions(characterCollisionCircle, state->staticColliders);
-
-		if (collisionResult.isCollision == false)
-		{
-			state->character.position = characterNewPosition;
-		}
-
-
-		if (grounded && input->jump.IsClicked())
-		{
-			state->character.zSpeed = 5;
-		}
-
-		state->character.position.z += state->character.zSpeed * input->elapsedTime;
-
-		if (state->character.position.z > 0)
-		{	
-			state->character.zSpeed -= 2 * 9.81 * input->elapsedTime;
-		}
-		else
-		{
-			state->character.zSpeed = 0;
-            state->character.position.z = 0;
-		}
-
-		
-		real32 epsilon = 0.001f;
-		if (Abs(input->move.x) > epsilon || Abs(input->move.y) > epsilon)
-		{
-			Vector3 characterForward = Normalize(characterMovementVector);
-			real32 angleToWorldForward = SignedAngle(World::Forward, characterForward, World::Up);
-			state->character.zRotationRadians = angleToWorldForward;
-		}
-
-		state->character.rotation = Quaternion::AxisAngle(World::Up, state->character.zRotationRadians);
-	}
+	// state->characterController.Update(input, &state->worldCamera, &state->staticColliders);
+	state->characterController.Update(input, &state->staticColliders);
 
 	/// Update network
 	{
@@ -601,68 +580,9 @@ UpdateMainLevel(
 		// network->outPackage.characterRotation = state->character.rotation;
 	}
 
-	/// Update Camera
-	{
-		// Note(Leo): Update aspect ratio each frame, in case screen size has changed.
-	    state->worldCamera.aspectRatio = (real32)platform->windowWidth / (real32)platform->windowHeight;
-
-		real32 cameraRotateSpeed = 180;
-		real32 cameraTumbleMin = -10;
-		real32 cameraTumbleMax = 85;
-
-		real32 relativeZoomSpeed = 0.1f;
-		real32 zoomSpeed = state->cameraDistance;
-		real32 minDistance = 5;
-		real32 maxDistance = 100;
-
-		Vector3 cameraOffsetFromTarget = World::Up * 2.0f;
-
-		if (input->zoomIn.IsPressed())
-		{
-			// state->worldCamera.fieldOfView -= input->elapsedTime * 15;
-			// state->worldCamera.fieldOfView = Max(state->worldCamera.fieldOfView, 10.0f);
-			state->cameraDistance -= zoomSpeed * input->elapsedTime;
-			state->cameraDistance = Max(state->cameraDistance, minDistance);
-		}
-		else if(input->zoomOut.IsPressed())
-		{
-			// state->worldCamera.fieldOfView += input->elapsedTime * 15;
-			// state->worldCamera.fieldOfView = Min(state->worldCamera.fieldOfView, 100.0f);
-			state->cameraDistance += zoomSpeed * input->elapsedTime;
-			state->cameraDistance = Min(state->cameraDistance, maxDistance);
-		}
-
-	    state->cameraOrbitDegrees += input->look.x * cameraRotateSpeed * input->elapsedTime;
-	    
-	    state->cameraTumbleDegrees += input->look.y * cameraRotateSpeed * input->elapsedTime;
-	    state->cameraTumbleDegrees = Clamp(state->cameraTumbleDegrees, cameraTumbleMin, cameraTumbleMax);
-
-	    real32 cameraDistance = state->cameraDistance;
-	    real32 cameraHorizontalDistance = Cosine(DegToRad * state->cameraTumbleDegrees) * cameraDistance;
-	    Vector3 localPosition 
-	    {
-			Sine(DegToRad * state->cameraOrbitDegrees) * cameraHorizontalDistance,
-			Cosine(DegToRad * state->cameraOrbitDegrees) * cameraHorizontalDistance,
-			Sine(DegToRad * state->cameraTumbleDegrees) * cameraDistance
-	    };
-
-
-	    /*
-	    Todo[Camera] (Leo): This is good effect, but its too rough like this,
-	    make it good later when projections work
-
-	    real32 cameraAdvanceAmount = 5;
-	    Vector3 cameraAdvanceVector = characterMovementVector * cameraAdvanceAmount;
-	    Vector3 cameraParentPosition = state->character.position + cameraAdvanceVector + cameraOffsetFromTarget;
-	    */
-
-	    Vector3 characterGroundedPosition = state->character.position;
-	    characterGroundedPosition.z = 0;
-	    Vector3 cameraParentPosition = characterGroundedPosition + cameraOffsetFromTarget;
-	    
-	    state->worldCamera.position = cameraParentPosition + localPosition;
-		state->worldCamera.LookAt(cameraParentPosition);
-	}
+	// Note(Leo): Update aspect ratio each frame, in case screen size has changed.
+    state->worldCamera.aspectRatio = (real32)platform->windowWidth / (real32)platform->windowHeight;
+    state->cameraController.Update(input);
 
 	// Overlay menu
 	if (input->start.IsClicked())
