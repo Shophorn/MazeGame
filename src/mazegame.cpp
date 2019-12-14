@@ -36,6 +36,8 @@ struct Transform3D
 #include "MeshLoader.cpp"
 #include "TextureLoader.cpp"
 
+using float3 = Vector3;
+
 struct GameState
 {
 	Character character;
@@ -50,10 +52,14 @@ struct GameState
 
 	Camera worldCamera;
 
-	MaterialHandle characterMaterial;
-	// MaterialHandle sceneryMaterial;
-	// MaterialHandle terrainMaterial;
-	// MaterialHandle paletteMaterial;
+	struct
+	{
+		MaterialHandle character;
+		MaterialHandle environment;
+	} materials;
+
+	ArenaArray<RenderedObjectHandle> environmentObjects;
+	ArenaArray<Transform3D> environmentTransforms;
 
 	// RenderedObjectHandle levelObjectHandle;
 	RenderedObjectHandle characterObjectHandle;
@@ -72,8 +78,10 @@ struct GameState
 	// real32								keyholeCollisionRadius;
 	// ArenaArray<Circle>					keyholeTriggerColliders;
 
+
+
 	int32 staticColliderCount;
-	ArenaArray<Circle> staticColliders;
+	ArenaArray<Rectangle> staticColliders;
 
 	/* Note(Leo): MEMORY
 	'persistentMemoryArena' is used to store things from frame to frame.
@@ -111,9 +119,8 @@ InitializeGameState(GameState * state, game::Memory * memory, game::PlatformInfo
 
 
 	std::cout << "Screen size = (" << platformInfo->windowWidth << "," << platformInfo->windowHeight << ")\n";
-
 }
-	
+
 void 
 LoadMainLevel(GameState * state, game::Memory * memory, game::PlatformInfo * platformInfo)
 {
@@ -141,16 +148,33 @@ LoadMainLevel(GameState * state, game::Memory * memory, game::PlatformInfo * pla
 		TextureHandle whiteTexture = platformInfo->graphicsContext->PushTexture(&whiteTextureAsset);
 		TextureHandle blackTexture = platformInfo->graphicsContext->PushTexture(&blackTextureAsset);
 
-	    TextureAsset textureAssets [] = {
-	        LoadTextureAsset("textures/lava.jpg", &state->transientMemoryArena),
-	        LoadTextureAsset("textures/texture.jpg", &state->transientMemoryArena),
-	    };
 
-		TextureHandle texB = platformInfo->graphicsContext->PushTexture(&textureAssets[0]);
-		TextureHandle texC = platformInfo->graphicsContext->PushTexture(&textureAssets[1]);
+		// Note(Leo): Loads texture asset from "textures/<name>.jpg" to a variable <name>TextureAsset
+ 		#define LOAD_TEXTURE(name) TextureAsset name ## TextureAsset = LoadTextureAsset("textures/" #name ".jpg", &state->transientMemoryArena);
 
-		MaterialAsset characterMaterialAsset = {MaterialType::Character, texB, texC, blackTexture};
-		state->characterMaterial = platformInfo->graphicsContext->PushMaterial(&characterMaterialAsset);
+		LOAD_TEXTURE(tiles)
+		LOAD_TEXTURE(lava)
+		LOAD_TEXTURE(texture)
+		
+		#undef LOAD_TEXTURE
+
+		// Note(Leo): Pushes texture asset to graphics context and stores the handle in a variable named <name>Texture
+		#define PUSH_TEXTURE(name) TextureHandle name ## Texture = platformInfo->graphicsContext->PushTexture(&name ## TextureAsset);
+
+		PUSH_TEXTURE(tiles)
+		PUSH_TEXTURE(lava)
+		PUSH_TEXTURE(texture)
+
+		#undef PUSH_TEXTURE
+
+		auto PushMaterial = [platformInfo](MaterialType type, TextureHandle a, TextureHandle b, TextureHandle c) -> MaterialHandle
+		{
+			MaterialAsset asset = { type, a, b, c };
+			MaterialHandle handle = platformInfo->graphicsContext->PushMaterial(&asset);
+			return handle;
+		};
+		state->materials.character 		= PushMaterial(MaterialType::Character, lavaTexture, textureTexture, blackTexture);
+		state->materials.environment 	= PushMaterial(MaterialType::Character, tilesTexture, blackTexture, blackTexture);
 	}
 
     state->worldCamera = {};
@@ -161,16 +185,69 @@ LoadMainLevel(GameState * state, game::Memory * memory, game::PlatformInfo * pla
     state->worldCamera.farClipPlane = 1000.0f;
     state->worldCamera.aspectRatio = (real32)platformInfo->windowWidth / (real32)platformInfo->windowHeight;	
 
+    auto PushMesh = [platformInfo] (MeshAsset * asset) -> MeshHandle
+    {
+    	auto handle = platformInfo->graphicsContext->PushMesh(asset);
+    	return handle;
+    };
+
+    auto PushRenderer = [platformInfo] (MeshHandle mesh, MaterialHandle material) -> RenderedObjectHandle
+    {
+    	auto handle = platformInfo->graphicsContext->PushRenderedObject(mesh, material);
+    	return handle;
+    };
+
 	// Characters
 	{
-		auto characterMesh 					= LoadModel(&state->transientMemoryArena, "models/character.obj");
-		auto characterMeshHandle 			= platformInfo->graphicsContext->PushMesh(&characterMesh);
+		auto characterMesh 				= LoadModel(&state->transientMemoryArena, "models/character.obj");
+		auto characterMeshHandle 		= PushMesh(&characterMesh);
 	
-		state->character.position = {0, 0, 0};
-		state->character.rotation = Quaternion::Identity();
+		state->character.position 		= {0, 0, 0};
+		state->character.rotation 		= Quaternion::Identity();
 
-		state->characterObjectHandle 		= platformInfo->graphicsContext->PushRenderedObject(characterMeshHandle, state->characterMaterial);
-		state->character.scale = 1;
+		state->characterObjectHandle 	= PushRenderer(characterMeshHandle, state->materials.character);
+		state->character.scale 			= 1;
+	}
+
+
+	// Environment
+	{
+		int environmentObjectCount 		= 5;
+
+		state->environmentObjects 		= PushArray<RenderedObjectHandle>(&state->persistentMemoryArena, environmentObjectCount);
+		state->environmentTransforms 	= PushArray<Transform3D>(&state->persistentMemoryArena, environmentObjectCount);
+	
+		auto groundQuad 				= mesh_primitives::CreateQuad(&state->transientMemoryArena);
+
+		float width = 100;
+		float depth = 100;
+		auto meshTransform				= Matrix44::Translate({-width / 2, -depth /2, 0}) * Matrix44::Scale({width, depth, 0});
+		mesh_ops::Transform(&groundQuad, meshTransform);
+		mesh_ops::TransformTexCoords(&groundQuad, {0,0}, {width / 2, depth / 2});
+
+		auto groundQuadHandle 			= PushMesh(&groundQuad);
+		state->environmentObjects[0] 	= PushRenderer(groundQuadHandle, state->materials.environment);
+		state->environmentTransforms[0] = {};
+
+		auto pillarMesh 				= LoadModel(&state->transientMemoryArena, "models/big_pillar.obj");
+		auto pillarMeshHandle 			= PushMesh(&pillarMesh);
+		state->environmentObjects[1]	= PushRenderer(pillarMeshHandle, state->materials.environment);
+		state->environmentObjects[2]	= PushRenderer(pillarMeshHandle, state->materials.environment);
+		state->environmentObjects[3]	= PushRenderer(pillarMeshHandle, state->materials.environment);
+		state->environmentObjects[4]	= PushRenderer(pillarMeshHandle, state->materials.environment);
+
+		state->environmentTransforms [1] = {-width / 4, -depth / 4, 0};
+		state->environmentTransforms [2] = {width / 4, -depth / 4, 0};
+		state->environmentTransforms [3] = {-width / 4, depth / 4, 0};
+		state->environmentTransforms [4] = {width / 4, depth / 4, 0};
+
+		Vector2 colliderSize = {4.0f, 4.0f};
+		Vector2 halfColliderSize = colliderSize / 2.0f;
+		state->staticColliders 			= PushArray<Rectangle>(&state->persistentMemoryArena, 4);
+		state->staticColliders[0] 		= { Vector2{-width / 4, -depth / 4} - halfColliderSize, colliderSize};
+		state->staticColliders[1] 		= { Vector2{width / 4, -depth / 4} - halfColliderSize, colliderSize};
+		state->staticColliders[2] 		= { Vector2{-width / 4, depth / 4} - halfColliderSize, colliderSize};
+		state->staticColliders[3] 		= { Vector2{width / 4, depth / 4} - halfColliderSize, colliderSize};
 	}
 
 	state->gameGuiButtonCount = 2;
@@ -181,11 +258,11 @@ LoadMainLevel(GameState * state, game::Memory * memory, game::PlatformInfo * pla
 	state->gameGuiButtons[1] = {380, 260, 180, 40};
 
 	MeshAsset quadAsset = mesh_primitives::CreateQuad(&state->transientMemoryArena);
- 	MeshHandle quadHandle = platformInfo->graphicsContext->PushMesh(&quadAsset);
+ 	MeshHandle quadHandle = PushMesh(&quadAsset);
 
 	for (int guiButtonIndex = 0; guiButtonIndex < state->gameGuiButtonCount; ++guiButtonIndex)
 	{
-		state->gameGuiButtonHandles[guiButtonIndex] = platformInfo->graphicsContext->PushGui(quadHandle, state->characterMaterial);
+		state->gameGuiButtonHandles[guiButtonIndex] = platformInfo->graphicsContext->PushGui(quadHandle, state->materials.character);
 	}
 
 	state->selectedGuiButtonIndex = 0;
@@ -232,7 +309,7 @@ LoadMenu(GameState * state, game::Memory * memory, game::PlatformInfo * platform
 		TextureHandle texC = platformInfo->graphicsContext->PushTexture(&textureAssets[1]);
 
 		MaterialAsset characterMaterialAsset = {MaterialType::Character, texB, texC, blackTexture};
-		state->characterMaterial = platformInfo->graphicsContext->PushMaterial(&characterMaterialAsset);
+		state->materials.character = platformInfo->graphicsContext->PushMaterial(&characterMaterialAsset);
 	}
 
 	state->menuGuiButtonCount = 4;
@@ -249,7 +326,7 @@ LoadMenu(GameState * state, game::Memory * memory, game::PlatformInfo * platform
 
 	for (int guiButtonIndex = 0; guiButtonIndex < state->menuGuiButtonCount; ++guiButtonIndex)
 	{
-		state->menuGuiButtonHandles[guiButtonIndex] = platformInfo->graphicsContext->PushGui(quadHandle, state->characterMaterial);
+		state->menuGuiButtonHandles[guiButtonIndex] = platformInfo->graphicsContext->PushGui(quadHandle, state->materials.character);
 	}
 
 	state->selectedGuiButtonIndex = 0;
@@ -480,12 +557,13 @@ UpdateMainLevel(
 		real32 characterCollisionRadius = 0.5f;
 		Circle characterCollisionCircle = {characterNewPosition.x, characterNewPosition.y, characterCollisionRadius};
 
-		bool32 collide = GetCollisions(characterCollisionCircle, state->staticColliders).isCollision;
+		auto collisionResult = GetCollisions(characterCollisionCircle, state->staticColliders);
 
-		if (collide == false)
+		if (collisionResult.isCollision == false)
 		{
 			state->character.position = characterNewPosition;
 		}
+
 
 		if (grounded && input->jump.IsClicked())
 		{
@@ -637,6 +715,13 @@ UpdateMainLevel(
 	{
 		Matrix44 characterTransform = state->character.transform.GetMatrix();
 		outRenderInfo->renderedObjects[state->characterObjectHandle] = characterTransform;
+
+		int environmentCount = state->environmentObjects.count;
+		for (int i = 0; i < environmentCount; ++i)
+		{
+			outRenderInfo->renderedObjects[state->environmentObjects[i]]
+				= state->environmentTransforms[i].GetMatrix();
+		}
 
 		if (state->showGameMenu)
 		{

@@ -2,6 +2,9 @@ struct Rectangle
 {
 	Vector2 position;
 	Vector2 size;
+
+	// Todo(Leo): add this
+	// float rotation; 
 };
 
 struct Circle
@@ -22,6 +25,20 @@ CircleCircleCollision(Circle a, Circle b)
 	return result;
 }
 
+internal bool32
+CircleRectangleCollisionAABB(Circle c, Rectangle r)
+{
+	bool32 isInsideAABB = 
+		(c.position.x + c.radius) > r.position.x
+		&& (c.position.y + c.radius) > r.position.y
+		&& (c.position.x - c.radius) < (r.position.x + r.size.x)
+		&& (c.position.y - c.radius) < (r.position.y + r.size.y);
+
+	float sqrDistanceThreshold = c.radius * c.radius;
+
+	return isInsideAABB;
+}
+
 struct CollisionResult
 {
 	bool32 isCollision;
@@ -31,12 +48,26 @@ struct CollisionResult
 internal CollisionResult
 GetCollisions(Circle collider, ArenaArray<Circle> otherColliders)
 {
-	for (int colliderIndex = 0; colliderIndex < otherColliders.count; ++colliderIndex)
+	for (int otherIndex = 0; otherIndex < otherColliders.count; ++otherIndex)
 	{
-		if (CircleCircleCollision(collider, otherColliders[colliderIndex]))
+		if (CircleCircleCollision(collider, otherColliders[otherIndex]))
 		{
-			return {true, colliderIndex};
+			return {true, otherIndex};
 		}
 	}
+	return {false};
+}
+
+internal CollisionResult
+GetCollisions(Circle collider, ArenaArray<Rectangle> otherColliders)
+{
+	for (int otherIndex = 0; otherIndex < otherColliders.count; ++otherIndex)
+	{
+		if (CircleRectangleCollisionAABB(collider, otherColliders[otherIndex]))
+		{
+			return { true, otherIndex };
+		}
+	}
+
 	return {false};
 }

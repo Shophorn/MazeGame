@@ -186,6 +186,18 @@ union MatrixBase
 
 		return result;	
 	}
+
+	// TODO(Leo): Manually inline calculations
+	class_member matrix_type
+	Transform(Vector3 translation, Quaternion rotation, Vector3 scale)
+	{
+		STATIC_ASSERT_TRANSFORM_MATRIX;
+
+		auto result = Translate(translation) * Rotate(rotation) * Scale(scale);
+	
+		return result;	
+	}
+
 };
 
 
@@ -239,22 +251,25 @@ namespace std
 
 using Matrix44 = MatrixBase<real32, 4, 4>;
 
+
 // Todo (Leo): make template
 inline Vector3 
-operator * (Matrix44 mat, Vector3 vec)
+operator * (const Matrix44 & mat, Vector3 vec)
 {
 	MatrixBase<real32, 4, 1> vecMatrix = { vec.x, vec.y, vec.z, 1.0	};
 	MatrixBase<real32, 4, 1> product = mat * vecMatrix;
 
-	std::cout << vec << ", " << product << "\n";
+	// std::cout << vec << ", " << product << "\n";
 
-	Vector3 result = {
+	vec = {
 		product[0][0] / product[0][3],
 		product[0][1] / product[0][3],
 		product[0][2] / product[0][3]
 	};
-	return result;
+	return vec;
 }
+
+
 
 
 

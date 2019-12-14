@@ -43,16 +43,16 @@ struct MeshAsset
 	ArenaArray<Vertex> vertices;
 	ArenaArray<uint16> indices;
 
-	// TODO(Leo): would this be a good way to deal with different index types
-	union
-	{
-		ArenaArray<uint16> indices16;
-		ArenaArray<uint32> indices32;
-	};
+	// TODO(Leo): would this be a good way to deal with different index types?
+	// union
+	// {
+	// 	ArenaArray<uint16> indices16;
+	// 	ArenaArray<uint32> indices32;
+	// };
 
-	IndexType indexType;
+	IndexType indexType = IndexType::UInt16;
 
-	void * indexData;
+	// void * indexData;
 };
 
 

@@ -11,8 +11,8 @@ struct ArenaArray
 	Type * data;
 	uint64 count;
 
-	Type * begin() { return data; }
-	Type * end() { return data + count; }	
+	// Type * begin() { return data; }
+	// Type * end() { return data + count; }	
 
 	Type & operator [] (IndexType index)
 	{
@@ -81,11 +81,11 @@ PushArray(MemoryArena * arena, uint64 count)
 }
 
 template<typename Type> internal void
-ShrinkLastArray(MemoryArena * arena, ArenaArray<Type> * array, uint64 newCount)
+ShrinkLastArray(MemoryArena * arena, ArenaArray<Type> * array, uint64 newSize)
 {
 	MAZEGAME_ASSERT(arena->lastPushed == reinterpret_cast<byte *>(array->data), "Can only shrink last pushed array!");
 
-	uint64 delta = array->count - newCount;
+	uint64 delta = array->count - newSize;
 	MAZEGAME_ASSERT(delta >= 0, "Can only shrink array to a smaller size");
 
 	arena->used -= delta;

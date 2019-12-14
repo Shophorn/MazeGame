@@ -317,6 +317,7 @@ GetMaxUsableMsaaSampleCount (VkPhysicalDevice physicalDevice)
     return result;
 }
 
+// Todo(Leo): put into namespace, I already forgot where this was :)
 internal VkInstance
 CreateInstance()
 {
@@ -393,10 +394,6 @@ CreateInstance()
     }
 
     return instance;
-    // Todo(Leo): check if glfw extensions are found
-    // VkExtensionProperties extensions [50];
-    // uint32 extensionCount = ARRAY_COUNT(extensions);
-    // vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, extensions); 
 }
 
 internal VkPhysicalDevice

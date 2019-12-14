@@ -71,6 +71,29 @@ LoadModel(MemoryArena * memoryArena, const char * modelPath)
 	return result;
 }
 
+namespace mesh_ops
+{
+	internal void
+	Transform(MeshAsset * mesh, const Matrix44 & transform)
+	{
+		int vertexCount = mesh->vertices.count;
+		for (int vertexIndex = 0; vertexIndex < vertexCount; ++vertexIndex)
+		{
+			mesh->vertices[vertexIndex].position = transform * mesh->vertices[vertexIndex].position; 
+		}
+	}
+
+	internal void
+	TransformTexCoords(MeshAsset * mesh, const Vector2 translation, const Vector2 scale)
+	{
+		int vertexCount = mesh->vertices.count;
+		for(int vertexIndex = 0; vertexIndex < vertexCount; ++vertexIndex)
+		{
+			mesh->vertices[vertexIndex].texCoord *= scale;
+			mesh->vertices[vertexIndex].texCoord += translation;
+		}
+	}
+}
 
 namespace mesh_primitives
 {
@@ -84,11 +107,11 @@ namespace mesh_primitives
 		int vertexCount = 4;
 		result.vertices = PushArray<Vertex>(memoryArena, vertexCount);
 
-		// 					  position normal   color    uv
-		result.vertices[0] = {0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0};
-		result.vertices[1] = {1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0};
-		result.vertices[2] = {0, 1, 0, 0, 0, 1, 1, 1, 1, 0, 1};
-		result.vertices[3] = {1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1};
+		// 					  position 		normal   	color    	uv
+		result.vertices[0] = {0, 0, 0, 		0, 0, 1, 	1, 1, 1, 	0, 0};
+		result.vertices[1] = {1, 0, 0, 		0, 0, 1, 	1, 1, 1, 	1, 0};
+		result.vertices[2] = {0, 1, 0, 		0, 0, 1, 	1, 1, 1, 	0, 1};
+		result.vertices[3] = {1, 1, 0, 		0, 0, 1, 	1, 1, 1, 	1, 1};
 
 		int indexCount = 6;
 		result.indices = PushArray<uint16>(memoryArena, indexCount);
