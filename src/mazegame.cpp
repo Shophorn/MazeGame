@@ -241,7 +241,11 @@ LoadMainLevel(GameState * state, game::Memory * memory, game::PlatformInfo * pla
 
 	// Environment
 	{
-		int environmentObjectCount 		= 3;
+		int groundCount = 1;
+		int pillarCount = 2;
+		int ladderCount = 6;
+
+		int environmentObjectCount 		= groundCount + pillarCount + ladderCount;
 
 		state->environmentObjects 		= PushArray<RenderedObjectHandle>(&state->persistentMemoryArena, environmentObjectCount);
 		state->environmentTransforms 	= PushArray<Transform3D>(&state->persistentMemoryArena, environmentObjectCount);
@@ -266,15 +270,24 @@ LoadMainLevel(GameState * state, game::Memory * memory, game::PlatformInfo * pla
 		state->environmentTransforms [1] = {-width / 4, 0, 0};
 		state->environmentTransforms [2] = {width / 4, 0, 0};
 
-		// Vector2 colliderSize = {4.0f, 4.0f};
-		// Vector2 halfColliderSize = colliderSize / 2.0f;
-		// state->staticColliders 			= PushArray<Rectangle>(&state->persistentMemoryArena, 2);
-		// state->staticColliders[0] 		= { Vector2{-width / 4, -depth / 4} - halfColliderSize, colliderSize};
-		// state->staticColliders[1] 		= { Vector2{width / 4, -depth / 4} - halfColliderSize, colliderSize};
-
 		state->collisionManager.PushCollider(&state->environmentTransforms[0], {100, 1}, {0, -1.0f});
 		state->collisionManager.PushCollider(&state->environmentTransforms[1], {2, 25});
 		state->collisionManager.PushCollider(&state->environmentTransforms[2], {2, 25});
+
+		auto ladderMesh 				= LoadModel(&state->transientMemoryArena, "models/ladder.obj");
+		auto ladderMeshHandle 			= PushMesh(&ladderMesh);
+
+		int environmentIndex = 3;
+		float ladderHeight = 1.0f;
+		for (int ladderIndex = 0; ladderIndex < ladderCount; ++ladderIndex)
+		{
+			state->environmentObjects[environmentIndex] = PushRenderer(ladderMeshHandle, state->materials.environment);
+			state->environmentTransforms[environmentIndex] = {-10, 0.5, ladderHeight * ladderIndex};
+			auto * collider = state->collisionManager.PushCollider(&state->environmentTransforms[environmentIndex], {1.0f, 0.5f}, {0, 0.5f});
+			collider->isLadder = true;
+			environmentIndex++;
+		}
+
 	}
 
 	state->gameGuiButtonCount = 2;

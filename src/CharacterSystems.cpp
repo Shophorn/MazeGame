@@ -24,6 +24,8 @@ struct Collider
 	Vector2			extents;
 	Vector2			offset;
 
+	bool 			isLadder;
+
 	bool 			hasCollision;
 	Collision * 	collision;
 };
@@ -53,7 +55,7 @@ struct CollisionManager
 	}
 
 	bool32
-	Raycast(Vector2 origin, Vector2 ray)
+	Raycast(Vector2 origin, Vector2 ray, bool laddersBlock)
 	{
 		Vector2 corners [4];
 		
@@ -62,6 +64,11 @@ struct CollisionManager
 
 		for (int i = 0; i < colliderCount; ++i)
 		{
+			if (colliders[i].isLadder && (laddersBlock == false))
+			{
+				continue;
+			}
+
 			Vector2 position2D = {	colliders[i].transform->position.x,
 									colliders[i].transform->position.z};
 
@@ -85,8 +92,6 @@ struct CollisionManager
 
 			bool endInside = 	(0 < Dot(AMend, AB) && Dot(AMend, AB) < Dot (AB, AB))
 								&& (0 < Dot(AMend, AD) && Dot(AMend, AD) < Dot (AD, AD));
-
-			// std::cout << "\t" << position2D << ", " << extents << ", " << (startInside ? "True" : "False") << ", " << (endInside ? "True" : "False") << "\n";
 
 			if (!startInside && endInside)
 				return true;
@@ -167,11 +172,18 @@ ProcessCharacterInput(game::Input * input, Camera * camera)
 
 struct CharacterControllerSideScroller
 {
+	// References
 	Character * character;
 	Collider * collider;
 
+	// Properties
 	float speed 			= 10;
-	float collisionRadius 	= 0.5f;
+	float collisionRadius 	= 0.3f;
+	float rotationSpeed		= 2 * pi;
+
+	// State
+	float targetRotationRadians = 0;
+	float currentRotationRadians = 0;
 
 	void
 	Update(game::Input * input, CollisionManager * collisionManager)
@@ -180,25 +192,33 @@ struct CharacterControllerSideScroller
 
 		float xMovement = moveStep * input->move.x;
 
-		Vector2 leftRayOrigin 	= {	character->transform.position.x - collisionRadius, 
-									character->transform.position.z + 0.5f};
-		Vector2 leftRay 		= {xMovement, 0};
-		bool32 leftRayHit 		= collisionManager->Raycast(leftRayOrigin, leftRay);
+		// Going Left
+		if (xMovement < 0.0f)
+		{
+			Vector2 leftRayOrigin 	= {	character->transform.position.x - collisionRadius, 
+										character->transform.position.z + 0.5f};
+			Vector2 leftRay 		= {xMovement, 0};
+			bool32 leftRayHit 		= collisionManager->Raycast(leftRayOrigin, leftRay, false);
 
-		Vector2 rightRayOrigin 	= {	character->transform.position.x + collisionRadius,
-									character->transform.position.z + 0.5f};
-		Vector2 rightRay 		= {xMovement, 0};
-		bool32 rightRayHit		= collisionManager->Raycast(rightRayOrigin, rightRay); 
+			if (leftRayHit)
+				xMovement = Max(0.0f, xMovement);
 
+			targetRotationRadians = -pi / 2.0f;
+		}
 
-		// Todo(Leo): Do not just 0 movement, but onyl shorten it the required amount
-		if (leftRayHit)
-			xMovement = Max(0.0f, xMovement);
+		// Going Right
+		else if (xMovement > 0.0f)
+		{
+			Vector2 rightRayOrigin 	= {	character->transform.position.x + collisionRadius,
+										character->transform.position.z + 0.5f};
+			Vector2 rightRay 		= {xMovement, 0};
+			bool32 rightRayHit		= collisionManager->Raycast(rightRayOrigin, rightRay, false); 
 
-		if (rightRayHit)
-			xMovement = Min(0.0f, xMovement);
+			if (rightRayHit)
+				xMovement = Min(0.0f, xMovement);
 
-
+			targetRotationRadians = pi / 2.0f;
+		}
 
 
 		character->zSpeed += -9.81 * input->elapsedTime;
@@ -211,20 +231,30 @@ struct CharacterControllerSideScroller
 									character->transform.position.z + skinWidth};
 		Vector2 downRay 		= {0, zMovement - skinWidth};
 		
-		bool32 downRayHit = collisionManager->Raycast(downRayOrigin, downRay);
+		bool32 collideWithLadder = input->move.y > -0.01f;
+
+		bool32 downRayHit = collisionManager->Raycast(downRayOrigin, downRay, collideWithLadder);
 		if (downRayHit)
 		{
 			zMovement = Max(0.0f, zMovement);
-			character->zSpeed = 0;
+			character->zSpeed = Max(0.0f, character->zSpeed);
+		}
 
-			std::cout << "Down ray hit\n";
-		}
-		else
+		if ((Abs(zMovement) > Abs(xMovement)) && (Abs(xMovement / input->elapsedTime) < (0.1f * speed)))
 		{
-			std::cout << "Down ray NOT hit\n";
+			targetRotationRadians = 0;
 		}
+
+		currentRotationRadians = Interpolate(currentRotationRadians, targetRotationRadians, 0.4f, 2);
+		if (Abs(currentRotationRadians - targetRotationRadians) > (0.1 * pi))
+		{
+			xMovement = 0;
+		}
+
 
 		character->transform.position += {xMovement, 0, zMovement};
+
+		character->transform.rotation = Quaternion::AxisAngle(World::Up, currentRotationRadians);
 	}
 };
 

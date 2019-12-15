@@ -164,3 +164,30 @@ Number ToRadians(Number degrees)
     Number result = pi * degrees / 180.0f;
     return result;
 }
+
+template<typename Number>
+Number Interpolate(Number from, Number to, float time, int32 smooth = 0, bool32 clamp = true)
+{
+    switch (smooth)
+    {
+        case 1:
+        {
+            float t = time;
+            time = t * t * (-2 * t + 3);
+         } break;
+        
+        case 2:
+        { 
+            float t = time;
+            time = t * t * t * (t * (6 * t - 15) + 10);
+        }break;
+    }
+
+    if (clamp)
+    {
+        time = Clamp(time, 0.0f, 1.0f);
+    }
+
+    Number result = (1 - time) * from + time * to;
+    return result;
+}

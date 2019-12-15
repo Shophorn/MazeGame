@@ -36,19 +36,22 @@ if compiler == 'clang++':
 	libLinks	= "-lvulkan-1 -lgdi32 -lws2_32 -lole32 -lwinmm"
 
 
+	'''
 	### COMPILE PLATFORM LAYER
 	# Specify '-mwindows' to get .exe to launch without console
 	platform_call = "clang++ {} {} {} -o winapi_Mazegame.exe src/winapi_Mazegame.cpp {} {}".format(
 				flags, definitions, includePath, libPath, libLinks)
+	'''
 
 	### COMPILE GAME CODE DLL
 	game_call = "clang++ -shared {} {} {} -o Mazegame.dll src/Mazegame.cpp -DLL {} {}".format(
 				flags, definitions, includePath, libPath, libLinks)
 
-platform_result = compile(platform_call)
+# platform_result = compile(platform_call)
 game_result = compile(game_call)
 
-if (platform_result == 0) and (game_result == 0):
+# if (platform_result == 0) and (game_result == 0):
+if (game_result == 0):
 	exit (0)
 else:
 	exit(1)
