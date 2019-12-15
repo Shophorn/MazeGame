@@ -131,7 +131,7 @@ LoadMainLevel(GameState * state, game::Memory * memory, game::PlatformInfo * pla
 
 	state->collisionManager =
 	{
-		.runningColliderIndex = 0,
+		.colliderCount = 0,
 		.colliders = PushArray<Collider>(&state->persistentMemoryArena, 100),
 		.collisions = PushArray<Collision>(&state->persistentMemoryArena, 100) // Todo(Leo): Not enough..
 	};
@@ -232,8 +232,10 @@ LoadMainLevel(GameState * state, game::Memory * memory, game::PlatformInfo * pla
 		state->characterController = 
 		{
 			.character 	= &state->character,
-			.collider 	= state->collisionManager.PushCollider(&state->character.transform, 0.5f)
+			// .collider 	= state->collisionManager.PushCollider(&state->character.transform, {0.5f, 1.0f})
 		};
+
+		state->character.transform.position = {0, 0, 1};
 	}
 
 
@@ -270,8 +272,9 @@ LoadMainLevel(GameState * state, game::Memory * memory, game::PlatformInfo * pla
 		// state->staticColliders[0] 		= { Vector2{-width / 4, -depth / 4} - halfColliderSize, colliderSize};
 		// state->staticColliders[1] 		= { Vector2{width / 4, -depth / 4} - halfColliderSize, colliderSize};
 
-		state->collisionManager.PushCollider(&state->environmentTransforms[1], 2);
-		state->collisionManager.PushCollider(&state->environmentTransforms[2], 2);
+		state->collisionManager.PushCollider(&state->environmentTransforms[0], {100, 1}, {0, -1.0f});
+		state->collisionManager.PushCollider(&state->environmentTransforms[1], {2, 25});
+		state->collisionManager.PushCollider(&state->environmentTransforms[2], {2, 25});
 	}
 
 	state->gameGuiButtonCount = 2;
@@ -455,7 +458,7 @@ GameUpdate(
 		if (result == MENU_EXIT)
 		{
 			platform->graphicsContext->UnloadAll();
-			state->persistentMemoryArena.Flush();
+			state->persistentMemoryArena.Clear();
 
 			LoadMenu(state, memory, platform);
 			state->levelLoaded = false;	
@@ -571,7 +574,7 @@ UpdateMainLevel(
 
 	/// Update Character
 	// state->characterController.Update(input, &state->worldCamera, &state->staticColliders);
-	state->characterController.Update(input, &state->staticColliders);
+	state->characterController.Update(input, &state->collisionManager);
 
 	/// Update network
 	{

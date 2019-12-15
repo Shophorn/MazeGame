@@ -21,7 +21,8 @@ struct Collision
 struct Collider
 {
 	Transform3D * 	transform;
-	float 			radius;
+	Vector2			extents;
+	Vector2			offset;
 
 	bool 			hasCollision;
 	Collision * 	collision;
@@ -29,51 +30,94 @@ struct Collider
 
 struct CollisionManager
 {
-	int runningColliderIndex = 0;
+	int colliderCount = 0;
 	ArenaArray<Collider> colliders;
 
-	int runningCollisionIndex = 0;
+	int collisionCount = 0;
 	ArenaArray<Collision> collisions;
 
 	Collider *
-	PushCollider(Transform3D * transform, float radius)
+	PushCollider(Transform3D * transform, Vector2 extents, Vector2 offset = {0, 0})
 	{
-		colliders[runningColliderIndex] = 
+		colliders[colliderCount] = 
 		{
 			.transform 	= transform,
-			.radius 	= radius,
+			.extents 	= extents,
+			.offset		= offset
 		};
 
-		Collider * result = &colliders[runningColliderIndex];
-		runningColliderIndex++;
+		Collider * result = &colliders[colliderCount];
+		colliderCount++;
 
 		return result;
 	}
 
-	void
-	DoCollisions()
+	bool32
+	Raycast(Vector2 origin, Vector2 ray)
 	{
+		Vector2 corners [4];
+		
+		Vector2 start 	= origin;
+		Vector2 end 	= origin + ray;
 
+		for (int i = 0; i < colliderCount; ++i)
+		{
+			Vector2 position2D = {	colliders[i].transform->position.x,
+									colliders[i].transform->position.z};
+
+			position2D += colliders[i].offset;
+			Vector2 extents = colliders[i].extents;
+
+			// Compute corners first
+			corners[0] = position2D + Vector2 {-extents.x, -extents.y};
+			corners[1] = position2D + Vector2 {extents.x, -extents.y};
+			corners[2] = position2D + Vector2 {-extents.x, extents.y};
+			corners[3] = position2D + Vector2 {extents.x, extents.y};
+
+			// (0<AM⋅AB<AB⋅AB)∧(0<AM⋅AD<AD⋅AD)
+			auto AMstart = start - corners[0];
+			auto AMend = end - corners[0];
+			auto AB = corners[1] - corners[0];
+			auto AD = corners[2] - corners[0];
+
+			bool startInside = 	(0 < Dot(AMstart, AB) && Dot(AMstart, AB) < Dot (AB, AB))
+								&& (0 < Dot(AMstart, AD) && Dot(AMstart, AD) < Dot (AD, AD));
+
+			bool endInside = 	(0 < Dot(AMend, AB) && Dot(AMend, AB) < Dot (AB, AB))
+								&& (0 < Dot(AMend, AD) && Dot(AMend, AD) < Dot (AD, AD));
+
+			// std::cout << "\t" << position2D << ", " << extents << ", " << (startInside ? "True" : "False") << ", " << (endInside ? "True" : "False") << "\n";
+
+			if (!startInside && endInside)
+				return true;
+		}
+
+		return false;
+	}
+
+	void
+	DoCollisions() 
+	{
 		// Reset previous collisions
-		runningCollisionIndex = 0;
-		for (int i = 0; i < runningColliderIndex; ++i)
+		collisionCount = 0;
+		for (int i = 0; i < colliderCount; ++i)
 		{
 			colliders[i].hasCollision = false;
 			colliders[i].collision = nullptr;
 		}
 
 		// Calculate new collisions
-		for (int a = 0; a < runningColliderIndex; ++a)
+		for (int a = 0; a < colliderCount; ++a)
 		{
-			for (int b = a + 1; b < runningColliderIndex; ++b)
+			for (int b = a + 1; b < colliderCount; ++b)
 			{
 				float aPosition = colliders[a].transform->position.x;
 				float bPosition = colliders[b].transform->position.x;
 				float deltaAtoB = bPosition - aPosition;
 				float distance 	= Abs(deltaAtoB);
 
-				float aRadius = colliders[a].radius;
-				float bRadius = colliders[b].radius;
+				float aRadius = colliders[a].extents.x;
+				float bRadius = colliders[b].extents.x;
 				float limit = aRadius + bRadius;
 				if (distance < limit)
 				{
@@ -81,8 +125,8 @@ struct CollisionManager
 					colliders[b].hasCollision = true;
 
 					// Collision for a
-					int collisionIndexForA = runningCollisionIndex++;
-					int collisionIndexForB = runningCollisionIndex++;
+					int collisionIndexForA = collisionCount++;
+					int collisionIndexForB = collisionCount++;
 
 					float aNormalX = Sign(deltaAtoB);
 					float bNormalX = -aNormalX;
@@ -130,43 +174,57 @@ struct CharacterControllerSideScroller
 	float collisionRadius 	= 0.5f;
 
 	void
-	Update(game::Input * input, ArenaArray<Rectangle> * colliders)
+	Update(game::Input * input, CollisionManager * collisionManager)
 	{
-		if (collider->hasCollision)
+		float moveStep = speed * input->elapsedTime;
+
+		float xMovement = moveStep * input->move.x;
+
+		Vector2 leftRayOrigin 	= {	character->transform.position.x - collisionRadius, 
+									character->transform.position.z + 0.5f};
+		Vector2 leftRay 		= {xMovement, 0};
+		bool32 leftRayHit 		= collisionManager->Raycast(leftRayOrigin, leftRay);
+
+		Vector2 rightRayOrigin 	= {	character->transform.position.x + collisionRadius,
+									character->transform.position.z + 0.5f};
+		Vector2 rightRay 		= {xMovement, 0};
+		bool32 rightRayHit		= collisionManager->Raycast(rightRayOrigin, rightRay); 
+
+
+		// Todo(Leo): Do not just 0 movement, but onyl shorten it the required amount
+		if (leftRayHit)
+			xMovement = Max(0.0f, xMovement);
+
+		if (rightRayHit)
+			xMovement = Min(0.0f, xMovement);
+
+
+
+
+		character->zSpeed += -9.81 * input->elapsedTime;
+
+		float zMovement = 	moveStep * input->move.y
+							+ character->zSpeed * input->elapsedTime;
+
+		float skinWidth = 0.01f;
+		Vector2 downRayOrigin 	= {	character->transform.position.x, 
+									character->transform.position.z + skinWidth};
+		Vector2 downRay 		= {0, zMovement - skinWidth};
+		
+		bool32 downRayHit = collisionManager->Raycast(downRayOrigin, downRay);
+		if (downRayHit)
 		{
-			character->transform.scale = 2;
+			zMovement = Max(0.0f, zMovement);
+			character->zSpeed = 0;
+
+			std::cout << "Down ray hit\n";
 		}
 		else
 		{
-			character->transform.scale = 1;
+			std::cout << "Down ray NOT hit\n";
 		}
-
-		float moveStep = speed * input->elapsedTime;
-		float xMovement = moveStep * input->move.x;	
-		if (collider->hasCollision)
-		{	
-			float dot = Dot(collider->collision->normal, {xMovement, 0, 0});
-			std::cout << collider->collision->normal << ", " << Vector3 {xMovement, 0, 0} << ", " << dot << "\n";
-			if (Sign(dot) < 0)
-			{
-				xMovement = 0;
-			}
-		}
-
-		float zMovement = moveStep * input->move.y;
 
 		character->transform.position += {xMovement, 0, zMovement};
-		character->transform.position.z += character->zSpeed * input->elapsedTime;
-
-		if (character->transform.position.z > 0)
-		{	
-			character->zSpeed -= 2 * 9.81 * input->elapsedTime;
-		}
-		else
-		{
-			character->zSpeed = 0;
-	        character->transform.position.z = 0;
-		}
 	}
 };
 

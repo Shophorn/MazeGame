@@ -3,6 +3,8 @@ Leo Tamminen
 
 Memory managing things in :MAZEGAME:
 =============================================================================*/
+#include <cstring>
+
 using default_index_type = uint64;
 
 template<typename Type, typename IndexType = default_index_type>
@@ -53,7 +55,18 @@ struct MemoryArena
 		return resultArena;
 	}
 
-	void Flush() { used = 0; }
+	void Flush()
+	{ 
+		used = 0;
+		lastPushed = nullptr; 
+	}
+	
+	void Clear()
+	{
+		used  = 0;
+		lastPushed = nullptr;
+		memset (memory, 0, size);
+	}
 };
 
 template<typename Type, typename IndexType = default_index_type>
