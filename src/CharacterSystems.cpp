@@ -12,11 +12,19 @@ struct Character
 	float zRotationRadians;
 };
 
+enum struct ColliderTag : int32
+{
+	Default,
+	Trigger,
+};
+
 struct Collision
 {
-	Vector3 position;
-	Vector3 normal;
+	Vector3 		position;
+	Vector3 		normal;
+	ColliderTag 	tag;
 };
+
 
 struct Collider
 {
@@ -24,28 +32,30 @@ struct Collider
 	Vector2			extents;
 	Vector2			offset;
 
-	bool 			isLadder;
+	bool32 			isLadder;
+	ColliderTag	tag;
 
-	bool 			hasCollision;
+	bool32 			hasCollision;
 	Collision * 	collision;
 };
 
 struct CollisionManager
 {
-	int colliderCount = 0;
+	int32 colliderCount = 0;
 	ArenaArray<Collider> colliders;
 
-	int collisionCount = 0;
+	int32 collisionCount = 0;
 	ArenaArray<Collision> collisions;
 
 	Collider *
-	PushCollider(Transform3D * transform, Vector2 extents, Vector2 offset = {0, 0})
+	PushCollider(Transform3D * transform, Vector2 extents, Vector2 offset = {0, 0}, ColliderTag tag = ColliderTag::Default)
 	{
 		colliders[colliderCount] = 
 		{
 			.transform 	= transform,
 			.extents 	= extents,
-			.offset		= offset
+			.offset		= offset,
+			.tag 		= tag
 		};
 
 		Collider * result = &colliders[colliderCount];
@@ -55,22 +65,27 @@ struct CollisionManager
 	}
 
 	bool32
-	Raycast(Vector2 origin, Vector2 ray, bool laddersBlock)
+	Raycast(Vector2 origin, Vector2 ray, bool32 laddersBlock)
 	{
 		Vector2 corners [4];
 		
 		Vector2 start 	= origin;
 		Vector2 end 	= origin + ray;
 
-		for (int i = 0; i < colliderCount; ++i)
+		for (int32 i = 0; i < colliderCount; ++i)
 		{
 			if (colliders[i].isLadder && (laddersBlock == false))
 			{
 				continue;
 			}
 
-			Vector2 position2D = {	colliders[i].transform->position.x,
-									colliders[i].transform->position.z};
+			if (colliders[i].tag == ColliderTag::Trigger)
+			{
+				continue;
+			}
+
+			Vector3 worldPosition = colliders[i].transform->GetWorldPosition();
+			Vector2 position2D = {	worldPosition.x, worldPosition.z };
 
 			position2D += colliders[i].offset;
 			Vector2 extents = colliders[i].extents;
@@ -87,10 +102,10 @@ struct CollisionManager
 			auto AB = corners[1] - corners[0];
 			auto AD = corners[2] - corners[0];
 
-			bool startInside = 	(0 < Dot(AMstart, AB) && Dot(AMstart, AB) < Dot (AB, AB))
+			bool32 startInside = 	(0 < Dot(AMstart, AB) && Dot(AMstart, AB) < Dot (AB, AB))
 								&& (0 < Dot(AMstart, AD) && Dot(AMstart, AD) < Dot (AD, AD));
 
-			bool endInside = 	(0 < Dot(AMend, AB) && Dot(AMend, AB) < Dot (AB, AB))
+			bool32 endInside = 	(0 < Dot(AMend, AB) && Dot(AMend, AB) < Dot (AB, AB))
 								&& (0 < Dot(AMend, AD) && Dot(AMend, AD) < Dot (AD, AD));
 
 			if (!startInside && endInside)
@@ -105,16 +120,16 @@ struct CollisionManager
 	{
 		// Reset previous collisions
 		collisionCount = 0;
-		for (int i = 0; i < colliderCount; ++i)
+		for (int32 i = 0; i < colliderCount; ++i)
 		{
 			colliders[i].hasCollision = false;
 			colliders[i].collision = nullptr;
 		}
 
 		// Calculate new collisions
-		for (int a = 0; a < colliderCount; ++a)
+		for (int32 a = 0; a < colliderCount; ++a)
 		{
-			for (int b = a + 1; b < colliderCount; ++b)
+			for (int32 b = a + 1; b < colliderCount; ++b)
 			{
 				float aPosition = colliders[a].transform->position.x;
 				float bPosition = colliders[b].transform->position.x;
@@ -130,23 +145,25 @@ struct CollisionManager
 					colliders[b].hasCollision = true;
 
 					// Collision for a
-					int collisionIndexForA = collisionCount++;
-					int collisionIndexForB = collisionCount++;
+					int32 collisionIndexForA = collisionCount++;
+					int32 collisionIndexForB = collisionCount++;
 
 					float aNormalX = Sign(deltaAtoB);
 					float bNormalX = -aNormalX;
 
 					collisions[collisionIndexForA] =
 					{
-						.position = bPosition + bNormalX * bRadius, 
-						.normal = {bNormalX, 0, 0},
+						.position 	= bPosition + bNormalX * bRadius, 
+						.normal 	= {bNormalX, 0, 0},
+						.tag 		= colliders[b].tag
 					};
 					colliders[a].collision = &collisions[collisionIndexForA];
 
 					collisions[collisionIndexForB] =
 					{
-						.position = aPosition + aNormalX * aRadius, 
-						.normal = {aNormalX, 0, 0},
+						.position 	= aPosition + aNormalX * aRadius, 
+						.normal 	= {aNormalX, 0, 0},
+						.tag 		= colliders[a].tag
 					};
 					colliders[b].collision = &collisions[collisionIndexForB];
 				}
@@ -184,6 +201,7 @@ struct CharacterControllerSideScroller
 	// State
 	float targetRotationRadians = 0;
 	float currentRotationRadians = 0;
+	bool32 testTriggered = false;
 
 	void
 	Update(game::Input * input, CollisionManager * collisionManager)
@@ -231,9 +249,9 @@ struct CharacterControllerSideScroller
 									character->transform.position.z + skinWidth};
 		Vector2 downRay 		= {0, zMovement - skinWidth};
 		
-		bool32 collideWithLadder = input->move.y > -0.01f;
+		bool32 movingDown = input->move.y > -0.01f;
 
-		bool32 downRayHit = collisionManager->Raycast(downRayOrigin, downRay, collideWithLadder);
+		bool32 downRayHit = collisionManager->Raycast(downRayOrigin, downRay, movingDown);
 		if (downRayHit)
 		{
 			zMovement = Max(0.0f, zMovement);
@@ -255,6 +273,16 @@ struct CharacterControllerSideScroller
 		character->transform.position += {xMovement, 0, zMovement};
 
 		character->transform.rotation = Quaternion::AxisAngle(World::Up, currentRotationRadians);
+
+
+
+		if (collider->hasCollision && collider->collision->tag == ColliderTag::Trigger)
+		{
+			if (input->interact.IsClicked())
+				testTriggered = !testTriggered;
+		}
+
+		character->transform.scale = testTriggered ? 2 : 1;
 	}
 };
 

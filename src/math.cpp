@@ -166,7 +166,7 @@ Number ToRadians(Number degrees)
 }
 
 template<typename Number>
-Number Interpolate(Number from, Number to, float time, int32 smooth = 0, bool32 clamp = true)
+Number Interpolate(Number from, Number to, Number time, int32 smooth = 0, bool32 clamp = true)
 {
     switch (smooth)
     {

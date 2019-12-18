@@ -26,10 +26,10 @@ TODO(Leo):
 VECTOR_TEMPLATE
 union VectorBase
 {
-	ValueType values [Dimension];
-
 	using value_type = ValueType;
 	static constexpr int dimension = Dimension;
+
+	value_type values [dimension];
 
 	static_assert(dimension > 1, "No vectors of 1 dimension allowed");
 
@@ -39,12 +39,13 @@ union VectorBase
 template<typename ValueType>
 union VectorBase<ValueType, 2>
 {
-	struct { ValueType x, y; };
-	struct { ValueType u, v; };
-	ValueType values[2];
-
 	using value_type = ValueType;
 	static constexpr int dimension = 2;
+
+	struct { value_type x, y; };
+	struct { value_type u, v; };
+
+	value_type values [dimension];
 
 	VECTOR_SUBSCRIPT_OPERATORS;
 };
@@ -55,12 +56,13 @@ using Vector2 = VectorBase<real32, 2>;
 template<typename ValueType>
 union VectorBase<ValueType, 3>
 {
-	struct { ValueType x, y, z; };
-	struct { ValueType r, g, b; };
-	ValueType values[3];
-
 	using value_type = ValueType;
 	static constexpr int dimension = 3;
+
+	struct { value_type x, y, z; };
+	struct { value_type r, g, b; };
+
+	value_type values [dimension];
 
 	VECTOR_SUBSCRIPT_OPERATORS;
 };
@@ -73,12 +75,13 @@ using Vector3 = VectorBase<real32, 3>;
 template<typename ValueType>
 union VectorBase<ValueType, 4>
 {
-	struct { ValueType x, y, z, w; };
-	struct { ValueType r, g, b, a; };
-	ValueType values[4];
-
 	using value_type = ValueType;
 	static constexpr int dimension = 4;
+
+	struct { value_type x, y, z, w; };
+	struct { value_type r, g, b, a; };
+
+	value_type values [dimension];
 
 	VECTOR_SUBSCRIPT_OPERATORS;
 };
@@ -490,6 +493,12 @@ SignedAngle(VECTOR_3_TYPE from, VECTOR_3_TYPE to, VECTOR_3_TYPE referenceUp)
 	return result;
 }
 
+VECTOR_TEMPLATE VECTOR_TYPE
+Interpolate(VECTOR_TYPE a, VECTOR_TYPE b, ValueType time)
+{
+	VECTOR_LOOP_ELEMENTS { a.values[i] = ::Interpolate(a.values[i], b.values[i], time); }
+	return a;
+}
 
 #if MAZEGAME_INCLUDE_STD_IOSTREAM
 

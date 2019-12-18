@@ -12,24 +12,42 @@ struct Transform3D
 	real32 scale 		= 1.0f;
 	Quaternion rotation = Quaternion::Identity();
 
-	Matrix44 GetMatrix()
+	Transform3D * parent;
+
+	Matrix44 GetMatrix() const noexcept
 	{
 		/* Study(Leo): members of this struct are ordered so that position and scale would
 		occupy first half of struct, and rotation the other half by itself. Does this matter,
 		and furthermore does that matter in this function call, both in order arguments are put
 		there as well as is the order same as this' members order. */
 		Matrix44 result = Matrix44::Transform(position, rotation, scale);
+
+		if (parent != nullptr)
+		{
+			result = result * parent->GetMatrix();
+		}
+
 		return result;
+	}
+
+	Vector3 GetWorldPosition()
+	{
+		if (parent == nullptr)
+			return position;
+
+		return parent->GetMatrix() * position;
 	}
 };
 
-// Note(Leo): Make unity build here
+// Note(Leo): Make unity build here.
 #include "Random.cpp"
 #include "MapGenerator.cpp"
+#include "Animator.cpp"
 #include "Camera.cpp"
 #include "Collisions.cpp"
 #include "CharacterSystems.cpp"
 #include "CameraController.cpp"
+
 
 /// Note(Leo): These still use external libraries we may want to get rid of
 #include "AudioFile.cpp"
@@ -38,14 +56,15 @@ struct Transform3D
 
 using float3 = Vector3;
 
+using UpdateFunc = void(game::Input * input);
+
 struct GameState
 {
 	Character character;
 	CharacterControllerSideScroller characterController;
 	// Character otherCharacter;
 
-	// Vector3 keyLocalPosition;
-	// Quaternion keyLocalRotation;
+	Animator testAnimator;
 
 	Camera worldCamera;
 	// CameraController3rdPerson cameraController;
@@ -61,24 +80,7 @@ struct GameState
 	ArenaArray<Transform3D> environmentTransforms;
 
 	CollisionManager collisionManager;
-
-	// RenderedObjectHandle levelObjectHandle;
 	RenderedObjectHandle characterObjectHandle;
-	// RenderedObjectHandle otherCharacterObjectHandle;
-	// RenderedObjectHandle keyObjectHandle;
-
-	// int32 								treeCount;
-	// ArenaArray<Transform3D>				treeTransforms;
-	// ArenaArray<RenderedObjectHandle> 	treeRenderHandles;
-	// real32 								treeCollisionRadius;
-
-
-	// int32 								keyholeCount;
-	// ArenaArray<Transform3D>				keyholeTransforms;
-	// ArenaArray<RenderedObjectHandle> 	keyholeRenderHandles;
-	// real32								keyholeCollisionRadius;
-	// ArenaArray<Circle>					keyholeTriggerColliders;
-
 
 	int32 staticColliderCount;
 	ArenaArray<Rectangle> staticColliders;
@@ -197,11 +199,11 @@ LoadMainLevel(GameState * state, game::Memory * memory, game::PlatformInfo * pla
 
     state->worldCamera =
     {
-    	.forward = World::Forward,
-    	.fieldOfView = 60,
-    	.nearClipPlane = 0.1f,
-    	.farClipPlane = 1000.0f,
-    	.aspectRatio = (real32)platformInfo->windowWidth / (real32)platformInfo->windowHeight	
+    	.forward 		= World::Forward,
+    	.fieldOfView 	= 60,
+    	.nearClipPlane 	= 0.1f,
+    	.farClipPlane 	= 1000.0f,
+    	.aspectRatio 	= (real32)platformInfo->windowWidth / (real32)platformInfo->windowHeight	
     };
 
     state->cameraController =
@@ -232,7 +234,7 @@ LoadMainLevel(GameState * state, game::Memory * memory, game::PlatformInfo * pla
 		state->characterController = 
 		{
 			.character 	= &state->character,
-			// .collider 	= state->collisionManager.PushCollider(&state->character.transform, {0.5f, 1.0f})
+			.collider 	= state->collisionManager.PushCollider(&state->character.transform, {0.5f, 1.0f})
 		};
 
 		state->character.transform.position = {0, 0, 1};
@@ -244,8 +246,9 @@ LoadMainLevel(GameState * state, game::Memory * memory, game::PlatformInfo * pla
 		int groundCount = 1;
 		int pillarCount = 2;
 		int ladderCount = 6;
+		int keyholeCount = 1;
 
-		int environmentObjectCount 		= groundCount + pillarCount + ladderCount;
+		int environmentObjectCount 		= groundCount + pillarCount + ladderCount + keyholeCount;
 
 		state->environmentObjects 		= PushArray<RenderedObjectHandle>(&state->persistentMemoryArena, environmentObjectCount);
 		state->environmentTransforms 	= PushArray<Transform3D>(&state->persistentMemoryArena, environmentObjectCount);
@@ -271,23 +274,55 @@ LoadMainLevel(GameState * state, game::Memory * memory, game::PlatformInfo * pla
 		state->environmentTransforms [2] = {width / 4, 0, 0};
 
 		state->collisionManager.PushCollider(&state->environmentTransforms[0], {100, 1}, {0, -1.0f});
-		state->collisionManager.PushCollider(&state->environmentTransforms[1], {2, 25});
-		state->collisionManager.PushCollider(&state->environmentTransforms[2], {2, 25});
+		// state->collisionManager.PushCollider(&state->environmentTransforms[1], {2, 25});
+		// state->collisionManager.PushCollider(&state->environmentTransforms[2], {2, 25});
 
 		auto ladderMesh 				= LoadModel(&state->transientMemoryArena, "models/ladder.obj");
 		auto ladderMeshHandle 			= PushMesh(&ladderMesh);
 
-		int environmentIndex = 3;
 		float ladderHeight = 1.0f;
+		state->testAnimator = 
+		{
+		 	// .localStartPosition = {-10, 0.5, -1}, 
+		 	// .localEndPosition 	= {-10, 0.5, 0},
+		 	.localStartPosition = {0, 0, 0}, 
+		 	.localEndPosition 	= {0, 0, ladderHeight},
+		 	.speed 				= 2.5f
+		};
+
+		int environmentIndex = 3;
 		for (int ladderIndex = 0; ladderIndex < ladderCount; ++ladderIndex)
 		{
 			state->environmentObjects[environmentIndex] = PushRenderer(ladderMeshHandle, state->materials.environment);
-			state->environmentTransforms[environmentIndex] = {-10, 0.5, ladderHeight * ladderIndex};
+		
+			if (ladderIndex == 0)
+			{
+				state->environmentTransforms[environmentIndex] = {-10, 0.5, ladderHeight};
+			}
+			else
+			{
+				state->environmentTransforms[environmentIndex] = {0, 0, 0};
+				state->environmentTransforms[environmentIndex].parent = &state->environmentTransforms[environmentIndex - 1];
+			}
+
+			state->testAnimator.targets[ladderIndex] = &state->environmentTransforms[environmentIndex];
+
 			auto * collider = state->collisionManager.PushCollider(&state->environmentTransforms[environmentIndex], {1.0f, 0.5f}, {0, 0.5f});
 			collider->isLadder = true;
 			environmentIndex++;
 		}
 
+
+		{
+			auto keyholeMeshAsset = LoadModel(&state->transientMemoryArena, "models/keyhole.obj");
+			auto keyholeMeshHandle = PushMesh (&keyholeMeshAsset);
+			state->environmentObjects[environmentIndex] = PushRenderer(keyholeMeshHandle, state->materials.environment);
+			state->environmentTransforms[environmentIndex] = {Vector3{5, 0, 0}};
+			auto * collider = state->collisionManager.PushCollider(&state->environmentTransforms[environmentIndex], {0.3f, 0.6f}, {0, 0.3f}, ColliderTag::Trigger);
+
+
+			environmentIndex++;
+		}
 	}
 
 	state->gameGuiButtonCount = 2;
@@ -588,6 +623,11 @@ UpdateMainLevel(
 	/// Update Character
 	// state->characterController.Update(input, &state->worldCamera, &state->staticColliders);
 	state->characterController.Update(input, &state->collisionManager);
+	state->testAnimator.Update(input);
+
+	// Note(Leo): Update aspect ratio each frame, in case screen size has changed.
+    state->worldCamera.aspectRatio = (real32)platform->windowWidth / (real32)platform->windowHeight;
+    state->cameraController.Update(input);
 
 	/// Update network
 	{
@@ -596,9 +636,6 @@ UpdateMainLevel(
 		// network->outPackage.characterRotation = state->character.rotation;
 	}
 
-	// Note(Leo): Update aspect ratio each frame, in case screen size has changed.
-    state->worldCamera.aspectRatio = (real32)platform->windowWidth / (real32)platform->windowHeight;
-    state->cameraController.Update(input);
 
 	// Overlay menu
 	if (input->start.IsClicked())
