@@ -243,10 +243,10 @@ LoadMainLevel(GameState * state, game::Memory * memory, game::PlatformInfo * pla
 
 	// Environment
 	{
-		int groundCount = 1;
-		int pillarCount = 2;
-		int ladderCount = 6;
-		int keyholeCount = 1;
+		int groundCount 	= 1;
+		int pillarCount 	= 2;
+		int ladderCount 	= 6;
+		int keyholeCount 	= 1;
 
 		int environmentObjectCount 		= groundCount + pillarCount + ladderCount + keyholeCount;
 
@@ -283,10 +283,13 @@ LoadMainLevel(GameState * state, game::Memory * memory, game::PlatformInfo * pla
 		float ladderHeight = 1.0f;
 		state->testAnimator = 
 		{
-		 	// .localStartPosition = {-10, 0.5, -1}, 
-		 	// .localEndPosition 	= {-10, 0.5, 0},
-		 	.localStartPosition = {0, 0, 0}, 
-		 	.localEndPosition 	= {0, 0, ladderHeight},
+			.targets 				= PushArray<Transform3D *> (&state->persistentMemoryArena, 10, false),
+			.localStartPositions 	= PushArray<Vector3> (&state->persistentMemoryArena, 10, false),
+			.localEndPositions 		= PushArray<Vector3> (&state->persistentMemoryArena, 10, false),
+
+
+		 	// .localStartPosition = {0, 0, 0}, 
+		 	// .localEndPosition 	= {0, 0, ladderHeight},
 		 	.speed 				= 2.5f
 		};
 
@@ -295,17 +298,26 @@ LoadMainLevel(GameState * state, game::Memory * memory, game::PlatformInfo * pla
 		{
 			state->environmentObjects[environmentIndex] = PushRenderer(ladderMeshHandle, state->materials.environment);
 		
+			Vector3 animStartPosition, animEndPosition;
 			if (ladderIndex == 0)
 			{
+				animStartPosition 	={-10, 0.5, -ladderHeight};
+				animEndPosition 	={-10, 0.5, 0};
+
 				state->environmentTransforms[environmentIndex] = {-10, 0.5, ladderHeight};
 			}
 			else
 			{
+				animStartPosition 	={0, 0, 0};
+				animEndPosition 	={0, 0, ladderHeight};
+
 				state->environmentTransforms[environmentIndex] = {0, 0, 0};
 				state->environmentTransforms[environmentIndex].parent = &state->environmentTransforms[environmentIndex - 1];
 			}
 
-			state->testAnimator.targets[ladderIndex] = &state->environmentTransforms[environmentIndex];
+			state->testAnimator.targets.Push(&state->environmentTransforms[environmentIndex]);
+			state->testAnimator.localStartPositions.Push(animStartPosition);
+			state->testAnimator.localEndPositions.Push(animEndPosition);
 
 			auto * collider = state->collisionManager.PushCollider(&state->environmentTransforms[environmentIndex], {1.0f, 0.5f}, {0, 0.5f});
 			collider->isLadder = true;

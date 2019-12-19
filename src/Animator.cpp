@@ -4,12 +4,9 @@ struct Animator
 
 	int32 currentTargetIndex;
 
-
-	constexpr static int32 stageCount = 6;
-	Transform3D * targets[stageCount];
-
-	Vector3 localStartPosition;
-	Vector3 localEndPosition;
+	BETTERArenaArray<Transform3D *> 	targets;
+	BETTERArenaArray<Vector3> 			localStartPositions;
+	BETTERArenaArray<Vector3>			localEndPositions;
 
 	float speed;
 
@@ -23,19 +20,18 @@ struct Animator
 		float step 				= speed * input->elapsedTime;
 		time 					= Clamp(time + step, 0.0f, 1.0f);
 
-		targets[currentTargetIndex]->position  = Interpolate(localStartPosition, localEndPosition, time);
+		targets[currentTargetIndex]->position  = Interpolate(	localStartPositions[currentTargetIndex],
+																localEndPositions[currentTargetIndex],
+																time);
 
-		if (currentTargetIndex == 0)
-		{
-			targets[currentTargetIndex]->position.z -= 1.0f;
-		}
+		std::cout << "[ANIMATOR]: current index " << currentTargetIndex << "\n";
 
 		if (time == 1.0f)
 		{
 			currentTargetIndex++;
 			time = 0.0f;
 
-			if (currentTargetIndex >= stageCount)
+			if (currentTargetIndex >= targets.count)
 			{
 				playing = false;
 			}
