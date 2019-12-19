@@ -4,9 +4,9 @@ struct Animator
 
 	int32 currentTargetIndex;
 
-	BETTERArenaArray<Transform3D *> 	targets;
-	BETTERArenaArray<Vector3> 			localStartPositions;
-	BETTERArenaArray<Vector3>			localEndPositions;
+	ArenaArray<Transform3D *> 	targets;
+	ArenaArray<Vector3> 			localStartPositions;
+	ArenaArray<Vector3>			localEndPositions;
 
 	float speed;
 
@@ -23,8 +23,6 @@ struct Animator
 		targets[currentTargetIndex]->position  = Interpolate(	localStartPositions[currentTargetIndex],
 																localEndPositions[currentTargetIndex],
 																time);
-
-		std::cout << "[ANIMATOR]: current index " << currentTargetIndex << "\n";
 
 		if (time == 1.0f)
 		{

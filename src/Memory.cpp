@@ -12,27 +12,6 @@ struct ArenaArray
 {
 	Type * data;
 	uint64 count;
-
-	// Type * begin() { return data; }
-	// Type * end() { return data + count; }	
-
-	Type & operator [] (IndexType index)
-	{
-		#if MAZEGAME_DEVELOPMENT
-			char message [200];
-			sprintf(message,"Index (%d) is more than count (%d)", index, count);
-			MAZEGAME_ASSERT (index < count, message);
-		#endif
-
-		return data [index];
-	}
-};
-
-template<typename Type, typename IndexType = default_index_type>
-struct BETTERArenaArray
-{
-	Type * data;
-	uint64 count;
 	uint64 capacity;
 
 	// Type * begin() { return data; }
@@ -115,27 +94,17 @@ struct MemoryArena
 	}
 };
 
+
+/* Todo(Leo): 'fillWithUninitialized' was given true by default when capacity was
+added so that previous usages wouldn't break. It does not need to be that way, so
+rethink it someday. */
 template<typename Type, typename IndexType = default_index_type>
 internal ArenaArray<Type, IndexType>
-PushArray(MemoryArena * arena, uint64 count)
-{
-	byte * memory = arena->Reserve(sizeof(Type) * count);
-
-	ArenaArray<Type, IndexType> resultArray =
-	{
-		.data = reinterpret_cast<Type *>(memory),
-		.count = count,
-	};
-	return resultArray;
-}
-
-template<typename Type, typename IndexType = default_index_type>
-internal BETTERArenaArray<Type, IndexType>
-PushArray(MemoryArena * arena, uint64 capacity, bool32 fillWithUninitialized)
+PushArray(MemoryArena * arena, uint64 capacity, bool32 fillWithUninitialized = true)
 {
 	byte * memory = arena->Reserve(sizeof(Type) * capacity);
 
-	BETTERArenaArray<Type, IndexType> resultArray =
+	ArenaArray<Type, IndexType> resultArray =
 	{
 		.data 		= reinterpret_cast<Type *>(memory),
 		.count 		= fillWithUninitialized ? capacity : 0,
