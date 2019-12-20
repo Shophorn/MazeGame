@@ -14,7 +14,7 @@ struct Collision
 
 struct Collider
 {
-	TransformHandle	transform;
+	Handle<Transform3D>	transform;
 	Vector2			extents;
 	Vector2			offset;
 
@@ -34,7 +34,7 @@ struct CollisionManager
 	ArenaArray<Collision> collisions;
 
 	Collider *
-	PushCollider(TransformHandle transform, Vector2 extents, Vector2 offset = {0, 0}, ColliderTag tag = ColliderTag::Default)
+	PushCollider(Handle<Transform3D> transform, Vector2 extents, Vector2 offset = {0, 0}, ColliderTag tag = ColliderTag::Default)
 	{
 		colliders[colliderCount] = 
 		{

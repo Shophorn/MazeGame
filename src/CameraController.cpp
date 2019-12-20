@@ -2,7 +2,7 @@ struct CameraControllerSideScroller
 {
 	// References
 	Camera * 		camera;
-	TransformHandle	target;
+	Handle<Transform3D>	target;
 
 	// State
 	Vector3 baseOffset = {0, 0, 1};

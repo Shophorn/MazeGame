@@ -22,7 +22,7 @@ ProcessCharacterInput(game::Input * input, Camera * camera)
 struct CharacterControllerSideScroller
 {
 	// References
-	TransformHandle transform;
+	Handle<Transform3D> transform;
 	Collider * collider;
 
 	// Properties
