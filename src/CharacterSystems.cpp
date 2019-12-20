@@ -23,7 +23,7 @@ struct CharacterControllerSideScroller
 {
 	// References
 	Handle<Transform3D> transform;
-	Collider * collider;
+	Handle<Collider> collider;
 
 	// Properties
 	float speed 			= 10;

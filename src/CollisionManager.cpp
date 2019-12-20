@@ -27,27 +27,22 @@ struct Collider
 
 struct CollisionManager
 {
-	int32 colliderCount = 0;
-	ArenaArray<Collider> colliders;
+	ArenaArray<Handle<Collider>> colliders;
 
 	int32 collisionCount = 0;
 	ArenaArray<Collision> collisions;
 
-	Collider *
+	Handle<Collider>
 	PushCollider(Handle<Transform3D> transform, Vector2 extents, Vector2 offset = {0, 0}, ColliderTag tag = ColliderTag::Default)
 	{
-		colliders[colliderCount] = 
+		auto index = colliders.Push(Handle<Collider>::Create( 
 		{
 			.transform 	= transform,
 			.extents 	= extents,
 			.offset		= offset,
 			.tag 		= tag
-		};
-
-		Collider * result = &colliders[colliderCount];
-		colliderCount++;
-
-		return result;
+		}));
+		return colliders[index];
 	}
 
 	bool32
@@ -58,25 +53,25 @@ struct CollisionManager
 		Vector2 start 	= origin;
 		Vector2 end 	= origin + ray;
 
-		for (int32 i = 0; i < colliderCount; ++i)
+		for (int32 i = 0; i < colliders.count; ++i)
 		{
-			MAZEGAME_ASSERT(colliders[i].transform.IsValid(), "Invalid transform passed to Collider");
+			MAZEGAME_ASSERT(colliders[i]->transform.IsValid(), "Invalid transform passed to Collider");
 
-			if (colliders[i].isLadder && (laddersBlock == false))
+			if (colliders[i]->isLadder && (laddersBlock == false))
 			{
 				continue;
 			}
 
-			if (colliders[i].tag == ColliderTag::Trigger)
+			if (colliders[i]->tag == ColliderTag::Trigger)
 			{
 				continue;
 			}
 
-			Vector3 worldPosition = colliders[i].transform->GetWorldPosition();
+			Vector3 worldPosition = colliders[i]->transform->GetWorldPosition();
 			Vector2 position2D = {	worldPosition.x, worldPosition.z };
 
-			position2D += colliders[i].offset;
-			Vector2 extents = colliders[i].extents;
+			position2D += colliders[i]->offset;
+			Vector2 extents = colliders[i]->extents;
 
 			// Compute corners first
 			corners[0] = position2D + Vector2 {-extents.x, -extents.y};
@@ -108,29 +103,29 @@ struct CollisionManager
 	{
 		// Reset previous collisions
 		collisionCount = 0;
-		for (int32 i = 0; i < colliderCount; ++i)
+		for (int32 i = 0; i < colliders.count; ++i)
 		{
-			colliders[i].hasCollision = false;
-			colliders[i].collision = nullptr;
+			colliders[i]->hasCollision = false;
+			colliders[i]->collision = nullptr;
 		}
 
 		// Calculate new collisions
-		for (int32 a = 0; a < colliderCount; ++a)
+		for (int32 a = 0; a < colliders.count; ++a)
 		{
-			for (int32 b = a + 1; b < colliderCount; ++b)
+			for (int32 b = a + 1; b < colliders.count; ++b)
 			{
-				float aPosition = colliders[a].transform->position.x;
-				float bPosition = colliders[b].transform->position.x;
+				float aPosition = colliders[a]->transform->position.x;
+				float bPosition = colliders[b]->transform->position.x;
 				float deltaAtoB = bPosition - aPosition;
 				float distance 	= Abs(deltaAtoB);
 
-				float aRadius = colliders[a].extents.x;
-				float bRadius = colliders[b].extents.x;
+				float aRadius = colliders[a]->extents.x;
+				float bRadius = colliders[b]->extents.x;
 				float limit = aRadius + bRadius;
 				if (distance < limit)
 				{
-					colliders[a].hasCollision = true;
-					colliders[b].hasCollision = true;
+					colliders[a]->hasCollision = true;
+					colliders[b]->hasCollision = true;
 
 					// Collision for a
 					int32 collisionIndexForA = collisionCount++;
@@ -143,17 +138,17 @@ struct CollisionManager
 					{
 						.position 	= bPosition + bNormalX * bRadius, 
 						.normal 	= {bNormalX, 0, 0},
-						.tag 		= colliders[b].tag
+						.tag 		= colliders[b]->tag
 					};
-					colliders[a].collision = &collisions[collisionIndexForA];
+					colliders[a]->collision = &collisions[collisionIndexForA];
 
 					collisions[collisionIndexForB] =
 					{
 						.position 	= aPosition + aNormalX * aRadius, 
 						.normal 	= {aNormalX, 0, 0},
-						.tag 		= colliders[a].tag
+						.tag 		= colliders[a]->tag
 					};
-					colliders[b].collision = &collisions[collisionIndexForB];
+					colliders[b]->collision = &collisions[collisionIndexForB];
 				}
 			}
 		}

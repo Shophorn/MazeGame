@@ -1,0 +1,17 @@
+Memory Management
+
+MemoryArena
+	MemoryArena holds address and size of memory allocated for game.
+	Currently there are two of these in use, GameState::persistentMemoryArena
+	and GameState::transientMemoryArena, first of which is around from frame to
+	frame and latter is flushed in the beginning of each frame.
+
+ArenaArray<T>
+	ArenaArray represents a partition or view to a certain MemoryArena.
+	It does not however keep track of which one, so that one is on programmer.
+	This is still rather easy, given there is only two, which are fundamentally
+	different, so there should not be any confusion.
+
+Handle<T>
+	Basically a pointer to ArenaArray. Again does not hold reference to owning
+	ArenaArray. It may change however as this is a new and not yet ripe addition.
