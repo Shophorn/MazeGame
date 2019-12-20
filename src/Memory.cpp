@@ -28,12 +28,16 @@ struct ArenaArray
 		return data [index];
 	}
 
-	void Push(Type item)
+	IndexType Push(Type item)
 	{
+		std::cout << "[ArenaArray]: count = " << count << ", capacity = " << capacity << "\n";
+
 		MAZEGAME_ASSERT(count < capacity, "Cannot push, ArenaArray is full!");
 
-		data[count] = item;
-		count++;
+		IndexType index = {count++};
+		data[index] = item;
+
+		return index;
 	}
 };
 

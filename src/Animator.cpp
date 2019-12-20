@@ -4,8 +4,8 @@ struct Animator
 
 	int32 currentTargetIndex;
 
-	ArenaArray<Transform3D *> 	targets;
-	ArenaArray<Vector3> 			localStartPositions;
+	ArenaArray<TransformHandle> targets;
+	ArenaArray<Vector3> 		localStartPositions;
 	ArenaArray<Vector3>			localEndPositions;
 
 	float speed;
