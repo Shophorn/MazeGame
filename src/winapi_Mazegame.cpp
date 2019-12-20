@@ -499,8 +499,12 @@ Run(HINSTANCE winInstance)
    
         // TODO [MEMORY] (Leo): Check support for large pages
         // TODO [MEMORY] (Leo): specify base address for development builds
+    #if MAZEGAME_DEVELOPMENT
+        void * memoryBlock = VirtualAlloc((void*)Terabytes(2), totalMemorySize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+    #else
         void * memoryBlock = VirtualAlloc(nullptr, totalMemorySize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-        
+    #endif
+
         gameMemory.persistentMemory     = memoryBlock;
         gameMemory.transientMemory      = (byte *)memoryBlock + gameMemory.persistentMemorySize;
 

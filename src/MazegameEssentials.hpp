@@ -65,9 +65,10 @@ static constexpr Number MaxValue = std::numeric_limits<Number>::max();
 /// SIZE MODIFIERS
 /* Todo(Leo): Study memory sizes around, maybe these should be actual multiples of 1000
 This seems to be just a Windows convention, correct? */
-constexpr uint64 Kilobytes (uint64 amount) { return 1024 * amount; }
-constexpr uint64 Megabytes (uint64 amount) { return 1024 * Kilobytes(amount); }
-constexpr uint64 Gigabytes (uint64 amount) { return 1024 * Megabytes(amount); }
+constexpr uint64 Kilobytes 	(uint64 amount) { return 1024 * amount; }
+constexpr uint64 Megabytes 	(uint64 amount) { return 1024 * Kilobytes(amount); }
+constexpr uint64 Gigabytes 	(uint64 amount) { return 1024 * Megabytes(amount); }
+constexpr uint64 Terabytes 	(uint64 amount) { return 1024 * Gigabytes(amount); }
 
 inline uint64
 AlignUpTo(uint64 alignment, uint64 size)

@@ -126,7 +126,8 @@ struct GameState
 	Handle<Transform3D> characterTransform;
 	CharacterControllerSideScroller characterController;
 
-	Animator testAnimator;
+	Animator laddersAnimator;
+	Animation laddersUpAnimation;
 
 	Camera worldCamera;
 	// CameraController3rdPerson cameraController;
@@ -351,53 +352,59 @@ LoadMainLevel(GameState * state, game::Memory * memory, game::PlatformInfo * pla
 		{
 			state->environmentObjects[environmentIndex] = PushRenderer(ladderMeshHandle, state->materials.environment);
 		
-			// Vector3 animStartPosition, animEndPosition;
 			if (ladderIndex == 0)
 			{
-				// animStartPosition 	={-10, 0.5, -ladderHeight};
-				// animEndPosition 	={-10, 0.5, 0};
-
 				state->environmentTransforms[environmentIndex] = Handle<Transform3D>::Create({-10, 0.5, ladderHeight});
 				state->environmentTransforms[environmentIndex]->parent = Handle<Transform3D>::Null;
 			}
 			else
 			{
-				// animStartPosition 	={0, 0, 0};
-				// animEndPosition 	={0, 0, ladderHeight};
-
 				state->environmentTransforms[environmentIndex] = Handle<Transform3D>::Create({0, 0, 0});
 				state->environmentTransforms[environmentIndex]->parent = state->environmentTransforms[environmentIndex - 1];
 			}
-
-			// state->testAnimator.targets.Push(state->environmentTransforms[environmentIndex]);
-			// state->testAnimator.localStartPositions.Push(animStartPosition);
-			// state->testAnimator.localEndPositions.Push(animEndPosition);
 
 			Handle<Collider> collider = state->collisionManager.PushCollider(state->environmentTransforms[environmentIndex], {1.0f, 0.5f}, {0, 0.5f});
 			collider->isLadder = true;
 			environmentIndex++;
 		}
 
-		state->testAnimator = 
-		{	
-			.animation.keyframes = PushArray<Keyframe>(&state->persistentMemoryArena, 12, false),
-			.playbackSpeed = 1.0f
-		};
+		// TEST ANIMATIONS
+		{
+			state->laddersUpAnimation =
+			{
+				.children = PushArray<ChildAnimation>(&state->persistentMemoryArena, 6, false),
+				.duration = 2.4f
+			};
+			uint64 childIndex;
+			auto * childAnimations = &state->laddersUpAnimation.children;
 
-		state->testAnimator.animation.keyframes.Push({state->environmentTransforms[3], 0.0f,{0, 0, -ladderHeight}});
-		state->testAnimator.animation.keyframes.Push({state->environmentTransforms[3], 0.4f,{0, 0, 0}});
-		state->testAnimator.animation.keyframes.Push({state->environmentTransforms[4], 0.4f,{0, 0, 0}});
-		state->testAnimator.animation.keyframes.Push({state->environmentTransforms[4], 0.8f,{0, 0, ladderHeight}});
-		state->testAnimator.animation.keyframes.Push({state->environmentTransforms[5], 0.8f,{0, 0, 0}});
-		state->testAnimator.animation.keyframes.Push({state->environmentTransforms[5], 1.2f,{0, 0, ladderHeight}});
-		state->testAnimator.animation.keyframes.Push({state->environmentTransforms[6], 1.2f,{0, 0, 0}});
-		state->testAnimator.animation.keyframes.Push({state->environmentTransforms[6], 1.6f,{0, 0, ladderHeight}});
-		state->testAnimator.animation.keyframes.Push({state->environmentTransforms[7], 1.6f,{0, 0, 0}});
-		state->testAnimator.animation.keyframes.Push({state->environmentTransforms[7], 2.0f,{0, 0, ladderHeight}});
-		state->testAnimator.animation.keyframes.Push({state->environmentTransforms[8], 2.0f,{0, 0, 0}});
-		state->testAnimator.animation.keyframes.Push({state->environmentTransforms[8], 2.4f,{0, 0, ladderHeight}});
+			childIndex = childAnimations->Push({state->environmentTransforms[3], PushArray<Keyframe>(&state->persistentMemoryArena, 2, false)});
+			(*childAnimations)[childIndex].keyframes.Push({0.0f, {0, 0, -ladderHeight}});
+			(*childAnimations)[childIndex].keyframes.Push({0.4f, {0, 0, 0}});
 
+			childIndex = childAnimations->Push({state->environmentTransforms[4], PushArray<Keyframe>(&state->persistentMemoryArena, 2, false)});
+			(*childAnimations)[childIndex].keyframes.Push({0.4f, {0, 0, 0}});
+			(*childAnimations)[childIndex].keyframes.Push({0.8f, {0, 0, ladderHeight}});
 
+			childIndex = childAnimations->Push({state->environmentTransforms[5], PushArray<Keyframe>(&state->persistentMemoryArena, 2, false)});
+			(*childAnimations)[childIndex].keyframes.Push({0.8f, {0, 0, 0}});
+			(*childAnimations)[childIndex].keyframes.Push({1.2f, {0, 0, ladderHeight}});
+
+			childIndex = childAnimations->Push({state->environmentTransforms[6], PushArray<Keyframe>(&state->persistentMemoryArena, 2, false)});
+			(*childAnimations)[childIndex].keyframes.Push({1.2f, {0, 0, 0}});
+			(*childAnimations)[childIndex].keyframes.Push({1.6f, {0, 0, ladderHeight}});
+			
+			childIndex = childAnimations->Push({state->environmentTransforms[7], PushArray<Keyframe>(&state->persistentMemoryArena, 2, false)});
+			(*childAnimations)[childIndex].keyframes.Push({1.6f, {0, 0, 0}});
+			(*childAnimations)[childIndex].keyframes.Push({2.0f, {0, 0, ladderHeight}});
+
+			childIndex = childAnimations->Push({state->environmentTransforms[8], PushArray<Keyframe>(&state->persistentMemoryArena, 2, false)});
+			(*childAnimations)[childIndex].keyframes.Push({2.0f, {0, 0, 0}});
+			(*childAnimations)[childIndex].keyframes.Push({2.4f, {0, 0, ladderHeight}});
+
+			state->laddersAnimator = {};
+			state->laddersAnimator.Play(&state->laddersUpAnimation);
+		}
 
 		{
 			auto keyholeMeshAsset = LoadModel(&state->transientMemoryArena, "models/keyhole.obj");
@@ -704,7 +711,7 @@ UpdateMainLevel(
 	/// Update Character
 	// state->characterController.Update(input, &state->worldCamera, &state->staticColliders);
 	state->characterController.Update(input, &state->collisionManager);
-	state->testAnimator.Update(input);
+	state->laddersAnimator.Update(input);
 
 	// Note(Leo): Update aspect ratio each frame, in case screen size has changed.
     state->worldCamera.aspectRatio = (real32)platform->windowWidth / (real32)platform->windowHeight;
