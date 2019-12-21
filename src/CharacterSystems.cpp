@@ -112,7 +112,10 @@ struct CharacterControllerSideScroller
 		if (collider->hasCollision && collider->collision->tag == ColliderTag::Trigger)
 		{
 			if (input->interact.IsClicked())
+			{
 				OnTriggerLadder();
+				std::cout << "[Character]: Trigger ladder\n";
+			}
 				// testTriggered = !testTriggered;
 		}
 

@@ -302,6 +302,8 @@ LoadMainLevel(GameState * state, game::Memory * memory, game::PlatformInfo * pla
 			else
 				state->laddersAnimator.Play(&state->laddersDownAnimation);
 
+			std::cout << "Ladder button triggered\n";
+
 		};
 		// state->characterController.OnTriggerLadder = [state]()
 		// {
@@ -326,68 +328,83 @@ LoadMainLevel(GameState * state, game::Memory * memory, game::PlatformInfo * pla
 
 	// Environment
 	{
-		int groundCount 	= 1;
-		int pillarCount 	= 2;
-		int ladderCount 	= 6;
-		int keyholeCount 	= 1;
+		constexpr int groundCount 		= 1;
+		constexpr int platformCount 	= 2;
+		constexpr int pillarCount 		= 2;
+		constexpr int ladderCount 		= 6;
+		constexpr int keyholeCount 		= 1;
 
-		int environmentObjectCount 		= groundCount + pillarCount + ladderCount + keyholeCount;
+		int32 environmentObjectCount 		= groundCount + platformCount + pillarCount + ladderCount + keyholeCount;
 
-		state->environmentObjects 		= PushArray<RenderedObjectHandle>(&state->persistentMemoryArena, environmentObjectCount);
-		state->environmentTransforms 	= PushArray<Handle<Transform3D>>(&state->persistentMemoryArena, environmentObjectCount);
-	
-		auto groundQuad 				= mesh_primitives::CreateQuad(&state->transientMemoryArena);
+		constexpr float depth = 100;
+		constexpr float width = 100;
+		constexpr float ladderHeight = 1.0f;
 
-		float width = 100;
-		float depth = 100;
-		auto meshTransform				= Matrix44::Translate({-width / 2, -depth /2, 0}) * Matrix44::Scale({width, depth, 0});
-		mesh_ops::Transform(&groundQuad, meshTransform);
-		mesh_ops::TransformTexCoords(&groundQuad, {0,0}, {width / 2, depth / 2});
+		constexpr bool32 addPillars 	= true;
+		constexpr bool32 addLadders 	= true;
+		constexpr bool32 addButton 		= true;
+		constexpr bool32 addPlatforms 	= true;
 
-		auto groundQuadHandle 			= PushMesh(&groundQuad);
-		state->environmentObjects[0] 	= PushRenderer(groundQuadHandle, state->materials.environment);
-		state->environmentTransforms[0] = Handle<Transform3D>::Create({});
+		state->environmentObjects 		= PushArray<RenderedObjectHandle>(&state->persistentMemoryArena, environmentObjectCount, false);
+		state->environmentTransforms 	= PushArray<Handle<Transform3D>>(&state->persistentMemoryArena, environmentObjectCount, false);
 
-		auto pillarMesh 				= LoadModel(&state->transientMemoryArena, "models/big_pillar.obj");
-		auto pillarMeshHandle 			= PushMesh(&pillarMesh);
-		state->environmentObjects[1]	= PushRenderer(pillarMeshHandle, state->materials.environment);
-		state->environmentObjects[2]	= PushRenderer(pillarMeshHandle, state->materials.environment);
-
-		state->environmentTransforms [1] = Handle<Transform3D>::Create({-width / 4, 0, 0});
-		state->environmentTransforms [2] = Handle<Transform3D>::Create({width / 4, 0, 0});
-
-		state->collisionManager.PushCollider(state->environmentTransforms[0], {100, 1}, {0, -1.0f});
-		state->collisionManager.PushCollider(state->environmentTransforms[1], {2, 25});
-		state->collisionManager.PushCollider(state->environmentTransforms[2], {2, 25});
-
-		auto ladderMesh 				= LoadModel(&state->transientMemoryArena, "models/ladder.obj");
-		auto ladderMeshHandle 			= PushMesh(&ladderMesh);
-
-		float ladderHeight = 1.0f;
-
-		int environmentIndex = 3;
-		for (int ladderIndex = 0; ladderIndex < ladderCount; ++ladderIndex)
+		int environmentIndex = 0;
 		{
-			state->environmentObjects[environmentIndex] = PushRenderer(ladderMeshHandle, state->materials.environment);
-		
-			if (ladderIndex == 0)
-			{
-				state->environmentTransforms[environmentIndex] = Handle<Transform3D>::Create({-10, 0.5, ladderHeight});
-				state->environmentTransforms[environmentIndex]->parent = Handle<Transform3D>::Null;
-			}
-			else
-			{
-				state->environmentTransforms[environmentIndex] = Handle<Transform3D>::Create({0, 0, 0});
-				state->environmentTransforms[environmentIndex]->parent = state->environmentTransforms[environmentIndex - 1];
-			}
+			auto groundQuad 				= mesh_primitives::CreateQuad(&state->transientMemoryArena);
 
-			Handle<Collider> collider = state->collisionManager.PushCollider(state->environmentTransforms[environmentIndex], {1.0f, 0.5f}, {0, 0.5f});
-			collider->isLadder = true;
-			environmentIndex++;
+			auto meshTransform				= Matrix44::Translate({-width / 2, -depth /2, 0}) * Matrix44::Scale({width, depth, 0});
+			mesh_ops::Transform(&groundQuad, meshTransform);
+			mesh_ops::TransformTexCoords(&groundQuad, {0,0}, {width / 2, depth / 2});
+
+			auto groundQuadHandle 							= PushMesh(&groundQuad);
+			auto index = state->environmentObjects.Push(PushRenderer(groundQuadHandle, state->materials.environment));
+			state->environmentTransforms.Push(Handle<Transform3D>::Create({}));
+			state->collisionManager.PushCollider(state->environmentTransforms[index], {100, 1}, {0, -1.0f});
+
+			// environmentIndex++;
 		}
 
-		// TEST ANIMATIONS
+		if (addPillars)
 		{
+			auto pillarMesh 				= LoadModel(&state->transientMemoryArena, "models/big_pillar.obj");
+			auto pillarMeshHandle 			= PushMesh(&pillarMesh);
+
+			auto index = state->environmentObjects.Push(PushRenderer(pillarMeshHandle, state->materials.environment));
+			state->environmentTransforms.Push(Handle<Transform3D>::Create({-width / 4, 0, 0}));
+			state->collisionManager.PushCollider(state->environmentTransforms[index], {2, 25});
+
+			index = state->environmentObjects.Push(PushRenderer(pillarMeshHandle, state->materials.environment));
+			state->environmentTransforms.Push(Handle<Transform3D>::Create({width / 4, 0, 0}));
+			state->collisionManager.PushCollider(state->environmentTransforms[index], {2, 25});
+		}
+
+		if (addLadders)
+		{
+			int firstLadderIndex = state->environmentObjects.count;
+	
+			auto ladderMesh 		= LoadModel(&state->transientMemoryArena, "models/ladder.obj");
+			auto ladderMeshHandle 	= PushMesh(&ladderMesh);
+
+			Handle<Transform3D> parent = Handle<Transform3D>::Null;
+
+			for (int ladderIndex = 0; ladderIndex < ladderCount; ++ladderIndex)
+			{
+				Vector3 position = (ladderIndex == 0) ? 
+									Vector3{-10, 0.5, ladderHeight} : 
+									Vector3{0,0,0};
+
+				auto index = state->environmentObjects.Push(PushRenderer(ladderMeshHandle, state->materials.environment));
+				state->environmentTransforms.Push(Handle<Transform3D>::Create({position}));
+				state->environmentTransforms[index]->parent = parent;
+				parent = state->environmentTransforms[index];
+
+
+				Handle<Collider> collider = state->collisionManager.PushCollider(state->environmentTransforms[index], {1.0f, 0.5f}, {0, 0.5f});
+				collider->isLadder = true;
+				environmentIndex++;
+			}
+
+			// TEST ANIMATIONS
 			state->laddersUpAnimation =
 			{
 				.children = PushArray<ChildAnimation>(&state->persistentMemoryArena, 6, false),
@@ -396,27 +413,27 @@ LoadMainLevel(GameState * state, game::Memory * memory, game::PlatformInfo * pla
 			uint64 childIndex;
 			auto * childAnimations = &state->laddersUpAnimation.children;
 
-			childIndex = childAnimations->Push({state->environmentTransforms[3], PushArray<Keyframe>(&state->persistentMemoryArena, 2, false)});
+			childIndex = childAnimations->Push({state->environmentTransforms[firstLadderIndex + 0], PushArray<Keyframe>(&state->persistentMemoryArena, 2, false)});
 			(*childAnimations)[childIndex].keyframes.Push({0.0f, {0, 0, -ladderHeight}});
 			(*childAnimations)[childIndex].keyframes.Push({0.4f, {0, 0, 0}});
 
-			childIndex = childAnimations->Push({state->environmentTransforms[4], PushArray<Keyframe>(&state->persistentMemoryArena, 2, false)});
+			childIndex = childAnimations->Push({state->environmentTransforms[firstLadderIndex + 1], PushArray<Keyframe>(&state->persistentMemoryArena, 2, false)});
 			(*childAnimations)[childIndex].keyframes.Push({0.4f, {0, 0, 0}});
 			(*childAnimations)[childIndex].keyframes.Push({0.8f, {0, 0, ladderHeight}});
 
-			childIndex = childAnimations->Push({state->environmentTransforms[5], PushArray<Keyframe>(&state->persistentMemoryArena, 2, false)});
+			childIndex = childAnimations->Push({state->environmentTransforms[firstLadderIndex + 2], PushArray<Keyframe>(&state->persistentMemoryArena, 2, false)});
 			(*childAnimations)[childIndex].keyframes.Push({0.8f, {0, 0, 0}});
 			(*childAnimations)[childIndex].keyframes.Push({1.2f, {0, 0, ladderHeight}});
 
-			childIndex = childAnimations->Push({state->environmentTransforms[6], PushArray<Keyframe>(&state->persistentMemoryArena, 2, false)});
+			childIndex = childAnimations->Push({state->environmentTransforms[firstLadderIndex + 3], PushArray<Keyframe>(&state->persistentMemoryArena, 2, false)});
 			(*childAnimations)[childIndex].keyframes.Push({1.2f, {0, 0, 0}});
 			(*childAnimations)[childIndex].keyframes.Push({1.6f, {0, 0, ladderHeight}});
 			
-			childIndex = childAnimations->Push({state->environmentTransforms[7], PushArray<Keyframe>(&state->persistentMemoryArena, 2, false)});
+			childIndex = childAnimations->Push({state->environmentTransforms[firstLadderIndex + 4], PushArray<Keyframe>(&state->persistentMemoryArena, 2, false)});
 			(*childAnimations)[childIndex].keyframes.Push({1.6f, {0, 0, 0}});
 			(*childAnimations)[childIndex].keyframes.Push({2.0f, {0, 0, ladderHeight}});
 
-			childIndex = childAnimations->Push({state->environmentTransforms[8], PushArray<Keyframe>(&state->persistentMemoryArena, 2, false)});
+			childIndex = childAnimations->Push({state->environmentTransforms[firstLadderIndex + 5], PushArray<Keyframe>(&state->persistentMemoryArena, 2, false)});
 			(*childAnimations)[childIndex].keyframes.Push({2.0f, {0, 0, 0}});
 			(*childAnimations)[childIndex].keyframes.Push({2.4f, {0, 0, ladderHeight}});
 
@@ -428,27 +445,27 @@ LoadMainLevel(GameState * state, game::Memory * memory, game::PlatformInfo * pla
 			};
 			childAnimations = &state->laddersDownAnimation.children;
 
-			childIndex = childAnimations->Push({state->environmentTransforms[8], PushArray<Keyframe>(&state->persistentMemoryArena, 2, false)});
+			childIndex = childAnimations->Push({state->environmentTransforms[firstLadderIndex + 5], PushArray<Keyframe>(&state->persistentMemoryArena, 2, false)});
 			(*childAnimations)[childIndex].keyframes.Push({0.0f, {0, 0, ladderHeight}});
 			(*childAnimations)[childIndex].keyframes.Push({0.4f, {0, 0, 0}});
 
-			childIndex = childAnimations->Push({state->environmentTransforms[7], PushArray<Keyframe>(&state->persistentMemoryArena, 2, false)});
+			childIndex = childAnimations->Push({state->environmentTransforms[firstLadderIndex + 4], PushArray<Keyframe>(&state->persistentMemoryArena, 2, false)});
 			(*childAnimations)[childIndex].keyframes.Push({0.4f, {0, 0, ladderHeight}});
 			(*childAnimations)[childIndex].keyframes.Push({0.8f, {0, 0, 0}});
 
-			childIndex = childAnimations->Push({state->environmentTransforms[6], PushArray<Keyframe>(&state->persistentMemoryArena, 2, false)});
+			childIndex = childAnimations->Push({state->environmentTransforms[firstLadderIndex + 3], PushArray<Keyframe>(&state->persistentMemoryArena, 2, false)});
 			(*childAnimations)[childIndex].keyframes.Push({0.8f, {0, 0, ladderHeight}});
 			(*childAnimations)[childIndex].keyframes.Push({1.2f, {0, 0, 0}});
 
-			childIndex = childAnimations->Push({state->environmentTransforms[5], PushArray<Keyframe>(&state->persistentMemoryArena, 2, false)});
+			childIndex = childAnimations->Push({state->environmentTransforms[firstLadderIndex + 2], PushArray<Keyframe>(&state->persistentMemoryArena, 2, false)});
 			(*childAnimations)[childIndex].keyframes.Push({1.2f, {0, 0, ladderHeight}});
 			(*childAnimations)[childIndex].keyframes.Push({1.6f, {0, 0, 0}});
 			
-			childIndex = childAnimations->Push({state->environmentTransforms[4], PushArray<Keyframe>(&state->persistentMemoryArena, 2, false)});
+			childIndex = childAnimations->Push({state->environmentTransforms[firstLadderIndex + 1], PushArray<Keyframe>(&state->persistentMemoryArena, 2, false)});
 			(*childAnimations)[childIndex].keyframes.Push({1.6f, {0, 0, ladderHeight}});
 			(*childAnimations)[childIndex].keyframes.Push({2.0f, {0, 0, 0}});
 
-			childIndex = childAnimations->Push({state->environmentTransforms[3], PushArray<Keyframe>(&state->persistentMemoryArena, 2, false)});
+			childIndex = childAnimations->Push({state->environmentTransforms[firstLadderIndex + 0], PushArray<Keyframe>(&state->persistentMemoryArena, 2, false)});
 			(*childAnimations)[childIndex].keyframes.Push({2.0f, {0, 0, 0}});
 			(*childAnimations)[childIndex].keyframes.Push({2.4f, {0, 0, -ladderHeight}});
 
@@ -456,14 +473,41 @@ LoadMainLevel(GameState * state, game::Memory * memory, game::PlatformInfo * pla
 			// state->laddersAnimator.Play(&state->laddersUpAnimation);
 		}
 
+		if(addButton)
 		{
 			auto keyholeMeshAsset = LoadModel(&state->transientMemoryArena, "models/keyhole.obj");
 			auto keyholeMeshHandle = PushMesh (&keyholeMeshAsset);
-			state->environmentObjects[environmentIndex] = PushRenderer(keyholeMeshHandle, state->materials.environment);
-			state->environmentTransforms[environmentIndex] = Handle<Transform3D>::Create({Vector3{5, 0, 0}});
-			Handle<Collider> collider = state->collisionManager.PushCollider(state->environmentTransforms[environmentIndex], {0.3f, 0.6f}, {0, 0.3f}, ColliderTag::Trigger);
 
-			environmentIndex++;
+			auto renderer = PushRenderer(keyholeMeshHandle, state->materials.environment);
+			auto transform = Handle<Transform3D>::Create({Vector3{5, 0, 0}});
+
+			state->environmentObjects.Push(renderer);
+			state->environmentTransforms.Push(transform);
+			
+			state->collisionManager.PushCollider(transform, {0.3f, 0.6f}, {0, 0.3f}, ColliderTag::Trigger);
+		}
+
+		if (addPlatforms)
+		{
+			Vector3 platformPositions [] =
+			{
+				{-2, 0, 6},
+				{2, 0, 6},
+				{4, 0, 6},
+				{6, 0, 6},
+			};
+
+			auto platformMeshAsset = LoadModel(&state->transientMemoryArena, "models/platform.obj");
+			auto platformMeshHandle = PushMesh(&platformMeshAsset);
+
+			int platformIndex = 0;
+			for (int platformIndex = 0; platformIndex < platformCount; ++platformIndex)
+			{
+				auto index = state->environmentObjects.Push(PushRenderer(platformMeshHandle, state->materials.environment));
+				state->environmentTransforms.Push(Handle<Transform3D>::Create({platformPositions[platformIndex]}));
+				state->collisionManager.PushCollider(state->environmentTransforms[index], {1.0f, 0.25f});
+			}
+
 		}
 	}
 
