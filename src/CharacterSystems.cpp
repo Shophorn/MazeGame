@@ -4,6 +4,8 @@ shophorn@protonmail.com
 
 Player Character Systems
 =============================================================================*/
+#include <functional>
+
 
 internal Vector3
 ProcessCharacterInput(game::Input * input, Camera * camera)
@@ -36,6 +38,8 @@ struct CharacterControllerSideScroller
 	float targetRotationRadians = 0;
 	float currentRotationRadians = 0;
 	bool32 testTriggered = false;
+
+	std::function<void()> OnTriggerLadder;
 
 	void
 	Update(game::Input * input, CollisionManager * collisionManager)
@@ -108,7 +112,8 @@ struct CharacterControllerSideScroller
 		if (collider->hasCollision && collider->collision->tag == ColliderTag::Trigger)
 		{
 			if (input->interact.IsClicked())
-				testTriggered = !testTriggered;
+				OnTriggerLadder();
+				// testTriggered = !testTriggered;
 		}
 
 		transform->scale = testTriggered ? 2 : 1;

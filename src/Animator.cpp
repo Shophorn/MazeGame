@@ -82,6 +82,16 @@ Advance(Animation * animation, float elapsedTime)
 	return animation->time < animation->duration;
 }
 
+internal void
+Reset(Animation * animation)
+{
+	animation->time = 0.0f;
+	// for (int childIndex = 0; childIndex < animation->children.count; ++childIndex)
+	// {
+	// 	animation->children[childIndex].
+	// }
+}
+
 struct Animator
 {
 	// Properties
@@ -91,12 +101,14 @@ struct Animator
 	bool32 isPlaying 		= false;
 	Animation * animation 	= nullptr;
 
+
 	void
 	Play(Animation * animation)
 	{
 		// Todo(Leo): Add blending etc. here :)
 
 		this->animation = animation;
+		Reset(animation);
 		isPlaying = true;
 	}
 
