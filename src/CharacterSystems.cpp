@@ -53,7 +53,7 @@ struct CharacterControllerSideScroller
 			Vector2 leftRayOrigin 	= {	transform->position.x - collisionRadius, 
 										transform->position.z + 0.5f};
 			Vector2 leftRay 		= {xMovement, 0};
-			bool32 leftRayHit 		= collisionManager->Raycast(leftRayOrigin, leftRay, false);
+			bool32 leftRayHit 		= collisionManager->raycast(leftRayOrigin, leftRay, false);
 
 			if (leftRayHit)
 				xMovement = Max(0.0f, xMovement);
@@ -67,7 +67,7 @@ struct CharacterControllerSideScroller
 			Vector2 rightRayOrigin 	= {	transform->position.x + collisionRadius,
 										transform->position.z + 0.5f};
 			Vector2 rightRay 		= {xMovement, 0};
-			bool32 rightRayHit		= collisionManager->Raycast(rightRayOrigin, rightRay, false); 
+			bool32 rightRayHit		= collisionManager->raycast(rightRayOrigin, rightRay, false); 
 
 			if (rightRayHit)
 				xMovement = Min(0.0f, xMovement);
@@ -75,7 +75,13 @@ struct CharacterControllerSideScroller
 			targetRotationRadians = pi / 2.0f;
 		}
 
+
 		zSpeed += -9.81 * input->elapsedTime;
+
+		if (collider->hasCollision && collider->collision->tag == ColliderTag::Ladder)
+		{
+			zSpeed = 0;			
+		}
 
 		float zMovement = 	moveStep * input->move.y
 							+ zSpeed * input->elapsedTime;
@@ -86,7 +92,7 @@ struct CharacterControllerSideScroller
 		Vector2 downRay 		= {0, zMovement - skinWidth};
 
 		bool32 movingDown = input->move.y > -0.01f;
-		bool32 downRayHit = collisionManager->Raycast(downRayOrigin, downRay, movingDown);
+		bool32 downRayHit = collisionManager->raycast(downRayOrigin, downRay, movingDown);
 		if (downRayHit)
 		{
 			zMovement = Max(0.0f, zMovement);
@@ -114,12 +120,9 @@ struct CharacterControllerSideScroller
 			if (input->interact.IsClicked())
 			{
 				OnTriggerLadder();
-				std::cout << "[Character]: Trigger ladder\n";
 			}
-				// testTriggered = !testTriggered;
 		}
 
-		transform->scale = testTriggered ? 2 : 1;
 	}
 };
 

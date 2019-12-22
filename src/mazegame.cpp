@@ -6,10 +6,28 @@ Leo Tamminen
 #include "MazegamePlatform.hpp"
 #include "Mazegame.hpp"
 
+
+/* Todo(Leo): this struct is horrible:
+	we can use -> to access the actual represented type/item
+	and . to access the 'meta' described here
+
+	... though 'meta' things means only 'is_valid' and 'get_index',
+	so they should be easy to fix.
+*/
+
+const char * bool_str(bool value)
+{
+	return (value ? "True" : "False");
+}
+
+template<typename T>
+constexpr bool32 is_type_transform();
+
 template<typename T>
 struct Handle
 {
-	bool32 IsValid() const
+	// Todo(Leo): Make use of Null thing down below
+	bool32 is_valid() const
 	{ 
 		bool32 result = (index > -1) && (index < storage.count);
 		return result;
@@ -17,18 +35,18 @@ struct Handle
 
 	T * operator->()
 	{ 
-		MAZEGAME_ASSERT(IsValid(), "Cannot reference uninitialized Handle.");
+		MAZEGAME_ASSERT(is_valid(), "Cannot reference uninitialized Handle.");
 		return &storage[index];
 	}
 
 	const T * operator -> () const
 	{
-		MAZEGAME_ASSERT(IsValid(), "Cannot reference uninitialized Handle.");
+		MAZEGAME_ASSERT(is_valid(), "Cannot reference uninitialized Handle.");
 		return &storage[index];	
 	}
 
 
-	// Note(Leo): We may not need these, as I am  not quite sure if they are good idea or not
+	// Note(Leo): We may not need these, as I am not quite sure if they are good idea or not
 	// operator T* ()
 	// {
 	// 	MAZEGAME_ASSERT(IsValid(), "Cannot reference uninitialized Handle.");
@@ -41,18 +59,27 @@ struct Handle
 	// 	return &storage[index];	
 	// }
 
+	/* Note(Leo): We use concrete item instead of constructor arguments
+	and (relay/depend/what is the word??) on copy elision to remove copy */
 	static Handle
-	Create (T item)
+	create (T item)
 	{
-		Handle handle = {};
-		handle.index = storage.Push(item);
-		return handle;
+		Handle result = {};
+		result.index = storage.Push(item);
+
+		// if constexpr (std::is_same<T, Transform3D>)
+		if constexpr (is_type_transform<T>())
+		{
+			std::cout << "[Handle]: created " << result.get_index() << "\n";
+		}
+
+		return result;
 	}
 
 	static void
-	Allocate(MemoryArena * memoryArena, int32 count)
+	allocate(MemoryArena * memoryArena, int32 count)
 	{
-		storage = PushArray<T>(memoryArena, count, false);
+		storage = push_array<T>(memoryArena, count, false);
 	}
 
 	Handle () = default;
@@ -60,12 +87,21 @@ struct Handle
 
 	inline static Handle Null = {};
 
+	int64 get_index() { return index; }
+
 private:
 	int64 index = -1;
 
 	// This is not necessarily the best idea
 	inline global_variable ArenaArray<T> storage;
 };
+
+template<typename T>
+Handle<T> create_handle(T item)
+{
+	auto result = Handle<T>::create(item);
+	return result;
+}
 
 struct Transform3D
 {
@@ -83,7 +119,7 @@ struct Transform3D
 		there as well as is the order same as this' members order. */
 		Matrix44 result = Matrix44::Transform(position, rotation, scale);
 
-		if (parent.IsValid())
+		if (parent.is_valid())
 		{
 			result = result * parent->GetMatrix();
 		}
@@ -93,7 +129,7 @@ struct Transform3D
 
 	Vector3 GetWorldPosition() const noexcept
 	{
-		if (parent.IsValid())
+		if (parent.is_valid())
 		{
 			return parent->GetMatrix() * position;
 		}
@@ -101,6 +137,13 @@ struct Transform3D
 		return position;
 	}
 };
+
+template<typename T>
+constexpr bool32 is_type_transform()
+{
+	constexpr bool32 result = std::is_same<T, Transform3D>::value;
+	return result;
+}
 
 
 // Note(Leo): Make unity build here.
@@ -128,8 +171,8 @@ struct GameState
 	CharacterControllerSideScroller characterController;
 
 	Animator laddersAnimator;
-	Animation laddersUpAnimation;
-	Animation laddersDownAnimation;
+	AnimationClip laddersUpAnimation;
+	AnimationClip laddersDownAnimation;
 
 	Camera worldCamera;
 	// CameraController3rdPerson cameraController;
@@ -143,6 +186,8 @@ struct GameState
 
 	ArenaArray<RenderedObjectHandle> environmentObjects;
 	ArenaArray<Handle<Transform3D>> environmentTransforms;
+
+	bool32 ladderOn = false;
 
 	CollisionManager collisionManager;
 	RenderedObjectHandle characterObjectHandle;
@@ -171,51 +216,51 @@ struct GameState
 };
 
 void
-InitializeGameState(GameState * state, game::Memory * memory, game::PlatformInfo * platformInfo)
+initialize_game_state(GameState * state, game::Memory * memory, game::PlatformInfo * platformInfo)
 {
 	*state = {};
 
 	// Note(Leo): Create persistent arena in the same memoryblock as game state, right after it.
-	state->persistentMemoryArena = MemoryArena::Create(
-										reinterpret_cast<byte*>(memory->persistentMemory) + sizeof(GameState),
-										memory->persistentMemorySize - sizeof(GameState));
+	byte * persistentMemoryAddress 	= reinterpret_cast<byte*>(memory->persistentMemory) + sizeof(GameState);
+	uint64 persistentMemorySize 	= memory->persistentMemorySize - sizeof(GameState);
+	state->persistentMemoryArena 	= make_memory_arena(persistentMemoryAddress, persistentMemorySize);
 
-	state->transientMemoryArena = MemoryArena::Create(
-										reinterpret_cast<byte*>(memory->transientMemory),
-										memory->transientMemorySize);
+	byte * transientMemoryAddress 	= reinterpret_cast<byte*>(memory->transientMemory);
+	uint64 transientMemorySize 		= memory->transientMemorySize;
+	state->transientMemoryArena 	= make_memory_arena(transientMemoryAddress, transientMemorySize);
 
 
 	std::cout << "Screen size = (" << platformInfo->windowWidth << "," << platformInfo->windowHeight << ")\n";
 }
 
 void 
-LoadMainLevel(GameState * state, game::Memory * memory, game::PlatformInfo * platformInfo)
+load_main_level(GameState * state, game::Memory * memory, game::PlatformInfo * platformInfo)
 {
 	/*
 	Note(Leo): Load all assets to state->transientMemoryArena, process them and load proper
 	structures to graphics context. Afterwards, just flush memory arena.
 	*/
 
-	Handle<Transform3D>::Allocate(&state->persistentMemoryArena, 20);
-	Handle<Collider>::Allocate(&state->persistentMemoryArena, 20);
+	Handle<Transform3D>::allocate(&state->persistentMemoryArena, 100);
+	Handle<Collider>::allocate(&state->persistentMemoryArena, 100);
 
 	state->collisionManager =
 	{
-		.colliders 		= PushArray<Handle<Collider>>(&state->persistentMemoryArena, 100, false),
-		.collisions 	= PushArray<Collision>(&state->persistentMemoryArena, 100) // Todo(Leo): Not enough..
+		.colliders 		= push_array<Handle<Collider>>(&state->persistentMemoryArena, 200, false),
+		.collisions 	= push_array<Collision>(&state->persistentMemoryArena, 300, false) // Todo(Leo): Not enough..
 	};
 
 	// Create MateriaLs
 	{
 		TextureAsset whiteTextureAsset = {};
-		whiteTextureAsset.pixels = PushArray<uint32>(&state->transientMemoryArena, 1);
+		whiteTextureAsset.pixels = push_array<uint32>(&state->transientMemoryArena, 1);
 		whiteTextureAsset.pixels[0] = 0xffffffff;
 		whiteTextureAsset.width = 1;
 		whiteTextureAsset.height = 1;
 		whiteTextureAsset.channels = 4;
 
 		TextureAsset blackTextureAsset = {};
-		blackTextureAsset.pixels = PushArray<uint32>(&state->transientMemoryArena, 1);
+		blackTextureAsset.pixels = push_array<uint32>(&state->transientMemoryArena, 1);
 		blackTextureAsset.pixels[0] = 0xff000000;
 		blackTextureAsset.width = 1;
 		blackTextureAsset.height = 1;
@@ -242,7 +287,7 @@ LoadMainLevel(GameState * state, game::Memory * memory, game::PlatformInfo * pla
 
 		#undef PUSH_TEXTURE
 
-		auto PushMaterial = [platformInfo](MaterialType type, TextureHandle a, TextureHandle b, TextureHandle c) -> MaterialHandle
+		auto push_material = [platformInfo](MaterialType type, TextureHandle a, TextureHandle b, TextureHandle c) -> MaterialHandle
 		{
 			MaterialAsset asset = { type, a, b, c };
 			MaterialHandle handle = platformInfo->graphicsContext->PushMaterial(&asset);
@@ -251,25 +296,25 @@ LoadMainLevel(GameState * state, game::Memory * memory, game::PlatformInfo * pla
 
 		state->materials =
 		{
-			.character  	= PushMaterial(	MaterialType::Character,
+			.character  	= push_material(	MaterialType::Character,
 											lavaTexture,
 											textureTexture,
 											blackTexture),
 
-			.environment 	= PushMaterial(	MaterialType::Character,
+			.environment 	= push_material(	MaterialType::Character,
 											tilesTexture,
 											blackTexture,
 											blackTexture)
 		};
 	}
 
-    auto PushMesh = [platformInfo] (MeshAsset * asset) -> MeshHandle
+    auto push_mesh = [platformInfo] (MeshAsset * asset) -> MeshHandle
     {
     	auto handle = platformInfo->graphicsContext->PushMesh(asset);
     	return handle;
     };
 
-    auto PushRenderer = [platformInfo] (MeshHandle mesh, MaterialHandle material) -> RenderedObjectHandle
+    auto push_renderer = [platformInfo] (MeshHandle mesh, MaterialHandle material) -> RenderedObjectHandle
     {
     	auto handle = platformInfo->graphicsContext->PushRenderedObject(mesh, material);
     	return handle;
@@ -277,27 +322,25 @@ LoadMainLevel(GameState * state, game::Memory * memory, game::PlatformInfo * pla
 
 	// Characters
 	{
-		auto characterMesh 					= LoadModel(&state->transientMemoryArena, "models/character.obj");
-		auto characterMeshHandle 			= PushMesh(&characterMesh);
+		auto characterMesh 					= load_model(&state->transientMemoryArena, "models/character.obj");
+		auto characterMeshHandle 			= push_mesh(&characterMesh);
 
-		state->characterObjectHandle 		= PushRenderer(	characterMeshHandle,
+		state->characterObjectHandle 		= push_renderer(characterMeshHandle,
 															state->materials.character);
 
-		state->characterTransform = Handle<Transform3D>::Create({});
+		state->characterTransform = create_handle<Transform3D>({});
 		state->characterController = 
 		{
 			.transform 	= state->characterTransform,
-			.collider 	= state->collisionManager.PushCollider(state->characterTransform, {0.5f, 1.0f})
+			.collider 	= state->collisionManager.PushCollider(state->characterTransform, {0.4f, 0.8f}, {0.0f, 0.5f}),
 		};
 
 		state->characterTransform->position = {0, 0, 1};
 
 		state->characterController.OnTriggerLadder = [state]() -> void
 		{
-			static bool32 ladderOn = false;
-
-			ladderOn = !ladderOn;
-			if (ladderOn)
+			state->ladderOn = !state->ladderOn;
+			if (state->ladderOn)
 				state->laddersAnimator.Play(&state->laddersUpAnimation);
 			else
 				state->laddersAnimator.Play(&state->laddersDownAnimation);
@@ -305,10 +348,6 @@ LoadMainLevel(GameState * state, game::Memory * memory, game::PlatformInfo * pla
 			std::cout << "Ladder button triggered\n";
 
 		};
-		// state->characterController.OnTriggerLadder = [state]()
-		// {
-		// 	state->laddersAnimator.Play(state->laddersUpAnimation);
-		// };//TriggerLadder;
 	}
 
     state->worldCamera =
@@ -329,12 +368,17 @@ LoadMainLevel(GameState * state, game::Memory * memory, game::PlatformInfo * pla
 	// Environment
 	{
 		constexpr int groundCount 		= 1;
-		constexpr int platformCount 	= 2;
+		constexpr int platformCount 	= 4;
 		constexpr int pillarCount 		= 2;
 		constexpr int ladderCount 		= 6;
 		constexpr int keyholeCount 		= 1;
 
-		int32 environmentObjectCount 		= groundCount + platformCount + pillarCount + ladderCount + keyholeCount;
+		int32 environmentObjectCount 	= groundCount 
+										+ platformCount
+										+ pillarCount 
+										+ ladderCount
+										+ keyholeCount;
+
 
 		constexpr float depth = 100;
 		constexpr float width = 100;
@@ -345,36 +389,33 @@ LoadMainLevel(GameState * state, game::Memory * memory, game::PlatformInfo * pla
 		constexpr bool32 addButton 		= true;
 		constexpr bool32 addPlatforms 	= true;
 
-		state->environmentObjects 		= PushArray<RenderedObjectHandle>(&state->persistentMemoryArena, environmentObjectCount, false);
-		state->environmentTransforms 	= PushArray<Handle<Transform3D>>(&state->persistentMemoryArena, environmentObjectCount, false);
+		state->environmentObjects 		= push_array<RenderedObjectHandle>(&state->persistentMemoryArena, environmentObjectCount, false);
+		state->environmentTransforms 	= push_array<Handle<Transform3D>>(&state->persistentMemoryArena, environmentObjectCount, false);
 
-		int environmentIndex = 0;
 		{
-			auto groundQuad 				= mesh_primitives::CreateQuad(&state->transientMemoryArena);
+			auto groundQuad 				= mesh_primitives::create_quad(&state->transientMemoryArena);
 
 			auto meshTransform				= Matrix44::Translate({-width / 2, -depth /2, 0}) * Matrix44::Scale({width, depth, 0});
-			mesh_ops::Transform(&groundQuad, meshTransform);
-			mesh_ops::TransformTexCoords(&groundQuad, {0,0}, {width / 2, depth / 2});
+			mesh_ops::transform(&groundQuad, meshTransform);
+			mesh_ops::transform_tex_coords(&groundQuad, {0,0}, {width / 2, depth / 2});
 
-			auto groundQuadHandle 							= PushMesh(&groundQuad);
-			auto index = state->environmentObjects.Push(PushRenderer(groundQuadHandle, state->materials.environment));
-			state->environmentTransforms.Push(Handle<Transform3D>::Create({}));
+			auto groundQuadHandle 							= push_mesh(&groundQuad);
+			auto index = state->environmentObjects.Push(push_renderer(groundQuadHandle, state->materials.environment));
+			state->environmentTransforms.Push(create_handle<Transform3D>({}));
 			state->collisionManager.PushCollider(state->environmentTransforms[index], {100, 1}, {0, -1.0f});
-
-			// environmentIndex++;
 		}
 
 		if (addPillars)
 		{
-			auto pillarMesh 				= LoadModel(&state->transientMemoryArena, "models/big_pillar.obj");
-			auto pillarMeshHandle 			= PushMesh(&pillarMesh);
+			auto pillarMesh 		= load_model(&state->transientMemoryArena, "models/big_pillar.obj");
+			auto pillarMeshHandle 	= push_mesh(&pillarMesh);
 
-			auto index = state->environmentObjects.Push(PushRenderer(pillarMeshHandle, state->materials.environment));
-			state->environmentTransforms.Push(Handle<Transform3D>::Create({-width / 4, 0, 0}));
+			auto index = state->environmentObjects.Push(push_renderer(pillarMeshHandle, state->materials.environment));
+			state->environmentTransforms.Push(create_handle<Transform3D>({-width / 4, 0, 0}));
 			state->collisionManager.PushCollider(state->environmentTransforms[index], {2, 25});
 
-			index = state->environmentObjects.Push(PushRenderer(pillarMeshHandle, state->materials.environment));
-			state->environmentTransforms.Push(Handle<Transform3D>::Create({width / 4, 0, 0}));
+			index = state->environmentObjects.Push(push_renderer(pillarMeshHandle, state->materials.environment));
+			state->environmentTransforms.Push(create_handle<Transform3D>({width / 4, 0, 0}));
 			state->collisionManager.PushCollider(state->environmentTransforms[index], {2, 25});
 		}
 
@@ -382,109 +423,59 @@ LoadMainLevel(GameState * state, game::Memory * memory, game::PlatformInfo * pla
 		{
 			int firstLadderIndex = state->environmentObjects.count;
 	
-			auto ladderMesh 		= LoadModel(&state->transientMemoryArena, "models/ladder.obj");
-			auto ladderMeshHandle 	= PushMesh(&ladderMesh);
+			auto ladderMesh 		= load_model(&state->transientMemoryArena, "models/ladder.obj");
+			auto ladderMeshHandle 	= push_mesh(&ladderMesh);
 
-			Handle<Transform3D> parent = Handle<Transform3D>::Null;
+			Handle<Transform3D> parent = create_handle<Transform3D>({0, 0.5f, -ladderHeight});
+
+			auto animations = push_array<Animation>(&state->persistentMemoryArena, ladderCount, false);
 
 			for (int ladderIndex = 0; ladderIndex < ladderCount; ++ladderIndex)
 			{
-				Vector3 position = (ladderIndex == 0) ? 
-									Vector3{-10, 0.5, ladderHeight} : 
-									Vector3{0,0,0};
+				Vector3 position = Vector3{0,0,0};
 
-				auto index = state->environmentObjects.Push(PushRenderer(ladderMeshHandle, state->materials.environment));
-				state->environmentTransforms.Push(Handle<Transform3D>::Create({position}));
-				state->environmentTransforms[index]->parent = parent;
-				parent = state->environmentTransforms[index];
+				auto renderer 	= push_renderer(ladderMeshHandle, state->materials.environment);
+				auto transform 	= create_handle<Transform3D>({position});
 
+				state->environmentObjects.Push(renderer);
+				state->environmentTransforms.Push(transform);
+				transform->parent = parent;
+				parent = transform;
 
-				Handle<Collider> collider = state->collisionManager.PushCollider(state->environmentTransforms[index], {1.0f, 0.5f}, {0, 0.5f});
-				collider->isLadder = true;
-				environmentIndex++;
-			}
+				Handle<Collider> collider = state->collisionManager.PushCollider(	transform,
+																					{1.0f, 0.5f},
+																					{0, 0.5f},
+																					ColliderTag::Ladder);
 
-			// TEST ANIMATIONS
-			state->laddersUpAnimation =
-			{
-				.children = PushArray<ChildAnimation>(&state->persistentMemoryArena, 6, false),
-				.duration = 2.4f
-			};
-			uint64 childIndex;
-			auto * childAnimations = &state->laddersUpAnimation.children;
+				auto keyframes = push_array<Keyframe>(&state->persistentMemoryArena, {
+					Keyframe{ladderIndex * 0.35f, {0, 0, 0}},
+					Keyframe{(ladderIndex + 1) * 0.35f, {0, 0, ladderHeight}}
+				});
+				animations.Push({transform, keyframes});
+			}	
 
-			childIndex = childAnimations->Push({state->environmentTransforms[firstLadderIndex + 0], PushArray<Keyframe>(&state->persistentMemoryArena, 2, false)});
-			(*childAnimations)[childIndex].keyframes.Push({0.0f, {0, 0, -ladderHeight}});
-			(*childAnimations)[childIndex].keyframes.Push({0.4f, {0, 0, 0}});
-
-			childIndex = childAnimations->Push({state->environmentTransforms[firstLadderIndex + 1], PushArray<Keyframe>(&state->persistentMemoryArena, 2, false)});
-			(*childAnimations)[childIndex].keyframes.Push({0.4f, {0, 0, 0}});
-			(*childAnimations)[childIndex].keyframes.Push({0.8f, {0, 0, ladderHeight}});
-
-			childIndex = childAnimations->Push({state->environmentTransforms[firstLadderIndex + 2], PushArray<Keyframe>(&state->persistentMemoryArena, 2, false)});
-			(*childAnimations)[childIndex].keyframes.Push({0.8f, {0, 0, 0}});
-			(*childAnimations)[childIndex].keyframes.Push({1.2f, {0, 0, ladderHeight}});
-
-			childIndex = childAnimations->Push({state->environmentTransforms[firstLadderIndex + 3], PushArray<Keyframe>(&state->persistentMemoryArena, 2, false)});
-			(*childAnimations)[childIndex].keyframes.Push({1.2f, {0, 0, 0}});
-			(*childAnimations)[childIndex].keyframes.Push({1.6f, {0, 0, ladderHeight}});
-			
-			childIndex = childAnimations->Push({state->environmentTransforms[firstLadderIndex + 4], PushArray<Keyframe>(&state->persistentMemoryArena, 2, false)});
-			(*childAnimations)[childIndex].keyframes.Push({1.6f, {0, 0, 0}});
-			(*childAnimations)[childIndex].keyframes.Push({2.0f, {0, 0, ladderHeight}});
-
-			childIndex = childAnimations->Push({state->environmentTransforms[firstLadderIndex + 5], PushArray<Keyframe>(&state->persistentMemoryArena, 2, false)});
-			(*childAnimations)[childIndex].keyframes.Push({2.0f, {0, 0, 0}});
-			(*childAnimations)[childIndex].keyframes.Push({2.4f, {0, 0, ladderHeight}});
-
-
-			state->laddersDownAnimation =
-			{
-				.children = PushArray<ChildAnimation>(&state->persistentMemoryArena, 6, false),
-				.duration = 2.4f
-			};
-			childAnimations = &state->laddersDownAnimation.children;
-
-			childIndex = childAnimations->Push({state->environmentTransforms[firstLadderIndex + 5], PushArray<Keyframe>(&state->persistentMemoryArena, 2, false)});
-			(*childAnimations)[childIndex].keyframes.Push({0.0f, {0, 0, ladderHeight}});
-			(*childAnimations)[childIndex].keyframes.Push({0.4f, {0, 0, 0}});
-
-			childIndex = childAnimations->Push({state->environmentTransforms[firstLadderIndex + 4], PushArray<Keyframe>(&state->persistentMemoryArena, 2, false)});
-			(*childAnimations)[childIndex].keyframes.Push({0.4f, {0, 0, ladderHeight}});
-			(*childAnimations)[childIndex].keyframes.Push({0.8f, {0, 0, 0}});
-
-			childIndex = childAnimations->Push({state->environmentTransforms[firstLadderIndex + 3], PushArray<Keyframe>(&state->persistentMemoryArena, 2, false)});
-			(*childAnimations)[childIndex].keyframes.Push({0.8f, {0, 0, ladderHeight}});
-			(*childAnimations)[childIndex].keyframes.Push({1.2f, {0, 0, 0}});
-
-			childIndex = childAnimations->Push({state->environmentTransforms[firstLadderIndex + 2], PushArray<Keyframe>(&state->persistentMemoryArena, 2, false)});
-			(*childAnimations)[childIndex].keyframes.Push({1.2f, {0, 0, ladderHeight}});
-			(*childAnimations)[childIndex].keyframes.Push({1.6f, {0, 0, 0}});
-			
-			childIndex = childAnimations->Push({state->environmentTransforms[firstLadderIndex + 1], PushArray<Keyframe>(&state->persistentMemoryArena, 2, false)});
-			(*childAnimations)[childIndex].keyframes.Push({1.6f, {0, 0, ladderHeight}});
-			(*childAnimations)[childIndex].keyframes.Push({2.0f, {0, 0, 0}});
-
-			childIndex = childAnimations->Push({state->environmentTransforms[firstLadderIndex + 0], PushArray<Keyframe>(&state->persistentMemoryArena, 2, false)});
-			(*childAnimations)[childIndex].keyframes.Push({2.0f, {0, 0, 0}});
-			(*childAnimations)[childIndex].keyframes.Push({2.4f, {0, 0, -ladderHeight}});
+			state->laddersUpAnimation 	= make_animation_clip(animations);
+			state->laddersDownAnimation = reverse_animation_clip(&state->persistentMemoryArena, &state->laddersUpAnimation);
 
 			state->laddersAnimator = {};
-			// state->laddersAnimator.Play(&state->laddersUpAnimation);
 		}
 
 		if(addButton)
 		{
-			auto keyholeMeshAsset = LoadModel(&state->transientMemoryArena, "models/keyhole.obj");
-			auto keyholeMeshHandle = PushMesh (&keyholeMeshAsset);
+			auto keyholeMeshAsset 	= load_model(&state->transientMemoryArena, "models/keyhole.obj");
+			auto keyholeMeshHandle 	= push_mesh (&keyholeMeshAsset);
 
-			auto renderer = PushRenderer(keyholeMeshHandle, state->materials.environment);
-			auto transform = Handle<Transform3D>::Create({Vector3{5, 0, 0}});
+			auto renderer 	= push_renderer(keyholeMeshHandle, state->materials.environment);
+			auto transform 	= create_handle<Transform3D>({Vector3{5, 0, 0}});
 
 			state->environmentObjects.Push(renderer);
 			state->environmentTransforms.Push(transform);
 			
-			state->collisionManager.PushCollider(transform, {0.3f, 0.6f}, {0, 0.3f}, ColliderTag::Trigger);
+			std::cout << "[ADD BUTTON TRIGGER]";
+			state->collisionManager.PushCollider(	transform, 
+													{0.3f, 0.6f},
+													{0, 0.3f},
+													ColliderTag::Trigger);
 		}
 
 		if (addPlatforms)
@@ -497,29 +488,36 @@ LoadMainLevel(GameState * state, game::Memory * memory, game::PlatformInfo * pla
 				{6, 0, 6},
 			};
 
-			auto platformMeshAsset = LoadModel(&state->transientMemoryArena, "models/platform.obj");
-			auto platformMeshHandle = PushMesh(&platformMeshAsset);
+			auto platformMeshAsset = load_model(&state->transientMemoryArena, "models/platform.obj");
+			auto platformMeshHandle = push_mesh(&platformMeshAsset);
 
 			int platformIndex = 0;
 			for (int platformIndex = 0; platformIndex < platformCount; ++platformIndex)
 			{
-				auto index = state->environmentObjects.Push(PushRenderer(platformMeshHandle, state->materials.environment));
-				state->environmentTransforms.Push(Handle<Transform3D>::Create({platformPositions[platformIndex]}));
-				state->collisionManager.PushCollider(state->environmentTransforms[index], {1.0f, 0.25f});
+				auto renderer 	= push_renderer(platformMeshHandle, state->materials.environment);
+				auto transform 	= create_handle<Transform3D>({platformPositions[platformIndex]});
+
+				// push_one(&state->environmentObjects, renderer);
+				// push_one(&state->environmentTransforms, transform);
+				// push_collider(&state->collisionManager, transformm {1.0f, 0.25f});
+
+				state->environmentObjects.Push(renderer);
+				state->environmentTransforms.Push(transform);
+				state->collisionManager.PushCollider(transform, {1.0f, 0.25f});
 			}
 
 		}
 	}
 
 	state->gameGuiButtonCount = 2;
-	state->gameGuiButtons = PushArray<Rectangle>(&state->persistentMemoryArena, state->gameGuiButtonCount);
-	state->gameGuiButtonHandles = PushArray<GuiHandle>(&state->persistentMemoryArena, state->gameGuiButtonCount);
+	state->gameGuiButtons = push_array<Rectangle>(&state->persistentMemoryArena, state->gameGuiButtonCount);
+	state->gameGuiButtonHandles = push_array<GuiHandle>(&state->persistentMemoryArena, state->gameGuiButtonCount);
 
 	state->gameGuiButtons[0] = {380, 200, 180, 40};
 	state->gameGuiButtons[1] = {380, 260, 180, 40};
 
-	MeshAsset quadAsset = mesh_primitives::CreateQuad(&state->transientMemoryArena);
- 	MeshHandle quadHandle = PushMesh(&quadAsset);
+	MeshAsset quadAsset = mesh_primitives::create_quad(&state->transientMemoryArena);
+ 	MeshHandle quadHandle = push_mesh(&quadAsset);
 
 	for (int guiButtonIndex = 0; guiButtonIndex < state->gameGuiButtonCount; ++guiButtonIndex)
 	{
@@ -531,23 +529,23 @@ LoadMainLevel(GameState * state, game::Memory * memory, game::PlatformInfo * pla
 
  	// Note(Leo): Apply all pushed changes and flush transient memory
     platformInfo->graphicsContext->Apply();
-    state->transientMemoryArena.Flush();
+    flush_memory_arena(&state->transientMemoryArena);
 }
 
 void
-LoadMenu(GameState * state, game::Memory * memory, game::PlatformInfo * platformInfo)
+load_menu(GameState * state, game::Memory * memory, game::PlatformInfo * platformInfo)
 {
 	// Create MateriaLs
 	{
 		TextureAsset whiteTextureAsset = {};
-		whiteTextureAsset.pixels = PushArray<uint32>(&state->transientMemoryArena, 1);
+		whiteTextureAsset.pixels = push_array<uint32>(&state->transientMemoryArena, 1);
 		whiteTextureAsset.pixels[0] = 0xffffffff;
 		whiteTextureAsset.width = 1;
 		whiteTextureAsset.height = 1;
 		whiteTextureAsset.channels = 4;
 
 		TextureAsset blackTextureAsset = {};
-		blackTextureAsset.pixels = PushArray<uint32>(&state->transientMemoryArena, 1);
+		blackTextureAsset.pixels = push_array<uint32>(&state->transientMemoryArena, 1);
 		blackTextureAsset.pixels[0] = 0xff000000;
 		blackTextureAsset.width = 1;
 		blackTextureAsset.height = 1;
@@ -569,15 +567,15 @@ LoadMenu(GameState * state, game::Memory * memory, game::PlatformInfo * platform
 	}
 
 	state->menuGuiButtonCount = 4;
-	state->menuGuiButtons = PushArray<Rectangle>(&state->persistentMemoryArena, state->menuGuiButtonCount);
-	state->menuGuiButtonHandles = PushArray<GuiHandle>(&state->persistentMemoryArena, state->menuGuiButtonCount);
+	state->menuGuiButtons = push_array<Rectangle>(&state->persistentMemoryArena, state->menuGuiButtonCount);
+	state->menuGuiButtonHandles = push_array<GuiHandle>(&state->persistentMemoryArena, state->menuGuiButtonCount);
 
 	state->menuGuiButtons[0] = {380, 200, 180, 40};
 	state->menuGuiButtons[1] = {380, 260, 180, 40};
 	state->menuGuiButtons[2] = {380, 320, 180, 40};
 	state->menuGuiButtons[3] = {380, 380, 180, 40};
 
-	MeshAsset quadAsset = mesh_primitives::CreateQuad(&state->transientMemoryArena);
+	MeshAsset quadAsset = mesh_primitives::create_quad(&state->transientMemoryArena);
  	MeshHandle quadHandle = platformInfo->graphicsContext->PushMesh(&quadAsset);
 
 	for (int guiButtonIndex = 0; guiButtonIndex < state->menuGuiButtonCount; ++guiButtonIndex)
@@ -589,12 +587,13 @@ LoadMenu(GameState * state, game::Memory * memory, game::PlatformInfo * platform
 
  	// Note(Leo): Apply all pushed changes and flush transient memory
     platformInfo->graphicsContext->Apply();
-    state->transientMemoryArena.Flush();
+    flush_memory_arena(&state->transientMemoryArena);
 }
 
 void
 OutputSound(int frameCount, game::StereoSoundSample * samples)
 {
+	// Note(Leo): Shit these are bad :DD
 	local_persist int runningSampleIndex = 0;
 	local_persist AudioFile<float> file;
 	local_persist bool32 fileLoaded = false;
@@ -657,10 +656,10 @@ GameUpdate(
 
 	if (memory->isInitialized == false)
 	{
-		InitializeGameState (state, memory, platform);
+		initialize_game_state (state, memory, platform);
 		memory->isInitialized = true;
 
-		LoadMenu(state, memory, platform);
+		load_menu(state, memory, platform);
 	}
 
 	game::UpdateResult result = {};
@@ -675,9 +674,9 @@ GameUpdate(
 		else if (menuResult == MENU_LOADLEVEL)
 		{
 			platform->graphicsContext->UnloadAll();
-			state->persistentMemoryArena.Flush();
+			flush_memory_arena(&state->persistentMemoryArena);
 
-			LoadMainLevel(state, memory, platform);
+			load_main_level(state, memory, platform);
 			state->levelLoaded = true;
 		}
 	}
@@ -687,9 +686,9 @@ GameUpdate(
 		if (result == MENU_EXIT)
 		{
 			platform->graphicsContext->UnloadAll();
-			state->persistentMemoryArena.Clear();
+			clear_memory_arena(&state->persistentMemoryArena);
 
-			LoadMenu(state, memory, platform);
+			load_menu(state, memory, platform);
 			state->levelLoaded = false;	
 		}
 	}
@@ -797,9 +796,8 @@ UpdateMainLevel(
 	game::SoundOutput * 	soundOutput,
 	game::RenderInfo * 		outRenderInfo)
 {
-	state->transientMemoryArena.Flush();
-	state->collisionManager.DoCollisions();
-
+	flush_memory_arena(&state->transientMemoryArena);
+	state->collisionManager.do_collisions();
 
 	/// Update Character
 	// state->characterController.Update(input, &state->worldCamera, &state->staticColliders);

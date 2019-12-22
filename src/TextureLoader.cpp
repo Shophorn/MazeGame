@@ -15,7 +15,7 @@ LoadTextureAsset(const char * assetPath, MemoryArena * memoryArena)
 
     if(pixels == nullptr)
     {
-        // Todo[Error](Leo): Proper handling and logging
+        // Todo[Error](Leo): Proper aka adhering to some convention handling and logging
         throw std::runtime_error("Failed to load image");
     }
 
@@ -23,7 +23,7 @@ LoadTextureAsset(const char * assetPath, MemoryArena * memoryArena)
     resultTexture.channels = 4;
 
     int32 pixelCount = resultTexture.width * resultTexture.height;
-    resultTexture.pixels = PushArray<uint32>(memoryArena, pixelCount);
+    resultTexture.pixels = push_array<uint32>(memoryArena, pixelCount);
 
     uint64 imageMemorySize = resultTexture.width * resultTexture.height * resultTexture.channels;
 

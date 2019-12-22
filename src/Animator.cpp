@@ -1,11 +1,10 @@
 struct Keyframe
 {
-	// Handle<Transform3D> target;
 	float time;
 	Vector3 position;
 };
 
-struct ChildAnimation
+struct Animation
 {
 	Handle<Transform3D> target;
 	ArenaArray<Keyframe> keyframes;
@@ -19,7 +18,7 @@ struct ChildAnimation
 
 
 internal Vector3
-GetPosition(ChildAnimation * animation, float time)
+get_position(Animation * animation, float time)
 {
 	if (time > animation->keyframes[animation->currentKeyFrameIndex].time)
 	{
@@ -32,7 +31,7 @@ GetPosition(ChildAnimation * animation, float time)
 									&& (time > animation->keyframes[animation->currentKeyFrameIndex].time);
 
 	// Note(Leo): only interpolate if we have keyframes on both side of current time
-	bool32 interpolatePosition = 	(isBeforeFirstKeyFrame == false
+	bool32 interpolatePosition 		= (isBeforeFirstKeyFrame == false
 									&& isAfterLastKeyFrame == false);
 
 	Vector3 position;
@@ -55,10 +54,10 @@ GetPosition(ChildAnimation * animation, float time)
 	return position;
 }
 
-struct Animation
+struct AnimationClip
 {
 	// Data
-	ArenaArray<ChildAnimation> children;
+	ArenaArray<Animation> children;
 	
 	// Properties
 	float duration;
@@ -69,13 +68,13 @@ struct Animation
 
 // Note(Leo): returns TRUE if animation IS NOT finished
 internal bool32
-Advance(Animation * animation, float elapsedTime)
+Advance(AnimationClip * animation, float elapsedTime)
 {
 	animation->time += elapsedTime;
 
 	for (int childIndex = 0; childIndex < animation->children.count; ++childIndex)
 	{
-		Vector3 position = GetPosition(&animation->children[childIndex], animation->time);
+		Vector3 position = get_position(&animation->children[childIndex], animation->time);
 		animation->children[childIndex].target->position = position;
 	}
 
@@ -83,13 +82,96 @@ Advance(Animation * animation, float elapsedTime)
 }
 
 internal void
-Reset(Animation * animation)
+Reset(AnimationClip * animation)
 {
 	animation->time = 0.0f;
-	// for (int childIndex = 0; childIndex < animation->children.count; ++childIndex)
-	// {
-	// 	animation->children[childIndex].
-	// }
+}
+
+internal AnimationClip
+reverse_animation_clip(MemoryArena * memoryArena, AnimationClip * original)
+{
+	float duration = original->duration;
+	int32 childAnimationCount = original->children.count;
+	
+	auto children = push_array<Animation>(memoryArena, childAnimationCount, true);
+
+	for (int childIndex = 0; childIndex < childAnimationCount; ++childIndex)
+	{
+		children[childIndex].target = original->children[childIndex].target;
+
+		int32 keyframeCount = original->children[childIndex].keyframes.count;
+		children[childIndex].keyframes = push_array<Keyframe>(memoryArena, keyframeCount);
+		for (int keyframeIndex = 0; keyframeIndex < keyframeCount; ++keyframeIndex)
+		{
+			int originalKeyframeIndex = keyframeCount - 1 - keyframeIndex;
+			Keyframe originalKeyframe = original->children[childIndex].keyframes[originalKeyframeIndex];
+
+			float time = duration - originalKeyframe.time;
+			Vector3 position = originalKeyframe.position;
+
+			children[childIndex].keyframes[keyframeIndex] = {time, position};
+		}
+	}
+
+	AnimationClip result = 
+	{
+		.children = children,
+		.duration = duration
+	};
+
+	return result;
+}
+
+internal float
+ComputeDuration (AnimationClip * animation)
+{
+	float duration = 0;
+	for (	int childIndex = 0;
+			childIndex < animation->children.count; 
+			++childIndex)
+	{
+		for (	int keyframeIndex = 0; 
+				keyframeIndex < animation->children[childIndex].keyframes.count;
+				++keyframeIndex)
+		{
+			float time = animation->children[childIndex].keyframes[keyframeIndex].time;
+			duration = Max(duration, time);
+		}
+	}
+
+	return duration;
+}
+
+internal float
+compute_duration (ArenaArray<Animation> animations)
+{
+	// Note(Leo): We mitigate risks of copying in that we will just read these
+	float duration = 0;
+	for (	int animationIndex = 0;
+			animationIndex < animations.count; 
+			++animationIndex)
+	{
+		for (	int keyframeIndex = 0; 
+				keyframeIndex < animations[animationIndex].keyframes.count;
+				++keyframeIndex)
+		{
+			float time = animations[animationIndex].keyframes[keyframeIndex].time;
+			duration = Max(duration, time);
+		}
+	}
+
+	return duration;
+}
+
+internal AnimationClip
+make_animation_clip (ArenaArray<Animation> animations)
+{
+	AnimationClip result = 
+	{
+		.children = animations,
+		.duration = compute_duration(animations)
+	};
+	return result;
 }
 
 struct Animator
@@ -99,11 +181,11 @@ struct Animator
 
 	// State
 	bool32 isPlaying 		= false;
-	Animation * animation 	= nullptr;
+	AnimationClip * animation 	= nullptr;
 
 
 	void
-	Play(Animation * animation)
+	Play(AnimationClip * animation)
 	{
 		// Todo(Leo): Add blending etc. here :)
 
@@ -124,7 +206,7 @@ struct Animator
 		if (framesLeft == false)
 		{
 			isPlaying = false;
-			std::cout << "[Animator]: Animation complete\n";
+			std::cout << "[Animator]: AnimationClip complete\n";
 		}
 	}
 };

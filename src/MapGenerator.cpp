@@ -148,7 +148,7 @@ map::GenerateMap(MemoryArena & memoryArena, map::CreateInfo & info)
 	map.cellCountPerDirection = info.cellCountPerDirection;;
 	map.cellSize = info.cellSize;
 
-	map.cells = PushArray<uint32>(&memoryArena, map.cellCountPerDirection * map.cellCountPerDirection);
+	map.cells = push_array<uint32>(&memoryArena, map.cellCountPerDirection * map.cellCountPerDirection);
 
 	for (int32 y = 0; y < map.cellCountPerDirection; ++y)
 	{
@@ -169,8 +169,8 @@ map::GenerateMapMesh(MemoryArena & memoryArena, HexMap & map)
 	int32 vCount = map.cellCountPerDirection * map.cellCountPerDirection * 7;
 	int32 iCount = map.cellCountPerDirection * map.cellCountPerDirection * 6 * 3;
 
-	result.vertices = PushArray<Vertex>(&memoryArena, vCount);
-	result.indices 	= PushArray<uint16>(&memoryArena, iCount);
+	result.vertices = push_array<Vertex>(&memoryArena, vCount);
+	result.indices 	= push_array<uint16>(&memoryArena, iCount);
 
 	uint16 vertexIndex = 0;
 	uint16 triangleIndex = 0;

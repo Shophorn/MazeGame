@@ -13,7 +13,7 @@ Todo[Assets](Leo): look into gltf format or make own.
 // #include <vector>
 
 internal MeshAsset
-LoadModel(MemoryArena * memoryArena, const char * modelPath)
+load_model(MemoryArena * memoryArena, const char * modelPath)
 {
 	/*
 	TODO(Leo): There is now no checking if attributes exist.
@@ -37,8 +37,8 @@ LoadModel(MemoryArena * memoryArena, const char * modelPath)
 	//Note(Leo): there might be more than one shape, but we don't use that here
 	int32 indexCount = shapes[0].mesh.indices.size();
 
-	result.vertices = PushArray<Vertex>(memoryArena, indexCount);
-	result.indices = PushArray<uint16>(memoryArena, indexCount);
+	result.vertices = push_array<Vertex>(memoryArena, indexCount);
+	result.indices = push_array<uint16>(memoryArena, indexCount);
 
 	for (int i = 0; i < indexCount; ++i)
 	{
@@ -74,7 +74,7 @@ LoadModel(MemoryArena * memoryArena, const char * modelPath)
 namespace mesh_ops
 {
 	internal void
-	Transform(MeshAsset * mesh, const Matrix44 & transform)
+	transform(MeshAsset * mesh, const Matrix44 & transform)
 	{
 		int vertexCount = mesh->vertices.count;
 		for (int vertexIndex = 0; vertexIndex < vertexCount; ++vertexIndex)
@@ -84,7 +84,7 @@ namespace mesh_ops
 	}
 
 	internal void
-	TransformTexCoords(MeshAsset * mesh, const Vector2 translation, const Vector2 scale)
+	transform_tex_coords(MeshAsset * mesh, const Vector2 translation, const Vector2 scale)
 	{
 		int vertexCount = mesh->vertices.count;
 		for(int vertexIndex = 0; vertexIndex < vertexCount; ++vertexIndex)
@@ -99,13 +99,13 @@ namespace mesh_primitives
 {
 	constexpr real32 radius = 0.5f;
 
-	MeshAsset CreateQuad(MemoryArena * memoryArena)
+	MeshAsset create_quad(MemoryArena * memoryArena)
 	{
 		MeshAsset result = {};
 		result.indexType = IndexType::UInt16;
 
 		int vertexCount = 4;
-		result.vertices = PushArray<Vertex>(memoryArena, vertexCount);
+		result.vertices = push_array<Vertex>(memoryArena, vertexCount);
 
 		// 					  position 		normal   	color    	uv
 		result.vertices[0] = {0, 0, 0, 		0, 0, 1, 	1, 1, 1, 	0, 0};
@@ -114,7 +114,7 @@ namespace mesh_primitives
 		result.vertices[3] = {1, 1, 0, 		0, 0, 1, 	1, 1, 1, 	1, 1};
 
 		int indexCount = 6;
-		result.indices = PushArray<uint16>(memoryArena, indexCount);
+		result.indices = push_array<uint16>(memoryArena, indexCount);
 
 		result.indices [0] = 0;
 		result.indices [1] = 1;

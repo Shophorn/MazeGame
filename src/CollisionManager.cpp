@@ -2,6 +2,7 @@ enum struct ColliderTag : int32
 {
 	Default,
 	Trigger,
+	Ladder,
 };
 
 struct Collision
@@ -18,7 +19,6 @@ struct Collider
 	Vector2			extents;
 	Vector2			offset;
 
-	bool32 			isLadder;
 	ColliderTag	tag;
 
 	bool32 			hasCollision;
@@ -29,13 +29,16 @@ struct CollisionManager
 {
 	ArenaArray<Handle<Collider>> colliders;
 
-	int32 collisionCount = 0;
+	// int32 collisionCount = 0;
 	ArenaArray<Collision> collisions;
 
 	Handle<Collider>
-	PushCollider(Handle<Transform3D> transform, Vector2 extents, Vector2 offset = {0, 0}, ColliderTag tag = ColliderTag::Default)
+	PushCollider(	Handle<Transform3D> transform,
+					Vector2 extents,
+					Vector2 offset = {0, 0},
+					ColliderTag tag = ColliderTag::Default)
 	{
-		auto index = colliders.Push(Handle<Collider>::Create( 
+		auto index = colliders.Push(Handle<Collider>::create( 
 		{
 			.transform 	= transform,
 			.extents 	= extents,
@@ -46,7 +49,7 @@ struct CollisionManager
 	}
 
 	bool32
-	Raycast(Vector2 origin, Vector2 ray, bool32 laddersBlock)
+	raycast(Vector2 origin, Vector2 ray, bool32 laddersBlock)
 	{
 		Vector2 corners [4];
 		
@@ -55,9 +58,9 @@ struct CollisionManager
 
 		for (int32 i = 0; i < colliders.count; ++i)
 		{
-			MAZEGAME_ASSERT(colliders[i]->transform.IsValid(), "Invalid transform passed to Collider");
+			MAZEGAME_ASSERT(colliders[i]->transform.is_valid(), "Invalid transform passed to Collider");
 
-			if (colliders[i]->isLadder && (laddersBlock == false))
+			if (colliders[i]->tag == ColliderTag::Ladder && (laddersBlock == false))
 			{
 				continue;
 			}
@@ -99,10 +102,11 @@ struct CollisionManager
 	}
 
 	void
-	DoCollisions() 
+	do_collisions() 
 	{
 		// Reset previous collisions
-		collisionCount = 0;
+		flush_arena_array(&collisions);
+
 		for (int32 i = 0; i < colliders.count; ++i)
 		{
 			colliders[i]->hasCollision = false;
@@ -114,43 +118,56 @@ struct CollisionManager
 		{
 			for (int32 b = a + 1; b < colliders.count; ++b)
 			{
-				float aPosition = colliders[a]->transform->position.x;
-				float bPosition = colliders[b]->transform->position.x;
-				float deltaAtoB = bPosition - aPosition;
-				float distance 	= Abs(deltaAtoB);
+				Vector2 positionA = Vector2{colliders[a]->transform->position.x, colliders[a]->transform->position.z} + colliders[a]->offset;
+				Vector2 positionB = Vector2{colliders[b]->transform->position.x, colliders[b]->transform->position.z} + colliders[b]->offset;
 
-				float aRadius = colliders[a]->extents.x;
-				float bRadius = colliders[b]->extents.x;
-				float limit = aRadius + bRadius;
-				if (distance < limit)
+				float xDeltaAtoB 	= positionB.x - positionA.x;
+				float xDistance		= Abs(xDeltaAtoB);
+
+				float xRadiusA = colliders[a]->extents.x;
+				float xRadiusB = colliders[b]->extents.x;
+				float xLimit = xRadiusA + xRadiusB;
+
+				bool32 xCollision = xDistance < xLimit; 
+
+				float zDeltaAtoB 	= positionB.y - positionA.y;
+				float zDistance		= Abs(zDeltaAtoB);
+
+				float zRadiusA = colliders[a]->extents.y;
+				float zRadiusB = colliders[b]->extents.y;
+				float zLimit = zRadiusA + zRadiusB;
+
+				bool32 zCollision = zDistance < zLimit; 
+
+				if (xCollision && zCollision)
 				{
+					if (colliders[a]->transform.get_index() == 0)
+					{
+						std::cout << "[COLLISIONS]: character collided with " << colliders[b]->transform.get_index() << ", at position " << positionA << "\n";
+					}
+
 					colliders[a]->hasCollision = true;
 					colliders[b]->hasCollision = true;
 
-					// Collision for a
-					int32 collisionIndexForA = collisionCount++;
-					int32 collisionIndexForB = collisionCount++;
+					float xNormalA = Sign(xDeltaAtoB);
+					float xNormalB = -xNormalA;
 
-					float aNormalX = Sign(deltaAtoB);
-					float bNormalX = -aNormalX;
-
-					collisions[collisionIndexForA] =
-					{
-						.position 	= bPosition + bNormalX * bRadius, 
-						.normal 	= {bNormalX, 0, 0},
+					uint64 collisionIndexForA = collisions.Push({
+						.position 	= positionB.x + xNormalB * xRadiusB,
+						.normal 	= {xNormalB, 0, 0},
 						.tag 		= colliders[b]->tag
-					};
+					});
 					colliders[a]->collision = &collisions[collisionIndexForA];
 
-					collisions[collisionIndexForB] =
-					{
-						.position 	= aPosition + aNormalX * aRadius, 
-						.normal 	= {aNormalX, 0, 0},
+					uint64 collisionIndexForB = collisions.Push({
+						.position 	= positionA.x + xNormalA * xRadiusA, 
+						.normal 	= {xNormalA, 0, 0},
 						.tag 		= colliders[a]->tag
-					};
+					});
 					colliders[b]->collision = &collisions[collisionIndexForB];
 				}
 			}
+
 		}
 	}
 };
