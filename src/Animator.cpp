@@ -4,60 +4,79 @@ struct Keyframe
 	Vector3 position;
 };
 
+// Data
 struct Animation
 {
-	// Data
 	ArenaArray<Keyframe> keyframes;
-	
-	// Properties
-	Handle<Transform3D> target;
-	
-	// State
-	uint64 currentKeyframeIndex = 0;
-
-	const Keyframe & previous_keyframe () const { return keyframes[currentKeyframeIndex - 1]; }
-	const Keyframe & current_keyframe () const { return keyframes[currentKeyframeIndex]; }
 };
 
+// Data
 struct AnimationClip
 {
 	ArenaArray<Animation> animations;
 	float duration;
 };
 
-internal void
-update_animation_keyframes(Animation * animation, float time)
+// Property/State
+struct AnimationRig
 {
-	if (animation->currentKeyframeIndex < animation->keyframes.count
-		&& time > animation->current_keyframe().time)
+	Handle<Transform3D> root;
+	ArenaArray<Handle<Transform3D>> bones;
+	ArenaArray<uint64> currentBoneKeyframes;
+};
+
+internal AnimationRig
+make_animation_rig(Handle<Transform3D> root, ArenaArray<Handle<Transform3D>> bones, ArenaArray<uint64> currentBoneKeyframes)
+{
+	MAZEGAME_ASSERT(bones.count == currentBoneKeyframes.count, "Currently you must pass keyframe array with matching size to bones array. Sorry for inconvenience :)");
+
+	AnimationRig result 
 	{
-		animation->currentKeyframeIndex += 1;
-		animation->currentKeyframeIndex = Min(animation->currentKeyframeIndex, animation->keyframes.count);
+		.root 					= root,
+		.bones 					= bones,
+		.currentBoneKeyframes 	= currentBoneKeyframes
+	};
+	return result;
+}
+
+internal void
+update_animation_keyframes(const Animation * animation, uint64 * currentBoneKeyframe, float time)
+{
+	if (*currentBoneKeyframe < animation->keyframes.count
+		&& time > animation->keyframes[*currentBoneKeyframe].time)
+	{
+		*currentBoneKeyframe += 1;
+		*currentBoneKeyframe = Min(*currentBoneKeyframe, animation->keyframes.count);
 	}	
 }
 
 internal void
-update_animation_target(Animation * animation, float time)
+update_animation_target(const Animation * animation, Handle<Transform3D> target, uint64 currentBoneKeyframe, float time)
 {
-	bool32 isBeforeFirstKeyFrame 	= animation->currentKeyframeIndex == 0; 
-	bool32 isAfterLastKeyFrame 		= animation->currentKeyframeIndex >= animation->keyframes.count;
+	bool32 isBeforeFirstKeyFrame 	= currentBoneKeyframe == 0; 
+	bool32 isAfterLastKeyFrame 		= currentBoneKeyframe >= animation->keyframes.count;
 
 	if (isBeforeFirstKeyFrame)
 	{
-		animation->target->position = animation->current_keyframe().position;
+		auto current_keyframe = animation->keyframes[currentBoneKeyframe];
+		target->position = current_keyframe.position;
 	}
 	else if(isAfterLastKeyFrame)
 	{
-		animation->target->position = animation->previous_keyframe().position;
+		auto previous_keyframe = animation->keyframes[currentBoneKeyframe - 1];
+		target->position = previous_keyframe.position;
 	}
 	else
 	{
-		float previousKeyFrameTime 	= animation->previous_keyframe().time;
-		float currentKeyFrameTime 	= animation->current_keyframe().time;
+		auto previous_keyframe = animation->keyframes[currentBoneKeyframe - 1];
+		auto current_keyframe = animation->keyframes[currentBoneKeyframe];
+		
+		float previousKeyFrameTime 	= previous_keyframe.time;
+		float currentKeyFrameTime 	= current_keyframe.time;
 		float relativeTime = (time - previousKeyFrameTime) / (currentKeyFrameTime - previousKeyFrameTime);
 
-		animation->target->position = Interpolate(	animation->previous_keyframe().position,
-													animation->current_keyframe().position,
+		target->position = Interpolate(	previous_keyframe.position,
+													current_keyframe.position,
 													relativeTime); 
 	}
 }
@@ -74,7 +93,6 @@ duplicate_animation_clip(MemoryArena * memoryArena, AnimationClip * original)
 
 	for (int childIndex = 0; childIndex < original->animations.count; ++childIndex)
 	{
-		result.animations[childIndex].target = original->animations[childIndex].target;
 		result.animations[childIndex].keyframes = duplicate_arena_array(memoryArena, &original->animations[childIndex].keyframes);
 	}
 	return result;
@@ -134,11 +152,12 @@ make_animation_clip (ArenaArray<Animation> animations)
 struct Animator
 {
 	// Properties
+	AnimationRig * rig;
 	float playbackSpeed			= 1.0f;
 
 	// State
 	bool32 isPlaying 			= false;
-	AnimationClip * clip 		= nullptr;
+	const AnimationClip * clip	= nullptr;
 	float time;
 
 	void
@@ -152,8 +171,8 @@ struct Animator
 
 		for (int i = 0; i < clip->animations.count; ++i)
 		{
-			update_animation_keyframes(&clip->animations[i], time);
-			update_animation_target(&clip->animations[i], time);
+			update_animation_keyframes(&clip->animations[i], &rig->currentBoneKeyframes[i], time);
+			update_animation_target(&clip->animations[i], rig->bones[i], rig->currentBoneKeyframes[i], time);
 		}
 
 		bool framesLeft = time < clip->duration;
@@ -166,15 +185,26 @@ struct Animator
 	}
 };
 
+internal Animator
+make_animator(AnimationRig * rig)
+{
+	Animator result = 
+	{
+		.rig = rig
+	};
+	return result;
+}
+
+
 internal void
-play_animation_clip(Animator * animator, AnimationClip * clip)
+play_animation_clip(Animator * animator, const AnimationClip * clip)
 {
 	animator->clip = clip;
 	animator->time = 0.0f;
 	animator->isPlaying = true;
 
-	for (int animationIndex = 0; animationIndex < clip->animations.count; ++animationIndex)
+	for (int boneIndex = 0; boneIndex < clip->animations.count; ++boneIndex)
 	{
-		clip->animations[animationIndex].currentKeyframeIndex = 0;
+		animator->rig->currentBoneKeyframes[boneIndex] = 0;
 	}
 }

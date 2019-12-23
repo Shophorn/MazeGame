@@ -45,13 +45,14 @@ struct GameState
 	RenderedObjectHandle characterRenderer;
 	CharacterControllerSideScroller characterController;
 
-	Animator 		laddersAnimator;
+	AnimationRig ladderRig1;
+	AnimationRig ladderRig2;
+
+	Animator 		laddersAnimator1;
+	Animator 		laddersAnimator2;
+
 	AnimationClip 	laddersUpAnimation;
 	AnimationClip 	laddersDownAnimation;
-
-	Animator 		laddersAnimator2;
-	AnimationClip 	laddersUpAnimation2;
-	AnimationClip 	laddersDownAnimation2;
 
 	Camera worldCamera;
 	// CameraController3rdPerson cameraController;
@@ -195,9 +196,9 @@ load_main_level(GameState * state, game::Memory * memory, game::PlatformInfo * p
 		{
 			state->ladderOn = !state->ladderOn;
 			if (state->ladderOn)
-				play_animation_clip(&state->laddersAnimator, &state->laddersUpAnimation);
+				play_animation_clip(&state->laddersAnimator1, &state->laddersUpAnimation);
 			else
-				play_animation_clip(&state->laddersAnimator, &state->laddersDownAnimation);
+				play_animation_clip(&state->laddersAnimator1, &state->laddersDownAnimation);
 		};
 
 		state->characterController.OnTriggerLadder2 = [state]() -> void
@@ -205,9 +206,9 @@ load_main_level(GameState * state, game::Memory * memory, game::PlatformInfo * p
 			std::cout << "[OnTriggerLadder2()]\n";
 			state->ladder2On = !state->ladder2On;
 			if (state->ladder2On)
-				play_animation_clip(&state->laddersAnimator2, &state->laddersUpAnimation2);
+				play_animation_clip(&state->laddersAnimator2, &state->laddersUpAnimation);
 			else
-				play_animation_clip(&state->laddersAnimator2, &state->laddersDownAnimation2);
+				play_animation_clip(&state->laddersAnimator2, &state->laddersDownAnimation);
 		};
 	}
 
@@ -294,11 +295,14 @@ load_main_level(GameState * state, game::Memory * memory, game::PlatformInfo * p
 			auto ladderMesh 		= load_model(&state->transientMemoryArena, "models/ladder.obj");
 			auto ladderMeshHandle 	= push_mesh(&ladderMesh);
 
-			Handle<Transform3D> parent = create_handle<Transform3D>({0, 0.5f, -ladderHeight});
-			Handle<Transform3D> parent2 = create_handle<Transform3D>({10, 0.5f, 6 - ladderHeight});
+			Handle<Transform3D> root1 = create_handle<Transform3D>({0, 0.5f, -ladderHeight});
+			Handle<Transform3D> root2 = create_handle<Transform3D>({10, 0.5f, 6 - ladderHeight});
+			auto bones1 = push_array<Handle<Transform3D>>(&state->persistentMemoryArena, 6, false);
+			auto bones2 = push_array<Handle<Transform3D>>(&state->persistentMemoryArena, 6, false);
 
+			Handle<Transform3D> parent1 = root1;
+			Handle<Transform3D> parent2 = root2;
 			auto animations = push_array<Animation>(&state->persistentMemoryArena, ladderCount, false);
-			auto animations2 = push_array<Animation>(&state->persistentMemoryArena, ladderCount, false);
 
 			int ladder2StartIndex = 6;
 
@@ -315,37 +319,40 @@ load_main_level(GameState * state, game::Memory * memory, game::PlatformInfo * p
 														{0, 0.5f},
 														ColliderTag::Ladder);
 
-				auto keyframes = push_array(&state->persistentMemoryArena, {
-					Keyframe{(ladderIndex % ladder2StartIndex) * 0.35f, {0, 0, 0}},
-					Keyframe{((ladderIndex % ladder2StartIndex) + 1) * 0.35f, {0, 0, ladderHeight}}
-				});
 
 				if (ladderIndex < ladder2StartIndex)
 				{
-					transform->parent = parent;
-					parent = transform;
-					
-					push_one(&animations, {keyframes, transform});
+					transform->parent = parent1;
+					parent1 = transform;
+					push_one(&bones1, transform);
+	
+
+					// Todo(Leo): only one animation needed, move somewhere else				
+					auto keyframes = push_array(&state->persistentMemoryArena, {
+						Keyframe{(ladderIndex % ladder2StartIndex) * 0.35f, {0, 0, 0}},
+						Keyframe{((ladderIndex % ladder2StartIndex) + 1) * 0.35f, {0, 0, ladderHeight}}
+					});
+					push_one(&animations, {keyframes});
 				}
 				else
 				{
 					transform->parent = parent2;
 					parent2 = transform;	
-					
-					push_one(&animations2, {keyframes, transform});
+					push_one(&bones2, transform);
 				}
 			}	
+
 
 			state->laddersUpAnimation 	= make_animation_clip(animations);
 			state->laddersDownAnimation = duplicate_animation_clip(&state->persistentMemoryArena, &state->laddersUpAnimation);
 			reverse_animation_clip(&state->laddersDownAnimation);
 
-			state->laddersUpAnimation2 		= make_animation_clip(animations2);
-			state->laddersDownAnimation2 	= duplicate_animation_clip(&state->persistentMemoryArena, &state->laddersUpAnimation2);
-			reverse_animation_clip(&state->laddersDownAnimation2);
+			state->ladderRig1 = make_animation_rig(root1, bones1, push_array<uint64>(&state->persistentMemoryArena, bones1.count));
+			state->ladderRig2 = make_animation_rig(root2, bones2, push_array<uint64>(&state->persistentMemoryArena, bones2.count));
 
-			state->laddersAnimator = {};
-			state->laddersAnimator2 = {};
+			state->laddersAnimator1 = make_animator(&state->ladderRig1);
+			state->laddersAnimator2 = make_animator(&state->ladderRig2);
+
 		}
 
 		if (addPlatforms)
@@ -697,7 +704,7 @@ UpdateMainLevel(
 
 	/// Update Character
 	state->characterController.Update(input, &state->collisionManager);
-	state->laddersAnimator.Update(input);
+	state->laddersAnimator1.Update(input);
 	state->laddersAnimator2.Update(input);
 
 	// Note(Leo): Update aspect ratio each frame, in case screen size has changed.
