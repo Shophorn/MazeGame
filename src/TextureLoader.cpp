@@ -7,7 +7,7 @@ Texture Loader
 #include <stb_image.h>
 
 internal TextureAsset
-LoadTextureAsset(const char * assetPath, MemoryArena * memoryArena)
+load_texture_asset(const char * assetPath, MemoryArena * memoryArena)
 {
     TextureAsset resultTexture = {};
     stbi_uc * pixels = stbi_load(assetPath, &resultTexture.width, &resultTexture.height,
@@ -27,18 +27,22 @@ LoadTextureAsset(const char * assetPath, MemoryArena * memoryArena)
 
     uint64 imageMemorySize = resultTexture.width * resultTexture.height * resultTexture.channels;
 
-    // for (int v = 0; v < resultTexture.height; ++v)
-    // {
-    //     for (int u = 0; u < resultTexture.height; ++v)
-    //     {
-            
-    //     }
-    // }
-
-
 
     memcpy((uint8*)resultTexture.pixels.data, pixels, imageMemorySize);
 
     stbi_image_free(pixels);
     return resultTexture;
+}
+
+internal TextureAsset
+make_texture_asset(ArenaArray<uint32> pixels, int32 width, int32 height, int32 channels = 4)
+{
+    TextureAsset result = 
+    {
+        .pixels = pixels,
+        .width = width,
+        .height = height,
+        .channels = channels,
+    };
+    return result;
 }

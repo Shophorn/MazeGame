@@ -3,7 +3,7 @@
 // #define VARIABLE(name) int _##name Num = 0
 // VARIABLE(a);
 
-// #define LOAD_TEXTURE(NAME) TextureAsset NAME ## Texture = LoadTextureAsset("textures/" #NAME ".jpg", &state->persistentMemoryArena);
+// #define LOAD_TEXTURE(NAME) TextureAsset NAME ## Texture = load_texture_asset("textures/" #NAME ".jpg", &state->persistentMemoryArena);
 
 //   LOAD_TEXTURE (lava),
 //   LOAD_TEXTURE (tiles),

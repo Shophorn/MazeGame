@@ -6,140 +6,97 @@ struct Keyframe
 
 struct Animation
 {
-	Handle<Transform3D> target;
+	// Data
 	ArenaArray<Keyframe> keyframes;
 	
-	int32 currentKeyFrameIndex = 0;
+	// Properties
+	Handle<Transform3D> target;
+	
+	// State
+	uint64 currentKeyframeIndex = 0;
 
-	Keyframe & PreviousKeyFrame () { return keyframes[currentKeyFrameIndex - 1]; }
-	Keyframe & CurrentKeyFrame 	() { return keyframes[currentKeyFrameIndex]; }
-	Keyframe & LastKeyFrame 	() { return keyframes[keyframes.count - 1]; }
+	const Keyframe & previous_keyframe () const { return keyframes[currentKeyframeIndex - 1]; }
+	const Keyframe & current_keyframe () const { return keyframes[currentKeyframeIndex]; }
 };
-
-
-internal Vector3
-get_position(Animation * animation, float time)
-{
-	if (time > animation->keyframes[animation->currentKeyFrameIndex].time)
-	{
-		animation->currentKeyFrameIndex += 1;
-		animation->currentKeyFrameIndex = Min(animation->currentKeyFrameIndex, (int32)animation->keyframes.count - 1);
-	}
-
-	bool32 isBeforeFirstKeyFrame 	= animation->currentKeyFrameIndex == 0; 
-	bool32 isAfterLastKeyFrame 		= (&animation->CurrentKeyFrame() == &animation->LastKeyFrame())
-									&& (time > animation->keyframes[animation->currentKeyFrameIndex].time);
-
-	// Note(Leo): only interpolate if we have keyframes on both side of current time
-	bool32 interpolatePosition 		= (isBeforeFirstKeyFrame == false
-									&& isAfterLastKeyFrame == false);
-
-	Vector3 position;
-	if (interpolatePosition)
-	{
-		float previousKeyFrameTime 	= animation->PreviousKeyFrame().time;
-		float currentKeyFrameTime 	= animation->CurrentKeyFrame().time;
-		float relativeTime = (time - previousKeyFrameTime) / (currentKeyFrameTime - previousKeyFrameTime);
-
-		position = Interpolate(	animation->PreviousKeyFrame().position,
-								animation->CurrentKeyFrame().position,
-								relativeTime); 
-
-	}
-	else
-	{
-		position = animation->CurrentKeyFrame().position;
-	}
-
-	return position;
-}
 
 struct AnimationClip
 {
-	// Data
-	ArenaArray<Animation> children;
-	
-	// Properties
+	ArenaArray<Animation> animations;
 	float duration;
-
-	// State
-	float time;
 };
 
-// Note(Leo): returns TRUE if animation IS NOT finished
-internal bool32
-Advance(AnimationClip * animation, float elapsedTime)
+internal void
+update_animation_keyframes(Animation * animation, float time)
 {
-	animation->time += elapsedTime;
-
-	for (int childIndex = 0; childIndex < animation->children.count; ++childIndex)
+	if (animation->currentKeyframeIndex < animation->keyframes.count
+		&& time > animation->current_keyframe().time)
 	{
-		Vector3 position = get_position(&animation->children[childIndex], animation->time);
-		animation->children[childIndex].target->position = position;
-	}
-
-	return animation->time < animation->duration;
+		animation->currentKeyframeIndex += 1;
+		animation->currentKeyframeIndex = Min(animation->currentKeyframeIndex, animation->keyframes.count);
+	}	
 }
 
 internal void
-Reset(AnimationClip * animation)
+update_animation_target(Animation * animation, float time)
 {
-	animation->time = 0.0f;
+	bool32 isBeforeFirstKeyFrame 	= animation->currentKeyframeIndex == 0; 
+	bool32 isAfterLastKeyFrame 		= animation->currentKeyframeIndex >= animation->keyframes.count;
+
+	if (isBeforeFirstKeyFrame)
+	{
+		animation->target->position = animation->current_keyframe().position;
+	}
+	else if(isAfterLastKeyFrame)
+	{
+		animation->target->position = animation->previous_keyframe().position;
+	}
+	else
+	{
+		float previousKeyFrameTime 	= animation->previous_keyframe().time;
+		float currentKeyFrameTime 	= animation->current_keyframe().time;
+		float relativeTime = (time - previousKeyFrameTime) / (currentKeyFrameTime - previousKeyFrameTime);
+
+		animation->target->position = Interpolate(	animation->previous_keyframe().position,
+													animation->current_keyframe().position,
+													relativeTime); 
+	}
 }
 
+
 internal AnimationClip
-reverse_animation_clip(MemoryArena * memoryArena, AnimationClip * original)
+duplicate_animation_clip(MemoryArena * memoryArena, AnimationClip * original)
 {
-	float duration = original->duration;
-	int32 childAnimationCount = original->children.count;
-	
-	auto children = push_array<Animation>(memoryArena, childAnimationCount, true);
-
-	for (int childIndex = 0; childIndex < childAnimationCount; ++childIndex)
-	{
-		children[childIndex].target = original->children[childIndex].target;
-
-		int32 keyframeCount = original->children[childIndex].keyframes.count;
-		children[childIndex].keyframes = push_array<Keyframe>(memoryArena, keyframeCount);
-		for (int keyframeIndex = 0; keyframeIndex < keyframeCount; ++keyframeIndex)
-		{
-			int originalKeyframeIndex = keyframeCount - 1 - keyframeIndex;
-			Keyframe originalKeyframe = original->children[childIndex].keyframes[originalKeyframeIndex];
-
-			float time = duration - originalKeyframe.time;
-			Vector3 position = originalKeyframe.position;
-
-			children[childIndex].keyframes[keyframeIndex] = {time, position};
-		}
-	}
-
 	AnimationClip result = 
 	{
-		.children = children,
-		.duration = duration
+		.animations = duplicate_arena_array(memoryArena, &original->animations),
+		.duration = original->duration
 	};
 
+	for (int childIndex = 0; childIndex < original->animations.count; ++childIndex)
+	{
+		result.animations[childIndex].target = original->animations[childIndex].target;
+		result.animations[childIndex].keyframes = duplicate_arena_array(memoryArena, &original->animations[childIndex].keyframes);
+	}
 	return result;
 }
 
-internal float
-ComputeDuration (AnimationClip * animation)
+internal void
+reverse_animation_clip(AnimationClip * clip)
 {
-	float duration = 0;
-	for (	int childIndex = 0;
-			childIndex < animation->children.count; 
-			++childIndex)
+	float duration = clip->duration;
+	int32 childAnimationCount = clip->animations.count;
+
+	for (int childIndex = 0; childIndex < childAnimationCount; ++childIndex)
 	{
-		for (	int keyframeIndex = 0; 
-				keyframeIndex < animation->children[childIndex].keyframes.count;
-				++keyframeIndex)
+		reverse_arena_array(&clip->animations[childIndex].keyframes);
+
+		int32 keyframeCount = clip->animations[childIndex].keyframes.count;
+		for (int keyframeIndex = 0; keyframeIndex < keyframeCount; ++keyframeIndex)
 		{
-			float time = animation->children[childIndex].keyframes[keyframeIndex].time;
-			duration = Max(duration, time);
+			float time = clip->animations[childIndex].keyframes[keyframeIndex].time; 
+			clip->animations[childIndex].keyframes[keyframeIndex].time = duration - time;
 		}
 	}
-
-	return duration;
 }
 
 internal float
@@ -168,7 +125,7 @@ make_animation_clip (ArenaArray<Animation> animations)
 {
 	AnimationClip result = 
 	{
-		.children = animations,
+		.animations = animations,
 		.duration = compute_duration(animations)
 	};
 	return result;
@@ -177,22 +134,12 @@ make_animation_clip (ArenaArray<Animation> animations)
 struct Animator
 {
 	// Properties
-	float playbackSpeed		= 1.0f;
+	float playbackSpeed			= 1.0f;
 
 	// State
-	bool32 isPlaying 		= false;
-	AnimationClip * animation 	= nullptr;
-
-
-	void
-	Play(AnimationClip * animation)
-	{
-		// Todo(Leo): Add blending etc. here :)
-
-		this->animation = animation;
-		Reset(animation);
-		isPlaying = true;
-	}
+	bool32 isPlaying 			= false;
+	AnimationClip * clip 		= nullptr;
+	float time;
 
 	void
 	Update(game::Input * input)
@@ -201,7 +148,15 @@ struct Animator
 			return;
 
 		float timeStep = playbackSpeed * input->elapsedTime;
-		bool framesLeft = Advance(animation, timeStep);
+		time += timeStep;
+
+		for (int i = 0; i < clip->animations.count; ++i)
+		{
+			update_animation_keyframes(&clip->animations[i], time);
+			update_animation_target(&clip->animations[i], time);
+		}
+
+		bool framesLeft = time < clip->duration;
 
 		if (framesLeft == false)
 		{
@@ -210,3 +165,16 @@ struct Animator
 		}
 	}
 };
+
+internal void
+play_animation_clip(Animator * animator, AnimationClip * clip)
+{
+	animator->clip = clip;
+	animator->time = 0.0f;
+	animator->isPlaying = true;
+
+	for (int animationIndex = 0; animationIndex < clip->animations.count; ++animationIndex)
+	{
+		clip->animations[animationIndex].currentKeyframeIndex = 0;
+	}
+}

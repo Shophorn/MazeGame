@@ -8,7 +8,7 @@ Interface definition between Platform and Game.
 
 #define MAZEGAME_INCLUDE_STD_IOSTREAM 1
 #include <iostream>
-
+#include <functional>
 
 #if MAZEGAME_DEVELOPMENT
 	#if MAZEGAME_INCLUDE_STD_IOSTREAM
@@ -137,16 +137,12 @@ namespace game
 		void * transientMemory;
 		uint64 transientMemorySize;
 	};
-	
+
 	struct RenderInfo
 	{
-		// Scene (camera, lights, etc)
-		Matrix44 cameraView;
-		Matrix44 cameraPerspective;
-
-		// Todo(Leo): Are these cool, since they kinda are just pointers to data somewhere else....?? How to know???
-		ArenaArray<Matrix44, RenderedObjectHandle> renderedObjects;
-		ArenaArray<Matrix44, GuiHandle> guiObjects;
+		std::function<void(Matrix44 view, Matrix44 perspective)> set_camera;
+		std::function<void(RenderedObjectHandle, Matrix44)> render;
+		std::function<void(GuiHandle, Matrix44)> render_gui;
 	};
 	
 	struct NetworkPackage
@@ -156,7 +152,7 @@ namespace game
 	};
 
 	constexpr int32 NETWORK_PACKAGE_SIZE = sizeof(NetworkPackage);
-	static_assert(NETWORK_PACKAGE_SIZE <= 512, "Time to deak with bigger network packages");
+	static_assert(NETWORK_PACKAGE_SIZE <= 512, "Time to deal with bigger network packages");
 
 	struct Network
 	{

@@ -16,7 +16,7 @@ const int SAMPLER_BIND_ID = 0;
 
 layout(binding = SAMPLER_BIND_ID, set = 1) uniform sampler2D texSampler[TEXTURE_COUNT];
 
-const vec3 lightDirection 	= normalize(vec3(0.7, 0.3, -2));
+const vec3 lightDirection 	= normalize(vec3(0.7, 1, -2));
 const vec3 lightColor 		= vec3(1.0, 0.98, 0.95);
 const vec3 ambientColor 	= vec3(0.2, 0.2, 0.3);
 

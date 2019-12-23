@@ -2256,7 +2256,7 @@ vulkan::RefreshCommandBuffers(VulkanContext * context)
 
 
 internal void
-vulkan::UpdateUniformBuffer(VulkanContext * context, uint32 imageIndex, game::RenderInfo * renderInfo)
+vulkan::UpdateUniformBuffer(VulkanContext * context, uint32 imageIndex, vulkan::RenderInfo * renderInfo)
 {
     // Todo(Leo): Single mapping is really enough, offsets can be used here too
     uint32 startUniformBufferOffset = vulkan::GetModelUniformBufferOffsetForSwapchainImages(context, imageIndex);

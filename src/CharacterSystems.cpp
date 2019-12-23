@@ -40,6 +40,7 @@ struct CharacterControllerSideScroller
 	bool32 testTriggered = false;
 
 	std::function<void()> OnTriggerLadder;
+	std::function<void()> OnTriggerLadder2;
 
 	void
 	Update(game::Input * input, CollisionManager * collisionManager)
@@ -111,15 +112,21 @@ struct CharacterControllerSideScroller
 		}
 
 		transform->position += {xMovement, 0, zMovement};
-
 		transform->rotation = Quaternion::AxisAngle(World::Up, currentRotationRadians);
-
 
 		if (collider->hasCollision && collider->collision->tag == ColliderTag::Trigger)
 		{
 			if (input->interact.IsClicked())
 			{
 				OnTriggerLadder();
+			}
+		}
+
+		if (collider->hasCollision && collider->collision->tag == ColliderTag::Trigger2)
+		{
+			if (input->interact.IsClicked())
+			{
+				OnTriggerLadder2();
 			}
 		}
 

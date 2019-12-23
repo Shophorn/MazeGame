@@ -2,6 +2,7 @@ enum struct ColliderTag : int32
 {
 	Default,
 	Trigger,
+	Trigger2,
 	Ladder,
 };
 
@@ -28,25 +29,7 @@ struct Collider
 struct CollisionManager
 {
 	ArenaArray<Handle<Collider>> colliders;
-
-	// int32 collisionCount = 0;
 	ArenaArray<Collision> collisions;
-
-	Handle<Collider>
-	PushCollider(	Handle<Transform3D> transform,
-					Vector2 extents,
-					Vector2 offset = {0, 0},
-					ColliderTag tag = ColliderTag::Default)
-	{
-		auto index = colliders.Push(Handle<Collider>::create( 
-		{
-			.transform 	= transform,
-			.extents 	= extents,
-			.offset		= offset,
-			.tag 		= tag
-		}));
-		return colliders[index];
-	}
 
 	bool32
 	raycast(Vector2 origin, Vector2 ray, bool32 laddersBlock)
@@ -58,19 +41,23 @@ struct CollisionManager
 
 		for (int32 i = 0; i < colliders.count; ++i)
 		{
-			MAZEGAME_ASSERT(colliders[i]->transform.is_valid(), "Invalid transform passed to Collider");
+			MAZEGAME_ASSERT(is_handle_valid(colliders[i]->transform), "Invalid transform passed to Collider");
 
-			if (colliders[i]->tag == ColliderTag::Ladder && (laddersBlock == false))
+			switch(colliders[i]->tag)
 			{
-				continue;
+				case ColliderTag::Default:
+					break;
+
+				case ColliderTag::Trigger:
+				case ColliderTag::Trigger2:
+					continue;
+
+				case ColliderTag::Ladder:
+					if (laddersBlock == false)
+						continue;
 			}
 
-			if (colliders[i]->tag == ColliderTag::Trigger)
-			{
-				continue;
-			}
-
-			Vector3 worldPosition = colliders[i]->transform->GetWorldPosition();
+			Vector3 worldPosition = colliders[i]->transform->get_world_position();
 			Vector2 position2D = {	worldPosition.x, worldPosition.z };
 
 			position2D += colliders[i]->offset;
@@ -118,8 +105,8 @@ struct CollisionManager
 		{
 			for (int32 b = a + 1; b < colliders.count; ++b)
 			{
-				Vector2 positionA = Vector2{colliders[a]->transform->position.x, colliders[a]->transform->position.z} + colliders[a]->offset;
-				Vector2 positionB = Vector2{colliders[b]->transform->position.x, colliders[b]->transform->position.z} + colliders[b]->offset;
+				Vector2 positionA = Vector2{colliders[a]->transform->get_world_position().x, colliders[a]->transform->get_world_position().z} + colliders[a]->offset;
+				Vector2 positionB = Vector2{colliders[b]->transform->get_world_position().x, colliders[b]->transform->get_world_position().z} + colliders[b]->offset;
 
 				float xDeltaAtoB 	= positionB.x - positionA.x;
 				float xDistance		= Abs(xDeltaAtoB);
@@ -141,25 +128,20 @@ struct CollisionManager
 
 				if (xCollision && zCollision)
 				{
-					if (colliders[a]->transform.get_index() == 0)
-					{
-						std::cout << "[COLLISIONS]: character collided with " << colliders[b]->transform.get_index() << ", at position " << positionA << "\n";
-					}
-
 					colliders[a]->hasCollision = true;
 					colliders[b]->hasCollision = true;
 
 					float xNormalA = Sign(xDeltaAtoB);
 					float xNormalB = -xNormalA;
 
-					uint64 collisionIndexForA = collisions.Push({
+					uint64 collisionIndexForA = push_one(&collisions, {
 						.position 	= positionB.x + xNormalB * xRadiusB,
 						.normal 	= {xNormalB, 0, 0},
 						.tag 		= colliders[b]->tag
 					});
 					colliders[a]->collision = &collisions[collisionIndexForA];
 
-					uint64 collisionIndexForB = collisions.Push({
+					uint64 collisionIndexForB = push_one(&collisions, {
 						.position 	= positionA.x + xNormalA * xRadiusA, 
 						.normal 	= {xNormalA, 0, 0},
 						.tag 		= colliders[a]->tag
@@ -171,3 +153,20 @@ struct CollisionManager
 		}
 	}
 };
+
+internal Handle<Collider>
+push_collider(	CollisionManager * manager,
+				Handle<Transform3D> transform,
+				Vector2 extents,
+				Vector2 offset = {0, 0},
+				ColliderTag tag = ColliderTag::Default)
+{
+	auto collider = create_handle<Collider>({
+		.transform 	= transform,
+		.extents 	= extents,
+		.offset		= offset,
+		.tag 		= tag
+	});
+	auto index = push_one(&manager->colliders, collider);
+	return collider;
+}

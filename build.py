@@ -11,7 +11,7 @@ import sys
 silent = '--silent' in sys.argv
 compiler = 'clang++'
 
-compile_all = False
+compile_all = True
 
 def compile(call):
 	if not silent:

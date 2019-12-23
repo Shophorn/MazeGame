@@ -508,7 +508,7 @@ Run(HINSTANCE winInstance)
         gameMemory.persistentMemory     = memoryBlock;
         gameMemory.transientMemory      = (byte *)memoryBlock + gameMemory.persistentMemorySize;
 
-        platformTransientMemoryArena = MemoryArena::Create((byte *)memoryBlock + totalGameMemorySize, platformTransientMemorySize);
+        platformTransientMemoryArena = make_memory_arena((byte *)memoryBlock + totalGameMemorySize, platformTransientMemorySize);
 
     }
 
@@ -564,6 +564,34 @@ Run(HINSTANCE winInstance)
     }
     int32 currentLoopingFrameIndex = 0;
 
+    game::RenderInfo gameRenderInfo = {};
+    vulkan::RenderInfo platformRenderInfo = {};
+    {
+        /* Todo(Leo): We are currently pushing for worst case. It is ok because
+        push_array is super cheap and memory is available anyway. However we may
+        want to be more exact */
+        platformRenderInfo.renderedObjects = push_array<Matrix44, RenderedObjectHandle>(
+                                            &platformTransientMemoryArena, VULKAN_MAX_MODEL_COUNT);
+        platformRenderInfo.guiObjects = push_array<Matrix44, GuiHandle>(
+                                        &platformTransientMemoryArena, VULKAN_MAX_MODEL_COUNT);
+
+        // Todo(Leo): define these somewhere else as proper functions and not lamdas??
+        gameRenderInfo.render = [&platformRenderInfo](RenderedObjectHandle handle, Matrix44 transform)
+        {
+            platformRenderInfo.renderedObjects[handle] = transform;
+        };
+        gameRenderInfo.render_gui = [&platformRenderInfo](GuiHandle handle, Matrix44 transform)
+        {
+            platformRenderInfo.guiObjects[handle] = transform;
+        };
+        gameRenderInfo.set_camera = [&platformRenderInfo](Matrix44 view, Matrix44 perspective)
+        {
+            platformRenderInfo.cameraView = view;
+            platformRenderInfo.cameraPerspective = perspective;
+        };
+
+    }
+
     // -------- INITIALIZE NETWORK ---------
     bool32 networkIsRuined = false;
     WinApiNetwork network = winapi::CreateNetwork();
@@ -586,6 +614,7 @@ Run(HINSTANCE winInstance)
         timeGetDevCaps(&timeCaps, sizeof(timeCaps));
         deviceMinSchedulerGranularity = timeCaps.wPeriodMin;
 
+        // TODO(LEO): Make proper settings :)
         /* NOTE(Leo): Change to lower framerate if on battery. My development
         laptop at least changes to slower processing speed when not on power,
         though this probably depends on power settings. These are just some
@@ -705,19 +734,10 @@ Run(HINSTANCE winInstance)
         }
 
         /// --------- UPDATE GAME -------------
-        game::RenderInfo gameRenderInfo = {};
         {
             gamePlatformInfo.windowWidth = context.swapchainItems.extent.width;
             gamePlatformInfo.windowHeight = context.swapchainItems.extent.height;
             gamePlatformInfo.windowIsFullscreen = state.windowIsFullscreen;
-
-            /* Todo(Leo): We are currently pushing for worst case. It is ok because
-            PushArray is super cheap and memory is available anyway. However we may
-            want to be more exact */
-            gameRenderInfo.renderedObjects = PushArray<Matrix44, RenderedObjectHandle>(
-                                                &platformTransientMemoryArena, VULKAN_MAX_MODEL_COUNT);
-            gameRenderInfo.guiObjects = PushArray<Matrix44, GuiHandle>(
-                                            &platformTransientMemoryArena, VULKAN_MAX_MODEL_COUNT);
 
             gameNetwork.isConnected = network.isConnected;
 
@@ -785,7 +805,7 @@ Run(HINSTANCE winInstance)
             switch (result)
             {
                 case VK_SUCCESS:
-                    vulkan::UpdateUniformBuffer(&context, imageIndex, &gameRenderInfo);
+                    vulkan::UpdateUniformBuffer(&context, imageIndex, &platformRenderInfo);
                     vulkan::DrawFrame(&context, imageIndex, currentLoopingFrameIndex);
                     break;
 
@@ -804,7 +824,7 @@ Run(HINSTANCE winInstance)
         }
 
         /// ----- CLEAR MEMORY ------
-        platformTransientMemoryArena.Flush();
+        flush_memory_arena(&platformTransientMemoryArena);
 
         /// ----- WAIT FOR TARGET FRAMETIME -----
         {

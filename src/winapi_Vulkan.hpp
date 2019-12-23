@@ -252,6 +252,17 @@ struct VulkanDescriptorLayouts
 
 namespace vulkan
 {
+	struct RenderInfo
+	{
+		Matrix44 cameraView;
+		Matrix44 cameraPerspective;
+
+		// Todo(Leo): Are these cool, since they kinda are just pointers to data somewhere else....?? How to know???
+		ArenaArray<Matrix44, RenderedObjectHandle> renderedObjects;
+		ArenaArray<Matrix44, GuiHandle> guiObjects;
+	};		
+
+
 	#if MAZEGAME_DEVELOPMENT
 	constexpr bool32 enableValidationLayers = true;
 	#else
@@ -355,7 +366,7 @@ namespace vulkan
 	CreateShaderModule(BinaryAsset code, VkDevice logicalDevice);
 
 	internal void
-	UpdateUniformBuffer(VulkanContext * context, uint32 imageIndex, game::RenderInfo * renderInfo);
+	UpdateUniformBuffer(VulkanContext * context, uint32 imageIndex, vulkan::RenderInfo * renderInfo);
 
 	internal void
 	DrawFrame(VulkanContext * context, uint32 imageIndex, uint32 frameIndex);

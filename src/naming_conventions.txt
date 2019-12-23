@@ -1,0 +1,32 @@
+naming conventions
+
+Types:
+	PascalCase
+	always use nouns
+
+variables:
+	camelCase
+	also always use nouns
+
+functions:
+	sneaky_snake_case
+	almost always use verbs:
+		when function is merely a variable like accessor, may use nouns
+	prefer non-member non-friend functions:
+		again, variable like functions should be members
+
+	eg.
+	struct Example
+	{
+		int current;
+
+		int next() { return current + 1; }
+	};
+
+	void reset_example(Example * example)
+	{
+		example->current = 0;
+	}
+
+FileNames:
+	.cpp files -> PascalCase.cpp
