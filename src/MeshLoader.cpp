@@ -26,9 +26,6 @@ load_model_glb(MemoryArena * memoryArena, const char * filePath, const char * mo
 	auto jsonString		= get_string(&jsonBuffer);
 	auto jsonDocument	= parse_json(jsonString.c_str());
 	
-	modelName = "LadderSection";
-	std::string modelName2 = modelName;
-
 	auto meshArray = jsonDocument["meshes"].GetArray();
 	
 	int32 positionAccessorIndex 	= -1; 
@@ -39,7 +36,7 @@ load_model_glb(MemoryArena * memoryArena, const char * filePath, const char * mo
 	for (auto & object : meshArray)
 	{
 		auto name = object["name"].GetString();
-		if (name == modelName2)
+		if (name == std::string(modelName))
 		{
 
 			auto primitivesArray 	= object["primitives"].GetArray();
@@ -77,12 +74,6 @@ load_model_glb(MemoryArena * memoryArena, const char * filePath, const char * mo
 	auto get_item_count = [&accessorArray](int32 index) -> uint64
 	{
 		uint64 result = accessorArray[index].GetObject()["count"].GetInt();
-		return result;
-	};
-
-	auto get_buffer_offset = [&bufferViewArray](int32 index) -> uint64
-	{
-		uint64 result = bufferViewArray[index].GetObject()["byteOffset"].GetInt();
 		return result;
 	};
 

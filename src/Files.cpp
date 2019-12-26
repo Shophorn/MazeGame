@@ -188,9 +188,9 @@ get_ifstream_length(std::ifstream & stream)
 internal BinaryBuffer
 read_binary_file(MemoryArena * memoryArena, const char * path)
 {
-	// auto file = std::ifstream (path, std::ios::in|std::ios::binary);
-	auto file = std::ifstream (	"w:/friendsimulator/models/ladder.glb",
-								std::ios::in|std::ios::binary);
+	auto file = std::ifstream (path, std::ios::in|std::ios::binary);
+	// auto file = std::ifstream (	"w:/friendsimulator/models/ladder.glb",
+	// 							std::ios::in|std::ios::binary);
 
 	uint64 size 	= get_ifstream_length(file);
 	auto result 	= push_array<byte>(memoryArena, size);

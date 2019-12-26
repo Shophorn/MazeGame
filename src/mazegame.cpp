@@ -6,12 +6,6 @@ Leo Tamminen
 #include "MazegamePlatform.hpp"
 #include "Mazegame.hpp"
 
-
-const char * bool_str(bool value)
-{
-	return (value ? "True" : "False");
-}
-
 template<typename T>
 constexpr bool32 is_type_transform();
 
@@ -107,6 +101,25 @@ initialize_game_state(GameState * state, game::Memory * memory, game::PlatformIn
 	uint64 transientMemorySize 		= memory->transientMemorySize;
 	state->transientMemoryArena 	= make_memory_arena(transientMemoryAddress, transientMemorySize);
 
+	test_better_array();
+
+
+	auto testBetterArray = reserve_better_array<int32>(&state->persistentMemoryArena, 10);
+	push_one(testBetterArray, 1);
+	push_one(testBetterArray, 2);
+	push_one(testBetterArray, 3);
+	push_one(testBetterArray, 4);
+	push_one(testBetterArray, 5);
+	push_one(testBetterArray, 6);
+	push_one(testBetterArray, 7);
+	push_one(testBetterArray, 8);
+	push_one(testBetterArray, 9);
+	push_one(testBetterArray, 11);
+
+	for (auto * it = testBetterArray.begin(); it != testBetterArray.end(); ++it)
+	{
+		std::cout << *it << "\n";
+	}
 
 	std::cout << "Screen size = (" << platformInfo->windowWidth << "," << platformInfo->windowHeight << ")\n";
 }
@@ -118,6 +131,7 @@ load_main_level(GameState * state, game::Memory * memory, game::PlatformInfo * p
 	Note(Leo): Load all assets to state->transientMemoryArena, process them and load proper
 	structures to graphics context. Afterwards, just flush memory arena.
 	*/
+
 
 	allocate_for_handle<Transform3D>(&state->persistentMemoryArena, 100);
 	allocate_for_handle<Collider>(&state->persistentMemoryArena, 100);
@@ -271,7 +285,8 @@ load_main_level(GameState * state, game::Memory * memory, game::PlatformInfo * p
 
 		if (addPillars)
 		{
-			auto pillarMesh 		= load_model_obj(&state->transientMemoryArena, "models/big_pillar.obj");
+			auto pillarMesh 		= load_model_glb(&state->transientMemoryArena, "models/big_pillar.glb", "big_pillar");
+			// auto pillarMesh 		= load_model_obj(&state->transientMemoryArena, "models/big_pillar.obj");
 			auto pillarMeshHandle 	= push_mesh(&pillarMesh);
 
 			auto renderer 	= push_renderer(pillarMeshHandle, state->materials.environment);
@@ -293,7 +308,7 @@ load_main_level(GameState * state, game::Memory * memory, game::PlatformInfo * p
 		{
 			int firstLadderIndex = state->environmentRenderers.count;
 	
-			auto ladderMesh 		= load_model_glb(&state->transientMemoryArena, "Assets/ladder.glb", "LadderSection");
+			auto ladderMesh 		= load_model_glb(&state->transientMemoryArena, "models/ladder.glb", "LadderSection");
 			auto ladderMeshHandle 	= push_mesh(&ladderMesh);
 
 			Handle<Transform3D> root1 = create_handle<Transform3D>({0, 0.5f, -ladderHeight});

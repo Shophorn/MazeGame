@@ -87,5 +87,11 @@ AlignUpTo(uint64 alignment, uint64 size)
     return size;
 }
 
+const char * 
+bool_str(bool value)
+{
+	return (value ? "True" : "False");
+}
+
 #define MAZEGAME_ESSENTIALS_HPP
 #endif
