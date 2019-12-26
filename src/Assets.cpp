@@ -51,9 +51,19 @@ struct MeshAsset
 	// };
 
 	IndexType indexType = IndexType::UInt16;
-
-	// void * indexData;
 };
+
+internal MeshAsset
+make_mesh_asset(ArenaArray<Vertex> vertices, ArenaArray<uint16> indices)
+{
+	MeshAsset result =
+	{
+		.vertices = vertices,
+		.indices = indices,
+		.indexType = IndexType::UInt16,
+	};
+	return result;
+}
 
 
 struct TextureAsset

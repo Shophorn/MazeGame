@@ -5,6 +5,7 @@ Memory managing things in :MAZEGAME:
 =============================================================================*/
 #include <cstring>
 #include <initializer_list>
+#include <algorithm>
 
 using default_index_type = uint64;
 
@@ -40,9 +41,12 @@ struct ArenaArray
 
 	/* Todo(Leo): Maybe make this also just an offset from start of arena.
 	And store pointer to arena instead? */
-	T * data;
-	uint64 count;
-	uint64 capacity;
+	T * 	data;
+	uint64 	capacity;
+	uint64 	count;
+
+	T * begin() { return data; }
+	T * end() { return data + count; }
 
 	T & operator [] (TIndex index)
 	{
@@ -68,6 +72,24 @@ private:
 	}
 };
 
+/* Note(Leo): Like a constructor, use this to make one of this so whenever
+we decide to change layout of ArenaArray we only change this function and
+get a nice compiler error.
+
+Todo(Leo): Really, should we do a proper constructor? */
+template<typename T, typename TIndex = default_index_type>
+internal ArenaArray<T, TIndex>
+make_arena_array(T * data, uint64 capacity, uint64 count = MaxValue<uint64>)
+{
+	ArenaArray<T, TIndex> result =
+	{
+		.data 		= data,
+		.capacity 	= capacity,
+		.count 		= Min(capacity, count),
+	};
+	return result;
+}
+
 template<typename T, typename TIndex>
 internal TIndex
 push_one(ArenaArray<T, TIndex> * array, T item)
@@ -89,8 +111,6 @@ flush_arena_array(ArenaArray<T, TIndex> * array)
 
 
 /* 
-Todo(Leo): Think of hiding some members of this, eg. 'lastPushed'.
-
 Todo(Leo): Think if we need to flush more smartly, or actually keep track of
 items more smartly maybe like track item generations, and maybe add per item
 deallocation
@@ -108,25 +128,28 @@ struct MemoryArena
 internal MemoryArena
 make_memory_arena(byte * memory, uint64 size)
 {
-	MemoryArena resultArena = {};
-
-	resultArena.memory = memory;
-	resultArena.size = size;
-	resultArena.used = 0;
-
+	MemoryArena resultArena =
+	{
+		.memory = memory,
+		.size = size,
+		.used = 0,
+	};
 	return resultArena;
 }
 
-internal byte *
-reserve_from_memory_arena(MemoryArena * arena, uint64 requestedSize)
+template <typename T>
+internal T *
+reserve_from_memory_arena(MemoryArena * arena, uint64 count)
 {
-	// Todo[Memory](Leo): Alignment
-	MAZEGAME_ASSERT(requestedSize <= arena->available(), "Not enough memory available in MemoryArena");
+	uint64 size = sizeof(T) * count;
 
-	byte * result = arena->next();
-	arena->used += requestedSize;
+	// Todo[Memory](Leo): Alignment
+	MAZEGAME_ASSERT(size <= arena->available(), "Not enough memory available in MemoryArena");
+
+	T * result = reinterpret_cast<T*>(arena->next());
+	arena->used += size;
 	
-	return result; 	
+	return result; 		
 }
 
 internal void
@@ -145,67 +168,85 @@ clear_memory_arena(MemoryArena * arena)
 /* Todo(Leo): 'fillWithUninitialized' was given true by default when capacity was
 added so that previous usages wouldn't break. It does not need to be that way, so
 rethink it someday. */
-template<typename Type, typename IndexType = default_index_type>
-internal ArenaArray<Type, IndexType>
+template<typename T, typename TIndex = default_index_type>
+internal ArenaArray<T, TIndex>
 push_array(MemoryArena * arena, uint64 capacity, bool32 fillWithUninitialized = true)
 {
-	// byte * memory = arena->Reserve(sizeof(Type) * capacity);
-	byte * memory = reserve_from_memory_arena(arena, sizeof(Type) * capacity);
-
-	ArenaArray<Type, IndexType> resultArray =
-	{
-		.data 		= reinterpret_cast<Type *>(memory),
-		.count 		= fillWithUninitialized ? capacity : 0,
-		.capacity 	= capacity
-	};
-	return resultArray;
+	T * memory 		= reserve_from_memory_arena<T>(arena, capacity);
+	uint64 count 	= fillWithUninitialized ? capacity : 0;
+	auto result 	= make_arena_array<T, TIndex>(memory, capacity, count);
+	
+	return result;
 }
 
+template<typename T, typename TIndex = default_index_type>
+internal ArenaArray<T, TIndex>
+reserve_array(MemoryArena * arena, uint64 capacity)
+{
+	T * memory 		= reserve_from_memory_arena<T>(arena, capacity);
+	uint64 count 	= 0;
+	auto result 	= make_arena_array<T, TIndex>(memory, capacity, count);
+
+	return result;
+}
 
 template<typename T>
 internal ArenaArray<T>
 push_array(MemoryArena * arena, std::initializer_list<T> items)
 {
-	uint64 count = items.size();
-	byte * memory = reserve_from_memory_arena(arena, sizeof(T) * count);
+	uint64 capacity = items.size();
+	T * memory 		= reserve_from_memory_arena<T>(arena, capacity);
+	auto result 	= make_arena_array(memory, capacity);
 
-	ArenaArray<T> result = 
-	{
-		.data 		= reinterpret_cast<T*>(memory),
-		.count 		= count,
-		.capacity 	= count,
-	};
+	std::copy(items.begin(), items.end(), result.begin());
 
-	// Todo(Leo): use memcpy
-	for (int i = 0; i < count; ++i)
-	{
-		result[i] = *(items.begin() + i);
-	}
+	return result;
+}
+
+template<typename T>
+internal ArenaArray<T>
+push_array(MemoryArena * arena, const T * begin, const T * end)
+{
+	uint64 capacity = end - begin;
+	T * memory 		= reserve_from_memory_arena<T>(arena, capacity);
+	auto result 	= make_arena_array(memory, capacity);
+
+	std::copy(begin, end, result.begin());
 
 	return result;
 }
 
 template<typename T, typename TIndex>
 internal ArenaArray<T, TIndex>
-duplicate_arena_array(MemoryArena * arena, ArenaArray<T, TIndex> * original)
+copy_array_slice(MemoryArena * arena, ArenaArray<T, TIndex> * original, TIndex start, uint64 count)
+{
+	MAZEGAME_ASSERT((start + count) <= original->capacity, "Invalid copy slice region");
+
+	uint64 capacity = count;
+	std::cout << "copying array slice, capacity = " << capacity << "\n"; 
+
+	T * memory 		= reserve_from_memory_arena<T>(arena, capacity);
+	auto result 	= make_arena_array(memory, capacity);
+
+	auto * begin 	= original->begin() + start;
+	auto * end 		= begin + count;
+
+	std::copy(begin, end, result.begin());
+
+	return result;
+}
+
+template<typename T, typename TIndex>
+internal ArenaArray<T, TIndex>
+duplicate_array(MemoryArena * arena, ArenaArray<T, TIndex> * original)
 {
 	uint64 capacity = original->capacity;
-	uint64 count = original->count;
+	uint64 count 	= original->count;
 
-	byte * memory = reserve_from_memory_arena(arena, sizeof(T) * capacity);
+	T * memory 		= reserve_from_memory_arena<T>(arena, capacity);
+	auto result 	= make_arena_array(memory, capacity, count);
 
-	ArenaArray<T> result = 
-	{
-		.data 		= reinterpret_cast<T*>(memory),
-		.count 		= count,
-		.capacity 	= capacity,
-	};
-
-	// Todo(Leo): use memcpy
-	for (int i = 0; i < count; ++i)
-	{
-		result[i] = (*original)[i];
-	}
+	std::copy(original->begin(), original->end(), result.begin());
 
 	return result;
 }
@@ -224,6 +265,18 @@ reverse_arena_array(ArenaArray<T, TIndex> * array)
 		(*array)[i] = (*array)[lastIndex -i];
 		(*array)[lastIndex - i] = temp;
 	}
+}
+
+template<typename TNew, typename TOld>
+internal ArenaArray<TNew>
+cast_array_type(ArenaArray<TOld> * original)
+{
+	std::cout << "cast_array_type()\n";
+
+	auto result = make_arena_array<TNew>(	reinterpret_cast<TNew*>(original->data), 
+											original->capacity,
+											original->count);
+	return result;
 }
 
 #if MAZEGAME_DEVELOPMENT

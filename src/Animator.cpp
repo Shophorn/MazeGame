@@ -87,13 +87,13 @@ duplicate_animation_clip(MemoryArena * memoryArena, AnimationClip * original)
 {
 	AnimationClip result = 
 	{
-		.animations = duplicate_arena_array(memoryArena, &original->animations),
+		.animations = duplicate_array(memoryArena, &original->animations),
 		.duration = original->duration
 	};
 
 	for (int childIndex = 0; childIndex < original->animations.count; ++childIndex)
 	{
-		result.animations[childIndex].keyframes = duplicate_arena_array(memoryArena, &original->animations[childIndex].keyframes);
+		result.animations[childIndex].keyframes = duplicate_array(memoryArena, &original->animations[childIndex].keyframes);
 	}
 	return result;
 }

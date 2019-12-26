@@ -36,8 +36,8 @@ namespace winapi
     ReleaseAudioBuffer(WinApiAudio * audio, int sampleCount);
 }
 
-/* Todo(Leo): copied from web, forgot where. Extracts actual format tag if
-it is hidden behind WAVEFORMATEXTENSIBLE struct */
+/* Todo(Leo): copied from web, forgot where, thats why it is UNKNOWN.
+Extracts actual format tag if it is hidden behind WAVEFORMATEXTENSIBLE struct */
 inline uint32_t
 UNKNOWN_GetFormatTag( const WAVEFORMATEX* wfx )
 {

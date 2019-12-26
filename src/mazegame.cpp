@@ -28,6 +28,7 @@ constexpr bool32 is_type_transform();
 #include "CameraController.cpp"
 
 /// Note(Leo): These still use external libraries we may want to get rid of
+#include "Files.cpp"
 #include "AudioFile.cpp"
 #include "MeshLoader.cpp"
 #include "TextureLoader.cpp"
@@ -181,7 +182,7 @@ load_main_level(GameState * state, game::Memory * memory, game::PlatformInfo * p
 
 	// Characters
 	{
-		auto characterMesh 				= load_model(&state->transientMemoryArena, "models/character.obj");
+		auto characterMesh 				= load_model_obj(&state->transientMemoryArena, "models/character.obj");
 		auto characterMeshHandle 		= push_mesh(&characterMesh);
 
 		state->characterRenderer 		= push_renderer(characterMeshHandle, state->materials.character);
@@ -270,7 +271,7 @@ load_main_level(GameState * state, game::Memory * memory, game::PlatformInfo * p
 
 		if (addPillars)
 		{
-			auto pillarMesh 		= load_model(&state->transientMemoryArena, "models/big_pillar.obj");
+			auto pillarMesh 		= load_model_obj(&state->transientMemoryArena, "models/big_pillar.obj");
 			auto pillarMeshHandle 	= push_mesh(&pillarMesh);
 
 			auto renderer 	= push_renderer(pillarMeshHandle, state->materials.environment);
@@ -292,7 +293,7 @@ load_main_level(GameState * state, game::Memory * memory, game::PlatformInfo * p
 		{
 			int firstLadderIndex = state->environmentRenderers.count;
 	
-			auto ladderMesh 		= load_model(&state->transientMemoryArena, "models/ladder.obj");
+			auto ladderMesh 		= load_model_glb(&state->transientMemoryArena, "Assets/ladder.glb", "LadderSection");
 			auto ladderMeshHandle 	= push_mesh(&ladderMesh);
 
 			Handle<Transform3D> root1 = create_handle<Transform3D>({0, 0.5f, -ladderHeight});
@@ -329,8 +330,8 @@ load_main_level(GameState * state, game::Memory * memory, game::PlatformInfo * p
 
 					// Todo(Leo): only one animation needed, move somewhere else				
 					auto keyframes = push_array(&state->persistentMemoryArena, {
-						Keyframe{(ladderIndex % ladder2StartIndex) * 0.35f, {0, 0, 0}},
-						Keyframe{((ladderIndex % ladder2StartIndex) + 1) * 0.35f, {0, 0, ladderHeight}}
+						Keyframe{(ladderIndex % ladder2StartIndex) * 0.12f, {0, 0, 0}},
+						Keyframe{((ladderIndex % ladder2StartIndex) + 1) * 0.15f, {0, 0, ladderHeight}}
 					});
 					push_one(&animations, {keyframes});
 				}
@@ -375,7 +376,7 @@ load_main_level(GameState * state, game::Memory * memory, game::PlatformInfo * p
 				{8, 0, 12},
 			};
 
-			auto platformMeshAsset 	= load_model(&state->transientMemoryArena, "models/platform.obj");
+			auto platformMeshAsset 	= load_model_obj(&state->transientMemoryArena, "models/platform.obj");
 			auto platformMeshHandle = push_mesh(&platformMeshAsset);
 
 			int platformIndex = 0;
@@ -392,7 +393,7 @@ load_main_level(GameState * state, game::Memory * memory, game::PlatformInfo * p
 
 		if(addButtons)
 		{
-			auto keyholeMeshAsset 	= load_model(&state->transientMemoryArena, "models/keyhole.obj");
+			auto keyholeMeshAsset 	= load_model_obj(&state->transientMemoryArena, "models/keyhole.obj");
 			auto keyholeMeshHandle 	= push_mesh (&keyholeMeshAsset);
 
 			auto renderer 	= push_renderer(keyholeMeshHandle, state->materials.environment);
@@ -403,7 +404,7 @@ load_main_level(GameState * state, game::Memory * memory, game::PlatformInfo * p
 			push_collider(&state->collisionManager, transform, {0.3f, 0.6f}, {0, 0.3f}, ColliderTag::Trigger);
 
 			renderer 	= push_renderer(keyholeMeshHandle, state->materials.environment);
-			transform 	= create_handle<Transform3D>({Vector3{-4, 0, 6}});
+			transform 	= create_handle<Transform3D>({Vector3{4, 0, 6}});
 
 			push_one(&state->environmentRenderers, renderer);
 			push_one(&state->environmentTransforms, transform);
@@ -492,8 +493,8 @@ load_menu(GameState * state, game::Memory * memory, game::PlatformInfo * platfor
     flush_memory_arena(&state->transientMemoryArena);
 }
 
-void
-OutputSound(int frameCount, game::StereoSoundSample * samples)
+internal void
+output_sound(int frameCount, game::StereoSoundSample * samples)
 {
 	// Note(Leo): Shit these are bad :DD
 	local_persist int runningSampleIndex = 0;
@@ -605,7 +606,7 @@ GameUpdate(
 
 	/// Output sound
 	{
-		OutputSound(soundOutput->sampleCount, soundOutput->samples);
+		output_sound(soundOutput->sampleCount, soundOutput->samples);
 	}
 
 	return result;

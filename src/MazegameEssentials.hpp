@@ -9,6 +9,8 @@ Common essentials used all around in :MAZEGAME: project
 // SEARCHABILITY BOOST
 #define class_member static
 #define local_persist static
+
+// Todo(Leo): this might not e good idea... Or good name anyway, some libraries seem to use it internaly (rapidjson at least)
 #define internal static
 #define global_variable static
 

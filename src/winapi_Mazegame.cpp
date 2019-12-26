@@ -489,7 +489,7 @@ Run(HINSTANCE winInstance)
     {
         // TODO [MEMORY] (Leo): Properly measure required amount
         // TODO [MEMORY] (Leo): Think of alignment
-        gameMemory.persistentMemorySize = Megabytes(64);
+        gameMemory.persistentMemorySize = Gigabytes(1);
         gameMemory.transientMemorySize  = Gigabytes(1);
 
         uint64 totalGameMemorySize = gameMemory.persistentMemorySize + gameMemory.transientMemorySize;

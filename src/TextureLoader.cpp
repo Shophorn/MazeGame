@@ -7,42 +7,37 @@ Texture Loader
 #include <stb_image.h>
 
 internal TextureAsset
+make_texture_asset(ArenaArray<uint32> pixels, int32 width, int32 height, int32 channels = 4)
+{
+    TextureAsset result = 
+    {
+        .pixels     = pixels,
+        .width      = width,
+        .height     = height,
+        .channels   = channels,
+    };
+    return result;
+}
+
+internal TextureAsset
 load_texture_asset(const char * assetPath, MemoryArena * memoryArena)
 {
-    TextureAsset resultTexture = {};
-    stbi_uc * pixels = stbi_load(assetPath, &resultTexture.width, &resultTexture.height,
-                                        &resultTexture.channels, STBI_rgb_alpha);
+    int32 width, height, channels;
+    stbi_uc * stbi_pixels = stbi_load(assetPath, &width, &height, &channels, STBI_rgb_alpha);
 
-    if(pixels == nullptr)
+    if(stbi_pixels == nullptr)
     {
         // Todo[Error](Leo): Proper aka adhering to some convention handling and logging
         throw std::runtime_error("Failed to load image");
     }
 
-    // rgba channels
-    resultTexture.channels = 4;
+    auto begin  = reinterpret_cast<uint32*>(stbi_pixels);
+    auto end    = begin + (width * height);
+    auto pixels = push_array<uint32>(memoryArena, begin, end);
+    auto result = make_texture_asset(pixels, width, height);
 
-    int32 pixelCount = resultTexture.width * resultTexture.height;
-    resultTexture.pixels = push_array<uint32>(memoryArena, pixelCount);
+    stbi_image_free(stbi_pixels);
 
-    uint64 imageMemorySize = resultTexture.width * resultTexture.height * resultTexture.channels;
-
-
-    memcpy((uint8*)resultTexture.pixels.data, pixels, imageMemorySize);
-
-    stbi_image_free(pixels);
-    return resultTexture;
-}
-
-internal TextureAsset
-make_texture_asset(ArenaArray<uint32> pixels, int32 width, int32 height, int32 channels = 4)
-{
-    TextureAsset result = 
-    {
-        .pixels = pixels,
-        .width = width,
-        .height = height,
-        .channels = channels,
-    };
     return result;
 }
+
