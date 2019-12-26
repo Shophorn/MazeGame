@@ -330,7 +330,7 @@ namespace vulkan
 	internal inline uint32
 	GetModelUniformBufferOffsetForSwapchainImages(VulkanContext * context, int32 imageIndex)
 	{
-	    uint32 memorySizePerModelMatrix = AlignUpTo(
+	    uint32 memorySizePerModelMatrix = align_up_to(
 	        context->physicalDeviceProperties.limits.minUniformBufferOffsetAlignment,
 	        sizeof(Matrix44));
 
@@ -341,7 +341,7 @@ namespace vulkan
 	internal inline uint32
 	GetSceneUniformBufferOffsetForSwapchainImages(VulkanContext * context, int32 imageIndex)
 	{
-	    uint32 memorySizePerObject = AlignUpTo(
+	    uint32 memorySizePerObject = align_up_to(
 	        context->physicalDeviceProperties.limits.minUniformBufferOffsetAlignment,
 	        sizeof(VulkanCameraUniformBufferObject));
 

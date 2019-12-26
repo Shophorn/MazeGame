@@ -235,7 +235,7 @@ namespace mesh_ops
 	internal void
 	transform(MeshAsset * mesh, const Matrix44 & transform)
 	{
-		int vertexCount = mesh->vertices.count;
+		int vertexCount = mesh->vertices.count();
 		for (int vertexIndex = 0; vertexIndex < vertexCount; ++vertexIndex)
 		{
 			mesh->vertices[vertexIndex].position = transform * mesh->vertices[vertexIndex].position; 
@@ -245,7 +245,7 @@ namespace mesh_ops
 	internal void
 	transform_tex_coords(MeshAsset * mesh, const Vector2 translation, const Vector2 scale)
 	{
-		int vertexCount = mesh->vertices.count;
+		int vertexCount = mesh->vertices.count();
 		for(int vertexIndex = 0; vertexIndex < vertexCount; ++vertexIndex)
 		{
 			mesh->vertices[vertexIndex].texCoord *= scale;

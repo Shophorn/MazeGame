@@ -91,7 +91,7 @@ struct ArrayView
 template<typename TResult> TResult
 get(BinaryBuffer * buffer, uint64 position)
 {
-	TResult result = *reinterpret_cast<TResult*>(buffer->data + position);
+	TResult result = *reinterpret_cast<TResult*>(buffer->begin() + position);
 	return result;
 }
 
@@ -111,7 +111,7 @@ get_gltf_json_chunk(BinaryBuffer * gltf, MemoryArena * memoryArena)
 	uint32 chunkLength 	= get<uint32>(gltf, offset + chunkLengthPosition);
 	ChunkType chunkType = get<ChunkType>(gltf, offset + chunkTypePosition);
 
-	while(chunkType != ChunkType::Json && offset < gltf->count)
+	while(chunkType != ChunkType::Json && offset < gltf->count())
 	{
 		offset 		+= chunkLength + chunkInfoLength;
 		chunkLength  = get<uint32>(gltf, offset + chunkLengthPosition);

@@ -179,15 +179,17 @@ map::GenerateMapMesh(MemoryArena & memoryArena, HexMap & map)
 	{
 		for (int32 x = 0; x < map.cellCountPerDirection; ++x)
 		{
-			Vertex * vertexLocation = result.vertices.data + vertexIndex;
-			uint16 * indexLocation = result.indices.data + triangleIndex;
+
+			// DANGER(Leo): array may have not been designed this in mind
+			Vertex * vertexLocation = result.vertices.begin() + vertexIndex;
+			uint16 * indexLocation = result.indices.begin() + triangleIndex;
 
 			// Todo(Leo): Lol clean :P
 			AddHexCell(	map.GetCellPosition(x,y),
 						&map,
 						map.Cell(x, y) == 0,
-						&vertexIndex, result.vertices.data,
-						&triangleIndex, result.indices.data);
+						&vertexIndex, result.vertices.begin(),
+						&triangleIndex, result.indices.begin());
 
 		}
 	}

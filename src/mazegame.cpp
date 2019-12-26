@@ -6,9 +6,6 @@ Leo Tamminen
 #include "MazegamePlatform.hpp"
 #include "Mazegame.hpp"
 
-template<typename T>
-constexpr bool32 is_type_transform();
-
 // Note(Leo): Make unity build here.
 #include "Handle.cpp"
 #include "Random.cpp"
@@ -27,21 +24,12 @@ constexpr bool32 is_type_transform();
 #include "MeshLoader.cpp"
 #include "TextureLoader.cpp"
 
-template<typename T>
-constexpr bool32 is_type_transform()
-{
-	constexpr bool32 result = std::is_same<T, Transform3D>::value;
-	return result;
-}
-
 struct GameState
 {
-	// Handle<Transform3D> characterTransform;
-	// RenderedObjectHandle characterRenderer;
-	CharacterControllerSideScroller characterController;
-
 	ArenaArray<Handle<Transform3D>> characterTransforms;
 	ArenaArray<RenderedObjectHandle> characterRenderers;
+
+	CharacterControllerSideScroller characterController;
 
 	AnimationRig ladderRig1;
 	AnimationRig ladderRig2;
@@ -188,11 +176,11 @@ load_main_level(GameState * state, game::Memory * memory, game::PlatformInfo * p
 		auto characterMeshHandle 	= push_mesh(&characterMesh);
 
 		// Our dude
-		push_one(&state->characterTransforms, create_handle<Transform3D>({}));
+		push_one(&state->characterTransforms, make_handle<Transform3D>({}));
 		push_one(&state->characterRenderers, push_renderer(characterMeshHandle, state->materials.character));
 
 		// Other dude
-		push_one(&state->characterTransforms, create_handle<Transform3D>({2, 0.5, 12.25f}));
+		push_one(&state->characterTransforms, make_handle<Transform3D>({2, 0.5, 12.25f}));
 		push_one(&state->characterRenderers, push_renderer(characterMeshHandle, state->materials.character));
 
 		state->characterController 	= 
@@ -270,7 +258,7 @@ load_main_level(GameState * state, game::Memory * memory, game::PlatformInfo * p
 
 			auto groundQuadHandle 	= push_mesh(&groundQuad);
 			auto renderer 			= push_renderer(groundQuadHandle, state->materials.environment);
-			auto transform 			= create_handle<Transform3D>({});
+			auto transform 			= make_handle<Transform3D>({});
 
 			push_one(&state->environmentRenderers, renderer);
 			push_one(&state->environmentTransforms, transform);
@@ -283,14 +271,14 @@ load_main_level(GameState * state, game::Memory * memory, game::PlatformInfo * p
 			auto pillarMeshHandle 	= push_mesh(&pillarMesh);
 
 			auto renderer 	= push_renderer(pillarMeshHandle, state->materials.environment);
-			auto transform 	= create_handle<Transform3D>({-width / 4, 0, 0});
+			auto transform 	= make_handle<Transform3D>({-width / 4, 0, 0});
 
 			push_one(&state->environmentRenderers, renderer);
 			push_one(&state->environmentTransforms, transform);
 			push_collider(&state->collisionManager, transform, {2, 25});
 
 			renderer = push_renderer(pillarMeshHandle, state->materials.environment);
-			transform = create_handle<Transform3D>({width / 4, 0, 0});
+			transform = make_handle<Transform3D>({width / 4, 0, 0});
 
 			push_one(&state->environmentRenderers, renderer);
 			push_one(&state->environmentTransforms, transform);
@@ -299,13 +287,13 @@ load_main_level(GameState * state, game::Memory * memory, game::PlatformInfo * p
 
 		if (addLadders)
 		{
-			int firstLadderIndex = state->environmentRenderers.count;
+			int firstLadderIndex = state->environmentRenderers.count();
 	
 			auto ladderMesh 		= load_model_glb(&state->transientMemoryArena, "models/ladder.glb", "LadderSection");
 			auto ladderMeshHandle 	= push_mesh(&ladderMesh);
 
-			Handle<Transform3D> root1 = create_handle<Transform3D>({0, 0.5f, -ladderHeight});
-			Handle<Transform3D> root2 = create_handle<Transform3D>({10, 0.5f, 6 - ladderHeight});
+			Handle<Transform3D> root1 = make_handle<Transform3D>({0, 0.5f, -ladderHeight});
+			Handle<Transform3D> root2 = make_handle<Transform3D>({10, 0.5f, 6 - ladderHeight});
 			auto bones1 = push_array<Handle<Transform3D>>(&state->persistentMemoryArena, 6, false);
 			auto bones2 = push_array<Handle<Transform3D>>(&state->persistentMemoryArena, 6, false);
 
@@ -318,7 +306,7 @@ load_main_level(GameState * state, game::Memory * memory, game::PlatformInfo * p
 			for (int ladderIndex = 0; ladderIndex < ladderCount; ++ladderIndex)
 			{
 				auto renderer 	= push_renderer(ladderMeshHandle, state->materials.environment);
-				auto transform 	= create_handle<Transform3D>({});
+				auto transform 	= make_handle<Transform3D>({});
 
 				push_one(&state->environmentRenderers, renderer);
 				push_one(&state->environmentTransforms, transform);
@@ -356,8 +344,8 @@ load_main_level(GameState * state, game::Memory * memory, game::PlatformInfo * p
 			state->laddersDownAnimation = duplicate_animation_clip(&state->persistentMemoryArena, &state->laddersUpAnimation);
 			reverse_animation_clip(&state->laddersDownAnimation);
 
-			state->ladderRig1 = make_animation_rig(root1, bones1, push_array<uint64>(&state->persistentMemoryArena, bones1.count));
-			state->ladderRig2 = make_animation_rig(root2, bones2, push_array<uint64>(&state->persistentMemoryArena, bones2.count));
+			state->ladderRig1 = make_animation_rig(root1, bones1, push_array<uint64>(&state->persistentMemoryArena, bones1.count()));
+			state->ladderRig2 = make_animation_rig(root2, bones2, push_array<uint64>(&state->persistentMemoryArena, bones2.count()));
 
 			state->laddersAnimator1 = make_animator(&state->ladderRig1);
 			state->laddersAnimator2 = make_animator(&state->ladderRig2);
@@ -391,7 +379,7 @@ load_main_level(GameState * state, game::Memory * memory, game::PlatformInfo * p
 			for (int platformIndex = 0; platformIndex < platformCount; ++platformIndex)
 			{
 				auto renderer 	= push_renderer(platformMeshHandle, state->materials.environment);
-				auto transform 	= create_handle<Transform3D>({platformPositions[platformIndex]});
+				auto transform 	= make_handle<Transform3D>({platformPositions[platformIndex]});
 
 				push_one(&state->environmentRenderers, renderer);
 				push_one(&state->environmentTransforms, transform);
@@ -405,14 +393,14 @@ load_main_level(GameState * state, game::Memory * memory, game::PlatformInfo * p
 			auto keyholeMeshHandle 	= push_mesh (&keyholeMeshAsset);
 
 			auto renderer 	= push_renderer(keyholeMeshHandle, state->materials.environment);
-			auto transform 	= create_handle<Transform3D>({Vector3{5, 0, 0}});
+			auto transform 	= make_handle<Transform3D>({Vector3{5, 0, 0}});
 
 			push_one(&state->environmentRenderers, renderer);
 			push_one(&state->environmentTransforms, transform);
 			push_collider(&state->collisionManager, transform, {0.3f, 0.6f}, {0, 0.3f}, ColliderTag::Trigger);
 
 			renderer 	= push_renderer(keyholeMeshHandle, state->materials.environment);
-			transform 	= create_handle<Transform3D>({Vector3{4, 0, 6}});
+			transform 	= make_handle<Transform3D>({Vector3{4, 0, 6}});
 
 			push_one(&state->environmentRenderers, renderer);
 			push_one(&state->environmentTransforms, transform);
@@ -780,7 +768,7 @@ UpdateMainLevel(
 		outRenderInfo->render(state->characterRenderers[0], state->characterTransforms[0]->get_matrix());
 		outRenderInfo->render(state->characterRenderers[1], state->characterTransforms[1]->get_matrix());
 
-		int environmentCount = state->environmentRenderers.count;
+		int environmentCount = state->environmentRenderers.count();
 		for (int i = 0; i < environmentCount; ++i)
 		{
 			outRenderInfo->render(state->environmentRenderers[i], state->environmentTransforms[i]->get_matrix());

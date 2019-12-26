@@ -39,7 +39,7 @@ struct CollisionManager
 		Vector2 start 	= origin;
 		Vector2 end 	= origin + ray;
 
-		for (int32 i = 0; i < colliders.count; ++i)
+		for (int32 i = 0; i < colliders.count(); ++i)
 		{
 			MAZEGAME_ASSERT(is_handle_valid(colliders[i]->transform), "Invalid transform passed to Collider");
 
@@ -94,16 +94,16 @@ struct CollisionManager
 		// Reset previous collisions
 		flush_arena_array(&collisions);
 
-		for (int32 i = 0; i < colliders.count; ++i)
+		for (int32 i = 0; i < colliders.count(); ++i)
 		{
 			colliders[i]->hasCollision = false;
 			colliders[i]->collision = nullptr;
 		}
 
 		// Calculate new collisions
-		for (int32 a = 0; a < colliders.count; ++a)
+		for (int32 a = 0; a < colliders.count(); ++a)
 		{
-			for (int32 b = a + 1; b < colliders.count; ++b)
+			for (int32 b = a + 1; b < colliders.count(); ++b)
 			{
 				Vector2 positionA = Vector2{colliders[a]->transform->get_world_position().x, colliders[a]->transform->get_world_position().z} + colliders[a]->offset;
 				Vector2 positionB = Vector2{colliders[b]->transform->get_world_position().x, colliders[b]->transform->get_world_position().z} + colliders[b]->offset;
@@ -161,7 +161,7 @@ push_collider(	CollisionManager * manager,
 				Vector2 offset = {0, 0},
 				ColliderTag tag = ColliderTag::Default)
 {
-	auto collider = create_handle<Collider>({
+	auto collider = make_handle<Collider>({
 		.transform 	= transform,
 		.extents 	= extents,
 		.offset		= offset,

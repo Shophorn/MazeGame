@@ -28,7 +28,7 @@ struct AnimationRig
 internal AnimationRig
 make_animation_rig(Handle<Transform3D> root, ArenaArray<Handle<Transform3D>> bones, ArenaArray<uint64> currentBoneKeyframes)
 {
-	MAZEGAME_ASSERT(bones.count == currentBoneKeyframes.count, "Currently you must pass keyframe array with matching size to bones array. Sorry for inconvenience :)");
+	MAZEGAME_ASSERT(bones.count() == currentBoneKeyframes.count(), "Currently you must pass keyframe array with matching size to bones array. Sorry for inconvenience :)");
 
 	AnimationRig result 
 	{
@@ -42,11 +42,11 @@ make_animation_rig(Handle<Transform3D> root, ArenaArray<Handle<Transform3D>> bon
 internal void
 update_animation_keyframes(const Animation * animation, uint64 * currentBoneKeyframe, float time)
 {
-	if (*currentBoneKeyframe < animation->keyframes.count
+	if (*currentBoneKeyframe < animation->keyframes.count()
 		&& time > animation->keyframes[*currentBoneKeyframe].time)
 	{
 		*currentBoneKeyframe += 1;
-		*currentBoneKeyframe = Min(*currentBoneKeyframe, animation->keyframes.count);
+		*currentBoneKeyframe = Min(*currentBoneKeyframe, animation->keyframes.count());
 	}	
 }
 
@@ -54,7 +54,7 @@ internal void
 update_animation_target(const Animation * animation, Handle<Transform3D> target, uint64 currentBoneKeyframe, float time)
 {
 	bool32 isBeforeFirstKeyFrame 	= currentBoneKeyframe == 0; 
-	bool32 isAfterLastKeyFrame 		= currentBoneKeyframe >= animation->keyframes.count;
+	bool32 isAfterLastKeyFrame 		= currentBoneKeyframe >= animation->keyframes.count();
 
 	if (isBeforeFirstKeyFrame)
 	{
@@ -91,7 +91,7 @@ duplicate_animation_clip(MemoryArena * memoryArena, AnimationClip * original)
 		.duration = original->duration
 	};
 
-	for (int childIndex = 0; childIndex < original->animations.count; ++childIndex)
+	for (int childIndex = 0; childIndex < original->animations.count(); ++childIndex)
 	{
 		result.animations[childIndex].keyframes = duplicate_array(memoryArena, &original->animations[childIndex].keyframes);
 	}
@@ -102,13 +102,13 @@ internal void
 reverse_animation_clip(AnimationClip * clip)
 {
 	float duration = clip->duration;
-	int32 childAnimationCount = clip->animations.count;
+	int32 childAnimationCount = clip->animations.count();
 
 	for (int childIndex = 0; childIndex < childAnimationCount; ++childIndex)
 	{
 		reverse_arena_array(&clip->animations[childIndex].keyframes);
 
-		int32 keyframeCount = clip->animations[childIndex].keyframes.count;
+		int32 keyframeCount = clip->animations[childIndex].keyframes.count();
 		for (int keyframeIndex = 0; keyframeIndex < keyframeCount; ++keyframeIndex)
 		{
 			float time = clip->animations[childIndex].keyframes[keyframeIndex].time; 
@@ -123,11 +123,11 @@ compute_duration (ArenaArray<Animation> animations)
 	// Note(Leo): We mitigate risks of copying in that we will just read these
 	float duration = 0;
 	for (	int animationIndex = 0;
-			animationIndex < animations.count; 
+			animationIndex < animations.count(); 
 			++animationIndex)
 	{
 		for (	int keyframeIndex = 0; 
-				keyframeIndex < animations[animationIndex].keyframes.count;
+				keyframeIndex < animations[animationIndex].keyframes.count();
 				++keyframeIndex)
 		{
 			float time = animations[animationIndex].keyframes[keyframeIndex].time;
@@ -169,7 +169,7 @@ struct Animator
 		float timeStep = playbackSpeed * input->elapsedTime;
 		time += timeStep;
 
-		for (int i = 0; i < clip->animations.count; ++i)
+		for (int i = 0; i < clip->animations.count(); ++i)
 		{
 			update_animation_keyframes(&clip->animations[i], &rig->currentBoneKeyframes[i], time);
 			update_animation_target(&clip->animations[i], rig->bones[i], rig->currentBoneKeyframes[i], time);
@@ -203,7 +203,7 @@ play_animation_clip(Animator * animator, const AnimationClip * clip)
 	animator->time = 0.0f;
 	animator->isPlaying = true;
 
-	for (int boneIndex = 0; boneIndex < clip->animations.count; ++boneIndex)
+	for (int boneIndex = 0; boneIndex < clip->animations.count(); ++boneIndex)
 	{
 		animator->rig->currentBoneKeyframes[boneIndex] = 0;
 	}

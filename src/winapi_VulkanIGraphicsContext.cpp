@@ -12,8 +12,8 @@ VulkanContext::Apply()
 MeshHandle
 VulkanContext::PushMesh(MeshAsset * mesh)
 {
-    uint64 indexBufferSize = mesh->indices.count * sizeof(mesh->indices[0]);
-    uint64 vertexBufferSize = mesh->vertices.count * sizeof(mesh->vertices[0]);
+    uint64 indexBufferSize = mesh->indices.count() * sizeof(mesh->indices[0]);
+    uint64 vertexBufferSize = mesh->vertices.count() * sizeof(mesh->vertices[0]);
     uint64 totalBufferSize = indexBufferSize + vertexBufferSize;
 
     uint64 indexOffset = 0;
@@ -43,7 +43,7 @@ VulkanContext::PushMesh(MeshAsset * mesh)
     
     this->staticMeshPool.used += totalBufferSize;
 
-    model.indexCount = mesh->indices.count;
+    model.indexCount = mesh->indices.count();
     model.indexType = vulkan::ConvertIndexType(mesh->indexType);
 
     uint32 modelIndex = this->loadedModels.size();
@@ -84,7 +84,7 @@ VulkanContext::PushRenderedObject(MeshHandle mesh, MaterialHandle material)
     object.mesh = mesh;
     object.material = material;
 
-    uint32 memorySizePerModelMatrix = AlignUpTo(
+    uint32 memorySizePerModelMatrix = align_up_to(
         this->physicalDeviceProperties.limits.minUniformBufferOffsetAlignment,
         sizeof(Matrix44));
     object.uniformBufferOffset = objectIndex * memorySizePerModelMatrix;
@@ -104,7 +104,7 @@ VulkanContext::PushGui(MeshHandle mesh, MaterialHandle material)
     object.mesh = mesh;
     object.material = material;
 
-    uint32 memorySizePerModelMatrix = AlignUpTo(
+    uint32 memorySizePerModelMatrix = align_up_to(
         this->physicalDeviceProperties.limits.minUniformBufferOffsetAlignment,
         sizeof(Matrix44));
     object.uniformBufferOffset = guiIndex * memorySizePerModelMatrix;

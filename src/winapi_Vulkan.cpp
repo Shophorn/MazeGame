@@ -1500,8 +1500,8 @@ CreateDrawingResources(VulkanContext * context)
     // Todo(Leo): Do these need to be aligned like below????
     uint64 colorMemorySize = colorMemoryRequirements.size;
     uint64 depthMemorySize = depthMemoryRequirements.size;
-    // uint64 colorMemorySize = AlignUpTo(colorMemoryRequirements.alignment, colorMemoryRequirements.size);
-    // uint64 depthMemorySize = AlignUpTo(depthMemoryRequirements.alignment, depthMemoryRequirements.size);
+    // uint64 colorMemorySize = align_up_to(colorMemoryRequirements.alignment, colorMemoryRequirements.size);
+    // uint64 depthMemorySize = align_up_to(depthMemoryRequirements.alignment, depthMemoryRequirements.size);
 
     uint32 memoryTypeIndex = vulkan::FindMemoryType(
                                 context->physicalDevice,
@@ -1933,7 +1933,7 @@ vulkan::CreateImageTexture(TextureAsset * asset, VulkanContext * context)
 
     void * data;
     vkMapMemory(context->device, context->stagingBufferPool.memory, 0, imageSize, 0, &data);
-    memcpy (data, (void*)asset->pixels.data, imageSize);
+    memcpy (data, (void*)asset->pixels.begin(), imageSize);
     vkUnmapMemory(context->device, context->stagingBufferPool.memory);
 
     CreateImageAndMemory(context->device, context->physicalDevice,

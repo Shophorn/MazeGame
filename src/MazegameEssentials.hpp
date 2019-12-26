@@ -73,7 +73,7 @@ constexpr uint64 Gigabytes 	(uint64 amount) { return 1024 * Megabytes(amount); }
 constexpr uint64 Terabytes 	(uint64 amount) { return 1024 * Gigabytes(amount); }
 
 inline uint64
-AlignUpTo(uint64 alignment, uint64 size)
+align_up_to(uint64 alignment, uint64 size)
 {
     /*
     Divide to get number of full multiples of alignment
