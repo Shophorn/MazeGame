@@ -36,9 +36,12 @@ constexpr bool32 is_type_transform()
 
 struct GameState
 {
-	Handle<Transform3D> characterTransform;
-	RenderedObjectHandle characterRenderer;
+	// Handle<Transform3D> characterTransform;
+	// RenderedObjectHandle characterRenderer;
 	CharacterControllerSideScroller characterController;
+
+	ArenaArray<Handle<Transform3D>> characterTransforms;
+	ArenaArray<RenderedObjectHandle> characterRenderers;
 
 	AnimationRig ladderRig1;
 	AnimationRig ladderRig2;
@@ -176,15 +179,26 @@ load_main_level(GameState * state, game::Memory * memory, game::PlatformInfo * p
 
 	// Characters
 	{
-		auto characterMesh 				= load_model_obj(&state->transientMemoryArena, "models/character.obj");
-		auto characterMeshHandle 		= push_mesh(&characterMesh);
+		constexpr int32 characterCount = 2;
 
-		state->characterRenderer 		= push_renderer(characterMeshHandle, state->materials.character);
-		state->characterTransform 		= create_handle<Transform3D>({});
+		state->characterTransforms 	= reserve_array<Handle<Transform3D>>(&state->persistentMemoryArena, characterCount);
+		state->characterRenderers 	= reserve_array<RenderedObjectHandle>(&state->persistentMemoryArena, characterCount);
+
+		auto characterMesh 			= load_model_obj(&state->transientMemoryArena, "models/character.obj");
+		auto characterMeshHandle 	= push_mesh(&characterMesh);
+
+		// Our dude
+		push_one(&state->characterTransforms, create_handle<Transform3D>({}));
+		push_one(&state->characterRenderers, push_renderer(characterMeshHandle, state->materials.character));
+
+		// Other dude
+		push_one(&state->characterTransforms, create_handle<Transform3D>({2, 0.5, 12.25f}));
+		push_one(&state->characterRenderers, push_renderer(characterMeshHandle, state->materials.character));
+
 		state->characterController 	= 
 		{
-			.transform 	= state->characterTransform,
-			.collider 	= push_collider(&state->collisionManager, state->characterTransform, {0.4f, 0.8f}, {0.0f, 0.5f}),
+			.transform 	= state->characterTransforms[0],
+			.collider 	= push_collider(&state->collisionManager, state->characterTransforms[0], {0.4f, 0.8f}, {0.0f, 0.5f}),
 		};
 
 		state->characterController.OnTriggerLadder = [state]() -> void
@@ -219,7 +233,7 @@ load_main_level(GameState * state, game::Memory * memory, game::PlatformInfo * p
     state->cameraController =
     {
     	.camera 		= &state->worldCamera,
-    	.target 		= state->characterTransform
+    	.target 		= state->characterTransforms[0]
     };
 
 	// Environment
@@ -266,7 +280,6 @@ load_main_level(GameState * state, game::Memory * memory, game::PlatformInfo * p
 		if (addPillars)
 		{
 			auto pillarMesh 		= load_model_glb(&state->transientMemoryArena, "models/big_pillar.glb", "big_pillar");
-			// auto pillarMesh 		= load_model_obj(&state->transientMemoryArena, "models/big_pillar.obj");
 			auto pillarMeshHandle 	= push_mesh(&pillarMesh);
 
 			auto renderer 	= push_renderer(pillarMeshHandle, state->materials.environment);
@@ -764,9 +777,8 @@ UpdateMainLevel(
 	/// Output Render info
 	// Todo(Leo): Get info about limits of render output array sizes and constraint to those
 	{
-		Matrix44 characterTransformMatrix = state->characterTransform->get_matrix();
-
-		outRenderInfo->render(state->characterRenderer, characterTransformMatrix);
+		outRenderInfo->render(state->characterRenderers[0], state->characterTransforms[0]->get_matrix());
+		outRenderInfo->render(state->characterRenderers[1], state->characterTransforms[1]->get_matrix());
 
 		int environmentCount = state->environmentRenderers.count;
 		for (int i = 0; i < environmentCount; ++i)
