@@ -101,26 +101,6 @@ initialize_game_state(GameState * state, game::Memory * memory, game::PlatformIn
 	uint64 transientMemorySize 		= memory->transientMemorySize;
 	state->transientMemoryArena 	= make_memory_arena(transientMemoryAddress, transientMemorySize);
 
-	test_better_array();
-
-
-	auto testBetterArray = reserve_better_array<int32>(&state->persistentMemoryArena, 10);
-	push_one(testBetterArray, 1);
-	push_one(testBetterArray, 2);
-	push_one(testBetterArray, 3);
-	push_one(testBetterArray, 4);
-	push_one(testBetterArray, 5);
-	push_one(testBetterArray, 6);
-	push_one(testBetterArray, 7);
-	push_one(testBetterArray, 8);
-	push_one(testBetterArray, 9);
-	push_one(testBetterArray, 11);
-
-	for (auto * it = testBetterArray.begin(); it != testBetterArray.end(); ++it)
-	{
-		std::cout << *it << "\n";
-	}
-
 	std::cout << "Screen size = (" << platformInfo->windowWidth << "," << platformInfo->windowHeight << ")\n";
 }
 

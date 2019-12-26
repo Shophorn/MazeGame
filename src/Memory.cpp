@@ -73,81 +73,6 @@ private:
 	}
 };
 
-template <typename T>
-struct BetterArray
-{
-	/* Note(Leo):
-	Store count and capacity in the beginning of same pointer as data, so this struct
-	can only store pointer to position as a variable.
-	
-	0: capacity 	uint32
-	4: count 		uint32
-	8: data 		T
-
-	This also means, that we can simply copy this all around without using external
-	pointers, so in a way this behaves as a pointer itself, or more like Handle struct
-	we use elsewhere.
-	*/
-
-	static constexpr size_t capacityPosition = 0;
-	static constexpr size_t countPosition = 1;
-
-	uint32 capacity () { return _capacity(); }
-	uint32 count 	() { return _count(); }
-
-	T * begin() { return reinterpret_cast<T*>(static_cast<byte*>(_data) + 8); }
-	T * end() { return begin() + count(); }
-
-	T & operator[] (uint32 index)
-	{
-		MAZEGAME_ASSERT(index < count(), "Index outside bounds");
-		return begin()[index];
-	}
-
-	const T & operator[] (uint32 index) const
-	{
-		MAZEGAME_ASSERT(index < count(), "Index outside bounds");
-		return begin()[index];
-	}
-
-	void * _data;
-
-	uint32 & _capacity ()
-	{ 
-		uint32 * capacityPtr = static_cast<uint32 *>(_data) + capacityPosition;
-		return *capacityPtr;
-	}
-
-	uint32 & _count ()
-	{
-		uint32 * countPtr = static_cast<uint32 *>(_data) + countPosition;
-		return *countPtr;
-	}
-};
-
-internal void
-test_better_array()
-{
-	std::cout 	<< "[BETTER ARRAY]:\n"
-				<< "\tis pod " << bool_str(std::is_pod_v<BetterArray<uint64>>) << "\n"
-				<< "\tis aggregate " << bool_str(std::is_aggregate_v<BetterArray<uint64>>) << "\n";
-}
-
-template<typename T>
-internal BetterArray<T>
-make_better_array(void * data, uint32 capacity, uint32 count)
-{
-	BetterArray<T> result =
-	{
-		._data = data,
-	};
-	result._capacity() = capacity;
-	result._count() = count;
-
-	return result;
-}
-
-
 /* Note(Leo): Like a constructor, use this to make one of this so whenever
 we decide to change layout of ArenaArray we only change this function and
 get a nice compiler error.
@@ -239,30 +164,6 @@ reserve_from_memory_arena(MemoryArena * arena, uint64 count)
 	
 	return result; 		
 }
-
-template<typename T>
-internal BetterArray<T>
-reserve_better_array(MemoryArena * arena, uint64 capacity)
-{
-	uint64 size 	= sizeof(T) * capacity;
-	void * memory 	= reserve_from_memory_arena(arena, size);
-
-	auto result 	= make_better_array<T>(memory, capacity, 0);
-	return result;
-}
-
-template<typename T>
-internal void
-push_one(BetterArray<T> array, T item)
-{
-	// std::cout << "[BETTER ARRAY]: pushing " << array.count() << ", " << array.capacity() << "\n";
-	MAZEGAME_ASSERT(array.count() < array.capacity(), "Cannot push, array is full!");
-
-	auto index = array.count();
-	array._count()++;
-	array[index] = item;
-}
-
 
 internal void
 flush_memory_arena(MemoryArena * arena)
