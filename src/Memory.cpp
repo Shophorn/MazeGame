@@ -8,137 +8,10 @@ Memory managing things in :MAZEGAME:
 #include <algorithm>
 #include <type_traits>
 
-using default_index_type = uint64;
 
-template<typename T, typename TIndex = default_index_type>
-struct ArenaArray
-{
-	/* Todo(Leo): Copying this and forgetting it and using the copy will
-	be bad since count and capacity are not synchronized then.
-	
-	A) store count and capacity in memory arena just before data.
-	B) make this uncopyable and use move semantics.
-
-	A seems to me as more straightforward, from the users viewpoint,
-	at least for now. It allows easy use of copies of this array.
-
-	Also if we make the pointer to point to arena, and store offset from
-	it's beginning, we could then easily verify from here whether the 
-	arena is still in use. We should not need to do that ever, if we are
-	careful (we should be anyway) with arena deallocation and game state
-	changes.
-	*/
-
-	/* Todo(Leo): This class supports only classes that are simple such as
-	pod types and others that do not need destructors or other unitilization
-	only.
-	
-	Should we do somthing about that, at least to enforce T to be simple?
-	*/
-
-	/* Todo(Leo): Also hide implementation. C-style, now that I have found
-	myself liking c-style function calls :)
-	*/
-
-	/* Todo(Leo): Maybe make this also just an offset from start of arena.
-	And store pointer to arena instead? */
-	byte * _data;
-
-	constexpr static uint64 capacityOffset 	= 0;
-	constexpr static uint64 countOffset 	= 1 * sizeof(uint64);
-	constexpr static uint64 beginOffset 	= 2 * sizeof(uint64);
-
-	uint64 capacity () const 	{ return *reinterpret_cast<uint64*>(_data + capacityOffset); }
-	uint64 count () const 		{ return *reinterpret_cast<uint64*>(_data + countOffset); }
-
-	uint64 & _capacity() 		{ return *reinterpret_cast<uint64*>(_data + capacityOffset); }
-	uint64 & _count() 			{ return *reinterpret_cast<uint64*>(_data + countOffset); }
-
-	T * begin() 				{ return reinterpret_cast<T*>(_data + beginOffset); }
-	T * end() 					{ return begin() + count(); }
-
-	const T * begin() const 	{ return reinterpret_cast<T*>(_data + beginOffset); }
-	const T * end() const 		{ return begin() + count(); }
-
-	T & operator [] (TIndex index)
-	{
-		assert_index_validity(index);
-		return begin()[index];
-	}
-
-	const T & operator [] (TIndex index) const
-	{
-		assert_index_validity(index);
-		return begin()[index];
-	}
-
-private:
-	inline void
-	assert_index_validity(TIndex index) const
-	{
-		#if MAZEGAME_DEVELOPMENT
-			char message [200];
-			sprintf(message,"Index (%d) is more than count (%d)", index, count());
-			MAZEGAME_ASSERT (index < count(), message);
-		#endif
-	}
-};
-
-/* Note(Leo): Like a constructor, use this to make one of this so whenever
-we decide to change layout of ArenaArray we only change this function and
-get a nice compiler error.
-
-Todo(Leo): Really, should we do a proper constructor? */
-template<typename T, typename TIndex = default_index_type>
-internal ArenaArray<T, TIndex>
-make_arena_array(T * data, uint64 capacity, uint64 count = MaxValue<uint64>)
-{
-	ArenaArray<T, TIndex> result = {};
-	result._data		= reinterpret_cast<byte*>(data),
-	result._capacity() 	= capacity,
-	result._count() 	= Min(capacity, count);
-
-	std::cout << "[make_arena_array()]: capacity = " << result.capacity() << ", count: " << result.count() << "\n";
-
-	return result;
-}
-
-
-///// DEPRECATED, REMOVE /////
-template<typename T, typename TIndex>
-internal TIndex
-push_one(ArenaArray<T, TIndex> * array, T item)
-{
-	MAZEGAME_ASSERT(array->count() < array->capacity(), "Cannot push, ArenaArray is full!");
-
-	TIndex index = {array->_count()++};
-	array->begin()[index] = item;
-
-	return index;
-}
-
-
-/////// USE THIS /////////
-template<typename T, typename TIndex>
-internal TIndex
-push_one(ArenaArray<T, TIndex> array, T item)
-{
-	MAZEGAME_ASSERT(array.count() < array.capacity(), "Cannot push, ArenaArray is full!");
-
-	TIndex index = {array._count()++};
-	array.begin()[index] = item;
-
-	return index;
-}
-
-template<typename T, typename TIndex>
-internal void
-flush_arena_array(ArenaArray<T, TIndex> * array)
-{
-	array->_count() = 0;
-}
-
-
+///////////////////////////////////////
+///         MEMORY ARENA 			///
+///////////////////////////////////////
 /* 
 Todo(Leo): Think if we need to flush more smartly, or actually keep track of
 items more smartly maybe like track item generations, and maybe add per item
@@ -146,6 +19,9 @@ deallocation
 */
 struct MemoryArena
 {
+	// Todo(Leo): Is this appropriate??
+	static constexpr uint64 defaultAlignment = sizeof(uint64);
+
 	byte * 	memory;
 	uint64 	size;
 	uint64 	used;
@@ -153,6 +29,19 @@ struct MemoryArena
 	byte * next () { return memory + used; }
 	uint64 available () { return size - used; }
 };
+
+internal byte *
+reserve_from_memory_arena(MemoryArena * arena, uint64 size)
+{
+	size = align_up_to(size, 64);
+	
+	MAZEGAME_ASSERT(size <= arena->available(), "Not enough memory available in MemoryArena");
+
+	byte * result = arena->next();
+	arena->used += size;
+
+	return result;
+}
 
 internal MemoryArena
 make_memory_arena(byte * memory, uint64 size)
@@ -166,22 +55,6 @@ make_memory_arena(byte * memory, uint64 size)
 	return resultArena;
 }
 
-template <typename T>
-internal T *
-reserve_from_memory_arena(MemoryArena * arena, uint64 count)
-{
-	// Note(Leo): test this for storing count and capacity in front of actual data
-	uint64 size = align_up_to((sizeof(T) * count) + (sizeof(uint64) * 2), sizeof(uint64));
-
-	// Todo[Memory](Leo): Alignment
-	MAZEGAME_ASSERT(size <= arena->available(), "Not enough memory available in MemoryArena");
-
-	T * result = reinterpret_cast<T*>(arena->next());
-	arena->used += size;
-	
-	return result; 		
-}
-
 internal void
 flush_memory_arena(MemoryArena * arena)
 {
@@ -192,122 +65,195 @@ internal void
 clear_memory_arena(MemoryArena * arena)
 {
 	arena->used = 0;
-	memset(arena->memory, 0, arena->size);
+	std::fill_n(arena->memory, arena->size, 0);
 }
 
-/* Todo(Leo): 'fillWithUninitialized' was given true by default when capacity was
-added so that previous usages wouldn't break. It does not need to be that way, so
-rethink it someday. */
-template<typename T, typename TIndex = default_index_type>
-internal ArenaArray<T, TIndex>
-push_array(MemoryArena * arena, uint64 capacity, bool32 fillWithUninitialized = true)
+
+///////////////////////////////////////
+///         ARENA ARRAY 			///
+///////////////////////////////////////
+
+using default_index_type = uint64;
+
+struct ArrayHeader
 {
-	T * memory 		= reserve_from_memory_arena<T>(arena, capacity);
-	uint64 count 	= fillWithUninitialized ? capacity : 0;
-	auto result 	= make_arena_array<T, TIndex>(memory, capacity, count);
+	uint64 capacity;
+	uint64 count;
+};
+
+template<typename T, typename TIndex = default_index_type>
+struct ArenaArray
+{
+	/* Todo(Leo): This class supports only classes that are simple such as
+	pod types and others that do not need destructors or other unitilization
+	only.
 	
+	Should we do somthing about that, at least to enforce T to be simple?
+	*/
+
+	/* Todo(Leo): Also hide implementation. C-style maybe, now that I have found
+	myself liking c-style function calls :)
+	*/
+
+	/* Todo(Leo): Maybe make this also just an offset from start of arena.
+	And store pointer to arena instead? */
+	byte * _data;
+
+	uint64 capacity () 		{ return (_header()->capacity) / sizeof(T); }
+	uint64 count ()  		{ return (_header()->count) / sizeof(T); }
+
+	T * begin() 			{ return reinterpret_cast<T*>(_data + sizeof(ArrayHeader)); }
+	T * end() 				{ return begin() + count(); }
+
+	T & operator [] (TIndex index)
+	{
+		assert_index_validity(index);
+		return begin()[index];
+	}
+
+private:
+	inline auto * 
+	_header () { return reinterpret_cast<ArrayHeader*>(_data); }
+
+	inline void
+	assert_index_validity(TIndex index)
+	{
+		#if MAZEGAME_DEVELOPMENT
+			char message [200];
+			sprintf(message,"Index (%d) is more than count (%d)", index, count());
+			MAZEGAME_ASSERT (index < count(), message);
+		#endif
+	}
+};
+
+template<typename T, typename TIndex>
+internal ArrayHeader *
+get_array_header(ArenaArray<T, TIndex> array)
+{
+	auto * result = reinterpret_cast<ArrayHeader *>(array._data);
 	return result;
+}
+
+template <typename T, typename TIndex> internal void 
+set_array_capacity(ArenaArray<T, TIndex> array, uint64 capacity)
+{
+	uint64 capacityInBytes = capacity * sizeof(T);
+	get_array_header(array)->capacity = capacityInBytes;
+}
+
+template <typename T, typename TIndex> internal void 
+set_array_count(ArenaArray<T, TIndex> array, uint64 count)
+{
+	uint64 countInBytes = count * sizeof(T);
+	get_array_header(array)->count = countInBytes;
 }
 
 template<typename T, typename TIndex = default_index_type>
 internal ArenaArray<T, TIndex>
 reserve_array(MemoryArena * arena, uint64 capacity)
 {
-	T * memory 		= reserve_from_memory_arena<T>(arena, capacity);
-	uint64 count 	= 0;
-	auto result 	= make_arena_array<T, TIndex>(memory, capacity, count);
+	/* Todo(Leo): make proper alignement between these two too, now it works fine,
+	since header aligns on 64 anyway */
+	uint64 size = sizeof(ArrayHeader) + (sizeof(T) * capacity);
+	byte * memory = reserve_from_memory_arena(arena, size);
+
+	ArenaArray<T, TIndex> result =
+	{
+		._data = memory
+	};
+	set_array_capacity (result, capacity);
+	set_array_count(result, 0);
 
 	return result;
 }
 
-template<typename T>
-internal ArenaArray<T>
-push_array(MemoryArena * arena, std::initializer_list<T> items)
+template<typename T, typename TIndex>
+internal TIndex
+push_one(ArenaArray<T, TIndex> * array, T item)
 {
-	uint64 capacity = items.size();
-	T * memory 		= reserve_from_memory_arena<T>(arena, capacity);
-	auto result 	= make_arena_array(memory, capacity);
+	MAZEGAME_ASSERT(array->count() < array->capacity(), "Cannot push, ArenaArray is full!");
 
-	std::copy(items.begin(), items.end(), result.begin());
+	TIndex index = {array->count()};
+	set_array_count(*array, array->count() + 1);
+	(*array)[index] = item;
+
+	return index;
+}
+
+template<typename T, typename TIndex>
+internal void
+flush_arena_array(ArenaArray<T, TIndex> * array)
+{
+	set_array_count(*array, 0);
+}
+
+template<typename T, typename TIndex = default_index_type>
+internal ArenaArray<T, TIndex>
+push_array(MemoryArena * arena, uint64 capacity)
+{
+	auto result	= reserve_array<T, TIndex>(arena, capacity);
+	set_array_count(result, capacity);
 
 	return result;
 }
 
-template<typename T>
-internal ArenaArray<T>
+
+template<typename T, typename TIndex = default_index_type>
+internal ArenaArray<T, TIndex>
 push_array(MemoryArena * arena, const T * begin, const T * end)
 {
-	uint64 capacity = end - begin;
-	T * memory 		= reserve_from_memory_arena<T>(arena, capacity);
-	auto result 	= make_arena_array(memory, capacity);
-
+	auto result = push_array<T, TIndex>(arena, end - begin);
 	std::copy(begin, end, result.begin());
 
 	return result;
 }
 
-template<typename T, typename TIndex>
+template<typename T, typename TIndex = default_index_type>
 internal ArenaArray<T, TIndex>
-copy_array_slice(MemoryArena * arena, ArenaArray<T, TIndex> * original, TIndex start, uint64 count)
+push_array(MemoryArena * arena, std::initializer_list<T> items)
 {
-	MAZEGAME_ASSERT((start + count) <= original->capacity(), "Invalid copy slice region");
+	auto result = push_array<T, TIndex>(arena, items.begin(), items.end());
+	return result;
+}
 
-	uint64 capacity = count;
-	std::cout << "copying array slice, capacity = " << capacity << "\n"; 
+template<typename T, typename TIndex> internal ArenaArray<T, TIndex>
+copy_array_slice(MemoryArena * arena, ArenaArray<T, TIndex> original, TIndex start, uint64 count)
+{
+	MAZEGAME_ASSERT((start + count) <= original.capacity(), "Invalid copy slice region");
 
-	T * memory 		= reserve_from_memory_arena<T>(arena, capacity);
-	auto result 	= make_arena_array(memory, capacity);
-
-	auto * begin 	= original->begin() + start;
+	auto * begin 	= original.begin() + start;
 	auto * end 		= begin + count;
-
-	std::copy(begin, end, result.begin());
-
-	return result;
-}
-
-template<typename T, typename TIndex>
-internal ArenaArray<T, TIndex>
-duplicate_array(MemoryArena * arena, ArenaArray<T, TIndex> * original)
-{
-	uint64 capacity = original->capacity();
-	uint64 count 	= original->count();
-
-	T * memory 		= reserve_from_memory_arena<T>(arena, capacity);
-	auto result 	= make_arena_array(memory, capacity, count);
-
-	std::copy(original->begin(), original->end(), result.begin());
+	auto result 	= push_array<T, TIndex>(arena, begin, end);
 
 	return result;
 }
 
-template <typename T, typename TIndex>
-internal void
-reverse_arena_array(ArenaArray<T, TIndex> * array)
+template<typename T, typename TIndex> internal ArenaArray<T, TIndex>
+duplicate_array(MemoryArena * arena, ArenaArray<T, TIndex> original)
 {
-	T temp = (*array)[0];
-	uint64 halfCount = array->count() / 2;
-	uint64 lastIndex = array->count() - 1;
+	auto result = reserve_array<T, TIndex>(arena, original.capacity());
+	set_array_count(result, original.count());
+
+	std::copy(original.begin(), original.end(), result.begin());
+
+	return result;
+}
+
+template <typename T, typename TIndex> internal void
+reverse_arena_array(ArenaArray<T, TIndex> array)
+{
+	T temp = array[0];
+	uint64 halfCount = array.count() / 2;
+	uint64 lastIndex = array.count() - 1;
 
 	for (int i = 0; i < halfCount; ++i)
 	{
-		temp = (*array)[i];
-		(*array)[i] = (*array)[lastIndex -i];
-		(*array)[lastIndex - i] = temp;
+		temp = array[i];
+		array[i] = array[lastIndex -i];
+		array[lastIndex - i] = temp;
 	}
 }
 
-template<typename TNew, typename TOld>
-internal ArenaArray<TNew>
-cast_array_type(ArenaArray<TOld> * original)
-{
-	std::cout << "cast_array_type()\n";
-
-	auto result = make_arena_array<TNew>(	reinterpret_cast<TNew*>(original->_data), 
-											original->_capacity() * sizeof(TNew) / sizeof(TOld),
-											original->_count() * sizeof(TNew) / sizeof(TOld));
-	return result;
-}
 
 #if MAZEGAME_DEVELOPMENT
 internal float 

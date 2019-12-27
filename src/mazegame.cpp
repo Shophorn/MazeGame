@@ -109,8 +109,8 @@ load_main_level(GameState * state, game::Memory * memory, game::PlatformInfo * p
 
 	state->collisionManager =
 	{
-		.colliders 		= push_array<Handle<Collider>>(&state->persistentMemoryArena, 200, false),
-		.collisions 	= push_array<Collision>(&state->persistentMemoryArena, 300, false) // Todo(Leo): Not enough..
+		.colliders 		= reserve_array<Handle<Collider>>(&state->persistentMemoryArena, 200),
+		.collisions 	= reserve_array<Collision>(&state->persistentMemoryArena, 300) // Todo(Leo): Not enough..
 	};
 
 	// Create MateriaLs
@@ -247,8 +247,8 @@ load_main_level(GameState * state, game::Memory * memory, game::PlatformInfo * p
 		constexpr bool32 addButtons 	= true;
 		constexpr bool32 addPlatforms 	= true;
 
-		state->environmentRenderers 	= push_array<RenderedObjectHandle>(&state->persistentMemoryArena, environmentObjectCount, false);
-		state->environmentTransforms 	= push_array<Handle<Transform3D>>(&state->persistentMemoryArena, environmentObjectCount, false);
+		state->environmentRenderers 	= reserve_array<RenderedObjectHandle>(&state->persistentMemoryArena, environmentObjectCount);
+		state->environmentTransforms 	= reserve_array<Handle<Transform3D>>(&state->persistentMemoryArena, environmentObjectCount);
 
 		{
 			auto groundQuad 	= mesh_primitives::create_quad(&state->transientMemoryArena);
@@ -294,12 +294,12 @@ load_main_level(GameState * state, game::Memory * memory, game::PlatformInfo * p
 
 			Handle<Transform3D> root1 = make_handle<Transform3D>({0, 0.5f, -ladderHeight});
 			Handle<Transform3D> root2 = make_handle<Transform3D>({10, 0.5f, 6 - ladderHeight});
-			auto bones1 = push_array<Handle<Transform3D>>(&state->persistentMemoryArena, 6, false);
-			auto bones2 = push_array<Handle<Transform3D>>(&state->persistentMemoryArena, 6, false);
+			auto bones1 = reserve_array<Handle<Transform3D>>(&state->persistentMemoryArena, 6);
+			auto bones2 = reserve_array<Handle<Transform3D>>(&state->persistentMemoryArena, 6);
 
 			Handle<Transform3D> parent1 = root1;
 			Handle<Transform3D> parent2 = root2;
-			auto animations = push_array<Animation>(&state->persistentMemoryArena, ladderCount, false);
+			auto animations = reserve_array<Animation>(&state->persistentMemoryArena, ladderCount);
 
 			int ladder2StartIndex = 6;
 

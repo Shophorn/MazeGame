@@ -89,21 +89,22 @@ struct ArrayView
 
 
 template<typename TResult> TResult
-get(BinaryBuffer * buffer, uint64 position)
+get(BinaryBuffer buffer, uint64 position)
 {
-	TResult result = *reinterpret_cast<TResult*>(buffer->begin() + position);
+	TResult result = *reinterpret_cast<TResult*>(buffer.begin() + position);
 	return result;
 }
 
+// Todo(Leo): This is allocated uncontrollably, so we must do something about it
 internal std::string
-get_string(TextBuffer * buffer)
+get_string(TextBuffer buffer)
 {
-	auto result = std::string(buffer->begin(), buffer->end());
+	auto result = std::string(buffer.begin(), buffer.end());
 	return result;	
 }
 
 internal TextBuffer
-get_gltf_json_chunk(BinaryBuffer * gltf, MemoryArena * memoryArena)
+get_gltf_json_chunk(BinaryBuffer gltf, MemoryArena * memoryArena)
 {
 	using namespace glTF;
 
@@ -111,7 +112,7 @@ get_gltf_json_chunk(BinaryBuffer * gltf, MemoryArena * memoryArena)
 	uint32 chunkLength 	= get<uint32>(gltf, offset + chunkLengthPosition);
 	ChunkType chunkType = get<ChunkType>(gltf, offset + chunkTypePosition);
 
-	while(chunkType != ChunkType::Json && offset < gltf->count())
+	while(chunkType != ChunkType::Json && offset < gltf.count())
 	{
 		offset 		+= chunkLength + chunkInfoLength;
 		chunkLength  = get<uint32>(gltf, offset + chunkLengthPosition);
@@ -127,15 +128,15 @@ get_gltf_json_chunk(BinaryBuffer * gltf, MemoryArena * memoryArena)
 		return {};
 	}
 
-	auto castResult = cast_array_type<char>(gltf);
-	auto result 	= copy_array_slice(memoryArena, &castResult, start, chunkLength);
+	TextBuffer castResult 	= *reinterpret_cast<TextBuffer*>(&gltf);
+	TextBuffer result 		= copy_array_slice(memoryArena, castResult, start, chunkLength);
 
 
 	return result;
 }
 
 internal BinaryBuffer
-get_gltf_binary_chunk(MemoryArena * memoryArena, BinaryBuffer * gltf, int32 binaryChunkIndex = 0)
+get_gltf_binary_chunk(MemoryArena * memoryArena, BinaryBuffer gltf, int32 binaryChunkIndex = 0)
 {
 	using namespace glTF;
 

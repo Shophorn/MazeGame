@@ -40,7 +40,7 @@ make_animation_rig(Handle<Transform3D> root, ArenaArray<Handle<Transform3D>> bon
 }
 
 internal void
-update_animation_keyframes(const Animation * animation, uint64 * currentBoneKeyframe, float time)
+update_animation_keyframes(Animation * animation, uint64 * currentBoneKeyframe, float time)
 {
 	if (*currentBoneKeyframe < animation->keyframes.count()
 		&& time > animation->keyframes[*currentBoneKeyframe].time)
@@ -51,7 +51,7 @@ update_animation_keyframes(const Animation * animation, uint64 * currentBoneKeyf
 }
 
 internal void
-update_animation_target(const Animation * animation, Handle<Transform3D> target, uint64 currentBoneKeyframe, float time)
+update_animation_target(Animation * animation, Handle<Transform3D> target, uint64 currentBoneKeyframe, float time)
 {
 	bool32 isBeforeFirstKeyFrame 	= currentBoneKeyframe == 0; 
 	bool32 isAfterLastKeyFrame 		= currentBoneKeyframe >= animation->keyframes.count();
@@ -87,13 +87,13 @@ duplicate_animation_clip(MemoryArena * memoryArena, AnimationClip * original)
 {
 	AnimationClip result = 
 	{
-		.animations = duplicate_array(memoryArena, &original->animations),
+		.animations = duplicate_array(memoryArena, original->animations),
 		.duration = original->duration
 	};
 
 	for (int childIndex = 0; childIndex < original->animations.count(); ++childIndex)
 	{
-		result.animations[childIndex].keyframes = duplicate_array(memoryArena, &original->animations[childIndex].keyframes);
+		result.animations[childIndex].keyframes = duplicate_array(memoryArena, original->animations[childIndex].keyframes);
 	}
 	return result;
 }
@@ -106,7 +106,7 @@ reverse_animation_clip(AnimationClip * clip)
 
 	for (int childIndex = 0; childIndex < childAnimationCount; ++childIndex)
 	{
-		reverse_arena_array(&clip->animations[childIndex].keyframes);
+		reverse_arena_array(clip->animations[childIndex].keyframes);
 
 		int32 keyframeCount = clip->animations[childIndex].keyframes.count();
 		for (int keyframeIndex = 0; keyframeIndex < keyframeCount; ++keyframeIndex)
@@ -157,7 +157,7 @@ struct Animator
 
 	// State
 	bool32 isPlaying 			= false;
-	const AnimationClip * clip	= nullptr;
+	AnimationClip * clip	= nullptr;
 	float time;
 
 	void
@@ -197,7 +197,7 @@ make_animator(AnimationRig * rig)
 
 
 internal void
-play_animation_clip(Animator * animator, const AnimationClip * clip)
+play_animation_clip(Animator * animator, AnimationClip * clip)
 {
 	animator->clip = clip;
 	animator->time = 0.0f;

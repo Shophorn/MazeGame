@@ -22,8 +22,8 @@ load_model_glb(MemoryArena * memoryArena, const char * filePath, const char * mo
 	*/
 
 	auto gltf 			= read_binary_file(memoryArena, filePath);
-	auto jsonBuffer 	= get_gltf_json_chunk(&gltf, memoryArena);
-	auto jsonString		= get_string(&jsonBuffer);
+	auto jsonBuffer 	= get_gltf_json_chunk(gltf, memoryArena);
+	auto jsonString		= get_string(jsonBuffer);
 	auto jsonDocument	= parse_json(jsonString.c_str());
 	
 	auto meshArray = jsonDocument["meshes"].GetArray();
@@ -63,7 +63,7 @@ load_model_glb(MemoryArena * memoryArena, const char * filePath, const char * mo
 	auto buffersArray 		= jsonDocument["buffers"].GetArray();
 	
 	// Todo(Leo): what if there are multiple buffers in file? Where is the index? In "buffers"?
-	auto buffer = get_gltf_binary_chunk(memoryArena, &gltf, 0);
+	auto buffer = get_gltf_binary_chunk(memoryArena, gltf, 0);
 
 	auto get_buffer_view_index = [&accessorArray](int32 index) -> int32
 	{

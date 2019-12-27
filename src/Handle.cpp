@@ -52,5 +52,5 @@ template<typename T>
 internal void
 allocate_for_handle(MemoryArena * memoryArena, uint64 count)
 {
-	Handle<T>::storage = push_array<T>(memoryArena, count, false);
+	Handle<T>::storage = reserve_array<T>(memoryArena, count);
 }
