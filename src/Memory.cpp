@@ -167,26 +167,6 @@ reserve_array(MemoryArena * arena, uint64 capacity)
 	return result;
 }
 
-template<typename T, typename TIndex>
-internal TIndex
-push_one(ArenaArray<T, TIndex> * array, T item)
-{
-	MAZEGAME_ASSERT(array->count() < array->capacity(), "Cannot push, ArenaArray is full!");
-
-	TIndex index = {array->count()};
-	set_array_count(*array, array->count() + 1);
-	(*array)[index] = item;
-
-	return index;
-}
-
-template<typename T, typename TIndex>
-internal void
-flush_arena_array(ArenaArray<T, TIndex> * array)
-{
-	set_array_count(*array, 0);
-}
-
 template<typename T, typename TIndex = default_index_type>
 internal ArenaArray<T, TIndex>
 push_array(MemoryArena * arena, uint64 capacity)
@@ -254,6 +234,25 @@ reverse_arena_array(ArenaArray<T, TIndex> array)
 	}
 }
 
+template<typename T, typename TIndex>
+internal TIndex
+push_one(ArenaArray<T, TIndex> array, T item)
+{
+	MAZEGAME_ASSERT(array.count() < array.capacity(), "Cannot push, ArenaArray is full!");
+
+	TIndex index = {array.count()};
+	set_array_count(array, array.count() + 1);
+	array[index] = item;
+
+	return index;
+}
+
+template<typename T, typename TIndex>
+internal void
+flush_arena_array(ArenaArray<T, TIndex> array)
+{
+	set_array_count(array, 0);
+}
 
 #if MAZEGAME_DEVELOPMENT
 internal float 

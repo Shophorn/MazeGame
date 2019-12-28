@@ -92,7 +92,7 @@ struct CollisionManager
 	do_collisions() 
 	{
 		// Reset previous collisions
-		flush_arena_array(&collisions);
+		flush_arena_array(collisions);
 
 		for (int32 i = 0; i < colliders.count(); ++i)
 		{
@@ -134,14 +134,14 @@ struct CollisionManager
 					float xNormalA = Sign(xDeltaAtoB);
 					float xNormalB = -xNormalA;
 
-					uint64 collisionIndexForA = push_one(&collisions, {
+					uint64 collisionIndexForA = push_one(collisions, {
 						.position 	= positionB.x + xNormalB * xRadiusB,
 						.normal 	= {xNormalB, 0, 0},
 						.tag 		= colliders[b]->tag
 					});
 					colliders[a]->collision = &collisions[collisionIndexForA];
 
-					uint64 collisionIndexForB = push_one(&collisions, {
+					uint64 collisionIndexForB = push_one(collisions, {
 						.position 	= positionA.x + xNormalA * xRadiusA, 
 						.normal 	= {xNormalA, 0, 0},
 						.tag 		= colliders[a]->tag
@@ -167,6 +167,6 @@ push_collider(	CollisionManager * manager,
 		.offset		= offset,
 		.tag 		= tag
 	});
-	auto index = push_one(&manager->colliders, collider);
+	auto index = push_one(manager->colliders, collider);
 	return collider;
 }

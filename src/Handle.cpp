@@ -44,7 +44,7 @@ make_handle(T item)
 	/* Note(Leo): We use concrete item instead of constructor arguments
 	and (relay/depend/what is the word??) on copy elision to remove copy */
 	Handle<T> result = {};
-	result._index = push_one(&Handle<T>::storage, item);
+	result._index = push_one(Handle<T>::storage, item);
 	return result;
 }
 

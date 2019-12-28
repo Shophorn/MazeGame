@@ -25,6 +25,18 @@ struct AnimationRig
 	ArenaArray<uint64> currentBoneKeyframes;
 };
 
+struct Animator
+{
+	// Properties
+	AnimationRig rig;
+	float playbackSpeed			= 1.0f;
+
+	// State
+	bool32 isPlaying 			= false;
+	AnimationClip * clip		= nullptr;
+	float time;
+};
+
 internal AnimationRig
 make_animation_rig(Handle<Transform3D> root, ArenaArray<Handle<Transform3D>> bones, ArenaArray<uint64> currentBoneKeyframes)
 {
@@ -149,44 +161,43 @@ make_animation_clip (ArenaArray<Animation> animations)
 	return result;
 }
 
-struct Animator
+internal void
+update_animator_system(game::Input * input, ArenaArray<Handle<Animator>> animators)
 {
-	// Properties
-	AnimationRig * rig;
-	float playbackSpeed			= 1.0f;
-
-	// State
-	bool32 isPlaying 			= false;
-	AnimationClip * clip	= nullptr;
-	float time;
-
-	void
-	Update(game::Input * input)
+	for (auto animator : animators)
 	{
-		if (isPlaying == false)
-			return;
+		if (animator->isPlaying == false)
+			continue;
 
-		float timeStep = playbackSpeed * input->elapsedTime;
-		time += timeStep;
 
-		for (int i = 0; i < clip->animations.count(); ++i)
+		float timeStep = animator->playbackSpeed * input->elapsedTime;
+		animator->time += timeStep;
+
+
+		for (int i = 0; i < animator->clip->animations.count(); ++i)
 		{
-			update_animation_keyframes(&clip->animations[i], &rig->currentBoneKeyframes[i], time);
-			update_animation_target(&clip->animations[i], rig->bones[i], rig->currentBoneKeyframes[i], time);
+			update_animation_keyframes(	&animator->clip->animations[i],
+										&animator->rig.currentBoneKeyframes[i],
+										animator->time);
+
+			update_animation_target(	&animator->clip->animations[i],
+										animator->rig.bones[i],
+										animator->rig.currentBoneKeyframes[i],
+										animator->time);
 		}
 
-		bool framesLeft = time < clip->duration;
+		bool framesLeft = animator->time < animator->clip->duration;
 
 		if (framesLeft == false)
 		{
-			isPlaying = false;
-			std::cout << "[Animator]: AnimationClip complete\n";
+			animator->isPlaying = false;
+			// std::cout << "[Animator]: AnimationClip complete\n";
 		}
 	}
-};
+}
 
 internal Animator
-make_animator(AnimationRig * rig)
+make_animator(AnimationRig  rig)
 {
 	Animator result = 
 	{
@@ -197,7 +208,7 @@ make_animator(AnimationRig * rig)
 
 
 internal void
-play_animation_clip(Animator * animator, AnimationClip * clip)
+play_animation_clip(Handle<Animator> animator, AnimationClip * clip)
 {
 	animator->clip = clip;
 	animator->time = 0.0f;
@@ -205,6 +216,6 @@ play_animation_clip(Animator * animator, AnimationClip * clip)
 
 	for (int boneIndex = 0; boneIndex < clip->animations.count(); ++boneIndex)
 	{
-		animator->rig->currentBoneKeyframes[boneIndex] = 0;
+		animator->rig.currentBoneKeyframes[boneIndex] = 0;
 	}
 }

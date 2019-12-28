@@ -39,8 +39,10 @@ struct CharacterControllerSideScroller
 	float currentRotationRadians = 0;
 	bool32 testTriggered = false;
 
-	std::function<void()> OnTriggerLadder;
-	std::function<void()> OnTriggerLadder2;
+	using LadderTriggerFunc = std::function<void()>;
+
+	LadderTriggerFunc * OnTriggerLadder1;
+	LadderTriggerFunc * OnTriggerLadder2;
 
 	void
 	Update(game::Input * input, CollisionManager * collisionManager)
@@ -118,7 +120,7 @@ struct CharacterControllerSideScroller
 		{
 			if (input->interact.IsClicked())
 			{
-				OnTriggerLadder();
+				(*OnTriggerLadder1)();
 			}
 		}
 
@@ -126,7 +128,7 @@ struct CharacterControllerSideScroller
 		{
 			if (input->interact.IsClicked())
 			{
-				OnTriggerLadder2();
+				(*OnTriggerLadder2)();
 			}
 		}
 

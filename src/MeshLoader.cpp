@@ -2,8 +2,6 @@
 Leo Tamminen
 
 Mesh Loader
-
-Todo[Assets](Leo): look into gltf format or make own. 
 =============================================================================*/
 
 // Note(Leo): this also includes string and vector apparently
@@ -17,6 +15,9 @@ load_model_glb(MemoryArena * memoryArena, const char * filePath, const char * mo
 {
 	/*
 	Todo(Leo): 
+		- multiple objects in file
+		- other hierarchies
+		- world transforms
 		- stride
 		- sparse accessor
 	*/
@@ -133,7 +134,7 @@ load_model_glb(MemoryArena * memoryArena, const char * filePath, const char * mo
 		Vector3 normal 		= normalBuffer[i];
 		Vector2 texCoord    = texcoordBuffer[i];
 
-		push_one(&vertices, Vertex{
+		push_one(vertices, Vertex{
 			.position 	= position,
 			.normal 	= normal,
 			.texCoord 	= texCoord});
@@ -161,7 +162,7 @@ load_model_glb(MemoryArena * memoryArena, const char * filePath, const char * mo
 	for(byte * it = indexStart; it < indexEnd; it += stride)
 	{
 		uint16 index = *reinterpret_cast<uint16*>(it);
-		push_one(&indices, index);
+		push_one(indices, index);
 	}
 
 	std::cout << "[GLTF]: indices read properly\n";
