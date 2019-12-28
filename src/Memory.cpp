@@ -12,11 +12,7 @@ Memory managing things in :MAZEGAME:
 ///////////////////////////////////////
 ///         MEMORY ARENA 			///
 ///////////////////////////////////////
-/* 
-Todo(Leo): Think if we need to flush more smartly, or actually keep track of
-items more smartly maybe like track item generations, and maybe add per item
-deallocation
-*/
+/* Todo(Leo): maybe add per item deallocation for arrays eg.*/
 struct MemoryArena
 {
 	// Todo(Leo): Is this appropriate??
@@ -66,6 +62,14 @@ clear_memory_arena(MemoryArena * arena)
 {
 	arena->used = 0;
 	std::fill_n(arena->memory, arena->size, 0);
+}
+
+template<typename T>
+internal T *
+push_empty_struct(MemoryArena * arena)
+{
+	T * result = reinterpret_cast<T*>(reserve_from_memory_arena(arena, sizeof(T)));
+	return result;
 }
 
 

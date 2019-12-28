@@ -35,6 +35,17 @@ struct CameraControllerSideScroller
 	}
 };
 
+internal void
+update_camera_system(game::RenderInfo * renderer, game::PlatformInfo * platform, game::Input * input, Camera * camera)
+{
+	// Note(Leo): Update aspect ratio each frame, in case screen size has changed.
+    camera->aspectRatio = (real32)platform->windowWidth / (real32)platform->windowHeight;
+
+	// Ccamera
+    renderer->set_camera(	camera->ViewProjection(),
+							camera->PerspectiveProjection());
+}
+
 // struct CameraController3rdPerson
 // {
 // 	// References, these must be set separately
