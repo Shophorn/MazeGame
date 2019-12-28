@@ -119,10 +119,19 @@ LoadXInput()
     }
 }
 
-internal real32
+internal float
 ReadXInputJoystickValue(int16 value)
 {
-    real32 result = static_cast<real32>(value) / MaxValue<int16>;
+    float deadZone = 0.2f;
+    float result = static_cast<float>(value) / MaxValue<int16>;
+
+    float sign = Sign(result);
+    result *= sign; // cheap abs()
+    result -= deadZone;
+    result = Max(0.0f, result);
+    result /= (1.0f - deadZone);
+    result *= sign;
+
     return result;
 }
 

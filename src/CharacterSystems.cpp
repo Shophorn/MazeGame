@@ -137,61 +137,56 @@ struct CharacterControllerSideScroller
 
 struct CharacterController3rdPerson
 {
-	/*
-	Transform3D * transform;
+	// References
+	Handle<Transform3D> transform;
+	Handle<Collider> 	collider;
 
-
+	// Properties
 	float speed = 10;
-	float collisionRadius = 0.5f;
 
+	// State
+	float zSpeed;
+	float zRotationRadians;
+	
 	void
 	Update(	game::Input * input,
 			Camera * worldCamera,
-			ArenaArray<Rectangle> * colliders)
+			CollisionManager * collisionManager)
 	{
-		bool32 grounded = character->transform.position.z < 0.1f;
+		bool32 grounded = transform->position.z < 0.1f;
 
-		Vector3 characterMovementVector = ProcessCharacterInput(input, worldCamera);
+		Vector3 movementVector 	= ProcessCharacterInput(input, worldCamera);
+		Vector3 newPosition 	= transform->position + movementVector * speed * input->elapsedTime;
 
-		Vector3 characterNewPosition = character->transform.position + characterMovementVector * speed * input->elapsedTime;
-
-		// Collisions
-		Circle characterCollisionCircle = {characterNewPosition.x, characterNewPosition.y, collisionRadius};
-
-		CollisionResult collisionResult = GetCollisions(characterCollisionCircle, colliders);
-
-		if (collisionResult.isCollision == false)
-		{
-			character->transform.position = characterNewPosition;
-		}
+		transform->position 	= newPosition;
 
 		if (grounded && input->jump.IsClicked())
 		{
-			character->zSpeed = 5;
+			zSpeed = 5;
 		}
 
-		character->transform.position.z += character->zSpeed * input->elapsedTime;
+		transform->position.z += zSpeed * input->elapsedTime;
 
-		if (character->transform.position.z > 0)
+		if (transform->position.z > 0)
 		{	
-			character->zSpeed -= 2 * 9.81 * input->elapsedTime;
+			zSpeed -= 2 * 9.81 * input->elapsedTime;
 		}
 		else
 		{
-			character->zSpeed = 0;
-	        character->transform.position.z = 0;
+			zSpeed = 0;
+	        transform->position.z = 0;
 		}
 
 		
 		float epsilon = 0.001f;
 		if (Abs(input->move.x) > epsilon || Abs(input->move.y) > epsilon)
 		{
-			Vector3 characterForward = Normalize(characterMovementVector);
+			Vector3 characterForward = Normalize(movementVector);
 			float angleToWorldForward = SignedAngle(World::Forward, characterForward, World::Up);
-			character->zRotationRadians = angleToWorldForward;
+			zRotationRadians = angleToWorldForward;
 		}
 
-		character->transform.rotation = Quaternion::AxisAngle(World::Up, character->zRotationRadians);
+		transform->rotation = Quaternion::AxisAngle(World::Up, zRotationRadians);
 	}
-	*/
+	
 };

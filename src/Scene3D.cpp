@@ -15,11 +15,9 @@ namespace scene_3d
 		// Todo(Leo): make this similar 'system' to others
 		CollisionManager collisionManager;
 
-
 		Camera worldCamera;
-		// CameraController3rdPerson cameraController;
-		CameraControllerSideScroller cameraController;
-		CharacterControllerSideScroller characterController;
+		CameraController3rdPerson cameraController;
+		CharacterController3rdPerson characterController;
 
 		// Todo(Leo): make animation state controller or similar for these
 		AnimationClip 	laddersUpAnimation;
@@ -55,7 +53,7 @@ scene_3d::update(void * scenePtr, game::Input * input, game::RenderInfo * render
 	scene->collisionManager.do_collisions();
 
 	/// Update Character
-	scene->characterController.Update(input, &scene->collisionManager);
+	scene->characterController.Update(input, &scene->worldCamera, &scene->collisionManager);
 	update_animator_system(input, scene->animatorSystem);
 
 	scene->cameraController.Update(input);
@@ -67,9 +65,6 @@ internal void
 scene_3d::load(void * scenePtr, MemoryArena * persistentMemory, MemoryArena * transientMemory, game::PlatformInfo * platformInfo)
 {
 	Scene * scene = reinterpret_cast<Scene*>(scenePtr);
-
-	// auto * persistentMemory = &state->persistentMemoryArena;
-	// auto * transientMemory = &state->transientMemoryArena;
 
 	allocate_for_handle<Transform3D>(persistentMemory, 100);
 	allocate_for_handle<Collider>(persistentMemory, 100);
@@ -163,8 +158,8 @@ scene_3d::load(void * scenePtr, MemoryArena * persistentMemory, MemoryArena * tr
 		};
 
 
-		scene->characterController.OnTriggerLadder1 = &scene->ladderTrigger1;
-		scene->characterController.OnTriggerLadder2 = &scene->ladderTrigger2;
+		// scene->characterController.OnTriggerLadder1 = &scene->ladderTrigger1;
+		// scene->characterController.OnTriggerLadder2 = &scene->ladderTrigger2;
 
 		// Other dude
 		transform 	= make_handle<Transform3D>({2, 0.5f, 12.25f});
