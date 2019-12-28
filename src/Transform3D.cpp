@@ -10,7 +10,7 @@ struct Transform3D
 
 	Handle<Transform3D> parent;
 
-	Matrix44 get_matrix() const noexcept
+	Matrix44 get_matrix()
 	{
 		/* Study(Leo): members of this struct are ordered so that position and scale would
 		occupy first half of struct, and rotation the other half by itself. Does this matter,
@@ -26,7 +26,7 @@ struct Transform3D
 		return result;
 	}
 
-	Vector3 get_world_position() const noexcept
+	Vector3 get_world_position()
 	{
 		if (is_handle_valid(parent))
 		{

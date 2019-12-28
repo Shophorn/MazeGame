@@ -33,7 +33,7 @@ struct MemoryArena
 internal byte *
 reserve_from_memory_arena(MemoryArena * arena, uint64 size)
 {
-	size = align_up_to(size, 64);
+	size = align_up_to(size, MemoryArena::defaultAlignment);
 	
 	MAZEGAME_ASSERT(size <= arena->available(), "Not enough memory available in MemoryArena");
 
@@ -77,8 +77,8 @@ using default_index_type = uint64;
 
 struct ArrayHeader
 {
-	uint64 capacity;
-	uint64 count;
+	uint64 capacityInBytes;
+	uint64 countInBytes;
 };
 
 template<typename T, typename TIndex = default_index_type>
@@ -99,8 +99,8 @@ struct ArenaArray
 	And store pointer to arena instead? */
 	byte * _data;
 
-	uint64 capacity () 		{ return (_header()->capacity) / sizeof(T); }
-	uint64 count ()  		{ return (_header()->count) / sizeof(T); }
+	uint64 capacity () 		{ return (_header()->capacityInBytes) / sizeof(T); }
+	uint64 count ()  		{ return (_header()->countInBytes) / sizeof(T); }
 
 	T * begin() 			{ return reinterpret_cast<T*>(_data + sizeof(ArrayHeader)); }
 	T * end() 				{ return begin() + count(); }
@@ -138,14 +138,14 @@ template <typename T, typename TIndex> internal void
 set_array_capacity(ArenaArray<T, TIndex> array, uint64 capacity)
 {
 	uint64 capacityInBytes = capacity * sizeof(T);
-	get_array_header(array)->capacity = capacityInBytes;
+	get_array_header(array)->capacityInBytes = capacityInBytes;
 }
 
 template <typename T, typename TIndex> internal void 
 set_array_count(ArenaArray<T, TIndex> array, uint64 count)
 {
 	uint64 countInBytes = count * sizeof(T);
-	get_array_header(array)->count = countInBytes;
+	get_array_header(array)->countInBytes = countInBytes;
 }
 
 template<typename T, typename TIndex = default_index_type>
@@ -233,6 +233,7 @@ reverse_arena_array(ArenaArray<T, TIndex> array)
 		array[lastIndex - i] = temp;
 	}
 }
+
 
 template<typename T, typename TIndex>
 internal TIndex
