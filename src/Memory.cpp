@@ -101,10 +101,10 @@ struct ArenaArray
 
 	/* Todo(Leo): Maybe make this also just an offset from start of arena.
 	And store pointer to arena instead? */
-	byte * _data;
+	byte * _data = nullptr;
 
-	uint64 capacity () 		{ return (_header()->capacityInBytes) / sizeof(T); }
-	uint64 count ()  		{ return (_header()->countInBytes) / sizeof(T); }
+	uint64 capacity () 		{ return (get_header()->capacityInBytes) / sizeof(T); }
+	uint64 count ()  		{ return (get_header()->countInBytes) / sizeof(T); }
 
 	T * begin() 			{ return reinterpret_cast<T*>(_data + sizeof(ArrayHeader)); }
 	T * end() 				{ return begin() + count(); }
@@ -116,8 +116,12 @@ struct ArenaArray
 	}
 
 private:
-	inline auto * 
-	_header () { return reinterpret_cast<ArrayHeader*>(_data); }
+	inline ArrayHeader * 
+	get_header ()
+	{ 
+		MAZEGAME_ASSERT(_data != nullptr, "Invalid call to 'get_header()', ArenaArray is not initialized.");
+		return reinterpret_cast<ArrayHeader*>(_data);
+	}
 
 	inline void
 	assert_index_validity(TIndex index)
@@ -134,18 +138,20 @@ template<typename T, typename TIndex>
 internal ArrayHeader *
 get_array_header(ArenaArray<T, TIndex> array)
 {
-	auto * result = reinterpret_cast<ArrayHeader *>(array._data);
-	return result;
+	MAZEGAME_ASSERT(array._data != nullptr, "Invalid call to 'get_array_header()', ArenaArray is not initialized.");
+	return reinterpret_cast<ArrayHeader *>(array._data);
 }
 
-template <typename T, typename TIndex> internal void 
+template <typename T, typename TIndex>
+internal void 
 set_array_capacity(ArenaArray<T, TIndex> array, uint64 capacity)
 {
 	uint64 capacityInBytes = capacity * sizeof(T);
 	get_array_header(array)->capacityInBytes = capacityInBytes;
 }
 
-template <typename T, typename TIndex> internal void 
+template <typename T, typename TIndex>
+internal void 
 set_array_count(ArenaArray<T, TIndex> array, uint64 count)
 {
 	uint64 countInBytes = count * sizeof(T);
@@ -243,6 +249,7 @@ template<typename T, typename TIndex>
 internal TIndex
 push_one(ArenaArray<T, TIndex> array, T item)
 {
+	MAZEGAME_ASSERT(array.capacity() > 0, "Cannot push, ArenaArray is not initialized!");
 	MAZEGAME_ASSERT(array.count() < array.capacity(), "Cannot push, ArenaArray is full!");
 
 	TIndex index = {array.count()};

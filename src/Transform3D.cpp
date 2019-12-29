@@ -37,3 +37,8 @@ struct Transform3D
 	}
 };
 
+internal Vector3 get_forward(Transform3D * transform)
+{
+	Vector3 forward = get_rotation_matrix(transform->rotation) * World::Forward;
+	return forward;
+}

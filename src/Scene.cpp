@@ -5,13 +5,23 @@ shophorn @ internet
 Scene description definitions
 =============================================================================*/
 
+enum MenuResult
+{ 	
+	MENU_NONE,
+	MENU_EXIT,
+	MENU_LOADLEVEL_2D,
+	MENU_LOADLEVEL_3D,
+
+	SCENE_CONTINUE,
+	SCENE_EXIT
+};
+
 using GetAllocSizeFunc 	= uint64();
 
 using LoadSceneFunc 	= void( void *					scenePtr,
 								MemoryArena *			persistentMemory,
 								MemoryArena *			transientMemory,
 								game::PlatformInfo *	platform);
-
 
 using UpdateSceneFunc 	= void(	void * 					scenePtr,
 								game::Input * 			input,
@@ -37,6 +47,7 @@ make_scene_info(GetAllocSizeFunc * getAllocSizeFunc, LoadSceneFunc * loadFunc, U
 	};
 	return result;
 }
+
 using LoadGuiFunc 	= LoadSceneFunc;
 
 using UpdateGuiFunc	= MenuResult(	void * 					guiPtr,

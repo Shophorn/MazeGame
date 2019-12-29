@@ -9,11 +9,9 @@ namespace scene_3d
 {
 	struct Scene
 	{
-		ArenaArray<RenderSystemEntry> renderSystem;
-		ArenaArray<Handle<Animator>> animatorSystem;
-
-		// Todo(Leo): make this similar 'system' to others
-		CollisionManager collisionManager;
+		ArenaArray<RenderSystemEntry> renderSystem = {};
+		ArenaArray<Handle<Animator>> animatorSystem = {};
+		CollisionSystem3D collisionSystem = {};
 
 		Camera worldCamera;
 		CameraController3rdPerson cameraController;
@@ -50,13 +48,12 @@ scene_3d::update(void * scenePtr, game::Input * input, game::RenderInfo * render
 {
 	Scene * scene = reinterpret_cast<Scene*>(scenePtr);
 
-	scene->collisionManager.do_collisions();
+	// scene->collisionManager.do_collisions();
 
-	/// Update Character
-	scene->characterController.Update(input, &scene->worldCamera, &scene->collisionManager);
+	update(&scene->characterController, input, &scene->worldCamera, &scene->collisionSystem);
 	update_animator_system(input, scene->animatorSystem);
 
-	scene->cameraController.Update(input);
+	update(&scene->cameraController, input);
     update_camera_system(renderer, platform, input, &scene->worldCamera);
 	update_render_system(renderer, scene->renderSystem);
 }
@@ -66,19 +63,15 @@ scene_3d::load(void * scenePtr, MemoryArena * persistentMemory, MemoryArena * tr
 {
 	Scene * scene = reinterpret_cast<Scene*>(scenePtr);
 
-	allocate_for_handle<Transform3D>(persistentMemory, 100);
-	allocate_for_handle<Collider>(persistentMemory, 100);
-	allocate_for_handle<Renderer>(persistentMemory, 100);
-	allocate_for_handle<Animator>(persistentMemory, 100);
+	// Note(Leo): amounts are SWAG, rethink.
+	allocate_for_handle<Transform3D>	(persistentMemory, 100);
+	allocate_for_handle<BoxCollider3D>	(persistentMemory, 100);
+	allocate_for_handle<Renderer>		(persistentMemory, 100);
+	allocate_for_handle<Animator>		(persistentMemory, 100);
 
 	scene->renderSystem = reserve_array<RenderSystemEntry>(persistentMemory, 100);
 	scene->animatorSystem = reserve_array<Handle<Animator>>(persistentMemory, 100);
-
-	scene->collisionManager =
-	{
-		.colliders 	= reserve_array<Handle<Collider>>(persistentMemory, 200),
-		.collisions = reserve_array<Collision>(persistentMemory, 300) // Todo(Leo): Not enough..
-	};
+	scene->collisionSystem.colliders = reserve_array<CollisionSystemEntry>(persistentMemory, 100);
 
 	struct MaterialCollection {
 		MaterialHandle character;
@@ -151,12 +144,7 @@ scene_3d::load(void * scenePtr, MemoryArena * persistentMemory, MemoryArena * tr
 
 		push_one(scene->renderSystem, {transform, renderer});
 
-		scene->characterController 	= 
-		{
-			.transform 	= transform,
-			.collider 	= push_collider(&scene->collisionManager, transform, {0.4f, 0.8f}, {0.0f, 0.5f}),
-		};
-
+		scene->characterController = make_character(transform);
 
 		// scene->characterController.OnTriggerLadder1 = &scene->ladderTrigger1;
 		// scene->characterController.OnTriggerLadder2 = &scene->ladderTrigger2;
@@ -188,11 +176,6 @@ scene_3d::load(void * scenePtr, MemoryArena * persistentMemory, MemoryArena * tr
 		constexpr float width = 100;
 		constexpr float ladderHeight = 1.0f;
 
-		constexpr bool32 addPillars 	= true;
-		constexpr bool32 addLadders 	= true;
-		constexpr bool32 addButtons 	= true;
-		constexpr bool32 addPlatforms 	= true;
-
 		{
 			auto groundQuad 	= mesh_primitives::create_quad(transientMemory);
 			auto meshTransform	= Matrix44::Translate({-width / 2, -depth /2, 0}) * Matrix44::Scale({width, depth, 0});
@@ -204,28 +187,33 @@ scene_3d::load(void * scenePtr, MemoryArena * persistentMemory, MemoryArena * tr
 			auto transform 			= make_handle<Transform3D>({});
 
 			push_one(scene->renderSystem, {transform, renderer});
-			push_collider(&scene->collisionManager, transform, {100, 1}, {0, -1.0f});
 		}
 
-		if (addPillars)
 		{
 			auto pillarMesh 		= load_model_glb(transientMemory, "models/big_pillar.glb", "big_pillar");
 			auto pillarMeshHandle 	= push_mesh(&pillarMesh);
 
-			auto renderer 	= make_handle<Renderer>({push_renderer(pillarMeshHandle, materials.environment)});
-			auto transform 	= make_handle<Transform3D>({-width / 4, 0, 0});
+			auto renderer 	= make_handle<Renderer> ({push_renderer(pillarMeshHandle, materials.environment)});
+			auto transform 	= make_handle<Transform3D> ({-width / 4, 0, 0});
+			auto collider 	= make_handle<BoxCollider3D> ({
+				.extents 	= {2, 2, 50},
+				.center 	= {0, 0, 25}
+			});
 
 			push_one(scene->renderSystem, {transform, renderer});
-			push_collider(&scene->collisionManager, transform, {2, 25});
+			push_collider_to_system(&scene->collisionSystem, collider, transform);
 
-			renderer = make_handle<Renderer>({push_renderer(pillarMeshHandle, materials.environment)});
-			transform = make_handle<Transform3D>({width / 4, 0, 0});
+			renderer 	= make_handle<Renderer>({push_renderer(pillarMeshHandle, materials.environment)});
+			transform 	= make_handle<Transform3D>({width / 4, 0, 0});
+			collider 	= make_handle<BoxCollider3D>({
+				.extents 	= {2, 2, 50},
+				.center 	= {0, 0, 25}
+			});
 
 			push_one(scene->renderSystem, {transform, renderer});
-			push_collider(&scene->collisionManager, transform, {2, 25});
+			push_collider_to_system(&scene->collisionSystem, collider, transform);
 		}
 
-		if (addLadders)
 		{
 			auto ladderMesh 		= load_model_glb(transientMemory, "models/ladder.glb", "LadderSection");
 			auto ladderMeshHandle 	= push_mesh(&ladderMesh);
@@ -249,10 +237,6 @@ scene_3d::load(void * scenePtr, MemoryArena * persistentMemory, MemoryArena * tr
 				auto transform 	= make_handle<Transform3D>({});
 
 				push_one(scene->renderSystem, {transform, renderer});
-				push_collider(&scene->collisionManager, transform,
-														{1.0f, 0.5f},
-														{0, 0.5f},
-														ColliderTag::Ladder);
 
 				if (ladderIndex < ladder2StartIndex)
 				{
@@ -311,7 +295,6 @@ scene_3d::load(void * scenePtr, MemoryArena * persistentMemory, MemoryArena * tr
 			};
 		}
 
-		if (addPlatforms)
 		{
 			Vector3 platformPositions [] =
 			{
@@ -341,26 +324,31 @@ scene_3d::load(void * scenePtr, MemoryArena * persistentMemory, MemoryArena * tr
 				auto transform 	= make_handle<Transform3D>({platformPositions[platformIndex]});
 
 				push_one(scene->renderSystem, {transform, renderer});
-				push_collider(&scene->collisionManager, transform, {1.0f, 0.25f});
 			}
 		}
 
-		if(addButtons)
 		{
 			auto keyholeMeshAsset 	= load_model_obj(transientMemory, "models/keyhole.obj");
 			auto keyholeMeshHandle 	= push_mesh (&keyholeMeshAsset);
 
 			auto renderer 	= make_handle<Renderer>({push_renderer(keyholeMeshHandle, materials.environment)});
 			auto transform 	= make_handle<Transform3D>({Vector3{-3, 0, 0}});
+			auto collider 	= make_handle<BoxCollider3D>({
+				.extents 	= {0.3f, 0.3f, 0.6f},
+				.center 	= {0, 0, 0.3f}
+			});
 
 			push_one(scene->renderSystem, {transform, renderer});
-			push_collider(&scene->collisionManager, transform, {0.3f, 0.6f}, {0, 0.3f}, ColliderTag::Trigger);
+			push_collider_to_system(&scene->collisionSystem, collider, transform);
 
 			renderer 	= make_handle<Renderer>({push_renderer(keyholeMeshHandle, materials.environment)});
 			transform 	= make_handle<Transform3D>({Vector3{4, 0, 6}});
-
+			collider 	= make_handle<BoxCollider3D>({
+				.extents 	= {0.3f, 0.3f, 0.6f},
+				.center 	= {0, 0, 0.3f}
+			});
 			push_one(scene->renderSystem, {transform, renderer});
-			push_collider(&scene->collisionManager, transform, {0.3f, 0.6f}, {0, 0.3f}, ColliderTag::Trigger2);
+			push_collider_to_system(&scene->collisionSystem, collider, transform);
 		}
 	}
 }

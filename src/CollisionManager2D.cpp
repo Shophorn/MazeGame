@@ -6,7 +6,7 @@ enum struct ColliderTag : int32
 	Ladder,
 };
 
-struct Collision
+struct Collision2D
 {
 	Vector3 		position;
 	Vector3 		normal;
@@ -14,7 +14,7 @@ struct Collision
 };
 
 
-struct Collider
+struct Collider2D
 {
 	Handle<Transform3D>	transform;
 	Vector2			extents;
@@ -23,13 +23,13 @@ struct Collider
 	ColliderTag	tag;
 
 	bool32 			hasCollision;
-	Collision * 	collision;
+	Collision2D * 	collision;
 };
 
-struct CollisionManager
+struct CollisionManager2D
 {
-	ArenaArray<Handle<Collider>> colliders;
-	ArenaArray<Collision> collisions;
+	ArenaArray<Handle<Collider2D>> colliders;
+	ArenaArray<Collision2D> collisions;
 
 	bool32
 	raycast(Vector2 origin, Vector2 ray, bool32 laddersBlock)
@@ -41,11 +41,12 @@ struct CollisionManager
 
 		for (int32 i = 0; i < colliders.count(); ++i)
 		{
-			MAZEGAME_ASSERT(is_handle_valid(colliders[i]->transform), "Invalid transform passed to Collider");
+			MAZEGAME_ASSERT(is_handle_valid(colliders[i]->transform), "Invalid transform passed to Collider2D");
 
 			switch(colliders[i]->tag)
 			{
 				case ColliderTag::Default:
+					// Note(Leo): This means we stay in loop, confusing much
 					break;
 
 				case ColliderTag::Trigger:
@@ -76,7 +77,7 @@ struct CollisionManager
 			auto AD = corners[2] - corners[0];
 
 			bool32 startInside = 	(0 < Dot(AMstart, AB) && Dot(AMstart, AB) < Dot (AB, AB))
-								&& (0 < Dot(AMstart, AD) && Dot(AMstart, AD) < Dot (AD, AD));
+									&& (0 < Dot(AMstart, AD) && Dot(AMstart, AD) < Dot (AD, AD));
 
 			bool32 endInside = 	(0 < Dot(AMend, AB) && Dot(AMend, AB) < Dot (AB, AB))
 								&& (0 < Dot(AMend, AD) && Dot(AMend, AD) < Dot (AD, AD));
@@ -149,19 +150,18 @@ struct CollisionManager
 					colliders[b]->collision = &collisions[collisionIndexForB];
 				}
 			}
-
 		}
 	}
 };
 
-internal Handle<Collider>
-push_collider(	CollisionManager * manager,
+internal Handle<Collider2D>
+push_collider(	CollisionManager2D * manager,
 				Handle<Transform3D> transform,
 				Vector2 extents,
 				Vector2 offset = {0, 0},
 				ColliderTag tag = ColliderTag::Default)
 {
-	auto collider = make_handle<Collider>({
+	auto collider = make_handle<Collider2D>({
 		.transform 	= transform,
 		.extents 	= extents,
 		.offset		= offset,

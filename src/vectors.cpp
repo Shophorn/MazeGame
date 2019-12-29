@@ -472,6 +472,15 @@ Normalize(VECTOR_TYPE vec)
 	return result;
 }
 
+namespace vector
+{
+	VECTOR_TEMPLATE void
+	dissect(VECTOR_TYPE vec, VECTOR_TYPE * outDirection, ValueType * outLength)
+	{
+		*outLength = Length(vec);
+		*outDirection = vec / (*outLength);
+	}
+}
 VECTOR_TEMPLATE VECTOR_TYPE
 ClampLength(VECTOR_TYPE vec, ValueType requestedLength)
 {

@@ -13,7 +13,7 @@ namespace scene_2d
 		ArenaArray<Handle<Animator>> animatorSystem;
 
 		// Todo(Leo): make this similar 'system' to others
-		CollisionManager collisionManager;
+		CollisionManager2D collisionManager;
 
 
 		Camera worldCamera;
@@ -55,10 +55,10 @@ scene_2d::update(void * scenePtr, game::Input * input, game::RenderInfo * render
 	scene->collisionManager.do_collisions();
 
 	/// Update Character
-	scene->characterController.Update(input, &scene->collisionManager);
+	scene->characterController.update(input, &scene->collisionManager);
 	update_animator_system(input, scene->animatorSystem);
 
-	scene->cameraController.Update(input);
+	scene->cameraController.update(input);
     update_camera_system(renderer, platform, input, &scene->worldCamera);
 	update_render_system(renderer, scene->renderSystem);
 }
@@ -73,7 +73,7 @@ scene_2d::load(void * scenePtr, MemoryArena * persistentMemory, MemoryArena * tr
 
 
 	allocate_for_handle<Transform3D>(persistentMemory, 100);
-	allocate_for_handle<Collider>(persistentMemory, 100);
+	allocate_for_handle<Collider2D>(persistentMemory, 100);
 	allocate_for_handle<Renderer>(persistentMemory, 100);
 	allocate_for_handle<Animator>(persistentMemory, 100);
 
@@ -82,8 +82,8 @@ scene_2d::load(void * scenePtr, MemoryArena * persistentMemory, MemoryArena * tr
 
 	scene->collisionManager =
 	{
-		.colliders 	= reserve_array<Handle<Collider>>(persistentMemory, 200),
-		.collisions = reserve_array<Collision>(persistentMemory, 300) // Todo(Leo): Not enough..
+		.colliders 	= reserve_array<Handle<Collider2D>>(persistentMemory, 200),
+		.collisions = reserve_array<Collision2D>(persistentMemory, 300) // Todo(Leo): Not enough..
 	};
 
 	struct MaterialCollection {

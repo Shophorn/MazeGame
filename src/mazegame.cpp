@@ -13,8 +13,10 @@ Leo Tamminen
 #include "Transform3D.cpp"
 #include "Animator.cpp"
 #include "Camera.cpp"
-#include "Collisions.cpp"
-#include "CollisionManager.cpp"
+#include "Collisions2D.cpp"
+#include "CollisionManager2D.cpp"
+#include "Collisions3D.cpp"
+
 #include "CharacterSystems.cpp"
 #include "CameraController.cpp"
 #include "RenderingSystem.cpp"
@@ -24,17 +26,6 @@ Leo Tamminen
 #include "AudioFile.cpp"
 #include "MeshLoader.cpp"
 #include "TextureLoader.cpp"
-
-// struct Button
-// {
-// 	 Todo(Leo):
-// 		- on click event
-
-// 		- on down gui index
-// 		- on up gui index
-	
-// };
-enum MenuResult { MENU_NONE, MENU_EXIT, MENU_LOADLEVEL_3D, MENU_LOADLEVEL_2D, SCENE_CONTINUE, SCENE_EXIT };
 
 #include "Scene.cpp"
 #include "Scene2D.cpp"
@@ -53,6 +44,7 @@ struct GameState
 	MemoryArena persistentMemoryArena;
 	MemoryArena transientMemoryArena;
 
+	// Todo(Leo): Maybe store game pointer to info struct??
 	SceneInfo loadedSceneInfo;
 	void * loadedScene;
 
@@ -170,7 +162,7 @@ GameUpdate(
 	}
 	flush_memory_arena(&state->transientMemoryArena);
 
-	if (state->loadedScene)
+	if (state->loadedScene != nullptr)
 	{
 		state->loadedSceneInfo.update(state->loadedScene, input, outRenderInfo, platform);
 	}
@@ -216,7 +208,7 @@ GameUpdate(
 	}
 	
 
-
+	// Todo(Leo): These still do not belong here
 	if (input->select.IsClicked())
 	{
 		if (platform->windowIsFullscreen)

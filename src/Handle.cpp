@@ -19,6 +19,12 @@ struct Handle
 		return &storage[_index];
 	}
 
+	operator T * ()
+	{
+		MAZEGAME_ASSERT(_index > -1, "Cannot reference uninitialized Handle.");
+		return &storage[_index];	
+	}
+
 	inline global_variable ArenaArray<T> storage;
 };
 

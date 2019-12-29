@@ -14,7 +14,7 @@ struct CameraControllerSideScroller
 	float relativeZoomSpeed 	= 1.0f;
 
 	void
-	Update(game::Input * input)
+	update(game::Input * input)
 	{
 		if (input->zoomIn.IsPressed())
 		{
@@ -69,7 +69,7 @@ struct CameraController3rdPerson
 	float maxDistance 			= 100.0f;
 
 	void 
-	Update(game::Input * input)
+	update(game::Input * input)
 	{
 		if (input->zoomIn.IsPressed())
 		{
@@ -81,8 +81,6 @@ struct CameraController3rdPerson
 			distance += distance * relativeZoomSpeed * input->elapsedTime;
 			distance = Min(distance, maxDistance);
 		}
-
-		std::cout << "[CAMERA]: horizontal input = " << input->look.x << "\n";
 
 	    orbitDegrees += input->look.x * rotateSpeed * input->elapsedTime;
 	    
@@ -97,7 +95,6 @@ struct CameraController3rdPerson
 			Cosine(DegToRad * orbitDegrees) * cameraHorizontalDistance,
 			Sine(DegToRad * tumbleDegrees) * cameraDistance
 	    };
-
 
 	    /*
 	    Todo[Camera] (Leo): This is good effect, but its too rough like this,
@@ -116,3 +113,10 @@ struct CameraController3rdPerson
 		camera->LookAt(targetPosition);				
 	}
 };
+
+// Todo(Leo): Do I want this really?
+internal void
+update(CameraController3rdPerson * controller, game::Input * input)
+{
+	controller->update(input);
+}

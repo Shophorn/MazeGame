@@ -200,6 +200,16 @@ union MatrixBase
 
 };
 
+using Matrix44 = MatrixBase<real32, 4, 4>;
+
+
+// Note(Leo): new style functions here
+// Todo(Leo): make all like this
+Matrix44 get_rotation_matrix(Quaternion quaternion)
+{
+	Matrix44 result = Matrix44::Rotate(quaternion);
+	return result;
+}
 
 template <typename ValueType, int LeftRows, int InnerSize, int RightColumns>
 auto operator * (
@@ -247,9 +257,6 @@ namespace std
 	}
 }
 #endif
-
-
-using Matrix44 = MatrixBase<real32, 4, 4>;
 
 
 // Todo (Leo): make template
