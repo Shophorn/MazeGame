@@ -32,7 +32,7 @@ staging buffer and actual vertex buffer. https://vulkan-tutorial.com/en/Vertex_b
 
 #include "MazegamePlatform.hpp"
 
-// Todo(Leo): hack to get two controller on single pc and still use 1st controller when online
+// Todo(Leo): hack to get two controller on single pc and use only 1st controller when online
 global_variable int globalXinputControllerIndex;
 
 #include "winapi_WindowMessages.cpp"
@@ -102,7 +102,7 @@ a proper named struct/namespace to hold this pointer */
 #define XInputSetState XInputSetState_
 
 internal void
-LoadXInput()
+load_xinput()
 {
     // TODO(Leo): check other xinput versions and pick most proper
     HMODULE xinputModule = LoadLibraryA("xinput1_3.dll");
@@ -120,7 +120,7 @@ LoadXInput()
 }
 
 internal float
-ReadXInputJoystickValue(int16 value)
+xinput_convert_joystick_value(int16 value)
 {
     float deadZone = 0.2f;
     float result = static_cast<float>(value) / MaxValue<int16>;
@@ -135,79 +135,107 @@ ReadXInputJoystickValue(int16 value)
     return result;
 }
 
-
-
-internal void
-UpdateControllerInput(game::Input * input)
+internal bool32
+xinput_is_used(winapi::State * winState, XINPUT_STATE * xinputState)
 {
-    /* TODO[Input](Leo): Obviously not to stay static for too long, but when we
-    remove the qualifier, we need to also take care of controllers being connected
-    and disconnected and possibly ending at different index. 
+    bool32 used = (xinputState->Gamepad.wButtons != 0)
+                || (xinputState->Gamepad.bLeftTrigger != 0)
+                || (xinputState->Gamepad.bRightTrigger != 0)
+                || (Abs(xinput_convert_joystick_value(xinputState->Gamepad.sThumbLX)) > 0.0f)
+                || (Abs(xinput_convert_joystick_value(xinputState->Gamepad.sThumbLY)) > 0.0f)
+                || (Abs(xinput_convert_joystick_value(xinputState->Gamepad.sThumbRX)) > 0.0f)
+                || (Abs(xinput_convert_joystick_value(xinputState->Gamepad.sThumbRY)) > 0.0f);
 
-    TODO [Input](Leo): Test controller and index behaviour when being connected and
-    disconnected */
-    local_persist bool32
-        aButtonWasDown          = false,
-        bButtonWasDown          = false,
+    used = used || winState->xinputLastPacketNumber != xinputState->dwPacketNumber;
+    winState->xinputLastPacketNumber = xinputState->dwPacketNumber;
 
-        startButtonWasDown      = false,
-        backButtonWasDown       = false,
-        zoomInButtonWasDown     = false,
-        zoomOutButtonWasDown    = false,
-
-        leftButtonWasDown       = false,
-        rightButtonWasDown      = false,
-        downButtonWasDown       = false,
-        upButtonWasDown         = false;
-
-
-    /* Note(Leo): Only get input from a single controller, locally this is a single
-    player game. Use global controller index depending on network status to test
-    multiplayering */
-    XINPUT_STATE controllerState;
-    DWORD result = XInputGetState(globalXinputControllerIndex, &controllerState);
-
-    if (result == ERROR_SUCCESS)
-    {
-        input->move = { 
-            ReadXInputJoystickValue(controllerState.Gamepad.sThumbLX),
-            ReadXInputJoystickValue(controllerState.Gamepad.sThumbLY)};
-        input->move = ClampLength(input->move, 1.0f);
-
-        input->look = {
-            ReadXInputJoystickValue(controllerState.Gamepad.sThumbRX),
-            ReadXInputJoystickValue(controllerState.Gamepad.sThumbRY)};
-        input->look = ClampLength(input->look, 1.0f);
-
-        uint16 pressedButtons = controllerState.Gamepad.wButtons;
-        auto ProcessButton = [pressedButtons](uint32 button, bool32 * wasDown) -> game::InputButtonState
-        {
-            bool32 isDown = (pressedButtons & button) != 0;
-            auto result = game::InputButtonState::FromCurrentAndPrevious(7 * isDown, 18 * (*wasDown));
-            *wasDown = isDown;
-            return result;
-        };
-
-        input->jump     = ProcessButton(XINPUT_GAMEPAD_A, &aButtonWasDown);
-        input->confirm  = ProcessButton(XINPUT_GAMEPAD_B, &bButtonWasDown);
-        input->interact = input->confirm;
-
-        input->start    = ProcessButton(XINPUT_GAMEPAD_START, &startButtonWasDown);
-        input->select   = ProcessButton(XINPUT_GAMEPAD_BACK, &backButtonWasDown);
-        input->zoomIn   = ProcessButton(XINPUT_GAMEPAD_LEFT_SHOULDER, &zoomInButtonWasDown);
-        input->zoomOut  = ProcessButton(XINPUT_GAMEPAD_RIGHT_SHOULDER, &zoomInButtonWasDown);
-
-        input->left     = ProcessButton(XINPUT_GAMEPAD_DPAD_LEFT, &leftButtonWasDown);
-        input->right    = ProcessButton(XINPUT_GAMEPAD_DPAD_RIGHT, &rightButtonWasDown);
-        input->down     = ProcessButton(XINPUT_GAMEPAD_DPAD_DOWN, &downButtonWasDown);
-        input->up       = ProcessButton(XINPUT_GAMEPAD_DPAD_UP, &upButtonWasDown);
-    }
-    else 
-    {
-        // No controller?????
-    }
+    return used;
 }
 
+internal void
+update_controller_input(game::Input * input, XINPUT_STATE * xinput)
+{
+    input->move = { 
+        xinput_convert_joystick_value(xinput->Gamepad.sThumbLX),
+        xinput_convert_joystick_value(xinput->Gamepad.sThumbLY)};
+    input->move = ClampLength(input->move, 1.0f);
+
+    input->look = {
+        xinput_convert_joystick_value(xinput->Gamepad.sThumbRX),
+        xinput_convert_joystick_value(xinput->Gamepad.sThumbRY)};
+    input->look = ClampLength(input->look, 1.0f);
+
+    uint16 pressedButtons = xinput->Gamepad.wButtons;
+    auto is_down = [pressedButtons](uint32 button) -> bool32
+    {
+        bool32 isDown = (pressedButtons & button) != 0;
+        return isDown;
+    };
+
+    input->jump     = update_button_state(input->jump,      is_down(XINPUT_GAMEPAD_A));
+    input->confirm  = update_button_state(input->confirm,   is_down(XINPUT_GAMEPAD_B));
+    input->interact = input->confirm;
+
+    input->start    = update_button_state(input->start,     is_down(XINPUT_GAMEPAD_START));
+    input->select   = update_button_state(input->select,    is_down(XINPUT_GAMEPAD_BACK));
+    input->zoomIn   = update_button_state(input->zoomIn,    is_down(XINPUT_GAMEPAD_LEFT_SHOULDER));
+    input->zoomOut  = update_button_state(input->zoomOut,   is_down(XINPUT_GAMEPAD_RIGHT_SHOULDER));
+
+    input->left     = update_button_state(input->left,      is_down(XINPUT_GAMEPAD_DPAD_LEFT));
+    input->right    = update_button_state(input->right,     is_down(XINPUT_GAMEPAD_DPAD_RIGHT));
+    input->down     = update_button_state(input->down,      is_down(XINPUT_GAMEPAD_DPAD_DOWN));
+    input->up       = update_button_state(input->up,        is_down(XINPUT_GAMEPAD_DPAD_UP));
+}
+
+/* Todo(Leo): this may not be thread-safe because windows callbacks can probably come anytime.
+Maybe make 2 structs and toggle between them, so when we start reading, we use the other one for writing*/
+internal void
+update_keyboard_input(game::Input * gameInput, winapi::KeyboardInput * keyboardInput)
+{
+    auto bool_to_float = [](bool32 value) { return value ? 1.0f : 0.1f; };
+
+    gameInput->move = 
+    {
+        .x = bool_to_float(keyboardInput->right) - bool_to_float(keyboardInput->left),
+        .y = bool_to_float(keyboardInput->up) - bool_to_float(keyboardInput->down),
+    };
+    gameInput->look = {};
+
+    gameInput->jump     = update_button_state(gameInput->jump,      keyboardInput->space);
+    gameInput->confirm  = update_button_state(gameInput->confirm,   keyboardInput->enter);
+    gameInput->interact = update_button_state(gameInput->interact,  false);
+
+    gameInput->start    = update_button_state(gameInput->start,     keyboardInput->escape);
+    gameInput->select   = update_button_state(gameInput->select,    false);
+    gameInput->zoomIn   = update_button_state(gameInput->zoomIn,    false);
+    gameInput->zoomOut  = update_button_state(gameInput->zoomOut,   false);
+
+    gameInput->left     = update_button_state(gameInput->left,      keyboardInput->left);
+    gameInput->right    = update_button_state(gameInput->right,     keyboardInput->right);
+    gameInput->down     = update_button_state(gameInput->down,      keyboardInput->down);
+    gameInput->up       = update_button_state(gameInput->up,        keyboardInput->up);
+}
+
+internal void
+update_unused_input(game::Input * gameInput)
+{
+    gameInput->move = {};
+    gameInput->look = {};
+
+    gameInput->jump     = update_button_state(gameInput->jump,      false);
+    gameInput->confirm  = update_button_state(gameInput->confirm,   false);
+    gameInput->interact = gameInput->confirm;
+
+    gameInput->start    = update_button_state(gameInput->start,     false);
+    gameInput->select   = update_button_state(gameInput->select,    false);
+    gameInput->zoomIn   = update_button_state(gameInput->zoomIn,    false);
+    gameInput->zoomOut  = update_button_state(gameInput->zoomOut,   false);
+
+    gameInput->left     = update_button_state(gameInput->left,      false);
+    gameInput->right    = update_button_state(gameInput->right,     false);
+    gameInput->down     = update_button_state(gameInput->down,      false);
+    gameInput->up       = update_button_state(gameInput->up,        false);
+}
 
 
 namespace winapi
@@ -368,8 +396,57 @@ namespace winapi
     internal State * 
     GetStateFromWindow(HWND winWindow)
     {
-        State * state = reinterpret_cast<State *> (GetWindowLongPtr(winWindow, GWLP_USERDATA));
+        State * state = reinterpret_cast<State *> (GetWindowLongPtrW(winWindow, GWLP_USERDATA));
         return state;
+    }
+
+    internal void
+    process_keyboard_input(winapi::State * state, WPARAM keycode, bool32 isDown)
+    {
+        enum
+        {
+            VKEY_A = 0x41,
+            VKEY_D = 0x44,
+            VKEY_S = 0x53,
+            VKEY_W = 0x57
+        };
+
+        switch(keycode)
+        {
+            case VKEY_A:
+            case VK_LEFT:
+                state->keyboardInput.left = isDown;
+                break;
+
+            case VKEY_D:
+            case VK_RIGHT:
+                state->keyboardInput.right = isDown;
+                break;
+
+            case VKEY_W:
+            case VK_UP:
+                state->keyboardInput.up = isDown;
+                break;
+
+            case VKEY_S:
+            case VK_DOWN:
+                state->keyboardInput.down = isDown;
+                break;
+
+            case VK_RETURN:
+                state->keyboardInput.enter = isDown;
+                break;
+
+            case VK_ESCAPE:
+                state->keyboardInput.escape = isDown;
+                break;
+
+            case VK_SPACE:
+                state->keyboardInput.space = isDown;
+                break;
+        }
+
+        state->keyboardInputIsUsed = true;
     }
 
     // Note(Leo): CALLBACK specifies calling convention for 32-bit applications
@@ -381,11 +458,25 @@ namespace winapi
 
         switch (message)
         {
+            case WM_KEYDOWN:
+            {
+                std::cout << "WM_KEYDOWN, ";
+                winapi::State * state = winapi::GetStateFromWindow(window);
+                process_keyboard_input(state, wParam, true);
+            } break;
+
+            case WM_KEYUP:
+            {
+                std::cout << "WM_KEYUP\n";
+                winapi::State * state = winapi::GetStateFromWindow(window);
+                process_keyboard_input(state, wParam, false);
+            } break;
+
             case WM_CREATE:
             {
                 CREATESTRUCTW * pCreate = reinterpret_cast<CREATESTRUCTW *>(lParam);
-                winapi::State * pState = reinterpret_cast<winapi::State *>(pCreate->lpCreateParams);
-                SetWindowLongPtrW (window, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(pState));
+                winapi::State * state = reinterpret_cast<winapi::State *>(pCreate->lpCreateParams);
+                SetWindowLongPtrW (window, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(state));
             } break;
 
             case WM_SIZE:
@@ -449,7 +540,7 @@ internal void
 Run(HINSTANCE winInstance)
 {
     winapi::State state = {};
-    LoadXInput();
+    load_xinput();
 
     // ---------- INITIALIZE PLATFORM ------------
     HWND winWindow;
@@ -685,6 +776,7 @@ Run(HINSTANCE winInstance)
     ///             MAIN LOOP                        ///
     ////////////////////////////////////////////////////
     state.isRunning = true;
+    game::Input gameInput = {};
     while(state.isRunning)
     {
 
@@ -710,7 +802,6 @@ Run(HINSTANCE winInstance)
         }
 
         /// ----- HANDLE INPUT -----
-        game::Input gameInput = {};
         {
             // Note(Leo): this is not input only...
             winapi::ProcessPendingMessages(&state, winWindow);
@@ -718,7 +809,35 @@ Run(HINSTANCE winInstance)
             HWND foregroundWindow = GetForegroundWindow();
             bool32 windowIsActive = winWindow == foregroundWindow;
 
-            UpdateControllerInput(&gameInput);
+
+
+            /* Note(Leo): Only get input from a single controller, locally this is a single
+            player game. Use global controller index depending on network status to test
+            multiplayering */
+           /* TODO [Input](Leo): Test controller and index behaviour when being connected and
+            disconnected */
+
+            XINPUT_STATE xinputState;
+            bool32 xinputReceived = XInputGetState(globalXinputControllerIndex, &xinputState) == ERROR_SUCCESS;
+            bool32 xinputUsed = xinputReceived && xinput_is_used(&state, &xinputState);
+
+            if (xinputUsed)
+            {
+                update_controller_input(&gameInput, &xinputState);
+                std::cout << "[INPUT]: xinput, start = " << gameInput.start << "\n";
+            }
+            else if (state.keyboardInputIsUsed)
+            {
+                update_keyboard_input(&gameInput, &state.keyboardInput);
+                std::cout << "[INPUT]: keyboard, start = " << gameInput.start << "\n";
+                state.keyboardInputIsUsed = false;
+            }
+            else
+            {
+                update_unused_input(&gameInput);
+                std::cout << "[INPUT]: unused, start = " << gameInput.start << "\n";
+            }
+
             gameInput.elapsedTime = targetFrameTime;
         }
 

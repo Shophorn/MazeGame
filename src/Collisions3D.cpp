@@ -29,6 +29,8 @@ raycast_3d(	CollisionSystem3D * manager,
 			Vector3 normalizedRayDirection,
 			float rayLength)
 {
+	// https://www.scratchapixel.com/lessons/3d-basic-rendering/minimal-ray-tracer-rendering-simple-shapes/ray-box-intersection
+
 	for (auto entry : manager->colliders)
 	{
 		auto collider = entry.collider;

@@ -39,7 +39,7 @@ default_scene_gui::update(void * guiPtr, game::Input * input, game::RenderInfo *
 	SceneGui * gui = reinterpret_cast<SceneGui*>(guiPtr);
 
 	// Overlay menu
-	if (input->start.IsClicked())
+	if (is_clicked(input->start))
 	{
 		gui->selectedGuiButtonIndex = 0;
 		gui->showGameMenu = !gui->showGameMenu;
@@ -48,13 +48,13 @@ default_scene_gui::update(void * guiPtr, game::Input * input, game::RenderInfo *
 	MenuResult gameMenuResult = MENU_NONE;
 	if (gui->showGameMenu)
 	{
-		if (input->down.IsClicked())
+		if (is_clicked(input->down))
 		{
 			gui->selectedGuiButtonIndex += 1;
 			gui->selectedGuiButtonIndex %= gui->gameGuiButtonCount;
 		}
 
-		if (input->up.IsClicked())
+		if (is_clicked(input->up))
 		{
 			gui->selectedGuiButtonIndex -= 1;
 			if (gui->selectedGuiButtonIndex < 0)
@@ -63,7 +63,7 @@ default_scene_gui::update(void * guiPtr, game::Input * input, game::RenderInfo *
 			}
 		}
 
-		if (input->confirm.IsClicked())
+		if (is_clicked(input->confirm))
 		{
 			switch (gui->selectedGuiButtonIndex)
 			{

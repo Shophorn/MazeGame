@@ -34,13 +34,13 @@ update_gui_render_system(ArenaArray<GuiRendererSystemEntry> system, game::Render
 internal void
 update_menu_gui_navigation_system(MenuGuiState * guiState, game::Input * input)
 {
-	if (input->down.IsClicked())
+	if (is_clicked(input->down))
 	{
 		guiState->selectedGuiIndex += 1;
 		guiState->selectedGuiIndex %= guiState->menuGuiButtonCount;
 	}
 
-	if (input->up.IsClicked())
+	if (is_clicked(input->up))
 	{
 		guiState->selectedGuiIndex -= 1;
 		if (guiState->selectedGuiIndex < 0)
@@ -54,7 +54,7 @@ internal MenuResult
 update_menu_gui_event_system(MenuGuiState * guiState, game::Input * input)
 {
 	MenuResult result = MENU_NONE;
-	if (input->confirm.IsClicked())
+	if (is_clicked(input->confirm))
 	{
 		switch (guiState->selectedGuiIndex)
 		{

@@ -16,12 +16,12 @@ struct CameraControllerSideScroller
 	void
 	update(game::Input * input)
 	{
-		if (input->zoomIn.IsPressed())
+		if (is_clicked(input->zoomIn))
 		{
 			distance -= distance * relativeZoomSpeed * input->elapsedTime;
 			distance = Max(distance, minDistance);
 		}
-		else if(input->zoomOut.IsPressed())
+		else if(is_clicked(input->zoomOut))
 		{
 			distance += distance * relativeZoomSpeed * input->elapsedTime;
 			distance = Min(distance, maxDistance);
@@ -71,12 +71,12 @@ struct CameraController3rdPerson
 	void 
 	update(game::Input * input)
 	{
-		if (input->zoomIn.IsPressed())
+		if (is_clicked(input->zoomIn))
 		{
 			distance -= distance * relativeZoomSpeed * input->elapsedTime;
 			distance = Max(distance, minDistance);
 		}
-		else if(input->zoomOut.IsPressed())
+		else if(is_clicked(input->zoomOut))
 		{
 			distance += distance * relativeZoomSpeed * input->elapsedTime;
 			distance = Min(distance, maxDistance);

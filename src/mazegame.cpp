@@ -197,7 +197,6 @@ GameUpdate(
 			load_gui(state, platform, defaultSceneGui);
 			break;
 
-
 		case SCENE_EXIT:
 			unload_scene_and_gui(state, platform);
 			load_gui(state, platform, menuSceneGuiGui);
@@ -209,7 +208,7 @@ GameUpdate(
 	
 
 	// Todo(Leo): These still do not belong here
-	if (input->select.IsClicked())
+	if (is_clicked(input->select))
 	{
 		if (platform->windowIsFullscreen)
 			result.setWindow = game::UpdateResult::SET_WINDOW_WINDOWED;

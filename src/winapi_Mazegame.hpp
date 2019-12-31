@@ -33,6 +33,13 @@ namespace winapi
     	UpdateFunc * Update;	
     };
 
+    struct KeyboardInput
+    {
+        bool32 left, right, up, down;
+        bool32 space;
+        bool32 enter, escape;
+    };
+
     struct State
     {
         bool32 isRunning; 
@@ -43,6 +50,13 @@ namespace winapi
 
         bool32 windowIsFullscreen;
         WINDOWPLACEMENT windowedWindowPosition;        
+
+        bool32 keyboardInputIsUsed;
+
+        DWORD xinputLastPacketNumber;
+        bool32 xinputIsUsed;
+
+        KeyboardInput keyboardInput;
 
         bool32 windowIsDrawable()
         {

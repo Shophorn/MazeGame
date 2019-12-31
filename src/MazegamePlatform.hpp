@@ -58,39 +58,47 @@ namespace platform
 
 namespace game
 {
-	struct InputButtonState
+	enum struct ButtonState : int8
 	{
-		enum : int32
-		{
-			/* Note(Leo): These specific values have been selected so that it 
-			is easy to compute value with simple addition based on input values*/
-			IsUp 		= 0,
-			WentDown 	= 1,
-			WentUp 		= 2,
-			IsDown 		= 3
-		} value;
-
-		class_member InputButtonState
-		FromCurrentAndPrevious(bool32 current, bool32 previous)
-		{
-			/* Note(Leo): Sadly bool32 may be other values than 0 or 1.
-			Alternatively we could have taken in actual bool parameters,
-			but it would probably just done same conversion as here, but
-			implicitly, which is not nice. Not sure about this though, but
-			this is not high pressure function so it does not matter so much.*/
-
-			bool32 current01 = current ? 1 : 0;
-			bool32 previous01 = previous ? 1 : 0;
-		
-			InputButtonState result = { (decltype(value))(current01 + 2 * previous01) };
-			return result;
-		}
-
-		bool32 IsClicked() { return value == WentDown; }
-		bool32 IsReleased() { return value == WentUp; }
-		bool32 IsPressed() { return (value == IsDown) || (value == WentDown); }
+		IsUp,
+		WentDown,
+		WentUp,
+		IsDown
 	};
 
+	bool32 is_clicked (ButtonState button) { return button == ButtonState::WentDown; } 
+	bool32 is_released (ButtonState button) { return button == ButtonState::WentUp; } 
+	bool32 is_pressed (ButtonState button) { return (button == ButtonState::IsDown) || (button == ButtonState::WentDown);}
+
+	internal ButtonState
+	update_button_state(ButtonState current, bool32 newStateIsDown)
+	{
+		switch(current)
+		{
+			case ButtonState::IsUp:
+				return 	newStateIsDown ? 
+						ButtonState{ButtonState::WentDown} :
+						ButtonState{ButtonState::IsUp};
+
+			case ButtonState::WentDown:
+				return 	newStateIsDown ?
+						ButtonState{ButtonState::IsDown} :
+						ButtonState{ButtonState::WentUp};
+
+			case ButtonState::WentUp:
+				return 	newStateIsDown ?
+						ButtonState{ButtonState::WentDown} :
+						ButtonState{ButtonState::IsUp};
+
+			case ButtonState::IsDown:
+				return 	newStateIsDown ?
+						ButtonState{ButtonState::IsDown} :
+						ButtonState{ButtonState::WentUp};
+
+			default:
+				MAZEGAME_ASSERT(false, "Invalid ButtonState value");
+		}
+	}
 
 	struct Input
 	{
@@ -99,21 +107,21 @@ namespace game
 
 
 		// Todo(Leo): Do a proper separate mapping struct of meanings of specific buttons
-		InputButtonState jump;
-		InputButtonState confirm;
-		InputButtonState interact;
+		ButtonState jump;
+		ButtonState confirm;
+		ButtonState interact;
 
 		// Note(Leo): Start and Select as in controller
-		InputButtonState start;
-		InputButtonState select;
+		ButtonState start;
+		ButtonState select;
 
-		InputButtonState left;
-		InputButtonState right;
-		InputButtonState down;
-		InputButtonState up;
+		ButtonState left;
+		ButtonState right;
+		ButtonState down;
+		ButtonState up;
 
-		InputButtonState zoomIn;
-		InputButtonState zoomOut;
+		ButtonState zoomIn;
+		ButtonState zoomOut;
 
 		real32 elapsedTime;
 	};
@@ -184,16 +192,16 @@ namespace game
 #if MAZEGAME_INCLUDE_STD_IOSTREAM
 namespace std
 {
-	ostream & operator << (ostream & os, game::InputButtonState buttonState)
+	ostream & operator << (ostream & os, game::ButtonState buttonState)
 	{
-		switch (buttonState.value)
+		switch (buttonState)
 		{
-			case game::InputButtonState::IsUp: 		os << "IsUp"; 		break;
-			case game::InputButtonState::WentDown: 	os << "WentDown"; 	break;
-			case game::InputButtonState::WentUp: 	os << "WentUp"; 	break;
-			case game::InputButtonState::IsDown: 	os << "IsDown"; 	break;
+			case game::ButtonState::IsUp: 		os << "IsUp"; 		break;
+			case game::ButtonState::WentDown: 	os << "WentDown"; 	break;
+			case game::ButtonState::WentUp: 	os << "WentUp"; 	break;
+			case game::ButtonState::IsDown: 	os << "IsDown"; 	break;
 
-			default: os << "INVALID InputButtonState VALUE";
+			default: os << "INVALID ButtonState VALUE";
 		}
 
 		return os;

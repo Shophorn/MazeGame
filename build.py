@@ -11,7 +11,8 @@ import sys
 silent = '--silent' in sys.argv
 compiler = 'clang++'
 
-compile_all = False
+compile_platform = True
+compile_game = True
 
 def compile(call):
 	if not silent:
@@ -38,21 +39,22 @@ if compiler == 'clang++':
 	libLinks	= "-lvulkan-1 -lgdi32 -lws2_32 -lole32 -lwinmm"
 
 
-	if compile_all:
-		### COMPILE PLATFORM LAYER
+	### COMPILE PLATFORM LAYER
+	platform_result = 0
+	if compile_platform:
 		# Specify '-mwindows' to get .exe to launch without console
 		platform_call = "clang++ {} {} {} -o winapi_Mazegame.exe src/winapi_Mazegame.cpp {} {}".format(
 					flags, definitions, includePath, libPath, libLinks)
 		
 		platform_result = compile(platform_call)
-	else:
-		platform_result = 0
 
 	### COMPILE GAME CODE DLL
-	game_call = "clang++ -shared {} {} {} -o Mazegame.dll src/Mazegame.cpp -DLL {} {}".format(
-				flags, definitions, includePath, libPath, libLinks)
+	game_result = 0
+	if compile_game:
+		game_call = "clang++ -shared {} {} {} -o Mazegame.dll src/Mazegame.cpp -DLL {} {}".format(
+					flags, definitions, includePath, libPath, libLinks)
 
-game_result = compile(game_call)
+		game_result = compile(game_call)
 
 if (platform_result == 0) and (game_result == 0):
 	exit (0)

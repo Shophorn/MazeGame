@@ -118,7 +118,7 @@ struct CharacterControllerSideScroller
 
 		if (collider->hasCollision && collider->collision->tag == ColliderTag::Trigger)
 		{
-			if (input->interact.IsClicked())
+			if (is_clicked(input->interact))
 			{
 				(*OnTriggerLadder1)();
 			}
@@ -126,7 +126,7 @@ struct CharacterControllerSideScroller
 
 		if (collider->hasCollision && collider->collision->tag == ColliderTag::Trigger2)
 		{
-			if (input->interact.IsClicked())
+			if (is_clicked(input->interact))
 			{
 				(*OnTriggerLadder2)();
 			}
@@ -197,7 +197,7 @@ update(	CharacterController3rdPerson * 	controller,
 	}	
 
 
-	if (grounded && input->jump.IsClicked())
+	if (grounded && is_clicked(input->jump))
 	{
 		controller->zSpeed = 5;
 	}
