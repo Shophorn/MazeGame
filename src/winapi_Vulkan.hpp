@@ -163,8 +163,23 @@ struct VulkanRenderedObject
 // using VulkanMaterial = VkDescriptorSet;
 struct VulkanMaterial
 {
-	ShaderHandle pipeline;
+	PipelineHandle pipeline;
 	VkDescriptorSet descriptorSet;
+};
+
+
+struct VulkanPipelineLoadInfo
+{
+	std::string vertexShaderPath;
+	std::string fragmentShaderPath;
+	platform::PipelineOptions options;
+};
+
+struct VulkanLoadedPipeline
+{
+	// Note(Leo): we need info for recreating pipelines after swapchain recreation
+	VulkanPipelineLoadInfo info;
+	VulkanPipelineItems payload;
 };
 
 struct VulkanContext : platform::IGraphicsContext
@@ -194,7 +209,7 @@ struct VulkanContext : platform::IGraphicsContext
     VulkanPipelineItems     guiPipelineItems;
     VulkanSyncObjects       syncObjects;
 
-    std::vector<VulkanPipelineItems> loadedPipelines;
+    std::vector<VulkanLoadedPipeline> loadedPipelines;
 
     // MULTISAMPLING
     VkSampleCountFlagBits msaaSamples;
@@ -242,7 +257,7 @@ struct VulkanContext : platform::IGraphicsContext
     MeshHandle 		PushMesh(MeshAsset * mesh);
     TextureHandle 	PushTexture (TextureAsset * texture);
     MaterialHandle 	PushMaterial (MaterialAsset * material);
-    ShaderHandle	push_shader(const char * vertexShaderPath, const char * fragmentShaderPath, platform::PipelineOptions options = {});
+    PipelineHandle	push_pipeline(const char * vertexShaderPath, const char * fragmentShaderPath, platform::PipelineOptions options = {});
     
     RenderedObjectHandle 	PushRenderedObject(MeshHandle mesh, MaterialHandle material);
     GuiHandle 				PushGui(MeshHandle mesh, MaterialHandle material);
@@ -398,15 +413,15 @@ namespace vulkan
 	internal void
 	DestroyImageTexture(VulkanContext * context, VulkanTexture * texture);
 
+	internal VulkanPipelineItems
+	make_pipeline(
+	    VulkanContext * context,
+	    int32 descriptorSetLayoutCount,
+	    const char * vertexShaderPath,
+	    const char * fragmentShaderPath,
+	    platform::PipelineOptions options = {});
 }
 
-internal VulkanPipelineItems
-make_pipeline(
-    VulkanContext * context,
-    int32 descriptorSetLayoutCount,
-    const char * vertexShaderPath,
-    const char * fragmentShaderPath,
-    bool32 enableDepth = true);
 
 #define WIN_VULKAN_HPP
 #endif

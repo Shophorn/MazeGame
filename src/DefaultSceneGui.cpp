@@ -140,7 +140,7 @@ default_scene_gui::load(void * guiPtr, MemoryArena * persistentMemory, MemoryAre
 
 	// Create MateriaLs
 	{
-		ShaderHandle shader = platformInfo->graphicsContext->push_shader("shaders/vert_gui.spv", "shaders/frag_gui.spv");
+		PipelineHandle pipeline = platformInfo->graphicsContext->push_pipeline("shaders/vert_gui.spv", "shaders/frag_gui.spv");
 
 		TextureAsset whiteTextureAsset = make_texture_asset(push_array<uint32>(transientMemory, {0xffffffff}), 1, 1);
 		TextureAsset blackTextureAsset = make_texture_asset(push_array<uint32>(transientMemory, {0xff000000}), 1, 1);
@@ -159,9 +159,9 @@ default_scene_gui::load(void * guiPtr, MemoryArena * persistentMemory, MemoryAre
 		auto lavaTexture 	= load_and_push_texture("textures/lava.jpg");
 		auto faceTexture 	= load_and_push_texture("textures/texture.jpg");
 
-		auto push_material = [shader, platformInfo](MaterialType type, TextureHandle a, TextureHandle b, TextureHandle c) -> MaterialHandle
+		auto push_material = [pipeline, platformInfo](MaterialType type, TextureHandle a, TextureHandle b, TextureHandle c) -> MaterialHandle
 		{
-			MaterialAsset asset = make_material_asset(shader,a, b, c);
+			MaterialAsset asset = make_material_asset(pipeline,a, b, c);
 			MaterialHandle handle = platformInfo->graphicsContext->PushMaterial(&asset);
 			return handle;
 		};

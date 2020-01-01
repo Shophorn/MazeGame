@@ -3,17 +3,6 @@ Leo Tamminen
 
 Asset things for :MAZEGAME:
 =============================================================================*/
-// enum struct HandleType
-// { 
-// 	Invalid,
-
-// 	Mesh = 1, 
-// 	Texture,
-// 	Material,
-// 	RenderedObject,
-// 	Gui,
-// 	Shader
-// };
 
 enum HandleType
 {
@@ -24,7 +13,7 @@ enum HandleType
 	MATERIAL,
 	RENDERED_OBJECT,
 	GUI,
-	SHADER,	
+	PIPELINE,	
 };
 
 template<HandleType T>
@@ -43,7 +32,7 @@ using TextureHandle  		= BaseHandle<TEXTURE>;
 using MaterialHandle  		= BaseHandle<MATERIAL>;
 using RenderedObjectHandle  = BaseHandle<RENDERED_OBJECT>;
 using GuiHandle 			= BaseHandle<GUI>;
-using ShaderHandle 			= BaseHandle<SHADER>;
+using PipelineHandle 			= BaseHandle<PIPELINE>;
 
 struct Vertex
 {
@@ -106,7 +95,7 @@ struct MaterialAsset
 
 	TextureAsset pERROR;
 
-    ShaderHandle shader;
+    PipelineHandle pipeline;
 
     // int textureCount;
 
@@ -116,11 +105,11 @@ struct MaterialAsset
 };
 
 MaterialAsset
-make_material_asset(ShaderHandle shader, TextureHandle albedo, TextureHandle metallic, TextureHandle testMask)
+make_material_asset(PipelineHandle pipeline, TextureHandle albedo, TextureHandle metallic, TextureHandle testMask)
 {
 	MaterialAsset result = 
 	{
-		.shader 	= shader,
+		.pipeline 	= pipeline,
 		.albedo 	= albedo,
 		.metallic 	= metallic,
 		.testMask	= testMask
@@ -131,7 +120,7 @@ make_material_asset(ShaderHandle shader, TextureHandle albedo, TextureHandle met
 // template<int TextureCount>
 // struct MaterialAsset2
 // {
-// 	ShaderHandle shader;
+// 	PipelineHandle shader;
 
 // 	int32 textureCount;
 

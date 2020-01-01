@@ -85,8 +85,8 @@ scene_3d::load(void * scenePtr, MemoryArena * persistentMemory, MemoryArena * tr
 
 	// Create MateriaLs
 	{
-		ShaderHandle normalShader 	= platformInfo->graphicsContext->push_shader("shaders/vert.spv", "shaders/frag.spv");
-		ShaderHandle skyShader 		= platformInfo->graphicsContext->push_shader("shaders/vert_sky.spv", "shaders/frag_sky.spv", {.enableDepth = false});
+		PipelineHandle normalPipeline 	= platformInfo->graphicsContext->push_pipeline("shaders/vert.spv", "shaders/frag.spv");
+		PipelineHandle skyPipeline 		= platformInfo->graphicsContext->push_pipeline("shaders/vert_sky.spv", "shaders/frag_sky.spv", {.enableDepth = false});
 
 		TextureAsset whiteTextureAsset = make_texture_asset(push_array<uint32>(transientMemory, {0xffffffff}), 1, 1);
 		TextureAsset blackTextureAsset = make_texture_asset(push_array<uint32>(transientMemory, {0xff000000}), 1, 1);
@@ -105,7 +105,7 @@ scene_3d::load(void * scenePtr, MemoryArena * persistentMemory, MemoryArena * tr
 		auto lavaTexture 	= load_and_push_texture("textures/lava.jpg");
 		auto faceTexture 	= load_and_push_texture("textures/texture.jpg");
 
-		auto push_material = [platformInfo](ShaderHandle shader, TextureHandle a, TextureHandle b, TextureHandle c) -> MaterialHandle
+		auto push_material = [platformInfo](PipelineHandle shader, TextureHandle a, TextureHandle b, TextureHandle c) -> MaterialHandle
 		{
 			MaterialAsset asset = make_material_asset(shader, a, b, c);
 			MaterialHandle handle = platformInfo->graphicsContext->PushMaterial(&asset);
@@ -114,9 +114,9 @@ scene_3d::load(void * scenePtr, MemoryArena * persistentMemory, MemoryArena * tr
 
 		materials =
 		{
-			.character 		= push_material(normalShader, lavaTexture, faceTexture, blackTexture),
-			.environment 	= push_material(normalShader, tilesTexture, blackTexture, blackTexture),
-			.sky 			= push_material(skyShader, lavaTexture, blackTexture, blackTexture)
+			.character 		= push_material(normalPipeline, lavaTexture, faceTexture, blackTexture),
+			.environment 	= push_material(normalPipeline, tilesTexture, blackTexture, blackTexture),
+			.sky 			= push_material(skyPipeline, lavaTexture, blackTexture, blackTexture)
 		};
 	}
 

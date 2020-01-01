@@ -93,7 +93,7 @@ scene_2d::load(void * scenePtr, MemoryArena * persistentMemory, MemoryArena * tr
 
 	// Create MateriaLs
 	{
-		ShaderHandle shader = platformInfo->graphicsContext->push_shader("shaders/vert.spv", "shaders/frag.spv");
+		PipelineHandle shader = platformInfo->graphicsContext->push_pipeline("shaders/vert.spv", "shaders/frag.spv");
 
 		TextureAsset whiteTextureAsset = make_texture_asset(push_array<uint32>(transientMemory, {0xffffffff}), 1, 1);
 		TextureAsset blackTextureAsset = make_texture_asset(push_array<uint32>(transientMemory, {0xff000000}), 1, 1);

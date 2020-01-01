@@ -110,7 +110,7 @@ load_menu_gui(void * guiPtr, MemoryArena * persistentMemory, MemoryArena * trans
  	MaterialHandle material;
 	// Create MateriaLs
 	{
-		ShaderHandle shader = platformInfo->graphicsContext->push_shader("shaders/vert_gui.spv", "shaders/frag_gui.spv");
+		PipelineHandle pipeline = platformInfo->graphicsContext->push_pipeline("shaders/vert_gui.spv", "shaders/frag_gui.spv");
 
 		TextureAsset blackTextureAsset = {};
 		blackTextureAsset.pixels = push_array<uint32>(transientMemory, 1);
@@ -129,7 +129,7 @@ load_menu_gui(void * guiPtr, MemoryArena * persistentMemory, MemoryArena * trans
 		TextureHandle texB = platformInfo->graphicsContext->PushTexture(&textureAssets[0]);
 		TextureHandle texC = platformInfo->graphicsContext->PushTexture(&textureAssets[1]);
 
-		MaterialAsset characterMaterialAsset = make_material_asset(shader, texB, texC, blackTexture);
+		MaterialAsset characterMaterialAsset = make_material_asset(pipeline, texB, texC, blackTexture);
 		material = platformInfo->graphicsContext->PushMaterial(&characterMaterialAsset);
 	}
 

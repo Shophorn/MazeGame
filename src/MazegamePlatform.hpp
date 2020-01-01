@@ -56,7 +56,7 @@ namespace platform
 		virtual RenderedObjectHandle 	PushRenderedObject(MeshHandle mesh, MaterialHandle material) = 0;
 		virtual GuiHandle 				PushGui(MeshHandle mesh, MaterialHandle material) = 0;
 
-		virtual ShaderHandle push_shader(const char * vertexShaderPath, const char * fragmentShaderPath, PipelineOptions options = {}) = 0;
+		virtual PipelineHandle push_pipeline(const char * vertexShaderPath, const char * fragmentShaderPath, PipelineOptions options = {}) = 0;
 
 		virtual void Apply() = 0;
 		virtual void UnloadAll() = 0;
