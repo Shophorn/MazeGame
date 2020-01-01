@@ -84,3 +84,20 @@ Camera::ViewProjection()
 
 	return result;	
 }
+
+Matrix44 
+get_rotation_matrix(Camera * camera)
+{
+	Vector3 zAxis 	= -camera->forward;
+	Vector3 xAxis 	= Normalize(Cross(World::Up, zAxis));
+	Vector3 yAxis 	= Cross (zAxis, xAxis);
+
+	Matrix44 orientation = {
+		xAxis[0], yAxis[0], zAxis[0], 0,
+		xAxis[1], yAxis[1], zAxis[1], 0,
+		xAxis[2], yAxis[2], zAxis[2], 0,
+		0, 0, 0, 1
+	};
+
+	return orientation;
+}

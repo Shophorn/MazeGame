@@ -64,13 +64,15 @@ VulkanContext::PushTexture (TextureAsset * texture)
 }
 
 MaterialHandle
-VulkanContext::PushMaterial (MaterialAsset * material)
+VulkanContext::PushMaterial (MaterialAsset * asset)
 {
-    /* Todo(Leo): Select descriptor layout depending on materialtype
-    'material' pointer is going be void * and it is to be cast to right kind of material */
-
     MaterialHandle resultHandle = {this->loadedMaterials.size()};
-    this->loadedMaterials.push_back(vulkan::CreateMaterialDescriptorSets(this, material->albedo, material->metallic, material->testMask));
+    VulkanMaterial material = 
+    {
+        .pipeline = asset->shader,
+        .descriptorSet = vulkan::CreateMaterialDescriptorSets(this, asset->albedo, asset->metallic, asset->testMask)
+    };
+    this->loadedMaterials.push_back(material);
 
     return resultHandle;
 }
@@ -80,9 +82,11 @@ VulkanContext::PushRenderedObject(MeshHandle mesh, MaterialHandle material)
 {
     uint32 objectIndex = loadedRenderedObjects.size();
 
-    MAZEGAME_NO_INIT VulkanRenderedObject object;
-    object.mesh = mesh;
-    object.material = material;
+    VulkanRenderedObject object =
+    {
+        .mesh     = mesh,
+        .material = material,
+    };
 
     uint32 memorySizePerModelMatrix = align_up_to(
         this->physicalDeviceProperties.limits.minUniformBufferOffsetAlignment,
@@ -100,9 +104,11 @@ VulkanContext::PushGui(MeshHandle mesh, MaterialHandle material)
 {
     uint32 guiIndex = loadedGuiObjects.size();
 
-    MAZEGAME_NO_INIT VulkanRenderedObject object;
-    object.mesh = mesh;
-    object.material = material;
+    VulkanRenderedObject object =
+    {
+        .mesh     = mesh,
+        .material = material,
+    };
 
     uint32 memorySizePerModelMatrix = align_up_to(
         this->physicalDeviceProperties.limits.minUniformBufferOffsetAlignment,
@@ -140,4 +146,16 @@ VulkanContext::UnloadAll()
 
     // Gui objects
     loadedGuiObjects.resize(0);
+}
+
+ShaderHandle
+VulkanContext::push_shader(const char * vertexShaderPath, const char * fragmentShaderPath, platform::PipelineOptions options)
+{
+    std::cout << "[push_shader()]: TODO these must be recreated with swapchain.\n";
+
+    auto pipeline = make_pipeline(this, 3, vertexShaderPath, fragmentShaderPath, options.enableDepth);
+    uint64 index = loadedPipelines.size();
+    loadedPipelines.push_back(pipeline);
+
+    return {index};
 }

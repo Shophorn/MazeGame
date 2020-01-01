@@ -140,6 +140,8 @@ default_scene_gui::load(void * guiPtr, MemoryArena * persistentMemory, MemoryAre
 
 	// Create MateriaLs
 	{
+		ShaderHandle shader = platformInfo->graphicsContext->push_shader("shaders/vert_gui.spv", "shaders/frag_gui.spv");
+
 		TextureAsset whiteTextureAsset = make_texture_asset(push_array<uint32>(transientMemory, {0xffffffff}), 1, 1);
 		TextureAsset blackTextureAsset = make_texture_asset(push_array<uint32>(transientMemory, {0xff000000}), 1, 1);
 
@@ -157,9 +159,9 @@ default_scene_gui::load(void * guiPtr, MemoryArena * persistentMemory, MemoryAre
 		auto lavaTexture 	= load_and_push_texture("textures/lava.jpg");
 		auto faceTexture 	= load_and_push_texture("textures/texture.jpg");
 
-		auto push_material = [platformInfo](MaterialType type, TextureHandle a, TextureHandle b, TextureHandle c) -> MaterialHandle
+		auto push_material = [shader, platformInfo](MaterialType type, TextureHandle a, TextureHandle b, TextureHandle c) -> MaterialHandle
 		{
-			MaterialAsset asset = { type, a, b, c };
+			MaterialAsset asset = make_material_asset(shader,a, b, c);
 			MaterialHandle handle = platformInfo->graphicsContext->PushMaterial(&asset);
 			return handle;
 		};
@@ -177,7 +179,7 @@ default_scene_gui::load(void * guiPtr, MemoryArena * persistentMemory, MemoryAre
 	gui->gameGuiButtons[0] = {380, 200, 180, 40};
 	gui->gameGuiButtons[1] = {380, 260, 180, 40};
 
-	MeshAsset quadAsset 	= mesh_primitives::create_quad(transientMemory);
+	MeshAsset quadAsset 	= mesh_primitives::create_quad(transientMemory, true);
  	MeshHandle quadHandle 	= push_mesh(&quadAsset);
 
 	for (int guiButtonIndex = 0; guiButtonIndex < gui->gameGuiButtonCount; ++guiButtonIndex)

@@ -53,11 +53,11 @@ load_model_glb(MemoryArena * memoryArena, const char * filePath, const char * mo
 		}
 	}
 
-	std::cout 	<< "[GLTF]: Accessor indices\n"
-				<< "\tPOSITION: " << positionAccessorIndex << "\n"	
-				<< "\tNORMAL: " << normalAccessorIndex << "\n"	
-				<< "\tTEXCOORD_0: " << texcoordAccessorIndex << "\n"	
-				<< "\tindices: " << indexAccessorIndex << "\n";
+	// std::cout 	<< "[GLTF]: Accessor indices\n"
+	// 			<< "\tPOSITION: " << positionAccessorIndex << "\n"	
+	// 			<< "\tNORMAL: " << normalAccessorIndex << "\n"	
+	// 			<< "\tTEXCOORD_0: " << texcoordAccessorIndex << "\n"	
+	// 			<< "\tindices: " << indexAccessorIndex << "\n";
 
 	auto accessorArray 		= jsonDocument["accessors"].GetArray();
 	auto bufferViewArray 	= jsonDocument["bufferViews"].GetArray();
@@ -89,7 +89,6 @@ load_model_glb(MemoryArena * memoryArena, const char * filePath, const char * mo
 	MAZEGAME_ASSERT(isGood, "Did not read .glb properly: invalid vertex count among properties or invalid accessor indices.");
 
 	////// VERTICES ///////
-	std::cout << "[GLTF vertices]: 1\n";
 
 	auto positionAccessor 	= accessorArray[positionAccessorIndex].GetObject();
 	auto normalAccessor 	= accessorArray[normalAccessorIndex].GetObject();
@@ -99,25 +98,21 @@ load_model_glb(MemoryArena * memoryArena, const char * filePath, const char * mo
 	auto normalBufferView 	= bufferViewArray[normalBufferViewIndex].GetObject();
 	auto texcoordBufferView = bufferViewArray[texcoordBufferViewIndex].GetObject();
 
-	std::cout << "[GLTF vertices]: 2\n";
 	uint64 positionOffset 		= positionBufferView["byteOffset"].GetInt();
 	uint64 positionLength		= positionBufferView["byteLength"].GetInt(); 
 	auto positionComponentType 	= (glTF::ComponentType)positionAccessor["componentType"].GetInt();
 	uint64 positionStride		= glTF::get_default_stride(positionComponentType);
 
-	std::cout << "[GLTF vertices]: 3\n";
 	uint64 normalOffset 		= normalBufferView["byteOffset"].GetInt();
 	uint64 normalLength			= normalBufferView["byteLength"].GetInt(); 
 	auto normalComponentType 	= (glTF::ComponentType)normalAccessor["componentType"].GetInt();
 	uint64 normalStride			= glTF::get_default_stride(normalComponentType);
 
-	std::cout << "[GLTF vertices]: 4\n";
 	uint64 texcoordOffset 		= texcoordBufferView["byteOffset"].GetInt();
 	uint64 texcoordLength		= texcoordBufferView["byteLength"].GetInt(); 
 	auto texcoordComponentType 	= (glTF::ComponentType)texcoordAccessor["componentType"].GetInt();
 	uint64 texcoordStride		= glTF::get_default_stride(texcoordComponentType);
 
-	std::cout << "[GLTF vertices]: 5\n";
 	auto vertices 				= reserve_array<Vertex>(memoryArena, vertexCount);
 
 	uint64 positionStart 		= positionOffset;
@@ -139,7 +134,6 @@ load_model_glb(MemoryArena * memoryArena, const char * filePath, const char * mo
 			.normal 	= normal,
 			.texCoord 	= texCoord});
 	}
-	std::cout << "[GLTF vertices]: 5\n";
 
 	///// INDICES //////
 	auto indexAccessor 		= accessorArray[indexAccessorIndex].GetObject();
@@ -157,7 +151,7 @@ load_model_glb(MemoryArena * memoryArena, const char * filePath, const char * mo
 	auto componentType		= (glTF::ComponentType)indexAccessor["componentType"].GetInt();
 	uint64 stride			= glTF::get_default_stride(componentType);
 
-	std::cout << "[GLTF]: Index stride = " << stride << "\n";
+	// std::cout << "[GLTF]: Index stride = " << stride << "\n";
 
 	for(byte * it = indexStart; it < indexEnd; it += stride)
 	{
@@ -165,7 +159,7 @@ load_model_glb(MemoryArena * memoryArena, const char * filePath, const char * mo
 		push_one(indices, index);
 	}
 
-	std::cout << "[GLTF]: indices read properly\n";
+	// std::cout << "[GLTF]: indices read properly\n";
 
 
 	MeshAsset result = make_mesh_asset(vertices, indices);
@@ -259,7 +253,7 @@ namespace mesh_primitives
 {
 	constexpr real32 radius = 0.5f;
 
-	MeshAsset create_quad(MemoryArena * memoryArena)
+	MeshAsset create_quad(MemoryArena * memoryArena, bool32 flipIndices)
 	{
 		MeshAsset result = {};
 		result.indexType = IndexType::UInt16;
@@ -274,14 +268,16 @@ namespace mesh_primitives
 		result.vertices[3] = {1, 1, 0, 		0, 0, 1, 	1, 1, 1, 	1, 1};
 
 		int indexCount = 6;
-		result.indices = push_array<uint16>(memoryArena, indexCount);
 
-		result.indices [0] = 0;
-		result.indices [1] = 1;
-		result.indices [2] = 2;
-		result.indices [3] = 2;
-		result.indices [4] = 1;
-		result.indices [5] = 3;
+		if (flipIndices)
+		{
+			// Note(Leo): These seem to backwardsm but it because currently our gui is viewed from behind.
+			result.indices = push_array<uint16>(memoryArena, {0, 2, 1, 1, 2, 3});
+		}
+		else
+		{
+			result.indices = push_array<uint16>(memoryArena, {0, 1, 2, 2, 1, 3});
+		}
 
 		return result;
 	}

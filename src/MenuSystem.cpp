@@ -110,6 +110,8 @@ load_menu_gui(void * guiPtr, MemoryArena * persistentMemory, MemoryArena * trans
  	MaterialHandle material;
 	// Create MateriaLs
 	{
+		ShaderHandle shader = platformInfo->graphicsContext->push_shader("shaders/vert_gui.spv", "shaders/frag_gui.spv");
+
 		TextureAsset blackTextureAsset = {};
 		blackTextureAsset.pixels = push_array<uint32>(transientMemory, 1);
 		blackTextureAsset.pixels[0] = 0xff000000;
@@ -127,11 +129,11 @@ load_menu_gui(void * guiPtr, MemoryArena * persistentMemory, MemoryArena * trans
 		TextureHandle texB = platformInfo->graphicsContext->PushTexture(&textureAssets[0]);
 		TextureHandle texC = platformInfo->graphicsContext->PushTexture(&textureAssets[1]);
 
-		MaterialAsset characterMaterialAsset = {MaterialType::Character, texB, texC, blackTexture};
+		MaterialAsset characterMaterialAsset = make_material_asset(shader, texB, texC, blackTexture);
 		material = platformInfo->graphicsContext->PushMaterial(&characterMaterialAsset);
 	}
 
-	MeshAsset quadAsset = mesh_primitives::create_quad(transientMemory);
+	MeshAsset quadAsset = mesh_primitives::create_quad(transientMemory, true);
  	MeshHandle quadHandle = platformInfo->graphicsContext->PushMesh(&quadAsset);
 
  	for (int i = 0; i < 4; ++i)

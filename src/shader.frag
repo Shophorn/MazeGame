@@ -13,8 +13,11 @@ const int TEST_MASK_INDEX = 2;
 const int TEXTURE_COUNT = 3;
 
 const int SAMPLER_BIND_ID = 0;
+const int SAMPLER_SET_ID = 1;
 
-layout(binding = SAMPLER_BIND_ID, set = 1) uniform sampler2D texSampler[TEXTURE_COUNT];
+layout(	binding = SAMPLER_BIND_ID,	
+		set = SAMPLER_SET_ID
+) uniform sampler2D texSampler[TEXTURE_COUNT];
 
 const vec3 lightDirection 	= normalize(vec3(0.7, 1, -2));
 const vec3 lightColor 		= vec3(1.0, 0.98, 0.95);

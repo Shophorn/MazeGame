@@ -40,6 +40,11 @@ needs to be specified for compiler. */
 
 namespace platform
 {
+	struct PipelineOptions
+	{
+	    bool32 enableDepth = true;
+	};
+
 	/* Note(Leo): This seems good, but for some reasoen I feel
 	unease about using even this kind of simple inheritance */
 	struct IGraphicsContext
@@ -50,6 +55,8 @@ namespace platform
 		
 		virtual RenderedObjectHandle 	PushRenderedObject(MeshHandle mesh, MaterialHandle material) = 0;
 		virtual GuiHandle 				PushGui(MeshHandle mesh, MaterialHandle material) = 0;
+
+		virtual ShaderHandle push_shader(const char * vertexShaderPath, const char * fragmentShaderPath, PipelineOptions options = {}) = 0;
 
 		virtual void Apply() = 0;
 		virtual void UnloadAll() = 0;

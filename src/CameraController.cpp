@@ -16,12 +16,12 @@ struct CameraControllerSideScroller
 	void
 	update(game::Input * input)
 	{
-		if (is_clicked(input->zoomIn))
+		if (is_pressed(input->zoomIn))
 		{
 			distance -= distance * relativeZoomSpeed * input->elapsedTime;
 			distance = Max(distance, minDistance);
 		}
-		else if(is_clicked(input->zoomOut))
+		else if(is_pressed(input->zoomOut))
 		{
 			distance += distance * relativeZoomSpeed * input->elapsedTime;
 			distance = Min(distance, maxDistance);
@@ -62,7 +62,7 @@ struct CameraController3rdPerson
 
 	// Properties
 	float rotateSpeed 			= 180.0f;
-	float minTumble 			= -10.0f;
+	float minTumble 			= -85.0f;
 	float maxTumble 			= 85.0f;
 	float relativeZoomSpeed 	= 1.0f;
 	float minDistance 			= 5.0f;
@@ -71,12 +71,12 @@ struct CameraController3rdPerson
 	void 
 	update(game::Input * input)
 	{
-		if (is_clicked(input->zoomIn))
+		if (is_pressed(input->zoomIn))
 		{
 			distance -= distance * relativeZoomSpeed * input->elapsedTime;
 			distance = Max(distance, minDistance);
 		}
-		else if(is_clicked(input->zoomOut))
+		else if(is_pressed(input->zoomOut))
 		{
 			distance += distance * relativeZoomSpeed * input->elapsedTime;
 			distance = Min(distance, maxDistance);

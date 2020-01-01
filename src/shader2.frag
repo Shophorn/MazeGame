@@ -28,8 +28,12 @@ void main()
 	float ldotn = max(0, dot(-lightDirection, fragNormal));
 
 	vec3 albedo = texture(texSampler[ALBEDO_INDEX], fragTexCoord).rgb;
+	float metallic = texture(texSampler[METALLIC_INDEX], fragTexCoord).r;
 
-	outColor.rgb = albedo;
+	vec3 light = ambientColor + (lightColor * ldotn);
+	vec3 color = light * albedo;
+
+	outColor.rgb = color;
 	outColor.b = 1.0;
 	outColor.a = 1.0;
 }

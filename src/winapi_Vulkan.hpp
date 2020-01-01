@@ -99,6 +99,7 @@ struct VulkanPipelineItems
 
 struct VulkanSyncObjects
 {
+	// Todo(Leo): Use our own memory :)
     std::vector<VkSemaphore>    imageAvailableSemaphores;
     std::vector<VkSemaphore>    renderFinishedSemaphores;
     std::vector<VkFence>        inFlightFences;
@@ -159,7 +160,12 @@ struct VulkanRenderedObject
     uint32         	uniformBufferOffset;
 };
 
-using VulkanMaterial = VkDescriptorSet;
+// using VulkanMaterial = VkDescriptorSet;
+struct VulkanMaterial
+{
+	ShaderHandle pipeline;
+	VkDescriptorSet descriptorSet;
+};
 
 struct VulkanContext : platform::IGraphicsContext
 {
@@ -175,7 +181,7 @@ struct VulkanContext : platform::IGraphicsContext
 	VkQueue 						graphicsQueue;
 	VkQueue 						presentQueue;
 	
-	/* Todo(Leo): There is one layout for each [models, scene data, materials].
+	/* Todo(Leo): There is one layout for each of [models, scene data, materials].
 	They were originally in array for ease of use, but this is no longer true.*/
     VkDescriptorSetLayout 	descriptorSetLayouts [3];
     VkDescriptorSetLayout 	guiDescriptorSetLayout;
@@ -184,9 +190,11 @@ struct VulkanContext : platform::IGraphicsContext
 
     VkRenderPass            renderPass;
     VulkanSwapchainItems 	swapchainItems;
-    VulkanPipelineItems     pipelineItems;
+    // VulkanPipelineItems     pipelineItems;
     VulkanPipelineItems     guiPipelineItems;
     VulkanSyncObjects       syncObjects;
+
+    std::vector<VulkanPipelineItems> loadedPipelines;
 
     // MULTISAMPLING
     VkSampleCountFlagBits msaaSamples;
@@ -234,6 +242,7 @@ struct VulkanContext : platform::IGraphicsContext
     MeshHandle 		PushMesh(MeshAsset * mesh);
     TextureHandle 	PushTexture (TextureAsset * texture);
     MaterialHandle 	PushMaterial (MaterialAsset * material);
+    ShaderHandle	push_shader(const char * vertexShaderPath, const char * fragmentShaderPath, platform::PipelineOptions options = {});
     
     RenderedObjectHandle 	PushRenderedObject(MeshHandle mesh, MaterialHandle material);
     GuiHandle 				PushGui(MeshHandle mesh, MaterialHandle material);
@@ -242,12 +251,12 @@ struct VulkanContext : platform::IGraphicsContext
     void UnloadAll();
 };
 
-struct VulkanDescriptorLayouts
-{
-	VkDescriptorSetLayout modelUniform;
-	VkDescriptorSetLayout sceneUniform;
-	VkDescriptorSetLayout material;
-};
+// struct VulkanDescriptorLayouts
+// {
+// 	VkDescriptorSetLayout modelUniform;
+// 	VkDescriptorSetLayout sceneUniform;
+// 	VkDescriptorSetLayout material;
+// };
 
 
 namespace vulkan
@@ -390,6 +399,14 @@ namespace vulkan
 	DestroyImageTexture(VulkanContext * context, VulkanTexture * texture);
 
 }
+
+internal VulkanPipelineItems
+make_pipeline(
+    VulkanContext * context,
+    int32 descriptorSetLayoutCount,
+    const char * vertexShaderPath,
+    const char * fragmentShaderPath,
+    bool32 enableDepth = true);
 
 #define WIN_VULKAN_HPP
 #endif

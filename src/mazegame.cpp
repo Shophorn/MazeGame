@@ -16,6 +16,7 @@ Leo Tamminen
 #include "Collisions2D.cpp"
 #include "CollisionManager2D.cpp"
 #include "Collisions3D.cpp"
+#include "Skybox.cpp"
 
 #include "CharacterSystems.cpp"
 #include "CameraController.cpp"

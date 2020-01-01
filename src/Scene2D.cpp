@@ -93,6 +93,8 @@ scene_2d::load(void * scenePtr, MemoryArena * persistentMemory, MemoryArena * tr
 
 	// Create MateriaLs
 	{
+		ShaderHandle shader = platformInfo->graphicsContext->push_shader("shaders/vert.spv", "shaders/frag.spv");
+
 		TextureAsset whiteTextureAsset = make_texture_asset(push_array<uint32>(transientMemory, {0xffffffff}), 1, 1);
 		TextureAsset blackTextureAsset = make_texture_asset(push_array<uint32>(transientMemory, {0xff000000}), 1, 1);
 
@@ -110,9 +112,9 @@ scene_2d::load(void * scenePtr, MemoryArena * persistentMemory, MemoryArena * tr
 		auto lavaTexture 	= load_and_push_texture("textures/lava.jpg");
 		auto faceTexture 	= load_and_push_texture("textures/texture.jpg");
 
-		auto push_material = [platformInfo](MaterialType type, TextureHandle a, TextureHandle b, TextureHandle c) -> MaterialHandle
+		auto push_material = [shader, platformInfo](MaterialType type, TextureHandle a, TextureHandle b, TextureHandle c) -> MaterialHandle
 		{
-			MaterialAsset asset = { type, a, b, c };
+			MaterialAsset asset = make_material_asset(shader, a, b, c);
 			MaterialHandle handle = platformInfo->graphicsContext->PushMaterial(&asset);
 			return handle;
 		};
@@ -200,7 +202,7 @@ scene_2d::load(void * scenePtr, MemoryArena * persistentMemory, MemoryArena * tr
 		constexpr bool32 addPlatforms 	= true;
 
 		{
-			auto groundQuad 	= mesh_primitives::create_quad(transientMemory);
+			auto groundQuad 	= mesh_primitives::create_quad(transientMemory, false);
 			auto meshTransform	= Matrix44::Translate({-width / 2, -depth /2, 0}) * Matrix44::Scale({width, depth, 0});
 			mesh_ops::transform(&groundQuad, meshTransform);
 			mesh_ops::transform_tex_coords(&groundQuad, {0,0}, {width / 2, depth / 2});

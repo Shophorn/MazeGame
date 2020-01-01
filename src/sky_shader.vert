@@ -22,9 +22,8 @@ layout (location = 2) out vec3 fragNormal;
 
 void main ()
 {
-	// gl_Position = camera.projection * camera.view * model.model * vec4(inPosition, 1.0);
-	gl_Position = vec4(inPosition.xy, 0.0, 1.0);
-	gl_Position = model.model * vec4(inPosition, 1.0);
+	// gl_Position = camera.projection * model * vec4(inPosition, 1.0);
+	gl_Position = camera.projection * camera.view * model.model * vec4(inPosition, 1.0);
 
 	// Todo(Leo): Check correctness???
 	fragNormal = (transpose(inverse(model.model)) * vec4(inNormal, 0)).xyz;

@@ -26,6 +26,8 @@ namespace scene_3d
 		CharacterControllerSideScroller::LadderTriggerFunc ladderTrigger2;
 		bool32 ladderOn = false;
 		bool32 ladder2On = false;
+
+		RenderedObjectHandle skybox;
 	};
 
 	internal uint64
@@ -55,6 +57,7 @@ scene_3d::update(void * scenePtr, game::Input * input, game::RenderInfo * render
 
 	update(&scene->cameraController, input);
     update_camera_system(renderer, platform, input, &scene->worldCamera);
+    draw_skybox(scene->skybox, &scene->worldCamera, renderer);
 	update_render_system(renderer, scene->renderSystem);
 }
 
@@ -76,10 +79,15 @@ scene_3d::load(void * scenePtr, MemoryArena * persistentMemory, MemoryArena * tr
 	struct MaterialCollection {
 		MaterialHandle character;
 		MaterialHandle environment;
+		MaterialHandle sky;
 	} materials;
+
 
 	// Create MateriaLs
 	{
+		ShaderHandle normalShader 	= platformInfo->graphicsContext->push_shader("shaders/vert.spv", "shaders/frag.spv");
+		ShaderHandle skyShader 		= platformInfo->graphicsContext->push_shader("shaders/vert_sky.spv", "shaders/frag_sky.spv", {.enableDepth = false});
+
 		TextureAsset whiteTextureAsset = make_texture_asset(push_array<uint32>(transientMemory, {0xffffffff}), 1, 1);
 		TextureAsset blackTextureAsset = make_texture_asset(push_array<uint32>(transientMemory, {0xff000000}), 1, 1);
 
@@ -97,24 +105,18 @@ scene_3d::load(void * scenePtr, MemoryArena * persistentMemory, MemoryArena * tr
 		auto lavaTexture 	= load_and_push_texture("textures/lava.jpg");
 		auto faceTexture 	= load_and_push_texture("textures/texture.jpg");
 
-		auto push_material = [platformInfo](MaterialType type, TextureHandle a, TextureHandle b, TextureHandle c) -> MaterialHandle
+		auto push_material = [platformInfo](ShaderHandle shader, TextureHandle a, TextureHandle b, TextureHandle c) -> MaterialHandle
 		{
-			MaterialAsset asset = { type, a, b, c };
+			MaterialAsset asset = make_material_asset(shader, a, b, c);
 			MaterialHandle handle = platformInfo->graphicsContext->PushMaterial(&asset);
 			return handle;
 		};
 
 		materials =
 		{
-			.character 	= push_material(	MaterialType::Character,
-											lavaTexture,
-											faceTexture,
-											blackTexture),
-
-			.environment = push_material(	MaterialType::Character,
-											tilesTexture,
-											blackTexture,
-											blackTexture)
+			.character 		= push_material(normalShader, lavaTexture, faceTexture, blackTexture),
+			.environment 	= push_material(normalShader, tilesTexture, blackTexture, blackTexture),
+			.sky 			= push_material(skyShader, lavaTexture, blackTexture, blackTexture)
 		};
 	}
 
@@ -129,6 +131,13 @@ scene_3d::load(void * scenePtr, MemoryArena * persistentMemory, MemoryArena * tr
     	auto handle = platformInfo->graphicsContext->PushRenderedObject(mesh, material);
     	return handle;
     };
+
+	// Skybox
+    {
+    	auto meshAsset = create_skybox(transientMemory);
+    	auto meshHandle = push_mesh(&meshAsset);
+    	scene->skybox = push_renderer(meshHandle, materials.sky);
+    }
 
 	// Characters
 	Handle<Transform3D> characterTransform = {};
@@ -170,6 +179,7 @@ scene_3d::load(void * scenePtr, MemoryArena * persistentMemory, MemoryArena * tr
     	.target 		= characterTransform
     };
 
+
 	// Environment
 	{
 		constexpr float depth = 100;
@@ -177,7 +187,7 @@ scene_3d::load(void * scenePtr, MemoryArena * persistentMemory, MemoryArena * tr
 		constexpr float ladderHeight = 1.0f;
 
 		{
-			auto groundQuad 	= mesh_primitives::create_quad(transientMemory);
+			auto groundQuad 	= mesh_primitives::create_quad(transientMemory, false);
 			auto meshTransform	= Matrix44::Translate({-width / 2, -depth /2, 0}) * Matrix44::Scale({width, depth, 0});
 			mesh_ops::transform(&groundQuad, meshTransform);
 			mesh_ops::transform_tex_coords(&groundQuad, {0,0}, {width / 2, depth / 2});

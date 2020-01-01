@@ -3,37 +3,54 @@ Leo Tamminen
 
 Asset things for :MAZEGAME:
 =============================================================================*/
-enum struct HandleType
-{ 
-	Invalid,
+// enum struct HandleType
+// { 
+// 	Invalid,
 
-	Mesh = 1, 
-	Texture,
-	Material,
-	RenderedObject,
-	Gui
+// 	Mesh = 1, 
+// 	Texture,
+// 	Material,
+// 	RenderedObject,
+// 	Gui,
+// 	Shader
+// };
+
+enum HandleType
+{
+	INVALID,
+
+	MESH,
+	TEXTURE,
+	MATERIAL,
+	RENDERED_OBJECT,
+	GUI,
+	SHADER,	
 };
 
-template<HandleType Type>
+template<HandleType T>
 struct BaseHandle
 {
 	uint64 index =  -1;
 	operator uint64() { return index; }	
-	static constexpr HandleType type = Type;
+	static constexpr HandleType type = T;
 };
 
-using MeshHandle = 				BaseHandle<HandleType::Mesh>;
-using TextureHandle = 			BaseHandle<HandleType::Texture>;
-using MaterialHandle = 			BaseHandle<HandleType::Material>;
-using RenderedObjectHandle = 	BaseHandle<HandleType::RenderedObject>;
-using GuiHandle =				BaseHandle<HandleType::Gui>;
+// template<HandleType T>
+
+
+using MeshHandle  			= BaseHandle<MESH>;
+using TextureHandle  		= BaseHandle<TEXTURE>;
+using MaterialHandle  		= BaseHandle<MATERIAL>;
+using RenderedObjectHandle  = BaseHandle<RENDERED_OBJECT>;
+using GuiHandle 			= BaseHandle<GUI>;
+using ShaderHandle 			= BaseHandle<SHADER>;
 
 struct Vertex
 {
-	Vector3 position;
-	Vector3 normal;
-	Vector3 color;
-	Vector2 texCoord;
+	Vector3 position 	= {};
+	Vector3 normal 		= {};
+	Vector3 color 		= {};
+	Vector2 texCoord 	= {};
 };
 
 enum struct IndexType : uint32 { UInt16, UInt32 };
@@ -85,10 +102,45 @@ enum struct MaterialType : int32
 struct MaterialAsset
 {
     // Note(Leo): Ignore now, later we use this to differentiate different material layouts
-    MaterialType type;
+    // MaterialType type;
+
+	TextureAsset pERROR;
+
+    ShaderHandle shader;
+
+    // int textureCount;
 
     TextureHandle albedo;
     TextureHandle metallic;
     TextureHandle testMask;
 };
+
+MaterialAsset
+make_material_asset(ShaderHandle shader, TextureHandle albedo, TextureHandle metallic, TextureHandle testMask)
+{
+	MaterialAsset result = 
+	{
+		.shader 	= shader,
+		.albedo 	= albedo,
+		.metallic 	= metallic,
+		.testMask	= testMask
+	};
+	return result;
+}
+
+// template<int TextureCount>
+// struct MaterialAsset2
+// {
+// 	ShaderHandle shader;
+
+// 	int32 textureCount;
+
+// 	TextureHandle textures[TextureCount];
+// };
+
+// template<typename ... Ts>
+// MaterialAsset2<2> make_material_asset(Ts ... textures)
+// {
+// 	return {};
+// }
 

@@ -205,10 +205,47 @@ using Matrix44 = MatrixBase<real32, 4, 4>;
 
 // Note(Leo): new style functions here
 // Todo(Leo): make all like this
-Matrix44 get_rotation_matrix(Quaternion quaternion)
+Matrix44
+get_rotation_matrix(Quaternion quaternion)
 {
 	Matrix44 result = Matrix44::Rotate(quaternion);
 	return result;
+}
+
+Matrix44
+make_transform_matrix(Vector3 translation, float uniformScale = 1.0f)
+{
+	Matrix44 result = {};
+
+	result[0][0] = uniformScale;
+	result[1][1] = uniformScale;
+	result[2][2] = uniformScale;
+
+	result[3] = { translation.x, translation.y, translation.z, 1.0f };
+
+	return result;
+}
+
+Matrix44
+make_transform_matrix(Vector3 translation, Quaternion rotation, float uniformScale = 1.0f)
+{
+	real32 	x = rotation.x,
+			y = rotation.y,
+			z = rotation.z,
+			w = rotation.w;
+
+	real32 s = uniformScale;
+
+	// Note(Leo): Using SSE could be faster than this.
+	Matrix44 result =
+	{
+		s * (1 - 2*y*y - 2*z*z), 	s * (2*x*y-2*w*z), 			s * (2*x*z + 2*w*y),		0,
+		s * (2*x*y + 2*w*z), 		s * (1 - 2*x*x - 2*z*z),	s * (2*y*z - 2*w*x),		0,
+		s * (2*x*z - 2*w*y),		s * (2*y*z + 2*w*x),		s * (1 - 2*x*x - 2*y*y),	0,
+		translation.x,				translation.y,				translation.z,				1
+	};
+
+	return result;	
 }
 
 template <typename ValueType, int LeftRows, int InnerSize, int RightColumns>
