@@ -11,7 +11,7 @@ namespace default_scene_gui
 	{
 		int32 gameGuiButtonCount;
 		ArenaArray<Rectangle> gameGuiButtons;
-		ArenaArray<GuiHandle> gameGuiButtonHandles;
+		ArenaArray<RenderedObjectHandle> gameGuiButtonHandles;
 		bool32 showGameMenu;
 
 		int32 selectedGuiButtonIndex;
@@ -107,7 +107,7 @@ default_scene_gui::update(void * guiPtr, game::Input * input, game::RenderInfo *
 
 				Matrix44 guiTransform = Matrix44::Translate({guiTranslate.x, guiTranslate.y, 0}) * Matrix44::Scale({guiScale.x, guiScale.y, 1.0});
 
-				renderer->render_gui(gui->gameGuiButtonHandles[guiButtonIndex], guiTransform);
+				renderer->render(gui->gameGuiButtonHandles[guiButtonIndex], guiTransform);
 			}
 		}
 		else
@@ -115,7 +115,7 @@ default_scene_gui::update(void * guiPtr, game::Input * input, game::RenderInfo *
 			for (int  guiButtonIndex = 0; guiButtonIndex < gui->gameGuiButtonCount; ++guiButtonIndex)
 			{
 				Matrix44 guiTransform = {};
-				renderer->render_gui(gui->gameGuiButtonHandles[guiButtonIndex], guiTransform);
+				renderer->render(gui->gameGuiButtonHandles[guiButtonIndex], guiTransform);
 			}
 		}
 	}
@@ -174,7 +174,7 @@ default_scene_gui::load(void * guiPtr, MemoryArena * persistentMemory, MemoryAre
 
 	gui->gameGuiButtonCount 	= 2;
 	gui->gameGuiButtons 		= push_array<Rectangle>(persistentMemory, gui->gameGuiButtonCount);
-	gui->gameGuiButtonHandles 	= push_array<GuiHandle>(persistentMemory, gui->gameGuiButtonCount);
+	gui->gameGuiButtonHandles 	= push_array<RenderedObjectHandle>(persistentMemory, gui->gameGuiButtonCount);
 
 	gui->gameGuiButtons[0] = {380, 200, 180, 40};
 	gui->gameGuiButtons[1] = {380, 260, 180, 40};
@@ -184,7 +184,7 @@ default_scene_gui::load(void * guiPtr, MemoryArena * persistentMemory, MemoryAre
 
 	for (int guiButtonIndex = 0; guiButtonIndex < gui->gameGuiButtonCount; ++guiButtonIndex)
 	{
-		gui->gameGuiButtonHandles[guiButtonIndex] = platformInfo->graphicsContext->PushGui(quadHandle, materials.basic);
+		gui->gameGuiButtonHandles[guiButtonIndex] = platformInfo->graphicsContext->PushRenderedObject(quadHandle, materials.basic);
 	}
 
 	gui->selectedGuiButtonIndex = 0;

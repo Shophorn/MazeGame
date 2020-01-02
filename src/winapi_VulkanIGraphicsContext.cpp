@@ -99,27 +99,6 @@ VulkanContext::PushRenderedObject(MeshHandle mesh, MaterialHandle material)
     return resultHandle;    
 }
 
-GuiHandle
-VulkanContext::PushGui(MeshHandle mesh, MaterialHandle material)
-{
-    uint32 guiIndex = loadedGuiObjects.size();
-
-    VulkanRenderedObject object =
-    {
-        .mesh     = mesh,
-        .material = material,
-    };
-
-    uint32 memorySizePerModelMatrix = align_up_to(
-        this->physicalDeviceProperties.limits.minUniformBufferOffsetAlignment,
-        sizeof(Matrix44));
-    object.uniformBufferOffset = guiIndex * memorySizePerModelMatrix;
-
-    loadedGuiObjects.push_back(object);
-
-    GuiHandle resultHandle = { guiIndex };
-    return resultHandle;    
-}
 
 // Note(Leo): Destroy vulkan objects only but keep load infos.
 internal void

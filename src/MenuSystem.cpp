@@ -26,7 +26,7 @@ update_gui_render_system(ArenaArray<GuiRendererSystemEntry> system, game::Render
 		}
 
 		Matrix44 transform = Matrix44::Translate({translation.x, translation.y, 0}) * Matrix44::Scale({scale.x, scale.y, 1.0});
-		renderer->render_gui(entry.renderer->handle, transform);
+		renderer->render(entry.renderer->handle, transform);
 	}
 }
 
@@ -103,7 +103,7 @@ load_menu_gui(void * guiPtr, MemoryArena * persistentMemory, MemoryArena * trans
 	int estimatedGuiCount = 10;
 
 	allocate_for_handle<Rectangle>(persistentMemory, estimatedGuiCount);
-	allocate_for_handle<GuiRenderer>(persistentMemory, estimatedGuiCount);
+	allocate_for_handle<Renderer>(persistentMemory, estimatedGuiCount);
 
  	gui->guiRenderSystem = reserve_array<GuiRendererSystemEntry>(persistentMemory, estimatedGuiCount);
 
@@ -140,8 +140,8 @@ load_menu_gui(void * guiPtr, MemoryArena * persistentMemory, MemoryArena * trans
  	{
  		Handle<Rectangle> rectanle = make_handle<Rectangle>({380, (float)(200 + 60 * i), 180, 40});
 
- 		GuiHandle graphicsHandle = platformInfo->graphicsContext->PushGui(quadHandle, material);
- 		Handle<GuiRenderer> renderer = make_handle<GuiRenderer>({graphicsHandle});
+ 		RenderedObjectHandle graphicsHandle = platformInfo->graphicsContext->PushRenderedObject(quadHandle, material);
+ 		Handle<Renderer> renderer 			= make_handle<Renderer>({graphicsHandle});
 
  		push_one(gui->guiRenderSystem, {rectanle, renderer});
  	}

@@ -54,7 +54,6 @@ namespace platform
 		virtual MaterialHandle 	PushMaterial (MaterialAsset * material) 	= 0;
 		
 		virtual RenderedObjectHandle 	PushRenderedObject(MeshHandle mesh, MaterialHandle material) = 0;
-		virtual GuiHandle 				PushGui(MeshHandle mesh, MaterialHandle material) = 0;
 
 		virtual PipelineHandle push_pipeline(const char * vertexShaderPath, const char * fragmentShaderPath, PipelineOptions options = {}) = 0;
 
@@ -157,7 +156,6 @@ namespace game
 	{
 		std::function<void(Matrix44 view, Matrix44 perspective)> set_camera;
 		std::function<void(RenderedObjectHandle, Matrix44)> render;
-		std::function<void(GuiHandle, Matrix44)> render_gui;
 	};
 	
 	struct NetworkPackage

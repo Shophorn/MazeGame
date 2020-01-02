@@ -224,8 +224,6 @@ namespace winapi
         resultContext.guiDescriptorSetLayout = CreateModelDescriptorSetLayout(resultContext.device);
 
         // Todo(Leo): This seems rather stupid way to organize creation of these...
-        // resultContext.pipelineItems             = make_pipeline(&resultContext, 3, "shaders/vert.spv", "shaders/frag.spv");
-        resultContext.guiPipelineItems          = vulkan::make_pipeline(&resultContext, 3, "shaders/vert_gui.spv", "shaders/frag_gui.spv");
         resultContext.drawingResources          = CreateDrawingResources(&resultContext);
         resultContext.frameBuffers              = CreateFrameBuffers(&resultContext);
         resultContext.uniformDescriptorPool     = CreateDescriptorPool(resultContext.device, resultContext.swapchainItems.images.size());
@@ -510,17 +508,11 @@ Run(HINSTANCE winInstance)
         want to be more exact */
         platformRenderInfo.renderedObjects = push_array<Matrix44, RenderedObjectHandle>(
                                             &platformTransientMemoryArena, VULKAN_MAX_MODEL_COUNT);
-        platformRenderInfo.guiObjects = push_array<Matrix44, GuiHandle>(
-                                        &platformTransientMemoryArena, VULKAN_MAX_MODEL_COUNT);
 
         // Todo(Leo): define these somewhere else as proper functions and not lamdas??
         gameRenderInfo.render = [&platformRenderInfo](RenderedObjectHandle handle, Matrix44 transform)
         {
             platformRenderInfo.renderedObjects[handle] = transform;
-        };
-        gameRenderInfo.render_gui = [&platformRenderInfo](GuiHandle handle, Matrix44 transform)
-        {
-            platformRenderInfo.guiObjects[handle] = transform;
         };
         gameRenderInfo.set_camera = [&platformRenderInfo](Matrix44 view, Matrix44 perspective)
         {

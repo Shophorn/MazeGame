@@ -12,7 +12,6 @@ enum HandleType
 	TEXTURE,
 	MATERIAL,
 	RENDERED_OBJECT,
-	GUI,
 	PIPELINE,	
 };
 
@@ -31,7 +30,6 @@ using MeshHandle  			= BaseHandle<MESH>;
 using TextureHandle  		= BaseHandle<TEXTURE>;
 using MaterialHandle  		= BaseHandle<MATERIAL>;
 using RenderedObjectHandle  = BaseHandle<RENDERED_OBJECT>;
-using GuiHandle 			= BaseHandle<GUI>;
 using PipelineHandle 			= BaseHandle<PIPELINE>;
 
 struct Vertex

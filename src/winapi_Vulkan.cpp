@@ -1189,25 +1189,6 @@ CreateSceneDescriptorSetLayout(VkDevice device)
     return resultDescriptorSetLayout;
 }
 
-
-
-
-// internal VulkanPipelineItems
-// CreateGraphicsPipeline(
-//     VulkanContext * context,
-//     int32 descriptorSetLayoutCount)
-// {
-//     auto result = make_pipeline(context, descriptorSetLayoutCount, "shaders/vert.spv", "shaders/frag.spv");
-//     return result;
-// }
-
-internal VulkanPipelineItems
-CreateGuiPipeline(VulkanContext * context, int32 descriptorSetLayoutCount)
-{
-    auto result = vulkan::make_pipeline(context, descriptorSetLayoutCount, "shaders/vert_gui.spv", "shaders/frag_gui.spv");
-    return result;
-}
-
 internal VulkanSyncObjects
 CreateSyncObjects(VkDevice device)
 {
@@ -1920,10 +1901,6 @@ CleanupSwapchain(VulkanContext * context)
         vkDestroyFramebuffer(context->device, framebuffer, nullptr);
     }
 
-    // Gui graphics
-    vkDestroyPipeline(context->device, context->guiPipelineItems.pipeline, nullptr);
-    vkDestroyPipelineLayout(context->device, context->guiPipelineItems.layout, nullptr);    
-
     vkDestroyRenderPass(context->device, context->renderPass, nullptr);
 
     for (auto imageView : context->swapchainItems.imageViews)
@@ -2135,47 +2112,6 @@ CreateCommandBuffers(VulkanContext * context)
             }
         }
 
-        // 2d gui pipeline
-        {
-            vkCmdBindPipeline(      commandBuffer,
-                                    VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                    context->guiPipelineItems.pipeline);
-
-            vkCmdBindDescriptorSets(commandBuffer,
-                                    VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                    context->guiPipelineItems.layout,
-                                    0, 1,
-                                    &context->sceneDescriptorSets[frameIndex],
-                                    0, nullptr);
-
-            for (int guiIndex = 0; guiIndex < guiCount; ++guiIndex)
-            {
-                // Bind material
-                auto materialIndex = guiInfos[guiIndex].materialIndex;
-
-                vkCmdBindDescriptorSets(commandBuffer,
-                                        VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                        context->guiPipelineItems.layout,
-                                        1,
-                                        1,
-                                        &context->loadedMaterials[materialIndex].descriptorSet,
-                                        0,
-                                        nullptr);
-                // Bind model info
-                vkCmdBindVertexBuffers( commandBuffer, 0, 1, &guiInfos[guiIndex].meshBuffer, &guiInfos[guiIndex].vertexOffset);
-                vkCmdBindIndexBuffer(   commandBuffer, guiInfos[guiIndex].meshBuffer, guiInfos[guiIndex].indexOffset, guiInfos[guiIndex].indexType);
-
-                // Bind entity transform
-                vkCmdBindDescriptorSets(    commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                            context->guiPipelineItems.layout,
-                                            2, 1, 
-                                            &context->guiDescriptorSets[frameIndex], 1,
-                                            &guiInfos[guiIndex].uniformBufferOffset);
-
-                vkCmdDrawIndexed(commandBuffer, guiInfos[guiIndex].indexCount, 1, 0, 0, 0);
-            }
-        }
-
         vkCmdEndRenderPass(commandBuffer);
 
         if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS)
@@ -2214,18 +2150,6 @@ vulkan::UpdateUniformBuffer(VulkanContext * context, uint32 imageIndex, vulkan::
 
     }
 
-    int guiCount = context->loadedGuiObjects.size();
-    for (GuiHandle handle = {0}; handle < guiCount; ++handle.index)
-    {
-        Matrix44 * pGuiMatrix;
-        vkMapMemory(context->device, context->guiUniformBuffer.memory,
-                    startUniformBufferOffset + context->loadedGuiObjects[handle].uniformBufferOffset,
-                    sizeof(pGuiMatrix), 0, (void**)&pGuiMatrix);
-
-        *pGuiMatrix = renderInfo->guiObjects[handle];
-        vkUnmapMemory(context->device, context->guiUniformBuffer.memory);
-    }
-
     // Note (Leo): map vulkan memory directly to right type so we can easily avoid one (small) memcpy per frame
     VulkanCameraUniformBufferObject * pUbo;
     vkMapMemory(context->device, context->sceneUniformBuffer.memory,
@@ -2249,8 +2173,6 @@ vulkan::RecreateSwapchain(VulkanContext * context, VkExtent2D frameBufferSize)
 
     context->swapchainItems      = CreateSwapchainAndImages(context, frameBufferSize);
     context->renderPass          = CreateRenderPass(context, &context->swapchainItems, context->msaaSamples);
-    // context->pipelineItems       = make_pipeline(context, 3, "shaders/vert.spv", "shaders/frag.spv");
-    context->guiPipelineItems    = make_pipeline(context, 3, "shaders/vert.spv", "shaders/frag.spv");
     recreate_loaded_pipelines(context);
     context->drawingResources    = CreateDrawingResources(context);
     context->frameBuffers        = CreateFrameBuffers(context);

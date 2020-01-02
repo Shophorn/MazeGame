@@ -206,7 +206,7 @@ struct VulkanContext : platform::IGraphicsContext
     VkRenderPass            renderPass;
     VulkanSwapchainItems 	swapchainItems;
     // VulkanPipelineItems     pipelineItems;
-    VulkanPipelineItems     guiPipelineItems;
+    // VulkanPipelineItems     guiPipelineItems;
     VulkanSyncObjects       syncObjects;
 
     std::vector<VulkanLoadedPipeline> loadedPipelines;
@@ -260,7 +260,6 @@ struct VulkanContext : platform::IGraphicsContext
     PipelineHandle	push_pipeline(const char * vertexShaderPath, const char * fragmentShaderPath, platform::PipelineOptions options = {});
     
     RenderedObjectHandle 	PushRenderedObject(MeshHandle mesh, MaterialHandle material);
-    GuiHandle 				PushGui(MeshHandle mesh, MaterialHandle material);
 
     void Apply();
     void UnloadAll();
@@ -283,7 +282,6 @@ namespace vulkan
 
 		// Todo(Leo): Are these cool, since they kinda are just pointers to data somewhere else....?? How to know???
 		ArenaArray<Matrix44, RenderedObjectHandle> renderedObjects;
-		ArenaArray<Matrix44, GuiHandle> guiObjects;
 	};		
 
 

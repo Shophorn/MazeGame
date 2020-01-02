@@ -16,15 +16,10 @@ struct RenderSystemEntry
 	Handle<Renderer> renderer;
 };
 
-struct GuiRenderer
-{
-	GuiHandle handle;
-};
-
 struct GuiRendererSystemEntry
 {
 	Handle<Rectangle> transform;
-	Handle<GuiRenderer> renderer;
+	Handle<Renderer> renderer;
 };
 
 internal void
