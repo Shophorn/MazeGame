@@ -154,8 +154,8 @@ namespace game
 
 	struct RenderInfo
 	{
-		std::function<void(Matrix44 view, Matrix44 perspective)> set_camera;
-		std::function<void(RenderedObjectHandle, Matrix44)> render;
+		std::function<void(Matrix44 view, Matrix44 perspective)> 	set_camera;
+		std::function<void(RenderedObjectHandle, Matrix44)> 		render;
 	};
 	
 	struct NetworkPackage

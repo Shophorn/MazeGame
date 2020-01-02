@@ -23,13 +23,10 @@ struct BaseHandle
 	static constexpr HandleType type = T;
 };
 
-// template<HandleType T>
-
-
-using MeshHandle  			= BaseHandle<MESH>;
-using TextureHandle  		= BaseHandle<TEXTURE>;
-using MaterialHandle  		= BaseHandle<MATERIAL>;
-using RenderedObjectHandle  = BaseHandle<RENDERED_OBJECT>;
+using MeshHandle  				= BaseHandle<MESH>;
+using TextureHandle  			= BaseHandle<TEXTURE>;
+using MaterialHandle  			= BaseHandle<MATERIAL>;
+using RenderedObjectHandle  	= BaseHandle<RENDERED_OBJECT>;
 using PipelineHandle 			= BaseHandle<PIPELINE>;
 
 struct Vertex

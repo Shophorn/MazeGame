@@ -277,21 +277,21 @@ vulkan::CreateShaderModule(BinaryAsset code, VkDevice logicalDevice)
 }
 
 
-internal VulkanPipelineItems
+internal VulkanLoadedPipeline
 vulkan::make_pipeline(
     VulkanContext * context,
     int32 descriptorSetLayoutCount,
-    const char * vertexShaderPath,
-    const char * fragmentShaderPath,
-    platform::PipelineOptions options)
+    VulkanPipelineLoadInfo info)
 {
 
     // Todo(Leo): unhardcode these
-    BinaryAsset vertexShaderCode = ReadBinaryFile(vertexShaderPath);
-    BinaryAsset fragmentShaderCode = ReadBinaryFile(fragmentShaderPath);
+    BinaryAsset vertexShaderCode = ReadBinaryFile(info.vertexShaderPath.c_str());
+    BinaryAsset fragmentShaderCode = ReadBinaryFile(info.fragmentShaderPath.c_str());
 
     VkShaderModule vertexShaderModule = vulkan::CreateShaderModule(vertexShaderCode, context->device);
     VkShaderModule fragmentShaderModule = vulkan::CreateShaderModule(fragmentShaderCode, context->device);
+
+    auto & options = info.options;
 
     enum : uint32
     {
@@ -487,6 +487,7 @@ vulkan::make_pipeline(
     vkDestroyShaderModule(context->device, vertexShaderModule, nullptr);
 
     return {
+        .info       = info,
         .pipeline   = pipeline,
         .layout     = layout
     };
@@ -1991,25 +1992,6 @@ CreateCommandBuffers(VulkanContext * context)
         renderInfos[objectIndex].materialIndex          = materialHandle;
     }
 
-    int32 guiCount = context->loadedGuiObjects.size();
-    std::vector<VulkanRenderInfo> guiInfos (guiCount);
-
-    for (int32 guiIndex = 0; guiIndex < guiCount; ++guiIndex)
-    {
-        MeshHandle meshHandle           = context->loadedGuiObjects[guiIndex].mesh;
-        MaterialHandle materialHandle   = context->loadedGuiObjects[guiIndex].material;
-
-        guiInfos[guiIndex].meshBuffer             = context->loadedModels[meshHandle].buffer; 
-        guiInfos[guiIndex].vertexOffset           = context->loadedModels[meshHandle].vertexOffset;
-        guiInfos[guiIndex].indexOffset            = context->loadedModels[meshHandle].indexOffset;
-        guiInfos[guiIndex].indexCount             = context->loadedModels[meshHandle].indexCount;
-        guiInfos[guiIndex].indexType              = context->loadedModels[meshHandle].indexType;
-
-        guiInfos[guiIndex].uniformBufferOffset    = context->loadedGuiObjects[guiIndex].uniformBufferOffset;
-        
-        guiInfos[guiIndex].materialIndex          = materialHandle;   
-    }
-
     for (int frameIndex = 0; frameIndex < context->frameCommandBuffers.size(); ++frameIndex)
     {
         VkCommandBuffer commandBuffer = context->frameCommandBuffers[frameIndex];
@@ -2026,8 +2008,7 @@ CreateCommandBuffers(VulkanContext * context)
             throw std::runtime_error("Failed to begin recording command buffer");
         }
 
-        // Todo(Leo): These should also use constexpr ids or unscoped enums
-        VkClearValue clearValues [2] =
+        VkClearValue clearValues [] =
         {
             { .color = {0.0f, 0.0f, 0.0f, 1.0f} },
             { .depthStencil = {1.0f, 0} }
@@ -2043,7 +2024,7 @@ CreateCommandBuffers(VulkanContext * context)
             .renderArea.extent  = context->swapchainItems.extent,
 
             .clearValueCount    = 2,
-            .pClearValues       = &clearValues [0],
+            .pClearValues       = clearValues,
         };
 
         vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
@@ -2058,26 +2039,22 @@ CreateCommandBuffers(VulkanContext * context)
         // Normal 3d graphics
         {
             PipelineHandle      currentPipeline = {};
-            VkPipeline          pipeline;
-            VkPipelineLayout    layout;
 
             for (int objectIndex = 0; objectIndex < objectCount; ++objectIndex)
             {
                 auto materialIndex = renderInfos[objectIndex].materialIndex;
-                PipelineHandle newShader = context->loadedMaterials[materialIndex].pipeline;
-                if (newShader != currentPipeline)
+                PipelineHandle newPipeline = context->loadedMaterials[materialIndex].pipeline;
+                if (newPipeline != currentPipeline)
                 {
-                    currentPipeline   = newShader;
-                    pipeline = context->loadedPipelines[currentPipeline].payload.pipeline;
-                    layout   = context->loadedPipelines[currentPipeline].payload.layout;
-
+                    currentPipeline   = newPipeline;
+                
                     vkCmdBindPipeline(      commandBuffer,
                                             VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                            pipeline);
+                                            context->loadedPipelines[currentPipeline].pipeline);
 
                     vkCmdBindDescriptorSets(commandBuffer,
                                             VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                            layout,
+                                            context->loadedPipelines[currentPipeline].layout,
                                             LAYOUT_SCENE,
                                             1, 
                                             &context->sceneDescriptorSets[frameIndex],
@@ -2088,7 +2065,7 @@ CreateCommandBuffers(VulkanContext * context)
                 // Bind material
                 vkCmdBindDescriptorSets(commandBuffer,
                                         VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                        layout,
+                                        context->loadedPipelines[currentPipeline].layout,
                                         LAYOUT_MATERIAL,
                                         1, 
                                         &context->loadedMaterials[materialIndex].descriptorSet,
@@ -2101,7 +2078,7 @@ CreateCommandBuffers(VulkanContext * context)
                 // Bind entity transform
                 vkCmdBindDescriptorSets(commandBuffer,
                                         VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                        layout,
+                                        context->loadedPipelines[currentPipeline].layout,
                                         LAYOUT_MODEL,
                                         1,
                                         &context->descriptorSets[frameIndex],

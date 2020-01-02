@@ -106,11 +106,11 @@ destroy_loaded_pipelines(VulkanContext * context)
 {
     for (int i = 0; i < context->loadedPipelines.size(); ++i)
     {
-        vkDestroyPipeline(context->device, context->loadedPipelines[i].payload.pipeline, nullptr);
-        vkDestroyPipelineLayout(context->device, context->loadedPipelines[i].payload.layout, nullptr);
+        vkDestroyPipeline(context->device, context->loadedPipelines[i].pipeline, nullptr);
+        vkDestroyPipelineLayout(context->device, context->loadedPipelines[i].layout, nullptr);
 
-        context->loadedPipelines[i].payload.layout = VK_NULL_HANDLE;
-        context->loadedPipelines[i].payload.pipeline = VK_NULL_HANDLE;
+        context->loadedPipelines[i].layout      = VK_NULL_HANDLE;
+        context->loadedPipelines[i].pipeline    = VK_NULL_HANDLE;
     }
 }
 
@@ -137,9 +137,6 @@ VulkanContext::UnloadAll()
     // Rendered objects
     loadedRenderedObjects.resize(0);
 
-    // Gui objects
-    loadedGuiObjects.resize(0);
-
     destroy_loaded_pipelines(this);
     loadedPipelines.resize(0);
 }
@@ -149,9 +146,15 @@ VulkanContext::push_pipeline(const char * vertexShaderPath, const char * fragmen
 {
     std::cout << "[push_shader()]: TODO these must be recreated with swapchain.\n";
 
-    auto pipeline = vulkan::make_pipeline(this, 3, vertexShaderPath, fragmentShaderPath, options);
+    VulkanPipelineLoadInfo info = 
+    {
+        .vertexShaderPath   = vertexShaderPath,
+        .fragmentShaderPath = fragmentShaderPath,
+        .options            = options
+    };
+    auto pipeline = vulkan::make_pipeline(this, 3, info);
     uint64 index = loadedPipelines.size();
-    loadedPipelines.push_back({{vertexShaderPath, fragmentShaderPath, options}, pipeline});
+    loadedPipelines.push_back(pipeline);
 
     return {index};
 }
@@ -163,13 +166,25 @@ recreate_loaded_pipelines(VulkanContext * context)
 
     for (int i = 0; i < context->loadedPipelines.size(); ++i)
     {
-        auto pipeline = vulkan::make_pipeline(
-                            context,
-                            3, 
-                            context->loadedPipelines[i].info.vertexShaderPath.c_str(),
-                            context->loadedPipelines[i].info.fragmentShaderPath.c_str(),
-                            context->loadedPipelines[i].info.options);
- 
-        context->loadedPipelines[i].payload = pipeline;
+        auto pipeline = vulkan::make_pipeline(context, 3, context->loadedPipelines[i].info);
+        context->loadedPipelines[i] = pipeline;
     }
+}
+
+void
+vulkan::start_drawing(VulkanContext * context)
+{
+    // std::cout << "[vulkan::start_drawing()]\n";
+}
+
+void
+vulkan::finish_drawing(VulkanContext * context)
+{
+    // std::cout << "[vulkan::finish_drawing()]\n";
+}
+
+void
+vulkan::record_draw_command(VulkanContext * context, RenderedObjectHandle handle, Matrix44 transform)
+{
+    // std::cout << "[vulkan::record_draw_command()]\n";
 }

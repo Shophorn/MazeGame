@@ -241,55 +241,6 @@ namespace winapi
         return state;
     }
 
-    internal void
-    process_keyboard_input(winapi::State * state, WPARAM keycode, bool32 isDown)
-    {
-        enum
-        {
-            VKEY_A = 0x41,
-            VKEY_D = 0x44,
-            VKEY_S = 0x53,
-            VKEY_W = 0x57
-        };
-
-        switch(keycode)
-        {
-            case VKEY_A:
-            case VK_LEFT:
-                state->keyboardInput.left = isDown;
-                break;
-
-            case VKEY_D:
-            case VK_RIGHT:
-                state->keyboardInput.right = isDown;
-                break;
-
-            case VKEY_W:
-            case VK_UP:
-                state->keyboardInput.up = isDown;
-                break;
-
-            case VKEY_S:
-            case VK_DOWN:
-                state->keyboardInput.down = isDown;
-                break;
-
-            case VK_RETURN:
-                state->keyboardInput.enter = isDown;
-                break;
-
-            case VK_ESCAPE:
-                state->keyboardInput.escape = isDown;
-                break;
-
-            case VK_SPACE:
-                state->keyboardInput.space = isDown;
-                break;
-        }
-
-        state->keyboardInputIsUsed = true;
-    }
-
     // Note(Leo): CALLBACK specifies calling convention for 32-bit applications
     // https://stackoverflow.com/questions/15126454/what-does-the-callback-keyword-mean-in-a-win-32-c-application
     internal LRESULT CALLBACK
@@ -510,9 +461,11 @@ Run(HINSTANCE winInstance)
                                             &platformTransientMemoryArena, VULKAN_MAX_MODEL_COUNT);
 
         // Todo(Leo): define these somewhere else as proper functions and not lamdas??
-        gameRenderInfo.render = [&platformRenderInfo](RenderedObjectHandle handle, Matrix44 transform)
+        gameRenderInfo.render = [&context, &platformRenderInfo](RenderedObjectHandle handle, Matrix44 transform)
         {
             platformRenderInfo.renderedObjects[handle] = transform;
+            
+            vulkan::record_draw_command(&context, handle, transform);
         };
         gameRenderInfo.set_camera = [&platformRenderInfo](Matrix44 view, Matrix44 perspective)
         {
@@ -689,21 +642,26 @@ Run(HINSTANCE winInstance)
         }
 
         /// --------- UPDATE GAME -------------
-        {
+        {   
+
             gamePlatformInfo.windowWidth = context.swapchainItems.extent.width;
             gamePlatformInfo.windowHeight = context.swapchainItems.extent.height;
             gamePlatformInfo.windowIsFullscreen = state.windowIsFullscreen;
 
             gameNetwork.isConnected = network.isConnected;
 
-            game::SoundOutput gameSoundOutput = {};
-            winapi::GetAudioBuffer(&audio, &gameSoundOutput.sampleCount, &gameSoundOutput.samples);
-
             if(game.IsLoaded())
             {
+                game::SoundOutput gameSoundOutput = {};
+                winapi::GetAudioBuffer(&audio, &gameSoundOutput.sampleCount, &gameSoundOutput.samples);
+
+                vulkan::start_drawing(&context);
+    
                 game::UpdateResult updateResult = game.Update(  &gameInput, &gameMemory,
                                                                 &gamePlatformInfo, &gameNetwork, 
                                                                 &gameSoundOutput, &gameRenderInfo);
+
+                vulkan::finish_drawing(&context);
 
                 if (updateResult.exit)
                 {
@@ -724,9 +682,9 @@ Run(HINSTANCE winInstance)
                         break;
                 }
 
+                winapi::ReleaseAudioBuffer(&audio, gameSoundOutput.sampleCount);
             }
 
-            winapi::ReleaseAudioBuffer(&audio, gameSoundOutput.sampleCount);
         }
 
 

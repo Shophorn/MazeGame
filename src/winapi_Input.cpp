@@ -163,3 +163,52 @@ update_unused_input(game::Input * gameInput)
     gameInput->down     = update_button_state(gameInput->down,      false);
     gameInput->up       = update_button_state(gameInput->up,        false);
 }
+
+internal void
+process_keyboard_input(winapi::State * state, WPARAM keycode, bool32 isDown)
+{
+    enum : WPARAM
+    {
+        VKEY_A = 0x41,
+        VKEY_D = 0x44,
+        VKEY_S = 0x53,
+        VKEY_W = 0x57
+    };
+
+    switch(keycode)
+    {
+        case VKEY_A:
+        case VK_LEFT:
+            state->keyboardInput.left = isDown;
+            break;
+
+        case VKEY_D:
+        case VK_RIGHT:
+            state->keyboardInput.right = isDown;
+            break;
+
+        case VKEY_W:
+        case VK_UP:
+            state->keyboardInput.up = isDown;
+            break;
+
+        case VKEY_S:
+        case VK_DOWN:
+            state->keyboardInput.down = isDown;
+            break;
+
+        case VK_RETURN:
+            state->keyboardInput.enter = isDown;
+            break;
+
+        case VK_ESCAPE:
+            state->keyboardInput.escape = isDown;
+            break;
+
+        case VK_SPACE:
+            state->keyboardInput.space = isDown;
+            break;
+    }
+
+    state->keyboardInputIsUsed = true;
+}

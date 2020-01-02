@@ -91,11 +91,6 @@ struct VulkanSwapchainItems
     std::vector<VkImageView> imageViews;
 };
 
-struct VulkanPipelineItems
-{
-	VkPipeline pipeline;
-	VkPipelineLayout layout;
-};
 
 struct VulkanSyncObjects
 {
@@ -160,13 +155,11 @@ struct VulkanRenderedObject
     uint32         	uniformBufferOffset;
 };
 
-// using VulkanMaterial = VkDescriptorSet;
 struct VulkanMaterial
 {
 	PipelineHandle pipeline;
 	VkDescriptorSet descriptorSet;
 };
-
 
 struct VulkanPipelineLoadInfo
 {
@@ -179,13 +172,14 @@ struct VulkanLoadedPipeline
 {
 	// Note(Leo): we need info for recreating pipelines after swapchain recreation
 	VulkanPipelineLoadInfo info;
-	VulkanPipelineItems payload;
+	VkPipeline pipeline;
+	VkPipelineLayout layout;
 };
 
 struct VulkanContext : platform::IGraphicsContext
 {
 	VkInstance 						instance;
-	VkDevice 						device; // Note(Leo): this is logical device.
+	VkDevice 						device; // Note(Leo): this is Logical Device.
 	VkPhysicalDevice 				physicalDevice;
 	VkPhysicalDeviceProperties 		physicalDeviceProperties;
 
@@ -196,8 +190,7 @@ struct VulkanContext : platform::IGraphicsContext
 	VkQueue 						graphicsQueue;
 	VkQueue 						presentQueue;
 	
-	/* Todo(Leo): There is one layout for each of [models, scene data, materials].
-	They were originally in array for ease of use, but this is no longer true.*/
+	/* Todo(Leo): There is one layout for each of [models, scene data, materials].*/
     VkDescriptorSetLayout 	descriptorSetLayouts [3];
     VkDescriptorSetLayout 	guiDescriptorSetLayout;
 
@@ -205,8 +198,6 @@ struct VulkanContext : platform::IGraphicsContext
 
     VkRenderPass            renderPass;
     VulkanSwapchainItems 	swapchainItems;
-    // VulkanPipelineItems     pipelineItems;
-    // VulkanPipelineItems     guiPipelineItems;
     VulkanSyncObjects       syncObjects;
 
     std::vector<VulkanLoadedPipeline> loadedPipelines;
@@ -245,10 +236,9 @@ struct VulkanContext : platform::IGraphicsContext
     // Todo(Leo): Use our own arena arrays for these.
     std::vector<VulkanModel>  			loadedModels;
 	std::vector<VulkanTexture> 			loadedTextures;
-	std::vector<VulkanMaterial>			loadedMaterials;  // Note(Leo): this is secretly just a VkDescriptorSet
+	std::vector<VulkanMaterial>			loadedMaterials;
 	
 	std::vector<VulkanRenderedObject>	loadedRenderedObjects;
-	std::vector<VulkanRenderedObject>	loadedGuiObjects;
 
 
     /// ----- IGraphicsContext interface implementation -----
@@ -264,14 +254,6 @@ struct VulkanContext : platform::IGraphicsContext
     void Apply();
     void UnloadAll();
 };
-
-// struct VulkanDescriptorLayouts
-// {
-// 	VkDescriptorSetLayout modelUniform;
-// 	VkDescriptorSetLayout sceneUniform;
-// 	VkDescriptorSetLayout material;
-// };
-
 
 namespace vulkan
 {
@@ -411,13 +393,21 @@ namespace vulkan
 	internal void
 	DestroyImageTexture(VulkanContext * context, VulkanTexture * texture);
 
-	internal VulkanPipelineItems
+	internal VulkanLoadedPipeline
 	make_pipeline(
 	    VulkanContext * context,
 	    int32 descriptorSetLayoutCount,
-	    const char * vertexShaderPath,
-	    const char * fragmentShaderPath,
-	    platform::PipelineOptions options = {});
+	    VulkanPipelineLoadInfo loadInfo);
+
+	// DRAWING?
+	void
+	start_drawing(VulkanContext * context);
+
+	void
+	finish_drawing(VulkanContext * context);
+
+	void
+	record_draw_command(VulkanContext * context, RenderedObjectHandle handle, Matrix44 transform);
 }
 
 
