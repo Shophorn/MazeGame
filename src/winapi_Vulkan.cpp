@@ -2071,23 +2071,6 @@ CreateCommandBuffers(VulkanContext * context)
 
         vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
         
-        // struct ShaderThing
-        // {
-        //     VkPipeline pipeline;
-        //     VkPipelineLayout layout;  
-        // };
-
-        // struct MaterialThing
-        // {
-        //     ShaderThing shader;
-
-        //     int textureCount = 3;
-        //     int uniformCount = 3;
-
-        //     TextureHandle textures[3];
-        //     float uniforms [3];
-        // };
-
         enum : uint32
         {
             LAYOUT_SCENE    = 0,
@@ -2095,31 +2078,29 @@ CreateCommandBuffers(VulkanContext * context)
             LAYOUT_MODEL    = 2,
         };
 
-        // Todo(Leo): Not really 'shader' although it is, but actually a pipeline...
-
         // Normal 3d graphics
         {
-            PipelineHandle      currentShader = {};
-            VkPipeline          currentPipeline;
-            VkPipelineLayout    currentLayout;
+            PipelineHandle      currentPipeline = {};
+            VkPipeline          pipeline;
+            VkPipelineLayout    layout;
 
             for (int objectIndex = 0; objectIndex < objectCount; ++objectIndex)
             {
                 auto materialIndex = renderInfos[objectIndex].materialIndex;
                 PipelineHandle newShader = context->loadedMaterials[materialIndex].pipeline;
-                if (newShader != currentShader)
+                if (newShader != currentPipeline)
                 {
-                    currentShader   = newShader;
-                    currentPipeline = context->loadedPipelines[currentShader].payload.pipeline;
-                    currentLayout   = context->loadedPipelines[currentShader].payload.layout;
+                    currentPipeline   = newShader;
+                    pipeline = context->loadedPipelines[currentPipeline].payload.pipeline;
+                    layout   = context->loadedPipelines[currentPipeline].payload.layout;
 
                     vkCmdBindPipeline(      commandBuffer,
                                             VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                            currentPipeline);
+                                            pipeline);
 
                     vkCmdBindDescriptorSets(commandBuffer,
                                             VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                            currentLayout,
+                                            layout,
                                             LAYOUT_SCENE,
                                             1, 
                                             &context->sceneDescriptorSets[frameIndex],
@@ -2130,7 +2111,7 @@ CreateCommandBuffers(VulkanContext * context)
                 // Bind material
                 vkCmdBindDescriptorSets(commandBuffer,
                                         VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                        currentLayout,
+                                        layout,
                                         LAYOUT_MATERIAL,
                                         1, 
                                         &context->loadedMaterials[materialIndex].descriptorSet,
@@ -2143,7 +2124,7 @@ CreateCommandBuffers(VulkanContext * context)
                 // Bind entity transform
                 vkCmdBindDescriptorSets(commandBuffer,
                                         VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                        currentLayout,
+                                        layout,
                                         LAYOUT_MODEL,
                                         1,
                                         &context->descriptorSets[frameIndex],
@@ -2288,42 +2269,47 @@ vulkan::RecreateSwapchain(VulkanContext * context, VkExtent2D frameBufferSize)
 internal void
 vulkan::DrawFrame(VulkanContext * context, uint32 imageIndex, uint32 frameIndex)
 {
-    VkSubmitInfo submitInfo[1] = {};
-    submitInfo[0].sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
     // Note(Leo): We wait for these BEFORE drawing
-    VkSemaphore waitSemaphores [] = { context->syncObjects.imageAvailableSemaphores[frameIndex] };
-    VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
-    submitInfo[0].waitSemaphoreCount = 1;
-    submitInfo[0].pWaitSemaphores = waitSemaphores;
-    submitInfo[0].pWaitDstStageMask = waitStages;
+    VkSemaphore waitSemaphore       = context->syncObjects.imageAvailableSemaphores[frameIndex];
+    VkPipelineStageFlags waitStage   = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    VkSemaphore signalSemaphore      = context->syncObjects.renderFinishedSemaphores[frameIndex];
+    
+    VkSubmitInfo submitInfo =
+    {
+        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+        .waitSemaphoreCount     = 1,
+        .pWaitSemaphores        = &waitSemaphore,
+        .pWaitDstStageMask      = &waitStage,
 
-    submitInfo[0].commandBufferCount = 1;
-    submitInfo[0].pCommandBuffers = &context->frameCommandBuffers[imageIndex];
+        .commandBufferCount     = 1,
+        .pCommandBuffers        = &context->frameCommandBuffers[imageIndex],
 
-    // Note(Leo): We signal these AFTER drawing
-    VkSemaphore signalSemaphores[] = { context->syncObjects.renderFinishedSemaphores[frameIndex] };
-    submitInfo[0].signalSemaphoreCount = ARRAY_COUNT(signalSemaphores);
-    submitInfo[0].pSignalSemaphores = signalSemaphores;
+        // Note(Leo): We signal these AFTER drawing
+        .signalSemaphoreCount   = 1,
+        .pSignalSemaphores      = &signalSemaphore,
+    };
 
     /* Note(Leo): reset here, so that if we have recreated swapchain above,
     our fences will be left in signaled state */
     vkResetFences(context->device, 1, &context->syncObjects.inFlightFences[frameIndex]);
 
-    if (vkQueueSubmit(context->graphicsQueue, 1, submitInfo, context->syncObjects.inFlightFences[frameIndex]) != VK_SUCCESS)
+    if (vkQueueSubmit(context->graphicsQueue, 1, &submitInfo, context->syncObjects.inFlightFences[frameIndex]) != VK_SUCCESS)
     {
         throw std::runtime_error("Failed to submit draw command buffer");
     }
 
-    VkPresentInfoKHR presentInfo = {};
-    presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-    presentInfo.waitSemaphoreCount = ARRAY_COUNT(signalSemaphores);
-    presentInfo.pWaitSemaphores = signalSemaphores;
-    presentInfo.pResults = nullptr;
+    VkPresentInfoKHR presentInfo =
+    {
+        .sType               = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+        .waitSemaphoreCount  = 1,
+        .pWaitSemaphores     = &signalSemaphore,
+        .pResults            = nullptr,
 
-    presentInfo.swapchainCount = 1;
-    presentInfo.pSwapchains = &context->swapchainItems.swapchain;
-    presentInfo.pImageIndices = &imageIndex;
+        .swapchainCount  = 1,
+        .pSwapchains     = &context->swapchainItems.swapchain,
+        .pImageIndices   = &imageIndex,
+    };
 
     // Todo(Leo): Should we do something about this??
     VkResult result = vkQueuePresentKHR(context->presentQueue, &presentInfo);
