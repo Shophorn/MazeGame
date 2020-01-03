@@ -1972,131 +1972,7 @@ CreateCommandBuffers(VulkanContext * context)
         throw std::runtime_error("Failed to allocate command buffers");
     }
 
-
-    int32 objectCount = context->loadedRenderedObjects.size();
-    std::vector<VulkanRenderInfo> renderInfos (objectCount);
-
-    for (int objectIndex = 0; objectIndex < objectCount; ++objectIndex)
-    {
-        MeshHandle meshHandle           = context->loadedRenderedObjects[objectIndex].mesh;
-        MaterialHandle materialHandle   = context->loadedRenderedObjects[objectIndex].material;
-
-        renderInfos[objectIndex].meshBuffer             = context->loadedModels[meshHandle].buffer; 
-        renderInfos[objectIndex].vertexOffset           = context->loadedModels[meshHandle].vertexOffset;
-        renderInfos[objectIndex].indexOffset            = context->loadedModels[meshHandle].indexOffset;
-        renderInfos[objectIndex].indexCount             = context->loadedModels[meshHandle].indexCount;
-        renderInfos[objectIndex].indexType              = context->loadedModels[meshHandle].indexType;
-
-        renderInfos[objectIndex].uniformBufferOffset    = context->loadedRenderedObjects[objectIndex].uniformBufferOffset;
-        
-        renderInfos[objectIndex].materialIndex          = materialHandle;
-    }
-
-    for (int frameIndex = 0; frameIndex < context->frameCommandBuffers.size(); ++frameIndex)
-    {
-        VkCommandBuffer commandBuffer = context->frameCommandBuffers[frameIndex];
-
-        VkCommandBufferBeginInfo beginInfo =
-        {
-            .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-            .flags              = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT,
-            .pInheritanceInfo   = nullptr,
-        };
-
-        if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS)
-        {
-            throw std::runtime_error("Failed to begin recording command buffer");
-        }
-
-        VkClearValue clearValues [] =
-        {
-            { .color = {0.0f, 0.0f, 0.0f, 1.0f} },
-            { .depthStencil = {1.0f, 0} }
-        };
-
-        VkRenderPassBeginInfo renderPassInfo =
-        {
-            .sType              = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-            .renderPass         = context->renderPass,
-            .framebuffer        = context->frameBuffers[frameIndex],
-            
-            .renderArea.offset  = {0, 0},
-            .renderArea.extent  = context->swapchainItems.extent,
-
-            .clearValueCount    = 2,
-            .pClearValues       = clearValues,
-        };
-
-        vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
-        
-        enum : uint32
-        {
-            LAYOUT_SCENE    = 0,
-            LAYOUT_MATERIAL = 1,
-            LAYOUT_MODEL    = 2,
-        };
-
-        // Normal 3d graphics
-        {
-            PipelineHandle      currentPipeline = {};
-
-            for (int objectIndex = 0; objectIndex < objectCount; ++objectIndex)
-            {
-                auto materialIndex = renderInfos[objectIndex].materialIndex;
-                PipelineHandle newPipeline = context->loadedMaterials[materialIndex].pipeline;
-                if (newPipeline != currentPipeline)
-                {
-                    currentPipeline   = newPipeline;
-                
-                    vkCmdBindPipeline(      commandBuffer,
-                                            VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                            context->loadedPipelines[currentPipeline].pipeline);
-
-                    vkCmdBindDescriptorSets(commandBuffer,
-                                            VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                            context->loadedPipelines[currentPipeline].layout,
-                                            LAYOUT_SCENE,
-                                            1, 
-                                            &context->sceneDescriptorSets[frameIndex],
-                                            0,
-                                            nullptr);
-                }
-
-                // Bind material
-                vkCmdBindDescriptorSets(commandBuffer,
-                                        VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                        context->loadedPipelines[currentPipeline].layout,
-                                        LAYOUT_MATERIAL,
-                                        1, 
-                                        &context->loadedMaterials[materialIndex].descriptorSet,
-                                        0,
-                                        nullptr);
-                // Bind model info
-                vkCmdBindVertexBuffers(commandBuffer, 0, 1, &renderInfos[objectIndex].meshBuffer, &renderInfos[objectIndex].vertexOffset);
-                vkCmdBindIndexBuffer(commandBuffer, renderInfos[objectIndex].meshBuffer, renderInfos[objectIndex].indexOffset, renderInfos[objectIndex].indexType);
-
-                // Bind entity transform
-                vkCmdBindDescriptorSets(commandBuffer,
-                                        VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                        context->loadedPipelines[currentPipeline].layout,
-                                        LAYOUT_MODEL,
-                                        1,
-                                        &context->descriptorSets[frameIndex],
-                                        1,
-                                        &renderInfos[objectIndex].uniformBufferOffset);
-
-                vkCmdDrawIndexed(commandBuffer, renderInfos[objectIndex].indexCount, 1, 0, 0, 0);
-            }
-        }
-
-        vkCmdEndRenderPass(commandBuffer);
-
-        if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS)
-        {
-            throw std::runtime_error("Failed to record command buffer");
-        }
-    }
-
+    return;
 }
 
 internal void
@@ -2106,38 +1982,6 @@ vulkan::RefreshCommandBuffers(VulkanContext * context)
     CreateCommandBuffers(context);
 }
 
-
-
-internal void
-vulkan::UpdateUniformBuffer(VulkanContext * context, uint32 imageIndex, vulkan::RenderInfo * renderInfo)
-{
-    // Todo(Leo): Single mapping is really enough, offsets can be used here too
-    uint32 startUniformBufferOffset = vulkan::GetModelUniformBufferOffsetForSwapchainImages(context, imageIndex);
-
-    int32 modelCount = context->loadedRenderedObjects.size();
-    for (RenderedObjectHandle handle = {0}; handle < modelCount; ++handle.index)
-    {
-        Matrix44 * pModelMatrix;
-        vkMapMemory(context->device, context->modelUniformBuffer.memory, 
-                    startUniformBufferOffset + context->loadedRenderedObjects[handle].uniformBufferOffset,
-                    sizeof(pModelMatrix), 0, (void**)&pModelMatrix);
-
-        *pModelMatrix = renderInfo->renderedObjects[handle];
-        vkUnmapMemory(context->device, context->modelUniformBuffer.memory);
-
-    }
-
-    // Note (Leo): map vulkan memory directly to right type so we can easily avoid one (small) memcpy per frame
-    VulkanCameraUniformBufferObject * pUbo;
-    vkMapMemory(context->device, context->sceneUniformBuffer.memory,
-                vulkan::GetSceneUniformBufferOffsetForSwapchainImages(context, imageIndex),
-                sizeof(VulkanCameraUniformBufferObject), 0, (void**)&pUbo);
-
-    pUbo->view          = renderInfo->cameraView;
-    pUbo->perspective   = renderInfo->cameraPerspective;
-
-    vkUnmapMemory(context->device, context->sceneUniformBuffer.memory);
-}
 
 internal void
 vulkan::RecreateSwapchain(VulkanContext * context, VkExtent2D frameBufferSize)
@@ -2166,32 +2010,38 @@ vulkan::RecreateSwapchain(VulkanContext * context, VkExtent2D frameBufferSize)
 }
 
 internal void
-vulkan::DrawFrame(VulkanContext * context, uint32 imageIndex, uint32 frameIndex)
+vulkan::draw_frame(VulkanContext * context, uint32 imageIndex, uint32 frameIndex)
 {
+    /* Note(Leo): these have to do with sceneloading in game layer. We are then unloading
+    all resources associated with command buffer, which makes it invalid to submit to queue */
+    bool32 skipFrame            = context->abortFrameDrawing;
+    context->abortFrameDrawing  = false;
+
+    /* Note(Leo): reset here, so that if we have recreated swapchain above,
+    our fences will be left in signaled state */
+    vkResetFences(context->device, 1, &context->syncObjects.inFlightFences[frameIndex]);
+
 
     // Note(Leo): We wait for these BEFORE drawing
-    VkSemaphore waitSemaphore       = context->syncObjects.imageAvailableSemaphores[frameIndex];
-    VkPipelineStageFlags waitStage   = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    VkSemaphore signalSemaphore      = context->syncObjects.renderFinishedSemaphores[frameIndex];
+    VkSemaphore waitSemaphore           = context->syncObjects.imageAvailableSemaphores[frameIndex];
+    VkPipelineStageFlags waitStage      = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    VkSemaphore signalSemaphore         = context->syncObjects.renderFinishedSemaphores[frameIndex];
     
     VkSubmitInfo submitInfo =
     {
         .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+
         .waitSemaphoreCount     = 1,
         .pWaitSemaphores        = &waitSemaphore,
         .pWaitDstStageMask      = &waitStage,
 
-        .commandBufferCount     = 1,
+        .commandBufferCount     = (uint32)(skipFrame ? 0 : 1),
         .pCommandBuffers        = &context->frameCommandBuffers[imageIndex],
 
         // Note(Leo): We signal these AFTER drawing
         .signalSemaphoreCount   = 1,
         .pSignalSemaphores      = &signalSemaphore,
     };
-
-    /* Note(Leo): reset here, so that if we have recreated swapchain above,
-    our fences will be left in signaled state */
-    vkResetFences(context->device, 1, &context->syncObjects.inFlightFences[frameIndex]);
 
     if (vkQueueSubmit(context->graphicsQueue, 1, &submitInfo, context->syncObjects.inFlightFences[frameIndex]) != VK_SUCCESS)
     {

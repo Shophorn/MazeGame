@@ -25,9 +25,9 @@ struct GuiRendererSystemEntry
 internal void
 update_render_system(game::RenderInfo * renderer, ArenaArray<RenderSystemEntry> entries)
 {
-	for (int i = 0; i < entries.count(); ++i)
+	for (int32 i = 0; i < entries.count(); ++i)
 	{
-		renderer->render(	entries[i].renderer->handle,
+		renderer->draw(	entries[i].renderer->handle,
 							entries[i].transform->get_matrix());
 	}
 }

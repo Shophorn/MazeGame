@@ -21,6 +21,8 @@ struct BaseHandle
 	uint64 index =  -1;
 	operator uint64() { return index; }	
 	static constexpr HandleType type = T;
+
+	inline static const BaseHandle Null = {};
 };
 
 using MeshHandle  				= BaseHandle<MESH>;

@@ -6,7 +6,7 @@ Implementation of IGraphicsContext interface for VulkanContext
 void
 VulkanContext::Apply()
 {
-    vulkan::RefreshCommandBuffers (this);
+    // vulkan::RefreshCommandBuffers (this);
 }
 
 MeshHandle
@@ -139,13 +139,13 @@ VulkanContext::UnloadAll()
 
     destroy_loaded_pipelines(this);
     loadedPipelines.resize(0);
+
+    this->abortFrameDrawing = true;
 }
 
 PipelineHandle
 VulkanContext::push_pipeline(const char * vertexShaderPath, const char * fragmentShaderPath, platform::PipelineOptions options)
 {
-    std::cout << "[push_shader()]: TODO these must be recreated with swapchain.\n";
-
     VulkanPipelineLoadInfo info = 
     {
         .vertexShaderPath   = vertexShaderPath,
@@ -172,19 +172,153 @@ recreate_loaded_pipelines(VulkanContext * context)
 }
 
 void
-vulkan::start_drawing(VulkanContext * context)
+vulkan::start_drawing(VulkanContext * context, uint32 frameIndex)
 {
     // std::cout << "[vulkan::start_drawing()]\n";
+    
+    MAZEGAME_ASSERT((context->canDraw == false), "Invalid call to start_drawing() when finish_drawing() has not been called.")
+    
+
+    context->currentDrawFrameIndex = frameIndex;
+    context->canDraw = true;
+
+    VkCommandBuffer commandBuffer = context->frameCommandBuffers[context->currentDrawFrameIndex];
+
+    // CLEAR COMMAND BUFFER
+    vkResetCommandBuffer(commandBuffer, 0);
+
+    VkCommandBufferBeginInfo beginInfo =
+    {
+        .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+        .flags              = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT,
+        .pInheritanceInfo   = nullptr,
+    };
+
+    if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS)
+    {
+        throw std::runtime_error("Failed to begin recording command buffer");
+    }
+
+    VkClearValue clearValues [] =
+    {
+        { .color = {0.0f, 0.0f, 0.0f, 1.0f} },
+        { .depthStencil = {1.0f, 0} }
+    };
+
+    VkRenderPassBeginInfo renderPassInfo =
+    {
+        .sType              = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+        .renderPass         = context->renderPass,
+        .framebuffer        = context->frameBuffers[context->currentDrawFrameIndex],
+        
+        .renderArea.offset  = {0, 0},
+        .renderArea.extent  = context->swapchainItems.extent,
+
+        .clearValueCount    = 2,
+        .pClearValues       = clearValues,
+    };
+    vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 }
 
 void
 vulkan::finish_drawing(VulkanContext * context)
 {
     // std::cout << "[vulkan::finish_drawing()]\n";
+
+
+    MAZEGAME_ASSERT(context->canDraw, "Invalid call to finish_drawing() when start_drawing() has not been called.")
+    context->canDraw = false;
+    context->currentBoundPipeline = PipelineHandle::Null;
+
+
+    VkCommandBuffer commandBuffer = context->frameCommandBuffers[context->currentDrawFrameIndex];
+    vkCmdEndRenderPass(commandBuffer);
+    if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS)
+    {
+        throw std::runtime_error("Failed to record command buffer");
+    }
+
 }
 
 void
-vulkan::record_draw_command(VulkanContext * context, RenderedObjectHandle handle, Matrix44 transform)
+vulkan::record_draw_command(VulkanContext * context, RenderedObjectHandle objectHandle, Matrix44 transform)
 {
     // std::cout << "[vulkan::record_draw_command()]\n";
+ 
+
+    MAZEGAME_ASSERT(context->canDraw, "Invalid call to record_draw_command() when start_drawing() has not been called.")
+
+    VkCommandBuffer commandBuffer = context->frameCommandBuffers[context->currentDrawFrameIndex];
+ 
+    MeshHandle meshHandle           = context->loadedRenderedObjects[objectHandle].mesh;
+    MaterialHandle materialHandle   = context->loadedRenderedObjects[objectHandle].material;
+
+    VulkanRenderInfo renderInfo =
+    {
+        .meshBuffer             = context->loadedModels[meshHandle].buffer, 
+        .vertexOffset           = context->loadedModels[meshHandle].vertexOffset,
+        .indexOffset            = context->loadedModels[meshHandle].indexOffset,
+        .indexCount             = context->loadedModels[meshHandle].indexCount,
+        .indexType              = context->loadedModels[meshHandle].indexType,
+
+        .uniformBufferOffset    = context->loadedRenderedObjects[objectHandle].uniformBufferOffset,
+        
+        .materialIndex          = (uint32)materialHandle,
+    };
+
+    // Todo(Leo): This is bad, these will be about to change
+    enum : uint32
+    {
+        LAYOUT_SCENE    = 0,
+        LAYOUT_MATERIAL = 1,
+        LAYOUT_MODEL    = 2,
+    };
+
+
+    auto materialIndex = renderInfo.materialIndex;
+    PipelineHandle newPipeline = context->loadedMaterials[materialIndex].pipeline;
+    if (newPipeline != context->currentBoundPipeline)
+    {
+        context->currentBoundPipeline   = newPipeline;
+    
+        vkCmdBindPipeline(      commandBuffer,
+                                VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                context->loadedPipelines[context->currentBoundPipeline].pipeline);
+
+        vkCmdBindDescriptorSets(commandBuffer,
+                                VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                context->loadedPipelines[context->currentBoundPipeline].layout,
+                                LAYOUT_SCENE,
+                                1, 
+                                &context->sceneDescriptorSets[context->currentDrawFrameIndex],
+                                0,
+                                nullptr);
+    }
+
+    // Bind material
+    vkCmdBindDescriptorSets(commandBuffer,
+                            VK_PIPELINE_BIND_POINT_GRAPHICS,
+                            context->loadedPipelines[context->currentBoundPipeline].layout,
+                            LAYOUT_MATERIAL,
+                            1, 
+                            &context->loadedMaterials[materialIndex].descriptorSet,
+                            0,
+                            nullptr);
+    // Bind model info
+    vkCmdBindVertexBuffers(commandBuffer, 0, 1, &renderInfo.meshBuffer, &renderInfo.vertexOffset);
+    vkCmdBindIndexBuffer(commandBuffer, renderInfo.meshBuffer, renderInfo.indexOffset, renderInfo.indexType);
+
+    // Bind entity transform
+    vkCmdBindDescriptorSets(commandBuffer,
+                            VK_PIPELINE_BIND_POINT_GRAPHICS,
+                            context->loadedPipelines[context->currentBoundPipeline].layout,
+                            LAYOUT_MODEL,
+                            1,
+                            &context->descriptorSets[context->currentDrawFrameIndex],
+                            1,
+                            &renderInfo.uniformBufferOffset);
+
+    vkCmdDrawIndexed(commandBuffer, renderInfo.indexCount, 1, 0, 0, 0);
+ 
+
 }

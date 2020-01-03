@@ -84,13 +84,13 @@ enum : int32
 namespace winapi
 {
     internal void
-    SetWindowedOrFullscreen(HWND winWindow, winapi::State * state, bool32 setWindowed)
+    SetWindowFullScreen(HWND winWindow, winapi::State * state, bool32 setFullscreen)
     {
         // Study(Leo): https://devblogs.microsoft.com/oldnewthing/20100412-00/?p=14353
         DWORD style = GetWindowLongPtr(winWindow, GWL_STYLE);
-        bool32 isWindowed = (style & WS_OVERLAPPEDWINDOW);
+        bool32 isFullscreen = !(style & WS_OVERLAPPEDWINDOW);
 
-        if (isWindowed && setWindowed == false)
+        if (isFullscreen == false && setFullscreen)
         {
             // Todo(Leo): Actually use this value to check for potential errors
             bool32 success;
@@ -114,7 +114,7 @@ namespace winapi
             state->windowIsFullscreen = true;
         }
 
-        else if (isWindowed == false && setWindowed)
+        else if (isFullscreen && setFullscreen == false)
         {
             SetWindowLongPtr(winWindow, GWL_STYLE, style | WS_OVERLAPPEDWINDOW);
             SetWindowPlacement(winWindow, &state->windowedWindowPosition);
@@ -192,10 +192,12 @@ namespace winapi
         vkGetDeviceQueue(resultContext.device, queueFamilyIndices.present, 0, &resultContext.presentQueue);
 
         /// ---- Create Command Pool ----
-        VkCommandPoolCreateInfo poolInfo = {};
-        poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-        poolInfo.queueFamilyIndex = queueFamilyIndices.graphics;
-        poolInfo.flags = 0;
+        VkCommandPoolCreateInfo poolInfo =
+        {
+            .sType              = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+            .queueFamilyIndex   = queueFamilyIndices.graphics,
+            .flags              = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
+        };
 
         if (vkCreateCommandPool(resultContext.device, &poolInfo, nullptr, &resultContext.commandPool) != VK_SUCCESS)
         {
@@ -368,6 +370,11 @@ Run(HINSTANCE winInstance)
 
         context = winapi::VulkanInitialize(winInstance, winWindow);
         gamePlatformInfo.graphicsContext = &context;
+
+        gamePlatformInfo.set_window_fullscreen = [&winWindow, &state](bool32 fullscreen)
+        {
+            winapi::SetWindowFullScreen(winWindow, &state, fullscreen);
+        };
     }
 
     // ------- MEMORY ---------------------------
@@ -461,16 +468,49 @@ Run(HINSTANCE winInstance)
                                             &platformTransientMemoryArena, VULKAN_MAX_MODEL_COUNT);
 
         // Todo(Leo): define these somewhere else as proper functions and not lamdas??
-        gameRenderInfo.render = [&context, &platformRenderInfo](RenderedObjectHandle handle, Matrix44 transform)
+        gameRenderInfo.draw = [&context, &platformRenderInfo](RenderedObjectHandle handle, Matrix44 transform)
         {
             platformRenderInfo.renderedObjects[handle] = transform;
-            
+
+            // Todo(Leo): Single mapping is really enough, offsets can be used here too
+            uint32 startUniformBufferOffset = vulkan::GetModelUniformBufferOffsetForSwapchainImages(&context, context.currentDrawFrameIndex);
+
+            Matrix44 * pModelMatrix;
+            vkMapMemory(context.device, context.modelUniformBuffer.memory, 
+                        startUniformBufferOffset + context.loadedRenderedObjects[handle].uniformBufferOffset,
+                        sizeof(pModelMatrix), 0, (void**)&pModelMatrix);
+
+            *pModelMatrix = transform;
+            vkUnmapMemory(context.device, context.modelUniformBuffer.memory);
+
+
             vulkan::record_draw_command(&context, handle, transform);
         };
-        gameRenderInfo.set_camera = [&platformRenderInfo](Matrix44 view, Matrix44 perspective)
+
+
+        gameRenderInfo.start_drawing = [&context]()
         {
-            platformRenderInfo.cameraView = view;
-            platformRenderInfo.cameraPerspective = perspective;
+            vulkan::start_drawing(&context, context.currentDrawFrameIndex);
+        };
+        gameRenderInfo.finish_drawing = [&context]()
+        {
+            vulkan::finish_drawing(&context);
+        };
+
+
+        gameRenderInfo.set_camera = [&context, &platformRenderInfo](Matrix44 view, Matrix44 perspective)
+        {
+            // Note (Leo): map vulkan memory directly to right type so we can easily avoid one (small) memcpy per frame
+            VulkanCameraUniformBufferObject * pUbo;
+            vkMapMemory(context.device, context.sceneUniformBuffer.memory,
+                        vulkan::GetSceneUniformBufferOffsetForSwapchainImages(&context, context.currentDrawFrameIndex),
+                        sizeof(VulkanCameraUniformBufferObject), 0, (void**)&pUbo);
+
+            pUbo->view          = view;
+            pUbo->perspective   = perspective;
+
+            vkUnmapMemory(context.device, context.sceneUniformBuffer.memory);
+
         };
 
     }
@@ -642,68 +682,9 @@ Run(HINSTANCE winInstance)
         }
 
         /// --------- UPDATE GAME -------------
-        {   
-
-            gamePlatformInfo.windowWidth = context.swapchainItems.extent.width;
-            gamePlatformInfo.windowHeight = context.swapchainItems.extent.height;
-            gamePlatformInfo.windowIsFullscreen = state.windowIsFullscreen;
-
-            gameNetwork.isConnected = network.isConnected;
-
-            if(game.IsLoaded())
-            {
-                game::SoundOutput gameSoundOutput = {};
-                winapi::GetAudioBuffer(&audio, &gameSoundOutput.sampleCount, &gameSoundOutput.samples);
-
-                vulkan::start_drawing(&context);
-    
-                game::UpdateResult updateResult = game.Update(  &gameInput, &gameMemory,
-                                                                &gamePlatformInfo, &gameNetwork, 
-                                                                &gameSoundOutput, &gameRenderInfo);
-
-                vulkan::finish_drawing(&context);
-
-                if (updateResult.exit)
-                {
-                    state.isRunning = false;
-                }
-
-                switch (updateResult.setWindow)
-                {
-                    case game::UpdateResult::SET_WINDOW_FULLSCREEN:
-                        winapi::SetWindowedOrFullscreen(winWindow, &state, false);
-                        break;
-
-                    case game::UpdateResult::SET_WINDOW_WINDOWED:
-                        winapi::SetWindowedOrFullscreen(winWindow, &state, true);
-                        break;
-
-                    case game::UpdateResult::SET_WINDOW_NONE:
-                        break;
-                }
-
-                winapi::ReleaseAudioBuffer(&audio, gameSoundOutput.sampleCount);
-            }
-
-        }
-
-
-        // ----- POST-UPDATE NETWORK PASS ------
-        // TODO[network](Leo): Now that we have fixed frame rate, we should count frames passed instead of time
-        if (network.isConnected && frameStartTime > networkNextSendTime)
-        {
-            networkNextSendTime = frameStartTime + networkSendDelay;
-            winapi::NetworkSend(&network, &gameNetwork.outPackage);
-        }
-
-        /// ---- DRAW -----    
-        /*
-        Note(Leo): Only draw image if we have window that is not minimized. Vulkan on windows MUST not
-        have framebuffer size 0, which is what minimized window is.
-
-        'currentLoopingFrameIndex' does not need to be incremented if we do not draw since it refers to
-        next available swapchain frame/image, and we do not use one if we do not draw.
-        */
+        /* Note(Leo): We previously had only drawing in this if-block, but due to need
+        to havee imageindex available during game update because of rendering, it is now moved up here.
+        I do not know yet what all this might do...*/
         if (state.isRunning && state.windowIsDrawable())
         {
             // Todo(Leo): Study fences
@@ -711,20 +692,57 @@ Run(HINSTANCE winInstance)
                             VK_TRUE, VULKAN_NO_TIME_OUT);
 
             uint32 imageIndex;
-            VkResult result = vkAcquireNextImageKHR(context.device, context.swapchainItems.swapchain, MaxValue<uint64>,
+            VkResult getNextImageResult = vkAcquireNextImageKHR(context.device, context.swapchainItems.swapchain, MaxValue<uint64>,
                                                     context.syncObjects.imageAvailableSemaphores[currentLoopingFrameIndex],
                                                     VK_NULL_HANDLE, &imageIndex);
+            
+            context.currentDrawFrameIndex = imageIndex;
+            {   
 
-            switch (result)
+                // Todo(Leo): these can be set when stuff happens
+                gamePlatformInfo.windowWidth        = context.swapchainItems.extent.width;
+                gamePlatformInfo.windowHeight       = context.swapchainItems.extent.height;
+                gamePlatformInfo.windowIsFullscreen = state.windowIsFullscreen;
+
+                gameNetwork.isConnected = network.isConnected;
+
+                if(game.IsLoaded())
+                {
+                    game::SoundOutput gameSoundOutput = {};
+                    winapi::GetAudioBuffer(&audio, &gameSoundOutput.sampleCount, &gameSoundOutput.samples);
+
+                    bool32 gameIsAlive = game.Update(   &gameInput, &gameMemory, &gamePlatformInfo,
+                                                        &gameNetwork, &gameSoundOutput, &gameRenderInfo);
+
+                    if (gameIsAlive == false)
+                    {
+                        state.isRunning = false;
+                    }
+                    winapi::ReleaseAudioBuffer(&audio, gameSoundOutput.sampleCount);
+                }
+
+            }
+
+
+
+            /// ---- DRAW -----    
+            /*
+            Note(Leo): Only draw image if we have window that is not minimized. Vulkan on windows MUST not
+            have framebuffer size 0, which is what minimized window is.
+
+            'currentLoopingFrameIndex' does not need to be incremented if we do not draw since it refers to
+            next available swapchain frame/image, and we do not use one if we do not draw.
+            */
+        
+            switch (getNextImageResult)
             {
                 case VK_SUCCESS:
-                    vulkan::UpdateUniformBuffer(&context, imageIndex, &platformRenderInfo);
-                    vulkan::DrawFrame(&context, imageIndex, currentLoopingFrameIndex);
+                    vulkan::draw_frame(&context, imageIndex, currentLoopingFrameIndex);
+                    currentLoopingFrameIndex = (currentLoopingFrameIndex + 1) % MAX_FRAMES_IN_FLIGHT;
                     break;
 
                 case VK_SUBOPTIMAL_KHR:
                 case VK_ERROR_OUT_OF_DATE_KHR:
-
                     vulkan::RecreateSwapchain(&context, state.GetFrameBufferSize());
                     break;
 
@@ -733,7 +751,14 @@ Run(HINSTANCE winInstance)
             }
 
             // Todo(Leo): should this be in switch case where we draw succesfully???
-            currentLoopingFrameIndex = (currentLoopingFrameIndex + 1) % MAX_FRAMES_IN_FLIGHT;
+        }
+
+        // ----- POST-UPDATE NETWORK PASS ------
+        // TODO[network](Leo): Now that we have fixed frame rate, we should count frames passed instead of time
+        if (network.isConnected && frameStartTime > networkNextSendTime)
+        {
+            networkNextSendTime = frameStartTime + networkSendDelay;
+            winapi::NetworkSend(&network, &gameNetwork.outPackage);
         }
 
         /// ----- CLEAR MEMORY ------

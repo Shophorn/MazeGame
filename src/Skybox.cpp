@@ -90,5 +90,5 @@ draw_skybox(RenderedObjectHandle skybox, Camera * camera, game::RenderInfo * ren
 	// Note(Leo): For now, copy camera transform. When we get a proper shader, these can be removed.
 	Matrix44 matrix = make_transform_matrix(camera->position);
 	// Matrix44 matrix = get_rotation_matrix(camera);
-	renderer->render(skybox, matrix);
+	renderer->draw(skybox, matrix);
 }

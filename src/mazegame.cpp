@@ -139,7 +139,7 @@ unload_scene_and_gui(GameState * state, game::PlatformInfo * platform)
 	state->sceneLoaded = false;
 }
 
-extern "C" game::UpdateResult
+extern "C" bool32
 GameUpdate(
 	game::Input * 			input,
 	game::Memory * 			memory,
@@ -163,27 +163,23 @@ GameUpdate(
 	}
 	flush_memory_arena(&state->transientMemoryArena);
 
+
+	
+	outRenderInfo->start_drawing();
 	if (state->loadedScene != nullptr)
 	{
 		state->loadedSceneInfo.update(state->loadedScene, input, outRenderInfo, platform);
 	}
+	auto guiResult = state->loadedGuiInfo.update(state->loadedGui, input, outRenderInfo, platform);
+	outRenderInfo->finish_drawing();
 
-	// Note(Leo): This is just a reminder
-	// Todo(Leo): Remove if unnecessary
-	/// Update network
-	{
-		// network->outPackage = {};
-		// network->outPackage.characterPosition = state->character.position;
-		// network->outPackage.characterRotation = state->character.rotation;
-	}
 
-	game::UpdateResult result = {};
-	result.exit = false;
-	
-	switch(state->loadedGuiInfo.update(state->loadedGui, input, outRenderInfo, platform))
+
+	bool32 gameIsAlive = true;
+	switch(guiResult)
 	{
 		case MENU_EXIT:
-			result = { true };
+			gameIsAlive = false;
 			break;
 
 		case MENU_LOADLEVEL_2D:
@@ -212,9 +208,13 @@ GameUpdate(
 	if (is_clicked(input->select))
 	{
 		if (platform->windowIsFullscreen)
-			result.setWindow = game::UpdateResult::SET_WINDOW_WINDOWED;
+		{
+			platform->set_window_fullscreen(false);
+		}
 		else
-			result.setWindow = game::UpdateResult::SET_WINDOW_FULLSCREEN;
+		{
+			platform->set_window_fullscreen(true);
+		}
 	}
 
 	/// Output sound
@@ -222,6 +222,14 @@ GameUpdate(
 		output_sound(soundOutput->sampleCount, soundOutput->samples);
 	}
 
-	return result;
+	// Note(Leo): This is just a reminder
+	// Todo(Leo): Remove if unnecessary
+	/// Update network
+	{
+		// network->outPackage = {};
+		// network->outPackage.characterPosition = state->character.position;
+		// network->outPackage.characterRotation = state->character.rotation;
+	}
+	return gameIsAlive;
 }
 

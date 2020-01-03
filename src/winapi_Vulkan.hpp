@@ -253,6 +253,14 @@ struct VulkanContext : platform::IGraphicsContext
 
     void Apply();
     void UnloadAll();
+
+
+    // uint32 currentDrawImageIndex;
+    uint32 currentDrawFrameIndex;
+    bool32 canDraw = false;
+    PipelineHandle currentBoundPipeline;
+
+    bool32 abortFrameDrawing = false;
 };
 
 namespace vulkan
@@ -373,7 +381,7 @@ namespace vulkan
 	UpdateUniformBuffer(VulkanContext * context, uint32 imageIndex, vulkan::RenderInfo * renderInfo);
 
 	internal void
-	DrawFrame(VulkanContext * context, uint32 imageIndex, uint32 frameIndex);
+	draw_frame(VulkanContext * context, uint32 imageIndex, uint32 frameIndex);
 
 	internal void
 	RecreateSwapchain(VulkanContext * context, VkExtent2D frameBufferSize);
@@ -401,7 +409,7 @@ namespace vulkan
 
 	// DRAWING?
 	void
-	start_drawing(VulkanContext * context);
+	start_drawing(VulkanContext * context, uint32 frameIndex);
 
 	void
 	finish_drawing(VulkanContext * context);

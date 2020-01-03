@@ -107,7 +107,7 @@ default_scene_gui::update(void * guiPtr, game::Input * input, game::RenderInfo *
 
 				Matrix44 guiTransform = Matrix44::Translate({guiTranslate.x, guiTranslate.y, 0}) * Matrix44::Scale({guiScale.x, guiScale.y, 1.0});
 
-				renderer->render(gui->gameGuiButtonHandles[guiButtonIndex], guiTransform);
+				renderer->draw(gui->gameGuiButtonHandles[guiButtonIndex], guiTransform);
 			}
 		}
 		else
@@ -115,7 +115,7 @@ default_scene_gui::update(void * guiPtr, game::Input * input, game::RenderInfo *
 			for (int  guiButtonIndex = 0; guiButtonIndex < gui->gameGuiButtonCount; ++guiButtonIndex)
 			{
 				Matrix44 guiTransform = {};
-				renderer->render(gui->gameGuiButtonHandles[guiButtonIndex], guiTransform);
+				renderer->draw(gui->gameGuiButtonHandles[guiButtonIndex], guiTransform);
 			}
 		}
 	}

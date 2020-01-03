@@ -132,6 +132,7 @@ namespace game
 		real32 elapsedTime;
 	};
 
+
 	struct PlatformInfo
 	{
 		platform::IGraphicsContext * graphicsContext;
@@ -139,6 +140,8 @@ namespace game
 		int32 	windowWidth;
 		int32 	windowHeight;
 		bool32 	windowIsFullscreen;
+
+		std::function<void(bool32)> set_window_fullscreen;
 	};
 	
 	struct Memory
@@ -155,7 +158,13 @@ namespace game
 	struct RenderInfo
 	{
 		std::function<void(Matrix44 view, Matrix44 perspective)> 	set_camera;
-		std::function<void(RenderedObjectHandle, Matrix44)> 		render;
+		
+
+		std::function<void()> 										start_drawing;
+		std::function<void()> 										finish_drawing;
+		std::function<void(RenderedObjectHandle, Matrix44)> 		draw;
+
+
 	};
 	
 	struct NetworkPackage
@@ -186,12 +195,6 @@ namespace game
 		int32 sampleCount;
 		StereoSoundSample * samples;
 	};
-
-	struct UpdateResult
-	{
-		bool32 exit;
-		enum { SET_WINDOW_NONE, SET_WINDOW_FULLSCREEN, SET_WINDOW_WINDOWED } setWindow;
-	};
 }
 
 #if MAZEGAME_INCLUDE_STD_IOSTREAM
@@ -216,7 +219,7 @@ namespace std
 #endif
 
 // TODO(Leo): can we put this into namespace?
-extern "C" game::UpdateResult
+extern "C" bool32
 GameUpdate(
 	game::Input * 			inpM,
 	game::Memory * 			memory,

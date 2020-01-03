@@ -26,7 +26,7 @@ update_gui_render_system(ArenaArray<GuiRendererSystemEntry> system, game::Render
 		}
 
 		Matrix44 transform = Matrix44::Translate({translation.x, translation.y, 0}) * Matrix44::Scale({scale.x, scale.y, 1.0});
-		renderer->render(entry.renderer->handle, transform);
+		renderer->draw(entry.renderer->handle, transform);
 	}
 }
 
