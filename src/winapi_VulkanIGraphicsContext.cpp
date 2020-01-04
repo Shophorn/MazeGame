@@ -3,12 +3,6 @@ Leo Tamminen
 
 Implementation of IGraphicsContext interface for VulkanContext
 =============================================================================*/
-void
-VulkanContext::Apply()
-{
-    // vulkan::RefreshCommandBuffers (this);
-}
-
 MeshHandle
 VulkanContext::PushMesh(MeshAsset * mesh)
 {
@@ -176,7 +170,7 @@ vulkan::start_drawing(VulkanContext * context, uint32 frameIndex)
 {
     // std::cout << "[vulkan::start_drawing()]\n";
     
-    MAZEGAME_ASSERT((context->canDraw == false), "Invalid call to start_drawing() when finish_drawing() has not been called.")
+    DEVELOPMENT_ASSERT((context->canDraw == false), "Invalid call to start_drawing() when finish_drawing() has not been called.")
     
 
     context->currentDrawFrameIndex = frameIndex;
@@ -226,7 +220,7 @@ vulkan::finish_drawing(VulkanContext * context)
     // std::cout << "[vulkan::finish_drawing()]\n";
 
 
-    MAZEGAME_ASSERT(context->canDraw, "Invalid call to finish_drawing() when start_drawing() has not been called.")
+    DEVELOPMENT_ASSERT(context->canDraw, "Invalid call to finish_drawing() when start_drawing() has not been called.")
     context->canDraw = false;
     context->currentBoundPipeline = PipelineHandle::Null;
 
@@ -246,7 +240,7 @@ vulkan::record_draw_command(VulkanContext * context, RenderedObjectHandle object
     // std::cout << "[vulkan::record_draw_command()]\n";
  
 
-    MAZEGAME_ASSERT(context->canDraw, "Invalid call to record_draw_command() when start_drawing() has not been called.")
+    DEVELOPMENT_ASSERT(context->canDraw, "Invalid call to record_draw_command() when start_drawing() has not been called.")
 
     VkCommandBuffer commandBuffer = context->frameCommandBuffers[context->currentDrawFrameIndex];
  

@@ -273,7 +273,7 @@ auto operator * (
 	/* Todo(Leo): this would be better getting columns from transpose instead of
 	GetRow in each iteration */
 	result_type result;
-	MATRIX_LOOP_ELEMENTS { result[col][row] = Dot(lhs.GetRow(row), rhs[col]); }
+	MATRIX_LOOP_ELEMENTS { result[col][row] = vector::dot(lhs.GetRow(row), rhs[col]); }
 	return result;
 }
 

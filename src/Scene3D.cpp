@@ -4,6 +4,9 @@ shophorn @ internet
 
 Scene description for 3d development scene
 =============================================================================*/
+#include "Collisions3D.cpp"
+#include "CharacterController3rdPerson.cpp"
+
 
 namespace scene_3d
 {

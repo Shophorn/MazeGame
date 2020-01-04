@@ -41,9 +41,6 @@ global_variable int globalXinputControllerIndex;
 #include "winapi_ErrorStrings.hpp"
 #include "winapi_Mazegame.hpp"
 
-constexpr int32 WINDOW_WIDTH = 960;
-constexpr int32 WINDOW_HEIGHT = 540;
-
 // Todo(Leo): Vulkan implementation depends on this, not cool
 using BinaryAsset = std::vector<uint8>;
 BinaryAsset
@@ -140,102 +137,6 @@ namespace winapi
         return result;
     }
 
-    internal VkSurfaceKHR
-    CreateVulkanSurface(VkInstance vulkanInstance, HINSTANCE winInstance, HWND winWindow)
-    {
-        VkSurfaceKHR surface;
-
-        // Todo(Leo): check that extensions are enabled
-        VkWin32SurfaceCreateInfoKHR surfaceCreateInfo = { VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR };
-        surfaceCreateInfo.hinstance = winInstance;
-        surfaceCreateInfo.hwnd = winWindow;
-
-        if (vkCreateWin32SurfaceKHR (vulkanInstance, &surfaceCreateInfo, nullptr, &surface) != VK_SUCCESS)
-        {
-            throw std::runtime_error("Failed to create window surface");
-        }
-
-        return surface;
-    }
-
-    // Remove. Or fix. This is merely a remnant of time when we used glfw
-    internal VkExtent2D
-    GetFrameBufferSize(void * window)
-    {
-        return {WINDOW_WIDTH, WINDOW_HEIGHT};
-    }
-
-
-    internal VulkanContext
-    VulkanInitialize(HINSTANCE winInstance, HWND winWindow)
-    {
-        VulkanContext resultContext = {};
-
-        resultContext.instance = CreateInstance();
-        // TODO(Leo): (if necessary, but at this point) Setup debug callbacks, look vulkan-tutorial.com
-        
-        resultContext.surface = winapi::CreateVulkanSurface(resultContext.instance, winInstance, winWindow);
-
-
-        resultContext.physicalDevice = PickPhysicalDevice(resultContext.instance, resultContext.surface);
-        vkGetPhysicalDeviceProperties(resultContext.physicalDevice, &resultContext.physicalDeviceProperties);
-        resultContext.msaaSamples = GetMaxUsableMsaaSampleCount(resultContext.physicalDevice);
-        std::cout << "Sample count: " << vulkan::EnumToString(resultContext.msaaSamples) << "\n";
-
-        resultContext.physicalDevice = resultContext.physicalDevice;
-        resultContext.physicalDeviceProperties = resultContext.physicalDeviceProperties;
-
-        resultContext.device = CreateLogicalDevice(resultContext.physicalDevice, resultContext.surface);
-
-        VulkanQueueFamilyIndices queueFamilyIndices = vulkan::FindQueueFamilies(resultContext.physicalDevice, resultContext.surface);
-        vkGetDeviceQueue(resultContext.device, queueFamilyIndices.graphics, 0, &resultContext.graphicsQueue);
-        vkGetDeviceQueue(resultContext.device, queueFamilyIndices.present, 0, &resultContext.presentQueue);
-
-        /// ---- Create Command Pool ----
-        VkCommandPoolCreateInfo poolInfo =
-        {
-            .sType              = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-            .queueFamilyIndex   = queueFamilyIndices.graphics,
-            .flags              = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
-        };
-
-        if (vkCreateCommandPool(resultContext.device, &poolInfo, nullptr, &resultContext.commandPool) != VK_SUCCESS)
-        {
-            throw std::runtime_error("failed to create command pool");
-        }
-
-        /// ...?
-        resultContext.syncObjects = CreateSyncObjects(resultContext.device);
-        
-        /* 
-        Above is device
-        -----------------------------------------------------------------------
-        Below is content
-        */ 
-
-
-        /* Todo(Leo): now that everything is in VulkanContext, it does not make so much sense
-        to explicitly specify each component as parameter */
-        resultContext.swapchainItems      = CreateSwapchainAndImages(&resultContext, winapi::GetFrameBufferSize(nullptr));
-        resultContext.renderPass          = CreateRenderPass(&resultContext, &resultContext.swapchainItems, resultContext.msaaSamples);
-        
-        resultContext.descriptorSetLayouts[DESCRIPTOR_SET_LAYOUT_SCENE_UNIFORM]   = CreateSceneDescriptorSetLayout(resultContext.device);
-        resultContext.descriptorSetLayouts[DESCRIPTOR_SET_LAYOUT_MATERIAL]       = CreateMaterialDescriptorSetLayout(resultContext.device);
-        resultContext.descriptorSetLayouts[DESCRIPTOR_SET_LAYOUT_MODEL_UNIFORM]   = CreateModelDescriptorSetLayout(resultContext.device);
-
-        resultContext.guiDescriptorSetLayout = CreateModelDescriptorSetLayout(resultContext.device);
-
-        // Todo(Leo): This seems rather stupid way to organize creation of these...
-        resultContext.drawingResources          = CreateDrawingResources(&resultContext);
-        resultContext.frameBuffers              = CreateFrameBuffers(&resultContext);
-        resultContext.uniformDescriptorPool     = CreateDescriptorPool(resultContext.device, resultContext.swapchainItems.images.size());
-        resultContext.materialDescriptorPool    = CreateMaterialDescriptorPool(resultContext.device);
-
-        std::cout << "\nVulkan Initialized succesfully\n\n";
-
-        return resultContext;
-    }
-
     internal State * 
     GetStateFromWindow(HWND winWindow)
     {
@@ -271,8 +172,10 @@ namespace winapi
             case WM_SIZE:
             {
                 winapi::State * state = winapi::GetStateFromWindow(window);
-                state->windowWidth = LOWORD(lParam);
-                state->windowHeight = HIWORD(lParam);
+                // state->windowWidth = LOWORD(lParam);
+                // state->windowHeight = HIWORD(lParam);
+                state->gamePlatformInfo.windowWidth = LOWORD(lParam);
+                state->gamePlatformInfo.windowHeight = HIWORD(lParam);
 
                 switch (wParam)
                 {
@@ -295,11 +198,9 @@ namespace winapi
                 std::cout << "window callback: WM_CLOSE\n";
             } break;
 
-            case WM_EXITSIZEMOVE:
-            {
-                winapi::State * state = winapi::GetStateFromWindow(window);
-                std::cout << "Window exit sizemove, width: " << state->windowWidth << ", height: " << state->windowHeight << "\n";
-            } break;
+            // case WM_EXITSIZEMOVE:
+            // {
+            // } break;
 
             default:
                 result = DefWindowProcW(window, message, wParam, lParam);
@@ -334,7 +235,6 @@ Run(HINSTANCE winInstance)
     // ---------- INITIALIZE PLATFORM ------------
     HWND winWindow;
     VulkanContext context;
-    game::PlatformInfo gamePlatformInfo = {};
     {
         wchar windowClassName [] = L"MazegameWindowClass";
         wchar windowTitle [] = L"Mazegame";
@@ -356,9 +256,12 @@ Run(HINSTANCE winInstance)
             return;
         }
 
+        int32 defaultWindowWidth = 960;
+        int32 defaultWindowHeight = 540;
+
         winWindow = CreateWindowExW (
             0, windowClassName, windowTitle, WS_OVERLAPPEDWINDOW | WS_VISIBLE,
-            CW_USEDEFAULT, CW_USEDEFAULT, WINDOW_WIDTH, WINDOW_HEIGHT,
+            CW_USEDEFAULT, CW_USEDEFAULT, defaultWindowWidth, defaultWindowHeight,
             nullptr, nullptr, winInstance, &state);
 
         if (winWindow == nullptr)
@@ -369,11 +272,12 @@ Run(HINSTANCE winInstance)
         }
 
         context = winapi::VulkanInitialize(winInstance, winWindow);
-        gamePlatformInfo.graphicsContext = &context;
+        state.gamePlatformInfo.graphicsContext = &context;
 
-        gamePlatformInfo.set_window_fullscreen = [&winWindow, &state](bool32 fullscreen)
+        state.gamePlatformInfo.set_window_fullscreen = [&winWindow, &state](bool32 fullscreen)
         {
             winapi::SetWindowFullScreen(winWindow, &state, fullscreen);
+            state.gamePlatformInfo.windowIsFullscreen = state.windowIsFullscreen;
         };
     }
 
@@ -632,8 +536,6 @@ Run(HINSTANCE winInstance)
             HWND foregroundWindow = GetForegroundWindow();
             bool32 windowIsActive = winWindow == foregroundWindow;
 
-
-
             /* Note(Leo): Only get input from a single controller, locally this is a single
             player game. Use global controller index depending on network status to test
             multiplayering */
@@ -644,7 +546,11 @@ Run(HINSTANCE winInstance)
             bool32 xinputReceived = XInputGetState(globalXinputControllerIndex, &xinputState) == ERROR_SUCCESS;
             bool32 xinputUsed = xinputReceived && xinput_is_used(&state, &xinputState);
 
-            if (xinputUsed)
+            if (windowIsActive == false)
+            {
+                update_unused_input(&gameInput);
+            }
+            else if (xinputUsed)
             {
                 update_controller_input(&gameInput, &xinputState);
             }
@@ -679,6 +585,7 @@ Run(HINSTANCE winInstance)
             {
                 winapi::NetworkReceive(&network, &gameNetwork.inPackage);
             }
+            gameNetwork.isConnected = network.isConnected;
         }
 
         /// --------- UPDATE GAME -------------
@@ -698,20 +605,12 @@ Run(HINSTANCE winInstance)
             
             context.currentDrawFrameIndex = imageIndex;
             {   
-
-                // Todo(Leo): these can be set when stuff happens
-                gamePlatformInfo.windowWidth        = context.swapchainItems.extent.width;
-                gamePlatformInfo.windowHeight       = context.swapchainItems.extent.height;
-                gamePlatformInfo.windowIsFullscreen = state.windowIsFullscreen;
-
-                gameNetwork.isConnected = network.isConnected;
-
                 if(game.IsLoaded())
                 {
                     game::SoundOutput gameSoundOutput = {};
                     winapi::GetAudioBuffer(&audio, &gameSoundOutput.sampleCount, &gameSoundOutput.samples);
 
-                    bool32 gameIsAlive = game.Update(   &gameInput, &gameMemory, &gamePlatformInfo,
+                    bool32 gameIsAlive = game.Update(   &gameInput, &gameMemory, &state.gamePlatformInfo,
                                                         &gameNetwork, &gameSoundOutput, &gameRenderInfo);
 
                     if (gameIsAlive == false)
@@ -722,8 +621,6 @@ Run(HINSTANCE winInstance)
                 }
 
             }
-
-
 
             /// ---- DRAW -----    
             /*

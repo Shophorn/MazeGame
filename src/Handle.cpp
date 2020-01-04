@@ -15,13 +15,13 @@ struct Handle
 
 	T * operator->()
 	{ 
-		MAZEGAME_ASSERT(_index > -1, "Cannot reference uninitialized Handle.");
+		DEVELOPMENT_ASSERT(_index > -1, "Cannot reference uninitialized Handle.");
 		return &storage[_index];
 	}
 
 	operator T * ()
 	{
-		MAZEGAME_ASSERT(_index > -1, "Cannot reference uninitialized Handle.");
+		DEVELOPMENT_ASSERT(_index > -1, "Cannot reference uninitialized Handle.");
 		return &storage[_index];	
 	}
 

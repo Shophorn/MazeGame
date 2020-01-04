@@ -251,7 +251,6 @@ struct VulkanContext : platform::IGraphicsContext
     
     RenderedObjectHandle 	PushRenderedObject(MeshHandle mesh, MaterialHandle material);
 
-    void Apply();
     void UnloadAll();
 
 

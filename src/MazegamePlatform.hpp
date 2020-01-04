@@ -12,15 +12,22 @@ Interface definition between Platform and Game.
 
 #if MAZEGAME_DEVELOPMENT
 	#if MAZEGAME_INCLUDE_STD_IOSTREAM
-	void PrintAssert(const char * file, int line, const char * message, const char * expression)
+	void PrintAssert(const char * file, int line, const char * message, const char * expression = nullptr)
 	{
-		std::cout
-			<< "Assertion failed [" << file << ":" << line << "]: \""
-			<< message << "\", expression (" << expression << ")\n";
+		std::cout << "Assertion failed [" << file << ":" << line << "]: \"" << message << "\"";
+			
+		if (expression)
+			std::cout << ", expression (" << expression << ")";
+
+		std::cout << "\n" << std::flush;
 	}
 	#endif
 
-	#define MAZEGAME_ASSERT(expr, msg) if (!(expr)) { PrintAssert(__FILE__, __LINE__, msg, #expr); abort(); }
+	#define DEVELOPMENT_BAD_PATH(msg) PrintAssert(__FILE__, __LINE__, msg); abort();
+
+	#define DEVELOPMENT_ASSERT(expr, msg) if (!(expr)) { PrintAssert(__FILE__, __LINE__, msg, #expr); abort(); }
+
+	#define DEVELOPMENT_ASSERT_POINTER(ptr, msg) if((ptr) == nullptr) { PrintAssert(__FILE__, __LINE__, msg), abort(); }
 #endif
 
 #include "MazegameEssentials.hpp"
@@ -57,7 +64,6 @@ namespace platform
 
 		virtual PipelineHandle push_pipeline(const char * vertexShaderPath, const char * fragmentShaderPath, PipelineOptions options = {}) = 0;
 
-		virtual void Apply() = 0;
 		virtual void UnloadAll() = 0;
 	};
 }
@@ -77,33 +83,31 @@ namespace game
 	bool32 is_pressed (ButtonState button) { return (button == ButtonState::IsDown) || (button == ButtonState::WentDown);}
 
 	internal ButtonState
-	update_button_state(ButtonState current, bool32 newStateIsDown)
+	update_button_state(ButtonState buttonState, bool32 buttonIsPressed)
 	{
-		switch(current)
+		switch(buttonState)
 		{
 			case ButtonState::IsUp:
-				return 	newStateIsDown ? 
-						ButtonState{ButtonState::WentDown} :
-						ButtonState{ButtonState::IsUp};
+				buttonState = buttonIsPressed ? ButtonState::WentDown : ButtonState::IsUp;
+				break;
 
 			case ButtonState::WentDown:
-				return 	newStateIsDown ?
-						ButtonState{ButtonState::IsDown} :
-						ButtonState{ButtonState::WentUp};
+				buttonState = buttonIsPressed ? ButtonState::IsDown : ButtonState::WentUp;
+				break;
 
 			case ButtonState::WentUp:
-				return 	newStateIsDown ?
-						ButtonState{ButtonState::WentDown} :
-						ButtonState{ButtonState::IsUp};
+				buttonState = buttonIsPressed ? ButtonState::WentDown : ButtonState::IsUp;
+				break;
 
 			case ButtonState::IsDown:
-				return 	newStateIsDown ?
-						ButtonState{ButtonState::IsDown} :
-						ButtonState{ButtonState::WentUp};
+				buttonState = buttonIsPressed ? ButtonState::IsDown : ButtonState::WentUp;
+				break;
 
 			default:
-				MAZEGAME_ASSERT(false, "Invalid ButtonState value");
+				DEVELOPMENT_BAD_PATH("Invalid ButtonState value");
 		}
+
+		return buttonState;
 	}
 
 	struct Input
@@ -218,7 +222,7 @@ namespace std
 
 #endif
 
-// TODO(Leo): can we put this into namespace?
+// TODO(Leo): can we put this into namespace? Should we?
 extern "C" bool32
 GameUpdate(
 	game::Input * 			inpM,

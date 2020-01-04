@@ -502,7 +502,6 @@ NAMESPACE AND SPLIT TO MULTIPLE FILES IF APPROPRIATE
 
 *****************************************************************************/
 
-
 internal VkSampleCountFlagBits 
 GetMaxUsableMsaaSampleCount (VkPhysicalDevice physicalDevice)
 {
@@ -1427,7 +1426,7 @@ CreateDescriptorPool(VkDevice device, int32 swapchainImageCount)
     poolInfo.maxSets = swapchainImageCount * randomMultiplierForTesting;
 
     MAZEGAME_NO_INIT VkDescriptorPool resultDescriptorPool;
-    MAZEGAME_ASSERT(
+    DEVELOPMENT_ASSERT(
         vkCreateDescriptorPool(device, &poolInfo, nullptr, &resultDescriptorPool) == VK_SUCCESS,
         "Failed to create descriptor pool"
     );
@@ -1447,7 +1446,7 @@ CreateMaterialDescriptorPool(VkDevice device)
     poolCreateInfo.maxSets = vulkan::MAX_LOADED_TEXTURES;
 
     MAZEGAME_NO_INIT VkDescriptorPool result;
-    MAZEGAME_ASSERT(
+    DEVELOPMENT_ASSERT(
         vkCreateDescriptorPool(device, &poolCreateInfo, nullptr, &result) == VK_SUCCESS,
         "Failed to create descriptor pool for materials!");
     return result;
@@ -1976,14 +1975,6 @@ CreateCommandBuffers(VulkanContext * context)
 }
 
 internal void
-vulkan::RefreshCommandBuffers(VulkanContext * context)
-{
-    vkFreeCommandBuffers(context->device, context->commandPool, context->frameCommandBuffers.size(), &context->frameCommandBuffers[0]);        
-    CreateCommandBuffers(context);
-}
-
-
-internal void
 vulkan::RecreateSwapchain(VulkanContext * context, VkExtent2D frameBufferSize)
 {
     vkDeviceWaitIdle(context->device);
@@ -1992,21 +1983,20 @@ vulkan::RecreateSwapchain(VulkanContext * context, VkExtent2D frameBufferSize)
 
     std::cout << "Recreating swapchain, width: " << frameBufferSize.width << ", height: " << frameBufferSize.height <<"\n";
 
-    context->swapchainItems      = CreateSwapchainAndImages(context, frameBufferSize);
-    context->renderPass          = CreateRenderPass(context, &context->swapchainItems, context->msaaSamples);
+    context->swapchainItems         = CreateSwapchainAndImages(context, frameBufferSize);
+    context->renderPass             = CreateRenderPass(context, &context->swapchainItems, context->msaaSamples);
+    
     recreate_loaded_pipelines(context);
-    context->drawingResources    = CreateDrawingResources(context);
-    context->frameBuffers        = CreateFrameBuffers(context);
-    context->uniformDescriptorPool      = CreateDescriptorPool(context->device, context->swapchainItems.images.size());
+    
+    context->drawingResources       = CreateDrawingResources(context);
+    context->frameBuffers           = CreateFrameBuffers(context);
+    context->uniformDescriptorPool  = CreateDescriptorPool(context->device, context->swapchainItems.images.size());
 
 
-    context->descriptorSets = CreateModelDescriptorSets(context);
-    context->guiDescriptorSets = CreateGuiDescriptorSets(context);
+    context->descriptorSets         = CreateModelDescriptorSets(context);
+    context->guiDescriptorSets      = CreateGuiDescriptorSets(context);
 
-    context->sceneDescriptorSets = CreateSceneDescriptorSets(context);
-
-
-    RefreshCommandBuffers(context);
+    context->sceneDescriptorSets    = CreateSceneDescriptorSets(context);
 }
 
 internal void
@@ -2074,4 +2064,96 @@ vulkan::draw_frame(VulkanContext * context, uint32 imageIndex, uint32 frameIndex
     // {
     //     throw std::runtime_error("Failed to present swapchain");
     // }
+}
+
+/* Todo(Leo): this belongs to winapi namespace because it is definetly windows specific.
+Make better separation between windows part of this and vulkan part of this. */
+namespace winapi
+{
+    VkExtent2D get_hwnd_size(HWND winWindow)
+    {
+        RECT rect;
+        GetWindowRect(winWindow, &rect);
+
+        return {
+            .width = (uint32)(rect.right - rect.left),
+            .height = (uint32)(rect.bottom - rect.top),
+        };
+    }
+
+    internal VulkanContext
+    VulkanInitialize(HINSTANCE winInstance, HWND winWindow)
+    {
+        VulkanContext resultContext = {};
+
+        resultContext.instance = CreateInstance();
+        // TODO(Leo): (if necessary, but at this point) Setup debug callbacks, look vulkan-tutorial.com
+        
+        VkWin32SurfaceCreateInfoKHR surfaceCreateInfo =
+        {
+            .sType      = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR,
+            .hinstance  = winInstance,
+            .hwnd       = winWindow 
+        };
+        DEVELOPMENT_ASSERT(vkCreateWin32SurfaceKHR(resultContext.instance, &surfaceCreateInfo, nullptr, &resultContext.surface) == VK_SUCCESS,
+                        "Failed to create win32 surface.");
+
+        resultContext.physicalDevice = PickPhysicalDevice(resultContext.instance, resultContext.surface);
+        vkGetPhysicalDeviceProperties(resultContext.physicalDevice, &resultContext.physicalDeviceProperties);
+        resultContext.msaaSamples = GetMaxUsableMsaaSampleCount(resultContext.physicalDevice);
+        std::cout << "Sample count: " << vulkan::EnumToString(resultContext.msaaSamples) << "\n";
+
+        resultContext.physicalDevice = resultContext.physicalDevice;
+        resultContext.physicalDeviceProperties = resultContext.physicalDeviceProperties;
+
+        resultContext.device = CreateLogicalDevice(resultContext.physicalDevice, resultContext.surface);
+
+        VulkanQueueFamilyIndices queueFamilyIndices = vulkan::FindQueueFamilies(resultContext.physicalDevice, resultContext.surface);
+        vkGetDeviceQueue(resultContext.device, queueFamilyIndices.graphics, 0, &resultContext.graphicsQueue);
+        vkGetDeviceQueue(resultContext.device, queueFamilyIndices.present, 0, &resultContext.presentQueue);
+
+        /// ---- Create Command Pool ----
+        VkCommandPoolCreateInfo poolInfo =
+        {
+            .sType              = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+            .queueFamilyIndex   = queueFamilyIndices.graphics,
+            .flags              = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
+        };
+
+        if (vkCreateCommandPool(resultContext.device, &poolInfo, nullptr, &resultContext.commandPool) != VK_SUCCESS)
+        {
+            throw std::runtime_error("failed to create command pool");
+        }
+
+        /// ...?
+        resultContext.syncObjects = CreateSyncObjects(resultContext.device);
+        
+        /* 
+        Above is device
+        -----------------------------------------------------------------------
+        Below is content
+        */ 
+
+
+        /* Todo(Leo): now that everything is in VulkanContext, it does not make so much sense
+        to explicitly specify each component as parameter */
+        resultContext.swapchainItems      = CreateSwapchainAndImages(&resultContext, get_hwnd_size(winWindow));
+        resultContext.renderPass          = CreateRenderPass(&resultContext, &resultContext.swapchainItems, resultContext.msaaSamples);
+        
+        resultContext.descriptorSetLayouts[DESCRIPTOR_SET_LAYOUT_SCENE_UNIFORM]   = CreateSceneDescriptorSetLayout(resultContext.device);
+        resultContext.descriptorSetLayouts[DESCRIPTOR_SET_LAYOUT_MATERIAL]       = CreateMaterialDescriptorSetLayout(resultContext.device);
+        resultContext.descriptorSetLayouts[DESCRIPTOR_SET_LAYOUT_MODEL_UNIFORM]   = CreateModelDescriptorSetLayout(resultContext.device);
+
+        resultContext.guiDescriptorSetLayout = CreateModelDescriptorSetLayout(resultContext.device);
+
+        // Todo(Leo): This seems rather stupid way to organize creation of these...
+        resultContext.drawingResources          = CreateDrawingResources(&resultContext);
+        resultContext.frameBuffers              = CreateFrameBuffers(&resultContext);
+        resultContext.uniformDescriptorPool     = CreateDescriptorPool(resultContext.device, resultContext.swapchainItems.images.size());
+        resultContext.materialDescriptorPool    = CreateMaterialDescriptorPool(resultContext.device);
+
+        std::cout << "\nVulkan Initialized succesfully\n\n";
+
+        return resultContext;
+    }
 }

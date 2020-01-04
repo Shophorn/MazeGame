@@ -56,7 +56,7 @@ namespace glTF
 			case ComponentType::FLOAT: 			return 4;
 
 			default:
-				MAZEGAME_ASSERT(false, "Hello bad choices: Invalid glTF component type");
+				DEVELOPMENT_ASSERT(false, "Hello bad choices: Invalid glTF component type");
 		}
 	}
 }

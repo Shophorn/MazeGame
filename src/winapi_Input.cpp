@@ -85,12 +85,12 @@ update_controller_input(game::Input * input, XINPUT_STATE * xinput)
     input->move = { 
         xinput_convert_joystick_value(xinput->Gamepad.sThumbLX),
         xinput_convert_joystick_value(xinput->Gamepad.sThumbLY)};
-    input->move = ClampLength(input->move, 1.0f);
+    input->move = vector::clamp_length(input->move, 1.0f);
 
     input->look = {
         xinput_convert_joystick_value(xinput->Gamepad.sThumbRX),
         xinput_convert_joystick_value(xinput->Gamepad.sThumbRY)};
-    input->look = ClampLength(input->look, 1.0f);
+    input->look = vector::clamp_length(input->look, 1.0f);
 
     uint16 pressedButtons = xinput->Gamepad.wButtons;
     auto is_down = [pressedButtons](uint32 button) -> bool32

@@ -15,7 +15,6 @@ Leo Tamminen
 #include "Camera.cpp"
 #include "Collisions2D.cpp"
 #include "CollisionManager2D.cpp"
-#include "Collisions3D.cpp"
 #include "Skybox.cpp"
 
 #include "CharacterSystems.cpp"
@@ -111,7 +110,6 @@ load_scene(GameState * state, game::PlatformInfo * platform, SceneInfo scene)
 	scene.load(state->loadedScene, &state->persistentMemoryArena, &state->transientMemoryArena, platform);
 
 	state->sceneLoaded = true;	
-	platform->graphicsContext->Apply();
 }
 
 internal void
@@ -121,8 +119,6 @@ load_gui(GameState * state, game::PlatformInfo * platform, SceneGuiInfo gui)
 
 	state->loadedGui = reserve_from_memory_arena(&state->persistentMemoryArena, gui.get_alloc_size());
 	gui.load(state->loadedGui, &state->persistentMemoryArena, &state->transientMemoryArena, platform);	
-	
-	platform->graphicsContext->Apply();
 }
 
 internal void
@@ -162,8 +158,6 @@ GameUpdate(
 		load_gui(state, platform, menuSceneGuiGui);
 	}
 	flush_memory_arena(&state->transientMemoryArena);
-
-
 	
 	outRenderInfo->start_drawing();
 	if (state->loadedScene != nullptr)

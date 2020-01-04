@@ -6,21 +6,6 @@ Player Character Systems
 =============================================================================*/
 #include <functional>
 
-
-internal Vector3
-ProcessCharacterInput(game::Input * input, Camera * camera)
-{
-	Vector3 viewForward = camera->forward;
-	viewForward.z 		= 0;
-	viewForward 		= Normalize(viewForward);
-	Vector3 viewRight 	= Cross(viewForward, World::Up);
-
-	Vector3 result = viewRight * input->move.x
-					+ viewForward * input->move.y;
-
-	return result;
-}
-
 struct CharacterControllerSideScroller
 {
 	// References
@@ -134,85 +119,3 @@ struct CharacterControllerSideScroller
 
 	}
 };
-
-struct CharacterController3rdPerson
-{
-	// References
-	Handle<Transform3D> transform;
-
-	// Properties
-	float speed = 10;
-	float collisionRadius = 0.5f;
-
-	// State
-	float 	zSpeed;
-	Vector3 forward;
-};
-
-internal CharacterController3rdPerson
-make_character(Handle<Transform3D> transform)
-{
-	CharacterController3rdPerson result =
-	{
-		.transform 	= transform,
-
-		.zSpeed 	= 0.0f,
-		.forward 	= get_forward(transform),
-	};
-	return result;
-}
-
-void
-update(	CharacterController3rdPerson * 	controller,
-		game::Input * 					input,
-		Camera * 						worldCamera,
-		CollisionSystem3D *				collisionSystem)
-{
-	bool32 grounded = controller->transform->position.z < 0.1f;
-
-	Vector3 movementVector 	= ProcessCharacterInput(input, worldCamera) * controller->speed * input->elapsedTime;
-	Vector3 newPosition 	= controller->transform->position + movementVector;
-
-	const float epsilon = 0.001f;
-	if (Abs(input->move.x) > epsilon || Abs(input->move.y) > epsilon)
-	{
-		controller->forward = Normalize(movementVector);
-		float angleToWorldForward = SignedAngle(World::Forward, controller->forward, World::Up);
-		controller->transform->rotation = Quaternion::AxisAngle(World::Up, angleToWorldForward);
-		
-
-		Vector3 rayDirection;
-		float rayLength;
-		vector::dissect(movementVector, &rayDirection, &rayLength);
-
-		Vector3 rayStart = 	controller->transform->position
-							+ rayDirection * controller->collisionRadius
-							+ World::Up * 0.25f;
-		bool32 rayHit = raycast_3d(collisionSystem, rayStart, rayDirection, rayLength);
-
-		if(rayHit == false)
-			controller->transform->position = newPosition;
-
-
-	}	
-
-
-	if (grounded && is_clicked(input->jump))
-	{
-		controller->zSpeed = 5;
-	}
-
-	controller->transform->position.z += controller->zSpeed * input->elapsedTime;
-
-	if (controller->transform->position.z > 0)
-	{	
-		controller->zSpeed -= 2 * 9.81 * input->elapsedTime;
-	}
-	else
-	{
-		controller->zSpeed = 0;
-        controller->transform->position.z = 0;
-	}
-
-
-}

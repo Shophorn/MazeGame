@@ -28,6 +28,6 @@ update_render_system(game::RenderInfo * renderer, ArenaArray<RenderSystemEntry> 
 	for (int32 i = 0; i < entries.count(); ++i)
 	{
 		renderer->draw(	entries[i].renderer->handle,
-							entries[i].transform->get_matrix());
+							get_matrix(entries[i].transform));
 	}
 }

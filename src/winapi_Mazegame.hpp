@@ -42,10 +42,13 @@ namespace winapi
 
     struct State
     {
+        game::PlatformInfo gamePlatformInfo = {};
+
+
         bool32 isRunning; 
 
-        int32 windowWidth;
-        int32 windowHeight;
+        // int32 windowWidth;
+        // int32 windowHeight;
         bool32 windowIsMinimized;
 
         bool32 windowIsFullscreen;
@@ -61,8 +64,8 @@ namespace winapi
         bool32 windowIsDrawable()
         {
             bool32 isDrawable = (windowIsMinimized == false)
-                                && (windowWidth > 0)
-                                && (windowHeight > 0);
+                                && (gamePlatformInfo.windowWidth > 0)
+                                && (gamePlatformInfo.windowHeight > 0);
             return isDrawable;
         }
 
@@ -70,8 +73,8 @@ namespace winapi
         VkExtent2D GetFrameBufferSize ()
         {
             VkExtent2D result = {
-                static_cast<uint32>(windowWidth),
-                static_cast<uint32>(windowHeight)
+                static_cast<uint32>(gamePlatformInfo.windowWidth),
+                static_cast<uint32>(gamePlatformInfo.windowHeight)
             };
             return result;
         }

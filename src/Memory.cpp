@@ -31,7 +31,7 @@ reserve_from_memory_arena(MemoryArena * arena, uint64 size)
 {
 	size = align_up_to(size, MemoryArena::defaultAlignment);
 	
-	MAZEGAME_ASSERT(size <= arena->available(), "Not enough memory available in MemoryArena");
+	DEVELOPMENT_ASSERT(size <= arena->available(), "Not enough memory available in MemoryArena");
 
 	byte * result = arena->next();
 	arena->used += size;
@@ -119,7 +119,7 @@ private:
 	inline ArrayHeader * 
 	get_header ()
 	{ 
-		MAZEGAME_ASSERT(_data != nullptr, "Invalid call to 'get_header()', ArenaArray is not initialized.");
+		DEVELOPMENT_ASSERT(_data != nullptr, "Invalid call to 'get_header()', ArenaArray is not initialized.");
 		return reinterpret_cast<ArrayHeader*>(_data);
 	}
 
@@ -129,7 +129,7 @@ private:
 		#if MAZEGAME_DEVELOPMENT
 			char message [200];
 			sprintf(message,"Index (%d) is more than count (%d)", index, count());
-			MAZEGAME_ASSERT (index < count(), message);
+			DEVELOPMENT_ASSERT (index < count(), message);
 		#endif
 	}
 };
@@ -138,7 +138,7 @@ template<typename T, typename TIndex>
 internal ArrayHeader *
 get_array_header(ArenaArray<T, TIndex> array)
 {
-	MAZEGAME_ASSERT(array._data != nullptr, "Invalid call to 'get_array_header()', ArenaArray is not initialized.");
+	DEVELOPMENT_ASSERT(array._data != nullptr, "Invalid call to 'get_array_header()', ArenaArray is not initialized.");
 	return reinterpret_cast<ArrayHeader *>(array._data);
 }
 
@@ -209,7 +209,7 @@ push_array(MemoryArena * arena, std::initializer_list<T> items)
 template<typename T, typename TIndex> internal ArenaArray<T, TIndex>
 copy_array_slice(MemoryArena * arena, ArenaArray<T, TIndex> original, TIndex start, uint64 count)
 {
-	MAZEGAME_ASSERT((start + count) <= original.capacity(), "Invalid copy slice region");
+	DEVELOPMENT_ASSERT((start + count) <= original.capacity(), "Invalid copy slice region");
 
 	auto * begin 	= original.begin() + start;
 	auto * end 		= begin + count;
@@ -249,8 +249,8 @@ template<typename T, typename TIndex>
 internal TIndex
 push_one(ArenaArray<T, TIndex> array, T item)
 {
-	MAZEGAME_ASSERT(array.capacity() > 0, "Cannot push, ArenaArray is not initialized!");
-	MAZEGAME_ASSERT(array.count() < array.capacity(), "Cannot push, ArenaArray is full!");
+	DEVELOPMENT_ASSERT(array.capacity() > 0, "Cannot push, ArenaArray is not initialized!");
+	DEVELOPMENT_ASSERT(array.count() < array.capacity(), "Cannot push, ArenaArray is full!");
 
 	TIndex index = {array.count()};
 	set_array_count(array, array.count() + 1);

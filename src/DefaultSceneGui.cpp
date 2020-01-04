@@ -110,14 +110,6 @@ default_scene_gui::update(void * guiPtr, game::Input * input, game::RenderInfo *
 				renderer->draw(gui->gameGuiButtonHandles[guiButtonIndex], guiTransform);
 			}
 		}
-		else
-		{
-			for (int  guiButtonIndex = 0; guiButtonIndex < gui->gameGuiButtonCount; ++guiButtonIndex)
-			{
-				Matrix44 guiTransform = {};
-				renderer->draw(gui->gameGuiButtonHandles[guiButtonIndex], guiTransform);
-			}
-		}
 	}
 
 	return gameMenuResult;

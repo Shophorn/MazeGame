@@ -18,7 +18,7 @@ struct Camera
 void
 Camera::LookAt(Vector3 target)
 {
-	forward = Normalize(target - position);
+	forward = vector::normalize(target - position);
 }
 
 Matrix44
@@ -67,8 +67,8 @@ Camera::ViewProjection()
 	// Study: https://www.3dgep.com/understanding-the-view-matrix/
 
 	Vector3 zAxis 	= -forward;
-	Vector3 xAxis 	= Normalize(Cross(World::Up, zAxis));
-	Vector3 yAxis 	= Cross (zAxis, xAxis);
+	Vector3 xAxis 	= vector::normalize(vector::cross(World::Up, zAxis));
+	Vector3 yAxis 	= vector::cross (zAxis, xAxis);
 
 	Matrix44 orientation = {
 		xAxis[0], yAxis[0], zAxis[0], 0,
@@ -89,8 +89,8 @@ Matrix44
 get_rotation_matrix(Camera * camera)
 {
 	Vector3 zAxis 	= -camera->forward;
-	Vector3 xAxis 	= Normalize(Cross(World::Up, zAxis));
-	Vector3 yAxis 	= Cross (zAxis, xAxis);
+	Vector3 xAxis 	= vector::normalize(vector::cross(World::Up, zAxis));
+	Vector3 yAxis 	= vector::cross (zAxis, xAxis);
 
 	Matrix44 orientation = {
 		xAxis[0], yAxis[0], zAxis[0], 0,

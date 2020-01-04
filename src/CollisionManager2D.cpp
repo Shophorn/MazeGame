@@ -41,7 +41,7 @@ struct CollisionManager2D
 
 		for (int32 i = 0; i < colliders.count(); ++i)
 		{
-			MAZEGAME_ASSERT(is_handle_valid(colliders[i]->transform), "Invalid transform passed to Collider2D");
+			DEVELOPMENT_ASSERT(is_handle_valid(colliders[i]->transform), "Invalid transform passed to Collider2D");
 
 			switch(colliders[i]->tag)
 			{
@@ -58,7 +58,7 @@ struct CollisionManager2D
 						continue;
 			}
 
-			Vector3 worldPosition = colliders[i]->transform->get_world_position();
+			Vector3 worldPosition = get_world_position(colliders[i]->transform);
 			Vector2 position2D = {	worldPosition.x, worldPosition.z };
 
 			position2D += colliders[i]->offset;
@@ -76,11 +76,11 @@ struct CollisionManager2D
 			auto AB = corners[1] - corners[0];
 			auto AD = corners[2] - corners[0];
 
-			bool32 startInside = 	(0 < Dot(AMstart, AB) && Dot(AMstart, AB) < Dot (AB, AB))
-									&& (0 < Dot(AMstart, AD) && Dot(AMstart, AD) < Dot (AD, AD));
+			bool32 startInside = 	(0 < vector::dot(AMstart, AB) && vector::dot(AMstart, AB) < vector::dot (AB, AB))
+									&& (0 < vector::dot(AMstart, AD) && vector::dot(AMstart, AD) < vector::dot (AD, AD));
 
-			bool32 endInside = 	(0 < Dot(AMend, AB) && Dot(AMend, AB) < Dot (AB, AB))
-								&& (0 < Dot(AMend, AD) && Dot(AMend, AD) < Dot (AD, AD));
+			bool32 endInside = 	(0 < vector::dot(AMend, AB) && vector::dot(AMend, AB) < vector::dot (AB, AB))
+								&& (0 < vector::dot(AMend, AD) && vector::dot(AMend, AD) < vector::dot (AD, AD));
 
 			if (!startInside && endInside)
 				return true;
@@ -106,8 +106,8 @@ struct CollisionManager2D
 		{
 			for (int32 b = a + 1; b < colliders.count(); ++b)
 			{
-				Vector2 positionA = Vector2{colliders[a]->transform->get_world_position().x, colliders[a]->transform->get_world_position().z} + colliders[a]->offset;
-				Vector2 positionB = Vector2{colliders[b]->transform->get_world_position().x, colliders[b]->transform->get_world_position().z} + colliders[b]->offset;
+				Vector2 positionA = Vector2{get_world_position(colliders[a]->transform).x, get_world_position(colliders[a]->transform).z} + colliders[a]->offset;
+				Vector2 positionB = Vector2{get_world_position(colliders[b]->transform).x, get_world_position(colliders[b]->transform).z} + colliders[b]->offset;
 
 				float xDeltaAtoB 	= positionB.x - positionA.x;
 				float xDistance		= Abs(xDeltaAtoB);

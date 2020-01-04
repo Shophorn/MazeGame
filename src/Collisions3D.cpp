@@ -23,7 +23,7 @@ push_collider_to_system(CollisionSystem3D * 	system,
 	push_one(system->colliders, {collider, transform});
 }
 
-internal bool
+internal bool32
 raycast_3d(	CollisionSystem3D * manager,
 			Vector3 rayStart,
 			Vector3 normalizedRayDirection,
@@ -36,8 +36,7 @@ raycast_3d(	CollisionSystem3D * manager,
 		auto collider = entry.collider;
 		auto transform = entry.transform;
 
-		Vector3 position = 	transform->get_world_position()
-							+ collider->center;
+		Vector3 position = 	get_world_position(transform) + collider->center;
 
 		Vector3 min = position - collider->extents;
 		Vector3 max = position + collider->extents;

@@ -40,7 +40,7 @@ struct Animator
 internal AnimationRig
 make_animation_rig(Handle<Transform3D> root, ArenaArray<Handle<Transform3D>> bones, ArenaArray<uint64> currentBoneKeyframes)
 {
-	MAZEGAME_ASSERT(bones.count() == currentBoneKeyframes.count(), "Currently you must pass keyframe array with matching size to bones array. Sorry for inconvenience :)");
+	DEVELOPMENT_ASSERT(bones.count() == currentBoneKeyframes.count(), "Currently you must pass keyframe array with matching size to bones array. Sorry for inconvenience :)");
 
 	AnimationRig result 
 	{
@@ -70,26 +70,24 @@ update_animation_target(Animation * animation, Handle<Transform3D> target, uint6
 
 	if (isBeforeFirstKeyFrame)
 	{
-		auto current_keyframe = animation->keyframes[currentBoneKeyframe];
-		target->position = current_keyframe.position;
+		auto currentKeyframe = animation->keyframes[currentBoneKeyframe];
+		target->position = currentKeyframe.position;
 	}
 	else if(isAfterLastKeyFrame)
 	{
-		auto previous_keyframe = animation->keyframes[currentBoneKeyframe - 1];
-		target->position = previous_keyframe.position;
+		auto previousKeyframe = animation->keyframes[currentBoneKeyframe - 1];
+		target->position = previousKeyframe.position;
 	}
 	else
 	{
-		auto previous_keyframe = animation->keyframes[currentBoneKeyframe - 1];
-		auto current_keyframe = animation->keyframes[currentBoneKeyframe];
+		auto previousKeyframe = animation->keyframes[currentBoneKeyframe - 1];
+		auto currentKeyframe = animation->keyframes[currentBoneKeyframe];
 		
-		float previousKeyFrameTime 	= previous_keyframe.time;
-		float currentKeyFrameTime 	= current_keyframe.time;
+		float previousKeyFrameTime 	= previousKeyframe.time;
+		float currentKeyFrameTime 	= currentKeyframe.time;
 		float relativeTime = (time - previousKeyFrameTime) / (currentKeyFrameTime - previousKeyFrameTime);
 
-		target->position = Interpolate(	previous_keyframe.position,
-													current_keyframe.position,
-													relativeTime); 
+		target->position = vector::interpolate(previousKeyframe.position, currentKeyframe.position, relativeTime); 
 	}
 }
 
