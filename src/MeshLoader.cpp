@@ -243,7 +243,8 @@ namespace mesh_ops
 		int vertexCount = mesh->vertices.count();
 		for(int vertexIndex = 0; vertexIndex < vertexCount; ++vertexIndex)
 		{
-			mesh->vertices[vertexIndex].texCoord *= scale;
+
+			mesh->vertices[vertexIndex].texCoord = vector::scale(mesh->vertices[vertexIndex].texCoord, scale);
 			mesh->vertices[vertexIndex].texCoord += translation;
 		}
 	}

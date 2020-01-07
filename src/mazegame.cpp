@@ -150,6 +150,10 @@ GameUpdate(
 	if it has been moved or whatever in platform layer*/
 	GameState * state = reinterpret_cast<GameState*>(memory->persistentMemory);
 
+
+
+
+
 	if (memory->isInitialized == false)
 	{
 		initialize_game_state (state, memory, platform);

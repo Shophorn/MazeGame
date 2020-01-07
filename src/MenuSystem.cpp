@@ -16,12 +16,12 @@ update_gui_render_system(ArenaArray<GuiRendererSystemEntry> system, game::Render
 	{
 		GuiRendererSystemEntry & entry = system[i];
 
-		Vector2 translation = entry.transform->position / halfWindowSize - 1.0f;
+		Vector2 translation = vector::coeff_subtract(entry.transform->position / halfWindowSize, 1.0f);
 		Vector2 scale 		= entry.transform->size / halfWindowSize;
 
 		if (i == selectedGuiIndex)
 		{
-			translation = (entry.transform->position - Vector2{15, 15}) / halfWindowSize - 1.0f;
+			translation = vector::coeff_subtract((entry.transform->position - Vector2{15, 15}) / halfWindowSize, 1.0f);
 			scale = (entry.transform->size + Vector2{30, 30}) / halfWindowSize;
 		}
 

@@ -96,12 +96,12 @@ default_scene_gui::update(void * guiPtr, game::Input * input, game::RenderInfo *
 
 			for (int  guiButtonIndex = 0; guiButtonIndex < gui->gameGuiButtonCount; ++guiButtonIndex)
 			{
-				Vector2 guiTranslate = gui->gameGuiButtons[guiButtonIndex].position / halfWindowSize - 1.0f;
+				Vector2 guiTranslate = vector::coeff_subtract(gui->gameGuiButtons[guiButtonIndex].position / halfWindowSize, 1.0f);
 				Vector2 guiScale = gui->gameGuiButtons[guiButtonIndex].size / halfWindowSize;
 
 				if (guiButtonIndex == gui->selectedGuiButtonIndex)
 				{
-					guiTranslate = (gui->gameGuiButtons[guiButtonIndex].position - Vector2{15, 15}) / halfWindowSize - 1.0f;
+					guiTranslate = vector::coeff_subtract((gui->gameGuiButtons[guiButtonIndex].position - Vector2{15, 15}) / halfWindowSize, 1.0f);
 					guiScale = (gui->gameGuiButtons[guiButtonIndex].size + Vector2{30, 30}) / halfWindowSize;
 				}
 

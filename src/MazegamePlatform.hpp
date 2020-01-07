@@ -50,6 +50,8 @@ namespace platform
 	struct PipelineOptions
 	{
 	    bool32 enableDepth = true;
+	    enum { PRIMITIVE_LINE, PRIMITIVE_TRIANGLE } primitiveType = PRIMITIVE_TRIANGLE;
+	    int32 textureCount = 0;
 	};
 
 	/* Note(Leo): This seems good, but for some reasoen I feel
@@ -61,6 +63,8 @@ namespace platform
 		virtual MaterialHandle 	PushMaterial (MaterialAsset * material) 	= 0;
 		
 		virtual RenderedObjectHandle 	PushRenderedObject(MeshHandle mesh, MaterialHandle material) = 0;
+
+		virtual TextureHandle push_cubemap(TextureAsset * assets) = 0;
 
 		virtual PipelineHandle push_pipeline(const char * vertexShaderPath, const char * fragmentShaderPath, PipelineOptions options = {}) = 0;
 
@@ -167,6 +171,8 @@ namespace game
 		std::function<void()> 										start_drawing;
 		std::function<void()> 										finish_drawing;
 		std::function<void(RenderedObjectHandle, Matrix44)> 		draw;
+
+		std::function<void(Vector3 start, Vector3 end, Vector3 color)> draw_line;
 
 
 	};

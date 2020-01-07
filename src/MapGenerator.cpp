@@ -104,13 +104,13 @@ AddHexCell(Vector3 cellPosition, HexMap * map, bool blocked, uint16 * vertexInde
 	vertexLocation[6].normal = normal;
 
 	real32 gridSize = map->WorldSize();
-	vertexLocation[0].texCoord = size_cast<Vector2>(vertexLocation[0].position) / gridSize + 0.5f;
-	vertexLocation[1].texCoord = size_cast<Vector2>(vertexLocation[1].position) / gridSize + 0.5f;
-	vertexLocation[2].texCoord = size_cast<Vector2>(vertexLocation[2].position) / gridSize + 0.5f;
-	vertexLocation[3].texCoord = size_cast<Vector2>(vertexLocation[3].position) / gridSize + 0.5f;
-	vertexLocation[4].texCoord = size_cast<Vector2>(vertexLocation[4].position) / gridSize + 0.5f;
-	vertexLocation[5].texCoord = size_cast<Vector2>(vertexLocation[5].position) / gridSize + 0.5f;
-	vertexLocation[6].texCoord = size_cast<Vector2>(vertexLocation[6].position) / gridSize + 0.5f;
+	vertexLocation[0].texCoord = vector::coeff_add(size_cast<Vector2>(vertexLocation[0].position) / gridSize, 0.5f);
+	vertexLocation[1].texCoord = vector::coeff_add(size_cast<Vector2>(vertexLocation[1].position) / gridSize, 0.5f);
+	vertexLocation[2].texCoord = vector::coeff_add(size_cast<Vector2>(vertexLocation[2].position) / gridSize, 0.5f);
+	vertexLocation[3].texCoord = vector::coeff_add(size_cast<Vector2>(vertexLocation[3].position) / gridSize, 0.5f);
+	vertexLocation[4].texCoord = vector::coeff_add(size_cast<Vector2>(vertexLocation[4].position) / gridSize, 0.5f);
+	vertexLocation[5].texCoord = vector::coeff_add(size_cast<Vector2>(vertexLocation[5].position) / gridSize, 0.5f);
+	vertexLocation[6].texCoord = vector::coeff_add(size_cast<Vector2>(vertexLocation[6].position) / gridSize, 0.5f);
 
 	triangleLocation[0] = *vertexIndex;
 	triangleLocation[1] = *vertexIndex + 1; 

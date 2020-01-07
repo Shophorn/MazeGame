@@ -87,14 +87,7 @@ enum struct MaterialType : int32
 
 struct MaterialAsset
 {
-    // Note(Leo): Ignore now, later we use this to differentiate different material layouts
-    // MaterialType type;
-
-	TextureAsset pERROR;
-
     PipelineHandle pipeline;
-
-    // int textureCount;
 
     TextureHandle albedo;
     TextureHandle metallic;

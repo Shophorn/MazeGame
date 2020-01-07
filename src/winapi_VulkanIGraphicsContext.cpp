@@ -25,7 +25,7 @@ VulkanContext::PushMesh(MeshAsset * mesh)
     VkBufferCopy copyRegion = { 0, this->staticMeshPool.used, totalBufferSize };
     vkCmdCopyBuffer(commandBuffer, this->stagingBufferPool.buffer, this->staticMeshPool.buffer, 1, &copyRegion);
 
-    vulkan::EndOneTimeCommandBuffer(this->device, this->commandPool, this->graphicsQueue, commandBuffer);
+    vulkan::execute_command_buffer(this->device, this->commandPool, this->graphicsQueue, commandBuffer);
 
     VulkanModel model = {};
 
@@ -53,9 +53,18 @@ TextureHandle
 VulkanContext::PushTexture (TextureAsset * texture)
 {
     TextureHandle handle = { this->loadedTextures.size() };
-    this->loadedTextures.push_back(vulkan::CreateImageTexture(texture, this));
+    this->loadedTextures.push_back(vulkan::make_texture(texture, this));
     return handle;
 }
+
+TextureHandle
+VulkanContext::push_cubemap(TextureAsset * assets)
+{
+    TextureHandle handle = { this->loadedTextures.size() };
+    this->loadedTextures.push_back(vulkan::make_cubemap(this, assets));
+    return handle;    
+}
+
 
 MaterialHandle
 VulkanContext::PushMaterial (MaterialAsset * asset)
@@ -146,7 +155,7 @@ VulkanContext::push_pipeline(const char * vertexShaderPath, const char * fragmen
         .fragmentShaderPath = fragmentShaderPath,
         .options            = options
     };
-    auto pipeline = vulkan::make_pipeline(this, 3, info);
+    auto pipeline = vulkan::make_pipeline(this, info);
     uint64 index = loadedPipelines.size();
     loadedPipelines.push_back(pipeline);
 
@@ -160,7 +169,7 @@ recreate_loaded_pipelines(VulkanContext * context)
 
     for (int i = 0; i < context->loadedPipelines.size(); ++i)
     {
-        auto pipeline = vulkan::make_pipeline(context, 3, context->loadedPipelines[i].info);
+        auto pipeline = vulkan::make_pipeline(context, context->loadedPipelines[i].info);
         context->loadedPipelines[i] = pipeline;
     }
 }
@@ -238,8 +247,6 @@ void
 vulkan::record_draw_command(VulkanContext * context, RenderedObjectHandle objectHandle, Matrix44 transform)
 {
     // std::cout << "[vulkan::record_draw_command()]\n";
- 
-
     DEVELOPMENT_ASSERT(context->canDraw, "Invalid call to record_draw_command() when start_drawing() has not been called.")
 
     VkCommandBuffer commandBuffer = context->frameCommandBuffers[context->currentDrawFrameIndex];
@@ -313,6 +320,36 @@ vulkan::record_draw_command(VulkanContext * context, RenderedObjectHandle object
                             &renderInfo.uniformBufferOffset);
 
     vkCmdDrawIndexed(commandBuffer, renderInfo.indexCount, 1, 0, 0, 0);
- 
+}
 
+void
+vulkan::record_line_draw_command(VulkanContext * context, Vector3 start, Vector3 end, Vector3 color)
+{
+    /*
+    vulkan bufferless drawing
+    https://www.saschawillems.de/blog/2016/08/13/vulkan-tutorial-on-rendering-a-fullscreen-quad-without-buffers/
+    */
+    DEVELOPMENT_ASSERT(context->canDraw, "Invalid call to record_line_draw_command() when start_drawing() has not been called.")
+
+    VkCommandBuffer commandBuffer = context->frameCommandBuffers[context->currentDrawFrameIndex];
+ 
+    enum : uint32
+    {
+        LAYOUT_SCENE    = 0,
+        LAYOUT_MATERIAL = 1,
+        LAYOUT_MODEL    = 2,
+    };
+
+    Vector4 pushConstants [] = 
+    {
+        {start.x, start.y, start.z, 0},
+        {end.x, end.y, end.z, 0},
+        {color.x, color.y, color.z, 0},
+    };
+    vkCmdPushConstants(commandBuffer, context->lineDrawPipeline.layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pushConstants), pushConstants);
+
+    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, context->lineDrawPipeline.pipeline);
+    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, context->lineDrawPipeline.layout,
+                            LAYOUT_SCENE, 1, &context->sceneDescriptorSets[context->currentDrawFrameIndex], 0, nullptr);
+    vkCmdDraw(commandBuffer, 2, 1, 0, 0);
 }

@@ -12,7 +12,7 @@ namespace vulkan
         VkCommandPool      commandPool);
 
     internal void
-    EndOneTimeCommandBuffer(
+    execute_command_buffer(
     	VkDevice           logicalDevice,
     	VkCommandPool      commandPool,
     	VkQueue            submitQueue,
@@ -40,7 +40,7 @@ vulkan::BeginOneTimeCommandBuffer(VkDevice logicalDevice, VkCommandPool commandP
 }
 
 internal void
-vulkan::EndOneTimeCommandBuffer(
+vulkan::execute_command_buffer(
     VkDevice logicalDevice,
     VkCommandPool commandPool,
     VkQueue submitQueue,

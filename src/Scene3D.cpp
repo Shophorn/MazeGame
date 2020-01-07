@@ -54,13 +54,13 @@ scene_3d::update(void * scenePtr, game::Input * input, game::RenderInfo * render
 	Scene * scene = reinterpret_cast<Scene*>(scenePtr);
 
 	// scene->collisionManager.do_collisions();
+    draw_skybox(scene->skybox, &scene->worldCamera, renderer);
 
-	update(&scene->characterController, input, &scene->worldCamera, &scene->collisionSystem);
+	update(&scene->characterController, input, &scene->worldCamera, &scene->collisionSystem, renderer);
 	update_animator_system(input, scene->animatorSystem);
 
 	update(&scene->cameraController, input);
     update_camera_system(renderer, platform, input, &scene->worldCamera);
-    draw_skybox(scene->skybox, &scene->worldCamera, renderer);
 	update_render_system(renderer, scene->renderSystem);
 }
 
@@ -88,8 +88,8 @@ scene_3d::load(void * scenePtr, MemoryArena * persistentMemory, MemoryArena * tr
 
 	// Create MateriaLs
 	{
-		PipelineHandle normalPipeline 	= platformInfo->graphicsContext->push_pipeline("shaders/vert.spv", "shaders/frag.spv");
-		PipelineHandle skyPipeline 		= platformInfo->graphicsContext->push_pipeline("shaders/vert_sky.spv", "shaders/frag_sky.spv", {.enableDepth = false});
+		PipelineHandle normalPipeline 	= platformInfo->graphicsContext->push_pipeline("shaders/vert.spv", "shaders/frag.spv", {.textureCount = 3});
+		PipelineHandle skyPipeline 		= platformInfo->graphicsContext->push_pipeline("shaders/vert_sky.spv", "shaders/frag_sky.spv", {.enableDepth = false, .textureCount = 1});
 
 		TextureAsset whiteTextureAsset = make_texture_asset(push_array<uint32>(transientMemory, {0xffffffff}), 1, 1);
 		TextureAsset blackTextureAsset = make_texture_asset(push_array<uint32>(transientMemory, {0xff000000}), 1, 1);
@@ -107,6 +107,20 @@ scene_3d::load(void * scenePtr, MemoryArena * persistentMemory, MemoryArena * tr
 		auto tilesTexture 	= load_and_push_texture("textures/tiles.jpg");
 		auto lavaTexture 	= load_and_push_texture("textures/lava.jpg");
 		auto faceTexture 	= load_and_push_texture("textures/texture.jpg");
+
+
+		TextureAsset skyboxTextures [] =
+		{
+			load_texture_asset("textures/skybox_front.jpg", transientMemory),
+			load_texture_asset("textures/skybox_back.jpg", transientMemory),
+			load_texture_asset("textures/skybox_up.jpg", transientMemory),
+			load_texture_asset("textures/skybox_down.jpg", transientMemory),
+			load_texture_asset("textures/skybox_right.jpg", transientMemory),
+			load_texture_asset("textures/skybox_left.jpg", transientMemory),
+		};
+
+		auto skyboxTextureHandle = platformInfo->graphicsContext->push_cubemap(skyboxTextures);
+
 
 		auto push_material = [platformInfo](PipelineHandle shader, TextureHandle a, TextureHandle b, TextureHandle c) -> MaterialHandle
 		{

@@ -171,11 +171,9 @@ namespace winapi
 
             case WM_SIZE:
             {
-                winapi::State * state = winapi::GetStateFromWindow(window);
-                // state->windowWidth = LOWORD(lParam);
-                // state->windowHeight = HIWORD(lParam);
-                state->gamePlatformInfo.windowWidth = LOWORD(lParam);
-                state->gamePlatformInfo.windowHeight = HIWORD(lParam);
+                winapi::State * state                   = winapi::GetStateFromWindow(window);
+                state->gamePlatformInfo.windowWidth     = LOWORD(lParam);
+                state->gamePlatformInfo.windowHeight    = HIWORD(lParam);
 
                 switch (wParam)
                 {
@@ -355,7 +353,6 @@ Run(HINSTANCE winInstance)
     {
         // Note(Leo): After buffer creations!!
         context.descriptorSets      = CreateModelDescriptorSets(&context);
-        context.guiDescriptorSets   = CreateGuiDescriptorSets(&context);
         context.sceneDescriptorSets = CreateSceneDescriptorSets(&context);
         context.textureSampler      = CreateTextureSampler(&context);
         CreateCommandBuffers(&context);
@@ -414,9 +411,12 @@ Run(HINSTANCE winInstance)
             pUbo->perspective   = perspective;
 
             vkUnmapMemory(context.device, context.sceneUniformBuffer.memory);
-
         };
 
+        gameRenderInfo.draw_line = [&context](Vector3 start, Vector3 end, Vector3 color)
+        {
+            vulkan::record_line_draw_command(&context, start, end, color);
+        };
     }
 
     // -------- INITIALIZE NETWORK ---------

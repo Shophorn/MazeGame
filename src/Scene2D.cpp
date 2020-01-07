@@ -71,7 +71,6 @@ scene_2d::load(void * scenePtr, MemoryArena * persistentMemory, MemoryArena * tr
 	// auto * persistentMemory = &state->persistentMemoryArena;
 	// auto * transientMemory = &state->transientMemoryArena;
 
-
 	allocate_for_handle<Transform3D>(persistentMemory, 100);
 	allocate_for_handle<Collider2D>(persistentMemory, 100);
 	allocate_for_handle<Renderer>(persistentMemory, 100);
@@ -93,7 +92,7 @@ scene_2d::load(void * scenePtr, MemoryArena * persistentMemory, MemoryArena * tr
 
 	// Create MateriaLs
 	{
-		PipelineHandle shader = platformInfo->graphicsContext->push_pipeline("shaders/vert.spv", "shaders/frag.spv");
+		PipelineHandle shader = platformInfo->graphicsContext->push_pipeline("shaders/vert.spv", "shaders/frag.spv", {.textureCount = 3});
 
 		TextureAsset whiteTextureAsset = make_texture_asset(push_array<uint32>(transientMemory, {0xffffffff}), 1, 1);
 		TextureAsset blackTextureAsset = make_texture_asset(push_array<uint32>(transientMemory, {0xff000000}), 1, 1);

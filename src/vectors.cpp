@@ -15,7 +15,6 @@ TODO(Leo):
 // ------------------ DEFINITIONS ---------------------------------
 #define VECTOR_TEMPLATE 	template<typename Scalar, int Dimension>
 #define VECTOR_TYPE			VectorBase<Scalar, Dimension>
-#define VECTOR_REFERENCE	const VectorBase<Scalar, Dimension>&
 
 #define VECTOR_LOOP_ELEMENTS for (int i = 0; i < Dimension; ++i)
 
@@ -70,7 +69,6 @@ union VectorBase<Scalar, 3>
 
 #define VECTOR_3_TEMPLATE 	template<typename Scalar>
 #define VECTOR_3_TYPE		VectorBase<Scalar, 3>
-#define VECTOR_3_REFERENCE	const VectorBase<Scalar, 3> &
 
 using Vector3 = VectorBase<real32, 3>;
 
@@ -111,14 +109,6 @@ auto & operator += (VECTOR_TYPE & a, VECTOR_TYPE b)
  	return a;
 }
 
-VECTOR_TEMPLATE VECTOR_TYPE
-operator + (VECTOR_TYPE vec, Scalar num)
-{
-	VECTOR_TYPE result;
-	VECTOR_LOOP_ELEMENTS { result.components[i] = vec.components[i] + num; }
-	return result;
-}
-
 // ---------- SUBTRACTION ------------------------------
 VECTOR_TEMPLATE VECTOR_TYPE &
 operator -= (VECTOR_TYPE & lhs, VECTOR_TYPE rhs)
@@ -135,14 +125,22 @@ operator - (VECTOR_TYPE lhs, VECTOR_TYPE rhs)
 	return result;
 }
 
-VECTOR_TEMPLATE VECTOR_TYPE
-operator - (VECTOR_TYPE vec, Scalar num)
+namespace vector
 {
-	VECTOR_TYPE result;
-	VECTOR_LOOP_ELEMENTS { result.components[i] = vec.components[i] - num; }
-	return result;
-}
+	VECTOR_TEMPLATE VECTOR_TYPE
+	coeff_add(VECTOR_TYPE vec, Scalar value)
+	{
+		VECTOR_LOOP_ELEMENTS { vec[i] += value;	}
+		return vec;
+	}
 
+	VECTOR_TEMPLATE VECTOR_TYPE
+	coeff_subtract(VECTOR_TYPE vec, Scalar value)
+	{
+		VECTOR_LOOP_ELEMENTS { vec[i] -= value; }
+		return vec;
+	}
+}
 
 // ************* MULTIPLICATION **************************
 
@@ -161,11 +159,14 @@ operator *= (VECTOR_TYPE & vec, Scalar num)
 	return vec;
 }
 
-VECTOR_TEMPLATE VECTOR_TYPE &
-operator *= (VECTOR_TYPE & a, VECTOR_TYPE b)
+VECTOR_TEMPLATE VECTOR_3_TYPE
+operator * (Scalar scalar, VECTOR_TYPE vec)
 {
-	VECTOR_LOOP_ELEMENTS { a.components[i] *= b.components[i]; }
-	return a;
+	VECTOR_LOOP_ELEMENTS
+	{
+		vec[i] *= scalar;
+	}
+	return vec;
 }
 
 // ////////////// DIVISION ///////////////////////////
@@ -416,7 +417,7 @@ namespace vector
 	}
 
 	VECTOR_3_TEMPLATE VECTOR_3_TYPE
-	cross(VECTOR_3_TYPE lhs, VECTOR_3_REFERENCE rhs)
+	cross(VECTOR_3_TYPE lhs, VECTOR_3_TYPE rhs)
 	{
 		lhs = {
 			lhs.y * rhs.z - lhs.z * rhs.y,
@@ -431,7 +432,10 @@ namespace vector
 	get_length (VECTOR_TYPE vec)
 	{
 		Scalar result = 0;
-		VECTOR_LOOP_ELEMENTS { result += vec.components[i] * vec.components[i]; }
+		VECTOR_LOOP_ELEMENTS
+		{ 
+			result += vec.components[i] * vec.components[i];
+		}
 		result = Root2(result);
 		return result;
 	}
@@ -447,11 +451,20 @@ namespace vector
 	dissect(VECTOR_TYPE vec, VECTOR_TYPE * outDirection, Scalar * outLength)
 	{
 		*outLength = get_length(vec);
-		*outDirection = vec / (*outLength);
+
+		if (Abs(*outLength) == 0.0f)
+		{
+			*outLength = 0;
+			*outDirection = {0, 0, 0};
+		}
+		else
+		{
+			*outDirection = vec / (*outLength);
+		}
 	}
 
 	VECTOR_TEMPLATE VECTOR_TYPE
-	project(VECTOR_TYPE vec, const VECTOR_TYPE & projectionTarget)
+	project(VECTOR_TYPE vec, VECTOR_TYPE projectionTarget)
 	{
 		Scalar c = dot(projectionTarget, vec) / dot(vec, vec);
 		return projectionTarget * c;
@@ -473,7 +486,7 @@ namespace vector
 	}
 
 	VECTOR_TEMPLATE Scalar
-	get_sqr_distance(VECTOR_REFERENCE a, VECTOR_REFERENCE b)
+	get_sqr_distance(VECTOR_TYPE a, VECTOR_TYPE b)
 	{
 		Scalar distance = 0;
 		VECTOR_LOOP_ELEMENTS
@@ -496,7 +509,7 @@ namespace vector
 	}
 	
 	VECTOR_3_TEMPLATE Scalar
-	get_signed_angle(VECTOR_3_REFERENCE from, VECTOR_3_REFERENCE to, VECTOR_3_REFERENCE axis)
+	get_signed_angle(VECTOR_3_TYPE from, VECTOR_3_TYPE to, VECTOR_3_TYPE axis)
 	{
 		// Todo(Leo): Check if this relly is correct
 		Scalar a = dot(cross(from, to), axis);
@@ -507,10 +520,36 @@ namespace vector
 	}
 	
 	VECTOR_TEMPLATE VECTOR_TYPE
-	interpolate(VECTOR_TYPE a, VECTOR_REFERENCE b, Scalar t)
+	interpolate(VECTOR_TYPE a, VECTOR_TYPE b, Scalar t)
 	{
 		VECTOR_LOOP_ELEMENTS { a.components[i] = ::Interpolate(a.components[i], b.components[i], t); }
 		return a;
+	}
+
+	VECTOR_TEMPLATE VECTOR_TYPE
+	scale(VECTOR_TYPE vec, VECTOR_TYPE scale)
+	{
+		VECTOR_LOOP_ELEMENTS { vec[i] *= scale[i]; }
+		return vec;
+	}
+
+	VECTOR_3_TEMPLATE VECTOR_3_TYPE
+	rotate(VECTOR_3_TYPE vec, VECTOR_3_TYPE axis, Scalar angleInRadians)
+	{
+		// https://math.stackexchange.com/questions/511370/how-to-rotate-one-vector-about-another
+		VECTOR_3_TYPE projection = project(vec, axis);
+		VECTOR_3_TYPE rejection = vec - projection;
+
+		VECTOR_3_TYPE w = cross(axis, rejection);
+		
+		Scalar rejectionLength = get_length(rejection);
+		Scalar x1 = Cosine(angleInRadians) / rejectionLength;
+		Scalar x2 = Sine(angleInRadians) / get_length(w);
+
+		VECTOR_3_TYPE rotatedRejection = rejectionLength * (x1 * rejection + x2 * w);
+
+		vec = projection + rotatedRejection;
+		return vec;
 	}
 }
 
@@ -541,10 +580,8 @@ namespace std
 to be used around. */
 #undef VECTOR_TEMPLATE
 #undef VECTOR_TYPE
-#undef VECTOR_REFERENCE
 
 #undef VECTOR_3_TEMPLATE
 #undef VECTOR_3_TYPE
-#undef VECTOR_3_REFERENCE
 
 #undef VECTOR_LOOP_ELEMENTS

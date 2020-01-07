@@ -128,7 +128,6 @@ struct VulkanDrawingResources
 
 struct VulkanTexture
 {
-	VkSampler 		sampler;
 	VkImage 		image;
 	VkImageView 	view;
 	uint32 			mipLevels;
@@ -191,8 +190,14 @@ struct VulkanContext : platform::IGraphicsContext
 	VkQueue 						presentQueue;
 	
 	/* Todo(Leo): There is one layout for each of [models, scene data, materials].*/
-    VkDescriptorSetLayout 	descriptorSetLayouts [3];
-    VkDescriptorSetLayout 	guiDescriptorSetLayout;
+    // VkDescriptorSetLayout 	descriptorSetLayouts [3];
+
+    struct
+    {
+    	VkDescriptorSetLayout scene;
+    	VkDescriptorSetLayout material;
+    	VkDescriptorSetLayout model;
+    } descriptorSetLayouts;
 
     std::vector<VkFramebuffer>      frameBuffers;
 
@@ -200,7 +205,7 @@ struct VulkanContext : platform::IGraphicsContext
     VulkanSwapchainItems 	swapchainItems;
     VulkanSyncObjects       syncObjects;
 
-    std::vector<VulkanLoadedPipeline> loadedPipelines;
+
 
     // MULTISAMPLING
     VkSampleCountFlagBits msaaSamples;
@@ -237,8 +242,11 @@ struct VulkanContext : platform::IGraphicsContext
     std::vector<VulkanModel>  			loadedModels;
 	std::vector<VulkanTexture> 			loadedTextures;
 	std::vector<VulkanMaterial>			loadedMaterials;
-	
+    std::vector<VulkanLoadedPipeline> 	loadedPipelines;
 	std::vector<VulkanRenderedObject>	loadedRenderedObjects;
+
+    VulkanLoadedPipeline 	lineDrawPipeline;
+    VulkanMaterial 			lineDrawMaterial;
 
 
     /// ----- IGraphicsContext interface implementation -----
@@ -247,7 +255,9 @@ struct VulkanContext : platform::IGraphicsContext
     MeshHandle 		PushMesh(MeshAsset * mesh);
     TextureHandle 	PushTexture (TextureAsset * texture);
     MaterialHandle 	PushMaterial (MaterialAsset * material);
+
     PipelineHandle	push_pipeline(const char * vertexShaderPath, const char * fragmentShaderPath, platform::PipelineOptions options = {});
+    TextureHandle 	push_cubemap(TextureAsset * assets);
     
     RenderedObjectHandle 	PushRenderedObject(MeshHandle mesh, MaterialHandle material);
 
@@ -272,7 +282,6 @@ namespace vulkan
 		// Todo(Leo): Are these cool, since they kinda are just pointers to data somewhere else....?? How to know???
 		ArenaArray<Matrix44, RenderedObjectHandle> renderedObjects;
 	};		
-
 
 	#if MAZEGAME_DEVELOPMENT
 	constexpr bool32 enableValidationLayers = true;
@@ -303,7 +312,7 @@ namespace vulkan
 	ConvertIndexType(IndexType);
 
 	internal uint32
-	FindMemoryType (
+	find_memory_type (
 		VkPhysicalDevice 		physicalDevice,
 		uint32 					typeFilter,
 		VkMemoryPropertyFlags 	properties);
@@ -389,7 +398,11 @@ namespace vulkan
 	RefreshCommandBuffers(VulkanContext * context);
 
 	internal VulkanTexture
-	CreateImageTexture(TextureAsset * asset, VulkanContext * context);
+	make_texture(TextureAsset * asset, VulkanContext * context);
+
+	// Todo(Leo): Use some structure with fixed size of six TextureAssets in place of 'assets'
+	internal VulkanTexture
+	make_cubemap(VulkanContext * context, TextureAsset * assets);
 
 	internal VkDescriptorSet
 	CreateMaterialDescriptorSets(	VulkanContext * context,
@@ -403,8 +416,13 @@ namespace vulkan
 	internal VulkanLoadedPipeline
 	make_pipeline(
 	    VulkanContext * context,
-	    int32 descriptorSetLayoutCount,
 	    VulkanPipelineLoadInfo loadInfo);
+
+	internal VulkanLoadedPipeline
+	make_line_pipeline(
+	    VulkanContext * context,
+	    VulkanPipelineLoadInfo loadInfo);
+
 
 	// DRAWING?
 	void
@@ -413,8 +431,8 @@ namespace vulkan
 	void
 	finish_drawing(VulkanContext * context);
 
-	void
-	record_draw_command(VulkanContext * context, RenderedObjectHandle handle, Matrix44 transform);
+	void record_draw_command(VulkanContext * context, RenderedObjectHandle handle, Matrix44 transform);
+	void record_line_draw_command(VulkanContext * context, Vector3 start, Vector3 end, Vector3 color);
 }
 
 
