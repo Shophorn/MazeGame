@@ -20,7 +20,7 @@ VulkanContext::PushMesh(MeshAsset * mesh)
     memcpy(data, &mesh->vertices[0], vertexBufferSize);
     vkUnmapMemory(this->device, this->stagingBufferPool.memory);
 
-    VkCommandBuffer commandBuffer = vulkan::BeginOneTimeCommandBuffer(this->device, this->commandPool);
+    VkCommandBuffer commandBuffer = vulkan::begin_command_buffer(this->device, this->commandPool);
 
     VkBufferCopy copyRegion = { 0, this->staticMeshPool.used, totalBufferSize };
     vkCmdCopyBuffer(commandBuffer, this->stagingBufferPool.buffer, this->staticMeshPool.buffer, 1, &copyRegion);
@@ -73,7 +73,7 @@ VulkanContext::PushMaterial (MaterialAsset * asset)
     VulkanMaterial material = 
     {
         .pipeline = asset->pipeline,
-        .descriptorSet = vulkan::CreateMaterialDescriptorSets(this, asset->albedo, asset->metallic, asset->testMask)
+        .descriptorSet = vulkan::make_material_descriptor_set(this, asset->pipeline, asset->textures)
     };
     this->loadedMaterials.push_back(material);
 
@@ -109,11 +109,7 @@ destroy_loaded_pipelines(VulkanContext * context)
 {
     for (int i = 0; i < context->loadedPipelines.size(); ++i)
     {
-        vkDestroyPipeline(context->device, context->loadedPipelines[i].pipeline, nullptr);
-        vkDestroyPipelineLayout(context->device, context->loadedPipelines[i].layout, nullptr);
-
-        context->loadedPipelines[i].layout      = VK_NULL_HANDLE;
-        context->loadedPipelines[i].pipeline    = VK_NULL_HANDLE;
+        vulkan::destroy_pipeline(context, &context->loadedPipelines[i]);
     }
 }
 
@@ -181,7 +177,6 @@ vulkan::start_drawing(VulkanContext * context, uint32 frameIndex)
     
     DEVELOPMENT_ASSERT((context->canDraw == false), "Invalid call to start_drawing() when finish_drawing() has not been called.")
     
-
     context->currentDrawFrameIndex = frameIndex;
     context->canDraw = true;
 

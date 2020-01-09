@@ -88,21 +88,16 @@ enum struct MaterialType : int32
 struct MaterialAsset
 {
     PipelineHandle pipeline;
-
-    TextureHandle albedo;
-    TextureHandle metallic;
-    TextureHandle testMask;
+    ArenaArray<TextureHandle> textures;
 };
 
 MaterialAsset
-make_material_asset(PipelineHandle pipeline, TextureHandle albedo, TextureHandle metallic, TextureHandle testMask)
+make_material_asset(PipelineHandle pipeline, ArenaArray<TextureHandle> textures)
 {
 	MaterialAsset result = 
 	{
-		.pipeline 	= pipeline,
-		.albedo 	= albedo,
-		.metallic 	= metallic,
-		.testMask	= testMask
+		.pipeline = pipeline,
+		.textures = textures,
 	};
 	return result;
 }

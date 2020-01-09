@@ -170,9 +170,10 @@ struct VulkanPipelineLoadInfo
 struct VulkanLoadedPipeline
 {
 	// Note(Leo): we need info for recreating pipelines after swapchain recreation
-	VulkanPipelineLoadInfo info;
-	VkPipeline pipeline;
-	VkPipelineLayout layout;
+	VulkanPipelineLoadInfo 	info;
+	VkPipeline 				pipeline;
+	VkPipelineLayout 		layout;
+	VkDescriptorSetLayout	materialLayout;
 };
 
 struct VulkanContext : platform::IGraphicsContext
@@ -195,7 +196,6 @@ struct VulkanContext : platform::IGraphicsContext
     struct
     {
     	VkDescriptorSetLayout scene;
-    	VkDescriptorSetLayout material;
     	VkDescriptorSetLayout model;
     } descriptorSetLayouts;
 
@@ -299,7 +299,6 @@ namespace vulkan
 	};
 	constexpr int DEVICE_EXTENSION_COUNT = ARRAY_COUNT(deviceExtensions);
 
-    constexpr int32 TEXTURES_PER_MATERIAL = 3;
     constexpr int32 MAX_LOADED_TEXTURES = 100;
 
 	internal VkVertexInputBindingDescription
@@ -405,24 +404,25 @@ namespace vulkan
 	make_cubemap(VulkanContext * context, TextureAsset * assets);
 
 	internal VkDescriptorSet
-	CreateMaterialDescriptorSets(	VulkanContext * context,
-									TextureHandle albedoHandle,
-									TextureHandle metallicHandle,
-									TextureHandle testMaskHandle);
+	make_material_descriptor_set(	VulkanContext * context,
+									PipelineHandle pipeline,
+									ArenaArray<TextureHandle> textures);
 
 	internal void
 	DestroyImageTexture(VulkanContext * context, VulkanTexture * texture);
 
 	internal VulkanLoadedPipeline
-	make_pipeline(
-	    VulkanContext * context,
-	    VulkanPipelineLoadInfo loadInfo);
+	make_pipeline(VulkanContext * context, VulkanPipelineLoadInfo loadInfo);
 
 	internal VulkanLoadedPipeline
-	make_line_pipeline(
-	    VulkanContext * context,
-	    VulkanPipelineLoadInfo loadInfo);
+	make_line_pipeline(VulkanContext * context, VulkanPipelineLoadInfo loadInfo);
 
+	internal void
+	destroy_pipeline(VulkanContext * context, VulkanLoadedPipeline * pipeline);
+
+
+	internal VkDescriptorSetLayout
+	create_material_descriptor_set_layout(VkDevice device, uint32 textureCount);
 
 	// DRAWING?
 	void

@@ -7,7 +7,7 @@ This file implements common Vulkan command buffer operations
 namespace vulkan
 {
     internal VkCommandBuffer
-    BeginOneTimeCommandBuffer(
+    begin_command_buffer(
         VkDevice           logicalDevice,
         VkCommandPool      commandPool);
 
@@ -20,19 +20,25 @@ namespace vulkan
 }
 
 internal VkCommandBuffer
-vulkan::BeginOneTimeCommandBuffer(VkDevice logicalDevice, VkCommandPool commandPool)
+vulkan::begin_command_buffer(VkDevice logicalDevice, VkCommandPool commandPool)
 {
-    VkCommandBufferAllocateInfo allocateInfo = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO };
-    allocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    VkCommandBufferAllocateInfo allocateInfo =
+    { 
+        .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+        .level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
 
-    allocateInfo.commandPool = commandPool;
-    allocateInfo.commandBufferCount = 1;
+        .commandPool        = commandPool,
+        .commandBufferCount = 1,
+    };
 
     VkCommandBuffer commandBuffer;
     vkAllocateCommandBuffers(logicalDevice, &allocateInfo, &commandBuffer);
 
-    VkCommandBufferBeginInfo beginInfo = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
-    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    VkCommandBufferBeginInfo beginInfo =
+    { 
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+        .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+    };
 
     vkBeginCommandBuffer(commandBuffer, &beginInfo);
 

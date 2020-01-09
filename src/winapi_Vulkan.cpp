@@ -274,13 +274,11 @@ vulkan::CreateShaderModule(BinaryAsset code, VkDevice logicalDevice)
     return result;
 }
 
-
 internal VulkanLoadedPipeline
 vulkan::make_pipeline(
     VulkanContext * context,
     VulkanPipelineLoadInfo info)
 {
-
     // Todo(Leo): unhardcode these
     BinaryAsset vertexShaderCode = ReadBinaryFile(info.vertexShaderPath.c_str());
     BinaryAsset fragmentShaderCode = ReadBinaryFile(info.fragmentShaderPath.c_str());
@@ -439,10 +437,11 @@ vulkan::make_pipeline(
         .back               = {},
     };
 
+    auto materialLayout = vulkan::create_material_descriptor_set_layout(context->device, options.textureCount);
     VkDescriptorSetLayout descriptorSetLayouts [3]
     {
         context->descriptorSetLayouts.scene,
-        context->descriptorSetLayouts.material,
+        materialLayout,
         context->descriptorSetLayouts.model,
     };
 
@@ -498,9 +497,10 @@ vulkan::make_pipeline(
     vkDestroyShaderModule(context->device, vertexShaderModule, nullptr);
 
     return {
-        .info       = info,
-        .pipeline   = pipeline,
-        .layout     = layout
+        .info           = info,
+        .pipeline       = pipeline,
+        .layout         = layout,
+        .materialLayout = materialLayout
     };
 }
 
@@ -675,10 +675,11 @@ vulkan::make_line_pipeline(
         .size       = sizeof(Vector4[3])
     };
 
+    auto materialLayout = vulkan::create_material_descriptor_set_layout(context->device, 0);
     VkDescriptorSetLayout descriptorSetLayouts [3]
     {
         context->descriptorSetLayouts.scene,
-        context->descriptorSetLayouts.material,
+        materialLayout,
         context->descriptorSetLayouts.model,
     };
 
@@ -734,10 +735,24 @@ vulkan::make_line_pipeline(
     vkDestroyShaderModule(context->device, vertexShaderModule, nullptr);
 
     return {
-        .info       = info,
-        .pipeline   = pipeline,
-        .layout     = layout
+        .info           = info,
+        .pipeline       = pipeline,
+        .layout         = layout,
+        .materialLayout = materialLayout,
     };
+}
+
+internal void
+vulkan::destroy_pipeline(VulkanContext * context, VulkanLoadedPipeline * pipeline)
+{
+    vkDestroyPipeline(context->device, pipeline->pipeline, nullptr);
+    pipeline->layout = VK_NULL_HANDLE;
+ 
+    vkDestroyPipelineLayout(context->device, pipeline->layout, nullptr);
+    pipeline->pipeline = VK_NULL_HANDLE;
+
+    vkDestroyDescriptorSetLayout(context->device, pipeline->materialLayout, nullptr);
+    pipeline->materialLayout = VK_NULL_HANDLE;
 }
 
 /******************************************************************************
@@ -1394,13 +1409,12 @@ CreateModelDescriptorSetLayout(VkDevice device)
 }
 
 internal VkDescriptorSetLayout
-CreateMaterialDescriptorSetLayout(VkDevice device)
+vulkan::create_material_descriptor_set_layout(VkDevice device, uint32 textureCount)
 {
-
     VkDescriptorSetLayoutBinding binding = 
     {
         .binding             = DESCRIPTOR_LAYOUT_SAMPLER_BINDING,
-        .descriptorCount     = vulkan::TEXTURES_PER_MATERIAL,
+        .descriptorCount     = textureCount,
         .descriptorType      = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
         .stageFlags          = VK_SHADER_STAGE_FRAGMENT_BIT,
         .pImmutableSamplers  = nullptr,
@@ -1483,7 +1497,7 @@ CreateSyncObjects(VkDevice device)
 
 // Change image layout from stored pixel array layout to device optimal layout
 internal void
-transition_image_layout(
+cmd_transition_image_layout(
     VkCommandBuffer commandBuffer,
     VkDevice        device,
     VkQueue         graphicsQueue,
@@ -1602,9 +1616,9 @@ TransitionImageLayout(
     VkImageLayout   oldLayout,
     VkImageLayout   newLayout)
 {
-    VkCommandBuffer commandBuffer = vulkan::BeginOneTimeCommandBuffer(device, commandPool);
+    VkCommandBuffer commandBuffer = vulkan::begin_command_buffer(device, commandPool);
 
-    transition_image_layout(commandBuffer, device, graphicsQueue, image, format, mipLevels, oldLayout, newLayout);
+    cmd_transition_image_layout(commandBuffer, device, graphicsQueue, image, format, mipLevels, oldLayout, newLayout);
 
     vulkan::execute_command_buffer (device, commandPool, graphicsQueue, commandBuffer);
 }
@@ -1735,50 +1749,6 @@ CreateMaterialDescriptorPool(VkDevice device)
 
 }
 
-// internal std::vector<VkDescriptorSet>
-// CreateGuiDescriptorSets(VulkanContext * context)
-// {
-//     /* Note(Leo): Create vector of [imageCount] copies from descriptorSetLayout
-//     for allocation */
-//     int imageCount = context->swapchainItems.images.size();
-//     std::vector<VkDescriptorSetLayout> layouts (imageCount, context->guiDescriptorSetLayout);
-
-//     VkDescriptorSetAllocateInfo allocateInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO };
-//     allocateInfo.descriptorPool = context->uniformDescriptorPool;
-//     allocateInfo.descriptorSetCount = imageCount;
-//     allocateInfo.pSetLayouts = &layouts[0];
-
-//     std::vector<VkDescriptorSet> resultDescriptorSets(imageCount);
-//     if (vkAllocateDescriptorSets(context->device, &allocateInfo, &resultDescriptorSets[0]) != VK_SUCCESS)
-//     {
-//         throw std::runtime_error("Failed to allocate DESCRIPTOR SETS");
-//     }
-
-//     for (int imageIndex = 0; imageIndex < imageCount; ++imageIndex)
-//     {
-//         VkWriteDescriptorSet descriptorWrites [1] = {};
-
-//         // MODEL UNIFORM BUFFERS
-//         VkDescriptorBufferInfo guiBufferInfo = {};
-//         guiBufferInfo.buffer = context->guiUniformBuffer.buffer;
-//         guiBufferInfo.offset = vulkan::GetModelUniformBufferOffsetForSwapchainImages(context, imageIndex);
-//         guiBufferInfo.range = sizeof(Matrix44);
-
-//         descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-//         descriptorWrites[0].dstSet = resultDescriptorSets[imageIndex];
-//         descriptorWrites[0].dstBinding = DESCRIPTOR_LAYOUT_MODEL_BINDING;
-//         descriptorWrites[0].dstArrayElement = 0;
-//         descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
-//         descriptorWrites[0].descriptorCount = 1;
-//         descriptorWrites[0].pBufferInfo = &guiBufferInfo;
-
-//         // Note(Leo): Two first are write info, two latter are copy info
-//         vkUpdateDescriptorSets(context->device, 1, &descriptorWrites[0], 0, nullptr);
-//     }
-
-//     return resultDescriptorSets;
-// }
-
 internal std::vector<VkDescriptorSet>
 CreateModelDescriptorSets(VulkanContext * context)
 {
@@ -1824,18 +1794,23 @@ CreateModelDescriptorSets(VulkanContext * context)
 }
 
 internal VkDescriptorSet
-vulkan::CreateMaterialDescriptorSets(
+vulkan::make_material_descriptor_set(
     VulkanContext * context,
-    TextureHandle albedoHandle,
-    TextureHandle metallicHandle,
-    TextureHandle testMaskHandle)
+    PipelineHandle pipelineHandle,
+    ArenaArray<TextureHandle> textures)
 {
+    uint32 textureCount = context->loadedPipelines[pipelineHandle].info.options.textureCount;
+    constexpr uint32 maxTextures = 10;
+    
+    DEVELOPMENT_ASSERT(textureCount < maxTextures, "Too many textures on material");
+    DEVELOPMENT_ASSERT(textureCount == textures.count(), "Wrong number of textures in ArenaArray 'textures'");
+
     VkDescriptorSetAllocateInfo allocateInfo =
     { 
         .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
         .descriptorPool     = context->materialDescriptorPool,
         .descriptorSetCount = 1,
-        .pSetLayouts        = &context->descriptorSetLayouts.material,
+        .pSetLayouts        = &context->loadedPipelines[pipelineHandle].materialLayout,
     };
 
     VkDescriptorSet resultSet;
@@ -1844,24 +1819,16 @@ vulkan::CreateMaterialDescriptorSets(
         throw std::runtime_error("Failed to allocate DESCRIPTOR SETS");
     }
 
-    VkDescriptorImageInfo samplerInfos [vulkan::TEXTURES_PER_MATERIAL]
+    VkDescriptorImageInfo samplerInfos [maxTextures];
+    for (int i = 0; i < textureCount; ++i)
     {
+        samplerInfos[i] = 
         {
             .sampler        = context->textureSampler,
-            .imageView      = context->loadedTextures[albedoHandle].view,
+            .imageView      = context->loadedTextures[textures[i]].view,
             .imageLayout    = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-        },
-        {
-            .sampler        = context->textureSampler,
-            .imageView      = context->loadedTextures[metallicHandle].view,
-            .imageLayout    = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-        },
-        {
-            .sampler        = context->textureSampler,
-            .imageView      = context->loadedTextures[testMaskHandle].view,
-            .imageLayout    = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-        }
-    };
+        };
+    }
 
     VkWriteDescriptorSet writing =
     {  
@@ -1870,7 +1837,7 @@ vulkan::CreateMaterialDescriptorSets(
         .dstBinding         = DESCRIPTOR_LAYOUT_SAMPLER_BINDING,
         .dstArrayElement    = 0,
         .descriptorType     = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-        .descriptorCount    = vulkan::TEXTURES_PER_MATERIAL,
+        .descriptorCount    = textureCount,
         .pImageInfo         = samplerInfos,
     };
 
@@ -1967,7 +1934,14 @@ compute_mip_levels(uint32 texWidth, uint32 texHeight)
 }
 
 internal void
-generate_mip_maps(VkDevice device, VkPhysicalDevice physicalDevice, VkCommandBuffer commandBuffer, VkImage image, VkFormat imageFormat, uint32 texWidth, uint32 texHeight, uint32 mipLevels)
+cmd_generate_mip_maps(  VkCommandBuffer commandBuffer,
+                    VkPhysicalDevice physicalDevice,
+                    VkImage image,
+                    VkFormat imageFormat,
+                    uint32 texWidth,
+                    uint32 texHeight,
+                    uint32 mipLevels,
+                    uint32 layerCount = 1)
 {
     VkFormatProperties formatProperties;
     vkGetPhysicalDeviceFormatProperties(physicalDevice, imageFormat, &formatProperties);
@@ -1983,12 +1957,14 @@ generate_mip_maps(VkDevice device, VkPhysicalDevice physicalDevice, VkCommandBuf
     barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
     barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
     barrier.subresourceRange.baseArrayLayer = 0;
-    barrier.subresourceRange.layerCount = 1;
+    barrier.subresourceRange.layerCount = layerCount;
     barrier.subresourceRange.levelCount = 1;
 
     int mipWidth = texWidth;
     int mipHeight = texHeight;
 
+
+    // Todo(Leo): stupid loop with some stuff outside... fix pls
     for (int i = 1; i <mipLevels; ++i)
     {
         int newMipWidth = mipWidth > 1 ? mipWidth / 2 : 1;
@@ -2003,7 +1979,6 @@ generate_mip_maps(VkDevice device, VkPhysicalDevice physicalDevice, VkCommandBuf
         vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT,
             VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
 
-
         VkImageBlit blit = {};
         
         blit.srcOffsets [0] = {0, 0, 0};
@@ -2011,14 +1986,14 @@ generate_mip_maps(VkDevice device, VkPhysicalDevice physicalDevice, VkCommandBuf
         blit.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
         blit.srcSubresource.mipLevel = i - 1;
         blit.srcSubresource.baseArrayLayer = 0;
-        blit.srcSubresource.layerCount = 1; 
+        blit.srcSubresource.layerCount = layerCount; 
 
         blit.dstOffsets [0] = {0, 0, 0};
         blit.dstOffsets [1] = {newMipWidth, newMipHeight, 1};
         blit.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
         blit.dstSubresource.mipLevel = i;
         blit.dstSubresource.baseArrayLayer = 0;
-        blit.dstSubresource.layerCount = 1;
+        blit.dstSubresource.layerCount = layerCount;
 
         vkCmdBlitImage(commandBuffer,
             image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
@@ -2120,10 +2095,10 @@ vulkan::make_texture(TextureAsset * asset, VulkanContext * context)
         benefits from this verbose nonsense :D
     */
 
-    VkCommandBuffer commandBuffer = vulkan::BeginOneTimeCommandBuffer(context->device, context->commandPool);
+    VkCommandBuffer commandBuffer = vulkan::begin_command_buffer(context->device, context->commandPool);
     
     // Todo(Leo): begin and end command buffers once only and then just add commands from inside these
-    transition_image_layout(commandBuffer, context->device, context->graphicsQueue,
+    cmd_transition_image_layout(commandBuffer, context->device, context->graphicsQueue,
                             resultImage, VK_FORMAT_R8G8B8A8_UNORM, mipLevels,
                             VK_IMAGE_LAYOUT_UNDEFINED,
                             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
@@ -2146,7 +2121,7 @@ vulkan::make_texture(TextureAsset * asset, VulkanContext * context)
 
 
     /// CREATE MIP MAPS
-    generate_mip_maps(  context->device, context->physicalDevice, commandBuffer,
+    cmd_generate_mip_maps(  commandBuffer, context->physicalDevice,
                         resultImage, VK_FORMAT_R8G8B8A8_UNORM,
                         asset->width, asset->height, mipLevels);
 
@@ -2191,21 +2166,27 @@ vulkan::make_texture(TextureAsset * asset, VulkanContext * context)
 internal VulkanTexture
 vulkan::make_cubemap(VulkanContext * context, TextureAsset * assets)
 {
-    return {};
-
     uint32 width        = assets[0].width;
     uint32 height       = assets[0].height;
-    uint32 mipLevels    = 1; //compute_mip_levels(width, height);
+    uint32 channels     = assets[0].channels;
+    uint32 mipLevels    = compute_mip_levels(width, height);
 
+    constexpr uint32 CUBEMAP_LAYERS = 6;
 
-    VkDeviceSize layerSize = width * height * assets[0].channels;
-    VkDeviceSize imageSize = layerSize * 6;
+    VkDeviceSize layerSize = width * height * channels;
+    VkDeviceSize imageSize = layerSize * CUBEMAP_LAYERS;
+
+    VkExtent3D extent = { width, height, 1};
 
     byte * data;
     vkMapMemory(context->device, context->stagingBufferPool.memory, 0, imageSize, 0, (void**)&data);
     for (int i = 0; i < 6; ++i)
     {
-        std::copy(assets[i].pixels.begin(), assets[i].pixels.end(), data + i * layerSize);
+        uint32 * start          = assets[i].pixels.begin();
+        uint32 * end            = assets[i].pixels.end();
+        uint32 * destination    = reinterpret_cast<uint32*>(data + (i * layerSize));
+
+        std::copy(start, end, destination);
     }
     vkUnmapMemory(context->device, context->stagingBufferPool.memory);
 
@@ -2213,9 +2194,9 @@ vulkan::make_cubemap(VulkanContext * context, TextureAsset * assets)
     {
         .sType          = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
         .imageType      = VK_IMAGE_TYPE_2D,
-        .extent         = { width, height, 1 },
+        .extent         = extent,
         .mipLevels      = mipLevels,
-        .arrayLayers    = 6,
+        .arrayLayers    = CUBEMAP_LAYERS,
         .format         = VK_FORMAT_R8G8B8A8_UNORM,
 
         .tiling         = VK_IMAGE_TILING_OPTIMAL,
@@ -2263,13 +2244,13 @@ vulkan::make_cubemap(VulkanContext * context, TextureAsset * assets)
         benefits from this verbose nonsense :D
     */
 
-    VkCommandBuffer commandBuffer = vulkan::BeginOneTimeCommandBuffer(context->device, context->commandPool);
+    VkCommandBuffer commandBuffer = vulkan::begin_command_buffer(context->device, context->commandPool);
     
     // Todo(Leo): begin and end command buffers once only and then just add commands from inside these
-    transition_image_layout(commandBuffer, context->device, context->graphicsQueue,
-                            resultImage, VK_FORMAT_R8G8B8A8_UNORM, mipLevels,
-                            VK_IMAGE_LAYOUT_UNDEFINED,
-                            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 6);
+    cmd_transition_image_layout(commandBuffer, context->device, context->graphicsQueue,
+                                resultImage, VK_FORMAT_R8G8B8A8_UNORM, mipLevels,
+                                VK_IMAGE_LAYOUT_UNDEFINED,
+                                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, CUBEMAP_LAYERS);
 
     VkBufferImageCopy region =
     {
@@ -2280,18 +2261,18 @@ vulkan::make_cubemap(VulkanContext * context, TextureAsset * assets)
         .imageSubresource.aspectMask        = VK_IMAGE_ASPECT_COLOR_BIT,
         .imageSubresource.mipLevel          = 0,
         .imageSubresource.baseArrayLayer    = 0,
-        .imageSubresource.layerCount        = 6,
+        .imageSubresource.layerCount        = CUBEMAP_LAYERS,
 
         .imageOffset = { 0, 0, 0 },
-        .imageExtent = { width, height, 1 },
+        .imageExtent = extent,
     };
     vkCmdCopyBufferToImage (commandBuffer, context->stagingBufferPool.buffer, resultImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 
 
     /// CREATE MIP MAPS
-    generate_mip_maps(  context->device, context->physicalDevice, commandBuffer,
+    cmd_generate_mip_maps(  commandBuffer, context->physicalDevice,
                         resultImage, VK_FORMAT_R8G8B8A8_UNORM,
-                        width, height, mipLevels);
+                        width, height, mipLevels, CUBEMAP_LAYERS);
 
     vulkan::execute_command_buffer (context->device, context->commandPool, context->graphicsQueue, commandBuffer);
 
@@ -2307,7 +2288,7 @@ vulkan::make_cubemap(VulkanContext * context, TextureAsset * assets)
         .subresourceRange.baseMipLevel      = 0,
         .subresourceRange.levelCount        = mipLevels,
         .subresourceRange.baseArrayLayer    = 0,
-        .subresourceRange.layerCount        = 6,
+        .subresourceRange.layerCount        = CUBEMAP_LAYERS,
 
         .components.r = VK_COMPONENT_SWIZZLE_IDENTITY,
         .components.g = VK_COMPONENT_SWIZZLE_IDENTITY,
@@ -2425,7 +2406,7 @@ Cleanup(VulkanContext * context)
 
     vkDestroyDescriptorSetLayout(context->device, context->descriptorSetLayouts.model, nullptr);  
     vkDestroyDescriptorSetLayout(context->device, context->descriptorSetLayouts.scene, nullptr);  
-    vkDestroyDescriptorSetLayout(context->device, context->descriptorSetLayouts.material, nullptr);  
+    // vkDestroyDescriptorSetLayout(context->device, context->descriptorSetLayouts.material, nullptr);  
     // vkDestroyDescriptorSetLayout(context->device, context->guiDescriptorSetLayout, nullptr);  
 
     vulkan::DestroyBufferResource(context->device, &context->staticMeshPool);
@@ -2599,7 +2580,7 @@ namespace winapi
         resultContext.physicalDevice = PickPhysicalDevice(resultContext.instance, resultContext.surface);
         vkGetPhysicalDeviceProperties(resultContext.physicalDevice, &resultContext.physicalDeviceProperties);
         resultContext.msaaSamples = GetMaxUsableMsaaSampleCount(resultContext.physicalDevice);
-        std::cout << "Sample count: " << vulkan::EnumToString(resultContext.msaaSamples) << "\n";
+        std::cout << "Sample count: " << vulkan::to_str(resultContext.msaaSamples) << "\n";
 
         resultContext.physicalDevice = resultContext.physicalDevice;
         resultContext.physicalDeviceProperties = resultContext.physicalDeviceProperties;
@@ -2632,14 +2613,12 @@ namespace winapi
         Below is content
         */ 
 
-
         /* Todo(Leo): now that everything is in VulkanContext, it does not make so much sense
         to explicitly specify each component as parameter */
         resultContext.swapchainItems      = CreateSwapchainAndImages(&resultContext, get_hwnd_size(winWindow));
         resultContext.renderPass          = CreateRenderPass(&resultContext, &resultContext.swapchainItems, resultContext.msaaSamples);
         
         resultContext.descriptorSetLayouts.scene    = CreateSceneDescriptorSetLayout(resultContext.device);
-        resultContext.descriptorSetLayouts.material = CreateMaterialDescriptorSetLayout(resultContext.device);
         resultContext.descriptorSetLayouts.model    = CreateModelDescriptorSetLayout(resultContext.device);
 
         // Todo(Leo): This seems rather stupid way to organize creation of these...

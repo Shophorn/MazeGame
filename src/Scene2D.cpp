@@ -111,9 +111,9 @@ scene_2d::load(void * scenePtr, MemoryArena * persistentMemory, MemoryArena * tr
 		auto lavaTexture 	= load_and_push_texture("textures/lava.jpg");
 		auto faceTexture 	= load_and_push_texture("textures/texture.jpg");
 
-		auto push_material = [shader, platformInfo](MaterialType type, TextureHandle a, TextureHandle b, TextureHandle c) -> MaterialHandle
+		auto push_material = [shader, platformInfo, transientMemory](MaterialType type, TextureHandle a, TextureHandle b, TextureHandle c) -> MaterialHandle
 		{
-			MaterialAsset asset = make_material_asset(shader, a, b, c);
+			MaterialAsset asset = make_material_asset(shader, push_array(transientMemory, {a, b, c}));
 			MaterialHandle handle = platformInfo->graphicsContext->PushMaterial(&asset);
 			return handle;
 		};

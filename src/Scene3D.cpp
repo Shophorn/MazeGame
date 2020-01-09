@@ -108,23 +108,9 @@ scene_3d::load(void * scenePtr, MemoryArena * persistentMemory, MemoryArena * tr
 		auto lavaTexture 	= load_and_push_texture("textures/lava.jpg");
 		auto faceTexture 	= load_and_push_texture("textures/texture.jpg");
 
-
-		TextureAsset skyboxTextures [] =
+		auto push_material = [platformInfo, transientMemory](PipelineHandle shader, TextureHandle a, TextureHandle b, TextureHandle c) -> MaterialHandle
 		{
-			load_texture_asset("textures/skybox_front.jpg", transientMemory),
-			load_texture_asset("textures/skybox_back.jpg", transientMemory),
-			load_texture_asset("textures/skybox_up.jpg", transientMemory),
-			load_texture_asset("textures/skybox_down.jpg", transientMemory),
-			load_texture_asset("textures/skybox_right.jpg", transientMemory),
-			load_texture_asset("textures/skybox_left.jpg", transientMemory),
-		};
-
-		auto skyboxTextureHandle = platformInfo->graphicsContext->push_cubemap(skyboxTextures);
-
-
-		auto push_material = [platformInfo](PipelineHandle shader, TextureHandle a, TextureHandle b, TextureHandle c) -> MaterialHandle
-		{
-			MaterialAsset asset = make_material_asset(shader, a, b, c);
+			MaterialAsset asset = make_material_asset(shader, push_array(transientMemory, {a, b, c}));
 			MaterialHandle handle = platformInfo->graphicsContext->PushMaterial(&asset);
 			return handle;
 		};
@@ -133,8 +119,23 @@ scene_3d::load(void * scenePtr, MemoryArena * persistentMemory, MemoryArena * tr
 		{
 			.character 		= push_material(normalPipeline, lavaTexture, faceTexture, blackTexture),
 			.environment 	= push_material(normalPipeline, tilesTexture, blackTexture, blackTexture),
-			.sky 			= push_material(skyPipeline, lavaTexture, blackTexture, blackTexture)
 		};
+
+		
+		// internet: (+X,-X,+Y,-Y,+Z,-Z).
+		TextureAsset skyboxTextureAssets [] =
+		{
+			load_texture_asset("textures/miramar_rt.png", transientMemory),
+			load_texture_asset("textures/miramar_lf.png", transientMemory),
+			load_texture_asset("textures/miramar_ft.png", transientMemory),
+			load_texture_asset("textures/miramar_bk.png", transientMemory),
+			load_texture_asset("textures/miramar_up.png", transientMemory),
+			load_texture_asset("textures/miramar_dn.png", transientMemory),
+		};
+		auto skyboxTexture = platformInfo->graphicsContext->push_cubemap(skyboxTextureAssets);
+
+		auto skyMaterialAsset = make_material_asset(skyPipeline, push_array(transientMemory, {skyboxTexture}));	
+		materials.sky 			= platformInfo->graphicsContext->PushMaterial(&skyMaterialAsset);// push_material(skyPipeline, lavaTexture, blackTexture, blackTexture)
 	}
 
     auto push_mesh = [platformInfo] (MeshAsset * asset) -> MeshHandle

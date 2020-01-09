@@ -1,11 +1,11 @@
 namespace vulkan
 {
 	template<typename VulkanEnumType>
-	const char * EnumToString(VulkanEnumType value);
+	const char * to_str(VulkanEnumType value);
 }
 
 template <> const char *
-vulkan::EnumToString<VkSampleCountFlagBits>(VkSampleCountFlagBits value)
+vulkan::to_str<VkSampleCountFlagBits>(VkSampleCountFlagBits value)
 {
 	switch(value)
 	{
@@ -24,7 +24,7 @@ vulkan::EnumToString<VkSampleCountFlagBits>(VkSampleCountFlagBits value)
 }
 
 template <> const char *
-vulkan::EnumToString <VkResult> (VkResult value)
+vulkan::to_str <VkResult> (VkResult value)
 {
 	switch(value)
 	{	
