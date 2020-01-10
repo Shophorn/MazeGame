@@ -8,7 +8,6 @@ Memory managing things in :MAZEGAME:
 #include <algorithm>
 #include <type_traits>
 
-
 ///////////////////////////////////////
 ///         MEMORY ARENA 			///
 ///////////////////////////////////////
@@ -158,6 +157,14 @@ set_array_count(ArenaArray<T, TIndex> array, uint64 count)
 	get_array_header(array)->countInBytes = countInBytes;
 }
 
+template <typename T, typename TIndex>
+internal void
+increment_array_count(ArenaArray<T, TIndex> array, uint64 increment)
+{
+	uint64 newCount = array.count() + increment;
+	set_array_count(array, newCount);
+}
+
 template<typename T, typename TIndex = default_index_type>
 internal ArenaArray<T, TIndex>
 reserve_array(MemoryArena * arena, uint64 capacity)
@@ -192,7 +199,8 @@ template<typename T, typename TIndex = default_index_type>
 internal ArenaArray<T, TIndex>
 push_array(MemoryArena * arena, const T * begin, const T * end)
 {
-	auto result = push_array<T, TIndex>(arena, end - begin);
+	uint64 count 	= end - begin;
+	auto result 	= push_array<T, TIndex>(arena, count);
 	std::copy(begin, end, result.begin());
 
 	return result;
@@ -244,7 +252,6 @@ reverse_arena_array(ArenaArray<T, TIndex> array)
 	}
 }
 
-
 template<typename T, typename TIndex>
 internal TIndex
 push_one(ArenaArray<T, TIndex> array, T item)
@@ -253,10 +260,30 @@ push_one(ArenaArray<T, TIndex> array, T item)
 	DEVELOPMENT_ASSERT(array.count() < array.capacity(), "Cannot push, ArenaArray is full!");
 
 	TIndex index = {array.count()};
-	set_array_count(array, array.count() + 1);
-	array[index] = item;
+	*array.end() = item;
+	increment_array_count(array, 1);
 
 	return index;
+}
+
+template<typename T, typename TIndex>
+internal void
+push_range(ArenaArray<T, TIndex> array, const T * begin, const T * end)
+{
+	uint64 rangeLength = end - begin;
+
+	DEVELOPMENT_ASSERT(array.capacity() > 0, "Cannot push, ArenaArray is not initialized!");
+	DEVELOPMENT_ASSERT((rangeLength + array.count()) <= array.capacity(), "Cannot push, ArenaArray is full!");
+
+	std::copy(begin, end, array.end());
+	increment_array_count(array, rangeLength);
+}
+
+template<typename T, typename TIndex>
+internal void
+push_many(ArenaArray<T, TIndex> array, std::initializer_list<T> items)
+{
+	push_range(array, items.begin(), items.end());
 }
 
 template<typename T, typename TIndex>

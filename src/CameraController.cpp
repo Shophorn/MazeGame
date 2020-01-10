@@ -89,7 +89,7 @@ struct CameraController3rdPerson
 
 	    real32 cameraDistance = distance;
 	    real32 cameraHorizontalDistance = Cosine(DegToRad * tumbleDegrees) * cameraDistance;
-	    Vector3 localPosition 
+	    Vector3 localPosition =
 	    {
 			Sine(DegToRad * orbitDegrees) * cameraHorizontalDistance,
 			Cosine(DegToRad * orbitDegrees) * cameraHorizontalDistance,
@@ -106,10 +106,10 @@ struct CameraController3rdPerson
 	    */
 
 	    Vector3 targetGroundedPosition = target->position;
-	    targetGroundedPosition.z = 0;
+	    // targetGroundedPosition.z = 0;
 	    Vector3 targetPosition = targetGroundedPosition + baseOffset;
 	    
-	    camera->position = targetPosition + localPosition;
+	    camera->position = vector::interpolate(camera->position, targetPosition + localPosition, 0.5f);
 		camera->LookAt(targetPosition);				
 	}
 };

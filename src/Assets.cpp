@@ -61,22 +61,47 @@ make_mesh_asset(ArenaArray<Vertex> vertices, ArenaArray<uint16> indices)
 {
 	MeshAsset result =
 	{
-		.vertices = vertices,
-		.indices = indices,
-		.indexType = IndexType::UInt16,
+		.vertices 	= vertices,
+		.indices 	= indices,
+		.indexType 	= IndexType::UInt16,
 	};
 	return result;
 }
 
+using Pixel = uint32;
 
 struct TextureAsset
 {
-	ArenaArray<uint32> pixels;
+	ArenaArray<Pixel> pixels;
 
 	int32 	width;
 	int32 	height;
 	int32 	channels;
 };
+
+inline float
+get_red(Pixel color)
+{
+	uint32 value = (color & 0x00ff0000) >> 16;
+	return (float)value / 255.0f; 
+}
+
+inline float
+get_green(Pixel color)
+{
+	uint32 value = (color & 0x0000ff00) >> 8;
+	return (float)value / 255.0f; 
+}
+
+inline Pixel
+get_closest_pixel(TextureAsset * texture, Vector2 texcoord)
+{
+	uint32 u = round_to<uint32>(texture->width * texcoord.u) % texture->width;
+	uint32 v = round_to<uint32>(texture->height * texcoord.v) % texture->height;
+
+	uint64 index = u + v * texture->width;
+	return texture->pixels[index];
+}
 
 
 enum struct MaterialType : int32

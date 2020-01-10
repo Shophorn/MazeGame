@@ -116,28 +116,8 @@ update(	CharacterController3rdPerson * 	controller,
 		
 	}
 
-
-	// const float epsilon = 0.001f;
-	// if (Abs(input->move.x) > epsilon || Abs(input->move.y) > epsilon)
-	// {
-	// 	controller->forward 			= vector::normalize(movementVector);
-	// 	Vector3 rayDirection;
-	// 	float rayLength;
-	// 	vector::dissect(movementVector, &rayDirection, &rayLength);
-
-	// 	Vector3 rayStart = 	controller->transform->position
-	// 						+ rayDirection * controller->collisionRadius
-	// 						+ World::Up * 0.25f;
-
-	// 	bool32 rayHit = raycast_3d(collisionSystem, rayStart, rayDirection, rayLength);
-
-	// 	if(rayHit == false)
-	// 		controller->transform->position = newPosition;
-
-
-	// }	
-
-	bool32 grounded = controller->transform->position.z < 0.1f;
+	float groundHeight = get_terrain_height(collisionSystem, {controller->transform->position.x, controller->transform->position.y});
+	bool32 grounded = controller->transform->position.z < 0.1f + groundHeight;
 	if (grounded && is_clicked(input->jump))
 	{
 		controller->zSpeed = 5;
@@ -145,14 +125,14 @@ update(	CharacterController3rdPerson * 	controller,
 
 	controller->transform->position.z += controller->zSpeed * input->elapsedTime;
 
-	if (controller->transform->position.z > 0)
+	if (controller->transform->position.z > groundHeight)
 	{	
 		controller->zSpeed -= 2 * 9.81 * input->elapsedTime;
 	}
 	else
 	{
 		controller->zSpeed = 0;
-        controller->transform->position.z = 0;
+        controller->transform->position.z = groundHeight;
 	}
 
 

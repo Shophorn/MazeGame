@@ -13,6 +13,9 @@ struct CollisionSystemEntry
 struct CollisionSystem3D
 {
 	ArenaArray<CollisionSystemEntry> colliders = {};
+
+	HeightMap terrainCollider;
+	Handle<Transform3D> terrainTransform;
 };
 
 internal void
@@ -21,6 +24,14 @@ push_collider_to_system(CollisionSystem3D * 	system,
 						Handle<Transform3D>		transform)
 {
 	push_one(system->colliders, {collider, transform});
+}
+
+internal float
+get_terrain_height(CollisionSystem3D * system, Vector2 position)
+{
+	position.x -= system->terrainTransform->position.x;
+	position.y -= system->terrainTransform->position.y;
+	return get_height_at(&system->terrainCollider, position);
 }
 
 struct RaycastResult

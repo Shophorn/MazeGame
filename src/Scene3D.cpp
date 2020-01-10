@@ -4,6 +4,7 @@ shophorn @ internet
 
 Scene description for 3d development scene
 =============================================================================*/
+#include "TerrainGenerator.cpp"
 #include "Collisions3D.cpp"
 #include "CharacterController3rdPerson.cpp"
 
@@ -164,7 +165,7 @@ scene_3d::load(void * scenePtr, MemoryArena * persistentMemory, MemoryArena * tr
 		auto characterMeshHandle 	= push_mesh(&characterMesh);
 
 		// Our dude
-		auto transform = make_handle<Transform3D>({});
+		auto transform = make_handle<Transform3D>({0, 0, 5});
 		auto renderer = make_handle<Renderer>({push_renderer(characterMeshHandle, materials.character)});
 
 		characterTransform = transform;
@@ -205,16 +206,18 @@ scene_3d::load(void * scenePtr, MemoryArena * persistentMemory, MemoryArena * tr
 		constexpr float ladderHeight = 1.0f;
 
 		{
-			auto groundQuad 	= mesh_primitives::create_quad(transientMemory, false);
-			auto meshTransform	= Matrix44::Translate({-width / 2, -depth /2, 0}) * Matrix44::Scale({width, depth, 0});
-			mesh_ops::transform(&groundQuad, meshTransform);
-			mesh_ops::transform_tex_coords(&groundQuad, {0,0}, {width / 2, depth / 2});
+			auto heightmapTexture 	= load_texture_asset("textures/heightmap6.jpg", transientMemory);
+			auto heightmap 			= make_heightmap(transientMemory, &heightmapTexture, 64, 100, 0, 5.0f);
+			auto groundMeshAsset 	= generate_terrain(transientMemory, 30, &heightmap);
 
-			auto groundQuadHandle 	= push_mesh(&groundQuad);
-			auto renderer 			= make_handle<Renderer>({push_renderer(groundQuadHandle, materials.environment)});
-			auto transform 			= make_handle<Transform3D>({});
+			auto groundMesh 		= push_mesh(&groundMeshAsset);
+			auto renderer 			= make_handle<Renderer>({push_renderer(groundMesh, materials.environment)});
+			auto transform 			= make_handle<Transform3D>({{-50, -50, 0}});
 
 			push_one(scene->renderSystem, {transform, renderer});
+
+			scene->collisionSystem.terrainCollider = heightmap;
+			scene->collisionSystem.terrainTransform = transform;
 		}
 
 		{

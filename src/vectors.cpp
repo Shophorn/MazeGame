@@ -207,7 +207,7 @@ VECTOR_TEMPLATE auto
 operator == (VECTOR_TYPE a, VECTOR_TYPE b)
 {
 	// Todo(Can we do something smart, like bitwise AND both items)
-	bool result = true;
+	bool32 result = true;
 	VECTOR_LOOP_ELEMENTS { result = result && (a.components[i] == b.components[i]);	}
 	return result;
 }
@@ -341,66 +341,71 @@ CoeffClamp(VECTOR_TYPE vec, Scalar coeffMin, Scalar coeffMax)
 }
 
 // ----------------- COMPARISON HELPERS ---------------------
-VECTOR_TEMPLATE bool
-CoeffLessThan(VECTOR_TYPE vec, Scalar num)
+namespace vector
 {
-	bool result = true;
-	VECTOR_LOOP_ELEMENTS { result = result && vec.components[i] < num; }
-	return result;
+	VECTOR_TEMPLATE bool32
+	coeff_less_than(VECTOR_TYPE vec, Scalar value)
+	{
+		bool32 result = true;
+		VECTOR_LOOP_ELEMENTS { result = result && vec.components[i] < value; }
+		return result;
+	}
+	
+	VECTOR_TEMPLATE bool32
+	coeff_less_than_or_equal(VECTOR_TYPE vec, Scalar value)
+	{
+		bool32 result = true;
+		VECTOR_LOOP_ELEMENTS { result = result && vec.components[i] <= value; }
+		return result;
+	}
+	
+	VECTOR_TEMPLATE bool32
+	coeff_greater_than(VECTOR_TYPE vec, Scalar value)
+	{
+		bool32 result = true;
+		VECTOR_LOOP_ELEMENTS { result = result && vec.components[i] > value; }
+		return result;
+	}
+
+	VECTOR_TEMPLATE bool32
+	coeff_greater_than_or_equal(VECTOR_TYPE vec, Scalar value)
+	{
+		bool32 result = true;
+		VECTOR_LOOP_ELEMENTS { result = result && vec.components[i] >= value; }
+		return result;
+	}
 }
 
-VECTOR_TEMPLATE bool
-CoeffLessThanOrEqual(VECTOR_TYPE vec, Scalar num)
-{
-	bool result = true;
-	VECTOR_LOOP_ELEMENTS { result = result && vec.components[i] <= num; }
-	return result;
-}
 
-VECTOR_TEMPLATE bool
-CoeffGreaterThan(VECTOR_TYPE vec, Scalar num)
-{
-	bool result = true;
-	VECTOR_LOOP_ELEMENTS { result = result && vec.components[i] > num; }
-	return result;
-}
 
-VECTOR_TEMPLATE bool
-CoeffGreaterThanOrEqual(VECTOR_TYPE vec, Scalar num)
-{
-	bool result = true;
-	VECTOR_LOOP_ELEMENTS { result = result && vec.components[i] >= num; }
-	return result;
-}
-
-VECTOR_TEMPLATE bool
+VECTOR_TEMPLATE bool32
 CoeffLessThan(VECTOR_TYPE rhs, VECTOR_TYPE lhs)
 {
-	bool result = true;
+	bool32 result = true;
 	VECTOR_LOOP_ELEMENTS { result = result && rhs.components[i] < lhs.components[i]; }
 	return result;
 }
 
-VECTOR_TEMPLATE bool
+VECTOR_TEMPLATE bool32
 CoeffLessThanOrEqual(VECTOR_TYPE rhs, VECTOR_TYPE lhs)
 {
-	bool result = true;
+	bool32 result = true;
 	VECTOR_LOOP_ELEMENTS { result = result && rhs.components[i] <= lhs.components[i]; }
 	return result;
 }
 
-VECTOR_TEMPLATE bool
+VECTOR_TEMPLATE bool32
 CoeffGreaterThan(VECTOR_TYPE rhs, VECTOR_TYPE lhs)
 {
-	bool result = true;
+	bool32 result = true;
 	VECTOR_LOOP_ELEMENTS { result = result && rhs.components[i] > lhs.components[i]; }
 	return result;
 }
 
-VECTOR_TEMPLATE bool
+VECTOR_TEMPLATE bool32
 CoeffGreaterThanOrEqual(VECTOR_TYPE rhs, VECTOR_TYPE lhs)
 {
-	bool result = true;
+	bool32 result = true;
 	VECTOR_LOOP_ELEMENTS { result = result && rhs.components[i] >= lhs.components[i]; }
 	return result;
 }
@@ -522,7 +527,7 @@ namespace vector
 	VECTOR_TEMPLATE VECTOR_TYPE
 	interpolate(VECTOR_TYPE a, VECTOR_TYPE b, Scalar t)
 	{
-		VECTOR_LOOP_ELEMENTS { a.components[i] = ::Interpolate(a.components[i], b.components[i], t); }
+		VECTOR_LOOP_ELEMENTS { a.components[i] = ::interpolate(a.components[i], b.components[i], t); }
 		return a;
 	}
 

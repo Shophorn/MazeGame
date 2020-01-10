@@ -18,14 +18,14 @@ FloorToInt32(real32 value)
     return result;
 }
 
-template<typename IntegerType, typename FloatType>
-IntegerType
-FloorTo(FloatType value)
+template<typename TTo, typename FloatType>
+internal TTo
+floor_to(FloatType value)
 {
     int64 floorValue = static_cast<int64>(value);
     if (value < 0)
         floorValue = floorValue -1;
-    return static_cast<IntegerType>(floorValue);
+    return static_cast<TTo>(floorValue);
 }
 
 template<typename IntegerType, typename FloatType>
@@ -38,8 +38,12 @@ CeilTo(FloatType value)
     return static_cast<IntegerType>(ceilValue);
 }
 
+template <typename TTo, typename TFrom>
+internal TTo round_to(TFrom value);
+
+template<>
 internal int32
-RoundToInt32(real32 value)
+round_to<int32, float>(float value)
 {
     if (value < 0.0f)
         value -= 0.5f;
@@ -47,6 +51,16 @@ RoundToInt32(real32 value)
         value += 0.5f;
     return static_cast<int32>(value);
 }
+
+template<>
+internal uint32
+round_to<uint32, float>(float value)
+{
+    value += 0.5f;
+    return static_cast<uint32>(value);
+}
+
+
 
 template<typename Number>
 internal Number 
@@ -166,7 +180,7 @@ Number ToRadians(Number degrees)
 }
 
 template<typename Number>
-Number Interpolate(Number from, Number to, Number time, int32 smooth = 0, bool32 clamp = true)
+Number interpolate(Number from, Number to, Number time, int32 smooth = 0, bool32 clamp = true)
 {
     switch (smooth)
     {
@@ -191,3 +205,4 @@ Number Interpolate(Number from, Number to, Number time, int32 smooth = 0, bool32
     Number result = (1 - time) * from + time * to;
     return result;
 }
+
