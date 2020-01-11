@@ -219,7 +219,6 @@ scene_3d::load(void * scenePtr, MemoryArena * persistentMemory, MemoryArena * tr
 
 			auto groundMesh 		= push_mesh(&groundMeshAsset);
 			auto renderer 			= make_handle<Renderer>({push_renderer(groundMesh, materials.ground)});
-			// auto transform 			= make_handle<Transform3D>({});
 			auto transform 			= make_handle<Transform3D>({{-50, -50, 0}});
 
 			push_one(scene->renderSystem, {transform, renderer});
