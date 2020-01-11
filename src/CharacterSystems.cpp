@@ -92,7 +92,7 @@ struct CharacterControllerSideScroller
 			targetRotationRadians = 0;
 		}
 
-		currentRotationRadians = interpolate(currentRotationRadians, targetRotationRadians, 0.4f, 2);
+		currentRotationRadians = interpolate(currentRotationRadians, targetRotationRadians, 0.4f);
 		if (Abs(currentRotationRadians - targetRotationRadians) > (0.1 * pi))
 		{
 			xMovement = 0;

@@ -1,6 +1,7 @@
 // TODO(Leo): Proper unit testing!!
 // Note(Leo): For now. Actually implement these ourself, for the kicks of course.
 #include <cmath>
+#include <type_traits>
 
 internal real32
 Root2(real32 value)
@@ -9,20 +10,11 @@ Root2(real32 value)
     return result; 
 }
 
-internal int32
-FloorToInt32(real32 value)
-{
-    int32 result = static_cast<int32>(value);
-    if (value < 0)
-        result -= 1;
-    return result;
-}
-
-template<typename TTo, typename FloatType>
+template<typename TTo, typename TFrom>
 internal TTo
-floor_to(FloatType value)
+floor_to(TFrom value)
 {
-    int64 floorValue = static_cast<int64>(value);
+    TTo floorValue = static_cast<TTo>(value);
     if (value < 0)
         floorValue = floorValue -1;
     return static_cast<TTo>(floorValue);
@@ -87,7 +79,7 @@ Abs(Number num)
 
 template<typename Number>
 internal Number
-Clamp(Number value, Number min, Number max)
+clamp(Number value, Number min, Number max)
 {
     if (value < min)
         value = min;
@@ -180,28 +172,8 @@ Number ToRadians(Number degrees)
 }
 
 template<typename Number>
-Number interpolate(Number from, Number to, Number time, int32 smooth = 0, bool32 clamp = true)
+Number interpolate(Number from, Number to, Number time)
 {
-    switch (smooth)
-    {
-        case 1:
-        {
-            float t = time;
-            time = t * t * (-2 * t + 3);
-         } break;
-        
-        case 2:
-        { 
-            float t = time;
-            time = t * t * t * (t * (6 * t - 15) + 10);
-        }break;
-    }
-
-    if (clamp)
-    {
-        time = Clamp(time, 0.0f, 1.0f);
-    }
-
     Number result = (1 - time) * from + time * to;
     return result;
 }

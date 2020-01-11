@@ -1161,8 +1161,8 @@ CreateSwapchainAndImages(VulkanContext * context, VkExtent2D frameBufferSize)
         VkExtent2D min = swapchainSupport.capabilities.minImageExtent;
         VkExtent2D max = swapchainSupport.capabilities.maxImageExtent;
 
-        resultSwapchain.extent.width = Clamp(static_cast<uint32>(frameBufferSize.width), min.width, max.width);
-        resultSwapchain.extent.height = Clamp(static_cast<uint32>(frameBufferSize.height), min.height, max.height);
+        resultSwapchain.extent.width = clamp(static_cast<uint32>(frameBufferSize.width), min.width, max.width);
+        resultSwapchain.extent.height = clamp(static_cast<uint32>(frameBufferSize.height), min.height, max.height);
     }
 
     std::cout << "Creating swapchain actually, width: " << resultSwapchain.extent.width << ", height: " << resultSwapchain.extent.height << "\n";

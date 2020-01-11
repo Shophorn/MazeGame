@@ -25,6 +25,11 @@ struct Handle
 		return &storage[_index];	
 	}
 
+
+	/* Todo(Leo): this is bad
+		1. doesn't work with multiple scenes/allocations
+		2. when we reload game, this is lost, and stops working
+	*/
 	inline global_variable ArenaArray<T> storage;
 };
 

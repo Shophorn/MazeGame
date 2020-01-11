@@ -83,6 +83,7 @@ scene_3d::load(void * scenePtr, MemoryArena * persistentMemory, MemoryArena * tr
 	struct MaterialCollection {
 		MaterialHandle character;
 		MaterialHandle environment;
+		MaterialHandle ground;
 		MaterialHandle sky;
 	} materials;
 
@@ -106,6 +107,7 @@ scene_3d::load(void * scenePtr, MemoryArena * persistentMemory, MemoryArena * tr
 		};
 
 		auto tilesTexture 	= load_and_push_texture("textures/tiles.jpg");
+		auto groundTexture 	= load_and_push_texture("textures/ground.png");
 		auto lavaTexture 	= load_and_push_texture("textures/lava.jpg");
 		auto faceTexture 	= load_and_push_texture("textures/texture.jpg");
 
@@ -120,6 +122,7 @@ scene_3d::load(void * scenePtr, MemoryArena * persistentMemory, MemoryArena * tr
 		{
 			.character 		= push_material(normalPipeline, lavaTexture, faceTexture, blackTexture),
 			.environment 	= push_material(normalPipeline, tilesTexture, blackTexture, blackTexture),
+			.ground 		= push_material(normalPipeline, groundTexture, blackTexture, blackTexture),
 		};
 
 		
@@ -136,7 +139,7 @@ scene_3d::load(void * scenePtr, MemoryArena * persistentMemory, MemoryArena * tr
 		auto skyboxTexture = platformInfo->graphicsContext->push_cubemap(skyboxTextureAssets);
 
 		auto skyMaterialAsset = make_material_asset(skyPipeline, push_array(transientMemory, {skyboxTexture}));	
-		materials.sky 			= platformInfo->graphicsContext->PushMaterial(&skyMaterialAsset);// push_material(skyPipeline, lavaTexture, blackTexture, blackTexture)
+		materials.sky 			= platformInfo->graphicsContext->PushMaterial(&skyMaterialAsset);
 	}
 
     auto push_mesh = [platformInfo] (MeshAsset * asset) -> MeshHandle
@@ -206,12 +209,17 @@ scene_3d::load(void * scenePtr, MemoryArena * persistentMemory, MemoryArena * tr
 		constexpr float ladderHeight = 1.0f;
 
 		{
+			// Note(Leo): this is maximum size we support with uint16 indices
+			int32 gridSize = 256;
+			float mapSize = 400;
+
 			auto heightmapTexture 	= load_texture_asset("textures/heightmap6.jpg", transientMemory);
-			auto heightmap 			= make_heightmap(transientMemory, &heightmapTexture, 64, 100, 0, 5.0f);
-			auto groundMeshAsset 	= generate_terrain(transientMemory, 30, &heightmap);
+			auto heightmap 			= make_heightmap(transientMemory, &heightmapTexture, gridSize, mapSize, -20, 20);
+			auto groundMeshAsset 	= generate_terrain(transientMemory, gridSize / 2, &heightmap);
 
 			auto groundMesh 		= push_mesh(&groundMeshAsset);
-			auto renderer 			= make_handle<Renderer>({push_renderer(groundMesh, materials.environment)});
+			auto renderer 			= make_handle<Renderer>({push_renderer(groundMesh, materials.ground)});
+			// auto transform 			= make_handle<Transform3D>({});
 			auto transform 			= make_handle<Transform3D>({{-50, -50, 0}});
 
 			push_one(scene->renderSystem, {transform, renderer});

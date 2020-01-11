@@ -19,18 +19,21 @@ layout(	binding = SAMPLER_BIND_ID,
 		set = SAMPLER_SET_ID
 ) uniform sampler2D texSampler[TEXTURE_COUNT];
 
-const vec3 lightDirection 	= normalize(vec3(0.7, 1, -2));
+// const vec3 lightDirection 	= normalize(vec3(0.7, 1, -2));
+const vec3 lightDirection 	= normalize(vec3(0, 5, -1));
 const vec3 lightColor 		= vec3(1.0, 0.98, 0.95);
 const vec3 ambientColor 	= vec3(0.2, 0.2, 0.3);
 
 void main()
 {
-	float ldotn = max(0, dot(-lightDirection, fragNormal));
+	float ldotn = dot(-lightDirection, fragNormal);
+	float ligthIntensity = mix(ldotn, step(0, ldotn), 0.9);
+
 
 	vec3 albedo = texture(texSampler[ALBEDO_INDEX], fragTexCoord).rgb;
 	float metallic = texture(texSampler[METALLIC_INDEX], fragTexCoord).r;
 
-	vec3 light = ambientColor + (lightColor * ldotn);
+	vec3 light = ambientColor + (lightColor * ligthIntensity);
 	vec3 color = light * albedo;
 
 	outColor.rgb = color;

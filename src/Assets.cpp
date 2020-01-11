@@ -93,7 +93,16 @@ get_green(Pixel color)
 	return (float)value / 255.0f; 
 }
 
-inline Pixel
+inline Pixel 
+get_pixel(TextureAsset * texture, uint32 x, uint32 y)
+{
+	DEVELOPMENT_ASSERT(x < texture->width && y < texture->height, "Invalid pixel coordinates!");
+
+	uint64 index = x + y * texture->width;
+	return texture->pixels[index];
+}
+
+internal Pixel
 get_closest_pixel(TextureAsset * texture, Vector2 texcoord)
 {
 	uint32 u = round_to<uint32>(texture->width * texcoord.u) % texture->width;
@@ -102,6 +111,9 @@ get_closest_pixel(TextureAsset * texture, Vector2 texcoord)
 	uint64 index = u + v * texture->width;
 	return texture->pixels[index];
 }
+
+
+
 
 
 enum struct MaterialType : int32
