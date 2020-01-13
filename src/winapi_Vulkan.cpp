@@ -1627,7 +1627,7 @@ TransitionImageLayout(
 
 
 internal void
-create_drawing_resources(VulkanContext * context)
+vulkan::create_drawing_resources(VulkanContext * context)
 {
     VulkanDrawingResources resultResources = {};
 
@@ -1689,8 +1689,8 @@ create_drawing_resources(VulkanContext * context)
     context->drawingResources = resultResources;
 }
 
-internal VkDescriptorPool
-CreateDescriptorPool(VkDevice device, int32 swapchainImageCount)
+internal void
+vulkan::create_uniform_descriptor_pool(VulkanContext * context)
 {
     /*
     Note(Leo): 
@@ -1701,33 +1701,27 @@ CreateDescriptorPool(VkDevice device, int32 swapchainImageCount)
     'count' is one for actor (characters, animated scenery) uniform buffers which are dynamic and 
     one for static scenery.
     */
-
     constexpr int32 count = 2;
     VkDescriptorPoolSize poolSizes [count] = {};
 
     poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
-    poolSizes[0].descriptorCount = swapchainImageCount * 2; // Note(Leo): 2 = 1 for 3d models and 1 for gui 
+    poolSizes[0].descriptorCount = 1; // Note(Leo): 2 = 1 for 3d models and 1 for gui 
 
-    // TODO(Leo): Hack from past, REMOVE
-    int randomMultiplierForTesting = 20;
     poolSizes[1].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    poolSizes[1].descriptorCount = swapchainImageCount * randomMultiplierForTesting;
+    poolSizes[1].descriptorCount = 1;
 
     VkDescriptorPoolCreateInfo poolInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO };
     poolInfo.poolSizeCount = count;
     poolInfo.pPoolSizes = &poolSizes[0];
-    poolInfo.maxSets = swapchainImageCount * randomMultiplierForTesting;
+    poolInfo.maxSets = 20;
 
-    MAZEGAME_NO_INIT VkDescriptorPool resultDescriptorPool;
     DEVELOPMENT_ASSERT(
-        vkCreateDescriptorPool(device, &poolInfo, nullptr, &resultDescriptorPool) == VK_SUCCESS,
-        "Failed to create descriptor pool"
-    );
-    return resultDescriptorPool;
+        vkCreateDescriptorPool(context->device, &poolInfo, nullptr, &context->uniformDescriptorPool) == VK_SUCCESS,
+        "Failed to create descriptor pool");
 }
 
-internal VkDescriptorPool
-CreateMaterialDescriptorPool(VkDevice device)
+internal void
+vulkan::create_material_descriptor_pool(VulkanContext * context)
 {
     VkDescriptorPoolSize poolSize =
     {
@@ -1743,56 +1737,89 @@ CreateMaterialDescriptorPool(VkDevice device)
         .maxSets        = vulkan::MAX_LOADED_TEXTURES,
     };
 
-    VkDescriptorPool result = {};
     DEVELOPMENT_ASSERT(
-        vkCreateDescriptorPool(device, &poolCreateInfo, nullptr, &result) == VK_SUCCESS,
+        vkCreateDescriptorPool(context->device, &poolCreateInfo, nullptr, &context->materialDescriptorPool) == VK_SUCCESS,
         "Failed to create descriptor pool for materials!");
-    return result;
-
 }
 
-internal std::vector<VkDescriptorSet>
-CreateModelDescriptorSets(VulkanContext * context)
+internal void
+vulkan::create_model_descriptor_sets(VulkanContext * context)
 {
-    /* Note(Leo): Create vector of [imageCount] copies from descriptorSetLayout
-    for allocation */
-    int imageCount = context->swapchainItems.images.size();
-    std::vector<VkDescriptorSetLayout> layouts (imageCount, context->descriptorSetLayouts.model);
+    VkDescriptorSetAllocateInfo allocateInfo =
+    { 
+        .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+        .descriptorPool     = context->uniformDescriptorPool,
+        .descriptorSetCount = 1,
+        .pSetLayouts        = &context->descriptorSetLayouts.model,
+    };
 
-    VkDescriptorSetAllocateInfo allocateInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO };
-    allocateInfo.descriptorPool = context->uniformDescriptorPool;
-    allocateInfo.descriptorSetCount = imageCount;
-    allocateInfo.pSetLayouts = &layouts[0];
-
-    std::vector<VkDescriptorSet> resultDescriptorSets(imageCount);
-    if (vkAllocateDescriptorSets(context->device, &allocateInfo, &resultDescriptorSets[0]) != VK_SUCCESS)
+    VkDescriptorSet resultDescriptorSet;
+    if (vkAllocateDescriptorSets(context->device, &allocateInfo, &resultDescriptorSet) != VK_SUCCESS)
     {
         throw std::runtime_error("Failed to allocate DESCRIPTOR SETS");
     }
 
-    for (int imageIndex = 0; imageIndex < imageCount; ++imageIndex)
+    VkDescriptorBufferInfo modelBufferInfo =
     {
-        VkWriteDescriptorSet descriptorWrites [1] = {};
+        .buffer = context->modelUniformBuffer.buffer,
+        .offset = 0,
 
-        // MODEL UNIFORM BUFFERS
-        VkDescriptorBufferInfo modelBufferInfo = {};
-        modelBufferInfo.buffer = context->modelUniformBuffer.buffer;
-        modelBufferInfo.offset = vulkan::GetModelUniformBufferOffsetForSwapchainImages(context, imageIndex);
-        modelBufferInfo.range = sizeof(Matrix44);
+        // Todo(Leo): Align Align, this works now because matrix44 happens to fit 64 bytes.
+        .range = sizeof(Matrix44),
+    };
 
-        descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        descriptorWrites[0].dstSet = resultDescriptorSets[imageIndex];
-        descriptorWrites[0].dstBinding = DESCRIPTOR_LAYOUT_MODEL_BINDING;
-        descriptorWrites[0].dstArrayElement = 0;
-        descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
-        descriptorWrites[0].descriptorCount = 1;
-        descriptorWrites[0].pBufferInfo = &modelBufferInfo;
+    VkWriteDescriptorSet descriptorWrite =
+    {
+        .sType              = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        .dstSet             = resultDescriptorSet,
+        .dstBinding         = DESCRIPTOR_LAYOUT_MODEL_BINDING,
+        .dstArrayElement    = 0,
+        .descriptorType     = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+        .descriptorCount    = 1,
+        .pBufferInfo        = &modelBufferInfo,
+    };
 
-        // Note(Leo): Two first are write info, two latter are copy info
-        vkUpdateDescriptorSets(context->device, 1, &descriptorWrites[0], 0, nullptr);
+    vkUpdateDescriptorSets(context->device, 1, &descriptorWrite, 0, nullptr);
+    context->uniformDescriptorSets.model = resultDescriptorSet;
+}
+
+internal void
+vulkan::create_scene_descriptor_sets(VulkanContext * context)
+{
+    VkDescriptorSetAllocateInfo allocateInfo =
+    { 
+        .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+        .descriptorPool     = context->uniformDescriptorPool,
+        .descriptorSetCount = 1,
+        .pSetLayouts        = &context->descriptorSetLayouts.scene,
+    };
+
+    VkDescriptorSet resultDescriptorSet;
+    if (vkAllocateDescriptorSets(context->device, &allocateInfo, &resultDescriptorSet) != VK_SUCCESS)
+    {
+        throw std::runtime_error("Failed to allocate DESCRIPTOR SETS");
     }
 
-    return resultDescriptorSets;
+    VkDescriptorBufferInfo sceneBufferInfo =
+    {
+        .buffer = context->sceneUniformBuffer.buffer,
+        .offset = 0,
+        .range = sizeof(VulkanCameraUniformBufferObject),
+    };
+
+    VkWriteDescriptorSet descriptorWrite =
+    {
+        .sType              = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        .dstSet             = resultDescriptorSet,
+        .dstBinding         = DESCRIPTOR_LAYOUT_SCENE_BINDING,
+        .dstArrayElement    = 0,
+        .descriptorType     = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+        .descriptorCount    = 1,
+        .pBufferInfo        = &sceneBufferInfo,
+    };
+
+    vkUpdateDescriptorSets(context->device, 1, &descriptorWrite, 0, nullptr);
+    context->uniformDescriptorSets.scene = resultDescriptorSet;
 }
 
 internal VkDescriptorSet
@@ -1847,49 +1874,6 @@ vulkan::make_material_descriptor_set(
     vkUpdateDescriptorSets(context->device, 1, &writing, 0, nullptr);
 
     return resultSet;
-}
-
-internal std::vector<VkDescriptorSet>
-CreateSceneDescriptorSets(VulkanContext * context)
-{
-    /* Note(Leo): Create vector of [imageCount] copies from layout for allocation */
-    int imageCount = context->swapchainItems.images.size();
-    std::vector<VkDescriptorSetLayout> layouts (imageCount, context->descriptorSetLayouts.scene);
-
-    VkDescriptorSetAllocateInfo allocateInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO };
-    allocateInfo.descriptorPool = context->uniformDescriptorPool;
-    allocateInfo.descriptorSetCount = imageCount;
-    allocateInfo.pSetLayouts = &layouts[0];
-
-    std::vector<VkDescriptorSet> resultDescriptorSets(imageCount);
-    if (vkAllocateDescriptorSets(context->device, &allocateInfo, &resultDescriptorSets[0]) != VK_SUCCESS)
-    {
-        throw std::runtime_error("Failed to allocate DESCRIPTOR SETS");
-    }
-
-    for (int imageIndex = 0; imageIndex < imageCount; ++imageIndex)
-    {
-        VkWriteDescriptorSet descriptorWrites [1] = {};
-
-        // SCENE UNIFORM BUFFER
-        VkDescriptorBufferInfo sceneBufferInfo = {};
-        sceneBufferInfo.buffer = context->sceneUniformBuffer.buffer;
-        sceneBufferInfo.offset = vulkan::GetSceneUniformBufferOffsetForSwapchainImages(context, imageIndex);
-        sceneBufferInfo.range = sizeof(VulkanCameraUniformBufferObject);
-
-        descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        descriptorWrites[0].dstSet = resultDescriptorSets[imageIndex];
-        descriptorWrites[0].dstBinding = DESCRIPTOR_LAYOUT_SCENE_BINDING;
-        descriptorWrites[0].dstArrayElement = 0;
-        descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        descriptorWrites[0].descriptorCount = 1;
-        descriptorWrites[0].pBufferInfo = &sceneBufferInfo;
-
-        // Note(Leo): Two first are write info, two latter are copy info
-        vkUpdateDescriptorSets(context->device, 1, &descriptorWrites[0], 0, nullptr);
-    }
-
-    return resultDescriptorSets;
 }
 
 internal std::vector<VkFramebuffer>
@@ -2321,8 +2305,8 @@ vulkan::destroy_texture(VulkanContext * context, VulkanTexture * texture)
     vkDestroyImageView(context->device, texture->view, nullptr);
 }
 
-internal VkSampler
-CreateTextureSampler(VulkanContext * context)
+internal void
+vulkan::create_texture_sampler(VulkanContext * context)
 {
     VkSamplerCreateInfo samplerInfo =
     { 
@@ -2348,12 +2332,10 @@ CreateTextureSampler(VulkanContext * context)
         .mipLodBias         = 0.0f,
     };
 
-    VkSampler resultSampler;
-    if (vkCreateSampler(context->device, &samplerInfo, nullptr, &resultSampler) != VK_SUCCESS)
+    if (vkCreateSampler(context->device, &samplerInfo, nullptr, &context->textureSampler) != VK_SUCCESS)
     {
         throw std::runtime_error("Failed to create texture sampler!");
     }
-    return resultSampler;
 }
 
 internal void
@@ -2365,7 +2347,6 @@ CleanupSwapchain(VulkanContext * context)
     vkDestroyImageView (context->device, context->drawingResources.depthImageView, nullptr);
     vkFreeMemory(context->device, context->drawingResources.memory, nullptr);
 
-    vkDestroyDescriptorPool(context->device, context->uniformDescriptorPool, nullptr);
 
     for (auto framebuffer : context->frameBuffers)
     {
@@ -2396,6 +2377,8 @@ Cleanup(VulkanContext * context)
     vulkan::unload_scene(context);
 
     CleanupSwapchain(context);
+
+    vkDestroyDescriptorPool(context->device, context->uniformDescriptorPool, nullptr);
     vkDestroyDescriptorPool(context->device, context->materialDescriptorPool, nullptr);
 
     vkDestroySampler(context->device, context->textureSampler, nullptr);
@@ -2466,13 +2449,6 @@ vulkan::recreate_swapchain(VulkanContext * context, VkExtent2D frameBufferSize)
     create_drawing_resources(context);
     
     context->frameBuffers           = CreateFrameBuffers(context);
-    context->uniformDescriptorPool  = CreateDescriptorPool(context->device, context->swapchainItems.images.size());
-
-
-    context->descriptorSets         = CreateModelDescriptorSets(context);
-    // context->guiDescriptorSets      = CreateGuiDescriptorSets(context);
-
-    context->sceneDescriptorSets    = CreateSceneDescriptorSets(context);
 }
 
 internal void
@@ -2558,7 +2534,7 @@ namespace winapi
     }
 
     internal VulkanContext
-    VulkanInitialize(HINSTANCE winInstance, HWND winWindow)
+    make_vulkan_context(HINSTANCE winInstance, HWND winWindow)
     {
         VulkanContext resultContext = {};
 
@@ -2618,12 +2594,10 @@ namespace winapi
         resultContext.descriptorSetLayouts.scene    = CreateSceneDescriptorSetLayout(resultContext.device);
         resultContext.descriptorSetLayouts.model    = CreateModelDescriptorSetLayout(resultContext.device);
 
-        create_drawing_resources(&resultContext); 
+        vulkan::create_drawing_resources(&resultContext); 
         
         // Todo(Leo): This seems rather stupid way to organize creation of these...
         resultContext.frameBuffers              = CreateFrameBuffers(&resultContext);
-        resultContext.uniformDescriptorPool     = CreateDescriptorPool(resultContext.device, resultContext.swapchainItems.images.size());
-        resultContext.materialDescriptorPool    = CreateMaterialDescriptorPool(resultContext.device);
 
         {
             VulkanPipelineLoadInfo info = 

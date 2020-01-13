@@ -1,13 +1,6 @@
 /*=============================================================================
 Leo Tamminen
-
-Things to use with win api and vulkan.
-
-Structs and functions in 'Vulkan' namespace are NOT actual vulkan functions,
-but helpers and combos of things commonly used together in this game.
-
-TODO(Leo): Maybe rename to communicate more clearly that these hide actual
-vulkan api.
+shophorn @ internet
 
 STUDY: https://devblogs.nvidia.com/vulkan-dos-donts/
 =============================================================================*/
@@ -31,8 +24,7 @@ struct VulkanCameraUniformBufferObject
 	alignas(16) Matrix44 perspective;
 };
 
-
-// TOdo[rendering] (Leo): Use this VulkanModelUniformBufferObject
+// Todo[rendering] (Leo): Use this VulkanModelUniformBufferObject
 // struct VulkanModelUniformBufferObject
 // {
 // 	alignas(16) Matrix44 modelMatrix;
@@ -131,17 +123,18 @@ struct VulkanMesh
     VkIndexType     indexType;
 };
 
-struct VulkanModel
-{
-	MeshHandle 		mesh;
-	MaterialHandle 	material;
-    uint32         	uniformBufferOffset;
-};
-
 struct VulkanMaterial
 {
 	PipelineHandle pipeline;
 	VkDescriptorSet descriptorSet;
+};
+
+/* Todo(Leo): this is now redundant it can go away.
+Then we can simply draw by mesh and material anytime */
+struct VulkanModel
+{
+	MeshHandle 		mesh;
+	MaterialHandle 	material;
 };
 
 struct VulkanPipelineLoadInfo
@@ -183,6 +176,12 @@ struct platform::GraphicsContext
     	VkDescriptorSetLayout model;
     } descriptorSetLayouts;
 
+    struct
+    {
+	    VkDescriptorSet model;
+   	 	VkDescriptorSet scene;
+    } uniformDescriptorSets;
+
     std::vector<VkFramebuffer>      frameBuffers;
 
     VkRenderPass            renderPass;
@@ -207,10 +206,6 @@ struct platform::GraphicsContext
     VkDescriptorPool      		uniformDescriptorPool;
     VkDescriptorPool      		materialDescriptorPool;
 
-    std::vector<VkDescriptorSet>    descriptorSets;
-    std::vector<VkDescriptorSet>    sceneDescriptorSets;
-    std::vector<VkDescriptorSet>	guiDescriptorSets;
-
     VulkanBufferResource       	stagingBufferPool;
     
     // Note(Leo): After this these need to be recreated on unload as empty containers
@@ -234,10 +229,10 @@ struct platform::GraphicsContext
     uint32 currentDrawFrameIndex;
     bool32 canDraw = false;
     PipelineHandle currentBoundPipeline;
+    uint32 currentUniformBufferOffset;
 
     bool32 abortFrameDrawing = false;
 };
-
 using VulkanContext = platform::GraphicsContext;
 
 namespace vulkan
@@ -294,32 +289,15 @@ namespace vulkan
         return result;
     }
 
-    /* Todo(Leo): Define a proper struct (of which size is to be used) to
-	make it easier to change later. */
-	internal inline uint32
-	GetModelUniformBufferOffsetForSwapchainImages(VulkanContext * context, int32 imageIndex)
-	{
-	    uint32 memorySizePerModelMatrix = align_up_to(
-	        context->physicalDeviceProperties.limits.minUniformBufferOffsetAlignment,
-	        sizeof(Matrix44));
-
-	    uint32 result = imageIndex * memorySizePerModelMatrix * VULKAN_MAX_MODEL_COUNT;   
-	    return result;
-	}
-
-	internal inline uint32
-	GetSceneUniformBufferOffsetForSwapchainImages(VulkanContext * context, int32 imageIndex)
-	{
-	    uint32 memorySizePerObject = align_up_to(
-	        context->physicalDeviceProperties.limits.minUniformBufferOffsetAlignment,
-	        sizeof(VulkanCameraUniformBufferObject));
-
-	    // Note(Leo): so far we only have one of these
-	    uint32 result = imageIndex * memorySizePerObject;
-	    return result;
-	}
+    internal inline VkDeviceSize
+    get_aligned_uniform_buffer_size(VulkanContext * context, VkDeviceSize size)
+    {
+    	auto alignment = context->physicalDeviceProperties.limits.minUniformBufferOffsetAlignment;
+    	return align_up_to(alignment, size);
+    } 
 	
 	#pragma message ("Organize here before too late")
+
 	internal VulkanSwapchainSupportDetails QuerySwapChainSupport(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface);
 	internal VkSurfaceFormatKHR ChooseSwapSurfaceFormat(std::vector<VkSurfaceFormatKHR>& availableFormats);
 	internal VkPresentModeKHR ChooseSurfacePresentMode(std::vector<VkPresentModeKHR> & availablePresentModes);
@@ -342,9 +320,17 @@ namespace vulkan
 	internal VkDescriptorSet make_material_descriptor_set(	VulkanContext * context,
 															PipelineHandle pipeline,
 															ArenaArray<TextureHandle> textures);
+	
+	internal void create_drawing_resources(VulkanContext * context);
+	internal void create_material_descriptor_pool(VulkanContext * context);
+	internal void create_uniform_descriptor_pool(VulkanContext * context);
+	internal void create_model_descriptor_sets(VulkanContext * context);
+	internal void create_scene_descriptor_sets(VulkanContext * context);
+	internal void create_texture_sampler(VulkanContext * context);
+
 
 	// Note(Leo): SCENE and DRAWING functions are passed as pointers to game layer.
-	/// SCENE
+	/// SCENE, VulkanScene.cpp
     internal TextureHandle 	push_texture (VulkanContext * context, TextureAsset * texture);
     internal MaterialHandle push_material (VulkanContext * context, MaterialAsset * asset);
     internal MeshHandle 	push_mesh(VulkanContext * context, MeshAsset * mesh);
@@ -353,7 +339,7 @@ namespace vulkan
     internal PipelineHandle push_pipeline(VulkanContext * context, const char * vertexShaderPath, const char * fragmentShaderPath, platform::PipelineOptions options);
     internal void 			unload_scene(VulkanContext * context);
 
-	/// DRAWING
+	/// DRAWING, VulkanDrawing.cpp
     internal void update_camera(VulkanContext * context, Matrix44 view, Matrix44 perspective);
 	internal void start_drawing(VulkanContext * context);
 	internal void finish_drawing(VulkanContext * context);

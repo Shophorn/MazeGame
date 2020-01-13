@@ -8,11 +8,12 @@ Vulkan drawing functions' definitions.
 void 
 vulkan::update_camera(VulkanContext * context, Matrix44 view, Matrix44 perspective)
 {
+    // Todo(Leo): alignment
+
     // Note (Leo): map vulkan memory directly to right type so we can easily avoid one (small) memcpy per frame
     VulkanCameraUniformBufferObject * pUbo;
     vkMapMemory(context->device, context->sceneUniformBuffer.memory,
-                vulkan::GetSceneUniformBufferOffsetForSwapchainImages(context, context->currentDrawFrameIndex),
-                sizeof(VulkanCameraUniformBufferObject), 0, (void**)&pUbo);
+                0, sizeof(VulkanCameraUniformBufferObject), 0, (void**)&pUbo);
 
     pUbo->view          = view;
     pUbo->perspective   = perspective;
@@ -25,6 +26,7 @@ vulkan::start_drawing(VulkanContext * context)
 {
     // std::cout << "[vulkan::start_drawing()]\n";
     uint32 frameIndex = context->currentDrawFrameIndex;
+    context->currentUniformBufferOffset = 0;
 
     DEVELOPMENT_ASSERT((context->canDraw == false), "Invalid call to start_drawing() when finish_drawing() has not been called.")
     
@@ -72,13 +74,9 @@ vulkan::start_drawing(VulkanContext * context)
 void
 vulkan::finish_drawing(VulkanContext * context)
 {
-    // std::cout << "[vulkan::finish_drawing()]\n";
-
-
     DEVELOPMENT_ASSERT(context->canDraw, "Invalid call to finish_drawing() when start_drawing() has not been called.")
     context->canDraw = false;
     context->currentBoundPipeline = PipelineHandle::Null;
-
 
     VkCommandBuffer commandBuffer = context->frameCommandBuffers[context->currentDrawFrameIndex];
     vkCmdEndRenderPass(commandBuffer);
@@ -86,20 +84,20 @@ vulkan::finish_drawing(VulkanContext * context)
     {
         throw std::runtime_error("Failed to record command buffer");
     }
-
 }
 
 void
 vulkan::record_draw_command(VulkanContext * context, ModelHandle model, Matrix44 transform)
 {
     // // Todo(Leo): Single mapping is really enough, offsets can be used here too
-    uint32 startUniformBufferOffset = vulkan::GetModelUniformBufferOffsetForSwapchainImages(context, context->currentDrawFrameIndex);
+    // Note(Leo): using this we can use separate buffer sections for each framebuffer, not sure if necessary though
+    uint32 modelUniformBufferOffset = context->currentUniformBufferOffset;
+    uint32 modelMatrixSize          = get_aligned_uniform_buffer_size(context, sizeof(transform));
+
+    context->currentUniformBufferOffset += modelMatrixSize;
 
     Matrix44 * pModelMatrix;
-    vkMapMemory(context->device, context->modelUniformBuffer.memory, 
-                startUniformBufferOffset + context->loadedModels[model].uniformBufferOffset,
-                sizeof(pModelMatrix), 0, (void**)&pModelMatrix);
-
+    vkMapMemory(context->device, context->modelUniformBuffer.memory, modelUniformBufferOffset, modelMatrixSize, 0, (void**)&pModelMatrix);
     *pModelMatrix = transform;
     vkUnmapMemory(context->device, context->modelUniformBuffer.memory);
 
@@ -111,6 +109,7 @@ vulkan::record_draw_command(VulkanContext * context, ModelHandle model, Matrix44
     MeshHandle meshHandle           = context->loadedModels[model].mesh;
     MaterialHandle materialHandle   = context->loadedModels[model].material;
 
+    // Todo(Leo): This was not needed elsewhere so I brought it here, it can be removed
     struct VulkanRenderInfo
     {
         VkBuffer meshBuffer;
@@ -135,7 +134,7 @@ vulkan::record_draw_command(VulkanContext * context, ModelHandle model, Matrix44
         .indexCount             = context->loadedMeshes[meshHandle].indexCount,
         .indexType              = context->loadedMeshes[meshHandle].indexType,
 
-        .uniformBufferOffset    = context->loadedModels[model].uniformBufferOffset,
+        .uniformBufferOffset    = modelUniformBufferOffset,//context->loadedModels[model].uniformBufferOffset,
         
         .materialIndex          = (uint32)materialHandle,
     };
@@ -155,16 +154,17 @@ vulkan::record_draw_command(VulkanContext * context, ModelHandle model, Matrix44
     {
         context->currentBoundPipeline   = newPipeline;
     
+        // Material type
         vkCmdBindPipeline(      commandBuffer,
                                 VK_PIPELINE_BIND_POINT_GRAPHICS,
                                 context->loadedPipelines[context->currentBoundPipeline].pipeline);
-
+        // Scene
         vkCmdBindDescriptorSets(commandBuffer,
                                 VK_PIPELINE_BIND_POINT_GRAPHICS,
                                 context->loadedPipelines[context->currentBoundPipeline].layout,
                                 LAYOUT_SCENE,
                                 1, 
-                                &context->sceneDescriptorSets[context->currentDrawFrameIndex],
+                                &context->uniformDescriptorSets.scene,
                                 0,
                                 nullptr);
     }
@@ -188,7 +188,7 @@ vulkan::record_draw_command(VulkanContext * context, ModelHandle model, Matrix44
                             context->loadedPipelines[context->currentBoundPipeline].layout,
                             LAYOUT_MODEL,
                             1,
-                            &context->descriptorSets[context->currentDrawFrameIndex],
+                            &context->uniformDescriptorSets.model,
                             1,
                             &renderInfo.uniformBufferOffset);
 
@@ -224,6 +224,6 @@ vulkan::record_line_draw_command(VulkanContext * context, Vector3 start, Vector3
 
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, context->lineDrawPipeline.pipeline);
     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, context->lineDrawPipeline.layout,
-                            LAYOUT_SCENE, 1, &context->sceneDescriptorSets[context->currentDrawFrameIndex], 0, nullptr);
+                            LAYOUT_SCENE, 1, &context->uniformDescriptorSets.scene, 0, nullptr);
     vkCmdDraw(commandBuffer, 2, 1, 0, 0);
 }

@@ -107,12 +107,6 @@ vulkan::push_model (VulkanContext * context, MeshHandle mesh, MaterialHandle mat
         .material = material,
     };
 
-    // Todo(Leo): store to nicer place or make nice getter
-    uint32 memorySizePerModelMatrix = align_up_to(
-        context->physicalDeviceProperties.limits.minUniformBufferOffsetAlignment,
-        sizeof(Matrix44));
-    object.uniformBufferOffset = objectIndex * memorySizePerModelMatrix;
-
     context->loadedModels.push_back(object);
 
     ModelHandle resultHandle = { objectIndex };

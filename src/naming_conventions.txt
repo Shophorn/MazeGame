@@ -13,7 +13,7 @@ functions:
 	almost always use verbs:
 		when function is merely a variable like accessor, may use nouns
 	prefer non-member non-friend functions:
-		again, variable like functions should be members
+		again, variable like functions could be members
 
 	eg.
 	struct Example
@@ -30,3 +30,8 @@ functions:
 
 FileNames:
 	.cpp files -> PascalCase.cpp
+
+
+make vs. create
+	make_functions should return value they 'made'
+	create_functions should be used for internal creations and not return a value
