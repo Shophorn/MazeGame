@@ -49,27 +49,16 @@ namespace platform
 {
 	struct PipelineOptions
 	{
-	    bool32 enableDepth = true;
+	    bool32 enableDepth 	= true;
+	    bool32 clampDepth 	= false;
+	    int32 textureCount 	= 0;
+
 	    enum { PRIMITIVE_LINE, PRIMITIVE_TRIANGLE } primitiveType = PRIMITIVE_TRIANGLE;
-	    int32 textureCount = 0;
 	};
 
 	/* Note(Leo): This seems good, but for some reasoen I feel
 	unease about using even this kind of simple inheritance */
-	struct IGraphicsContext
-	{
-		virtual MeshHandle 		PushMesh(MeshAsset * mesh) 					= 0;
-		virtual TextureHandle 	PushTexture (TextureAsset * asset) 			= 0;
-		virtual MaterialHandle 	PushMaterial (MaterialAsset * material) 	= 0;
-		
-		virtual RenderedObjectHandle 	PushRenderedObject(MeshHandle mesh, MaterialHandle material) = 0;
-
-		virtual TextureHandle push_cubemap(TextureAsset * assets) = 0;
-
-		virtual PipelineHandle push_pipeline(const char * vertexShaderPath, const char * fragmentShaderPath, PipelineOptions options = {}) = 0;
-
-		virtual void UnloadAll() = 0;
-	};
+	struct GraphicsContext;
 }
 
 namespace game
@@ -143,13 +132,28 @@ namespace game
 
 	struct PlatformInfo
 	{
-		platform::IGraphicsContext * graphicsContext;
+		platform::GraphicsContext * graphicsContext;
 
 		int32 	windowWidth;
 		int32 	windowHeight;
 		bool32 	windowIsFullscreen;
 
+		// Todo(Leo): add context pointer so this too can be just a function pointer
 		std::function<void(bool32)> set_window_fullscreen;
+	
+		MeshHandle 		(*push_mesh) 	(platform::GraphicsContext * context, MeshAsset * asset);
+		TextureHandle 	(*push_texture) (platform::GraphicsContext * context, TextureAsset * asset);
+		// Todo(Leo): We should use some more explicit argument than pointer to TextureAsset array
+		TextureHandle 	(*push_cubemap) (platform::GraphicsContext * context, TextureAsset * asset);
+
+		MaterialHandle 	(*push_material) 	(platform::GraphicsContext * context, MaterialAsset * asset);
+		ModelHandle 	(*push_model) 		(platform::GraphicsContext * context, MeshHandle mesh, MaterialHandle material);
+		PipelineHandle 	(*push_pipeline) 	(platform::GraphicsContext * context,
+											char const * vertexShaderPath,
+											char const * fragmentShaderPath,
+											platform::PipelineOptions options);
+
+		void 			(*unload_scene) (platform::GraphicsContext*);
 	};
 	
 	struct Memory
@@ -165,16 +169,11 @@ namespace game
 
 	struct RenderInfo
 	{
-		std::function<void(Matrix44 view, Matrix44 perspective)> 	set_camera;
-		
-
-		std::function<void()> 										start_drawing;
-		std::function<void()> 										finish_drawing;
-		std::function<void(RenderedObjectHandle, Matrix44)> 		draw;
-
-		std::function<void(Vector3 start, Vector3 end, Vector3 color)> draw_line;
-
-
+		void (*update_camera) (platform::GraphicsContext*, Matrix44 view, Matrix44 perspective);
+		void (*start_drawing) (platform::GraphicsContext*);
+		void (*finish_drawing) (platform::GraphicsContext*);
+		void (*draw) (platform::GraphicsContext*, ModelHandle, Matrix44);
+		void (*draw_line) (platform::GraphicsContext*, Vector3 start, Vector3 end, float4 color);
 	};
 	
 	struct NetworkPackage

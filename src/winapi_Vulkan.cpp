@@ -4,7 +4,8 @@ Leo Tamminen
 Implementations of vulkan related functions
 =============================================================================*/
 #include "winapi_Vulkan.hpp"
-#include "winapi_VulkanIGraphicsContext.cpp"
+#include "VulkanScene.cpp"
+#include "VulkanDrawing.cpp"
 
 internal uint32
 vulkan::find_memory_type (VkPhysicalDevice physicalDevice, uint32 typeFilter, VkMemoryPropertyFlags properties)
@@ -69,31 +70,32 @@ vulkan::CreateBuffer(
     vkBindBufferMemory(logicalDevice, *resultBuffer, *resultBufferMemory, 0); 
 }
 
-internal void
-vulkan::CreateBufferResource(
+internal VulkanBufferResource
+vulkan::make_buffer_resource(
     VulkanContext *         context,
     VkDeviceSize            size,
     VkBufferUsageFlags      usage,
-    VkMemoryPropertyFlags   memoryProperties,
-    VulkanBufferResource *  result
-){
+    VkMemoryPropertyFlags   memoryProperties)
+{
+    VulkanBufferResource result = {};
 
-    if (result->created == true)
+    // TODO(Leo): This is reminder to remove this system. It used to be so that result was passed with an out pointer
+    if (result.created == true)
     {
-        // TODO(Leo): ASSERT and log
-        return;
+        // return;
     }
     
     // TODO(Leo): inline this
     vulkan::CreateBuffer(   context->device, context->physicalDevice, size,
-                            usage, memoryProperties, &result->buffer, &result->memory);
+                            usage, memoryProperties, &result.buffer, &result.memory);
 
-    result->size = size;
-    result->created = true;
+    result.size = size;
+    result.created = true;
+    return result;
 }
 
 internal void
-vulkan::DestroyBufferResource(VkDevice logicalDevice, VulkanBufferResource * resource)
+vulkan::destroy_buffer_resource(VkDevice logicalDevice, VulkanBufferResource * resource)
 {
     vkDestroyBuffer(logicalDevice, resource->buffer, nullptr);
     vkFreeMemory(logicalDevice, resource->memory, nullptr);
@@ -102,7 +104,7 @@ vulkan::DestroyBufferResource(VkDevice logicalDevice, VulkanBufferResource * res
 }
 
 internal VkVertexInputBindingDescription
-vulkan::GetVertexBindingDescription ()
+vulkan::get_vertex_binding_description ()
 {
     return {
         .binding    = 0,
@@ -112,7 +114,7 @@ vulkan::GetVertexBindingDescription ()
 }
 
 internal Array<VkVertexInputAttributeDescription, 4>
-vulkan::GetVertexAttributeDescriptions()
+vulkan::get_vertex_attribute_description()
 {
 	Array<VkVertexInputAttributeDescription, 4> value = {};
 
@@ -140,7 +142,7 @@ vulkan::GetVertexAttributeDescriptions()
 }	
 
 internal VkIndexType
-vulkan::ConvertIndexType(IndexType type)
+vulkan::convert_index_type(IndexType type)
 {
 	switch (type)
 	{
@@ -311,8 +313,8 @@ vulkan::make_pipeline(
         }
     };
 
-    auto bindingDescription     = vulkan::GetVertexBindingDescription();
-    auto attributeDescriptions  = vulkan::GetVertexAttributeDescriptions();
+    auto bindingDescription     = vulkan::get_vertex_binding_description();
+    auto attributeDescriptions  = vulkan::get_vertex_attribute_description();
 
     VkPipelineVertexInputStateCreateInfo vertexInputInfo =
     {
@@ -542,8 +544,8 @@ vulkan::make_line_pipeline(
         }
     };
 
-    auto bindingDescription     = vulkan::GetVertexBindingDescription();
-    auto attributeDescriptions  = vulkan::GetVertexAttributeDescriptions();
+    auto bindingDescription     = vulkan::get_vertex_binding_description();
+    auto attributeDescriptions  = vulkan::get_vertex_attribute_description();
 
     VkPipelineVertexInputStateCreateInfo vertexInputInfo =
     {
@@ -1052,7 +1054,7 @@ CreateImage(
 }
 
 internal void
-CreateImageAndMemory(
+create_image_and_memory(
     VkDevice logicalDevice, 
     VkPhysicalDevice physicalDevice,
     uint32 texWidth,
@@ -1064,8 +1066,8 @@ CreateImageAndMemory(
     VkMemoryPropertyFlags memoryFlags,
     VkSampleCountFlagBits msaaSamples,
     VkImage * resultImage,
-    VkDeviceMemory * resultImageMemory
-){
+    VkDeviceMemory * resultImageMemory)
+{
     VkImageCreateInfo imageInfo = { VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO };
     imageInfo.imageType = VK_IMAGE_TYPE_2D;
     imageInfo.extent = { texWidth, texHeight, 1 };
@@ -1111,8 +1113,8 @@ create_image_view(
     VkImage image,
     uint32 mipLevels,
     VkFormat format,
-    VkImageAspectFlags aspectFlags
-){
+    VkImageAspectFlags aspectFlags)
+{
     VkImageViewCreateInfo imageViewInfo = { VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO };
     imageViewInfo.image = image;
     imageViewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
@@ -1624,8 +1626,8 @@ TransitionImageLayout(
 }
 
 
-internal VulkanDrawingResources
-CreateDrawingResources(VulkanContext * context)
+internal void
+create_drawing_resources(VulkanContext * context)
 {
     VulkanDrawingResources resultResources = {};
 
@@ -1684,7 +1686,7 @@ CreateDrawingResources(VulkanContext * context)
     TransitionImageLayout(  context->device, context->commandPool, context->graphicsQueue, resultResources.depthImage, depthFormat, 1,
                             VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
 
-    return resultResources;
+    context->drawingResources = resultResources;
 }
 
 internal VkDescriptorPool
@@ -2158,7 +2160,6 @@ vulkan::make_texture(TextureAsset * asset, VulkanContext * context)
         .image      = resultImage,
         .memory     = resultImageMemory,
         .view       = resultView,
-        .mipLevels  = mipLevels,
     };
     return resultTexture;
 }
@@ -2307,14 +2308,13 @@ vulkan::make_cubemap(VulkanContext * context, TextureAsset * assets)
         .image      = resultImage,
         .memory     = resultImageMemory,
         .view       = resultView,
-        .mipLevels  = mipLevels,
     };
     return resultTexture;
 }
 
 
 internal void
-vulkan::DestroyImageTexture(VulkanContext * context, VulkanTexture * texture)
+vulkan::destroy_texture(VulkanContext * context, VulkanTexture * texture)
 {
     vkDestroyImage(context->device, texture->image, nullptr);
     vkFreeMemory(context->device, texture->memory, nullptr);
@@ -2392,28 +2392,24 @@ CleanupSwapchain(VulkanContext * context)
 internal void
 Cleanup(VulkanContext * context)
 {
-    context->UnloadAll();
+    // Note(Leo): these are GraphicsContext things
+    vulkan::unload_scene(context);
 
     CleanupSwapchain(context);
     vkDestroyDescriptorPool(context->device, context->materialDescriptorPool, nullptr);
 
-    for (int i = 0; i < context->loadedTextures.size(); ++i)
-    {
-        vulkan::DestroyImageTexture(context, &context->loadedTextures[i]);
-    }
-
     vkDestroySampler(context->device, context->textureSampler, nullptr);
 
+    // Todo(Leo): When we have scene, or different models, these too move away from here
     vkDestroyDescriptorSetLayout(context->device, context->descriptorSetLayouts.model, nullptr);  
     vkDestroyDescriptorSetLayout(context->device, context->descriptorSetLayouts.scene, nullptr);  
-    // vkDestroyDescriptorSetLayout(context->device, context->descriptorSetLayouts.material, nullptr);  
-    // vkDestroyDescriptorSetLayout(context->device, context->guiDescriptorSetLayout, nullptr);  
 
-    vulkan::DestroyBufferResource(context->device, &context->staticMeshPool);
-    vulkan::DestroyBufferResource(context->device, &context->stagingBufferPool);
-    vulkan::DestroyBufferResource(context->device, &context->modelUniformBuffer);
-    vulkan::DestroyBufferResource(context->device, &context->sceneUniformBuffer);
-    vulkan::DestroyBufferResource(context->device, &context->guiUniformBuffer);
+    vulkan::destroy_buffer_resource(context->device, &context->staticMeshPool);
+    vulkan::destroy_buffer_resource(context->device, &context->stagingBufferPool);
+    vulkan::destroy_buffer_resource(context->device, &context->modelUniformBuffer);
+    vulkan::destroy_buffer_resource(context->device, &context->sceneUniformBuffer);
+    vulkan::destroy_buffer_resource(context->device, &context->guiUniformBuffer);
+
 
     for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i)
     {
@@ -2453,7 +2449,7 @@ CreateCommandBuffers(VulkanContext * context)
 }
 
 internal void
-vulkan::RecreateSwapchain(VulkanContext * context, VkExtent2D frameBufferSize)
+vulkan::recreate_swapchain(VulkanContext * context, VkExtent2D frameBufferSize)
 {
     vkDeviceWaitIdle(context->device);
 
@@ -2467,7 +2463,8 @@ vulkan::RecreateSwapchain(VulkanContext * context, VkExtent2D frameBufferSize)
     recreate_loaded_pipelines(context);
     context->lineDrawPipeline       = vulkan::make_line_pipeline(context, context->lineDrawPipeline.info);
     
-    context->drawingResources       = CreateDrawingResources(context);
+    create_drawing_resources(context);
+    
     context->frameBuffers           = CreateFrameBuffers(context);
     context->uniformDescriptorPool  = CreateDescriptorPool(context->device, context->swapchainItems.images.size());
 
@@ -2537,7 +2534,7 @@ vulkan::draw_frame(VulkanContext * context, uint32 imageIndex, uint32 frameIndex
     // if(result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || context->framebufferResized)
     // {
     //     context->framebufferResized = false;
-    //     RecreateSwapchain(context);
+    //     recreate_swapchain(context);
     // }
     // else if (result != VK_SUCCESS)
     // {
@@ -2621,8 +2618,9 @@ namespace winapi
         resultContext.descriptorSetLayouts.scene    = CreateSceneDescriptorSetLayout(resultContext.device);
         resultContext.descriptorSetLayouts.model    = CreateModelDescriptorSetLayout(resultContext.device);
 
+        create_drawing_resources(&resultContext); 
+        
         // Todo(Leo): This seems rather stupid way to organize creation of these...
-        resultContext.drawingResources          = CreateDrawingResources(&resultContext);
         resultContext.frameBuffers              = CreateFrameBuffers(&resultContext);
         resultContext.uniformDescriptorPool     = CreateDescriptorPool(resultContext.device, resultContext.swapchainItems.images.size());
         resultContext.materialDescriptorPool    = CreateMaterialDescriptorPool(resultContext.device);

@@ -71,7 +71,7 @@ initialize_game_state(GameState * state, game::Memory * memory, game::PlatformIn
 }
 
 internal void
-output_sound(int frameCount, game::StereoSoundSample * samples)
+output_sound(int sampleCount, game::StereoSoundSample * samples)
 {
 	// Note(Leo): Shit these are bad :DD
 	local_persist int runningSampleIndex = 0;
@@ -91,7 +91,7 @@ output_sound(int frameCount, game::StereoSoundSample * samples)
 	// Todo(Leo): get volume from some input structure
 	real32 volume = 0.5f;
 
-	for (int sampleIndex = 0; sampleIndex < frameCount; ++sampleIndex)
+	for (int sampleIndex = 0; sampleIndex < sampleCount; ++sampleIndex)
 	{
 		samples[sampleIndex].left = file.samples[0][fileSampleIndex] * volume;
 		samples[sampleIndex].right = file.samples[1][fileSampleIndex] * volume;
@@ -126,7 +126,8 @@ unload_scene_and_gui(GameState * state, game::PlatformInfo * platform)
 {
 	state->loadedSceneInfo = {};
 
-	platform->graphicsContext->UnloadAll();
+	platform->unload_scene(platform->graphicsContext);
+	// platform->graphicsContext->unload_all();
 	clear_memory_arena(&state->persistentMemoryArena);
 
 	state->loadedScene = nullptr;
@@ -150,10 +151,6 @@ GameUpdate(
 	if it has been moved or whatever in platform layer*/
 	GameState * state = reinterpret_cast<GameState*>(memory->persistentMemory);
 
-
-
-
-
 	if (memory->isInitialized == false)
 	{
 		initialize_game_state (state, memory, platform);
@@ -163,13 +160,13 @@ GameUpdate(
 	}
 	flush_memory_arena(&state->transientMemoryArena);
 	
-	outRenderInfo->start_drawing();
+	outRenderInfo->start_drawing(platform->graphicsContext);
 	if (state->loadedScene != nullptr)
 	{
 		state->loadedSceneInfo.update(state->loadedScene, input, outRenderInfo, platform);
 	}
 	auto guiResult = state->loadedGuiInfo.update(state->loadedGui, input, outRenderInfo, platform);
-	outRenderInfo->finish_drawing();
+	outRenderInfo->finish_drawing(platform->graphicsContext);
 
 
 

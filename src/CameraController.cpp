@@ -36,17 +36,15 @@ struct CameraControllerSideScroller
 };
 
 internal void
-update_camera_system(game::RenderInfo * renderer, game::PlatformInfo * platform, game::Input * input, Camera * camera)
+update_camera_system(game::RenderInfo * renderer, game::PlatformInfo * platform, game::Input * input, Camera * camera, platform::GraphicsContext * graphics)
 {
-	// Note(Leo): Update aspect ratio each frame, in case screen size has changed.
+	/* Note(Leo): Update aspect ratio each frame, in case screen size has changed.
+	This probably costs us less than checking if it has :D */
     camera->aspectRatio = (float)platform->windowWidth / (float)platform->windowHeight;
-
-	// Ccamera
-    renderer->set_camera(	camera->ViewProjection(),
+    renderer->update_camera(graphics,
+    						camera->ViewProjection(),
 							camera->PerspectiveProjection());
 }
-
-
 
 struct CameraController3rdPerson
 {
@@ -85,7 +83,7 @@ make_camera_controller(Camera * camera, Handle<Transform3D> target)
 
 // Todo(Leo): Do I want this really?
 internal void
-update(CameraController3rdPerson * controller, game::Input * input)
+update_camera_controller(CameraController3rdPerson * controller, game::Input * input)
 {
 	if (is_pressed(input->zoomIn))
 	{

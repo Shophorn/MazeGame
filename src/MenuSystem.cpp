@@ -26,7 +26,7 @@ update_gui_render_system(ArenaArray<GuiRendererSystemEntry> system, game::Render
 		}
 
 		Matrix44 transform = Matrix44::Translate({translation.x, translation.y, 0}) * Matrix44::Scale({scale.x, scale.y, 1.0});
-		renderer->draw(entry.renderer->handle, transform);
+		renderer->draw(platform->graphicsContext, entry.renderer->handle, transform);
 	}
 }
 
@@ -110,7 +110,7 @@ load_menu_gui(void * guiPtr, MemoryArena * persistentMemory, MemoryArena * trans
  	MaterialHandle material;
 	// Create MateriaLs
 	{
-		PipelineHandle pipeline = platformInfo->graphicsContext->push_pipeline("shaders/vert_gui.spv", "shaders/frag_gui.spv", {.textureCount = 3});
+		PipelineHandle pipeline = platformInfo->push_pipeline(platformInfo->graphicsContext, "shaders/vert_gui.spv", "shaders/frag_gui.spv", {.textureCount = 3});
 
 		TextureAsset blackTextureAsset = {};
 		blackTextureAsset.pixels = push_array<uint32>(transientMemory, 1);
@@ -119,29 +119,30 @@ load_menu_gui(void * guiPtr, MemoryArena * persistentMemory, MemoryArena * trans
 		blackTextureAsset.height = 1;
 		blackTextureAsset.channels = 4;
 
-		TextureHandle blackTexture = platformInfo->graphicsContext->PushTexture(&blackTextureAsset);
+		TextureHandle blackTexture = platformInfo->push_texture(platformInfo->graphicsContext, &blackTextureAsset);
 
-	    TextureAsset textureAssets [] = {
+	    TextureAsset textureAssets [] =
+	    {
 	        load_texture_asset("textures/lava.jpg", transientMemory),
 	        load_texture_asset("textures/texture.jpg", transientMemory),
 	    };
 
-		TextureHandle texB = platformInfo->graphicsContext->PushTexture(&textureAssets[0]);
-		TextureHandle texC = platformInfo->graphicsContext->PushTexture(&textureAssets[1]);
+		TextureHandle texB = platformInfo->push_texture(platformInfo->graphicsContext, &textureAssets[0]);
+		TextureHandle texC = platformInfo->push_texture(platformInfo->graphicsContext, &textureAssets[1]);
 
 		MaterialAsset materialAsset = make_material_asset(pipeline, push_array(transientMemory, {texB, texC, blackTexture}));
-		material = platformInfo->graphicsContext->PushMaterial(&materialAsset);
+		material = platformInfo->push_material(platformInfo->graphicsContext, &materialAsset);
 	}
 
 	MeshAsset quadAsset = mesh_primitives::create_quad(transientMemory, true);
- 	MeshHandle quadHandle = platformInfo->graphicsContext->PushMesh(&quadAsset);
+ 	MeshHandle quadHandle = platformInfo->push_mesh(platformInfo->graphicsContext, &quadAsset);
 
  	for (int i = 0; i < 4; ++i)
  	{
  		Handle<Rectangle> rectanle = make_handle<Rectangle>({380, (float)(200 + 60 * i), 180, 40});
 
- 		RenderedObjectHandle graphicsHandle = platformInfo->graphicsContext->PushRenderedObject(quadHandle, material);
- 		Handle<Renderer> renderer 			= make_handle<Renderer>({graphicsHandle});
+ 		ModelHandle graphicsHandle = platformInfo->push_model(platformInfo->graphicsContext, quadHandle, material);
+ 		Handle<Renderer> renderer  = make_handle<Renderer>({graphicsHandle});
 
  		push_one(gui->guiRenderSystem, {rectanle, renderer});
  	}

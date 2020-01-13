@@ -15,3 +15,5 @@ misc/
 *.sublime-*
 *.build_output
 *.bat
+
+videocaptures/

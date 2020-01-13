@@ -28,7 +28,7 @@ struct BaseHandle
 using MeshHandle  				= BaseHandle<MESH>;
 using TextureHandle  			= BaseHandle<TEXTURE>;
 using MaterialHandle  			= BaseHandle<MATERIAL>;
-using RenderedObjectHandle  	= BaseHandle<RENDERED_OBJECT>;
+using ModelHandle  	= BaseHandle<RENDERED_OBJECT>;
 using PipelineHandle 			= BaseHandle<PIPELINE>;
 
 struct Vertex

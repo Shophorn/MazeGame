@@ -31,7 +31,7 @@ namespace scene_3d
 		bool32 ladderOn = false;
 		bool32 ladder2On = false;
 
-		RenderedObjectHandle skybox;
+		ModelHandle skybox;
 	};
 
 	internal uint64
@@ -55,14 +55,19 @@ scene_3d::update(void * scenePtr, game::Input * input, game::RenderInfo * render
 	Scene * scene = reinterpret_cast<Scene*>(scenePtr);
 
 	// scene->collisionManager.do_collisions();
-    draw_skybox(scene->skybox, &scene->worldCamera, renderer);
+    draw_skybox(platform->graphicsContext, scene->skybox, &scene->worldCamera, renderer);
 
-	update(&scene->characterController, input, &scene->worldCamera, &scene->collisionSystem, renderer);
+	update_character(	&scene->characterController,
+						input,
+						&scene->worldCamera,
+						&scene->collisionSystem,
+						renderer,
+						platform->graphicsContext);
 	update_animator_system(input, scene->animatorSystem);
 
-	update(&scene->cameraController, input);
-    update_camera_system(renderer, platform, input, &scene->worldCamera);
-	update_render_system(renderer, scene->renderSystem);
+	update_camera_controller(&scene->cameraController, input);
+    update_camera_system(renderer, platform, input, &scene->worldCamera, platform->graphicsContext);
+	update_render_system(platform->graphicsContext, renderer, scene->renderSystem);
 }
 
 internal void 
@@ -90,19 +95,21 @@ scene_3d::load(void * scenePtr, MemoryArena * persistentMemory, MemoryArena * tr
 
 	// Create MateriaLs
 	{
-		PipelineHandle normalPipeline 	= platformInfo->graphicsContext->push_pipeline("shaders/vert.spv", "shaders/frag.spv", {.textureCount = 3});
-		PipelineHandle skyPipeline 		= platformInfo->graphicsContext->push_pipeline("shaders/vert_sky.spv", "shaders/frag_sky.spv", {.enableDepth = false, .textureCount = 1});
+		// PipelineHandle normalPipeline 	= platformInfo->graphicsContext->push_pipeline("shaders/vert.spv", "shaders/frag.spv", {.textureCount = 3});
+		// PipelineHandle skyPipeline 		= platformInfo->graphicsContext->push_pipeline("shaders/vert_sky.spv", "shaders/frag_sky.spv", {.enableDepth = false, .textureCount = 1});
+		PipelineHandle normalPipeline 	= platformInfo->push_pipeline(platformInfo->graphicsContext, "shaders/vert.spv", "shaders/frag.spv", {.textureCount = 3});
+		PipelineHandle skyPipeline 		= platformInfo->push_pipeline(platformInfo->graphicsContext, "shaders/vert_sky.spv", "shaders/frag_sky.spv", {.enableDepth = false, .textureCount = 1});
 
 		TextureAsset whiteTextureAsset = make_texture_asset(push_array<uint32>(transientMemory, {0xffffffff}), 1, 1);
 		TextureAsset blackTextureAsset = make_texture_asset(push_array<uint32>(transientMemory, {0xff000000}), 1, 1);
 
-		TextureHandle whiteTexture = platformInfo->graphicsContext->PushTexture(&whiteTextureAsset);
-		TextureHandle blackTexture = platformInfo->graphicsContext->PushTexture(&blackTextureAsset);
+		TextureHandle whiteTexture = platformInfo->push_texture(platformInfo->graphicsContext, &whiteTextureAsset);
+		TextureHandle blackTexture = platformInfo->push_texture(platformInfo->graphicsContext, &blackTextureAsset);
 
 		auto load_and_push_texture = [transientMemory, platformInfo](const char * path) -> TextureHandle
 		{
 			auto asset = load_texture_asset(path, transientMemory);
-			auto result = platformInfo->graphicsContext->PushTexture(&asset);
+			auto result = platformInfo->push_texture(platformInfo->graphicsContext, &asset);
 			return result;
 		};
 
@@ -114,7 +121,7 @@ scene_3d::load(void * scenePtr, MemoryArena * persistentMemory, MemoryArena * tr
 		auto push_material = [platformInfo, transientMemory](PipelineHandle shader, TextureHandle a, TextureHandle b, TextureHandle c) -> MaterialHandle
 		{
 			MaterialAsset asset = make_material_asset(shader, push_array(transientMemory, {a, b, c}));
-			MaterialHandle handle = platformInfo->graphicsContext->PushMaterial(&asset);
+			MaterialHandle handle = platformInfo->push_material(platformInfo->graphicsContext, &asset);
 			return handle;
 		};
 
@@ -136,29 +143,29 @@ scene_3d::load(void * scenePtr, MemoryArena * persistentMemory, MemoryArena * tr
 			load_texture_asset("textures/miramar_up.png", transientMemory),
 			load_texture_asset("textures/miramar_dn.png", transientMemory),
 		};
-		auto skyboxTexture = platformInfo->graphicsContext->push_cubemap(skyboxTextureAssets);
+		auto skyboxTexture = platformInfo->push_cubemap(platformInfo->graphicsContext, skyboxTextureAssets);
 
 		auto skyMaterialAsset = make_material_asset(skyPipeline, push_array(transientMemory, {skyboxTexture}));	
-		materials.sky 			= platformInfo->graphicsContext->PushMaterial(&skyMaterialAsset);
+		materials.sky 			= platformInfo->push_material(platformInfo->graphicsContext, &skyMaterialAsset);
 	}
 
     auto push_mesh = [platformInfo] (MeshAsset * asset) -> MeshHandle
     {
-    	auto handle = platformInfo->graphicsContext->PushMesh(asset);
+    	auto handle = platformInfo->push_mesh(platformInfo->graphicsContext, asset);
     	return handle;
     };
 
-    auto push_renderer = [platformInfo] (MeshHandle mesh, MaterialHandle material) -> RenderedObjectHandle
+    auto push_model = [platformInfo] (MeshHandle mesh, MaterialHandle material) -> ModelHandle
     {
-    	auto handle = platformInfo->graphicsContext->PushRenderedObject(mesh, material);
+    	auto handle = platformInfo->push_model(platformInfo->graphicsContext, mesh, material);
     	return handle;
     };
 
 	// Skybox
     {
-    	auto meshAsset = create_skybox(transientMemory);
+    	auto meshAsset 	= create_skybox(transientMemory);
     	auto meshHandle = push_mesh(&meshAsset);
-    	scene->skybox = push_renderer(meshHandle, materials.sky);
+    	scene->skybox 	= push_model(meshHandle, materials.sky);
     }
 
 	// Characters
@@ -169,7 +176,7 @@ scene_3d::load(void * scenePtr, MemoryArena * persistentMemory, MemoryArena * tr
 
 		// Our dude
 		auto transform = make_handle<Transform3D>({0, 0, 5});
-		auto renderer = make_handle<Renderer>({push_renderer(characterMeshHandle, materials.character)});
+		auto renderer = make_handle<Renderer>({push_model(characterMeshHandle, materials.character)});
 
 		characterTransform = transform;
 
@@ -182,7 +189,7 @@ scene_3d::load(void * scenePtr, MemoryArena * persistentMemory, MemoryArena * tr
 
 		// Other dude
 		transform 	= make_handle<Transform3D>({2, 0.5f, 12.25f});
-		renderer 	= make_handle<Renderer>({push_renderer(characterMeshHandle, materials.character)});
+		renderer 	= make_handle<Renderer>({push_model(characterMeshHandle, materials.character)});
 		push_one(scene->renderSystem, {transform, renderer});
 	}
 
@@ -209,16 +216,16 @@ scene_3d::load(void * scenePtr, MemoryArena * persistentMemory, MemoryArena * tr
 		constexpr float ladderHeight = 1.0f;
 
 		{
-			// Note(Leo): this is maximum size we support with uint16 indices
+			// Note(Leo): this is maximum size we support with uint16 mesh vertex indices
 			int32 gridSize = 256;
 			float mapSize = 400;
 
 			auto heightmapTexture 	= load_texture_asset("textures/heightmap6.jpg", transientMemory);
 			auto heightmap 			= make_heightmap(transientMemory, &heightmapTexture, gridSize, mapSize, -20, 20);
-			auto groundMeshAsset 	= generate_terrain(transientMemory, gridSize / 2, &heightmap);
+			auto groundMeshAsset 	= generate_terrain(transientMemory, 32, &heightmap);
 
 			auto groundMesh 		= push_mesh(&groundMeshAsset);
-			auto renderer 			= make_handle<Renderer>({push_renderer(groundMesh, materials.ground)});
+			auto renderer 			= make_handle<Renderer>({push_model(groundMesh, materials.ground)});
 			auto transform 			= make_handle<Transform3D>({{-50, -50, 0}});
 
 			push_one(scene->renderSystem, {transform, renderer});
@@ -231,7 +238,7 @@ scene_3d::load(void * scenePtr, MemoryArena * persistentMemory, MemoryArena * tr
 			auto pillarMesh 		= load_model_glb(transientMemory, "models/big_pillar.glb", "big_pillar");
 			auto pillarMeshHandle 	= push_mesh(&pillarMesh);
 
-			auto renderer 	= make_handle<Renderer> ({push_renderer(pillarMeshHandle, materials.environment)});
+			auto renderer 	= make_handle<Renderer> ({push_model(pillarMeshHandle, materials.environment)});
 			auto transform 	= make_handle<Transform3D> ({-width / 4, 0, 0});
 			auto collider 	= make_handle<BoxCollider3D> ({
 				.extents 	= {2, 2, 50},
@@ -241,7 +248,7 @@ scene_3d::load(void * scenePtr, MemoryArena * persistentMemory, MemoryArena * tr
 			push_one(scene->renderSystem, {transform, renderer});
 			push_collider_to_system(&scene->collisionSystem, collider, transform);
 
-			renderer 	= make_handle<Renderer>({push_renderer(pillarMeshHandle, materials.environment)});
+			renderer 	= make_handle<Renderer>({push_model(pillarMeshHandle, materials.environment)});
 			transform 	= make_handle<Transform3D>({width / 4, 0, 0});
 			collider 	= make_handle<BoxCollider3D>({
 				.extents 	= {2, 2, 50},
@@ -271,7 +278,7 @@ scene_3d::load(void * scenePtr, MemoryArena * persistentMemory, MemoryArena * tr
 			int ladderCount = 12;
 			for (int ladderIndex = 0; ladderIndex < ladderCount; ++ladderIndex)
 			{
-				auto renderer 	= make_handle<Renderer>({push_renderer(ladderMeshHandle, materials.environment)});
+				auto renderer 	= make_handle<Renderer>({push_model(ladderMeshHandle, materials.environment)});
 				auto transform 	= make_handle<Transform3D>({});
 
 				push_one(scene->renderSystem, {transform, renderer});
@@ -358,7 +365,7 @@ scene_3d::load(void * scenePtr, MemoryArena * persistentMemory, MemoryArena * tr
 			int platformCount = 12;
 			for (int platformIndex = 0; platformIndex < platformCount; ++platformIndex)
 			{
-				auto renderer 	= make_handle<Renderer>({push_renderer(platformMeshHandle, materials.environment)});
+				auto renderer 	= make_handle<Renderer>({push_model(platformMeshHandle, materials.environment)});
 				auto transform 	= make_handle<Transform3D>({platformPositions[platformIndex]});
 
 				push_one(scene->renderSystem, {transform, renderer});
@@ -369,7 +376,7 @@ scene_3d::load(void * scenePtr, MemoryArena * persistentMemory, MemoryArena * tr
 			auto keyholeMeshAsset 	= load_model_obj(transientMemory, "models/keyhole.obj");
 			auto keyholeMeshHandle 	= push_mesh (&keyholeMeshAsset);
 
-			auto renderer 	= make_handle<Renderer>({push_renderer(keyholeMeshHandle, materials.environment)});
+			auto renderer 	= make_handle<Renderer>({push_model(keyholeMeshHandle, materials.environment)});
 			auto transform 	= make_handle<Transform3D>({Vector3{-3, 0, 0}});
 			auto collider 	= make_handle<BoxCollider3D>({
 				.extents 	= {0.3f, 0.3f, 0.6f},
@@ -379,7 +386,7 @@ scene_3d::load(void * scenePtr, MemoryArena * persistentMemory, MemoryArena * tr
 			push_one(scene->renderSystem, {transform, renderer});
 			push_collider_to_system(&scene->collisionSystem, collider, transform);
 
-			renderer 	= make_handle<Renderer>({push_renderer(keyholeMeshHandle, materials.environment)});
+			renderer 	= make_handle<Renderer>({push_model(keyholeMeshHandle, materials.environment)});
 			transform 	= make_handle<Transform3D>({Vector3{4, 0, 6}});
 			collider 	= make_handle<BoxCollider3D>({
 				.extents 	= {0.3f, 0.3f, 0.6f},

@@ -100,21 +100,6 @@ struct VulkanSyncObjects
     std::vector<VkFence>        inFlightFences;
 };
 
-struct VulkanRenderInfo
-{
-    VkBuffer meshBuffer;
-
-    VkDeviceSize vertexOffset;
-    VkDeviceSize indexOffset;
-    
-    uint32 indexCount;
-    VkIndexType indexType;
-    
-    uint32 uniformBufferOffset;
-
-    uint32 materialIndex;
-};
-
 struct VulkanDrawingResources
 {
 	VkDeviceMemory memory;
@@ -130,13 +115,12 @@ struct VulkanTexture
 {
 	VkImage 		image;
 	VkImageView 	view;
-	uint32 			mipLevels;
 
 	// TODO(Leo): totally not allocate like this, we need texture pool
 	VkDeviceMemory memory;
 };
 
-struct VulkanModel
+struct VulkanMesh
 {
     VkBuffer        buffer;
     VkDeviceMemory  memory;
@@ -147,7 +131,7 @@ struct VulkanModel
     VkIndexType     indexType;
 };
 
-struct VulkanRenderedObject
+struct VulkanModel
 {
 	MeshHandle 		mesh;
 	MaterialHandle 	material;
@@ -176,7 +160,7 @@ struct VulkanLoadedPipeline
 	VkDescriptorSetLayout	materialLayout;
 };
 
-struct VulkanContext : platform::IGraphicsContext
+struct platform::GraphicsContext
 {
 	VkInstance 						instance;
 	VkDevice 						device; // Note(Leo): this is Logical Device.
@@ -204,8 +188,6 @@ struct VulkanContext : platform::IGraphicsContext
     VkRenderPass            renderPass;
     VulkanSwapchainItems 	swapchainItems;
     VulkanSyncObjects       syncObjects;
-
-
 
     // MULTISAMPLING
     VkSampleCountFlagBits msaaSamples;
@@ -239,30 +221,14 @@ struct VulkanContext : platform::IGraphicsContext
     
 
     // Todo(Leo): Use our own arena arrays for these.
-    std::vector<VulkanModel>  			loadedModels;
+    std::vector<VulkanMesh>  			loadedMeshes;
 	std::vector<VulkanTexture> 			loadedTextures;
 	std::vector<VulkanMaterial>			loadedMaterials;
     std::vector<VulkanLoadedPipeline> 	loadedPipelines;
-	std::vector<VulkanRenderedObject>	loadedRenderedObjects;
+	std::vector<VulkanModel>	loadedModels;
 
     VulkanLoadedPipeline 	lineDrawPipeline;
     VulkanMaterial 			lineDrawMaterial;
-
-
-    /// ----- IGraphicsContext interface implementation -----
-	/* Todo(Leo): Making this struct have these and others up is kinda bad mix
-	of different styles, so make that better */
-    MeshHandle 		PushMesh(MeshAsset * mesh);
-    TextureHandle 	PushTexture (TextureAsset * texture);
-    MaterialHandle 	PushMaterial (MaterialAsset * material);
-
-    PipelineHandle	push_pipeline(const char * vertexShaderPath, const char * fragmentShaderPath, platform::PipelineOptions options = {});
-    TextureHandle 	push_cubemap(TextureAsset * assets);
-    
-    RenderedObjectHandle 	PushRenderedObject(MeshHandle mesh, MaterialHandle material);
-
-    void UnloadAll();
-
 
     // uint32 currentDrawImageIndex;
     uint32 currentDrawFrameIndex;
@@ -272,17 +238,10 @@ struct VulkanContext : platform::IGraphicsContext
     bool32 abortFrameDrawing = false;
 };
 
+using VulkanContext = platform::GraphicsContext;
+
 namespace vulkan
 {
-	struct RenderInfo
-	{
-		Matrix44 cameraView;
-		Matrix44 cameraPerspective;
-
-		// Todo(Leo): Are these cool, since they kinda are just pointers to data somewhere else....?? How to know???
-		ArenaArray<Matrix44, RenderedObjectHandle> renderedObjects;
-	};		
-
 	#if MAZEGAME_DEVELOPMENT
 	constexpr bool32 enableValidationLayers = true;
 	#else
@@ -301,20 +260,15 @@ namespace vulkan
 
     constexpr int32 MAX_LOADED_TEXTURES = 100;
 
-	internal VkVertexInputBindingDescription
-	GetVertexBindingDescription ();
+	internal VkVertexInputBindingDescription get_vertex_binding_description ();
+	// Todo(Leo): Remove this 'Array', use somthing else
+	internal Array<VkVertexInputAttributeDescription, 4> get_vertex_attribute_description();
 
-	internal Array<VkVertexInputAttributeDescription, 4>
-	GetVertexAttributeDescriptions();
+	internal VkIndexType convert_index_type(IndexType);
 
-	internal VkIndexType
-	ConvertIndexType(IndexType);
-
-	internal uint32
-	find_memory_type (
-		VkPhysicalDevice 		physicalDevice,
-		uint32 					typeFilter,
-		VkMemoryPropertyFlags 	properties);
+	internal uint32	find_memory_type ( 	VkPhysicalDevice physicalDevice,
+										uint32 typeFilter,
+										VkMemoryPropertyFlags properties);
 
 	internal void
 	CreateBuffer(
@@ -326,16 +280,12 @@ namespace vulkan
 	    VkBuffer *              resultBuffer,
 	    VkDeviceMemory *        resultBufferMemory);
 
-	internal void
-	CreateBufferResource(
-		VulkanContext *			context,
-		VkDeviceSize			size,
-		VkBufferUsageFlags		usage,
-		VkMemoryPropertyFlags	memoryProperties,
-		VulkanBufferResource *  result);
+	internal VulkanBufferResource make_buffer_resource(	VulkanContext * context,
+														VkDeviceSize size,
+														VkBufferUsageFlags usage,
+														VkMemoryPropertyFlags memoryProperties);
 
-	internal void
-	DestroyBufferResource(VkDevice logicalDevice, VulkanBufferResource * resource);
+	internal void destroy_buffer_resource(VkDevice logicalDevice, VulkanBufferResource * resource);
 
     internal inline bool32
     FormatHasStencilComponent(VkFormat format)
@@ -369,70 +319,46 @@ namespace vulkan
 	    return result;
 	}
 	
-	internal VulkanSwapchainSupportDetails
-	QuerySwapChainSupport(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface);
+	#pragma message ("Organize here before too late")
+	internal VulkanSwapchainSupportDetails QuerySwapChainSupport(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface);
+	internal VkSurfaceFormatKHR ChooseSwapSurfaceFormat(std::vector<VkSurfaceFormatKHR>& availableFormats);
+	internal VkPresentModeKHR ChooseSurfacePresentMode(std::vector<VkPresentModeKHR> & availablePresentModes);
+	internal VulkanQueueFamilyIndices FindQueueFamilies (VkPhysicalDevice device, VkSurfaceKHR surface);
+	internal VkShaderModule CreateShaderModule(BinaryAsset code, VkDevice logicalDevice);
+	internal void recreate_swapchain(VulkanContext * context, VkExtent2D frameBufferSize);
 
-	internal VkSurfaceFormatKHR
-	ChooseSwapSurfaceFormat(std::vector<VkSurfaceFormatKHR>& availableFormats);
+	internal void draw_frame(VulkanContext * context, uint32 imageIndex, uint32 frameIndex);
 
-	internal VkPresentModeKHR
-	ChooseSurfacePresentMode(std::vector<VkPresentModeKHR> & availablePresentModes);
+	internal VulkanLoadedPipeline make_pipeline(VulkanContext * context, VulkanPipelineLoadInfo loadInfo);
+	internal VulkanLoadedPipeline make_line_pipeline(VulkanContext * context, VulkanPipelineLoadInfo loadInfo);
+	internal void destroy_pipeline(VulkanContext * context, VulkanLoadedPipeline * pipeline);
 
-	VulkanQueueFamilyIndices
-	FindQueueFamilies (VkPhysicalDevice device, VkSurfaceKHR surface);
-
-	VkShaderModule
-	CreateShaderModule(BinaryAsset code, VkDevice logicalDevice);
-
-	internal void
-	UpdateUniformBuffer(VulkanContext * context, uint32 imageIndex, vulkan::RenderInfo * renderInfo);
-
-	internal void
-	draw_frame(VulkanContext * context, uint32 imageIndex, uint32 frameIndex);
-
-	internal void
-	RecreateSwapchain(VulkanContext * context, VkExtent2D frameBufferSize);
-
-	internal void
-	RefreshCommandBuffers(VulkanContext * context);
-
-	internal VulkanTexture
-	make_texture(TextureAsset * asset, VulkanContext * context);
-
+	internal VulkanTexture make_texture(TextureAsset * asset, VulkanContext * context);
 	// Todo(Leo): Use some structure with fixed size of six TextureAssets in place of 'assets'
-	internal VulkanTexture
-	make_cubemap(VulkanContext * context, TextureAsset * assets);
+	internal VulkanTexture make_cubemap(VulkanContext * context, TextureAsset * assets);
+	internal void destroy_texture(VulkanContext * context, VulkanTexture * texture);
 
-	internal VkDescriptorSet
-	make_material_descriptor_set(	VulkanContext * context,
-									PipelineHandle pipeline,
-									ArenaArray<TextureHandle> textures);
+	internal VkDescriptorSetLayout create_material_descriptor_set_layout(VkDevice device, uint32 textureCount);
+	internal VkDescriptorSet make_material_descriptor_set(	VulkanContext * context,
+															PipelineHandle pipeline,
+															ArenaArray<TextureHandle> textures);
 
-	internal void
-	DestroyImageTexture(VulkanContext * context, VulkanTexture * texture);
+	// Note(Leo): SCENE and DRAWING functions are passed as pointers to game layer.
+	/// SCENE
+    internal TextureHandle 	push_texture (VulkanContext * context, TextureAsset * texture);
+    internal MaterialHandle push_material (VulkanContext * context, MaterialAsset * asset);
+    internal MeshHandle 	push_mesh(VulkanContext * context, MeshAsset * mesh);
+    internal ModelHandle 	push_model (VulkanContext * context, MeshHandle mesh, MaterialHandle material);
+    internal TextureHandle 	push_cubemap(VulkanContext * context, TextureAsset * assets);
+    internal PipelineHandle push_pipeline(VulkanContext * context, const char * vertexShaderPath, const char * fragmentShaderPath, platform::PipelineOptions options);
+    internal void 			unload_scene(VulkanContext * context);
 
-	internal VulkanLoadedPipeline
-	make_pipeline(VulkanContext * context, VulkanPipelineLoadInfo loadInfo);
-
-	internal VulkanLoadedPipeline
-	make_line_pipeline(VulkanContext * context, VulkanPipelineLoadInfo loadInfo);
-
-	internal void
-	destroy_pipeline(VulkanContext * context, VulkanLoadedPipeline * pipeline);
-
-
-	internal VkDescriptorSetLayout
-	create_material_descriptor_set_layout(VkDevice device, uint32 textureCount);
-
-	// DRAWING?
-	void
-	start_drawing(VulkanContext * context, uint32 frameIndex);
-
-	void
-	finish_drawing(VulkanContext * context);
-
-	void record_draw_command(VulkanContext * context, RenderedObjectHandle handle, Matrix44 transform);
-	void record_line_draw_command(VulkanContext * context, Vector3 start, Vector3 end, Vector3 color);
+	/// DRAWING
+    internal void update_camera(VulkanContext * context, Matrix44 view, Matrix44 perspective);
+	internal void start_drawing(VulkanContext * context);
+	internal void finish_drawing(VulkanContext * context);
+	internal void record_draw_command(VulkanContext * context, ModelHandle handle, Matrix44 transform);
+	internal void record_line_draw_command(VulkanContext * context, Vector3 start, Vector3 end, float4 color);
 }
 
 

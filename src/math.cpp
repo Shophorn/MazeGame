@@ -33,8 +33,7 @@ CeilTo(FloatType value)
 template <typename TTo, typename TFrom>
 internal TTo round_to(TFrom value);
 
-template<>
-internal int32
+template<> int32
 round_to<int32, float>(float value)
 {
     if (value < 0.0f)
@@ -44,8 +43,7 @@ round_to<int32, float>(float value)
     return static_cast<int32>(value);
 }
 
-template<>
-internal uint32
+template<> uint32
 round_to<uint32, float>(float value)
 {
     value += 0.5f;

@@ -49,11 +49,13 @@ ProcessCharacterInput(game::Input * input, Camera * camera)
 }
 
 void
-update(	CharacterController3rdPerson * 	controller,
+update_character(	
+		CharacterController3rdPerson * 	controller,
 		game::Input * 					input,
 		Camera * 						worldCamera,
 		CollisionSystem3D *				collisionSystem,
-		game::RenderInfo *				rendering)
+		game::RenderInfo *				rendering,
+		platform::GraphicsContext * 	graphics)
 {
 	Vector3 movementVector = ProcessCharacterInput(input, worldCamera) * controller->speed * input->elapsedTime;
 
@@ -87,13 +89,12 @@ update(	CharacterController3rdPerson * 	controller,
 			bool32 hit = raycast_3d(collisionSystem, start, direction, distance, &raycastResult);
 			rayHit = rayHit || hit;
 
-			rendering->draw_line(start, start + direction, {1, 1, 0});//hit ? Vector3{0, 1, 0} : Vector3 {1, 0, 0});
+			rendering->draw_line(graphics, start, start + direction, (hit ? float4 {0, 1, 0} : float4 {1, 0, 0}));
 
 		}
 
 		if (rayHit == false)
 		{
-			// controller->transform->position += movementVector;S
 			controller->transform->position += direction * distance;
 		}
 		else
@@ -105,11 +106,6 @@ update(	CharacterController3rdPerson * 	controller,
 			auto projectionOnNormal = vector::project(direction * distance, raycastResult.hitNormal);
 			// controller->transform->position += direction * distance - projectionOnNormal;
 		}
-
-		rendering->draw_line(controller->hitRayPosition, vector::normalize(controller->hitRayNormal), {1,1,1});
-		// rendering->draw_line(controller->hitRayPosition, controller->hitRayNormal, {1,1,1});
-
-
 
 		float angleToWorldForward 		= vector::get_signed_angle(World::Forward, direction, World::Up);
 		controller->transform->rotation = Quaternion::AxisAngle(World::Up, angleToWorldForward);

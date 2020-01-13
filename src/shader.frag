@@ -27,7 +27,9 @@ const vec3 ambientColor 	= vec3(0.2, 0.2, 0.3);
 void main()
 {
 	float ldotn = dot(-lightDirection, fragNormal);
-	float ligthIntensity = mix(ldotn, step(0, ldotn), 0.9);
+	float ligthIntensity = smoothstep(-0.05, 0.05, ldotn);
+	ligthIntensity = mix(ldotn, ligthIntensity, 0.85);
+	// float ligthIntensity = mix(ldotn, step(0, ldotn), 0.9);
 
 
 	vec3 albedo = texture(texSampler[ALBEDO_INDEX], fragTexCoord).rgb;

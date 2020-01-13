@@ -13,6 +13,7 @@ void main()
 {
 	vec4 albedo = texture(texSampler, fragTexCoord);
 
+
 	outColor = albedo;
 	// outColor.a = 1.0;
 }

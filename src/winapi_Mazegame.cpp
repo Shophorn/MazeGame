@@ -63,6 +63,7 @@ ReadBinaryFile (const char * fileName)
     return result;    
 }
 
+#pragma message ("Remove")
 enum : int32
 {
     DESCRIPTOR_SET_LAYOUT_SCENE_UNIFORM = 0,
@@ -277,6 +278,14 @@ Run(HINSTANCE winInstance)
             winapi::SetWindowFullScreen(winWindow, &state, fullscreen);
             state.gamePlatformInfo.windowIsFullscreen = state.windowIsFullscreen;
         };
+
+        state.gamePlatformInfo.push_mesh        = vulkan::push_mesh;
+        state.gamePlatformInfo.push_model       = vulkan::push_model;
+        state.gamePlatformInfo.push_material    = vulkan::push_material;
+        state.gamePlatformInfo.push_texture     = vulkan::push_texture;
+        state.gamePlatformInfo.push_cubemap     = vulkan::push_cubemap;
+        state.gamePlatformInfo.push_pipeline    = vulkan::push_pipeline;
+        state.gamePlatformInfo.unload_scene     = vulkan::unload_scene;   
     }
 
     // ------- MEMORY ---------------------------
@@ -320,33 +329,33 @@ Run(HINSTANCE winInstance)
 
         // TODO[MEMORY] (Leo): This will need guarding against multithreads once we get there
         // Static mesh pool
-        vulkan::CreateBufferResource(   &context, staticMeshPoolSize,
+        context.staticMeshPool = vulkan::make_buffer_resource(  
+                                        &context, staticMeshPoolSize,
                                         VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-                                        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-                                        &context.staticMeshPool);
+                                        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
         // Staging buffer
-        vulkan::CreateBufferResource(   &context, stagingBufferPoolSize,
+        context.stagingBufferPool = vulkan::make_buffer_resource(  
+                                        &context, stagingBufferPoolSize,
                                         VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                                        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                                        &context.stagingBufferPool);
+                                        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
         // Uniform buffer for model matrices. This means every model including scenery.
-        vulkan::CreateBufferResource(   &context, modelUniformBufferSize,
+        context.modelUniformBuffer = vulkan::make_buffer_resource(  
+                                        &context, modelUniformBufferSize,
                                         VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-                                        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                                        &context.modelUniformBuffer);
+                                        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
         // Uniform buffer for scene data, ie. camera, lights etc.
-        vulkan::CreateBufferResource(   &context, sceneUniformBufferSize,
+        context.sceneUniformBuffer = vulkan::make_buffer_resource(
+                                        &context, sceneUniformBufferSize,
                                         VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-                                        VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
-                                        &context.sceneUniformBuffer);
+                                        VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
 
         // Uniform buffer for gui elements
-        vulkan::CreateBufferResource(   &context, guiUniformBufferSize,
+        context.guiUniformBuffer = vulkan::make_buffer_resource( 
+                                        &context, guiUniformBufferSize,
                                         VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-                                        VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
-                                        &context.guiUniformBuffer);
+                                        VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
     }
 
     // -------- DRAWING ---------
@@ -360,63 +369,13 @@ Run(HINSTANCE winInstance)
     int32 currentLoopingFrameIndex = 0;
 
     game::RenderInfo gameRenderInfo = {};
-    vulkan::RenderInfo platformRenderInfo = {};
+    // vulkan::RenderInfo platformRenderInfo = {};
     {
-        /* Todo(Leo): We are currently pushing for worst case. It is ok because
-        push_array is super cheap and memory is available anyway. However we may
-        want to be more exact */
-        platformRenderInfo.renderedObjects = push_array<Matrix44, RenderedObjectHandle>(
-                                            &platformTransientMemoryArena, VULKAN_MAX_MODEL_COUNT);
-
-        // Todo(Leo): define these somewhere else as proper functions and not lamdas??
-        gameRenderInfo.draw = [&context, &platformRenderInfo](RenderedObjectHandle handle, Matrix44 transform)
-        {
-            platformRenderInfo.renderedObjects[handle] = transform;
-
-            // Todo(Leo): Single mapping is really enough, offsets can be used here too
-            uint32 startUniformBufferOffset = vulkan::GetModelUniformBufferOffsetForSwapchainImages(&context, context.currentDrawFrameIndex);
-
-            Matrix44 * pModelMatrix;
-            vkMapMemory(context.device, context.modelUniformBuffer.memory, 
-                        startUniformBufferOffset + context.loadedRenderedObjects[handle].uniformBufferOffset,
-                        sizeof(pModelMatrix), 0, (void**)&pModelMatrix);
-
-            *pModelMatrix = transform;
-            vkUnmapMemory(context.device, context.modelUniformBuffer.memory);
-
-
-            vulkan::record_draw_command(&context, handle, transform);
-        };
-
-
-        gameRenderInfo.start_drawing = [&context]()
-        {
-            vulkan::start_drawing(&context, context.currentDrawFrameIndex);
-        };
-        gameRenderInfo.finish_drawing = [&context]()
-        {
-            vulkan::finish_drawing(&context);
-        };
-
-
-        gameRenderInfo.set_camera = [&context, &platformRenderInfo](Matrix44 view, Matrix44 perspective)
-        {
-            // Note (Leo): map vulkan memory directly to right type so we can easily avoid one (small) memcpy per frame
-            VulkanCameraUniformBufferObject * pUbo;
-            vkMapMemory(context.device, context.sceneUniformBuffer.memory,
-                        vulkan::GetSceneUniformBufferOffsetForSwapchainImages(&context, context.currentDrawFrameIndex),
-                        sizeof(VulkanCameraUniformBufferObject), 0, (void**)&pUbo);
-
-            pUbo->view          = view;
-            pUbo->perspective   = perspective;
-
-            vkUnmapMemory(context.device, context.sceneUniformBuffer.memory);
-        };
-
-        gameRenderInfo.draw_line = [&context](Vector3 start, Vector3 end, Vector3 color)
-        {
-            vulkan::record_line_draw_command(&context, start, end, color);
-        };
+        gameRenderInfo.draw             = vulkan::record_draw_command;
+        gameRenderInfo.start_drawing    = vulkan::start_drawing;
+        gameRenderInfo.finish_drawing   = vulkan::finish_drawing;
+        gameRenderInfo.draw_line        = vulkan::record_line_draw_command;
+        gameRenderInfo.update_camera    = vulkan::update_camera;
     }
 
     // -------- INITIALIZE NETWORK ---------
@@ -640,7 +599,7 @@ Run(HINSTANCE winInstance)
 
                 case VK_SUBOPTIMAL_KHR:
                 case VK_ERROR_OUT_OF_DATE_KHR:
-                    vulkan::RecreateSwapchain(&context, state.GetFrameBufferSize());
+                    vulkan::recreate_swapchain(&context, state.GetFrameBufferSize());
                     break;
 
                 default:
@@ -720,6 +679,8 @@ WinMain(
     LPSTR       cmdLine,
     int         showCommand)
 {
+    /* Todo(Leo): we should make a decision about how we handle errors etc.
+    Currently there are exceptions (which lead here) and asserts mixed ;) */
     try {
         Run(winInstance);
     } catch (const std::exception& e) {
