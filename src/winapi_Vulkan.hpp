@@ -10,7 +10,7 @@ STUDY: https://devblogs.nvidia.com/vulkan-dos-donts/
 
 #ifndef WIN_VULKAN_HPP
 
-constexpr int32 MAX_FRAMES_IN_FLIGHT = 2;
+// constexpr int32 MAX_FRAMES_IN_FLIGHT = 2;
 // constexpr int32 VIRTUAL_FRAME_COUNT = 2;
 
 
@@ -154,11 +154,12 @@ struct VulkanLoadedPipeline
 struct VulkanVirtualFrame
 {
 	VkCommandBuffer commandBuffer;
-	VkFramebuffer frameBuffer;
 
-	VkSemaphore imageAvailable;
-	VkSemaphore renderFinished;
-	VkFence commanBufferFreeFence;
+	VkSemaphore 	imageAvailableSemaphore;
+	VkSemaphore 	renderFinishedSemaphore;
+	VkFence 		inFlightFence;
+	
+	VkFramebuffer 	frameBuffer;
 };
 
 struct platform::GraphicsContext
@@ -173,11 +174,15 @@ struct platform::GraphicsContext
 	VkQueue 						presentQueue;
 
 	VkCommandPool 					commandPool;
-    std::vector<VkCommandBuffer>    frameCommandBuffers;
+    
     std::vector<VkFramebuffer>      frameBuffers;
-    std::vector<VkSemaphore>    	imageAvailableSemaphores;
-    std::vector<VkSemaphore>    	renderFinishedSemaphores;
-    std::vector<VkFence>        	inFlightFences;
+
+    std::vector<VkCommandBuffer>    frameCommandBuffers;
+    // std::vector<VkSemaphore>    	imageAvailableSemaphores;
+    // std::vector<VkSemaphore>    	renderFinishedSemaphores;
+    // std::vector<VkFence>        	inFlightFences;
+
+    std::vector<VulkanVirtualFrame> virtualFrames;
 
 	/* Todo(Leo): There is one layout for each of [models, scene data, materials].*/
     // VkDescriptorSetLayout 	descriptorSetLayouts [3];

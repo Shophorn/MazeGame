@@ -546,12 +546,12 @@ Run(HINSTANCE winInstance)
         if (state.isRunning && state.windowIsDrawable())
         {
             // Todo(Leo): Study fences
-            vkWaitForFences(vulkanContext.device, 1, &vulkanContext.inFlightFences[currentLoopingFrameIndex],
+            vkWaitForFences(vulkanContext.device, 1, &vulkanContext.virtualFrames[currentLoopingFrameIndex].inFlightFence,
                             VK_TRUE, VULKAN_NO_TIME_OUT);
 
             uint32 imageIndex;
             VkResult getNextImageResult = vkAcquireNextImageKHR(vulkanContext.device, vulkanContext.swapchainItems.swapchain, MaxValue<uint64>,
-                                                    vulkanContext.imageAvailableSemaphores[currentLoopingFrameIndex],
+                                                    vulkanContext.virtualFrames[currentLoopingFrameIndex].imageAvailableSemaphore,
                                                     VK_NULL_HANDLE, &imageIndex);
             
             vulkanContext.currentDrawFrameIndex = imageIndex;
@@ -586,7 +586,7 @@ Run(HINSTANCE winInstance)
             {
                 case VK_SUCCESS:
                     vulkan::draw_frame(&vulkanContext, imageIndex, currentLoopingFrameIndex);
-                    currentLoopingFrameIndex = (currentLoopingFrameIndex + 1) % MAX_FRAMES_IN_FLIGHT;
+                    currentLoopingFrameIndex = (currentLoopingFrameIndex + 1) % vulkanContext.virtualFrames.size();
                     break;
 
                 case VK_SUBOPTIMAL_KHR:

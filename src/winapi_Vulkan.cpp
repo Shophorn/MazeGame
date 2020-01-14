@@ -1466,34 +1466,6 @@ CreateSceneDescriptorSetLayout(VkDevice device)
     return resultDescriptorSetLayout;
 }
 
-internal void
-create_sync_objects(VulkanContext * context)
-{
-    // VulkanSyncObjects resultSyncObjects = {};
-
-    context->imageAvailableSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
-    context->renderFinishedSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
-    context->inFlightFences.resize(MAX_FRAMES_IN_FLIGHT);
-
-    VkSemaphoreCreateInfo semaphoreInfo = {};
-    semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-
-    VkFenceCreateInfo fenceInfo = {};
-    fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-    fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-
-    for (int i = 0; i <MAX_FRAMES_IN_FLIGHT; ++i)
-    {
-        if (
-            vkCreateSemaphore(context->device, &semaphoreInfo, nullptr, &context->imageAvailableSemaphores[i]) != VK_SUCCESS
-            || vkCreateSemaphore(context->device, &semaphoreInfo, nullptr, &context->renderFinishedSemaphores[i]) != VK_SUCCESS
-            || vkCreateFence(context->device, &fenceInfo, nullptr, &context->inFlightFences[i]) != VK_SUCCESS)
-        {
-            throw std::runtime_error("Failed to create semaphores");
-        }
-    }
-}
-
 
 // Change image layout from stored pixel array layout to device optimal layout
 internal void
@@ -2386,14 +2358,13 @@ Cleanup(VulkanContext * context)
     vulkan::destroy_buffer_resource(context->device, &context->sceneUniformBuffer);
     vulkan::destroy_buffer_resource(context->device, &context->guiUniformBuffer);
 
-
-    for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i)
+    for (auto & frame : context->virtualFrames)
     {
-        vkDestroySemaphore(context->device, context->renderFinishedSemaphores[i], nullptr);
-        vkDestroySemaphore(context->device, context->imageAvailableSemaphores[i], nullptr);
-
-        vkDestroyFence(context->device, context->inFlightFences[i], nullptr);
+        vkDestroySemaphore(context->device, frame.imageAvailableSemaphore, nullptr);
+        vkDestroySemaphore(context->device, frame.renderFinishedSemaphore, nullptr);
+        vkDestroyFence(context->device, frame.inFlightFence, nullptr);
     }
+
 
     vkDestroyCommandPool(context->device, context->commandPool, nullptr);
 
@@ -2403,10 +2374,11 @@ Cleanup(VulkanContext * context)
 }
 
 internal void
-create_command_buffers(VulkanContext * context)
+create_virtual_frames(VulkanContext * context)
 {
-    int32 framebufferCount = context->frameBuffers.size();
-    context->frameCommandBuffers.resize(framebufferCount);
+    int32 virtualFrameCount = context->frameBuffers.size();
+
+    context->frameCommandBuffers.resize(virtualFrameCount);
 
     VkCommandBufferAllocateInfo allocateInfo =
     {
@@ -2421,7 +2393,38 @@ create_command_buffers(VulkanContext * context)
         throw std::runtime_error("Failed to allocate command buffers");
     }
 
-    return;
+    
+    context->virtualFrames.resize(virtualFrameCount);
+    // context->imageAvailableSemaphores.resize(virtualFrameCount);
+    // context->renderFinishedSemaphores.resize(virtualFrameCount);
+    // context->inFlightFences.resize(virtualFrameCount);
+
+    VkSemaphoreCreateInfo semaphoreInfo = {};
+    semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+    VkFenceCreateInfo fenceInfo = {};
+    fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+
+    for (auto & frame : context->virtualFrames)
+    {
+        bool32 a = (vkCreateSemaphore(context->device, &semaphoreInfo, nullptr, &frame.imageAvailableSemaphore) == VK_SUCCESS);
+        bool32 b = (vkCreateSemaphore(context->device, &semaphoreInfo, nullptr, &frame.renderFinishedSemaphore) == VK_SUCCESS);
+        bool32 c = (vkCreateFence(context->device, &fenceInfo, nullptr, &frame.inFlightFence) == VK_SUCCESS);
+
+        DEVELOPMENT_ASSERT(a && b && c, "Failed to create syncronization items for virtual frame");
+    }
+
+    // for (int i = 0; i <virtualFrameCount; ++i)
+    // {
+    //     if (
+    //         vkCreateSemaphore(context->device, &semaphoreInfo, nullptr, &context->imageAvailableSemaphores[i]) != VK_SUCCESS
+    //         || vkCreateSemaphore(context->device, &semaphoreInfo, nullptr, &context->virtualFrames[i].renderFinishedSemaphore) != VK_SUCCESS
+    //         || vkCreateFence(context->device, &fenceInfo, nullptr, &context->virtualFrames[i].inFlightFence) != VK_SUCCESS)
+    //     {
+    //         throw std::runtime_error("Failed to create semaphores");
+    //     }
+    // }
 }
 
 internal void
@@ -2523,8 +2526,7 @@ namespace winapi
         
         // Todo(Leo): This seems rather stupid way to organize creation of these...
         create_frame_buffers(&resultContext);
-        create_sync_objects(&resultContext);
-        create_command_buffers(&resultContext);
+        create_virtual_frames(&resultContext);
 
         {
             VulkanPipelineLoadInfo info = 

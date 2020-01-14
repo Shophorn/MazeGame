@@ -13,15 +13,20 @@ vulkan::draw_frame(VulkanContext * context, uint32 imageIndex, uint32 frameIndex
     bool32 skipFrame            = context->abortFrameDrawing;
     context->abortFrameDrawing  = false;
 
+
+    VulkanVirtualFrame * frame = &context->virtualFrames[frameIndex];
+
+
+
     /* Note(Leo): reset here, so that if we have recreated swapchain above,
     our fences will be left in signaled state */
-    vkResetFences(context->device, 1, &context->inFlightFences[frameIndex]);
+    vkResetFences(context->device, 1, &frame->inFlightFence);
 
 
     // Note(Leo): We wait for these BEFORE drawing
-    VkSemaphore waitSemaphore           = context->imageAvailableSemaphores[frameIndex];
+    VkSemaphore waitSemaphore           = frame->imageAvailableSemaphore;
     VkPipelineStageFlags waitStage      = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    VkSemaphore signalSemaphore         = context->renderFinishedSemaphores[frameIndex];
+    VkSemaphore signalSemaphore         = frame->renderFinishedSemaphore;
     
     VkSubmitInfo submitInfo =
     {
@@ -39,7 +44,7 @@ vulkan::draw_frame(VulkanContext * context, uint32 imageIndex, uint32 frameIndex
         .pSignalSemaphores      = &signalSemaphore,
     };
 
-    if (vkQueueSubmit(context->graphicsQueue, 1, &submitInfo, context->inFlightFences[frameIndex]) != VK_SUCCESS)
+    if (vkQueueSubmit(context->graphicsQueue, 1, &submitInfo, context->virtualFrames[frameIndex].inFlightFence) != VK_SUCCESS)
     {
         throw std::runtime_error("Failed to submit draw command buffer");
     }
