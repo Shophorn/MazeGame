@@ -5,6 +5,73 @@ shophorn @ internet
 Vulkan drawing functions' definitions.
 =============================================================================*/
 
+internal void
+vulkan::draw_frame(VulkanContext * context, uint32 imageIndex, uint32 frameIndex)
+{
+    /* Note(Leo): these have to do with sceneloading in game layer. We are then unloading
+    all resources associated with command buffer, which makes it invalid to submit to queue */
+    bool32 skipFrame            = context->abortFrameDrawing;
+    context->abortFrameDrawing  = false;
+
+    /* Note(Leo): reset here, so that if we have recreated swapchain above,
+    our fences will be left in signaled state */
+    vkResetFences(context->device, 1, &context->inFlightFences[frameIndex]);
+
+
+    // Note(Leo): We wait for these BEFORE drawing
+    VkSemaphore waitSemaphore           = context->imageAvailableSemaphores[frameIndex];
+    VkPipelineStageFlags waitStage      = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    VkSemaphore signalSemaphore         = context->renderFinishedSemaphores[frameIndex];
+    
+    VkSubmitInfo submitInfo =
+    {
+        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+
+        .waitSemaphoreCount     = 1,
+        .pWaitSemaphores        = &waitSemaphore,
+        .pWaitDstStageMask      = &waitStage,
+
+        .commandBufferCount     = (uint32)(skipFrame ? 0 : 1),
+        .pCommandBuffers        = &context->frameCommandBuffers[imageIndex],
+
+        // Note(Leo): We signal these AFTER drawing
+        .signalSemaphoreCount   = 1,
+        .pSignalSemaphores      = &signalSemaphore,
+    };
+
+    if (vkQueueSubmit(context->graphicsQueue, 1, &submitInfo, context->inFlightFences[frameIndex]) != VK_SUCCESS)
+    {
+        throw std::runtime_error("Failed to submit draw command buffer");
+    }
+
+    VkPresentInfoKHR presentInfo =
+    {
+        .sType               = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+        .waitSemaphoreCount  = 1,
+        .pWaitSemaphores     = &signalSemaphore,
+        .pResults            = nullptr,
+
+        .swapchainCount  = 1,
+        .pSwapchains     = &context->swapchainItems.swapchain,
+        .pImageIndices   = &imageIndex,
+    };
+
+    // Todo(Leo): Should we do something about this??
+    VkResult result = vkQueuePresentKHR(context->presentQueue, &presentInfo);
+
+    // // Todo, Study(Leo): Somebody on interenet told us to do this. No Idea why???
+    // // Note(Leo): Do after presenting to not interrupt semaphores at whrong time
+    // if(result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || context->framebufferResized)
+    // {
+    //     context->framebufferResized = false;
+    //     recreate_swapchain(context);
+    // }
+    // else if (result != VK_SUCCESS)
+    // {
+    //     throw std::runtime_error("Failed to present swapchain");
+    // }
+}
+
 void 
 vulkan::update_camera(VulkanContext * context, Matrix44 view, Matrix44 perspective)
 {
@@ -22,20 +89,25 @@ vulkan::update_camera(VulkanContext * context, Matrix44 view, Matrix44 perspecti
 }
 
 void
-vulkan::start_drawing(VulkanContext * context)
+vulkan::prepare_drawing(VulkanContext * context)
 {
-    // std::cout << "[vulkan::start_drawing()]\n";
+    // std::cout << "[vulkan::prepare_drawing()]\n";
     uint32 frameIndex = context->currentDrawFrameIndex;
     context->currentUniformBufferOffset = 0;
 
-    DEVELOPMENT_ASSERT((context->canDraw == false), "Invalid call to start_drawing() when finish_drawing() has not been called.")
+    DEVELOPMENT_ASSERT((context->canDraw == false), "Invalid call to prepare_drawing() when finish_drawing() has not been called.")
     
     context->currentDrawFrameIndex = frameIndex;
     context->canDraw = true;
 
     VkCommandBuffer commandBuffer = context->frameCommandBuffers[context->currentDrawFrameIndex];
 
-    // CLEAR COMMAND BUFFER
+    /*
+    clear command buffer
+    
+    Note(Leo): according to this, 'vkBeginCommandBuffer' resets command buffer implicitly
+    https://software.intel.com/en-us/articles/api-without-secrets-introduction-to-vulkan-part-4#inpage-nav-5
+    */
     vkResetCommandBuffer(commandBuffer, 0);
 
     VkCommandBufferBeginInfo beginInfo =
@@ -74,7 +146,7 @@ vulkan::start_drawing(VulkanContext * context)
 void
 vulkan::finish_drawing(VulkanContext * context)
 {
-    DEVELOPMENT_ASSERT(context->canDraw, "Invalid call to finish_drawing() when start_drawing() has not been called.")
+    DEVELOPMENT_ASSERT(context->canDraw, "Invalid call to finish_drawing() when prepare_drawing() has not been called.")
     context->canDraw = false;
     context->currentBoundPipeline = PipelineHandle::Null;
 
@@ -102,7 +174,7 @@ vulkan::record_draw_command(VulkanContext * context, ModelHandle model, Matrix44
     vkUnmapMemory(context->device, context->modelUniformBuffer.memory);
 
     // std::cout << "[vulkan::record_draw_command()]\n";
-    DEVELOPMENT_ASSERT(context->canDraw, "Invalid call to record_draw_command() when start_drawing() has not been called.")
+    DEVELOPMENT_ASSERT(context->canDraw, "Invalid call to record_draw_command() when prepare_drawing() has not been called.")
 
     VkCommandBuffer commandBuffer   = context->frameCommandBuffers[context->currentDrawFrameIndex];
  
@@ -202,7 +274,7 @@ vulkan::record_line_draw_command(VulkanContext * context, Vector3 start, Vector3
     vulkan bufferless drawing
     https://www.saschawillems.de/blog/2016/08/13/vulkan-tutorial-on-rendering-a-fullscreen-quad-without-buffers/
     */
-    DEVELOPMENT_ASSERT(context->canDraw, "Invalid call to record_line_draw_command() when start_drawing() has not been called.")
+    DEVELOPMENT_ASSERT(context->canDraw, "Invalid call to record_line_draw_command() when prepare_drawing() has not been called.")
 
     VkCommandBuffer commandBuffer = context->frameCommandBuffers[context->currentDrawFrameIndex];
  

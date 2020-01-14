@@ -160,7 +160,7 @@ GameUpdate(
 	}
 	flush_memory_arena(&state->transientMemoryArena);
 	
-	outRenderInfo->start_drawing(platform->graphicsContext);
+	outRenderInfo->prepare_drawing(platform->graphicsContext);
 	if (state->loadedScene != nullptr)
 	{
 		state->loadedSceneInfo.update(state->loadedScene, input, outRenderInfo, platform);

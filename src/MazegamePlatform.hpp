@@ -170,7 +170,7 @@ namespace game
 	struct RenderInfo
 	{
 		void (*update_camera) (platform::GraphicsContext*, Matrix44 view, Matrix44 perspective);
-		void (*start_drawing) (platform::GraphicsContext*);
+		void (*prepare_drawing) (platform::GraphicsContext*);
 		void (*finish_drawing) (platform::GraphicsContext*);
 		void (*draw) (platform::GraphicsContext*, ModelHandle, Matrix44);
 		void (*draw_line) (platform::GraphicsContext*, Vector3 start, Vector3 end, float4 color);

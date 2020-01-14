@@ -2,12 +2,19 @@
 Leo Tamminen
 shophorn @ internet
 
+
+Windows-Vulkan interface. And lots of rubbish at the moment.
+
 STUDY: https://devblogs.nvidia.com/vulkan-dos-donts/
 =============================================================================*/
 
 #ifndef WIN_VULKAN_HPP
 
 constexpr int32 MAX_FRAMES_IN_FLIGHT = 2;
+// constexpr int32 VIRTUAL_FRAME_COUNT = 2;
+
+
+
 constexpr uint64 VULKAN_NO_TIME_OUT	= MaxValue<uint64>;
 constexpr real32 VULKAN_MAX_LOD_FLOAT = 100.0f;
 
@@ -83,15 +90,6 @@ struct VulkanSwapchainItems
     std::vector<VkImageView> imageViews;
 };
 
-
-struct VulkanSyncObjects
-{
-	// Todo(Leo): Use our own memory :)
-    std::vector<VkSemaphore>    imageAvailableSemaphores;
-    std::vector<VkSemaphore>    renderFinishedSemaphores;
-    std::vector<VkFence>        inFlightFences;
-};
-
 struct VulkanDrawingResources
 {
 	VkDeviceMemory memory;
@@ -153,6 +151,16 @@ struct VulkanLoadedPipeline
 	VkDescriptorSetLayout	materialLayout;
 };
 
+struct VulkanVirtualFrame
+{
+	VkCommandBuffer commandBuffer;
+	VkFramebuffer frameBuffer;
+
+	VkSemaphore imageAvailable;
+	VkSemaphore renderFinished;
+	VkFence commanBufferFreeFence;
+};
+
 struct platform::GraphicsContext
 {
 	VkInstance 						instance;
@@ -160,13 +168,17 @@ struct platform::GraphicsContext
 	VkPhysicalDevice 				physicalDevice;
 	VkPhysicalDeviceProperties 		physicalDeviceProperties;
 
-	VkCommandPool 					commandPool;
-    std::vector<VkCommandBuffer>    frameCommandBuffers;
-
 	VkSurfaceKHR 					surface;
 	VkQueue 						graphicsQueue;
 	VkQueue 						presentQueue;
-	
+
+	VkCommandPool 					commandPool;
+    std::vector<VkCommandBuffer>    frameCommandBuffers;
+    std::vector<VkFramebuffer>      frameBuffers;
+    std::vector<VkSemaphore>    	imageAvailableSemaphores;
+    std::vector<VkSemaphore>    	renderFinishedSemaphores;
+    std::vector<VkFence>        	inFlightFences;
+
 	/* Todo(Leo): There is one layout for each of [models, scene data, materials].*/
     // VkDescriptorSetLayout 	descriptorSetLayouts [3];
 
@@ -182,11 +194,9 @@ struct platform::GraphicsContext
    	 	VkDescriptorSet scene;
     } uniformDescriptorSets;
 
-    std::vector<VkFramebuffer>      frameBuffers;
 
     VkRenderPass            renderPass;
     VulkanSwapchainItems 	swapchainItems;
-    VulkanSyncObjects       syncObjects;
 
     // MULTISAMPLING
     VkSampleCountFlagBits msaaSamples;
@@ -305,7 +315,6 @@ namespace vulkan
 	internal VkShaderModule CreateShaderModule(BinaryAsset code, VkDevice logicalDevice);
 	internal void recreate_swapchain(VulkanContext * context, VkExtent2D frameBufferSize);
 
-	internal void draw_frame(VulkanContext * context, uint32 imageIndex, uint32 frameIndex);
 
 	internal VulkanLoadedPipeline make_pipeline(VulkanContext * context, VulkanPipelineLoadInfo loadInfo);
 	internal VulkanLoadedPipeline make_line_pipeline(VulkanContext * context, VulkanPipelineLoadInfo loadInfo);
@@ -340,8 +349,9 @@ namespace vulkan
     internal void 			unload_scene(VulkanContext * context);
 
 	/// DRAWING, VulkanDrawing.cpp
+	internal void draw_frame(VulkanContext * context, uint32 imageIndex, uint32 frameIndex);
     internal void update_camera(VulkanContext * context, Matrix44 view, Matrix44 perspective);
-	internal void start_drawing(VulkanContext * context);
+	internal void prepare_drawing(VulkanContext * context);
 	internal void finish_drawing(VulkanContext * context);
 	internal void record_draw_command(VulkanContext * context, ModelHandle handle, Matrix44 transform);
 	internal void record_line_draw_command(VulkanContext * context, Vector3 start, Vector3 end, float4 color);

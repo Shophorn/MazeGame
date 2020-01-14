@@ -357,8 +357,6 @@ Run(HINSTANCE winInstance)
         vulkan::create_model_descriptor_sets(&vulkanContext);
         vulkan::create_scene_descriptor_sets(&vulkanContext);
         vulkan::create_texture_sampler(&vulkanContext);
-        
-        CreateCommandBuffers(&vulkanContext);
     }
     int32 currentLoopingFrameIndex = 0;
 
@@ -366,7 +364,7 @@ Run(HINSTANCE winInstance)
     // vulkan::RenderInfo platformRenderInfo = {};
     {
         gameRenderInfo.draw             = vulkan::record_draw_command;
-        gameRenderInfo.start_drawing    = vulkan::start_drawing;
+        gameRenderInfo.prepare_drawing    = vulkan::prepare_drawing;
         gameRenderInfo.finish_drawing   = vulkan::finish_drawing;
         gameRenderInfo.draw_line        = vulkan::record_line_draw_command;
         gameRenderInfo.update_camera    = vulkan::update_camera;
@@ -548,12 +546,12 @@ Run(HINSTANCE winInstance)
         if (state.isRunning && state.windowIsDrawable())
         {
             // Todo(Leo): Study fences
-            vkWaitForFences(vulkanContext.device, 1, &vulkanContext.syncObjects.inFlightFences[currentLoopingFrameIndex],
+            vkWaitForFences(vulkanContext.device, 1, &vulkanContext.inFlightFences[currentLoopingFrameIndex],
                             VK_TRUE, VULKAN_NO_TIME_OUT);
 
             uint32 imageIndex;
             VkResult getNextImageResult = vkAcquireNextImageKHR(vulkanContext.device, vulkanContext.swapchainItems.swapchain, MaxValue<uint64>,
-                                                    vulkanContext.syncObjects.imageAvailableSemaphores[currentLoopingFrameIndex],
+                                                    vulkanContext.imageAvailableSemaphores[currentLoopingFrameIndex],
                                                     VK_NULL_HANDLE, &imageIndex);
             
             vulkanContext.currentDrawFrameIndex = imageIndex;
@@ -664,7 +662,6 @@ Run(HINSTANCE winInstance)
         std::cout << "[WINDOWS]: shut down\n";
     }
 }
-
 
 int CALLBACK
 WinMain(

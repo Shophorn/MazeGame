@@ -1466,14 +1466,14 @@ CreateSceneDescriptorSetLayout(VkDevice device)
     return resultDescriptorSetLayout;
 }
 
-internal VulkanSyncObjects
-CreateSyncObjects(VkDevice device)
+internal void
+create_sync_objects(VulkanContext * context)
 {
-    VulkanSyncObjects resultSyncObjects = {};
+    // VulkanSyncObjects resultSyncObjects = {};
 
-    resultSyncObjects.imageAvailableSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
-    resultSyncObjects.renderFinishedSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
-    resultSyncObjects.inFlightFences.resize(MAX_FRAMES_IN_FLIGHT);
+    context->imageAvailableSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
+    context->renderFinishedSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
+    context->inFlightFences.resize(MAX_FRAMES_IN_FLIGHT);
 
     VkSemaphoreCreateInfo semaphoreInfo = {};
     semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
@@ -1485,15 +1485,13 @@ CreateSyncObjects(VkDevice device)
     for (int i = 0; i <MAX_FRAMES_IN_FLIGHT; ++i)
     {
         if (
-            vkCreateSemaphore(device, &semaphoreInfo, nullptr, &resultSyncObjects.imageAvailableSemaphores[i]) != VK_SUCCESS
-            || vkCreateSemaphore(device, &semaphoreInfo, nullptr, &resultSyncObjects.renderFinishedSemaphores[i]) != VK_SUCCESS
-            || vkCreateFence(device, &fenceInfo, nullptr, &resultSyncObjects.inFlightFences[i]) != VK_SUCCESS)
+            vkCreateSemaphore(context->device, &semaphoreInfo, nullptr, &context->imageAvailableSemaphores[i]) != VK_SUCCESS
+            || vkCreateSemaphore(context->device, &semaphoreInfo, nullptr, &context->renderFinishedSemaphores[i]) != VK_SUCCESS
+            || vkCreateFence(context->device, &fenceInfo, nullptr, &context->inFlightFences[i]) != VK_SUCCESS)
         {
             throw std::runtime_error("Failed to create semaphores");
         }
     }
-
-    return resultSyncObjects;
 }
 
 
@@ -1876,15 +1874,14 @@ vulkan::make_material_descriptor_set(
     return resultSet;
 }
 
-internal std::vector<VkFramebuffer>
-CreateFrameBuffers(VulkanContext * context)
+internal void
+create_frame_buffers(VulkanContext * context)
 { 
     /* Note(Leo): This is basially allocating right, there seems to be no
     need for VkDeviceMemory for swapchainimages??? */
     
     int imageCount = context->swapchainItems.imageViews.size();
-    // frameBuffers.resize(imageCount);
-    std::vector<VkFramebuffer> resultFrameBuffers (imageCount);
+    context->frameBuffers.resize(imageCount);
 
     for (int i = 0; i < imageCount; ++i)
     {
@@ -1903,13 +1900,11 @@ CreateFrameBuffers(VulkanContext * context)
         framebufferInfo.height          = context->swapchainItems.extent.height;
         framebufferInfo.layers          = 1;
 
-        if (vkCreateFramebuffer(context->device, &framebufferInfo, nullptr, &resultFrameBuffers[i]) != VK_SUCCESS)
+        if (vkCreateFramebuffer(context->device, &framebufferInfo, nullptr, &context->frameBuffers[i]) != VK_SUCCESS)
         {
             throw std::runtime_error("failed to create framebuffer");
         }
     }
-
-    return resultFrameBuffers;
 }
 
 internal uint32
@@ -2341,12 +2336,11 @@ vulkan::create_texture_sampler(VulkanContext * context)
 internal void
 CleanupSwapchain(VulkanContext * context)
 {
-    vkDestroyImage (context->device, context->drawingResources.colorImage, nullptr);
-    vkDestroyImageView(context->device, context->drawingResources.colorImageView, nullptr);
-    vkDestroyImage (context->device, context->drawingResources.depthImage, nullptr);
-    vkDestroyImageView (context->device, context->drawingResources.depthImageView, nullptr);
-    vkFreeMemory(context->device, context->drawingResources.memory, nullptr);
-
+    vkDestroyImage      (context->device, context->drawingResources.colorImage, nullptr);
+    vkDestroyImageView  (context->device, context->drawingResources.colorImageView, nullptr);
+    vkDestroyImage      (context->device, context->drawingResources.depthImage, nullptr);
+    vkDestroyImageView  (context->device, context->drawingResources.depthImageView, nullptr);
+    vkFreeMemory        (context->device, context->drawingResources.memory, nullptr);
 
     for (auto framebuffer : context->frameBuffers)
     {
@@ -2361,7 +2355,6 @@ CleanupSwapchain(VulkanContext * context)
     }
 
     vkDestroySwapchainKHR(context->device, context->swapchainItems.swapchain, nullptr);
-
 
     vkDestroyPipeline(context->device, context->lineDrawPipeline.pipeline, nullptr);
     vkDestroyPipelineLayout(context->device, context->lineDrawPipeline.layout, nullptr);
@@ -2396,10 +2389,10 @@ Cleanup(VulkanContext * context)
 
     for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i)
     {
-        vkDestroySemaphore(context->device, context->syncObjects.renderFinishedSemaphores[i], nullptr);
-        vkDestroySemaphore(context->device, context->syncObjects.imageAvailableSemaphores[i], nullptr);
+        vkDestroySemaphore(context->device, context->renderFinishedSemaphores[i], nullptr);
+        vkDestroySemaphore(context->device, context->imageAvailableSemaphores[i], nullptr);
 
-        vkDestroyFence(context->device, context->syncObjects.inFlightFences[i], nullptr);
+        vkDestroyFence(context->device, context->inFlightFences[i], nullptr);
     }
 
     vkDestroyCommandPool(context->device, context->commandPool, nullptr);
@@ -2410,7 +2403,7 @@ Cleanup(VulkanContext * context)
 }
 
 internal void
-CreateCommandBuffers(VulkanContext * context)
+create_command_buffers(VulkanContext * context)
 {
     int32 framebufferCount = context->frameBuffers.size();
     context->frameCommandBuffers.resize(framebufferCount);
@@ -2448,74 +2441,7 @@ vulkan::recreate_swapchain(VulkanContext * context, VkExtent2D frameBufferSize)
     
     create_drawing_resources(context);
     
-    context->frameBuffers           = CreateFrameBuffers(context);
-}
-
-internal void
-vulkan::draw_frame(VulkanContext * context, uint32 imageIndex, uint32 frameIndex)
-{
-    /* Note(Leo): these have to do with sceneloading in game layer. We are then unloading
-    all resources associated with command buffer, which makes it invalid to submit to queue */
-    bool32 skipFrame            = context->abortFrameDrawing;
-    context->abortFrameDrawing  = false;
-
-    /* Note(Leo): reset here, so that if we have recreated swapchain above,
-    our fences will be left in signaled state */
-    vkResetFences(context->device, 1, &context->syncObjects.inFlightFences[frameIndex]);
-
-
-    // Note(Leo): We wait for these BEFORE drawing
-    VkSemaphore waitSemaphore           = context->syncObjects.imageAvailableSemaphores[frameIndex];
-    VkPipelineStageFlags waitStage      = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    VkSemaphore signalSemaphore         = context->syncObjects.renderFinishedSemaphores[frameIndex];
-    
-    VkSubmitInfo submitInfo =
-    {
-        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-
-        .waitSemaphoreCount     = 1,
-        .pWaitSemaphores        = &waitSemaphore,
-        .pWaitDstStageMask      = &waitStage,
-
-        .commandBufferCount     = (uint32)(skipFrame ? 0 : 1),
-        .pCommandBuffers        = &context->frameCommandBuffers[imageIndex],
-
-        // Note(Leo): We signal these AFTER drawing
-        .signalSemaphoreCount   = 1,
-        .pSignalSemaphores      = &signalSemaphore,
-    };
-
-    if (vkQueueSubmit(context->graphicsQueue, 1, &submitInfo, context->syncObjects.inFlightFences[frameIndex]) != VK_SUCCESS)
-    {
-        throw std::runtime_error("Failed to submit draw command buffer");
-    }
-
-    VkPresentInfoKHR presentInfo =
-    {
-        .sType               = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
-        .waitSemaphoreCount  = 1,
-        .pWaitSemaphores     = &signalSemaphore,
-        .pResults            = nullptr,
-
-        .swapchainCount  = 1,
-        .pSwapchains     = &context->swapchainItems.swapchain,
-        .pImageIndices   = &imageIndex,
-    };
-
-    // Todo(Leo): Should we do something about this??
-    VkResult result = vkQueuePresentKHR(context->presentQueue, &presentInfo);
-
-    // // Todo, Study(Leo): Somebody on interenet told us to do this. No Idea why???
-    // // Note(Leo): Do after presenting to not interrupt semaphores at whrong time
-    // if(result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || context->framebufferResized)
-    // {
-    //     context->framebufferResized = false;
-    //     recreate_swapchain(context);
-    // }
-    // else if (result != VK_SUCCESS)
-    // {
-    //     throw std::runtime_error("Failed to present swapchain");
-    // }
+    create_frame_buffers(context);
 }
 
 /* Todo(Leo): this belongs to winapi namespace because it is definetly windows specific.
@@ -2578,7 +2504,6 @@ namespace winapi
         }
 
         /// ...?
-        resultContext.syncObjects = CreateSyncObjects(resultContext.device);
         
         /* 
         Above is device
@@ -2597,7 +2522,9 @@ namespace winapi
         vulkan::create_drawing_resources(&resultContext); 
         
         // Todo(Leo): This seems rather stupid way to organize creation of these...
-        resultContext.frameBuffers              = CreateFrameBuffers(&resultContext);
+        create_frame_buffers(&resultContext);
+        create_sync_objects(&resultContext);
+        create_command_buffers(&resultContext);
 
         {
             VulkanPipelineLoadInfo info = 
