@@ -177,7 +177,7 @@ struct platform::GraphicsContext
     
     std::vector<VkFramebuffer>      frameBuffers;
 
-    // std::vector<VkCommandBuffer>    frameCommandBuffers;
+    std::vector<VkCommandBuffer>    frameCommandBuffers;
     // std::vector<VkSemaphore>    	imageAvailableSemaphores;
     // std::vector<VkSemaphore>    	renderFinishedSemaphores;
     // std::vector<VkFence>        	inFlightFences;

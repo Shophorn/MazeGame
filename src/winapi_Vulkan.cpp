@@ -1846,38 +1846,38 @@ vulkan::make_material_descriptor_set(
     return resultSet;
 }
 
-// internal void
-// create_frame_buffers(VulkanContext * context)
-// { 
-//     /* Note(Leo): This is basially allocating right, there seems to be no
-//     need for VkDeviceMemory for swapchainimages??? */
+internal void
+create_frame_buffers(VulkanContext * context)
+{ 
+    /* Note(Leo): This is basially allocating right, there seems to be no
+    need for VkDeviceMemory for swapchainimages??? */
     
-//     int imageCount = context->swapchainItems.imageViews.size();
-//     context->frameBuffers.resize(imageCount);
+    int imageCount = context->swapchainItems.imageViews.size();
+    context->frameBuffers.resize(imageCount);
 
-//     for (int i = 0; i < imageCount; ++i)
-//     {
-//         constexpr int ATTACHMENT_COUNT = 3;
-//         VkImageView attachments[ATTACHMENT_COUNT] = {
-//             context->drawingResources.colorImageView,
-//             context->drawingResources.depthImageView,
-//             context->swapchainItems.imageViews[i]
-//         };
+    for (int i = 0; i < imageCount; ++i)
+    {
+        constexpr int ATTACHMENT_COUNT = 3;
+        VkImageView attachments[ATTACHMENT_COUNT] = {
+            context->drawingResources.colorImageView,
+            context->drawingResources.depthImageView,
+            context->swapchainItems.imageViews[i]
+        };
 
-//         VkFramebufferCreateInfo framebufferInfo = { VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO };
-//         framebufferInfo.renderPass      = context->renderPass;
-//         framebufferInfo.attachmentCount = ATTACHMENT_COUNT;
-//         framebufferInfo.pAttachments    = &attachments[0];
-//         framebufferInfo.width           = context->swapchainItems.extent.width;
-//         framebufferInfo.height          = context->swapchainItems.extent.height;
-//         framebufferInfo.layers          = 1;
+        VkFramebufferCreateInfo framebufferInfo = { VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO };
+        framebufferInfo.renderPass      = context->renderPass;
+        framebufferInfo.attachmentCount = ATTACHMENT_COUNT;
+        framebufferInfo.pAttachments    = &attachments[0];
+        framebufferInfo.width           = context->swapchainItems.extent.width;
+        framebufferInfo.height          = context->swapchainItems.extent.height;
+        framebufferInfo.layers          = 1;
 
-//         if (vkCreateFramebuffer(context->device, &framebufferInfo, nullptr, &context->frameBuffers[i]) != VK_SUCCESS)
-//         {
-//             throw std::runtime_error("failed to create framebuffer");
-//         }
-//     }
-// }
+        if (vkCreateFramebuffer(context->device, &framebufferInfo, nullptr, &context->frameBuffers[i]) != VK_SUCCESS)
+        {
+            throw std::runtime_error("failed to create framebuffer");
+        }
+    }
+}
 
 internal uint32
 compute_mip_levels(uint32 texWidth, uint32 texHeight)
@@ -2374,38 +2374,57 @@ Cleanup(VulkanContext * context)
 }
 
 internal void
-create_virtual_frames(VulkanContext * context, uint32 count)
+create_virtual_frames(VulkanContext * context)
 {
-    context->virtualFrames.resize(count);
+    int32 virtualFrameCount = context->frameBuffers.size();
 
-    VkCommandBufferAllocateInfo cmdBufferInfo =
+    context->frameCommandBuffers.resize(virtualFrameCount);
+
+    VkCommandBufferAllocateInfo allocateInfo =
     {
         .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
         .commandPool        = context->commandPool,
         .level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-        .commandBufferCount = 1,
+        .commandBufferCount = (uint32)context->frameCommandBuffers.size(),
     };
 
-    VkSemaphoreCreateInfo semaphoreInfo =
+    if (vkAllocateCommandBuffers(context->device, &allocateInfo, &context->frameCommandBuffers[0]) != VK_SUCCESS)
     {
-        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO
-    };
+        throw std::runtime_error("Failed to allocate command buffers");
+    }
 
-    VkFenceCreateInfo fenceInfo =
-    {
-        .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
-        .flags = VK_FENCE_CREATE_SIGNALED_BIT,
-    };
+    
+    context->virtualFrames.resize(virtualFrameCount);
+    // context->imageAvailableSemaphores.resize(virtualFrameCount);
+    // context->renderFinishedSemaphores.resize(virtualFrameCount);
+    // context->inFlightFences.resize(virtualFrameCount);
+
+    VkSemaphoreCreateInfo semaphoreInfo = {};
+    semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+    VkFenceCreateInfo fenceInfo = {};
+    fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
     for (auto & frame : context->virtualFrames)
     {
-        bool32 success = (vkAllocateCommandBuffers(context->device, &cmdBufferInfo, &frame.commandBuffer) == VK_SUCCESS);
-        success = success && (vkCreateSemaphore(context->device, &semaphoreInfo, nullptr, &frame.imageAvailableSemaphore) == VK_SUCCESS);
-        success = success && (vkCreateSemaphore(context->device, &semaphoreInfo, nullptr, &frame.renderFinishedSemaphore) == VK_SUCCESS);
-        success = success && (vkCreateFence(context->device, &fenceInfo, nullptr, &frame.inFlightFence) == VK_SUCCESS);
+        bool32 a = (vkCreateSemaphore(context->device, &semaphoreInfo, nullptr, &frame.imageAvailableSemaphore) == VK_SUCCESS);
+        bool32 b = (vkCreateSemaphore(context->device, &semaphoreInfo, nullptr, &frame.renderFinishedSemaphore) == VK_SUCCESS);
+        bool32 c = (vkCreateFence(context->device, &fenceInfo, nullptr, &frame.inFlightFence) == VK_SUCCESS);
 
-        DEVELOPMENT_ASSERT(success, "Failed to create syncronization items for virtual frame");
+        DEVELOPMENT_ASSERT(a && b && c, "Failed to create syncronization items for virtual frame");
     }
+
+    // for (int i = 0; i <virtualFrameCount; ++i)
+    // {
+    //     if (
+    //         vkCreateSemaphore(context->device, &semaphoreInfo, nullptr, &context->imageAvailableSemaphores[i]) != VK_SUCCESS
+    //         || vkCreateSemaphore(context->device, &semaphoreInfo, nullptr, &context->virtualFrames[i].renderFinishedSemaphore) != VK_SUCCESS
+    //         || vkCreateFence(context->device, &fenceInfo, nullptr, &context->virtualFrames[i].inFlightFence) != VK_SUCCESS)
+    //     {
+    //         throw std::runtime_error("Failed to create semaphores");
+    //     }
+    // }
 }
 
 internal void
@@ -2424,8 +2443,8 @@ vulkan::recreate_swapchain(VulkanContext * context, VkExtent2D frameBufferSize)
     context->lineDrawPipeline       = vulkan::make_line_pipeline(context, context->lineDrawPipeline.info);
     
     create_drawing_resources(context);
-
-    // create_frame_buffers(context);
+    
+    create_frame_buffers(context);
 }
 
 /* Todo(Leo): this belongs to winapi namespace because it is definetly windows specific.
@@ -2504,11 +2523,10 @@ namespace winapi
         resultContext.descriptorSetLayouts.model    = CreateModelDescriptorSetLayout(resultContext.device);
 
         vulkan::create_drawing_resources(&resultContext); 
-
+        
         // Todo(Leo): This seems rather stupid way to organize creation of these...
-        // create_frame_buffers(&resultContext);
-        uint32 virtualFrameCount = resultContext.swapchainItems.imageViews.size();
-        create_virtual_frames(&resultContext, virtualFrameCount);
+        create_frame_buffers(&resultContext);
+        create_virtual_frames(&resultContext);
 
         {
             VulkanPipelineLoadInfo info = 
