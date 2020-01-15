@@ -2,10 +2,18 @@ struct Rectangle
 {
 	Vector2 position;
 	Vector2 size;
-
-	// Todo(Leo): add this
-	// float rotation; 
 };
+
+internal Rectangle
+scale_rectangle(Rectangle rect, float2 scale)
+{
+	float2 center = rect.position + rect.size / 2.0f;
+	rect.size.x *= scale.x;
+	rect.size.y *= scale.y;
+	rect.position = center - rect.size / 2.0f;
+
+	return rect;
+}
 
 struct Circle
 {

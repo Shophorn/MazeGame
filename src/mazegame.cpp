@@ -153,10 +153,12 @@ GameUpdate(
 
 	if (memory->isInitialized == false)
 	{
+
 		initialize_game_state (state, memory, platform);
 		memory->isInitialized = true;
 
 		load_gui(state, platform, graphics, menuSceneGuiGui);
+		std::cout << "Game initialized\n";
 	}
 	flush_memory_arena(&state->transientMemoryArena);
 	

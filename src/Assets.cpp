@@ -11,7 +11,7 @@ enum HandleType
 	MESH,
 	TEXTURE,
 	MATERIAL,
-	RENDERED_OBJECT,
+	MODEL,
 	PIPELINE,	
 };
 
@@ -28,8 +28,15 @@ struct BaseHandle
 using MeshHandle  				= BaseHandle<MESH>;
 using TextureHandle  			= BaseHandle<TEXTURE>;
 using MaterialHandle  			= BaseHandle<MATERIAL>;
-using ModelHandle  	= BaseHandle<RENDERED_OBJECT>;
+using ModelHandle  				= BaseHandle<MODEL>;
 using PipelineHandle 			= BaseHandle<PIPELINE>;
+
+template<HandleType T>
+bool32
+is_valid_handle(BaseHandle<T> handle)
+{
+	return (BaseHandle<T>::Null.index != handle.index);
+}
 
 struct Vertex
 {

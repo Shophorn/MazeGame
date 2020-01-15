@@ -1,55 +1,25 @@
 struct MenuGuiState
 {
-	ArenaArray<GuiRendererSystemEntry> guiRenderSystem;
-
-	int32 menuGuiButtonCount;
-	int32 selectedGuiIndex;
+	ArenaArray<Rectangle> buttons;
+	int32 selectedIndex = 0;
+	MaterialHandle material;
 };
 
 internal void
-update_gui_render_system(	ArenaArray<GuiRendererSystemEntry> system,
-							game::RenderInfo * renderer,
-							game::PlatformInfo * platform,
-							int32 selectedGuiIndex,
-							platform::GraphicsContext * graphics)
-{
-	Vector2 windowSize = {(float)platform->windowWidth, (float)platform->windowHeight};
-	Vector2 halfWindowSize = windowSize / 2.0f;
-
-	for (int i = 0; i < system.count(); ++i)
-	{
-		GuiRendererSystemEntry & entry = system[i];
-
-		Vector2 translation = vector::coeff_subtract(entry.transform->position / halfWindowSize, 1.0f);
-		Vector2 scale 		= entry.transform->size / halfWindowSize;
-
-		if (i == selectedGuiIndex)
-		{
-			translation = vector::coeff_subtract((entry.transform->position - Vector2{15, 15}) / halfWindowSize, 1.0f);
-			scale = (entry.transform->size + Vector2{30, 30}) / halfWindowSize;
-		}
-
-		Matrix44 transform = Matrix44::Translate({translation.x, translation.y, 0}) * Matrix44::Scale({scale.x, scale.y, 1.0});
-		renderer->draw(graphics, entry.renderer->handle, transform);
-	}
-}
-
-
-internal void
-update_menu_gui_navigation_system(MenuGuiState * guiState, game::Input * input)
+update_menu_gui_navigation_system(MenuGuiState * gui, game::Input * input)
 {
 	if (is_clicked(input->down))
 	{
-		guiState->selectedGuiIndex += 1;
-		guiState->selectedGuiIndex %= guiState->menuGuiButtonCount;
+		gui->selectedIndex += 1;
+		gui->selectedIndex %= gui->buttons.count();
 	}
 
 	if (is_clicked(input->up))
 	{
-		guiState->selectedGuiIndex -= 1;
-		if (guiState->selectedGuiIndex < 0)
+		gui->selectedIndex -= 1;
+		if (gui->selectedIndex < 0)
 		{
-			guiState->selectedGuiIndex = guiState->menuGuiButtonCount - 1;
+			gui->selectedIndex = gui->buttons.count() - 1;
 		}
 	}
 }
@@ -60,7 +30,7 @@ update_menu_gui_event_system(MenuGuiState * guiState, game::Input * input)
 	MenuResult result = MENU_NONE;
 	if (is_clicked(input->confirm))
 	{
-		switch (guiState->selectedGuiIndex)
+		switch (guiState->selectedIndex)
 		{
 			case 0: 
 				std::cout << "Load 3d Scene\n";
@@ -72,9 +42,7 @@ update_menu_gui_event_system(MenuGuiState * guiState, game::Input * input)
 				result = MENU_LOADLEVEL_2D;
 				break;
 
-			case 2: std::cout << "Credits\n"; break;
-			
-			case 3:
+			case 2:
 				std::cout << "Exit\n";
 				result = MENU_EXIT;
 				break;
@@ -86,14 +54,26 @@ update_menu_gui_event_system(MenuGuiState * guiState, game::Input * input)
 internal MenuResult 
 update_menu_gui(	void *						guiPtr,
 					game::Input * 				input,
-					game::RenderInfo * 			outRenderInfo,
+					game::RenderInfo * 			renderer,
 					game::PlatformInfo * 		platform,
 					platform::GraphicsContext * graphics)
 {
 	auto * gui = reinterpret_cast<MenuGuiState*>(guiPtr);
 
 	update_menu_gui_navigation_system(gui, input);
-	update_gui_render_system(gui->guiRenderSystem, outRenderInfo, platform, gui->selectedGuiIndex, graphics);
+
+	for(int i = 0; i < gui->buttons.count(); ++i)
+	{
+		Rectangle rect = gui->buttons[i];
+		float4 color = {1,1,1,1};
+
+		if (i == gui->selectedIndex)
+		{
+			rect 	= scale_rectangle(gui->buttons[i], {1.2f, 1.2f});
+			color 	= {1, 0.4f, 0.4f, 1}; 
+		}
+		renderer->draw_gui(graphics, rect.position, rect.size, gui->material, color);
+	}
 	
 	auto result = update_menu_gui_event_system(gui, input);
 	return result;
@@ -108,54 +88,14 @@ load_menu_gui(	void * guiPtr,
 {
 	auto * gui = reinterpret_cast<MenuGuiState*>(guiPtr);
 
-	int estimatedGuiCount = 10;
+	auto textureAsset 	= load_texture_asset("textures/texture.jpg", transientMemory);
+	auto texture 		= platformInfo->push_texture(graphics, &textureAsset);
+	gui->material 		= platformInfo->push_gui_material(graphics, texture);
 
-	allocate_for_handle<Rectangle>(persistentMemory, estimatedGuiCount);
-	allocate_for_handle<Renderer>(persistentMemory, estimatedGuiCount);
-
- 	gui->guiRenderSystem = reserve_array<GuiRendererSystemEntry>(persistentMemory, estimatedGuiCount);
-
- 	MaterialHandle material;
-	// Create MateriaLs
-	{
-		PipelineHandle pipeline = platformInfo->push_pipeline(graphics, "shaders/vert_gui.spv", "shaders/frag_gui.spv", {.textureCount = 3});
-
-		TextureAsset blackTextureAsset = {};
-		blackTextureAsset.pixels = push_array<uint32>(transientMemory, 1);
-		blackTextureAsset.pixels[0] = 0xff000000;
-		blackTextureAsset.width = 1;
-		blackTextureAsset.height = 1;
-		blackTextureAsset.channels = 4;
-
-		TextureHandle blackTexture = platformInfo->push_texture(graphics, &blackTextureAsset);
-
-	    TextureAsset textureAssets [] =
-	    {
-	        load_texture_asset("textures/lava.jpg", transientMemory),
-	        load_texture_asset("textures/texture.jpg", transientMemory),
-	    };
-
-		TextureHandle texB = platformInfo->push_texture(graphics, &textureAssets[0]);
-		TextureHandle texC = platformInfo->push_texture(graphics, &textureAssets[1]);
-
-		MaterialAsset materialAsset = make_material_asset(pipeline, push_array(transientMemory, {texB, texC, blackTexture}));
-		material = platformInfo->push_material(graphics, &materialAsset);
-	}
-
-	MeshAsset quadAsset = mesh_primitives::create_quad(transientMemory, true);
- 	MeshHandle quadHandle = platformInfo->push_mesh(graphics, &quadAsset);
-
- 	for (int i = 0; i < 4; ++i)
- 	{
- 		Handle<Rectangle> rectanle = make_handle<Rectangle>({380, (float)(200 + 60 * i), 180, 40});
-
- 		ModelHandle graphicsHandle = platformInfo->push_model(graphics, quadHandle, material);
- 		Handle<Renderer> renderer  = make_handle<Renderer>({graphicsHandle});
-
- 		push_one(gui->guiRenderSystem, {rectanle, renderer});
- 	}
-	gui->menuGuiButtonCount 	= 4;
-	gui->selectedGuiIndex = 0;
+	gui->buttons = push_array<Rectangle>(persistentMemory, {{810, 500, 300, 100},
+															{810, 620, 300, 100},
+															{810, 740, 300, 100}});
+	gui->selectedIndex = 0;
 }
 
 global_variable SceneGuiInfo menuSceneGuiGui = 

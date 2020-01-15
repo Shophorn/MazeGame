@@ -246,6 +246,9 @@ struct platform::GraphicsContext
     VulkanLoadedPipeline 	lineDrawPipeline;
     VulkanMaterial 			lineDrawMaterial;
 
+    VulkanLoadedPipeline		guiDrawPipeline;	
+	std::vector<VulkanMaterial> loadedGuiMaterials;
+
     // uint32 currentDrawImageIndex;
     uint32 currentDrawFrameIndex;
     bool32 canDraw = false;
@@ -254,6 +257,7 @@ struct platform::GraphicsContext
 
     bool32 sceneUnloaded = false;
 };
+
 using VulkanContext = platform::GraphicsContext;
 
 internal void
@@ -269,6 +273,11 @@ get_current_virtual_frame(VulkanContext * context)
 	return &context->virtualFrames[context->virtualFrameIndex];
 }
 
+internal VulkanLoadedPipeline *
+get_loaded_pipeline(VulkanContext * context, PipelineHandle handle)
+{
+	return &context->loadedPipelines[handle];
+}
 internal VkFormat
 find_supported_format(
     VkPhysicalDevice physicalDevice,
@@ -390,10 +399,11 @@ namespace vulkan
 
 	internal VulkanLoadedPipeline make_pipeline(VulkanContext * context, VulkanPipelineLoadInfo loadInfo);
 	internal VulkanLoadedPipeline make_line_pipeline(VulkanContext * context, VulkanPipelineLoadInfo loadInfo);
-	internal void destroy_pipeline(VulkanContext * context, VulkanLoadedPipeline * pipeline);
+	internal VulkanLoadedPipeline make_gui_pipeline(VulkanContext * context, VulkanPipelineLoadInfo loadInfo);
+	internal void destroy_loaded_pipeline(VulkanContext * context, VulkanLoadedPipeline * pipeline);
 
 	internal VulkanTexture make_texture(TextureAsset * asset, VulkanContext * context);
-	internal VulkanTexture make_empty_texture(VulkanContext * context, VkFormat format, VkExtent2D size);
+	// internal VulkanTexture make_empty_texture(VulkanContext * context, VkFormat format, VkExtent2D size);
 	// Todo(Leo): Use some structure with fixed size of six TextureAssets in place of 'assets'
 	internal VulkanTexture make_cubemap(VulkanContext * context, TextureAsset * assets);
 	internal void destroy_texture(VulkanContext * context, VulkanTexture * texture);
@@ -403,6 +413,11 @@ namespace vulkan
 															PipelineHandle pipeline,
 															ArenaArray<TextureHandle> textures);
 	
+	internal VkDescriptorSet make_material_descriptor_set(	VulkanContext * context,
+															VulkanLoadedPipeline * pipeline,
+															TextureHandle texture);
+	
+
 	internal void create_drawing_resources(VulkanContext * context);
 	internal void create_material_descriptor_pool(VulkanContext * context);
 	internal void create_uniform_descriptor_pool(VulkanContext * context);
@@ -415,6 +430,7 @@ namespace vulkan
 	/// SCENE, VulkanScene.cpp
     internal TextureHandle 	push_texture (VulkanContext * context, TextureAsset * texture);
     internal MaterialHandle push_material (VulkanContext * context, MaterialAsset * asset);
+    internal MaterialHandle push_gui_material (VulkanContext * context, TextureHandle texture);
     internal MeshHandle 	push_mesh(VulkanContext * context, MeshAsset * mesh);
     internal ModelHandle 	push_model (VulkanContext * context, MeshHandle mesh, MaterialHandle material);
     internal TextureHandle 	push_cubemap(VulkanContext * context, TextureAsset * assets);
@@ -427,6 +443,7 @@ namespace vulkan
 	internal void finish_drawing(VulkanContext * context);
 	internal void record_draw_command(VulkanContext * context, ModelHandle handle, Matrix44 transform);
 	internal void record_line_draw_command(VulkanContext * context, Vector3 start, Vector3 end, float4 color);
+	internal void record_gui_draw_command(VulkanContext * context, Vector2 position, Vector2 size, MaterialHandle material, float4 color);
 	// Lol, this is not given to game layer
 	internal void draw_frame(VulkanContext * context, uint32 imageIndex);
 }

@@ -9,7 +9,7 @@ destroy_loaded_pipelines(VulkanContext * context)
 {
     for (int i = 0; i < context->loadedPipelines.size(); ++i)
     {
-        vulkan::destroy_pipeline(context, &context->loadedPipelines[i]);
+        vulkan::destroy_loaded_pipeline(context, &context->loadedPipelines[i]);
     }
 }
 
@@ -46,6 +46,20 @@ vulkan::push_material (VulkanContext * context, MaterialAsset * asset)
         .descriptorSet = vulkan::make_material_descriptor_set(context, asset->pipeline, asset->textures)
     };
     context->loadedMaterials.push_back(material);
+
+    return resultHandle;
+}
+
+MaterialHandle
+vulkan::push_gui_material (VulkanContext * context, TextureHandle texture)
+{
+    MaterialHandle resultHandle = {context->loadedGuiMaterials.size()};
+    VulkanMaterial material = 
+    {
+        .pipeline = PipelineHandle::Null,
+        .descriptorSet = vulkan::make_material_descriptor_set(context, &context->guiDrawPipeline, texture)
+    };
+    context->loadedGuiMaterials.push_back(material);
 
     return resultHandle;
 }

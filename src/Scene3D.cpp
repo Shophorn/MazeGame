@@ -32,6 +32,8 @@ namespace scene_3d
 		bool32 ladder2On = false;
 
 		ModelHandle skybox;
+
+		MaterialHandle uiMaterial;
 	};
 
 	internal uint64
@@ -80,6 +82,8 @@ scene_3d::update(	void * 						scenePtr,
 	update_camera_controller(&scene->cameraController, input);
 	update_animator_system(input, scene->animatorSystem);
 
+	
+	renderer->draw_gui(graphics, {20, 20}, {50, 50}, scene->uiMaterial, float4{1,0,1,1});
 
 	// Rendering section
     update_camera_system(renderer, platform, input, &scene->worldCamera, graphics);
@@ -165,6 +169,9 @@ scene_3d::load(	void * 						scenePtr,
 
 		auto skyMaterialAsset = make_material_asset(skyPipeline, push_array(transientMemory, {skyboxTexture}));	
 		materials.sky 			= platformInfo->push_material(graphics, &skyMaterialAsset);
+
+
+		scene->uiMaterial = platformInfo->push_gui_material(graphics, faceTexture);
 	}
 
     auto push_model = [platformInfo, graphics] (MeshHandle mesh, MaterialHandle material) -> ModelHandle

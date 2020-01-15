@@ -9,12 +9,13 @@ namespace default_scene_gui
 {
 	struct SceneGui
 	{
-		int32 gameGuiButtonCount;
-		ArenaArray<Rectangle> gameGuiButtons;
-		ArenaArray<ModelHandle> gameGuiButtonHandles;
-		bool32 showGameMenu;
+		ArenaArray<Rectangle> buttons;
 
+		bool32 showGameMenu;
+		int32 gameGuiButtonCount;
 		int32 selectedGuiButtonIndex;
+		MaterialHandle material;
+
 	};
 
 	internal uint64
@@ -40,6 +41,7 @@ global_variable SceneGuiInfo
 defaultSceneGui = make_scene_gui_info(	default_scene_gui::get_alloc_size,
 										default_scene_gui::load,
 										default_scene_gui::update);
+
 
 internal MenuResult
 default_scene_gui::update(	void * guiPtr,
@@ -96,36 +98,26 @@ default_scene_gui::update(	void * guiPtr,
 		gui->showGameMenu = false;
 	}
 
-	/// Output Render info
-	// Todo(Leo): Get info about limits of render output array sizes and constraint to those
+	if (gui->showGameMenu)
 	{
-
-		if (gui->showGameMenu)
+		for(int i = 0; i < gui->buttons.count(); ++i)
 		{
-			/// ----- GUI -----
-			Vector2 windowSize = {(real32)platform->windowWidth, (real32)platform->windowHeight};
-			Vector2 halfWindowSize = windowSize / 2.0f;
+			Rectangle rect = gui->buttons[i];
+			float4 color = {1,1,1,1};
 
-			for (int  guiButtonIndex = 0; guiButtonIndex < gui->gameGuiButtonCount; ++guiButtonIndex)
+			if (i == gui->selectedGuiButtonIndex)
 			{
-				Vector2 guiTranslate = vector::coeff_subtract(gui->gameGuiButtons[guiButtonIndex].position / halfWindowSize, 1.0f);
-				Vector2 guiScale = gui->gameGuiButtons[guiButtonIndex].size / halfWindowSize;
-
-				if (guiButtonIndex == gui->selectedGuiButtonIndex)
-				{
-					guiTranslate = vector::coeff_subtract((gui->gameGuiButtons[guiButtonIndex].position - Vector2{15, 15}) / halfWindowSize, 1.0f);
-					guiScale = (gui->gameGuiButtons[guiButtonIndex].size + Vector2{30, 30}) / halfWindowSize;
-				}
-
-				Matrix44 guiTransform = Matrix44::Translate({guiTranslate.x, guiTranslate.y, 0}) * Matrix44::Scale({guiScale.x, guiScale.y, 1.0});
-
-				renderer->draw(graphics, gui->gameGuiButtonHandles[guiButtonIndex], guiTransform);
+				rect 	= scale_rectangle(gui->buttons[i], {1.2f, 1.2f});
+				color 	= {1, 0.4f, 0.4f, 1}; 
 			}
+			renderer->draw_gui(graphics, rect.position, rect.size, gui->material, color);
 		}
 	}
 
 	return gameMenuResult;
 }
+
+
 
 internal void 
 default_scene_gui::load(void * guiPtr,
@@ -136,58 +128,12 @@ default_scene_gui::load(void * guiPtr,
 {
 	SceneGui * gui = reinterpret_cast<SceneGui*>(guiPtr);
 
-	struct MaterialCollection {
-		MaterialHandle basic;
-	} materials;
-
-	// Create MateriaLs
-	{
-		PipelineHandle pipeline = platformInfo->push_pipeline(graphics, "shaders/vert_gui.spv", "shaders/frag_gui.spv", {.textureCount = 3});
-
-		TextureAsset whiteTextureAsset = make_texture_asset(push_array<uint32>(transientMemory, {0xffffffff}), 1, 1);
-		TextureAsset blackTextureAsset = make_texture_asset(push_array<uint32>(transientMemory, {0xff000000}), 1, 1);
-
-		TextureHandle whiteTexture = platformInfo->push_texture(graphics, &whiteTextureAsset);
-		TextureHandle blackTexture = platformInfo->push_texture(graphics, &blackTextureAsset);
-
-		auto load_and_push_texture = [transientMemory, platformInfo, graphics](const char * path) -> TextureHandle
-		{
-			auto asset = load_texture_asset(path, transientMemory);
-			auto result = platformInfo->push_texture(graphics, &asset);
-			return result;
-		};
-
-		auto tilesTexture 	= load_and_push_texture("textures/tiles.jpg");
-		auto lavaTexture 	= load_and_push_texture("textures/lava.jpg");
-		auto faceTexture 	= load_and_push_texture("textures/texture.jpg");
-
-		auto push_material = [pipeline, platformInfo, transientMemory, graphics](MaterialType type, TextureHandle a, TextureHandle b, TextureHandle c) -> MaterialHandle
-		{
-			MaterialAsset asset = make_material_asset(pipeline, push_array(transientMemory, {a, b, c}));
-			MaterialHandle handle = platformInfo->push_material(graphics, &asset);
-			return handle;
-		};
-
-		materials.basic = push_material(	MaterialType::Character,
-												lavaTexture,
-												faceTexture,
-												blackTexture);
-	}
+	auto textureAsset 	= load_texture_asset("textures/texture.jpg", transientMemory);
+	auto texture 		= platformInfo->push_texture(graphics, &textureAsset);
+	gui->material 		= platformInfo->push_gui_material(graphics, texture);
 
 	gui->gameGuiButtonCount 	= 2;
-	gui->gameGuiButtons 		= push_array<Rectangle>(persistentMemory, gui->gameGuiButtonCount);
-	gui->gameGuiButtonHandles 	= push_array<ModelHandle>(persistentMemory, gui->gameGuiButtonCount);
-
-	gui->gameGuiButtons[0] = {380, 200, 180, 40};
-	gui->gameGuiButtons[1] = {380, 260, 180, 40};
-
-	MeshAsset quadAsset 	= mesh_primitives::create_quad(transientMemory, true);
- 	MeshHandle quadHandle 	= platformInfo->push_mesh(graphics, &quadAsset);
-
-	for (int guiButtonIndex = 0; guiButtonIndex < gui->gameGuiButtonCount; ++guiButtonIndex)
-	{
-		gui->gameGuiButtonHandles[guiButtonIndex] = platformInfo->push_model(graphics, quadHandle, materials.basic);
-	}
+	gui->buttons = push_array<Rectangle>(persistentMemory, {{810, 500, 300, 120}, {810, 640, 300, 120}});
 
 	gui->selectedGuiButtonIndex = 0;
 	gui->showGameMenu = false;

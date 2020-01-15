@@ -268,13 +268,18 @@ Run(HINSTANCE winInstance)
             state.gamePlatformInfo.windowIsFullscreen = state.windowIsFullscreen;
         };
 
-        state.gamePlatformInfo.push_mesh        = vulkan::push_mesh;
-        state.gamePlatformInfo.push_model       = vulkan::push_model;
-        state.gamePlatformInfo.push_material    = vulkan::push_material;
-        state.gamePlatformInfo.push_texture     = vulkan::push_texture;
-        state.gamePlatformInfo.push_cubemap     = vulkan::push_cubemap;
-        state.gamePlatformInfo.push_pipeline    = vulkan::push_pipeline;
-        state.gamePlatformInfo.unload_scene     = vulkan::unload_scene;   
+        std::cout << "setting functions\n";
+
+        state.gamePlatformInfo.push_mesh            = vulkan::push_mesh;
+        state.gamePlatformInfo.push_model           = vulkan::push_model;
+        state.gamePlatformInfo.push_material        = vulkan::push_material;
+        state.gamePlatformInfo.push_gui_material    = vulkan::push_gui_material;
+        state.gamePlatformInfo.push_texture         = vulkan::push_texture;
+        state.gamePlatformInfo.push_cubemap         = vulkan::push_cubemap;
+        state.gamePlatformInfo.push_pipeline        = vulkan::push_pipeline;
+        state.gamePlatformInfo.unload_scene         = vulkan::unload_scene;
+
+        std::cout << "functions set!\n";   
     }
 
     // ------- MEMORY ---------------------------
@@ -355,11 +360,14 @@ Run(HINSTANCE winInstance)
 
     game::RenderInfo gameRenderInfo = {};
     {
-        gameRenderInfo.draw             = vulkan::record_draw_command;
         gameRenderInfo.prepare_drawing  = vulkan::prepare_drawing;
         gameRenderInfo.finish_drawing   = vulkan::finish_drawing;
-        gameRenderInfo.draw_line        = vulkan::record_line_draw_command;
+        
         gameRenderInfo.update_camera    = vulkan::update_camera;
+
+        gameRenderInfo.draw             = vulkan::record_draw_command;
+        gameRenderInfo.draw_line        = vulkan::record_line_draw_command;
+        gameRenderInfo.draw_gui         = vulkan::record_gui_draw_command;
     }
 
     // -------- INITIALIZE NETWORK ---------

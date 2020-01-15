@@ -49,15 +49,14 @@ namespace platform
 {
 	struct PipelineOptions
 	{
-	    bool32 enableDepth 	= true;
-	    bool32 clampDepth 	= false;
-	    int32 textureCount 	= 0;
+	    bool32 	enableDepth 		= true;
+	    bool32 	clampDepth 			= false;
+	    int32 	textureCount 		= 0;
+	    uint32	pushConstantSize 	= 0;
 
 	    enum { PRIMITIVE_LINE, PRIMITIVE_TRIANGLE } primitiveType = PRIMITIVE_TRIANGLE;
 	};
 
-	/* Note(Leo): This seems good, but for some reasoen I feel
-	unease about using even this kind of simple inheritance */
 	struct GraphicsContext;
 }
 
@@ -145,6 +144,8 @@ namespace game
 		TextureHandle 	(*push_cubemap) (platform::GraphicsContext * context, TextureAsset * asset);
 
 		MaterialHandle 	(*push_material) 	(platform::GraphicsContext * context, MaterialAsset * asset);
+		MaterialHandle 	(*push_gui_material)(platform::GraphicsContext * context, TextureHandle texture);
+
 		ModelHandle 	(*push_model) 		(platform::GraphicsContext * context, MeshHandle mesh, MaterialHandle material);
 		PipelineHandle 	(*push_pipeline) 	(platform::GraphicsContext * context,
 											char const * vertexShaderPath,
@@ -167,11 +168,12 @@ namespace game
 
 	struct RenderInfo
 	{
-		void (*update_camera) (platform::GraphicsContext*, Matrix44 view, Matrix44 perspective);
+		void (*update_camera) 	(platform::GraphicsContext*, Matrix44 view, Matrix44 perspective);
 		void (*prepare_drawing) (platform::GraphicsContext*);
-		void (*finish_drawing) (platform::GraphicsContext*);
-		void (*draw) (platform::GraphicsContext*, ModelHandle, Matrix44);
-		void (*draw_line) (platform::GraphicsContext*, Vector3 start, Vector3 end, float4 color);
+		void (*finish_drawing) 	(platform::GraphicsContext*);
+		void (*draw) 			(platform::GraphicsContext*, ModelHandle, Matrix44);
+		void (*draw_line) 		(platform::GraphicsContext*, Vector3 start, Vector3 end, float4 color);
+		void (*draw_gui) 		(platform::GraphicsContext*, Vector2 position, Vector2 size, MaterialHandle material, float4 color);
 	};
 	
 	struct NetworkPackage

@@ -344,4 +344,67 @@ vulkan::record_line_draw_command(VulkanContext * context, Vector3 start, Vector3
     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, context->lineDrawPipeline.layout,
                             LAYOUT_SCENE, 1, &context->uniformDescriptorSets.scene, 0, nullptr);
     vkCmdDraw(commandBuffer, 2, 1, 0, 0);
+
+    // Note(Leo): This must be done so that next time we draw normally, we know to bind thos descriptors again
+    context->currentBoundPipeline = PipelineHandle::Null;
+}
+
+struct VulkanGuiPushConstants
+{
+    Vector2 bottomLeft;
+    Vector2 bottomRight;
+    Vector2 topLeft;
+    Vector2 topRight;
+    float4 color;
+};
+
+void vulkan::record_gui_draw_command(VulkanContext * context, Vector2 position, Vector2 size, MaterialHandle materialHandle, float4 color)
+{
+    auto * frame = get_current_virtual_frame(context);
+    enum : uint32 { LAYOUT_SET_MATERIAL = 0 };
+
+    auto transform_point = [context](Vector2 position) -> Vector2
+    {
+        // Note(Leo): This is temporarily here only, aka scale to fit width.
+        const float2 referenceResolution = {1920, 1080};
+        float ratio = context->swapchainItems.extent.width / referenceResolution.x;
+
+        float x = (position.x / context->swapchainItems.extent.width) * ratio * 2.0f - 1.0f;
+        float y = (position.y / context->swapchainItems.extent.height) * ratio * 2.0f - 1.0f;
+
+        return {x, y};
+    };
+
+    VulkanGuiPushConstants pushConstants =
+    {
+        transform_point(position),
+        transform_point(position + Vector2{size.x, 0}),
+        transform_point(position + Vector2{0, size.y}),
+        transform_point(position + size),
+        color,
+    };
+
+    vkCmdPushConstants(frame->commandBuffers.scene, context->guiDrawPipeline.layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pushConstants), &pushConstants);
+
+    vkCmdBindPipeline(frame->commandBuffers.scene, VK_PIPELINE_BIND_POINT_GRAPHICS, context->guiDrawPipeline.pipeline);
+
+
+    // Todo(Leo): this is not good idea. Proper toggles etc and not null pointers for flow control, said wise in the internets
+    if(is_valid_handle(materialHandle))
+    {
+        vkCmdBindDescriptorSets(    frame->commandBuffers.scene,
+                                    VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                    context->guiDrawPipeline.layout,
+                                    LAYOUT_SET_MATERIAL,
+                                    1,
+                                    &context->loadedGuiMaterials[materialHandle].descriptorSet,
+                                    0,
+                                    nullptr);
+    }
+
+    vkCmdDraw(frame->commandBuffers.scene, 4, 1, 0, 0);
+
+
+    // Note(Leo): This must be done so that next time we draw normally, we know to bind thos descriptors again
+    context->currentBoundPipeline = PipelineHandle::Null;
 }

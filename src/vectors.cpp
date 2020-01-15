@@ -52,6 +52,8 @@ union VectorBase<Scalar, 2>
 
 using Point2 = VectorBase<int32, 2>;
 using Vector2 = VectorBase<float, 2>;
+using float2 = VectorBase<float, 2>;
+
 
 template<typename Scalar>
 union VectorBase<Scalar, 3>
@@ -71,6 +73,7 @@ union VectorBase<Scalar, 3>
 #define VECTOR_3_TYPE		VectorBase<Scalar, 3>
 
 using Vector3 = VectorBase<float, 3>;
+using float3 = VectorBase<float, 3>;
 
 template<typename Scalar>
 union VectorBase<Scalar, 4>
@@ -140,6 +143,13 @@ namespace vector
 	{
 		VECTOR_LOOP_ELEMENTS { vec[i] -= value; }
 		return vec;
+	}
+
+	VECTOR_TEMPLATE VECTOR_TYPE
+	coeff_multiply(VECTOR_TYPE a, VECTOR_TYPE b)
+	{
+		VECTOR_LOOP_ELEMENTS { a[i] *= b[i]; }
+		return a;
 	}
 }
 
