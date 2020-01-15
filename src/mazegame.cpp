@@ -127,7 +127,6 @@ unload_scene_and_gui(GameState * state, game::PlatformInfo * platform)
 	state->loadedSceneInfo = {};
 
 	platform->unload_scene(platform->graphicsContext);
-	// platform->graphicsContext->unload_all();
 	clear_memory_arena(&state->persistentMemoryArena);
 
 	state->loadedScene = nullptr;
@@ -145,7 +144,8 @@ GameUpdate(
 	game::SoundOutput * 	soundOutput,
 
 	// Todo(Leo): extra stupid name, but 'renderer' is also problematic, maybe combine with graphics context
-	game::RenderInfo * 		outRenderInfo)
+	game::RenderInfo * 		outRenderInfo,
+	platform::GraphicsContext * graphics)
 {
 	/* Note(Leo): This is reinterpreted each frame, we don't know and don't care
 	if it has been moved or whatever in platform layer*/
@@ -160,14 +160,13 @@ GameUpdate(
 	}
 	flush_memory_arena(&state->transientMemoryArena);
 	
-	outRenderInfo->prepare_drawing(platform->graphicsContext);
+	outRenderInfo->prepare_drawing(graphics);
 	if (state->loadedScene != nullptr)
 	{
 		state->loadedSceneInfo.update(state->loadedScene, input, outRenderInfo, platform);
 	}
 	auto guiResult = state->loadedGuiInfo.update(state->loadedGui, input, outRenderInfo, platform);
-	outRenderInfo->finish_drawing(platform->graphicsContext);
-
+	outRenderInfo->finish_drawing(graphics);
 
 
 	bool32 gameIsAlive = true;

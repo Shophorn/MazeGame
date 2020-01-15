@@ -230,12 +230,13 @@ namespace std
 // TODO(Leo): can we put this into namespace? Should we?
 extern "C" bool32
 GameUpdate(
-	game::Input * 			inpM,
+	game::Input * 			input,
 	game::Memory * 			memory,
 	game::PlatformInfo * 	platformInfo,
 	game::Network *			network,
 	game::SoundOutput *		soundOutput,
-	game::RenderInfo * 		outRenderInfo);
+	game::RenderInfo * 		outRenderInfo,
+	platform::GraphicsContext * graphicsContext);
 
 #define MAZEGAME_PLATFORM_HPP
 #endif

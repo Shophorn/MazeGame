@@ -2441,15 +2441,15 @@ create_virtual_frames(VulkanContext * context)
 
 
 internal void
-vulkan::recreate_swapchain(VulkanContext * context, VkExtent2D frameBufferSize)
+vulkan::recreate_swapchain(VulkanContext * context, uint32 width, uint32 height)
 {
     vkDeviceWaitIdle(context->device);
 
     CleanupSwapchain(context);
 
-    std::cout << "Recreating swapchain, width: " << frameBufferSize.width << ", height: " << frameBufferSize.height <<"\n";
+    std::cout << "Recreating swapchain, width: " << width << ", height: " << height <<"\n";
 
-    context->swapchainItems         = CreateSwapchainAndImages(context, frameBufferSize);
+    context->swapchainItems         = CreateSwapchainAndImages(context, {width, height} );
     context->renderPass             = CreateRenderPass(context, &context->swapchainItems, context->msaaSamples);
     
     recreate_loaded_pipelines(context);

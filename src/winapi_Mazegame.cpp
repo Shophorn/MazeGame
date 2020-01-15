@@ -560,7 +560,8 @@ Run(HINSTANCE winInstance)
                     winapi::GetAudioBuffer(&audio, &gameSoundOutput.sampleCount, &gameSoundOutput.samples);
 
                     bool32 gameIsAlive = game.Update(   &gameInput, &gameMemory, &state.gamePlatformInfo,
-                                                        &gameNetwork, &gameSoundOutput, &gameRenderInfo);
+                                                        &gameNetwork, &gameSoundOutput, &gameRenderInfo,
+                                                        &vulkanContext);
 
                     if (gameIsAlive == false)
                     {
@@ -585,7 +586,7 @@ Run(HINSTANCE winInstance)
 
                 case VK_SUBOPTIMAL_KHR:
                 case VK_ERROR_OUT_OF_DATE_KHR:
-                    vulkan::recreate_swapchain(&vulkanContext, state.GetFrameBufferSize());
+                    vulkan::recreate_swapchain(&vulkanContext, state.gamePlatformInfo.windowWidth, state.gamePlatformInfo.windowHeight);
                     break;
 
                 default:

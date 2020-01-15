@@ -177,6 +177,9 @@ struct platform::GraphicsContext
     VulkanVirtualFrame virtualFrames [VIRTUAL_FRAME_COUNT];
     uint32 virtualFrameIndex = 0;
 
+    VkResult currentFrameDrawAction;
+    uint32 currentFrameImageIndex;
+
     struct
     {
     	VkDescriptorSetLayout scene;
@@ -236,7 +239,7 @@ struct platform::GraphicsContext
     PipelineHandle currentBoundPipeline;
     uint32 currentUniformBufferOffset;
 
-    bool32 abortFrameDrawing = false;
+    bool32 sceneUnloaded = false;
 };
 using VulkanContext = platform::GraphicsContext;
 
@@ -321,7 +324,7 @@ namespace vulkan
 	internal VkPresentModeKHR ChooseSurfacePresentMode(std::vector<VkPresentModeKHR> & availablePresentModes);
 	internal VulkanQueueFamilyIndices FindQueueFamilies (VkPhysicalDevice device, VkSurfaceKHR surface);
 	internal VkShaderModule CreateShaderModule(BinaryAsset code, VkDevice logicalDevice);
-	internal void recreate_swapchain(VulkanContext * context, VkExtent2D frameBufferSize);
+	internal void recreate_swapchain(VulkanContext * context, uint32 width, uint32 height);
 
 	internal VkFramebuffer make_framebuffer(VulkanContext * context, 
                             				VkRenderPass    renderPass,

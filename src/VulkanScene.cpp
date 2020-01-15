@@ -164,5 +164,5 @@ vulkan::unload_scene(VulkanContext * context)
     destroy_loaded_pipelines(context);
     context->loadedPipelines.resize(0);
 
-    context->abortFrameDrawing = true;
+    context->sceneUnloaded = true;
 }

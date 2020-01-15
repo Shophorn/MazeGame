@@ -46,9 +46,6 @@ namespace winapi
 
 
         bool32 isRunning; 
-
-        // int32 windowWidth;
-        // int32 windowHeight;
         bool32 windowIsMinimized;
 
         bool32 windowIsFullscreen;
