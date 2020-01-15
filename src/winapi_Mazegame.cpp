@@ -319,30 +319,26 @@ Run(HINSTANCE winInstance)
         uint64 guiUniformBufferSize     = Megabytes(100);
 
         // TODO[MEMORY] (Leo): This will need guarding against multithreads once we get there
-        // Static mesh pool
         vulkanContext.staticMeshPool = vulkan::make_buffer_resource(  
                                         &vulkanContext, staticMeshPoolSize,
                                         VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
                                         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-        // Staging buffer
+
         vulkanContext.stagingBufferPool = vulkan::make_buffer_resource(  
                                         &vulkanContext, stagingBufferPoolSize,
                                         VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
                                         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
-        // Uniform buffer for model matrices. This means every model including scenery.
         vulkanContext.modelUniformBuffer = vulkan::make_buffer_resource(  
                                         &vulkanContext, modelUniformBufferSize,
                                         VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
                                         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
-        // Uniform buffer for scene data, ie. camera, lights etc.
         vulkanContext.sceneUniformBuffer = vulkan::make_buffer_resource(
                                         &vulkanContext, sceneUniformBufferSize,
                                         VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
                                         VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
 
-        // Uniform buffer for gui elements
         vulkanContext.guiUniformBuffer = vulkan::make_buffer_resource( 
                                         &vulkanContext, guiUniformBufferSize,
                                         VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
@@ -358,13 +354,11 @@ Run(HINSTANCE winInstance)
         vulkan::create_scene_descriptor_sets(&vulkanContext);
         vulkan::create_texture_sampler(&vulkanContext);
     }
-    int32 currentLoopingFrameIndex = 0;
 
     game::RenderInfo gameRenderInfo = {};
-    // vulkan::RenderInfo platformRenderInfo = {};
     {
         gameRenderInfo.draw             = vulkan::record_draw_command;
-        gameRenderInfo.prepare_drawing    = vulkan::prepare_drawing;
+        gameRenderInfo.prepare_drawing  = vulkan::prepare_drawing;
         gameRenderInfo.finish_drawing   = vulkan::finish_drawing;
         gameRenderInfo.draw_line        = vulkan::record_line_draw_command;
         gameRenderInfo.update_camera    = vulkan::update_camera;
@@ -476,7 +470,6 @@ Run(HINSTANCE winInstance)
                 game.Update = reinterpret_cast<winapi::Game::UpdateFunc *>(GetProcAddress(game.dllHandle, GAMECODE_UPDATE_FUNC_NAME));
                 dllWriteTime = dllLatestWriteTime;
             }
-
         }
 
         /// ----- HANDLE INPUT -----
@@ -546,13 +539,18 @@ Run(HINSTANCE winInstance)
         if (state.isRunning && state.windowIsDrawable())
         {
             // Todo(Leo): Study fences
-            vkWaitForFences(vulkanContext.device, 1, &vulkanContext.inFlightFences[currentLoopingFrameIndex],
+            
+            #pragma message("Clean up here")
+            vkWaitForFences(vulkanContext.device, 1, &get_current_virtual_frame(&vulkanContext)->inFlightFence,
                             VK_TRUE, VULKAN_NO_TIME_OUT);
 
             uint32 imageIndex;
-            VkResult getNextImageResult = vkAcquireNextImageKHR(vulkanContext.device, vulkanContext.swapchainItems.swapchain, MaxValue<uint64>,
-                                                    vulkanContext.imageAvailableSemaphores[currentLoopingFrameIndex],
-                                                    VK_NULL_HANDLE, &imageIndex);
+            VkResult getNextImageResult = vkAcquireNextImageKHR(vulkanContext.device,
+                                                                vulkanContext.swapchainItems.swapchain,
+                                                                VULKAN_NO_TIME_OUT,//MaxValue<uint64>,
+                                                                get_current_virtual_frame(&vulkanContext)->imageAvailableSemaphore,
+                                                                VK_NULL_HANDLE,
+                                                                &imageIndex);
             
             vulkanContext.currentDrawFrameIndex = imageIndex;
             {   
@@ -577,16 +575,12 @@ Run(HINSTANCE winInstance)
             /*
             Note(Leo): Only draw image if we have window that is not minimized. Vulkan on windows MUST not
             have framebuffer size 0, which is what minimized window is.
-
-            'currentLoopingFrameIndex' does not need to be incremented if we do not draw since it refers to
-            next available swapchain frame/image, and we do not use one if we do not draw.
             */
         
             switch (getNextImageResult)
             {
                 case VK_SUCCESS:
-                    vulkan::draw_frame(&vulkanContext, imageIndex, currentLoopingFrameIndex);
-                    currentLoopingFrameIndex = (currentLoopingFrameIndex + 1) % MAX_FRAMES_IN_FLIGHT;
+                    vulkan::draw_frame(&vulkanContext, imageIndex);
                     break;
 
                 case VK_SUBOPTIMAL_KHR:

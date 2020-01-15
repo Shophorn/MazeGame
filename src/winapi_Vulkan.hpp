@@ -10,8 +10,8 @@ STUDY: https://devblogs.nvidia.com/vulkan-dos-donts/
 
 #ifndef WIN_VULKAN_HPP
 
-constexpr int32 MAX_FRAMES_IN_FLIGHT = 2;
-// constexpr int32 VIRTUAL_FRAME_COUNT = 2;
+// constexpr int32 MAX_FRAMES_IN_FLIGHT = 2;
+constexpr int32 VIRTUAL_FRAME_COUNT = 3;
 
 
 
@@ -154,11 +154,11 @@ struct VulkanLoadedPipeline
 struct VulkanVirtualFrame
 {
 	VkCommandBuffer commandBuffer;
-	VkFramebuffer frameBuffer;
+	VkFramebuffer framebuffer;
 
-	VkSemaphore imageAvailable;
-	VkSemaphore renderFinished;
-	VkFence commanBufferFreeFence;
+	VkSemaphore imageAvailableSemaphore;
+	VkSemaphore renderFinishedSemaphore;
+	VkFence inFlightFence; // Todo(Leo): Change to queuesubmitfence or commandbufferfence etc..
 };
 
 struct platform::GraphicsContext
@@ -173,14 +173,9 @@ struct platform::GraphicsContext
 	VkQueue 						presentQueue;
 
 	VkCommandPool 					commandPool;
-    std::vector<VkCommandBuffer>    frameCommandBuffers;
-    std::vector<VkFramebuffer>      frameBuffers;
-    std::vector<VkSemaphore>    	imageAvailableSemaphores;
-    std::vector<VkSemaphore>    	renderFinishedSemaphores;
-    std::vector<VkFence>        	inFlightFences;
 
-	/* Todo(Leo): There is one layout for each of [models, scene data, materials].*/
-    // VkDescriptorSetLayout 	descriptorSetLayouts [3];
+    VulkanVirtualFrame virtualFrames [VIRTUAL_FRAME_COUNT];
+    uint32 virtualFrameIndex = 0;
 
     struct
     {
@@ -230,7 +225,7 @@ struct platform::GraphicsContext
 	std::vector<VulkanTexture> 			loadedTextures;
 	std::vector<VulkanMaterial>			loadedMaterials;
     std::vector<VulkanLoadedPipeline> 	loadedPipelines;
-	std::vector<VulkanModel>	loadedModels;
+	std::vector<VulkanModel>			loadedModels;
 
     VulkanLoadedPipeline 	lineDrawPipeline;
     VulkanMaterial 			lineDrawMaterial;
@@ -244,6 +239,19 @@ struct platform::GraphicsContext
     bool32 abortFrameDrawing = false;
 };
 using VulkanContext = platform::GraphicsContext;
+
+internal void
+advance_virtual_frame(VulkanContext * context)
+{
+	context->virtualFrameIndex += 1;
+	context->virtualFrameIndex %= VIRTUAL_FRAME_COUNT;
+}
+
+internal VulkanVirtualFrame *
+get_current_virtual_frame(VulkanContext * context)
+{
+	return &context->virtualFrames[context->virtualFrameIndex];
+}
 
 namespace vulkan
 {
@@ -315,6 +323,12 @@ namespace vulkan
 	internal VkShaderModule CreateShaderModule(BinaryAsset code, VkDevice logicalDevice);
 	internal void recreate_swapchain(VulkanContext * context, VkExtent2D frameBufferSize);
 
+	internal VkFramebuffer make_framebuffer(VulkanContext * context, 
+                            				VkRenderPass    renderPass,
+                            				uint32          attachmentCount,
+                            				VkImageView *   attachments,
+                            				uint32          width,
+                            				uint32          height);
 
 	internal VulkanLoadedPipeline make_pipeline(VulkanContext * context, VulkanPipelineLoadInfo loadInfo);
 	internal VulkanLoadedPipeline make_line_pipeline(VulkanContext * context, VulkanPipelineLoadInfo loadInfo);
@@ -349,12 +363,13 @@ namespace vulkan
     internal void 			unload_scene(VulkanContext * context);
 
 	/// DRAWING, VulkanDrawing.cpp
-	internal void draw_frame(VulkanContext * context, uint32 imageIndex, uint32 frameIndex);
     internal void update_camera(VulkanContext * context, Matrix44 view, Matrix44 perspective);
 	internal void prepare_drawing(VulkanContext * context);
 	internal void finish_drawing(VulkanContext * context);
 	internal void record_draw_command(VulkanContext * context, ModelHandle handle, Matrix44 transform);
 	internal void record_line_draw_command(VulkanContext * context, Vector3 start, Vector3 end, float4 color);
+	// Lol, this is not given to game layer
+	internal void draw_frame(VulkanContext * context, uint32 imageIndex);
 }
 
 
