@@ -18,15 +18,17 @@ enum MenuResult
 
 using GetAllocSizeFunc 	= uint64();
 
-using LoadSceneFunc 	= void( void *					scenePtr,
-								MemoryArena *			persistentMemory,
-								MemoryArena *			transientMemory,
-								game::PlatformInfo *	platform);
+using LoadSceneFunc 	= void( void *						scenePtr,
+								MemoryArena *				persistentMemory,
+								MemoryArena *				transientMemory,
+								game::PlatformInfo *		platform,
+								platform::GraphicsContext * graphics);
 
-using UpdateSceneFunc 	= void(	void * 					scenePtr,
-								game::Input * 			input,
-								game::RenderInfo * 		renderer,
-								game::PlatformInfo * 	platform);
+using UpdateSceneFunc 	= void(	void * 						scenePtr,
+								game::Input * 				input,
+								game::RenderInfo * 			renderer,
+								game::PlatformInfo * 		platform,
+								platform::GraphicsContext * graphics);
 
 struct SceneInfo
 {
@@ -50,10 +52,11 @@ make_scene_info(GetAllocSizeFunc * getAllocSizeFunc, LoadSceneFunc * loadFunc, U
 
 using LoadGuiFunc 	= LoadSceneFunc;
 
-using UpdateGuiFunc	= MenuResult(	void * 					guiPtr,
-									game::Input * 			input,
-									game::RenderInfo * 		renderer,
-									game::PlatformInfo * 	platform);
+using UpdateGuiFunc	= MenuResult(	void * 						guiPtr,
+									game::Input * 				input,
+									game::RenderInfo * 			renderer,
+									game::PlatformInfo * 		platform,
+									platform::GraphicsContext * graphics);
 
 struct SceneGuiInfo
 {

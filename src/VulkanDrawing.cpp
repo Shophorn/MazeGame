@@ -23,14 +23,11 @@ vulkan::update_camera(VulkanContext * context, Matrix44 view, Matrix44 perspecti
 void
 vulkan::prepare_drawing(VulkanContext * context)
 {
- 
-    // std::cout << "[vulkan::prepare_drawing()]\n";
-    uint32 frameIndex = context->currentDrawFrameIndex;
-    context->currentUniformBufferOffset = 0;
-    context->currentBoundPipeline = PipelineHandle::Null;
-
     DEVELOPMENT_ASSERT((context->canDraw == false), "Invalid call to prepare_drawing() when finish_drawing() has not been called.")
     context->canDraw = true;
+
+    context->currentUniformBufferOffset = 0;
+    context->currentBoundPipeline = PipelineHandle::Null;
 
     // Note(Leo): We recreate these everytime we are here.
     // https://software.intel.com/en-us/articles/api-without-secrets-introduction-to-vulkan-part-4#inpage-nav-5
@@ -41,31 +38,31 @@ vulkan::prepare_drawing(VulkanContext * context)
     {
         context->drawingResources.colorImageView,
         context->drawingResources.depthImageView,
-        context->swapchainItems.imageViews[frameIndex],
+        context->swapchainItems.imageViews[context->currentDrawFrameIndex],
     };
-    get_current_virtual_frame(context)->framebuffer = make_framebuffer(   context,
-                                                                                context->renderPass,
-                                                                                attachmentCount,
-                                                                                attachments,
-                                                                                context->swapchainItems.extent.width,
-                                                                                context->swapchainItems.extent.height);    
 
-    VkCommandBuffer commandBuffer = get_current_virtual_frame(context)->commandBuffer;
+    VulkanVirtualFrame * frame = get_current_virtual_frame(context);
+    frame->framebuffer = make_framebuffer(  context,
+                                            context->renderPass,
+                                            attachmentCount,
+                                            attachments,
+                                            context->swapchainItems.extent.width,
+                                            context->swapchainItems.extent.height);    
+
 
     /* Note (Leo): beginning command buffer implicitly resets it, if we have specified
     VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT in command pool creation */
 
-    VkCommandBufferBeginInfo beginInfo =
+    VkCommandBufferBeginInfo primaryCmdBeginInfo =
     {
         .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-        .flags              = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT,
+        .flags              = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
         .pInheritanceInfo   = nullptr,
     };
 
-    if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS)
-    {
-        throw std::runtime_error("Failed to begin recording command buffer");
-    }
+    DEVELOPMENT_ASSERT(
+        vkBeginCommandBuffer(frame->commandBuffers.primary, &primaryCmdBeginInfo) == VK_SUCCESS,
+        "Failed to begin primary command buffer");
 
     VkClearValue clearValues [] =
     {
@@ -77,7 +74,7 @@ vulkan::prepare_drawing(VulkanContext * context)
     {
         .sType              = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
         .renderPass         = context->renderPass,
-        .framebuffer        = get_current_virtual_frame(context)->framebuffer,
+        .framebuffer        = frame->framebuffer,
         
         .renderArea.offset  = {0, 0},
         .renderArea.extent  = context->swapchainItems.extent,
@@ -85,7 +82,32 @@ vulkan::prepare_drawing(VulkanContext * context)
         .clearValueCount    = 2,
         .pClearValues       = clearValues,
     };
-    vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+    vkCmdBeginRenderPass(frame->commandBuffers.primary, &renderPassInfo, VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS);
+
+    VkCommandBufferInheritanceInfo inheritanceInfo =
+    {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_INHERITANCE_INFO,
+        .renderPass = context->renderPass,
+
+        // Todo(Leo): so far we only have 1 subpass, but whenever it changes, this probably must too
+        .subpass = 0,
+        .framebuffer = frame->framebuffer,
+        .occlusionQueryEnable = VK_FALSE,
+        .queryFlags = 0,
+        .pipelineStatistics = 0,
+    };
+
+    VkCommandBufferBeginInfo sceneCmdBeginInfo =
+    {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+        .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT | VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT,
+        .pInheritanceInfo = &inheritanceInfo,
+    };
+
+    DEVELOPMENT_ASSERT(
+        vkBeginCommandBuffer(frame->commandBuffers.scene, &sceneCmdBeginInfo) == VK_SUCCESS,
+        "Failed to begin secondary scene command buffer");
+
 }
 
 void
@@ -94,13 +116,18 @@ vulkan::finish_drawing(VulkanContext * context)
     DEVELOPMENT_ASSERT(context->canDraw, "Invalid call to finish_drawing() when prepare_drawing() has not been called.")
     context->canDraw = false;
 
-    VkCommandBuffer commandBuffer = get_current_virtual_frame(context)->commandBuffer;
+    VulkanVirtualFrame * frame = get_current_virtual_frame(context);
 
-    vkCmdEndRenderPass(commandBuffer);
-    if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS)
-    {
-        throw std::runtime_error("Failed to record command buffer");
-    }
+    DEVELOPMENT_ASSERT(
+        vkEndCommandBuffer(frame->commandBuffers.scene) == VK_SUCCESS,
+        "Failed to end secondary scene command buffer");
+
+    vkCmdExecuteCommands(frame->commandBuffers.primary, 1, &frame->commandBuffers.scene);
+    vkCmdEndRenderPass(frame->commandBuffers.primary);
+    
+    DEVELOPMENT_ASSERT(
+        vkEndCommandBuffer(frame->commandBuffers.primary) == VK_SUCCESS,
+        "Failed to end primary command buffer");
 }
 
 
@@ -112,8 +139,8 @@ vulkan::draw_frame(VulkanContext * context, uint32 imageIndex)
     bool32 skipFrame            = context->sceneUnloaded;
     context->sceneUnloaded      = false;
 
-    uint32 frameIndex = context->virtualFrameIndex;
-    auto * frame = get_current_virtual_frame(context);
+    // uint32 frameIndex = context->virtualFrameIndex;
+    VulkanVirtualFrame * frame = get_current_virtual_frame(context);
 
 
     /* Note(Leo): reset here, so that if we have recreated swapchain above,
@@ -132,7 +159,7 @@ vulkan::draw_frame(VulkanContext * context, uint32 imageIndex)
         .pWaitDstStageMask      = &waitStage,
 
         .commandBufferCount     = (uint32)(skipFrame ? 0 : 1),
-        .pCommandBuffers        = &get_current_virtual_frame(context)->commandBuffer,
+        .pCommandBuffers        = &frame->commandBuffers.primary,
 
         // Note(Leo): We signal these AFTER drawing
         .signalSemaphoreCount   = 1,
@@ -195,7 +222,7 @@ vulkan::record_draw_command(VulkanContext * context, ModelHandle model, Matrix44
     // std::cout << "[vulkan::record_draw_command()]\n";
     DEVELOPMENT_ASSERT(context->canDraw, "Invalid call to record_draw_command() when prepare_drawing() has not been called.")
 
-    VkCommandBuffer commandBuffer   = get_current_virtual_frame(context)->commandBuffer;
+    VkCommandBuffer commandBuffer   = get_current_virtual_frame(context)->commandBuffers.scene;
  
     MeshHandle meshHandle           = context->loadedModels[model].mesh;
     MaterialHandle materialHandle   = context->loadedModels[model].material;
@@ -295,7 +322,7 @@ vulkan::record_line_draw_command(VulkanContext * context, Vector3 start, Vector3
     */
     DEVELOPMENT_ASSERT(context->canDraw, "Invalid call to record_line_draw_command() when prepare_drawing() has not been called.")
 
-    VkCommandBuffer commandBuffer = get_current_virtual_frame(context)->commandBuffer;//context->frameCommandBuffers[context->currentDrawFrameIndex];
+    VkCommandBuffer commandBuffer = get_current_virtual_frame(context)->commandBuffers.scene;
  
     enum : uint32
     {

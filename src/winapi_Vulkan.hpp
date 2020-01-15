@@ -10,7 +10,6 @@ STUDY: https://devblogs.nvidia.com/vulkan-dos-donts/
 
 #ifndef WIN_VULKAN_HPP
 
-// constexpr int32 MAX_FRAMES_IN_FLIGHT = 2;
 constexpr int32 VIRTUAL_FRAME_COUNT = 3;
 
 
@@ -153,7 +152,17 @@ struct VulkanLoadedPipeline
 
 struct VulkanVirtualFrame
 {
-	VkCommandBuffer commandBuffer;
+	struct
+	{
+		VkCommandBuffer primary;
+		VkCommandBuffer scene;
+		VkCommandBuffer gui;
+
+
+		// Todo(Leo): Do we want this too?
+		// VkCommandBuffer debug;
+	} commandBuffers;
+
 	VkFramebuffer framebuffer;
 
 	VkSemaphore imageAvailableSemaphore;
@@ -195,6 +204,10 @@ struct platform::GraphicsContext
 
     VkRenderPass            renderPass;
     VulkanSwapchainItems 	swapchainItems;
+
+    VkRenderPass			shadowRenderPass;
+    VkFramebuffer			shadowFrameBuffer;
+    VulkanTexture			shadowTexture;
 
     // MULTISAMPLING
     VkSampleCountFlagBits msaaSamples;
@@ -254,6 +267,48 @@ internal VulkanVirtualFrame *
 get_current_virtual_frame(VulkanContext * context)
 {
 	return &context->virtualFrames[context->virtualFrameIndex];
+}
+
+internal VkFormat
+find_supported_format(
+    VkPhysicalDevice physicalDevice,
+    int32 candidateCount,
+    VkFormat * pCandidates,
+    VkImageTiling requestedTiling,
+    VkFormatFeatureFlags requestedFeatures
+){
+    bool32 requestOptimalTiling = requestedTiling == VK_IMAGE_TILING_OPTIMAL;
+
+    for (VkFormat * pFormat = pCandidates; pFormat != pCandidates + candidateCount; ++pFormat)
+    {
+        VkFormatProperties properties;
+        vkGetPhysicalDeviceFormatProperties(physicalDevice, *pFormat, &properties);
+
+        VkFormatFeatureFlags features = requestOptimalTiling ? 
+            properties.optimalTilingFeatures : properties.linearTilingFeatures;    
+
+        if ((features & requestedFeatures) == requestedFeatures)
+        {
+            return *pFormat;
+        }
+    }
+
+    throw std::runtime_error("Failed to find supported format");
+}
+
+internal VkFormat
+find_supported_depth_format(VkPhysicalDevice physicalDevice)   
+{
+    VkFormat formats [] = { VK_FORMAT_D32_SFLOAT,
+                            VK_FORMAT_D32_SFLOAT_S8_UINT,
+                            VK_FORMAT_D24_UNORM_S8_UINT };
+    int32 formatCount = 3;
+
+
+    VkFormat result = find_supported_format(
+                        physicalDevice, formatCount, formats, VK_IMAGE_TILING_OPTIMAL, 
+                        VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
+    return result;
 }
 
 namespace vulkan
@@ -338,6 +393,7 @@ namespace vulkan
 	internal void destroy_pipeline(VulkanContext * context, VulkanLoadedPipeline * pipeline);
 
 	internal VulkanTexture make_texture(TextureAsset * asset, VulkanContext * context);
+	internal VulkanTexture make_empty_texture(VulkanContext * context, VkFormat format, VkExtent2D size);
 	// Todo(Leo): Use some structure with fixed size of six TextureAssets in place of 'assets'
 	internal VulkanTexture make_cubemap(VulkanContext * context, TextureAsset * assets);
 	internal void destroy_texture(VulkanContext * context, VulkanTexture * texture);

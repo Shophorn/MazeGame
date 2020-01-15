@@ -1350,12 +1350,12 @@ CreateRenderPass(VulkanContext * context, VulkanSwapchainItems * swapchainItems,
     dependencies[0].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
     dependencies[0].srcAccessMask = 0;
     dependencies[0].dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    dependencies[0].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    dependencies[0].dstAccessMask = 0;//VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 
     VkRenderPassCreateInfo renderPassInfo = { VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO };
     renderPassInfo.attachmentCount = ATTACHMENT_COUNT;
     renderPassInfo.pAttachments = &attachments[0];
-    renderPassInfo.subpassCount = 1;
+    renderPassInfo.subpassCount = ARRAY_COUNT(subpasses);
     renderPassInfo.pSubpasses = &subpasses[0];
     renderPassInfo.dependencyCount = ARRAY_COUNT(dependencies);
     renderPassInfo.pDependencies = &dependencies[0];
@@ -2389,7 +2389,7 @@ Cleanup(VulkanContext * context)
 
     for (auto & frame : context->virtualFrames)
     {
-        /* Note(Leo): commandBuffer is destroyed with command pool, but we need to destroy
+        /* Note(Leo): command buffers are destroyed with command pool, but we need to destroy
         framebuffers here, since they are always recreated immediately right after destroying
         them in drawing procedure */
         vkDestroyFramebuffer(context->device, frame.framebuffer, nullptr);
@@ -2409,12 +2409,25 @@ Cleanup(VulkanContext * context)
 internal void
 create_virtual_frames(VulkanContext * context)
 {
-    VkCommandBufferAllocateInfo allocateInfo =
+    VkCommandBufferAllocateInfo primaryCmdAllocateInfo =
     {
         .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
         .commandPool        = context->commandPool,
         .level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
         .commandBufferCount = 1,
+    };
+
+    VkCommandBufferAllocateInfo secondaryCmdAllocateInfo =
+    {
+        .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+        .commandPool        = context->commandPool,
+        .level              = VK_COMMAND_BUFFER_LEVEL_SECONDARY,
+        .commandBufferCount = 1,
+    };
+
+    VkEventCreateInfo eventCreateInfo =
+    {
+        .sType = VK_STRUCTURE_TYPE_EVENT_CREATE_INFO,
     };
 
     VkSemaphoreCreateInfo semaphoreInfo = 
@@ -2430,7 +2443,12 @@ create_virtual_frames(VulkanContext * context)
 
     for (auto & frame : context->virtualFrames)
     {
-        bool32 success = vkAllocateCommandBuffers(context->device, &allocateInfo, &frame.commandBuffer) == VK_SUCCESS;
+        // Command buffers
+        bool32 success = vkAllocateCommandBuffers(context->device, &primaryCmdAllocateInfo, &frame.commandBuffers.primary) == VK_SUCCESS;
+        success = success && vkAllocateCommandBuffers(context->device, &secondaryCmdAllocateInfo, &frame.commandBuffers.scene) == VK_SUCCESS;
+        success = success && vkAllocateCommandBuffers(context->device, &secondaryCmdAllocateInfo, &frame.commandBuffers.gui) == VK_SUCCESS;
+
+        // Synchronization stuff
         success = success && vkCreateSemaphore(context->device, &semaphoreInfo, nullptr, &frame.imageAvailableSemaphore) == VK_SUCCESS;
         success = success && vkCreateSemaphore(context->device, &semaphoreInfo, nullptr, &frame.renderFinishedSemaphore) == VK_SUCCESS;
         success = success && vkCreateFence(context->device, &fenceInfo, nullptr, &frame.inFlightFence) == VK_SUCCESS;
@@ -2517,8 +2535,6 @@ namespace winapi
             throw std::runtime_error("failed to create command pool");
         }
 
-        /// ...?
-        
         /* 
         Above is device
         -----------------------------------------------------------------------

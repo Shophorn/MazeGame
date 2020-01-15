@@ -102,31 +102,31 @@ output_sound(int sampleCount, game::StereoSoundSample * samples)
 }
 
 internal void
-load_scene(GameState * state, game::PlatformInfo * platform, SceneInfo scene)
+load_scene(GameState * state, game::PlatformInfo * platform, platform::GraphicsContext * graphics, SceneInfo scene)
 {
 	state->loadedSceneInfo = scene;
 
 	state->loadedScene = reserve_from_memory_arena(&state->persistentMemoryArena, scene.get_alloc_size());
-	scene.load(state->loadedScene, &state->persistentMemoryArena, &state->transientMemoryArena, platform);
+	scene.load(state->loadedScene, &state->persistentMemoryArena, &state->transientMemoryArena, platform, graphics);
 
 	state->sceneLoaded = true;	
 }
 
 internal void
-load_gui(GameState * state, game::PlatformInfo * platform, SceneGuiInfo gui)
+load_gui(GameState * state, game::PlatformInfo * platform, platform::GraphicsContext * graphics, SceneGuiInfo gui)
 {
 	state->loadedGuiInfo = gui;
 
 	state->loadedGui = reserve_from_memory_arena(&state->persistentMemoryArena, gui.get_alloc_size());
-	gui.load(state->loadedGui, &state->persistentMemoryArena, &state->transientMemoryArena, platform);	
+	gui.load(state->loadedGui, &state->persistentMemoryArena, &state->transientMemoryArena, platform, graphics);	
 }
 
 internal void
-unload_scene_and_gui(GameState * state, game::PlatformInfo * platform)
+unload_scene_and_gui(GameState * state, game::PlatformInfo * platform, platform::GraphicsContext * graphics)
 {
 	state->loadedSceneInfo = {};
 
-	platform->unload_scene(platform->graphicsContext);
+	platform->unload_scene(graphics);
 	clear_memory_arena(&state->persistentMemoryArena);
 
 	state->loadedScene = nullptr;
@@ -156,16 +156,16 @@ GameUpdate(
 		initialize_game_state (state, memory, platform);
 		memory->isInitialized = true;
 
-		load_gui(state, platform, menuSceneGuiGui);
+		load_gui(state, platform, graphics, menuSceneGuiGui);
 	}
 	flush_memory_arena(&state->transientMemoryArena);
 	
 	outRenderInfo->prepare_drawing(graphics);
 	if (state->loadedScene != nullptr)
 	{
-		state->loadedSceneInfo.update(state->loadedScene, input, outRenderInfo, platform);
+		state->loadedSceneInfo.update(state->loadedScene, input, outRenderInfo, platform, graphics);
 	}
-	auto guiResult = state->loadedGuiInfo.update(state->loadedGui, input, outRenderInfo, platform);
+	auto guiResult = state->loadedGuiInfo.update(state->loadedGui, input, outRenderInfo, platform, graphics);
 	outRenderInfo->finish_drawing(graphics);
 
 
@@ -177,20 +177,20 @@ GameUpdate(
 			break;
 
 		case MENU_LOADLEVEL_2D:
-			unload_scene_and_gui(state, platform);
-			load_scene(state, platform, scene2dInfo);
-			load_gui(state, platform, defaultSceneGui);
+			unload_scene_and_gui(state, platform, graphics);
+			load_scene(state, platform, graphics, scene2dInfo);
+			load_gui(state, platform, graphics, defaultSceneGui);
 			break;
 
 		case MENU_LOADLEVEL_3D:
-			unload_scene_and_gui(state, platform);
-			load_scene(state, platform, scene3dInfo);
-			load_gui(state, platform, defaultSceneGui);
+			unload_scene_and_gui(state, platform, graphics);
+			load_scene(state, platform, graphics, scene3dInfo);
+			load_gui(state, platform, graphics, defaultSceneGui);
 			break;
 
 		case SCENE_EXIT:
-			unload_scene_and_gui(state, platform);
-			load_gui(state, platform, menuSceneGuiGui);
+			unload_scene_and_gui(state, platform, graphics);
+			load_gui(state, platform, graphics, menuSceneGuiGui);
 			break;
 
 		default:

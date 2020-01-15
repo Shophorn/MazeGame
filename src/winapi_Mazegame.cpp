@@ -262,8 +262,6 @@ Run(HINSTANCE winInstance)
         }
 
         vulkanContext = winapi::make_vulkan_context(winInstance, winWindow);
-        state.gamePlatformInfo.graphicsContext = &vulkanContext;
-
         state.gamePlatformInfo.set_window_fullscreen = [&winWindow, &state](bool32 fullscreen)
         {
             winapi::SetWindowFullScreen(winWindow, &state, fullscreen);

@@ -7,7 +7,11 @@ struct MenuGuiState
 };
 
 internal void
-update_gui_render_system(ArenaArray<GuiRendererSystemEntry> system, game::RenderInfo * renderer, game::PlatformInfo * platform, int32 selectedGuiIndex)
+update_gui_render_system(	ArenaArray<GuiRendererSystemEntry> system,
+							game::RenderInfo * renderer,
+							game::PlatformInfo * platform,
+							int32 selectedGuiIndex,
+							platform::GraphicsContext * graphics)
 {
 	Vector2 windowSize = {(float)platform->windowWidth, (float)platform->windowHeight};
 	Vector2 halfWindowSize = windowSize / 2.0f;
@@ -26,7 +30,7 @@ update_gui_render_system(ArenaArray<GuiRendererSystemEntry> system, game::Render
 		}
 
 		Matrix44 transform = Matrix44::Translate({translation.x, translation.y, 0}) * Matrix44::Scale({scale.x, scale.y, 1.0});
-		renderer->draw(platform->graphicsContext, entry.renderer->handle, transform);
+		renderer->draw(graphics, entry.renderer->handle, transform);
 	}
 }
 
@@ -80,23 +84,27 @@ update_menu_gui_event_system(MenuGuiState * guiState, game::Input * input)
 }
 
 internal MenuResult 
-update_menu_gui(	void *					guiPtr,
-					game::Input * 			input,
-					game::RenderInfo * 		outRenderInfo,
-					game::PlatformInfo * 	platform)
+update_menu_gui(	void *						guiPtr,
+					game::Input * 				input,
+					game::RenderInfo * 			outRenderInfo,
+					game::PlatformInfo * 		platform,
+					platform::GraphicsContext * graphics)
 {
 	auto * gui = reinterpret_cast<MenuGuiState*>(guiPtr);
 
-
 	update_menu_gui_navigation_system(gui, input);
-	update_gui_render_system(gui->guiRenderSystem, outRenderInfo, platform, gui->selectedGuiIndex);
+	update_gui_render_system(gui->guiRenderSystem, outRenderInfo, platform, gui->selectedGuiIndex, graphics);
 	
 	auto result = update_menu_gui_event_system(gui, input);
 	return result;
 }
 
 internal void
-load_menu_gui(void * guiPtr, MemoryArena * persistentMemory, MemoryArena * transientMemory, game::PlatformInfo * platformInfo)
+load_menu_gui(	void * guiPtr,
+				MemoryArena * persistentMemory,
+				MemoryArena * transientMemory,
+				game::PlatformInfo * platformInfo,
+				platform::GraphicsContext * graphics)
 {
 	auto * gui = reinterpret_cast<MenuGuiState*>(guiPtr);
 
@@ -110,7 +118,7 @@ load_menu_gui(void * guiPtr, MemoryArena * persistentMemory, MemoryArena * trans
  	MaterialHandle material;
 	// Create MateriaLs
 	{
-		PipelineHandle pipeline = platformInfo->push_pipeline(platformInfo->graphicsContext, "shaders/vert_gui.spv", "shaders/frag_gui.spv", {.textureCount = 3});
+		PipelineHandle pipeline = platformInfo->push_pipeline(graphics, "shaders/vert_gui.spv", "shaders/frag_gui.spv", {.textureCount = 3});
 
 		TextureAsset blackTextureAsset = {};
 		blackTextureAsset.pixels = push_array<uint32>(transientMemory, 1);
@@ -119,7 +127,7 @@ load_menu_gui(void * guiPtr, MemoryArena * persistentMemory, MemoryArena * trans
 		blackTextureAsset.height = 1;
 		blackTextureAsset.channels = 4;
 
-		TextureHandle blackTexture = platformInfo->push_texture(platformInfo->graphicsContext, &blackTextureAsset);
+		TextureHandle blackTexture = platformInfo->push_texture(graphics, &blackTextureAsset);
 
 	    TextureAsset textureAssets [] =
 	    {
@@ -127,21 +135,21 @@ load_menu_gui(void * guiPtr, MemoryArena * persistentMemory, MemoryArena * trans
 	        load_texture_asset("textures/texture.jpg", transientMemory),
 	    };
 
-		TextureHandle texB = platformInfo->push_texture(platformInfo->graphicsContext, &textureAssets[0]);
-		TextureHandle texC = platformInfo->push_texture(platformInfo->graphicsContext, &textureAssets[1]);
+		TextureHandle texB = platformInfo->push_texture(graphics, &textureAssets[0]);
+		TextureHandle texC = platformInfo->push_texture(graphics, &textureAssets[1]);
 
 		MaterialAsset materialAsset = make_material_asset(pipeline, push_array(transientMemory, {texB, texC, blackTexture}));
-		material = platformInfo->push_material(platformInfo->graphicsContext, &materialAsset);
+		material = platformInfo->push_material(graphics, &materialAsset);
 	}
 
 	MeshAsset quadAsset = mesh_primitives::create_quad(transientMemory, true);
- 	MeshHandle quadHandle = platformInfo->push_mesh(platformInfo->graphicsContext, &quadAsset);
+ 	MeshHandle quadHandle = platformInfo->push_mesh(graphics, &quadAsset);
 
  	for (int i = 0; i < 4; ++i)
  	{
  		Handle<Rectangle> rectanle = make_handle<Rectangle>({380, (float)(200 + 60 * i), 180, 40});
 
- 		ModelHandle graphicsHandle = platformInfo->push_model(platformInfo->graphicsContext, quadHandle, material);
+ 		ModelHandle graphicsHandle = platformInfo->push_model(graphics, quadHandle, material);
  		Handle<Renderer> renderer  = make_handle<Renderer>({graphicsHandle});
 
  		push_one(gui->guiRenderSystem, {rectanle, renderer});

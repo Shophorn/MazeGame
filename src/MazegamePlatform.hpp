@@ -132,8 +132,6 @@ namespace game
 
 	struct PlatformInfo
 	{
-		platform::GraphicsContext * graphicsContext;
-
 		int32 	windowWidth;
 		int32 	windowHeight;
 		bool32 	windowIsFullscreen;
