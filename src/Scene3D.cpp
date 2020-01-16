@@ -10,66 +10,61 @@ Scene description for 3d development scene
 
 #include "DefaultSceneGui.cpp"
 
-namespace scene_3d
+struct Scene3d
 {
-	struct Scene
-	{
-		ArenaArray<RenderSystemEntry> renderSystem = {};
-		ArenaArray<Handle<Animator>> animatorSystem = {};
-		CollisionSystem3D collisionSystem = {};
+	ArenaArray<RenderSystemEntry> renderSystem = {};
+	ArenaArray<Handle<Animator>> animatorSystem = {};
+	CollisionSystem3D collisionSystem = {};
 
-		Camera worldCamera;
-		CameraController3rdPerson cameraController;
-		CharacterController3rdPerson characterController;
+	Camera worldCamera;
+	CameraController3rdPerson cameraController;
+	CharacterController3rdPerson characterController;
 
-		// Todo(Leo): make animation state controller or similar for these
-		AnimationClip 	laddersUpAnimation;
-		AnimationClip 	laddersDownAnimation;
+	// Todo(Leo): make animation state controller or similar for these
+	AnimationClip 	laddersUpAnimation;
+	AnimationClip 	laddersDownAnimation;
 
-		// Todo(Leo): make controller for these
-		CharacterControllerSideScroller::LadderTriggerFunc ladderTrigger1;
-		CharacterControllerSideScroller::LadderTriggerFunc ladderTrigger2;
-		bool32 ladderOn = false;
-		bool32 ladder2On = false;
+	// Todo(Leo): make controller for these
+	CharacterControllerSideScroller::LadderTriggerFunc ladderTrigger1;
+	CharacterControllerSideScroller::LadderTriggerFunc ladderTrigger2;
+	bool32 ladderOn = false;
+	bool32 ladder2On = false;
 
-		ModelHandle skybox;
+	ModelHandle skybox;
 
-		MaterialHandle uiMaterial;
-
-		SceneGui gui;
-	};
-
-	internal uint64
-	get_alloc_size() { return sizeof(Scene); };
+	MaterialHandle uiMaterial;
+	SceneGui gui;
  
-	internal MenuResult
+ 	// Todo(Leo): maybe make free functions
+	static MenuResult
 	update(	void * 						scenePtr, 
 			game::Input * 				input,
 			game::RenderInfo * 			renderer,
 			game::PlatformInfo * 		platform,
 			platform::GraphicsContext * graphics);
 
-	internal void
+	static void
 	load(	void * 						scenePtr,
 			MemoryArena * 				persistentMemory,
 			MemoryArena * 				transientMemory,
 			game::PlatformInfo * 		platformInfo,
 			platform::GraphicsContext * graphics);
-}
+};
+
 
 global_variable SceneInfo 
-scene3dInfo = make_scene_info(	scene_3d::get_alloc_size,
-								scene_3d::load,
-								scene_3d::update);
+scene3dInfo = make_scene_info(	get_size_of<Scene3d>,
+								Scene3d::load,
+								Scene3d::update);
 
-internal MenuResult
-scene_3d::update(	void * 						scenePtr,
+MenuResult
+Scene3d::update(	void * 						scenePtr,
 					game::Input * 				input,
 					game::RenderInfo * 			renderer,
 					game::PlatformInfo * 		platform,
 					platform::GraphicsContext * graphics)
 {
-	Scene * scene = reinterpret_cast<Scene*>(scenePtr);
+	Scene3d * scene = reinterpret_cast<Scene3d*>(scenePtr);
 
 	/* Sadly, we need to draw skybox before game logig, because otherwise
 	dedbug lines would be hidden */ 
@@ -96,14 +91,14 @@ scene_3d::update(	void * 						scenePtr,
 	return result;
 }
 
-internal void 
-scene_3d::load(	void * 						scenePtr, 
+void 
+Scene3d::load(	void * 						scenePtr, 
 				MemoryArena * 				persistentMemory,
 				MemoryArena * 				transientMemory,
 				game::PlatformInfo * 		platformInfo,
 				platform::GraphicsContext * graphics)
 {
-	Scene * scene = reinterpret_cast<Scene*>(scenePtr);
+	Scene3d * scene = reinterpret_cast<Scene3d*>(scenePtr);
 
 	// Note(Leo): amounts are SWAG, rethink.
 	allocate_for_handle<Transform3D>	(persistentMemory, 100);
