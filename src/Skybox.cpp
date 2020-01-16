@@ -57,7 +57,7 @@ create_skybox(MemoryArena * arena)
 	});
 
 	// Face normals inside
-	auto indices = push_array<uint16>(arena,
+	auto indices = push_array<u16>(arena,
 	{
 		0, 1, 2, 1, 3, 2,
 		4, 6, 5, 6, 7, 5,

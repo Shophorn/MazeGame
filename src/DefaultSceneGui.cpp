@@ -7,7 +7,7 @@ Default gui to be used in game scenes.
 struct SceneGui
 {
 	StaticArray<Rectangle, 2> buttons;
-	int32 selectedIndex;
+	s32 selectedIndex;
 
 	bool32 showGameMenu;
 	MaterialHandle material;
@@ -20,7 +20,6 @@ make_scene_gui(	MemoryArena * transientMemory,
 {
 	SceneGui result = {};
 
-	#pragma message("Make 'Checkpoint' struct for MemoryArena")
 	/* Todo(Leo): We should make transientMemory to yield a temporary allocation object. */
 
 	auto textureAsset 	= load_texture_asset("textures/texture.jpg", transientMemory);
@@ -117,13 +116,13 @@ namespace default_scene_gui
 		StaticArray<Rectangle, 2> buttons;
 
 		bool32 showGameMenu;
-		int32 gameGuiButtonCount;
-		int32 selectedGuiButtonIndex;
+		s32 gameGuiButtonCount;
+		s32 selectedGuiButtonIndex;
 		MaterialHandle material;
 
 	};
 
-	internal uint64
+	internal u64
 	get_alloc_size() { return sizeof (SceneGui); };
 
 	internal void

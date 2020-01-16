@@ -56,8 +56,8 @@ namespace platform
 	{
 	    bool32 	enableDepth 		= true;
 	    bool32 	clampDepth 			= false;
-	    int32 	textureCount 		= 0;
-	    uint32	pushConstantSize 	= 0;
+	    s32 	textureCount 		= 0;
+	    u32	pushConstantSize 	= 0;
 
 	    enum { PRIMITIVE_LINE, PRIMITIVE_TRIANGLE } primitiveType = PRIMITIVE_TRIANGLE;
 	};
@@ -91,8 +91,8 @@ namespace platform
 
 	struct Window;
 
-	using GetWindowWidthFunc = uint32 (Window const *);
-	using GetWindowHeightFunc = uint32 (Window const *);
+	using GetWindowWidthFunc = u32 (Window const *);
+	using GetWindowHeightFunc = u32 (Window const *);
 	using IsWindowFullScreenFunc = bool32(Window const *);
 	using SetWindowFullscreenFunc = void (Window*, bool32 value);
 
@@ -127,7 +127,7 @@ namespace platform
 
 namespace game
 {
-	enum struct ButtonState : int8
+	enum struct ButtonState : s8
 	{
 		IsUp,
 		WentDown,
@@ -169,8 +169,8 @@ namespace game
 
 	struct Input
 	{
-		Vector2 move;
-		Vector2 look;
+		float2 move;
+		float2 look;
 
 
 		// Todo(Leo): Do a proper separate mapping struct of meanings of specific buttons
@@ -198,10 +198,10 @@ namespace game
 		bool32 isInitialized;
 
 		void * persistentMemory;
-		uint64 persistentMemorySize;
+		u64 persistentMemorySize;
 
 		void * transientMemory;
-		uint64 transientMemorySize;
+		u64 transientMemorySize;
 	};
 
 	
@@ -211,7 +211,7 @@ namespace game
 		Quaternion characterRotation;
 	};
 
-	constexpr int32 NETWORK_PACKAGE_SIZE = sizeof(NetworkPackage);
+	constexpr s32 NETWORK_PACKAGE_SIZE = sizeof(NetworkPackage);
 	static_assert(NETWORK_PACKAGE_SIZE <= 512, "Time to deal with bigger network packages");
 
 	struct Network
@@ -230,7 +230,7 @@ namespace game
 
 	struct SoundOutput
 	{
-		int32 sampleCount;
+		s32 sampleCount;
 		StereoSoundSample * samples;
 	};
 }

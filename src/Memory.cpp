@@ -12,24 +12,24 @@ Memory managing things in :MAZEGAME:
 /// 	STATIC ARRAY 			///
 ///////////////////////////////////
 
-template<typename T, int32 Count>
+template<typename T, s32 Count>
 struct StaticArray
 {
 	T _items [Count];
 
-	constexpr int32 count () { return Count; }
+	constexpr s32 count () { return Count; }
 
-	T & operator [] (int32 index)
+	T & operator [] (s32 index)
 	{
 		DEVELOPMENT_ASSERT (index < Count, "Index outside StaticArray bounds");
 		return _items[index];
 	}
 };
 
-template<typename T, int32 Count>
+template<typename T, s32 Count>
 T * begin(StaticArray<T, Count> array) { return array._items; }
 
-template<typename T, int32 Count>
+template<typename T, s32 Count>
 T * end(StaticArray<T, Count> array) { return array._items + Count; }
 
 
@@ -40,18 +40,18 @@ T * end(StaticArray<T, Count> array) { return array._items + Count; }
 struct MemoryArena
 {
 	// Todo(Leo): Is this appropriate??
-	static constexpr uint64 defaultAlignment = sizeof(uint64);
+	static constexpr u64 defaultAlignment = sizeof(u64);
 
 	byte * 	memory;
-	uint64 	size;
-	uint64 	used;
+	u64 	size;
+	u64 	used;
 
 	byte * next () { return memory + used; }
-	uint64 available () { return size - used; }
+	u64 available () { return size - used; }
 };
 
 internal byte *
-reserve_from_memory_arena(MemoryArena * arena, uint64 size)
+reserve_from_memory_arena(MemoryArena * arena, u64 size)
 {
 	size = align_up_to(size, MemoryArena::defaultAlignment);
 	
@@ -64,7 +64,7 @@ reserve_from_memory_arena(MemoryArena * arena, uint64 size)
 }
 
 internal MemoryArena
-make_memory_arena(byte * memory, uint64 size)
+make_memory_arena(byte * memory, u64 size)
 {
 	MemoryArena resultArena =
 	{
@@ -100,12 +100,12 @@ push_empty_struct(MemoryArena * arena)
 ///         ARENA ARRAY 			///
 ///////////////////////////////////////
 
-using default_index_type = uint64;
+using default_index_type = u64;
 
 struct ArrayHeader
 {
-	uint64 capacityInBytes;
-	uint64 countInBytes;
+	u64 capacityInBytes;
+	u64 countInBytes;
 };
 
 #define ARENA_ARRAY_TEMPLATE template<typename T, typename TIndex = default_index_type>
@@ -127,8 +127,8 @@ ARENA_ARRAY_TEMPLATE struct ArenaArray
 	And store pointer to arena instead? */
 	byte * _data = nullptr;
 
-	uint64 capacity () 		{ return (get_header()->capacityInBytes) / sizeof(T); }
-	uint64 count ()  		{ return (get_header()->countInBytes) / sizeof(T); }
+	u64 capacity () 		{ return (get_header()->capacityInBytes) / sizeof(T); }
+	u64 count ()  		{ return (get_header()->countInBytes) / sizeof(T); }
 
 	// Todo(Leo): Maybe make these free functions too.
 	T * begin() 			{ return reinterpret_cast<T*>(_data + sizeof(ArrayHeader)); }
@@ -169,33 +169,33 @@ namespace array_internal
 	}
 
 	ARENA_ARRAY_TEMPLATE internal void 
-	set_capacity(ArenaArray<T, TIndex> array, uint64 capacity)
+	set_capacity(ArenaArray<T, TIndex> array, u64 capacity)
 	{
-		uint64 capacityInBytes = capacity * sizeof(T);
+		u64 capacityInBytes = capacity * sizeof(T);
 		get_header(array)->capacityInBytes = capacityInBytes;
 	}
 
 	ARENA_ARRAY_TEMPLATE internal void 
-	set_count(ArenaArray<T, TIndex> array, uint64 count)
+	set_count(ArenaArray<T, TIndex> array, u64 count)
 	{
-		uint64 countInBytes = count * sizeof(T);
+		u64 countInBytes = count * sizeof(T);
 		get_header(array)->countInBytes = countInBytes;
 	}
 
 	ARENA_ARRAY_TEMPLATE internal void
-	increment_count(ArenaArray<T, TIndex> array, uint64 increment)
+	increment_count(ArenaArray<T, TIndex> array, u64 increment)
 	{
-		uint64 newCount = array.count() + increment;
+		u64 newCount = array.count() + increment;
 		set_count(array, newCount);
 	}
 } // array_internal
 
 ARENA_ARRAY_TEMPLATE internal ArenaArray<T, TIndex>
-reserve_array(MemoryArena * arena, uint64 capacity)
+reserve_array(MemoryArena * arena, u64 capacity)
 {
 	/* Todo(Leo): make proper alignement between these two too, now it works fine,
 	since header aligns on 64 anyway */
-	uint64 size = sizeof(ArrayHeader) + (sizeof(T) * capacity);
+	u64 size = sizeof(ArrayHeader) + (sizeof(T) * capacity);
 	byte * memory = reserve_from_memory_arena(arena, size);
 
 	ArenaArray<T, TIndex> result =
@@ -209,7 +209,7 @@ reserve_array(MemoryArena * arena, uint64 capacity)
 }
 
 ARENA_ARRAY_TEMPLATE internal ArenaArray<T, TIndex>
-push_array(MemoryArena * arena, uint64 capacity)
+push_array(MemoryArena * arena, u64 capacity)
 {
 	auto result	= reserve_array<T, TIndex>(arena, capacity);
 	array_internal::set_count(result, capacity);
@@ -221,7 +221,7 @@ push_array(MemoryArena * arena, uint64 capacity)
 ARENA_ARRAY_TEMPLATE internal ArenaArray<T, TIndex>
 push_array(MemoryArena * arena, const T * begin, const T * end)
 {
-	uint64 count 	= end - begin;
+	u64 count 	= end - begin;
 	auto result 	= push_array<T, TIndex>(arena, count);
 	std::copy(begin, end, result.begin());
 
@@ -236,7 +236,7 @@ push_array(MemoryArena * arena, std::initializer_list<T> items)
 }
 
 ARENA_ARRAY_TEMPLATE internal ArenaArray<T, TIndex>
-copy_array_slice(MemoryArena * arena, ArenaArray<T, TIndex> original, TIndex start, uint64 count)
+copy_array_slice(MemoryArena * arena, ArenaArray<T, TIndex> original, TIndex start, u64 count)
 {
 	DEVELOPMENT_ASSERT((start + count) <= original.capacity(), "Invalid copy slice region");
 
@@ -263,8 +263,8 @@ ARENA_ARRAY_TEMPLATE internal void
 reverse_arena_array(ArenaArray<T, TIndex> array)
 {
 	T temp = array[0];
-	uint64 halfCount = array.count() / 2;
-	uint64 lastIndex = array.count() - 1;
+	u64 halfCount = array.count() / 2;
+	u64 lastIndex = array.count() - 1;
 
 	for (int i = 0; i < halfCount; ++i)
 	{
@@ -290,7 +290,7 @@ push_one(ArenaArray<T, TIndex> array, T item)
 ARENA_ARRAY_TEMPLATE internal void
 push_range(ArenaArray<T, TIndex> array, const T * begin, const T * end)
 {
-	uint64 rangeLength = end - begin;
+	u64 rangeLength = end - begin;
 
 	DEVELOPMENT_ASSERT(array.capacity() > 0, "Cannot push, ArenaArray is not initialized!");
 	DEVELOPMENT_ASSERT((rangeLength + array.count()) <= array.capacity(), "Cannot push, ArenaArray is full!");

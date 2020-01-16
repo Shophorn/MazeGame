@@ -47,10 +47,10 @@ load_xinput()
 }
 
 internal float
-xinput_convert_joystick_value(int16 value)
+xinput_convert_joystick_value(s16 value)
 {
     float deadZone = 0.2f;
-    float result = static_cast<float>(value) / MaxValue<int16>;
+    float result = static_cast<float>(value) / maxValue<s16>;
 
     float sign = Sign(result);
     result *= sign; // cheap abs()
@@ -92,8 +92,8 @@ update_controller_input(game::Input * input, XINPUT_STATE * xinput)
         xinput_convert_joystick_value(xinput->Gamepad.sThumbRY)};
     input->look = vector::clamp_length(input->look, 1.0f);
 
-    uint16 pressedButtons = xinput->Gamepad.wButtons;
-    auto is_down = [pressedButtons](uint32 button) -> bool32
+    u16 pressedButtons = xinput->Gamepad.wButtons;
+    auto is_down = [pressedButtons](u32 button) -> bool32
     {
         bool32 isDown = (pressedButtons & button) != 0;
         return isDown;

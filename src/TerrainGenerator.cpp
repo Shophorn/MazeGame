@@ -8,23 +8,23 @@ Terrain generator prototype
 struct HeightMap
 {
 	ArenaArray<float> 	values;
-	uint32 				gridSize;
+	u32 				gridSize;
 	float				worldSize;
 	float 				minHeight;
 	float				maxHeight;
 };
 
 internal float
-get_height_at(HeightMap * map, Vector2 relativePosition)
+get_height_at(HeightMap * map, float2 relativePosition)
 {
-	Vector2 gridSpacePosition = relativePosition * (map->gridSize / map->worldSize);
+	float2 gridSpacePosition = relativePosition * (map->gridSize / map->worldSize);
 
-	int32 x0 		= floor_to<int32>(gridSpacePosition.x);
-	int32 x1 		= x0 + 1;
+	s32 x0 		= floor_to<s32>(gridSpacePosition.x);
+	s32 x1 		= x0 + 1;
 	float xFraction = gridSpacePosition.x - x0;
 
-	int32 y0 		= floor_to<int32>(gridSpacePosition.y);
-	int32 y1 		= y0 + 1;
+	s32 y0 		= floor_to<s32>(gridSpacePosition.y);
+	s32 y1 		= y0 + 1;
 	float yFraction = gridSpacePosition.y - y0;
 
 	if ((x0 < 0) || (x1 >= map->gridSize) || (y0 < 0) || (y1 >= map->gridSize))
@@ -32,9 +32,9 @@ get_height_at(HeightMap * map, Vector2 relativePosition)
 		return 0;
 	}
 
-	auto get_value = [map](int32 x, int32 y) -> float
+	auto get_value = [map](s32 x, s32 y) -> float
 	{
-		uint64 valueIndex = x + y * map->gridSize;
+		u64 valueIndex = x + y * map->gridSize;
 		return map->values[valueIndex];
 	};
 
@@ -52,14 +52,14 @@ get_height_at(HeightMap * map, Vector2 relativePosition)
 }
 
 internal HeightMap
-make_heightmap(MemoryArena * memory, TextureAsset * texture, uint32 gridSize, float worldSize, float minHeight, float maxHeight)
+make_heightmap(MemoryArena * memory, TextureAsset * texture, u32 gridSize, float worldSize, float minHeight, float maxHeight)
 {
-	uint64 pixelCount 				= gridSize * gridSize;
+	u64 pixelCount 				= gridSize * gridSize;
 	ArenaArray<float> heightValues 	= push_array<float>(memory, pixelCount);
 
 	float textureScale = 1.0f / gridSize;
 
-	auto get_value = [texture](uint32 u, uint32 v) -> float
+	auto get_value = [texture](u32 u, u32 v) -> float
 	{
 		auto pixel 	= get_pixel(texture, u, v);
 		float red 	= get_red(pixel);
@@ -70,15 +70,15 @@ make_heightmap(MemoryArena * memory, TextureAsset * texture, uint32 gridSize, fl
 	{
 		for (float x = 0; x < gridSize; ++x)
 		{
-			Vector2 pixelCoord 	= {	x * textureScale * (texture->width - 1),
+			float2 pixelCoord 	= {	x * textureScale * (texture->width - 1),
 									y * textureScale * (texture->height - 1)};
 
-			uint32 u0 		= floor_to<uint32>(pixelCoord.u);
-			uint32 u1 		= u0 + 1;
+			u32 u0 		= floor_to<u32>(pixelCoord.u);
+			u32 u1 		= u0 + 1;
 			float uFraction = pixelCoord.u - u0;
 			
-			uint32 v0 		= floor_to<uint32>(pixelCoord.v);
-			uint32 v1 		= v0 + 1;
+			u32 v0 		= floor_to<u32>(pixelCoord.v);
+			u32 v1 		= v0 + 1;
 			float vFraction	= pixelCoord.v - v0;
 
 			float height00  = get_value(u0, v0);
@@ -91,7 +91,7 @@ make_heightmap(MemoryArena * memory, TextureAsset * texture, uint32 gridSize, fl
 
 			float height 	= interpolate (height0, height1, vFraction);
 
-			uint64 mapIndex 		= x + gridSize * y;
+			u64 mapIndex 		= x + gridSize * y;
 			heightValues[mapIndex] 	= height;
 		}
 	}
@@ -111,24 +111,24 @@ generate_terrain(	MemoryArena * memory,
 					float texcoordScale,
 					HeightMap * heightMap)
 {
-	int32 vertexCountPerSide 	= heightMap->gridSize;
-	int32 vertexCount 			= vertexCountPerSide * vertexCountPerSide;
+	s32 vertexCountPerSide 	= heightMap->gridSize;
+	s32 vertexCount 			= vertexCountPerSide * vertexCountPerSide;
 
-	int32 quadCountPerSide 		= heightMap->gridSize - 1;
-	int32 triangleIndexCount 	= 6 * quadCountPerSide * quadCountPerSide;
+	s32 quadCountPerSide 		= heightMap->gridSize - 1;
+	s32 triangleIndexCount 	= 6 * quadCountPerSide * quadCountPerSide;
 
 	ArenaArray<Vertex> vertices	= reserve_array<Vertex>(memory, vertexCount);
-	ArenaArray<uint16> indices	= reserve_array<uint16>(memory, triangleIndexCount);
+	ArenaArray<u16> indices	= reserve_array<u16>(memory, triangleIndexCount);
 
 	float scale = heightMap->worldSize / heightMap->gridSize;
 	texcoordScale = texcoordScale / heightMap->gridSize;
 
-	auto get_clamped_height = [heightMap](uint32 x, uint32 y) -> float
+	auto get_clamped_height = [heightMap](u32 x, u32 y) -> float
 	{
 		x = clamp(x, 0u, heightMap->gridSize - 1);
 		y = clamp(y, 0u, heightMap->gridSize - 1);
 
-		uint32 valueIndex = x + y * heightMap->gridSize;
+		u32 valueIndex = x + y * heightMap->gridSize;
 		float result = interpolate(	heightMap->minHeight,
 									heightMap->maxHeight,
 									heightMap->values[valueIndex]);
@@ -137,9 +137,9 @@ generate_terrain(	MemoryArena * memory,
 
 	float gridTileSize = heightMap->worldSize / heightMap->gridSize;
 
-	for (int32 y = 0; y < vertexCountPerSide; ++y)
+	for (s32 y = 0; y < vertexCountPerSide; ++y)
 	{
-		for (int32 x = 0; x < vertexCountPerSide; ++x)
+		for (s32 x = 0; x < vertexCountPerSide; ++x)
 		{
 			/* Note(Leo): for normals, use "Finite Differece Method".
 		 	https://stackoverflow.com/questions/13983189/opengl-how-to-calculate-normals-in-a-terrain-height-grid
@@ -168,15 +168,15 @@ generate_terrain(	MemoryArena * memory,
 		}
 	}
 
-	for (int32 y = 0; y < quadCountPerSide; ++y)
+	for (s32 y = 0; y < quadCountPerSide; ++y)
 	{
 		for (int x = 0; x < quadCountPerSide; ++x)
 		{
-			uint16 a = x + vertexCountPerSide * y;
+			u16 a = x + vertexCountPerSide * y;
 
-			uint16 b = a + 1;
-			uint16 c = a + vertexCountPerSide;
-			uint16 d = a + 1 + vertexCountPerSide;
+			u16 b = a + 1;
+			u16 c = a + vertexCountPerSide;
+			u16 d = a + 1 + vertexCountPerSide;
 
 			push_many(indices, {a, b, c, c, b, d});
 		}

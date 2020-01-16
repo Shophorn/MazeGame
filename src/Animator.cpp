@@ -22,7 +22,7 @@ struct AnimationRig
 {
 	Handle<Transform3D> root;
 	ArenaArray<Handle<Transform3D>> bones;
-	ArenaArray<uint64> currentBoneKeyframes;
+	ArenaArray<u64> currentBoneKeyframes;
 };
 
 struct Animator
@@ -38,7 +38,7 @@ struct Animator
 };
 
 internal AnimationRig
-make_animation_rig(Handle<Transform3D> root, ArenaArray<Handle<Transform3D>> bones, ArenaArray<uint64> currentBoneKeyframes)
+make_animation_rig(Handle<Transform3D> root, ArenaArray<Handle<Transform3D>> bones, ArenaArray<u64> currentBoneKeyframes)
 {
 	DEVELOPMENT_ASSERT(bones.count() == currentBoneKeyframes.count(), "Currently you must pass keyframe array with matching size to bones array. Sorry for inconvenience :)");
 
@@ -52,7 +52,7 @@ make_animation_rig(Handle<Transform3D> root, ArenaArray<Handle<Transform3D>> bon
 }
 
 internal void
-update_animation_keyframes(Animation * animation, uint64 * currentBoneKeyframe, float time)
+update_animation_keyframes(Animation * animation, u64 * currentBoneKeyframe, float time)
 {
 	if (*currentBoneKeyframe < animation->keyframes.count()
 		&& time > animation->keyframes[*currentBoneKeyframe].time)
@@ -63,7 +63,7 @@ update_animation_keyframes(Animation * animation, uint64 * currentBoneKeyframe, 
 }
 
 internal void
-update_animation_target(Animation * animation, Handle<Transform3D> target, uint64 currentBoneKeyframe, float time)
+update_animation_target(Animation * animation, Handle<Transform3D> target, u64 currentBoneKeyframe, float time)
 {
 	bool32 isBeforeFirstKeyFrame 	= currentBoneKeyframe == 0; 
 	bool32 isAfterLastKeyFrame 		= currentBoneKeyframe >= animation->keyframes.count();
@@ -112,13 +112,13 @@ internal void
 reverse_animation_clip(AnimationClip * clip)
 {
 	float duration = clip->duration;
-	int32 childAnimationCount = clip->animations.count();
+	s32 childAnimationCount = clip->animations.count();
 
 	for (int childIndex = 0; childIndex < childAnimationCount; ++childIndex)
 	{
 		reverse_arena_array(clip->animations[childIndex].keyframes);
 
-		int32 keyframeCount = clip->animations[childIndex].keyframes.count();
+		s32 keyframeCount = clip->animations[childIndex].keyframes.count();
 		for (int keyframeIndex = 0; keyframeIndex < keyframeCount; ++keyframeIndex)
 		{
 			float time = clip->animations[childIndex].keyframes[keyframeIndex].time; 

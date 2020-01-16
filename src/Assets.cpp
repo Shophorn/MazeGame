@@ -18,8 +18,8 @@ enum HandleType
 template<HandleType T>
 struct BaseHandle
 {
-	uint64 index =  -1;
-	operator uint64() { return index; }	
+	u64 index =  -1;
+	operator u64() { return index; }	
 	static constexpr HandleType type = T;
 
 	inline static const BaseHandle Null = {};
@@ -43,28 +43,28 @@ struct Vertex
 	Vector3 position 	= {};
 	Vector3 normal 		= {};
 	Vector3 color 		= {};
-	Vector2 texCoord 	= {};
+	float2 texCoord 	= {};
 };
 
-enum struct IndexType : uint32 { UInt16, UInt32 };
+enum struct IndexType : u32 { UInt16, UInt32 };
 
 struct MeshAsset
 {
 	ArenaArray<Vertex> vertices;
-	ArenaArray<uint16> indices;
+	ArenaArray<u16> indices;
 
 	// TODO(Leo): would this be a good way to deal with different index types?
 	// union
 	// {
-	// 	ArenaArray<uint16> indices16;
-	// 	ArenaArray<uint32> indices32;
+	// 	ArenaArray<u16> indices16;
+	// 	ArenaArray<u32> indices32;
 	// };
 
 	IndexType indexType = IndexType::UInt16;
 };
 
 internal MeshAsset
-make_mesh_asset(ArenaArray<Vertex> vertices, ArenaArray<uint16> indices)
+make_mesh_asset(ArenaArray<Vertex> vertices, ArenaArray<u16> indices)
 {
 	MeshAsset result =
 	{
@@ -75,47 +75,47 @@ make_mesh_asset(ArenaArray<Vertex> vertices, ArenaArray<uint16> indices)
 	return result;
 }
 
-using Pixel = uint32;
+using Pixel = u32;
 
 struct TextureAsset
 {
 	ArenaArray<Pixel> pixels;
 
-	int32 	width;
-	int32 	height;
-	int32 	channels;
+	s32 	width;
+	s32 	height;
+	s32 	channels;
 };
 
 inline float
 get_red(Pixel color)
 {
-	uint32 value = (color & 0x00ff0000) >> 16;
+	u32 value = (color & 0x00ff0000) >> 16;
 	return (float)value / 255.0f; 
 }
 
 inline float
 get_green(Pixel color)
 {
-	uint32 value = (color & 0x0000ff00) >> 8;
+	u32 value = (color & 0x0000ff00) >> 8;
 	return (float)value / 255.0f; 
 }
 
 inline Pixel 
-get_pixel(TextureAsset * texture, uint32 x, uint32 y)
+get_pixel(TextureAsset * texture, u32 x, u32 y)
 {
 	DEVELOPMENT_ASSERT(x < texture->width && y < texture->height, "Invalid pixel coordinates!");
 
-	uint64 index = x + y * texture->width;
+	u64 index = x + y * texture->width;
 	return texture->pixels[index];
 }
 
 internal Pixel
-get_closest_pixel(TextureAsset * texture, Vector2 texcoord)
+get_closest_pixel(TextureAsset * texture, float2 texcoord)
 {
-	uint32 u = round_to<uint32>(texture->width * texcoord.u) % texture->width;
-	uint32 v = round_to<uint32>(texture->height * texcoord.v) % texture->height;
+	u32 u = round_to<u32>(texture->width * texcoord.u) % texture->width;
+	u32 v = round_to<u32>(texture->height * texcoord.v) % texture->height;
 
-	uint64 index = u + v * texture->width;
+	u64 index = u + v * texture->width;
 	return texture->pixels[index];
 }
 
@@ -123,7 +123,7 @@ get_closest_pixel(TextureAsset * texture, Vector2 texcoord)
 
 
 
-enum struct MaterialType : int32
+enum struct MaterialType : s32
 {
 	Character,
 	Terrain
@@ -151,7 +151,7 @@ make_material_asset(PipelineHandle pipeline, ArenaArray<TextureHandle> textures)
 // {
 // 	PipelineHandle shader;
 
-// 	int32 textureCount;
+// 	s32 textureCount;
 
 // 	TextureHandle textures[TextureCount];
 // };

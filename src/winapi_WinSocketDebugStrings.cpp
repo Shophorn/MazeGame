@@ -1,5 +1,5 @@
 const char *
-WinSocketErrorString(int32 errorCode)
+WinSocketErrorString(s32 errorCode)
 {
 	switch(errorCode)
 	{

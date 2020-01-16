@@ -33,7 +33,7 @@ vulkan::prepare_drawing(VulkanContext * context)
     // https://software.intel.com/en-us/articles/api-without-secrets-introduction-to-vulkan-part-4#inpage-nav-5
     vkDestroyFramebuffer(context->device, get_current_virtual_frame(context)->framebuffer, nullptr);
 
-    uint32 const attachmentCount = 3;
+    u32 const attachmentCount = 3;
     VkImageView attachments [attachmentCount] =
     {
         context->drawingResources.colorImageView,
@@ -132,14 +132,14 @@ vulkan::finish_drawing(VulkanContext * context)
 
 
 internal void
-vulkan::draw_frame(VulkanContext * context, uint32 imageIndex)
+vulkan::draw_frame(VulkanContext * context, u32 imageIndex)
 {
     /* Note(Leo): these have to do with sceneloading in game layer. We are then unloading
     all resources associated with command buffer, which makes it invalid to submit to queue */
     bool32 skipFrame            = context->sceneUnloaded;
     context->sceneUnloaded      = false;
 
-    // uint32 frameIndex = context->virtualFrameIndex;
+    // u32 frameIndex = context->virtualFrameIndex;
     VulkanVirtualFrame * frame = get_current_virtual_frame(context);
 
 
@@ -158,7 +158,7 @@ vulkan::draw_frame(VulkanContext * context, uint32 imageIndex)
         .pWaitSemaphores        = &frame->imageAvailableSemaphore,
         .pWaitDstStageMask      = &waitStage,
 
-        .commandBufferCount     = (uint32)(skipFrame ? 0 : 1),
+        .commandBufferCount     = (u32)(skipFrame ? 0 : 1),
         .pCommandBuffers        = &frame->commandBuffers.primary,
 
         // Note(Leo): We signal these AFTER drawing
@@ -209,8 +209,8 @@ vulkan::record_draw_command(VulkanContext * context, ModelHandle model, Matrix44
 {
     // // Todo(Leo): Single mapping is really enough, offsets can be used here too
     // Note(Leo): using this we can use separate buffer sections for each framebuffer, not sure if necessary though
-    uint32 modelUniformBufferOffset = context->currentUniformBufferOffset;
-    uint32 modelMatrixSize          = get_aligned_uniform_buffer_size(context, sizeof(transform));
+    u32 modelUniformBufferOffset = context->currentUniformBufferOffset;
+    u32 modelMatrixSize          = get_aligned_uniform_buffer_size(context, sizeof(transform));
 
     context->currentUniformBufferOffset += modelMatrixSize;
 
@@ -235,12 +235,12 @@ vulkan::record_draw_command(VulkanContext * context, ModelHandle model, Matrix44
         VkDeviceSize vertexOffset;
         VkDeviceSize indexOffset;
         
-        uint32 indexCount;
+        u32 indexCount;
         VkIndexType indexType;
         
-        uint32 uniformBufferOffset;
+        u32 uniformBufferOffset;
 
-        uint32 materialIndex;
+        u32 materialIndex;
     };
 
 
@@ -254,11 +254,11 @@ vulkan::record_draw_command(VulkanContext * context, ModelHandle model, Matrix44
 
         .uniformBufferOffset    = modelUniformBufferOffset,//context->loadedModels[model].uniformBufferOffset,
         
-        .materialIndex          = (uint32)materialHandle,
+        .materialIndex          = (u32)materialHandle,
     };
 
     // Todo(Leo): This is bad, these will be about to change
-    enum : uint32
+    enum : u32
     {
         LAYOUT_SCENE    = 0,
         LAYOUT_MATERIAL = 1,
@@ -324,7 +324,7 @@ vulkan::record_line_draw_command(VulkanContext * context, Vector3 start, Vector3
 
     VkCommandBuffer commandBuffer = get_current_virtual_frame(context)->commandBuffers.scene;
  
-    enum : uint32
+    enum : u32
     {
         LAYOUT_SCENE    = 0,
         LAYOUT_MATERIAL = 1,
@@ -351,19 +351,19 @@ vulkan::record_line_draw_command(VulkanContext * context, Vector3 start, Vector3
 
 struct VulkanGuiPushConstants
 {
-    Vector2 bottomLeft;
-    Vector2 bottomRight;
-    Vector2 topLeft;
-    Vector2 topRight;
+    float2 bottomLeft;
+    float2 bottomRight;
+    float2 topLeft;
+    float2 topRight;
     float4 color;
 };
 
-void vulkan::record_gui_draw_command(VulkanContext * context, Vector2 position, Vector2 size, MaterialHandle materialHandle, float4 color)
+void vulkan::record_gui_draw_command(VulkanContext * context, float2 position, float2 size, MaterialHandle materialHandle, float4 color)
 {
     auto * frame = get_current_virtual_frame(context);
-    enum : uint32 { LAYOUT_SET_MATERIAL = 0 };
+    enum : u32 { LAYOUT_SET_MATERIAL = 0 };
 
-    auto transform_point = [context](Vector2 position) -> Vector2
+    auto transform_point = [context](float2 position) -> float2
     {
         // Note(Leo): This is temporarily here only, aka scale to fit width.
         const float2 referenceResolution = {1920, 1080};
@@ -378,8 +378,8 @@ void vulkan::record_gui_draw_command(VulkanContext * context, Vector2 position, 
     VulkanGuiPushConstants pushConstants =
     {
         transform_point(position),
-        transform_point(position + Vector2{size.x, 0}),
-        transform_point(position + Vector2{0, size.y}),
+        transform_point(position + float2{size.x, 0}),
+        transform_point(position + float2{0, size.y}),
         transform_point(position + size),
         color,
     };

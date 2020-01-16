@@ -23,18 +23,18 @@ namespace glTF
 	// https://github.com/KhronosGroup/glTF/tree/master/specification/2.0
 	// https://raw.githubusercontent.com/KhronosGroup/glTF/master/specification/2.0/figures/gltfOverview-2.0.0b.png
 
-	inline constexpr uint32 magicNumber = 0x46546C67;
+	inline constexpr u32 magicNumber = 0x46546C67;
 
 
-	inline constexpr int32 headerLength 			= 3 * sizeof(uint32);
-	inline constexpr int32 chunkInfoLength 			= 2 * sizeof(uint32);  
+	inline constexpr s32 headerLength 			= 3 * sizeof(u32);
+	inline constexpr s32 chunkInfoLength 			= 2 * sizeof(u32);  
 	
-	inline constexpr int32 chunkLengthPosition 		= 0;
-	inline constexpr int32 chunkTypePosition 		= sizeof(uint32);
+	inline constexpr s32 chunkLengthPosition 		= 0;
+	inline constexpr s32 chunkTypePosition 		= sizeof(u32);
 
-	enum struct ChunkType : uint32 { Json = 0x4e4f534a, Binary = 0x004e4942 };
+	enum struct ChunkType : u32 { Json = 0x4e4f534a, Binary = 0x004e4942 };
 
-	enum struct ComponentType : int32
+	enum struct ComponentType : s32
 	{
     	BYTE 			= 5120,
     	UNSIGNED_BYTE 	= 5121,
@@ -44,7 +44,7 @@ namespace glTF
     	FLOAT 			= 5126,
 	};
 
-	uint64 get_default_stride (ComponentType type)
+	u64 get_default_stride (ComponentType type)
 	{
 		switch (type)
 		{
@@ -82,14 +82,14 @@ template<typename T>
 struct ArrayView
 {
 	ArenaArray<T> * array;
-	uint64 offset;
-	uint64 count;
+	u64 offset;
+	u64 count;
 	T * data() { return array->data + offset; }
 };
 
 
 template<typename TResult> TResult
-get(BinaryBuffer buffer, uint64 position)
+get(BinaryBuffer buffer, u64 position)
 {
 	TResult result = *reinterpret_cast<TResult*>(buffer.begin() + position);
 	return result;
@@ -108,20 +108,20 @@ get_gltf_json_chunk(BinaryBuffer gltf, MemoryArena * memoryArena)
 {
 	using namespace glTF;
 
-	uint64 offset 		= headerLength;
-	uint32 chunkLength 	= get<uint32>(gltf, offset + chunkLengthPosition);
+	u64 offset 		= headerLength;
+	u32 chunkLength 	= get<u32>(gltf, offset + chunkLengthPosition);
 	ChunkType chunkType = get<ChunkType>(gltf, offset + chunkTypePosition);
 
 	while(chunkType != ChunkType::Json && offset < gltf.count())
 	{
 		offset 		+= chunkLength + chunkInfoLength;
-		chunkLength  = get<uint32>(gltf, offset + chunkLengthPosition);
+		chunkLength  = get<u32>(gltf, offset + chunkLengthPosition);
 		chunkType 	 = get<ChunkType>(gltf, offset + chunkTypePosition);
 	}
 
 	/* Note(Leo): Add this so we get to start of actual data of chunk
 	instead the start of chunk info */
-	uint64 start = offset + chunkInfoLength;
+	u64 start = offset + chunkInfoLength;
 
 	if (chunkType != ChunkType::Json)
 	{
@@ -136,7 +136,7 @@ get_gltf_json_chunk(BinaryBuffer gltf, MemoryArena * memoryArena)
 }
 
 internal BinaryBuffer
-get_gltf_binary_chunk(MemoryArena * memoryArena, BinaryBuffer gltf, int32 binaryChunkIndex = 0)
+get_gltf_binary_chunk(MemoryArena * memoryArena, BinaryBuffer gltf, s32 binaryChunkIndex = 0)
 {
 	using namespace glTF;
 
@@ -144,18 +144,18 @@ get_gltf_binary_chunk(MemoryArena * memoryArena, BinaryBuffer gltf, int32 binary
 	are binary data buffers. We want to move to beginning of [binaryChunkIndex]th
 	binary chunk*/
 
-	uint64 offset 		 = headerLength;
-	uint32 chunkLength 	 = get<uint32>(gltf, offset + chunkLengthPosition);
+	u64 offset 		 = headerLength;
+	u32 chunkLength 	 = get<u32>(gltf, offset + chunkLengthPosition);
 	offset 				+= chunkInfoLength + chunkLength;
 
 	for (int i = 0; i < binaryChunkIndex; ++i)
 	{
-		chunkLength  = get<uint32>(gltf, offset + chunkLengthPosition);
+		chunkLength  = get<u32>(gltf, offset + chunkLengthPosition);
 		offset 		+= chunkInfoLength + chunkLength;
 	}
 
-	chunkLength  = get<uint32>(gltf, offset + chunkLengthPosition);
-	uint64 start = offset + chunkInfoLength;
+	chunkLength  = get<u32>(gltf, offset + chunkLengthPosition);
+	u64 start = offset + chunkInfoLength;
 	auto result  = copy_array_slice(memoryArena, gltf, start, chunkLength);
 
 	return result;
@@ -169,7 +169,7 @@ parse_json(const char * jsonString)
 	return doc;
 }
 
-internal uint64
+internal u64
 get_ifstream_length(std::ifstream & stream)
 {
 	std::streampos current = stream.tellg();
@@ -182,7 +182,7 @@ get_ifstream_length(std::ifstream & stream)
 
 	stream.seekg(current);
 	
-	uint64 size = end - begin;
+	u64 size = end - begin;
 	return size;
 }
 
@@ -193,7 +193,7 @@ read_binary_file(MemoryArena * memoryArena, const char * path)
 	// auto file = std::ifstream (	"w:/friendsimulator/models/ladder.glb",
 	// 							std::ios::in|std::ios::binary);
 
-	uint64 size 	= get_ifstream_length(file);
+	u64 size 	= get_ifstream_length(file);
 	auto result 	= push_array<byte>(memoryArena, size);
 	auto bufferPtr 	= reinterpret_cast<char *>(result.begin());
 

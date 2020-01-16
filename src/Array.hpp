@@ -9,16 +9,16 @@ struct Array
 	
 	value_type values [Count];
 
-	value_type & operator [] (uint32 index)
+	value_type & operator [] (u32 index)
 	{
 		// Todo(Leo): Assert index okaybility.
 		return values[index];
 	}
 
-	uint32 count() { return Count; }	
+	u32 count() { return Count; }	
 };
 
-// template <typename Type, int Count, typename IndexType = uint64>
+// template <typename Type, int Count, typename IndexType = u64>
 // struct Array
 // {
 // 	using data_type = Type;
@@ -32,7 +32,7 @@ struct Array
 // 		return data[index];
 // 	}
 
-// 	uint32 count() { return Count; }	
+// 	u32 count() { return Count; }	
 // };
 
 #define ARRAY_HPP

@@ -11,7 +11,7 @@ struct Manager;
 template<typename T>
 struct Handle
 {
-	int64 _index = -1;
+	s64 _index = -1;
 
 	T * operator->()
 	{ 
@@ -55,7 +55,7 @@ make_handle(T item)
 
 template<typename T>
 internal void
-allocate_for_handle(MemoryArena * memoryArena, uint64 count)
+allocate_for_handle(MemoryArena * memoryArena, u64 count)
 {
 	Handle<T>::storage = reserve_array<T>(memoryArena, count);
 }

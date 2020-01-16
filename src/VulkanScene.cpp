@@ -67,14 +67,14 @@ vulkan::push_gui_material (VulkanContext * context, TextureHandle texture)
 MeshHandle
 vulkan::push_mesh(VulkanContext * context, MeshAsset * mesh)
 {
-    uint64 indexBufferSize  = mesh->indices.count() * sizeof(mesh->indices[0]);
-    uint64 vertexBufferSize = mesh->vertices.count() * sizeof(mesh->vertices[0]);
-    uint64 totalBufferSize  = indexBufferSize + vertexBufferSize;
+    u64 indexBufferSize  = mesh->indices.count() * sizeof(mesh->indices[0]);
+    u64 vertexBufferSize = mesh->vertices.count() * sizeof(mesh->vertices[0]);
+    u64 totalBufferSize  = indexBufferSize + vertexBufferSize;
 
-    uint64 indexOffset = 0;
-    uint64 vertexOffset = indexBufferSize;
+    u64 indexOffset = 0;
+    u64 vertexOffset = indexBufferSize;
 
-    uint8 * data;
+    u8 * data;
     vkMapMemory(context->device, context->stagingBufferPool.memory, 0, totalBufferSize, 0, (void**)&data);
     memcpy(data, &mesh->indices[0], indexBufferSize);
     data += indexBufferSize;
@@ -101,7 +101,7 @@ vulkan::push_mesh(VulkanContext * context, MeshAsset * mesh)
     model.indexCount = mesh->indices.count();
     model.indexType = vulkan::convert_index_type(mesh->indexType);
 
-    uint32 modelIndex = context->loadedMeshes.size();
+    u32 modelIndex = context->loadedMeshes.size();
 
     context->loadedMeshes.push_back(model);
 
@@ -113,7 +113,7 @@ vulkan::push_mesh(VulkanContext * context, MeshAsset * mesh)
 ModelHandle
 vulkan::push_model (VulkanContext * context, MeshHandle mesh, MaterialHandle material)
 {
-    uint32 objectIndex = context->loadedModels.size();
+    u32 objectIndex = context->loadedModels.size();
 
     VulkanModel object =
     {
@@ -146,7 +146,7 @@ vulkan::push_pipeline(VulkanContext * context, const char * vertexShaderPath, co
         .options            = options
     };
     auto pipeline = vulkan::make_pipeline(context, info);
-    uint64 index = context->loadedPipelines.size();
+    u64 index = context->loadedPipelines.size();
     context->loadedPipelines.push_back(pipeline);
 
     return {index};
@@ -162,7 +162,7 @@ vulkan::unload_scene(VulkanContext * context)
     context->loadedMeshes.resize (0);
 
     // Textures
-    for (int32 imageIndex = 0; imageIndex < context->loadedTextures.size(); ++imageIndex)
+    for (s32 imageIndex = 0; imageIndex < context->loadedTextures.size(); ++imageIndex)
     {
         vulkan::destroy_texture(context, &context->loadedTextures[imageIndex]);
     }

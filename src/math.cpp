@@ -24,7 +24,7 @@ template<typename IntegerType, typename FloatType>
 IntegerType
 CeilTo(FloatType value)
 {
-    int64 ceilValue = static_cast<int64>(value);
+    s64 ceilValue = static_cast<s64>(value);
     if (value > 0)
         ceilValue = ceilValue + 1;
     return static_cast<IntegerType>(ceilValue);
@@ -33,21 +33,21 @@ CeilTo(FloatType value)
 template <typename TTo, typename TFrom>
 internal TTo round_to(TFrom value);
 
-template<> int32
-round_to<int32, float>(float value)
+template<> s32
+round_to<s32, float>(float value)
 {
     if (value < 0.0f)
         value -= 0.5f;
     else
         value += 0.5f;
-    return static_cast<int32>(value);
+    return static_cast<s32>(value);
 }
 
-template<> uint32
-round_to<uint32, float>(float value)
+template<> u32
+round_to<u32, float>(float value)
 {
     value += 0.5f;
-    return static_cast<uint32>(value);
+    return static_cast<u32>(value);
 }
 
 

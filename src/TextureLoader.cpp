@@ -7,7 +7,7 @@ Texture Loader
 #include <stb_image.h>
 
 internal TextureAsset
-make_texture_asset(ArenaArray<uint32> pixels, int32 width, int32 height, int32 channels = 4)
+make_texture_asset(ArenaArray<u32> pixels, s32 width, s32 height, s32 channels = 4)
 {
     TextureAsset result = 
     {
@@ -22,7 +22,7 @@ make_texture_asset(ArenaArray<uint32> pixels, int32 width, int32 height, int32 c
 internal TextureAsset
 load_texture_asset(const char * assetPath, MemoryArena * memoryArena)
 {
-    int32 width, height, channels;
+    s32 width, height, channels;
     stbi_uc * stbi_pixels = stbi_load(assetPath, &width, &height, &channels, STBI_rgb_alpha);
 
     if(stbi_pixels == nullptr)
@@ -31,9 +31,9 @@ load_texture_asset(const char * assetPath, MemoryArena * memoryArena)
         throw std::runtime_error("Failed to load image");
     }
 
-    auto begin  = reinterpret_cast<uint32*>(stbi_pixels);
+    auto begin  = reinterpret_cast<u32*>(stbi_pixels);
     auto end    = begin + (width * height);
-    auto pixels = push_array<uint32>(memoryArena, begin, end);
+    auto pixels = push_array<u32>(memoryArena, begin, end);
     auto result = make_texture_asset(pixels, width, height);
 
     stbi_image_free(stbi_pixels);

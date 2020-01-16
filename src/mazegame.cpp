@@ -33,7 +33,6 @@ Leo Tamminen
 
 #include "Scene.cpp"
 
-#pragma message("Do this soon pls")
 /* Todo(Leo): Haxor: these should be in different translation units, and only include
 headers here. For now, 2d scene does not include its stuff because 3d scene does before it
 and both are still missing some because they are listed above. */
@@ -63,13 +62,13 @@ initialize_game_state(	GameState * state, game::Memory * memory)
 	*state = {};
 
 	// // Note(Leo): Create persistent arena in the same memoryblock as game state, right after it.
-	uint64 gameStateSize 			= align_up_to(sizeof(GameState), MemoryArena::defaultAlignment);
+	u64 gameStateSize 			= align_up_to(sizeof(GameState), MemoryArena::defaultAlignment);
 	byte * persistentMemory 		= reinterpret_cast<byte *> (memory->persistentMemory) + gameStateSize;
-	uint64 persistentMemorySize 	= memory->persistentMemorySize - gameStateSize;
+	u64 persistentMemorySize 	= memory->persistentMemorySize - gameStateSize;
 	state->persistentMemoryArena 	= make_memory_arena(persistentMemory, persistentMemorySize); 
 
 	byte * transientMemory 			= reinterpret_cast<byte*>(memory->transientMemory);
-	uint64 transientMemorySize 		= memory->transientMemorySize;
+	u64 transientMemorySize 		= memory->transientMemorySize;
 	state->transientMemoryArena 	= make_memory_arena(transientMemory, transientMemorySize);
 }
 
@@ -80,8 +79,8 @@ output_sound(int sampleCount, game::StereoSoundSample * samples)
 	local_persist int runningSampleIndex = 0;
 	local_persist AudioFile<float> file;
 	local_persist bool32 fileLoaded = false;
-	local_persist int32 fileSampleCount;
-	local_persist int32 fileSampleIndex;
+	local_persist s32 fileSampleCount;
+	local_persist s32 fileSampleIndex;
 
 	if (fileLoaded == false)
 	{

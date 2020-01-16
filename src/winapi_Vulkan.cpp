@@ -8,8 +8,8 @@ Implementations of vulkan related functions
 #include "VulkanDrawing.cpp"
 #include "VulkanPipelines.cpp"
 
-internal uint32
-vulkan::find_memory_type (VkPhysicalDevice physicalDevice, uint32 typeFilter, VkMemoryPropertyFlags properties)
+internal u32
+vulkan::find_memory_type (VkPhysicalDevice physicalDevice, u32 typeFilter, VkMemoryPropertyFlags properties)
 {
     VkPhysicalDeviceMemoryProperties memoryProperties;
     vkGetPhysicalDeviceMemoryProperties (physicalDevice, &memoryProperties);
@@ -165,7 +165,7 @@ vulkan::QuerySwapChainSupport(VkPhysicalDevice physicalDevice, VkSurfaceKHR surf
 
     vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, surface, &result.capabilities);
 
-    uint32 formatCount = 0;
+    u32 formatCount = 0;
     vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surface, &formatCount, nullptr);
     if (formatCount > 0)
     {
@@ -175,7 +175,7 @@ vulkan::QuerySwapChainSupport(VkPhysicalDevice physicalDevice, VkSurfaceKHR surf
 
     // std::cout << "physicalDevice surface formats count: " << formatCount << "\n";
 
-    uint32 presentModeCount = 0;
+    u32 presentModeCount = 0;
     vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, surface, &presentModeCount, nullptr);
 
     if (presentModeCount > 0)
@@ -227,7 +227,7 @@ vulkan::FindQueueFamilies (VkPhysicalDevice device, VkSurfaceKHR surface)
 {
     // Note: A card must also have a graphics queue family available; We do want to draw after all
     VkQueueFamilyProperties queueFamilyProps [50];
-    uint32 queueFamilyCount = ARRAY_COUNT(queueFamilyProps);
+    u32 queueFamilyCount = ARRAY_COUNT(queueFamilyProps);
     vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilyProps);
 
     // std::cout << "queueFamilyCount: " << queueFamilyCount << "\n";
@@ -266,7 +266,7 @@ vulkan::CreateShaderModule(BinaryAsset code, VkDevice logicalDevice)
     VkShaderModuleCreateInfo createInfo = {};
     createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
     createInfo.codeSize = code.size();
-    createInfo.pCode = reinterpret_cast<uint32 *>(code.data());
+    createInfo.pCode = reinterpret_cast<u32 *>(code.data());
 
     VkShaderModule result;
     if (vkCreateShaderModule (logicalDevice, &createInfo, nullptr, &result) != VK_SUCCESS)
@@ -324,7 +324,7 @@ CreateInstance()
     auto CheckValidationLayerSupport = [] () -> bool32
     {
         VkLayerProperties availableLayers [50];
-        uint32 availableLayersCount = ARRAY_COUNT(availableLayers);
+        u32 availableLayersCount = ARRAY_COUNT(availableLayers);
 
         bool32 result = true;
         if (vkEnumerateInstanceLayerProperties (&availableLayersCount, availableLayers) == VK_SUCCESS)
@@ -402,7 +402,7 @@ PickPhysicalDevice(VkInstance vulkanInstance, VkSurfaceKHR surface)
     auto CheckDeviceExtensionSupport = [] (VkPhysicalDevice testDevice) -> bool32
     {
         VkExtensionProperties availableExtensions [100];
-        uint32 availableExtensionsCount = ARRAY_COUNT(availableExtensions);
+        u32 availableExtensionsCount = ARRAY_COUNT(availableExtensions);
         vkEnumerateDeviceExtensionProperties (testDevice, nullptr, &availableExtensionsCount, availableExtensions);
 
         bool32 result = true;
@@ -463,7 +463,7 @@ PickPhysicalDevice(VkInstance vulkanInstance, VkSurfaceKHR surface)
 
 
     VkPhysicalDevice devices [10];
-    uint32 deviceCount = ARRAY_COUNT(devices);
+    u32 deviceCount = ARRAY_COUNT(devices);
     vkEnumeratePhysicalDevices(vulkanInstance, &deviceCount, devices);
 
     if (deviceCount == 0)
@@ -543,9 +543,9 @@ internal VkImage
 CreateImage(
     VkDevice logicalDevice, 
     VkPhysicalDevice physicalDevice,
-    uint32 texWidth,
-    uint32 texHeight,
-    uint32 mipLevels,
+    u32 texWidth,
+    u32 texHeight,
+    u32 mipLevels,
     VkFormat format,
     VkImageTiling tiling,
     VkImageUsageFlags usage,
@@ -579,9 +579,9 @@ internal void
 create_image_and_memory(
     VkDevice logicalDevice, 
     VkPhysicalDevice physicalDevice,
-    uint32 texWidth,
-    uint32 texHeight,
-    uint32 mipLevels,
+    u32 texWidth,
+    u32 texHeight,
+    u32 mipLevels,
     VkFormat format,
     VkImageTiling tiling,
     VkImageUsageFlags usage,
@@ -633,7 +633,7 @@ internal VkImageView
 create_image_view(
     VkDevice logicalDevice,
     VkImage image,
-    uint32 mipLevels,
+    u32 mipLevels,
     VkFormat format,
     VkImageAspectFlags aspectFlags)
 {
@@ -676,7 +676,7 @@ CreateSwapchainAndImages(VulkanContext * context, VkExtent2D frameBufferSize)
     // Find extent ie. size of drawing window
     /* Note(Leo): max value is special value denoting that all are okay.
     Or something else, so we need to ask platform */
-    if (swapchainSupport.capabilities.currentExtent.width != MaxValue<uint32>)
+    if (swapchainSupport.capabilities.currentExtent.width != maxValue<u32>)
     {
         resultSwapchain.extent = swapchainSupport.capabilities.currentExtent;
     }
@@ -685,14 +685,14 @@ CreateSwapchainAndImages(VulkanContext * context, VkExtent2D frameBufferSize)
         VkExtent2D min = swapchainSupport.capabilities.minImageExtent;
         VkExtent2D max = swapchainSupport.capabilities.maxImageExtent;
 
-        resultSwapchain.extent.width = clamp(static_cast<uint32>(frameBufferSize.width), min.width, max.width);
-        resultSwapchain.extent.height = clamp(static_cast<uint32>(frameBufferSize.height), min.height, max.height);
+        resultSwapchain.extent.width = clamp(static_cast<u32>(frameBufferSize.width), min.width, max.width);
+        resultSwapchain.extent.height = clamp(static_cast<u32>(frameBufferSize.height), min.height, max.height);
     }
 
     std::cout << "Creating swapchain actually, width: " << resultSwapchain.extent.width << ", height: " << resultSwapchain.extent.height << "\n";
 
-    uint32 imageCount = swapchainSupport.capabilities.minImageCount + 1;
-    uint32 maxImageCount = swapchainSupport.capabilities.maxImageCount;
+    u32 imageCount = swapchainSupport.capabilities.minImageCount + 1;
+    u32 maxImageCount = swapchainSupport.capabilities.maxImageCount;
     if (maxImageCount > 0 && imageCount > maxImageCount)
     {
         imageCount = maxImageCount;
@@ -710,7 +710,7 @@ CreateSwapchainAndImages(VulkanContext * context, VkExtent2D frameBufferSize)
     createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 
     VulkanQueueFamilyIndices queueIndices = vulkan::FindQueueFamilies(context->physicalDevice, context->surface);
-    uint32 queueIndicesArray [2] = {queueIndices.graphics, queueIndices.present};
+    u32 queueIndicesArray [2] = {queueIndices.graphics, queueIndices.present};
 
     if (queueIndices.graphics == queueIndices.present)
     {
@@ -762,7 +762,7 @@ CreateSwapchainAndImages(VulkanContext * context, VkExtent2D frameBufferSize)
 internal VkFormat
 FindSupportedFormat(
     VkPhysicalDevice physicalDevice,
-    int32 candidateCount,
+    s32 candidateCount,
     VkFormat * pCandidates,
     VkImageTiling requestedTiling,
     VkFormatFeatureFlags requestedFeatures
@@ -792,7 +792,7 @@ FindSupportedDepthFormat(VkPhysicalDevice physicalDevice)
     VkFormat formats [] = { VK_FORMAT_D32_SFLOAT,
                             VK_FORMAT_D32_SFLOAT_S8_UINT,
                             VK_FORMAT_D24_UNORM_S8_UINT };
-    int32 formatCount = 3;
+    s32 formatCount = 3;
 
 
     VkFormat result = FindSupportedFormat(
@@ -844,7 +844,7 @@ CreateRenderPass(VulkanContext * context, VulkanSwapchainItems * swapchainItems,
     attachments[RESOLVE_ATTACHMENT_ID].initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
     attachments[RESOLVE_ATTACHMENT_ID].finalLayout    = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
-    constexpr int32 COLOR_ATTACHMENT_COUNT = 1;        
+    constexpr s32 COLOR_ATTACHMENT_COUNT = 1;        
     VkAttachmentReference colorAttachmentRefs[COLOR_ATTACHMENT_COUNT] = {};
     colorAttachmentRefs[0].attachment = COLOR_ATTACHMENT_ID;
     colorAttachmentRefs[0].layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
@@ -896,7 +896,7 @@ CreateRenderPass(VulkanContext * context, VulkanSwapchainItems * swapchainItems,
 
 IMPORTANT(Leo): These must be same in shaders
 */
-enum : uint32
+enum : u32
 {
     DESCRIPTOR_LAYOUT_SCENE_BINDING     = 0,
     DESCRIPTOR_LAYOUT_MODEL_BINDING     = 0,
@@ -933,7 +933,7 @@ CreateModelDescriptorSetLayout(VkDevice device)
 }
 
 internal VkDescriptorSetLayout
-vulkan::create_material_descriptor_set_layout(VkDevice device, uint32 textureCount)
+vulkan::create_material_descriptor_set_layout(VkDevice device, u32 textureCount)
 {
     VkDescriptorSetLayoutBinding binding = 
     {
@@ -998,10 +998,10 @@ cmd_transition_image_layout(
     VkQueue         graphicsQueue,
     VkImage         image,
     VkFormat        format,
-    uint32          mipLevels,
+    u32          mipLevels,
     VkImageLayout   oldLayout,
     VkImageLayout   newLayout,
-    uint32          layerCount = 1)
+    u32          layerCount = 1)
 {
     VkImageMemoryBarrier barrier = { VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER };
     barrier.oldLayout = oldLayout; // Note(Leo): Can be VK_IMAGE_LAYOUT_UNDEFINED if we dont care??
@@ -1107,7 +1107,7 @@ TransitionImageLayout(
     VkQueue         graphicsQueue,
     VkImage         image,
     VkFormat        format,
-    uint32          mipLevels,
+    u32          mipLevels,
     VkImageLayout   oldLayout,
     VkImageLayout   newLayout)
 {
@@ -1144,12 +1144,12 @@ vulkan::create_drawing_resources(VulkanContext * context)
 
 
     // Todo(Leo): Do these need to be aligned like below????
-    uint64 colorMemorySize = colorMemoryRequirements.size;
-    uint64 depthMemorySize = depthMemoryRequirements.size;
-    // uint64 colorMemorySize = align_up_to(colorMemoryRequirements.alignment, colorMemoryRequirements.size);
-    // uint64 depthMemorySize = align_up_to(depthMemoryRequirements.alignment, depthMemoryRequirements.size);
+    u64 colorMemorySize = colorMemoryRequirements.size;
+    u64 depthMemorySize = depthMemoryRequirements.size;
+    // u64 colorMemorySize = align_up_to(colorMemoryRequirements.alignment, colorMemoryRequirements.size);
+    // u64 depthMemorySize = align_up_to(depthMemoryRequirements.alignment, depthMemoryRequirements.size);
 
-    uint32 memoryTypeIndex = vulkan::find_memory_type(
+    u32 memoryTypeIndex = vulkan::find_memory_type(
                                 context->physicalDevice,
                                 colorMemoryRequirements.memoryTypeBits | depthMemoryRequirements.memoryTypeBits,
                                 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
@@ -1194,7 +1194,7 @@ vulkan::create_uniform_descriptor_pool(VulkanContext * context)
     'count' is one for actor (characters, animated scenery) uniform buffers which are dynamic and 
     one for static scenery.
     */
-    constexpr int32 count = 2;
+    constexpr s32 count = 2;
     VkDescriptorPoolSize poolSizes [count] = {};
 
     poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
@@ -1321,8 +1321,8 @@ vulkan::make_material_descriptor_set(
     PipelineHandle pipelineHandle,
     ArenaArray<TextureHandle> textures)
 {
-    uint32 textureCount = context->loadedPipelines[pipelineHandle].info.options.textureCount;
-    constexpr uint32 maxTextures = 10;
+    u32 textureCount = context->loadedPipelines[pipelineHandle].info.options.textureCount;
+    constexpr u32 maxTextures = 10;
     
     DEVELOPMENT_ASSERT(textureCount < maxTextures, "Too many textures on material");
     DEVELOPMENT_ASSERT(textureCount == textures.count(), "Wrong number of textures in ArenaArray 'textures'");
@@ -1416,10 +1416,10 @@ vulkan::make_material_descriptor_set(
 internal VkFramebuffer
 vulkan::make_framebuffer(   VulkanContext * context,
                             VkRenderPass    renderPass,
-                            uint32          attachmentCount,
+                            u32          attachmentCount,
                             VkImageView *   attachments,
-                            uint32          width,
-                            uint32          height)
+                            u32          width,
+                            u32          height)
 {
     VkFramebufferCreateInfo createInfo =
     {
@@ -1441,10 +1441,10 @@ vulkan::make_framebuffer(   VulkanContext * context,
 }
 
 
-internal uint32
-compute_mip_levels(uint32 texWidth, uint32 texHeight)
+internal u32
+compute_mip_levels(u32 texWidth, u32 texHeight)
 {
-   uint32 result = std::floor(std::log2(std::max(texWidth, texHeight))) + 1;
+   u32 result = std::floor(std::log2(std::max(texWidth, texHeight))) + 1;
    return result;
 }
 
@@ -1453,10 +1453,10 @@ cmd_generate_mip_maps(  VkCommandBuffer commandBuffer,
                     VkPhysicalDevice physicalDevice,
                     VkImage image,
                     VkFormat imageFormat,
-                    uint32 texWidth,
-                    uint32 texHeight,
-                    uint32 mipLevels,
-                    uint32 layerCount = 1)
+                    u32 texWidth,
+                    u32 texHeight,
+                    u32 mipLevels,
+                    u32 layerCount = 1)
 {
     VkFormatProperties formatProperties;
     vkGetPhysicalDeviceFormatProperties(physicalDevice, imageFormat, &formatProperties);
@@ -1544,9 +1544,9 @@ cmd_generate_mip_maps(  VkCommandBuffer commandBuffer,
 internal VulkanTexture
 vulkan::make_texture(TextureAsset * asset, VulkanContext * context)
 {
-    uint32 width        = asset->width;
-    uint32 height       = asset->height;
-    uint32 mipLevels    = compute_mip_levels(width, height);
+    u32 width        = asset->width;
+    u32 height       = asset->height;
+    u32 mipLevels    = compute_mip_levels(width, height);
 
 
     VkDeviceSize imageSize = width * height * asset->channels;
@@ -1680,12 +1680,12 @@ vulkan::make_texture(TextureAsset * asset, VulkanContext * context)
 internal VulkanTexture
 vulkan::make_cubemap(VulkanContext * context, StaticArray<TextureAsset, 6> * assets)
 {
-    uint32 width        = (*assets)[0].width;
-    uint32 height       = (*assets)[0].height;
-    uint32 channels     = (*assets)[0].channels;
-    uint32 mipLevels    = compute_mip_levels(width, height);
+    u32 width        = (*assets)[0].width;
+    u32 height       = (*assets)[0].height;
+    u32 channels     = (*assets)[0].channels;
+    u32 mipLevels    = compute_mip_levels(width, height);
 
-    constexpr uint32 CUBEMAP_LAYERS = 6;
+    constexpr u32 CUBEMAP_LAYERS = 6;
 
     VkDeviceSize layerSize = width * height * channels;
     VkDeviceSize imageSize = layerSize * CUBEMAP_LAYERS;
@@ -1696,9 +1696,9 @@ vulkan::make_cubemap(VulkanContext * context, StaticArray<TextureAsset, 6> * ass
     vkMapMemory(context->device, context->stagingBufferPool.memory, 0, imageSize, 0, (void**)&data);
     for (int i = 0; i < 6; ++i)
     {
-        uint32 * start          = (*assets)[i].pixels.begin();
-        uint32 * end            = (*assets)[i].pixels.end();
-        uint32 * destination    = reinterpret_cast<uint32*>(data + (i * layerSize));
+        u32 * start          = (*assets)[i].pixels.begin();
+        u32 * end            = (*assets)[i].pixels.end();
+        u32 * destination    = reinterpret_cast<u32*>(data + (i * layerSize));
 
         std::copy(start, end, destination);
     }
@@ -1984,7 +1984,7 @@ create_virtual_frames(VulkanContext * context)
 
 
 internal void
-vulkan::recreate_swapchain(VulkanContext * context, uint32 width, uint32 height)
+vulkan::recreate_swapchain(VulkanContext * context, u32 width, u32 height)
 {
     vkDeviceWaitIdle(context->device);
 
@@ -2012,8 +2012,8 @@ namespace winapi
         GetWindowRect(winWindow, &rect);
 
         return {
-            .width = (uint32)(rect.right - rect.left),
-            .height = (uint32)(rect.bottom - rect.top),
+            .width = (u32)(rect.right - rect.left),
+            .height = (u32)(rect.bottom - rect.top),
         };
     }
 

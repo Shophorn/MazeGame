@@ -1,4 +1,4 @@
-enum struct ColliderTag : int32
+enum struct ColliderTag : s32
 {
 	Default,
 	Trigger,
@@ -17,8 +17,8 @@ struct Collision2D
 struct Collider2D
 {
 	Handle<Transform3D>	transform;
-	Vector2			extents;
-	Vector2			offset;
+	float2			extents;
+	float2			offset;
 
 	ColliderTag	tag;
 
@@ -32,14 +32,14 @@ struct CollisionManager2D
 	ArenaArray<Collision2D> collisions;
 
 	bool32
-	raycast(Vector2 origin, Vector2 ray, bool32 laddersBlock)
+	raycast(float2 origin, float2 ray, bool32 laddersBlock)
 	{
-		Vector2 corners [4];
+		float2 corners [4];
 		
-		Vector2 start 	= origin;
-		Vector2 end 	= origin + ray;
+		float2 start 	= origin;
+		float2 end 	= origin + ray;
 
-		for (int32 i = 0; i < colliders.count(); ++i)
+		for (s32 i = 0; i < colliders.count(); ++i)
 		{
 			DEVELOPMENT_ASSERT(is_handle_valid(colliders[i]->transform), "Invalid transform passed to Collider2D");
 
@@ -59,16 +59,16 @@ struct CollisionManager2D
 			}
 
 			Vector3 worldPosition = get_world_position(colliders[i]->transform);
-			Vector2 position2D = {	worldPosition.x, worldPosition.z };
+			float2 position2D = {	worldPosition.x, worldPosition.z };
 
 			position2D += colliders[i]->offset;
-			Vector2 extents = colliders[i]->extents;
+			float2 extents = colliders[i]->extents;
 
 			// Compute corners first
-			corners[0] = position2D + Vector2 {-extents.x, -extents.y};
-			corners[1] = position2D + Vector2 {extents.x, -extents.y};
-			corners[2] = position2D + Vector2 {-extents.x, extents.y};
-			corners[3] = position2D + Vector2 {extents.x, extents.y};
+			corners[0] = position2D + float2 {-extents.x, -extents.y};
+			corners[1] = position2D + float2 {extents.x, -extents.y};
+			corners[2] = position2D + float2 {-extents.x, extents.y};
+			corners[3] = position2D + float2 {extents.x, extents.y};
 
 			// (0<AM⋅AB<AB⋅AB)∧(0<AM⋅AD<AD⋅AD)
 			auto AMstart = start - corners[0];
@@ -95,19 +95,19 @@ struct CollisionManager2D
 		// Reset previous collisions
 		flush_arena_array(collisions);
 
-		for (int32 i = 0; i < colliders.count(); ++i)
+		for (s32 i = 0; i < colliders.count(); ++i)
 		{
 			colliders[i]->hasCollision = false;
 			colliders[i]->collision = nullptr;
 		}
 
 		// Calculate new collisions
-		for (int32 a = 0; a < colliders.count(); ++a)
+		for (s32 a = 0; a < colliders.count(); ++a)
 		{
-			for (int32 b = a + 1; b < colliders.count(); ++b)
+			for (s32 b = a + 1; b < colliders.count(); ++b)
 			{
-				Vector2 positionA = Vector2{get_world_position(colliders[a]->transform).x, get_world_position(colliders[a]->transform).z} + colliders[a]->offset;
-				Vector2 positionB = Vector2{get_world_position(colliders[b]->transform).x, get_world_position(colliders[b]->transform).z} + colliders[b]->offset;
+				float2 positionA = float2{get_world_position(colliders[a]->transform).x, get_world_position(colliders[a]->transform).z} + colliders[a]->offset;
+				float2 positionB = float2{get_world_position(colliders[b]->transform).x, get_world_position(colliders[b]->transform).z} + colliders[b]->offset;
 
 				float xDeltaAtoB 	= positionB.x - positionA.x;
 				float xDistance		= Abs(xDeltaAtoB);
@@ -135,14 +135,14 @@ struct CollisionManager2D
 					float xNormalA = Sign(xDeltaAtoB);
 					float xNormalB = -xNormalA;
 
-					uint64 collisionIndexForA = push_one(collisions, {
+					u64 collisionIndexForA = push_one(collisions, {
 						.position 	= positionB.x + xNormalB * xRadiusB,
 						.normal 	= {xNormalB, 0, 0},
 						.tag 		= colliders[b]->tag
 					});
 					colliders[a]->collision = &collisions[collisionIndexForA];
 
-					uint64 collisionIndexForB = push_one(collisions, {
+					u64 collisionIndexForB = push_one(collisions, {
 						.position 	= positionA.x + xNormalA * xRadiusA, 
 						.normal 	= {xNormalA, 0, 0},
 						.tag 		= colliders[a]->tag
@@ -157,8 +157,8 @@ struct CollisionManager2D
 internal Handle<Collider2D>
 push_collider(	CollisionManager2D * manager,
 				Handle<Transform3D> transform,
-				Vector2 extents,
-				Vector2 offset = {0, 0},
+				float2 extents,
+				float2 offset = {0, 0},
 				ColliderTag tag = ColliderTag::Default)
 {
 	auto collider = make_handle<Collider2D>({

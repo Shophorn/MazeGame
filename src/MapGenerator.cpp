@@ -8,16 +8,16 @@ struct HexMap
 {
 	int 				cellCountPerDirection;
 	real32 				cellSize;
-	ArenaArray<uint32> 	cells;
+	ArenaArray<u32> 	cells;
 
 	real32 
 	WorldSize() { return cellCountPerDirection * cellSize; }
  	
- 	uint32 & 
+ 	u32 & 
  	Cell (int x, int y) { return cells[x + y * cellCountPerDirection]; }
 
 	Vector3
-	GetCellPosition(int32 x, int32 y)
+	GetCellPosition(s32 x, s32 y)
 	{
 		// Note(Leo): math stolen from catlike coding hex tutorial
 		real32 cellOuterRadius = cellSize;
@@ -41,7 +41,7 @@ namespace map
 {
 	struct CreateInfo
 	{
-		int32 cellCountPerDirection;
+		s32 cellCountPerDirection;
 		real32 cellSize;
 	};
 
@@ -55,10 +55,10 @@ namespace map
 
 
 void
-AddHexCell(Vector3 cellPosition, HexMap * map, bool blocked, uint16 * vertexIndex, Vertex * vertexArray, uint16 * triangleIndex, uint16 * triangleArray)
+AddHexCell(Vector3 cellPosition, HexMap * map, bool blocked, u16 * vertexIndex, Vertex * vertexArray, u16 * triangleIndex, u16 * triangleArray)
 {
 	Vertex * vertexLocation = vertexArray + *vertexIndex;
-	uint16 * triangleLocation = triangleArray + *triangleIndex;
+	u16 * triangleLocation = triangleArray + *triangleIndex;
 
 	Vector3 color = blocked ? Vector3{0.1f, 0.1f, 0.1f} : Vector3{1, 1, 1};
 	Vector3 normal = {0, 0, 1};
@@ -104,13 +104,13 @@ AddHexCell(Vector3 cellPosition, HexMap * map, bool blocked, uint16 * vertexInde
 	vertexLocation[6].normal = normal;
 
 	real32 gridSize = map->WorldSize();
-	vertexLocation[0].texCoord = vector::coeff_add(size_cast<Vector2>(vertexLocation[0].position) / gridSize, 0.5f);
-	vertexLocation[1].texCoord = vector::coeff_add(size_cast<Vector2>(vertexLocation[1].position) / gridSize, 0.5f);
-	vertexLocation[2].texCoord = vector::coeff_add(size_cast<Vector2>(vertexLocation[2].position) / gridSize, 0.5f);
-	vertexLocation[3].texCoord = vector::coeff_add(size_cast<Vector2>(vertexLocation[3].position) / gridSize, 0.5f);
-	vertexLocation[4].texCoord = vector::coeff_add(size_cast<Vector2>(vertexLocation[4].position) / gridSize, 0.5f);
-	vertexLocation[5].texCoord = vector::coeff_add(size_cast<Vector2>(vertexLocation[5].position) / gridSize, 0.5f);
-	vertexLocation[6].texCoord = vector::coeff_add(size_cast<Vector2>(vertexLocation[6].position) / gridSize, 0.5f);
+	vertexLocation[0].texCoord = vector::coeff_add(size_cast<float2>(vertexLocation[0].position) / gridSize, 0.5f);
+	vertexLocation[1].texCoord = vector::coeff_add(size_cast<float2>(vertexLocation[1].position) / gridSize, 0.5f);
+	vertexLocation[2].texCoord = vector::coeff_add(size_cast<float2>(vertexLocation[2].position) / gridSize, 0.5f);
+	vertexLocation[3].texCoord = vector::coeff_add(size_cast<float2>(vertexLocation[3].position) / gridSize, 0.5f);
+	vertexLocation[4].texCoord = vector::coeff_add(size_cast<float2>(vertexLocation[4].position) / gridSize, 0.5f);
+	vertexLocation[5].texCoord = vector::coeff_add(size_cast<float2>(vertexLocation[5].position) / gridSize, 0.5f);
+	vertexLocation[6].texCoord = vector::coeff_add(size_cast<float2>(vertexLocation[6].position) / gridSize, 0.5f);
 
 	triangleLocation[0] = *vertexIndex;
 	triangleLocation[1] = *vertexIndex + 1; 
@@ -148,11 +148,11 @@ map::GenerateMap(MemoryArena & memoryArena, map::CreateInfo & info)
 	map.cellCountPerDirection = info.cellCountPerDirection;;
 	map.cellSize = info.cellSize;
 
-	map.cells = push_array<uint32>(&memoryArena, map.cellCountPerDirection * map.cellCountPerDirection);
+	map.cells = push_array<u32>(&memoryArena, map.cellCountPerDirection * map.cellCountPerDirection);
 
-	for (int32 y = 0; y < map.cellCountPerDirection; ++y)
+	for (s32 y = 0; y < map.cellCountPerDirection; ++y)
 	{
-		for (int32 x = 0; x < map.cellCountPerDirection; ++x)
+		for (s32 x = 0; x < map.cellCountPerDirection; ++x)
 		{
 			map.Cell(x, y) = RandomValue() < 0.5f ? 0 : 1;
 		}
@@ -166,23 +166,23 @@ map::GenerateMapMesh(MemoryArena & memoryArena, HexMap & map)
 	MeshAsset result = {};
 	result.indexType = IndexType::UInt16;
 
-	int32 vCount = map.cellCountPerDirection * map.cellCountPerDirection * 7;
-	int32 iCount = map.cellCountPerDirection * map.cellCountPerDirection * 6 * 3;
+	s32 vCount = map.cellCountPerDirection * map.cellCountPerDirection * 7;
+	s32 iCount = map.cellCountPerDirection * map.cellCountPerDirection * 6 * 3;
 
 	result.vertices = push_array<Vertex>(&memoryArena, vCount);
-	result.indices 	= push_array<uint16>(&memoryArena, iCount);
+	result.indices 	= push_array<u16>(&memoryArena, iCount);
 
-	uint16 vertexIndex = 0;
-	uint16 triangleIndex = 0;
+	u16 vertexIndex = 0;
+	u16 triangleIndex = 0;
 
-	for (int32 y = 0; y < map.cellCountPerDirection; ++y)
+	for (s32 y = 0; y < map.cellCountPerDirection; ++y)
 	{
-		for (int32 x = 0; x < map.cellCountPerDirection; ++x)
+		for (s32 x = 0; x < map.cellCountPerDirection; ++x)
 		{
 
 			// DANGER(Leo): array may have not been designed this in mind
 			Vertex * vertexLocation = result.vertices.begin() + vertexIndex;
-			uint16 * indexLocation = result.indices.begin() + triangleIndex;
+			u16 * indexLocation = result.indices.begin() + triangleIndex;
 
 			// Todo(Leo): Lol clean :P
 			AddHexCell(	map.GetCellPosition(x,y),

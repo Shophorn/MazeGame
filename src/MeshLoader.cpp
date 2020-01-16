@@ -29,10 +29,10 @@ load_model_glb(MemoryArena * memoryArena, const char * filePath, const char * mo
 	
 	auto meshArray = jsonDocument["meshes"].GetArray();
 	
-	int32 positionAccessorIndex 	= -1; 
-	int32 normalAccessorIndex 		= -1;
-	int32 texcoordAccessorIndex 	= -1;
-	int32 indexAccessorIndex 		= -1;
+	s32 positionAccessorIndex 	= -1; 
+	s32 normalAccessorIndex 		= -1;
+	s32 texcoordAccessorIndex 	= -1;
+	s32 indexAccessorIndex 		= -1;
 
 	for (auto & object : meshArray)
 	{
@@ -66,24 +66,24 @@ load_model_glb(MemoryArena * memoryArena, const char * filePath, const char * mo
 	// Todo(Leo): what if there are multiple buffers in file? Where is the index? In "buffers"?
 	auto buffer = get_gltf_binary_chunk(memoryArena, gltf, 0);
 
-	auto get_buffer_view_index = [&accessorArray](int32 index) -> int32
+	auto get_buffer_view_index = [&accessorArray](s32 index) -> s32
 	{
-		int32 result = accessorArray[index].GetObject()["bufferView"].GetInt();
+		s32 result = accessorArray[index].GetObject()["bufferView"].GetInt();
 		return result;
 	};
 
-	auto get_item_count = [&accessorArray](int32 index) -> uint64
+	auto get_item_count = [&accessorArray](s32 index) -> u64
 	{
-		uint64 result = accessorArray[index].GetObject()["count"].GetInt();
+		u64 result = accessorArray[index].GetObject()["count"].GetInt();
 		return result;
 	};
 
-	int32 positionBufferViewIndex 	= get_buffer_view_index(positionAccessorIndex);
-	int32 normalBufferViewIndex 	= get_buffer_view_index(normalAccessorIndex);
-	int32 texcoordBufferViewIndex 	= get_buffer_view_index(texcoordAccessorIndex);
-	int32 indexBufferViewIndex 		= get_buffer_view_index(indexAccessorIndex);
+	s32 positionBufferViewIndex 	= get_buffer_view_index(positionAccessorIndex);
+	s32 normalBufferViewIndex 	= get_buffer_view_index(normalAccessorIndex);
+	s32 texcoordBufferViewIndex 	= get_buffer_view_index(texcoordAccessorIndex);
+	s32 indexBufferViewIndex 		= get_buffer_view_index(indexAccessorIndex);
 
-	uint64 vertexCount 	= get_item_count(positionAccessorIndex);
+	u64 vertexCount 	= get_item_count(positionAccessorIndex);
 	bool32 isGood 		= 	(vertexCount == get_item_count(normalAccessorIndex))
 							&& (vertexCount == get_item_count(texcoordAccessorIndex));
 	DEVELOPMENT_ASSERT(isGood, "Did not read .glb properly: invalid vertex count among properties or invalid accessor indices.");
@@ -98,36 +98,36 @@ load_model_glb(MemoryArena * memoryArena, const char * filePath, const char * mo
 	auto normalBufferView 	= bufferViewArray[normalBufferViewIndex].GetObject();
 	auto texcoordBufferView = bufferViewArray[texcoordBufferViewIndex].GetObject();
 
-	uint64 positionOffset 		= positionBufferView["byteOffset"].GetInt();
-	uint64 positionLength		= positionBufferView["byteLength"].GetInt(); 
+	u64 positionOffset 		= positionBufferView["byteOffset"].GetInt();
+	u64 positionLength		= positionBufferView["byteLength"].GetInt(); 
 	auto positionComponentType 	= (glTF::ComponentType)positionAccessor["componentType"].GetInt();
-	uint64 positionStride		= glTF::get_default_stride(positionComponentType);
+	u64 positionStride		= glTF::get_default_stride(positionComponentType);
 
-	uint64 normalOffset 		= normalBufferView["byteOffset"].GetInt();
-	uint64 normalLength			= normalBufferView["byteLength"].GetInt(); 
+	u64 normalOffset 		= normalBufferView["byteOffset"].GetInt();
+	u64 normalLength			= normalBufferView["byteLength"].GetInt(); 
 	auto normalComponentType 	= (glTF::ComponentType)normalAccessor["componentType"].GetInt();
-	uint64 normalStride			= glTF::get_default_stride(normalComponentType);
+	u64 normalStride			= glTF::get_default_stride(normalComponentType);
 
-	uint64 texcoordOffset 		= texcoordBufferView["byteOffset"].GetInt();
-	uint64 texcoordLength		= texcoordBufferView["byteLength"].GetInt(); 
+	u64 texcoordOffset 		= texcoordBufferView["byteOffset"].GetInt();
+	u64 texcoordLength		= texcoordBufferView["byteLength"].GetInt(); 
 	auto texcoordComponentType 	= (glTF::ComponentType)texcoordAccessor["componentType"].GetInt();
-	uint64 texcoordStride		= glTF::get_default_stride(texcoordComponentType);
+	u64 texcoordStride		= glTF::get_default_stride(texcoordComponentType);
 
 	auto vertices 				= reserve_array<Vertex>(memoryArena, vertexCount);
 
-	uint64 positionStart 		= positionOffset;
-	uint64 normalStart 			= normalOffset;
-	uint64 texcoordStart 		= texcoordOffset;
+	u64 positionStart 		= positionOffset;
+	u64 normalStart 			= normalOffset;
+	u64 texcoordStart 		= texcoordOffset;
 
 	Vector3 * positionBuffer 	= reinterpret_cast<Vector3*>(buffer.begin() + positionOffset);
 	Vector3 * normalBuffer 		= reinterpret_cast<Vector3*>(buffer.begin() + normalOffset);
-	Vector2 * texcoordBuffer 	= reinterpret_cast<Vector2*>(buffer.begin() + texcoordOffset);
+	float2 * texcoordBuffer 	= reinterpret_cast<float2*>(buffer.begin() + texcoordOffset);
 
 	for (int i = 0; i < vertexCount; ++i)
 	{
 		Vector3 position 	= positionBuffer[i];
 		Vector3 normal 		= normalBuffer[i];
-		Vector2 texCoord    = texcoordBuffer[i];
+		float2 texCoord    = texcoordBuffer[i];
 
 		push_one(vertices, Vertex{
 			.position 	= position,
@@ -140,22 +140,22 @@ load_model_glb(MemoryArena * memoryArena, const char * filePath, const char * mo
 	auto indexBufferView 	= bufferViewArray[indexBufferViewIndex].GetObject();
 
 
-	uint64 indexCount 		= indexAccessor["count"].GetInt();
-	auto indices 			= reserve_array<uint16>(memoryArena, indexCount);
+	u64 indexCount 		= indexAccessor["count"].GetInt();
+	auto indices 			= reserve_array<u16>(memoryArena, indexCount);
 
-	uint64 indexByteOffset 	= indexBufferView["byteOffset"].GetInt();
-	uint64 indexByteLength 	= indexBufferView["byteLength"].GetInt();
+	u64 indexByteOffset 	= indexBufferView["byteOffset"].GetInt();
+	u64 indexByteLength 	= indexBufferView["byteLength"].GetInt();
 
 	byte * indexStart 		= buffer.begin() + indexByteOffset;
 	byte * indexEnd 		= indexStart + indexByteLength;
 	auto componentType		= (glTF::ComponentType)indexAccessor["componentType"].GetInt();
-	uint64 stride			= glTF::get_default_stride(componentType);
+	u64 stride			= glTF::get_default_stride(componentType);
 
 	// std::cout << "[GLTF]: Index stride = " << stride << "\n";
 
 	for(byte * it = indexStart; it < indexEnd; it += stride)
 	{
-		uint16 index = *reinterpret_cast<uint16*>(it);
+		u16 index = *reinterpret_cast<u16*>(it);
 		push_one(indices, index);
 	}
 
@@ -189,10 +189,10 @@ load_model_obj(MemoryArena * memoryArena, const char * modelPath)
 	}
 
 	//Note(Leo): there might be more than one shape, but we don't use that here
-	int32 indexCount = shapes[0].mesh.indices.size();
+	s32 indexCount = shapes[0].mesh.indices.size();
 
 	result.vertices = push_array<Vertex>(memoryArena, indexCount);
-	result.indices = push_array<uint16>(memoryArena, indexCount);
+	result.indices = push_array<u16>(memoryArena, indexCount);
 
 	for (int i = 0; i < indexCount; ++i)
 	{
@@ -238,7 +238,7 @@ namespace mesh_ops
 	}
 
 	internal void
-	transform_tex_coords(MeshAsset * mesh, const Vector2 translation, const Vector2 scale)
+	transform_tex_coords(MeshAsset * mesh, const float2 translation, const float2 scale)
 	{
 		int vertexCount = mesh->vertices.count();
 		for(int vertexIndex = 0; vertexIndex < vertexCount; ++vertexIndex)
@@ -273,11 +273,11 @@ namespace mesh_primitives
 		if (flipIndices)
 		{
 			// Note(Leo): These seem to backwardsm but it because currently our gui is viewed from behind.
-			result.indices = push_array<uint16>(memoryArena, {0, 2, 1, 1, 2, 3});
+			result.indices = push_array<u16>(memoryArena, {0, 2, 1, 1, 2, 3});
 		}
 		else
 		{
-			result.indices = push_array<uint16>(memoryArena, {0, 1, 2, 2, 1, 3});
+			result.indices = push_array<u16>(memoryArena, {0, 1, 2, 2, 1, 3});
 		}
 
 		return result;

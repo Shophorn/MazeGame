@@ -32,7 +32,7 @@ vulkan::make_pipeline(
 
     auto & options = info.options;
 
-    enum : uint32
+    enum : u32
     {
         VERTEX_STAGE_ID     = 0,
         FRAGMENT_STAGE_ID   = 1,
@@ -263,7 +263,7 @@ vulkan::make_line_pipeline(
 
     auto & options = info.options;
 
-    enum : uint32
+    enum : u32
     {
         VERTEX_STAGE_ID     = 0,
         FRAGMENT_STAGE_ID   = 1,
@@ -501,7 +501,7 @@ vulkan::make_gui_pipeline(
 
     auto & options = info.options;
 
-    enum : uint32
+    enum : u32
     {
         VERTEX_STAGE_ID     = 0,
         FRAGMENT_STAGE_ID   = 1,

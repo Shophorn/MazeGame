@@ -67,7 +67,7 @@ vulkan::to_str <VkResult> (VkResult value)
 }
 
 
-constexpr internal bool VkResultCollide(int32 value)
+constexpr internal bool VkResultCollide(s32 value)
 {
 	switch(value)
 	{	

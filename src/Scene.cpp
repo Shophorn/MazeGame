@@ -23,7 +23,7 @@ enum MenuResult
 
 struct SceneInfo
 {
-	uint64 		(*get_alloc_size)();
+	u64 		(*get_alloc_size)();
 
 	void 		(*load)( 	void *						scenePtr,
 							MemoryArena *				persistentMemory,

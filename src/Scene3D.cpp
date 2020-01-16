@@ -125,8 +125,8 @@ Scene3d::load(	void * 						scenePtr,
 		PipelineHandle normalPipeline 	= functions->push_pipeline(graphics, "shaders/vert.spv", "shaders/frag.spv", {.textureCount = 3});
 		PipelineHandle skyPipeline 		= functions->push_pipeline(graphics, "shaders/vert_sky.spv", "shaders/frag_sky.spv", {.enableDepth = false, .textureCount = 1});
 
-		TextureAsset whiteTextureAsset = make_texture_asset(push_array<uint32>(transientMemory, {0xffffffff}), 1, 1);
-		TextureAsset blackTextureAsset = make_texture_asset(push_array<uint32>(transientMemory, {0xff000000}), 1, 1);
+		TextureAsset whiteTextureAsset = make_texture_asset(push_array<u32>(transientMemory, {0xffffffff}), 1, 1);
+		TextureAsset blackTextureAsset = make_texture_asset(push_array<u32>(transientMemory, {0xff000000}), 1, 1);
 
 		TextureHandle whiteTexture = functions->push_texture(graphics, &whiteTextureAsset);
 		TextureHandle blackTexture = functions->push_texture(graphics, &blackTextureAsset);
@@ -239,8 +239,8 @@ Scene3d::load(	void * 						scenePtr,
 		constexpr float ladderHeight = 1.0f;
 
 		{
-			// Note(Leo): this is maximum size we support with uint16 mesh vertex indices
-			int32 gridSize = 256;
+			// Note(Leo): this is maximum size we support with u16 mesh vertex indices
+			s32 gridSize = 256;
 			float mapSize = 400;
 
 			auto heightmapTexture 	= load_texture_asset("textures/heightmap6.jpg", transientMemory);
@@ -332,8 +332,8 @@ Scene3d::load(	void * 						scenePtr,
 			scene->laddersDownAnimation = duplicate_animation_clip(persistentMemory, &scene->laddersUpAnimation);
 			reverse_animation_clip(&scene->laddersDownAnimation);
 
-			auto keyframeCounters1 = push_array<uint64>(persistentMemory, bones1.count());
-			auto keyframeCounters2 = push_array<uint64>(persistentMemory, bones2.count());
+			auto keyframeCounters1 = push_array<u64>(persistentMemory, bones1.count());
+			auto keyframeCounters2 = push_array<u64>(persistentMemory, bones2.count());
 
 			auto rig1 = make_animation_rig(root1, bones1, keyframeCounters1);
 			auto rig2 = make_animation_rig(root2, bones2, keyframeCounters2);

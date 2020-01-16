@@ -41,7 +41,7 @@ global_variable int globalXinputControllerIndex;
 #include "winapi_Mazegame.hpp"
 
 // Todo(Leo): Vulkan implementation depends on this, not cool
-using BinaryAsset = std::vector<uint8>;
+using BinaryAsset = std::vector<u8>;
 BinaryAsset
 ReadBinaryFile (const char * fileName)
 {
@@ -123,17 +123,17 @@ Run(HINSTANCE winInstance)
     {
         // TODO [MEMORY] (Leo): Properly measure required amount
         // TODO [MEMORY] (Leo): Think of alignment
-        gameMemory.persistentMemorySize = Gigabytes(1);
-        gameMemory.transientMemorySize  = Gigabytes(1);
+        gameMemory.persistentMemorySize = gigabytes(1);
+        gameMemory.transientMemorySize  = gigabytes(1);
 
-        uint64 totalGameMemorySize = gameMemory.persistentMemorySize + gameMemory.transientMemorySize;
+        u64 totalGameMemorySize = gameMemory.persistentMemorySize + gameMemory.transientMemorySize;
 
-        uint64 platformTransientMemorySize = Megabytes(1);
-        uint64 totalMemorySize = totalGameMemorySize + platformTransientMemorySize;
+        u64 platformTransientMemorySize = megabytes(1);
+        u64 totalMemorySize = totalGameMemorySize + platformTransientMemorySize;
    
         // TODO [MEMORY] (Leo): Check support for large pages
     #if MAZEGAME_DEVELOPMENT
-        void * baseAddress = (void*)Terabytes(2);
+        void * baseAddress = (void*)terabytes(2);
         void * memoryBlock = VirtualAlloc(baseAddress, totalMemorySize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
     #else
         void * memoryBlock = VirtualAlloc(nullptr, totalMemorySize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
@@ -150,11 +150,11 @@ Run(HINSTANCE winInstance)
    {
         // TODO [MEMORY] (Leo): Properly measure required amount
         // TODO[memory] (Leo): Log usage
-        uint64 staticMeshPoolSize       = Megabytes(500);
-        uint64 stagingBufferPoolSize    = Megabytes(100);
-        uint64 modelUniformBufferSize   = Megabytes(100);
-        uint64 sceneUniformBufferSize   = Megabytes(100);
-        uint64 guiUniformBufferSize     = Megabytes(100);
+        u64 staticMeshPoolSize       = megabytes(500);
+        u64 stagingBufferPoolSize    = megabytes(100);
+        u64 modelUniformBufferSize   = megabytes(100);
+        u64 sceneUniformBufferSize   = megabytes(100);
+        u64 guiUniformBufferSize     = megabytes(100);
 
         // TODO[MEMORY] (Leo): This will need guarding against multithreads once we get there
         vulkanContext.staticMeshPool = vulkan::make_buffer_resource(  
@@ -209,7 +209,7 @@ Run(HINSTANCE winInstance)
     real64 lastFrameStartTime   = 0;
 
     real64 targetFrameTime;
-    uint32 deviceMinSchedulerGranularity;
+    u32 deviceMinSchedulerGranularity;
     {
         TIMECAPS timeCaps;
         timeGetDevCaps(&timeCaps, sizeof(timeCaps));
@@ -238,7 +238,7 @@ Run(HINSTANCE winInstance)
             std::cout << "No power detected\n";
         }
 
-        int32 gameUpdateRate = targetFrameTimeThreshold;
+        s32 gameUpdateRate = targetFrameTimeThreshold;
         {
             HDC deviceContext = GetDC(window.hwnd);
             int monitorRefreshRate = GetDeviceCaps(deviceContext, VREFRESH);
@@ -350,15 +350,14 @@ Run(HINSTANCE winInstance)
         if (winapi::is_window_drawable(&window))
         {
             // Todo(Leo): Study fences
-            
-            #pragma message("Clean up here")
+            // Todo(Leo): Vulkan related things should be moved to vulkan section            
             vkWaitForFences(vulkanContext.device, 1, &get_current_virtual_frame(&vulkanContext)->inFlightFence,
                             VK_TRUE, VULKAN_NO_TIME_OUT);
 
-            uint32 imageIndex;
+            u32 imageIndex;
             VkResult getNextImageResult = vkAcquireNextImageKHR(vulkanContext.device,
                                                                 vulkanContext.swapchainItems.swapchain,
-                                                                VULKAN_NO_TIME_OUT,//MaxValue<uint64>,
+                                                                VULKAN_NO_TIME_OUT,//MaxValue<u64>,
                                                                 get_current_virtual_frame(&vulkanContext)->imageAvailableSemaphore,
                                                                 VK_NULL_HANDLE,
                                                                 &imageIndex);

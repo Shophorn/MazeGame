@@ -77,13 +77,13 @@ winapi::CreateNetwork()
     ownAddress.sin_addr.s_addr = inet_addr(networkOwnIpAddress); 
     ownAddress.sin_family = AF_INET;
     ownAddress.sin_port = htons(444);
-    int32 ownAddressLength = sizeof(ownAddress);
+    s32 ownAddressLength = sizeof(ownAddress);
 
     SOCKADDR_IN otherAddress;
     otherAddress.sin_addr.s_addr = inet_addr(networkOtherIpAddress); 
     otherAddress.sin_family = AF_INET;
     otherAddress.sin_port = htons(444);
-    int32 otherAddressLength = sizeof(otherAddress);            
+    s32 otherAddressLength = sizeof(otherAddress);            
 
     RESULT = connect(network.connectedSocket, (PSOCKADDR)&otherAddress, otherAddressLength);
     if (RESULT == 0)
@@ -250,7 +250,7 @@ winapi::CloseNetwork(WinApiNetwork * network)
     to handle those at some point
 
     Todo(Leo): handle results */
-    int32 RESULT;
+    s32 RESULT;
     RESULT = shutdown(network->connectedSocket, SD_BOTH);
     RESULT = closesocket(network->connectedSocket);
 

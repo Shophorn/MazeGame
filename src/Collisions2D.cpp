@@ -1,7 +1,7 @@
 struct Rectangle
 {
-	Vector2 position;
-	Vector2 size;
+	float2 position;
+	float2 size;
 };
 
 internal Rectangle
@@ -17,7 +17,7 @@ scale_rectangle(Rectangle rect, float2 scale)
 
 struct Circle
 {
-	Vector2 position;
+	float2 position;
 	real32 radius;
 };
 
@@ -52,7 +52,7 @@ CircleRectangleCollisionAABB(Circle c, Rectangle r)
 struct CollisionResult
 {
 	bool32 isCollision;
-	int32 otherColliderIndex;
+	s32 otherColliderIndex;
 };
 
 internal CollisionResult

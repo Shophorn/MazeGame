@@ -10,15 +10,15 @@ STUDY: https://devblogs.nvidia.com/vulkan-dos-donts/
 
 #ifndef WIN_VULKAN_HPP
 
-constexpr int32 VIRTUAL_FRAME_COUNT = 3;
+constexpr s32 VIRTUAL_FRAME_COUNT = 3;
 
 
 
-constexpr uint64 VULKAN_NO_TIME_OUT	= MaxValue<uint64>;
+constexpr u64 VULKAN_NO_TIME_OUT	= maxValue<u64>;
 constexpr real32 VULKAN_MAX_LOD_FLOAT = 100.0f;
 
-constexpr int32 VULKAN_MAX_MODEL_COUNT = 2000;
-constexpr int32 VULKAN_MAX_MATERIAL_COUNT = 100;
+constexpr s32 VULKAN_MAX_MODEL_COUNT = 2000;
+constexpr s32 VULKAN_MAX_MATERIAL_COUNT = 100;
 
 
 constexpr VkSampleCountFlagBits VULKAN_MAX_MSAA_SAMPLE_COUNT = VK_SAMPLE_COUNT_1_BIT;
@@ -45,21 +45,21 @@ struct VulkanBufferResource
     VkDeviceMemory memory;
     
     // Todo[memory, vulkan](Leo): IMPORTANT Enforce/track these
-    uint64 used;
-    uint64 size;
+    u64 used;
+    u64 size;
 
     bool32 created;
 };
 
 struct VulkanQueueFamilyIndices
 {
-    uint32 graphics;
-    uint32 present;
+    u32 graphics;
+    u32 present;
 
     bool32 hasGraphics;
     bool32 hasPresent;
 
-    uint32 getAt(int index)
+    u32 getAt(int index)
     {
         if (index == 0) return graphics;
         if (index == 1) return present;
@@ -116,7 +116,7 @@ struct VulkanMesh
 
     VkDeviceSize    vertexOffset;
     VkDeviceSize    indexOffset;
-    uint32          indexCount;
+    u32          indexCount;
     VkIndexType     indexType;
 };
 
@@ -184,10 +184,10 @@ struct platform::Graphics
 	VkCommandPool 					commandPool;
 
     VulkanVirtualFrame virtualFrames [VIRTUAL_FRAME_COUNT];
-    uint32 virtualFrameIndex = 0;
+    u32 virtualFrameIndex = 0;
 
     VkResult currentFrameDrawAction;
-    uint32 currentFrameImageIndex;
+    u32 currentFrameImageIndex;
 
     struct
     {
@@ -249,11 +249,11 @@ struct platform::Graphics
     VulkanLoadedPipeline		guiDrawPipeline;	
 	std::vector<VulkanMaterial> loadedGuiMaterials;
 
-    // uint32 currentDrawImageIndex;
-    uint32 currentDrawFrameIndex;
+    // u32 currentDrawImageIndex;
+    u32 currentDrawFrameIndex;
     bool32 canDraw = false;
     PipelineHandle currentBoundPipeline;
-    uint32 currentUniformBufferOffset;
+    u32 currentUniformBufferOffset;
 
     bool32 sceneUnloaded = false;
 };
@@ -281,7 +281,7 @@ get_loaded_pipeline(VulkanContext * context, PipelineHandle handle)
 internal VkFormat
 find_supported_format(
     VkPhysicalDevice physicalDevice,
-    int32 candidateCount,
+    s32 candidateCount,
     VkFormat * pCandidates,
     VkImageTiling requestedTiling,
     VkFormatFeatureFlags requestedFeatures
@@ -311,7 +311,7 @@ find_supported_depth_format(VkPhysicalDevice physicalDevice)
     VkFormat formats [] = { VK_FORMAT_D32_SFLOAT,
                             VK_FORMAT_D32_SFLOAT_S8_UINT,
                             VK_FORMAT_D24_UNORM_S8_UINT };
-    int32 formatCount = 3;
+    s32 formatCount = 3;
 
 
     VkFormat result = find_supported_format(
@@ -338,7 +338,7 @@ namespace vulkan
 	};
 	constexpr int DEVICE_EXTENSION_COUNT = ARRAY_COUNT(deviceExtensions);
 
-    constexpr int32 MAX_LOADED_TEXTURES = 100;
+    constexpr s32 MAX_LOADED_TEXTURES = 100;
 
 	internal VkVertexInputBindingDescription get_vertex_binding_description ();
 	// Todo(Leo): Remove this 'Array', use somthing else
@@ -346,8 +346,8 @@ namespace vulkan
 
 	internal VkIndexType convert_index_type(IndexType);
 
-	internal uint32	find_memory_type ( 	VkPhysicalDevice physicalDevice,
-										uint32 typeFilter,
+	internal u32	find_memory_type ( 	VkPhysicalDevice physicalDevice,
+										u32 typeFilter,
 										VkMemoryPropertyFlags properties);
 
 	internal void
@@ -381,21 +381,20 @@ namespace vulkan
     	return align_up_to(alignment, size);
     } 
 	
-	#pragma message ("Organize here before too late")
 
 	internal VulkanSwapchainSupportDetails QuerySwapChainSupport(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface);
 	internal VkSurfaceFormatKHR ChooseSwapSurfaceFormat(std::vector<VkSurfaceFormatKHR>& availableFormats);
 	internal VkPresentModeKHR ChooseSurfacePresentMode(std::vector<VkPresentModeKHR> & availablePresentModes);
 	internal VulkanQueueFamilyIndices FindQueueFamilies (VkPhysicalDevice device, VkSurfaceKHR surface);
 	internal VkShaderModule CreateShaderModule(BinaryAsset code, VkDevice logicalDevice);
-	internal void recreate_swapchain(VulkanContext * context, uint32 width, uint32 height);
+	internal void recreate_swapchain(VulkanContext * context, u32 width, u32 height);
 
 	internal VkFramebuffer make_framebuffer(VulkanContext * context, 
                             				VkRenderPass    renderPass,
-                            				uint32          attachmentCount,
+                            				u32          attachmentCount,
                             				VkImageView *   attachments,
-                            				uint32          width,
-                            				uint32          height);
+                            				u32          width,
+                            				u32          height);
 
 	internal VulkanLoadedPipeline make_pipeline(VulkanContext * context, VulkanPipelineLoadInfo loadInfo);
 	internal VulkanLoadedPipeline make_line_pipeline(VulkanContext * context, VulkanPipelineLoadInfo loadInfo);
@@ -408,7 +407,7 @@ namespace vulkan
 	internal VulkanTexture make_cubemap(VulkanContext * context, StaticArray<TextureAsset, 6> * assets);
 	internal void destroy_texture(VulkanContext * context, VulkanTexture * texture);
 
-	internal VkDescriptorSetLayout create_material_descriptor_set_layout(VkDevice device, uint32 textureCount);
+	internal VkDescriptorSetLayout create_material_descriptor_set_layout(VkDevice device, u32 textureCount);
 	internal VkDescriptorSet make_material_descriptor_set(	VulkanContext * context,
 															PipelineHandle pipeline,
 															ArenaArray<TextureHandle> textures);
@@ -443,9 +442,9 @@ namespace vulkan
 	internal void finish_drawing(VulkanContext * context);
 	internal void record_draw_command(VulkanContext * context, ModelHandle handle, Matrix44 transform);
 	internal void record_line_draw_command(VulkanContext * context, Vector3 start, Vector3 end, float4 color);
-	internal void record_gui_draw_command(VulkanContext * context, Vector2 position, Vector2 size, MaterialHandle material, float4 color);
+	internal void record_gui_draw_command(VulkanContext * context, float2 position, float2 size, MaterialHandle material, float4 color);
 	// Lol, this is not given to game layer
-	internal void draw_frame(VulkanContext * context, uint32 imageIndex);
+	internal void draw_frame(VulkanContext * context, u32 imageIndex);
 }
 
 

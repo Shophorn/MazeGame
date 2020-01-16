@@ -6,14 +6,14 @@ struct WinApiAudio
 	IAudioRenderClient * 	pRenderClient;
 
 	WAVEFORMATEX * 			pFormat;
-	uint32					bufferFrameCount;
+	u32					bufferFrameCount;
 
     bool32                  isPlaying;
 };
 
 // Note(Leo): REFERENCE_TIME are in units of [100 nanoseconds], use these for conversions
-constexpr int64 REFERENCE_TIMES_PER_SECOND = 10000000;     // seconds to REFERENCE_TIME
-constexpr int64 REFERENCE_TIMES_PER_MILLISECOND = 10000;   // milliseconds to REFERENCE_TIME
+constexpr s64 REFERENCE_TIMES_PER_SECOND = 10000000;     // seconds to REFERENCE_TIME
+constexpr s64 REFERENCE_TIMES_PER_MILLISECOND = 10000;   // milliseconds to REFERENCE_TIME
 
 namespace winapi
 {
@@ -147,18 +147,18 @@ winapi::StopPlaying(WinApiAudio * audio)
 internal void
 winapi::GetAudioBuffer(WinApiAudio * audio, int * frameCount, game::StereoSoundSample ** samples)
 {
-    uint32 currentPadding;
+    u32 currentPadding;
     WinApiLog("Get audio padding", audio->pClient->GetCurrentPadding(&currentPadding));
-    uint32 framesAvailable = audio->bufferFrameCount - currentPadding;
+    u32 framesAvailable = audio->bufferFrameCount - currentPadding;
 
-    uint8 ** data = reinterpret_cast<uint8 **>(samples);
+    u8 ** data = reinterpret_cast<u8 **>(samples);
     WinApiLog("Get audio buffer", audio->pRenderClient->GetBuffer(framesAvailable, data));
 
     *frameCount = framesAvailable;
 }
 
 internal void
-winapi::ReleaseAudioBuffer(WinApiAudio * audio, int32 frameCount)
+winapi::ReleaseAudioBuffer(WinApiAudio * audio, s32 frameCount)
 {
     WinApiLog("Release audio buffer", audio->pRenderClient->ReleaseBuffer(frameCount, 0));
 

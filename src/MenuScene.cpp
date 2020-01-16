@@ -8,7 +8,7 @@ Description of menu scene.
 struct MenuScene
 {
     StaticArray<Rectangle, 3> buttons;
-    int32 selectedIndex;
+    s32 selectedIndex;
     MaterialHandle material;
 
     static void
