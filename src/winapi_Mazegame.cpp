@@ -163,19 +163,19 @@ namespace winapi
 
             case WM_SIZE:
             {
-                winapi::State * state                   = winapi::GetStateFromWindow(window);
-                state->gamePlatformInfo.windowWidth     = LOWORD(lParam);
-                state->gamePlatformInfo.windowHeight    = HIWORD(lParam);
+                winapi::State * state            = winapi::GetStateFromWindow(window);
+                state->platform.window.width     = LOWORD(lParam);
+                state->platform.window.height    = HIWORD(lParam);
 
                 switch (wParam)
                 {
                     case SIZE_RESTORED:
                     case SIZE_MAXIMIZED:
-                        state->windowIsMinimized = false;
+                        state->platform.window.isMinimized = false;
                         break;
 
                     case SIZE_MINIMIZED:
-                        state->windowIsMinimized = true;
+                        state->platform.window.isMinimized = true;
                         break;
                 }
 
@@ -262,22 +262,26 @@ Run(HINSTANCE winInstance)
         }
 
         vulkanContext = winapi::make_vulkan_context(winInstance, winWindow);
-        state.gamePlatformInfo.set_window_fullscreen = [&winWindow, &state](bool32 fullscreen)
+        state.platformFunctions.set_window_fullscreen = [&winWindow, &state](bool32 fullscreen)
         {
             winapi::SetWindowFullScreen(winWindow, &state, fullscreen);
-            state.gamePlatformInfo.windowIsFullscreen = state.windowIsFullscreen;
+            state.platform.window.isFullscreen = state.windowIsFullscreen;
         };
 
         std::cout << "setting functions\n";
 
-        state.gamePlatformInfo.push_mesh            = vulkan::push_mesh;
-        state.gamePlatformInfo.push_model           = vulkan::push_model;
-        state.gamePlatformInfo.push_material        = vulkan::push_material;
-        state.gamePlatformInfo.push_gui_material    = vulkan::push_gui_material;
-        state.gamePlatformInfo.push_texture         = vulkan::push_texture;
-        state.gamePlatformInfo.push_cubemap         = vulkan::push_cubemap;
-        state.gamePlatformInfo.push_pipeline        = vulkan::push_pipeline;
-        state.gamePlatformInfo.unload_scene         = vulkan::unload_scene;
+        state.platformFunctions.push_mesh               = vulkan::push_mesh;
+        state.platformFunctions.push_model              = vulkan::push_model;
+        state.platformFunctions.push_material           = vulkan::push_material;
+        state.platformFunctions.push_gui_material       = vulkan::push_gui_material;
+        state.platformFunctions.push_texture            = vulkan::push_texture;
+        state.platformFunctions.push_cubemap            = vulkan::push_cubemap;
+        state.platformFunctions.push_pipeline           = vulkan::push_pipeline;
+        state.platformFunctions.unload_scene            = vulkan::unload_scene;
+
+        state.platformFunctions.is_window_fullscreen    = [](platform::Platform * platform) { return platform->window.isFullscreen; };
+        state.platformFunctions.get_window_width        = [](platform::Platform * platform) { return platform->window.width; };
+        state.platformFunctions.get_window_height       = [](platform::Platform * platform) { return platform->window.height; };
 
         std::cout << "functions set!\n";   
     }
@@ -565,9 +569,9 @@ Run(HINSTANCE winInstance)
                     game::SoundOutput gameSoundOutput = {};
                     winapi::GetAudioBuffer(&audio, &gameSoundOutput.sampleCount, &gameSoundOutput.samples);
 
-                    bool32 gameIsAlive = game.Update(   &gameInput, &gameMemory, &state.gamePlatformInfo,
+                    bool32 gameIsAlive = game.Update(   &gameInput, &gameMemory, &state.platformFunctions,
                                                         &gameNetwork, &gameSoundOutput, &gameRenderInfo,
-                                                        &vulkanContext);
+                                                        &vulkanContext, &state.platform);
 
                     if (gameIsAlive == false)
                     {
@@ -592,7 +596,7 @@ Run(HINSTANCE winInstance)
 
                 case VK_SUBOPTIMAL_KHR:
                 case VK_ERROR_OUT_OF_DATE_KHR:
-                    vulkan::recreate_swapchain(&vulkanContext, state.gamePlatformInfo.windowWidth, state.gamePlatformInfo.windowHeight);
+                    vulkan::recreate_swapchain(&vulkanContext, state.platform.window.width, state.platform.window.height);
                     break;
 
                 default:

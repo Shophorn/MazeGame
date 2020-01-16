@@ -22,6 +22,16 @@ constexpr static char GAMECODE_DLL_FILE_NAME_TEMP [] = "Mazegame_temp.dll";
 constexpr static char GAMECODE_UPDATE_FUNC_NAME [] = "GameUpdate";
 
 
+struct platform::Platform
+{
+    struct {
+        int32   width;
+        int32   height;
+        bool32  isFullscreen;
+        bool32  isMinimized;
+    } window;  
+};
+
 namespace winapi
 {
     struct Game
@@ -42,11 +52,14 @@ namespace winapi
 
     struct State
     {
-        game::PlatformInfo gamePlatformInfo = {};
+        game::PlatformFunctions platformFunctions = {};
+
+        platform::Platform platform;
+
+
 
 
         bool32 isRunning; 
-        bool32 windowIsMinimized;
 
         bool32 windowIsFullscreen;
         WINDOWPLACEMENT windowedWindowPosition;        
@@ -60,9 +73,9 @@ namespace winapi
 
         bool32 windowIsDrawable()
         {
-            bool32 isDrawable = (windowIsMinimized == false)
-                                && (gamePlatformInfo.windowWidth > 0)
-                                && (gamePlatformInfo.windowHeight > 0);
+            bool32 isDrawable = (platform.window.isMinimized == false)
+                                && (platform.window.width > 0)
+                                && (platform.window.height > 0);
             return isDrawable;
         }
 
@@ -70,8 +83,8 @@ namespace winapi
         VkExtent2D GetFrameBufferSize ()
         {
             VkExtent2D result = {
-                static_cast<uint32>(gamePlatformInfo.windowWidth),
-                static_cast<uint32>(gamePlatformInfo.windowHeight)
+                static_cast<uint32>(platform.window.width),
+                static_cast<uint32>(platform.window.height)
             };
             return result;
         }

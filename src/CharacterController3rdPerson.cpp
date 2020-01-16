@@ -55,7 +55,7 @@ update_character(
 		Camera * 						worldCamera,
 		CollisionSystem3D *				collisionSystem,
 		game::RenderInfo *				rendering,
-		platform::GraphicsContext * 	graphics)
+		platform::Graphics * 	graphics)
 {
 	Vector3 movementVector = ProcessCharacterInput(input, worldCamera) * controller->speed * input->elapsedTime;
 

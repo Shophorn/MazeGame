@@ -23,7 +23,7 @@ struct GuiRendererSystemEntry
 };
 
 internal void
-update_render_system(platform::GraphicsContext * graphics, game::RenderInfo * renderer, ArenaArray<RenderSystemEntry> entries)
+update_render_system(platform::Graphics * graphics, game::RenderInfo * renderer, ArenaArray<RenderSystemEntry> entries)
 {
 	for (int32 i = 0; i < entries.count(); ++i)
 	{

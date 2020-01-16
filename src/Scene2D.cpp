@@ -43,15 +43,17 @@ namespace scene_2d
 	update(	void * 						scenePtr,
 			game::Input * 				input,
 			game::RenderInfo * 			renderer,
-			game::PlatformInfo * 		platform,
-			platform::GraphicsContext * graphics);
+			game::PlatformFunctions * 	functions,
+			platform::Graphics*,
+			platform::Platform*);
 
 	internal void
 	load(	void * 						scenePtr,
 			MemoryArena * 				persistentMemory,
 			MemoryArena * 				transientMemory,
-			game::PlatformInfo * 		platformInfo,
-			platform::GraphicsContext * graphics);
+			game::PlatformFunctions * 	functions,
+			platform::Graphics*,
+			platform::Platform*);
 }
 
 global_variable SceneInfo 
@@ -60,7 +62,12 @@ scene2dInfo = make_scene_info(	scene_2d::get_alloc_size,
 								scene_2d::update);
 
 internal MenuResult
-scene_2d::update(void * scenePtr, game::Input * input, game::RenderInfo * renderer, game::PlatformInfo * platform, platform::GraphicsContext * graphics)
+scene_2d::update(	void * scenePtr,
+					game::Input * input,
+					game::RenderInfo * renderer,
+					game::PlatformFunctions * functions,
+					platform::Graphics * graphics,
+					platform::Platform * platform)
 {
 	Scene * scene = reinterpret_cast<Scene*>(scenePtr);
 
@@ -71,7 +78,7 @@ scene_2d::update(void * scenePtr, game::Input * input, game::RenderInfo * render
 	update_animator_system(input, scene->animatorSystem);
 
 	scene->cameraController.update(input);
-    update_camera_system(renderer, platform, input, &scene->worldCamera, graphics);
+    update_camera_system(&scene->worldCamera, renderer, functions, input, graphics, platform);
 	update_render_system(graphics, renderer, scene->renderSystem);
 
 	auto result = update_scene_gui(&scene->gui, input, renderer, graphics);
@@ -79,12 +86,17 @@ scene_2d::update(void * scenePtr, game::Input * input, game::RenderInfo * render
 }
 
 internal void 
-scene_2d::load(void * scenePtr, MemoryArena * persistentMemory, MemoryArena * transientMemory, game::PlatformInfo * platformInfo, platform::GraphicsContext * graphics)
+scene_2d::load(	void * scenePtr,
+				MemoryArena * persistentMemory,
+				MemoryArena * transientMemory,
+				game::PlatformFunctions * functions,
+				platform::Graphics * graphics,
+				platform::Platform * platform)
 {
 	Scene * scene = reinterpret_cast<Scene*>(scenePtr);
 
 	// Note(Leo): lol this is so much better than others :D
-	scene->gui = make_scene_gui(transientMemory, graphics, platformInfo);
+	scene->gui = make_scene_gui(transientMemory, graphics, functions);
 
 	// auto * persistentMemory = &state->persistentMemoryArena;
 	// auto * transientMemory = &state->transientMemoryArena;
@@ -110,18 +122,18 @@ scene_2d::load(void * scenePtr, MemoryArena * persistentMemory, MemoryArena * tr
 
 	// Create MateriaLs
 	{
-		PipelineHandle shader = platformInfo->push_pipeline(graphics, "shaders/vert.spv", "shaders/frag.spv", {.textureCount = 3});
+		PipelineHandle shader = functions->push_pipeline(graphics, "shaders/vert.spv", "shaders/frag.spv", {.textureCount = 3});
 
 		TextureAsset whiteTextureAsset = make_texture_asset(push_array<uint32>(transientMemory, {0xffffffff}), 1, 1);
 		TextureAsset blackTextureAsset = make_texture_asset(push_array<uint32>(transientMemory, {0xff000000}), 1, 1);
 
-		TextureHandle whiteTexture = platformInfo->push_texture(graphics, &whiteTextureAsset);
-		TextureHandle blackTexture = platformInfo->push_texture(graphics, &blackTextureAsset);
+		TextureHandle whiteTexture = functions->push_texture(graphics, &whiteTextureAsset);
+		TextureHandle blackTexture = functions->push_texture(graphics, &blackTextureAsset);
 
-		auto load_and_push_texture = [transientMemory, platformInfo, graphics](const char * path) -> TextureHandle
+		auto load_and_push_texture = [transientMemory, functions, graphics](const char * path) -> TextureHandle
 		{
 			auto asset = load_texture_asset(path, transientMemory);
-			auto result = platformInfo->push_texture(graphics, &asset);
+			auto result = functions->push_texture(graphics, &asset);
 			return result;
 		};
 
@@ -129,10 +141,10 @@ scene_2d::load(void * scenePtr, MemoryArena * persistentMemory, MemoryArena * tr
 		auto lavaTexture 	= load_and_push_texture("textures/lava.jpg");
 		auto faceTexture 	= load_and_push_texture("textures/texture.jpg");
 
-		auto push_material = [shader, platformInfo, transientMemory, graphics](MaterialType type, TextureHandle a, TextureHandle b, TextureHandle c) -> MaterialHandle
+		auto push_material = [shader, functions, transientMemory, graphics](MaterialType type, TextureHandle a, TextureHandle b, TextureHandle c) -> MaterialHandle
 		{
 			MaterialAsset asset = make_material_asset(shader, push_array(transientMemory, {a, b, c}));
-			MaterialHandle handle = platformInfo->push_material(graphics, &asset);
+			MaterialHandle handle = functions->push_material(graphics, &asset);
 			return handle;
 		};
 
@@ -150,15 +162,15 @@ scene_2d::load(void * scenePtr, MemoryArena * persistentMemory, MemoryArena * tr
 		};
 	}
 
-    // auto push_mesh = [platformInfo, graphics] (MeshAsset * asset) -> MeshHandle
+    // auto push_mesh = [functions, graphics] (MeshAsset * asset) -> MeshHandle
     // {
-    // 	auto handle = platformInfo->platformInfo->push_mesh(graphics, (graphics, asset);
+    // 	auto handle = functions->functions->push_mesh(graphics, (graphics, asset);
     // 	return handle;
     // };
 
-    auto push_model = [platformInfo, graphics] (MeshHandle mesh, MaterialHandle material) -> ModelHandle
+    auto push_model = [functions, graphics] (MeshHandle mesh, MaterialHandle material) -> ModelHandle
     {
-    	auto handle = platformInfo->push_model(graphics, mesh, material);
+    	auto handle = functions->push_model(graphics, mesh, material);
     	return handle;
     };
 
@@ -166,7 +178,7 @@ scene_2d::load(void * scenePtr, MemoryArena * persistentMemory, MemoryArena * tr
 	Handle<Transform3D> characterTransform = {};
 	{
 		auto characterMesh 			= load_model_obj(transientMemory, "models/character.obj");
-		auto characterMeshHandle 	= platformInfo->push_mesh(graphics, &characterMesh);
+		auto characterMeshHandle 	= functions->push_mesh(graphics, &characterMesh);
 
 		// Our dude
 		auto transform = make_handle<Transform3D>({});
@@ -198,7 +210,6 @@ scene_2d::load(void * scenePtr, MemoryArena * persistentMemory, MemoryArena * tr
     	.fieldOfView 	= 60,
     	.nearClipPlane 	= 0.1f,
     	.farClipPlane 	= 1000.0f,
-    	.aspectRatio 	= (float)platformInfo->windowWidth / (float)platformInfo->windowHeight	
     };
 
     scene->cameraController =
@@ -224,7 +235,7 @@ scene_2d::load(void * scenePtr, MemoryArena * persistentMemory, MemoryArena * tr
 			mesh_ops::transform(&groundQuad, meshTransform);
 			mesh_ops::transform_tex_coords(&groundQuad, {0,0}, {width / 2, depth / 2});
 
-			auto groundQuadHandle 	= platformInfo->push_mesh(graphics, &groundQuad);
+			auto groundQuadHandle 	= functions->push_mesh(graphics, &groundQuad);
 			auto renderer 			= make_handle<Renderer>({push_model(groundQuadHandle, materials.environment)});
 			auto transform 			= make_handle<Transform3D>({});
 
@@ -235,7 +246,7 @@ scene_2d::load(void * scenePtr, MemoryArena * persistentMemory, MemoryArena * tr
 		if (addPillars)
 		{
 			auto pillarMesh 		= load_model_glb(transientMemory, "models/big_pillar.glb", "big_pillar");
-			auto pillarMeshHandle 	= platformInfo->push_mesh(graphics, &pillarMesh);
+			auto pillarMeshHandle 	= functions->push_mesh(graphics, &pillarMesh);
 
 			auto renderer 	= make_handle<Renderer>({push_model(pillarMeshHandle, materials.environment)});
 			auto transform 	= make_handle<Transform3D>({-width / 4, 0, 0});
@@ -253,7 +264,7 @@ scene_2d::load(void * scenePtr, MemoryArena * persistentMemory, MemoryArena * tr
 		if (addLadders)
 		{
 			auto ladderMesh 		= load_model_glb(transientMemory, "models/ladder.glb", "LadderSection");
-			auto ladderMeshHandle 	= platformInfo->push_mesh(graphics, &ladderMesh);
+			auto ladderMeshHandle 	= functions->push_mesh(graphics, &ladderMesh);
 
 			auto root1 	= make_handle<Transform3D>({0, 0.5f, -ladderHeight});
 			auto root2 	= make_handle<Transform3D>({10, 0.5f, 6 - ladderHeight});
@@ -357,7 +368,7 @@ scene_2d::load(void * scenePtr, MemoryArena * persistentMemory, MemoryArena * tr
 			};
 
 			auto platformMeshAsset 	= load_model_obj(transientMemory, "models/platform.obj");
-			auto platformMeshHandle = platformInfo->push_mesh(graphics, &platformMeshAsset);
+			auto platformMeshHandle = functions->push_mesh(graphics, &platformMeshAsset);
 
 			int platformCount = 12;
 			for (int platformIndex = 0; platformIndex < platformCount; ++platformIndex)
@@ -373,7 +384,7 @@ scene_2d::load(void * scenePtr, MemoryArena * persistentMemory, MemoryArena * tr
 		if(addButtons)
 		{
 			auto keyholeMeshAsset 	= load_model_obj(transientMemory, "models/keyhole.obj");
-			auto keyholeMeshHandle 	= platformInfo->push_mesh(graphics, &keyholeMeshAsset);
+			auto keyholeMeshHandle 	= functions->push_mesh(graphics, &keyholeMeshAsset);
 
 			auto renderer 	= make_handle<Renderer>({push_model(keyholeMeshHandle, materials.environment)});
 			auto transform 	= make_handle<Transform3D>({Vector3{5, 0, 0}});

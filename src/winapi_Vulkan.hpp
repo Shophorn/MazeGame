@@ -138,7 +138,7 @@ struct VulkanPipelineLoadInfo
 {
 	std::string vertexShaderPath;
 	std::string fragmentShaderPath;
-	platform::PipelineOptions options;
+	platform::RenderingOptions options;
 };
 
 struct VulkanLoadedPipeline
@@ -170,7 +170,7 @@ struct VulkanVirtualFrame
 	VkFence inFlightFence; // Todo(Leo): Change to queuesubmitfence or commandbufferfence etc..
 };
 
-struct platform::GraphicsContext
+struct platform::Graphics
 {
 	VkInstance 						instance;
 	VkDevice 						device; // Note(Leo): this is Logical Device.
@@ -258,7 +258,7 @@ struct platform::GraphicsContext
     bool32 sceneUnloaded = false;
 };
 
-using VulkanContext = platform::GraphicsContext;
+using VulkanContext = platform::Graphics;
 
 internal void
 advance_virtual_frame(VulkanContext * context)
@@ -434,7 +434,7 @@ namespace vulkan
     internal MeshHandle 	push_mesh(VulkanContext * context, MeshAsset * mesh);
     internal ModelHandle 	push_model (VulkanContext * context, MeshHandle mesh, MaterialHandle material);
     internal TextureHandle 	push_cubemap(VulkanContext * context, TextureAsset * assets);
-    internal PipelineHandle push_pipeline(VulkanContext * context, const char * vertexShaderPath, const char * fragmentShaderPath, platform::PipelineOptions options);
+    internal PipelineHandle push_pipeline(VulkanContext * context, const char * vertexShaderPath, const char * fragmentShaderPath, platform::RenderingOptions options);
     internal void 			unload_scene(VulkanContext * context);
 
 	/// DRAWING, VulkanDrawing.cpp

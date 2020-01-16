@@ -1892,7 +1892,7 @@ CleanupSwapchain(VulkanContext * context)
 internal void
 Cleanup(VulkanContext * context)
 {
-    // Note(Leo): these are GraphicsContext things
+    // Note(Leo): these are Graphics things
     vulkan::unload_scene(context);
 
     CleanupSwapchain(context);
@@ -2085,7 +2085,7 @@ namespace winapi
             {
                 .vertexShaderPath       = "shaders/line_vert.spv",
                 .fragmentShaderPath     = "shaders/line_frag.spv",
-                .options.primitiveType  = platform::PipelineOptions::PRIMITIVE_LINE
+                .options.primitiveType  = platform::RenderingOptions::PRIMITIVE_LINE
             };
             resultContext.lineDrawPipeline = vulkan::make_line_pipeline(&resultContext, info);
 

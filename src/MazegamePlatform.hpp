@@ -47,7 +47,13 @@ needs to be specified for compiler. */
 
 namespace platform
 {
-	struct PipelineOptions
+	/* Note(Leo): these are defined in platform layer, and
+	can (and are supposed to) be used as opaque handles in
+	game layer*/
+	struct Graphics;
+	struct Platform;
+
+	struct RenderingOptions
 	{
 	    bool32 	enableDepth 		= true;
 	    bool32 	clampDepth 			= false;
@@ -56,8 +62,6 @@ namespace platform
 
 	    enum { PRIMITIVE_LINE, PRIMITIVE_TRIANGLE } primitiveType = PRIMITIVE_TRIANGLE;
 	};
-
-	struct GraphicsContext;
 }
 
 namespace game
@@ -129,30 +133,32 @@ namespace game
 	};
 
 
-	struct PlatformInfo
+	struct PlatformFunctions
 	{
-		int32 	windowWidth;
-		int32 	windowHeight;
-		bool32 	windowIsFullscreen;
-
 		// Todo(Leo): add context pointer so this too can be just a function pointer
 		std::function<void(bool32)> set_window_fullscreen;
-	
-		MeshHandle 		(*push_mesh) 	(platform::GraphicsContext * context, MeshAsset * asset);
-		TextureHandle 	(*push_texture) (platform::GraphicsContext * context, TextureAsset * asset);
+		
+		// void (*set_window_fullscreen) (platform::Platform*, bool32 fulls
+		int32 (*get_window_width)(platform::Platform*);
+		int32 (*get_window_height) (platform::Platform*);
+		bool32 (*is_window_fullscreen) (platform::Platform*);
+
+
+		MeshHandle 		(*push_mesh) 	(platform::Graphics * context, MeshAsset * asset);
+		TextureHandle 	(*push_texture) (platform::Graphics * context, TextureAsset * asset);
 		// Todo(Leo): We should use some more explicit argument than pointer to TextureAsset array
-		TextureHandle 	(*push_cubemap) (platform::GraphicsContext * context, TextureAsset * asset);
+		TextureHandle 	(*push_cubemap) (platform::Graphics * context, TextureAsset * asset);
 
-		MaterialHandle 	(*push_material) 	(platform::GraphicsContext * context, MaterialAsset * asset);
-		MaterialHandle 	(*push_gui_material)(platform::GraphicsContext * context, TextureHandle texture);
+		MaterialHandle 	(*push_material) 	(platform::Graphics * context, MaterialAsset * asset);
+		MaterialHandle 	(*push_gui_material)(platform::Graphics * context, TextureHandle texture);
 
-		ModelHandle 	(*push_model) 		(platform::GraphicsContext * context, MeshHandle mesh, MaterialHandle material);
-		PipelineHandle 	(*push_pipeline) 	(platform::GraphicsContext * context,
+		ModelHandle 	(*push_model) 		(platform::Graphics * context, MeshHandle mesh, MaterialHandle material);
+		PipelineHandle 	(*push_pipeline) 	(platform::Graphics * context,
 											char const * vertexShaderPath,
 											char const * fragmentShaderPath,
-											platform::PipelineOptions options);
+											platform::RenderingOptions options);
 
-		void 			(*unload_scene) (platform::GraphicsContext*);
+		void 			(*unload_scene) (platform::Graphics*);
 	};
 	
 	struct Memory
@@ -168,12 +174,12 @@ namespace game
 
 	struct RenderInfo
 	{
-		void (*update_camera) 	(platform::GraphicsContext*, Matrix44 view, Matrix44 perspective);
-		void (*prepare_drawing) (platform::GraphicsContext*);
-		void (*finish_drawing) 	(platform::GraphicsContext*);
-		void (*draw) 			(platform::GraphicsContext*, ModelHandle, Matrix44);
-		void (*draw_line) 		(platform::GraphicsContext*, Vector3 start, Vector3 end, float4 color);
-		void (*draw_gui) 		(platform::GraphicsContext*, Vector2 position, Vector2 size, MaterialHandle material, float4 color);
+		void (*update_camera) 	(platform::Graphics*, Matrix44 view, Matrix44 perspective);
+		void (*prepare_drawing) (platform::Graphics*);
+		void (*finish_drawing) 	(platform::Graphics*);
+		void (*draw) 			(platform::Graphics*, ModelHandle, Matrix44);
+		void (*draw_line) 		(platform::Graphics*, Vector3 start, Vector3 end, float4 color);
+		void (*draw_gui) 		(platform::Graphics*, Vector2 position, Vector2 size, MaterialHandle material, float4 color);
 	};
 	
 	struct NetworkPackage
@@ -232,11 +238,14 @@ extern "C" bool32
 GameUpdate(
 	game::Input * 			input,
 	game::Memory * 			memory,
-	game::PlatformInfo * 	platformInfo,
+	game::PlatformFunctions * 	PlatformFunctions,
 	game::Network *			network,
 	game::SoundOutput *		soundOutput,
 	game::RenderInfo * 		outRenderInfo,
-	platform::GraphicsContext * graphicsContext);
+
+	// Are these understandable enough?
+	platform::Graphics*,
+	platform::Platform*);
 
 #define MAZEGAME_PLATFORM_HPP
 #endif

@@ -1,7 +1,7 @@
  /*=============================================================================
 Leo Tamminen
 
-Implementation of GraphicsContext interface for VulkanContext
+Implementation of Graphics interface for VulkanContext
 =============================================================================*/
 // Note(Leo): Destroy vulkan objects only but keep load infos.
 internal void
@@ -137,7 +137,7 @@ vulkan::push_cubemap(VulkanContext * context, TextureAsset * assets)
 
 
 PipelineHandle
-vulkan::push_pipeline(VulkanContext * context, const char * vertexShaderPath, const char * fragmentShaderPath, platform::PipelineOptions options)
+vulkan::push_pipeline(VulkanContext * context, const char * vertexShaderPath, const char * fragmentShaderPath, platform::RenderingOptions options)
 {
     VulkanPipelineLoadInfo info = 
     {

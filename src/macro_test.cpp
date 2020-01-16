@@ -9,10 +9,10 @@
 //   LOAD_TEXTURE (tiles),
 
 // works
-// #define PUSH_TEXTURE(name) TextureHandle name ## Texture = platformInfo->graphicsContext->PushTexture(&name ## TextureAsset);
+// #define PUSH_TEXTURE(name) TextureHandle name ## Texture = PlatformFunctions->graphicsContext->PushTexture(&name ## TextureAsset);
 // PUSH_TEXTURE(tiles)
 
 
 
 MaterialAsset characterMaterialAsset = {MaterialType::Character, lavaTexture, textureTexture, blackTexture};
-state->materials.character = platformInfo->graphicsContext->PushMaterial(&characterMaterialAsset);
+state->materials.character = PlatformFunctions->graphicsContext->PushMaterial(&characterMaterialAsset);

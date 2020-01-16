@@ -15,15 +15,17 @@ struct MenuScene
     load(   void * guiPtr,
             MemoryArena * persistentMemory,
             MemoryArena * transientMemory,
-            game::PlatformInfo * platformInfo,
-            platform::GraphicsContext * graphics);
+            game::PlatformFunctions * functions,
+            platform::Graphics*,
+            platform::Platform*);
 
     static MenuResult 
     update( void *                      guiPtr,
             game::Input *               input,
             game::RenderInfo *          renderer,
-            game::PlatformInfo *        platform,
-            platform::GraphicsContext * graphics);
+            game::PlatformFunctions *   functions,
+            platform::Graphics*,
+            platform::Platform*);
 };
 
 global_variable SceneInfo
@@ -38,14 +40,15 @@ void
 MenuScene::load(void * guiPtr,
                             MemoryArena * persistentMemory,
                             MemoryArena * transientMemory,
-                            game::PlatformInfo * platformInfo,
-                            platform::GraphicsContext * graphics)
+                            game::PlatformFunctions * functions,
+                            platform::Graphics * graphics,
+                            platform::Platform * platform)
 {
     auto * gui = reinterpret_cast<MenuScene*>(guiPtr);
 
     auto textureAsset   = load_texture_asset("textures/texture.jpg", transientMemory);
-    auto texture        = platformInfo->push_texture(graphics, &textureAsset);
-    gui->material       = platformInfo->push_gui_material(graphics, texture);
+    auto texture        = functions->push_texture(graphics, &textureAsset);
+    gui->material       = functions->push_gui_material(graphics, texture);
 
     gui->buttons = {Rectangle {810, 500, 300, 100},
                     Rectangle {810, 620, 300, 100},
@@ -61,8 +64,9 @@ MenuResult
 MenuScene::update(  void *                      guiPtr,
                     game::Input *               input,
                     game::RenderInfo *          renderer,
-                    game::PlatformInfo *        platform,
-                    platform::GraphicsContext * graphics)
+                    game::PlatformFunctions *   functions,
+                    platform::Graphics * graphics,
+                    platform::Platform * platform)
 {
     auto * gui = reinterpret_cast<MenuScene*>(guiPtr);
 

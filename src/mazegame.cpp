@@ -54,14 +54,11 @@ struct GameState
 	SceneInfo loadedSceneInfo;
 	void * loadedScene;
 
-	// SceneGuiInfo loadedGuiInfo;
-	// void * loadedGui;
-
 	bool32 sceneLoaded = false;
 };
 
 internal void
-initialize_game_state(GameState * state, game::Memory * memory, game::PlatformInfo * platformInfo)
+initialize_game_state(GameState * state, game::Memory * memory, game::PlatformFunctions * PlatformFunctions)
 {
 	*state = {};
 
@@ -108,36 +105,30 @@ output_sound(int sampleCount, game::StereoSoundSample * samples)
 }
 
 internal void
-load_scene(GameState * state, game::PlatformInfo * platform, platform::GraphicsContext * graphics, SceneInfo scene)
+load_scene(GameState * state, game::PlatformFunctions * functions, platform::Graphics * graphics, platform::Platform * platform, SceneInfo scene)
 {
 	state->loadedSceneInfo = scene;
 
 	state->loadedScene = reserve_from_memory_arena(&state->persistentMemoryArena, scene.get_alloc_size());
-	scene.load(state->loadedScene, &state->persistentMemoryArena, &state->transientMemoryArena, platform, graphics);
+	scene.load(	state->loadedScene,
+				&state->persistentMemoryArena,
+				&state->transientMemoryArena,
+				functions,
+				graphics,
+				platform);
 
 	state->sceneLoaded = true;	
 }
 
-// internal void
-// load_gui(GameState * state, game::PlatformInfo * platform, platform::GraphicsContext * graphics, SceneGuiInfo gui)
-// {
-// 	state->loadedGuiInfo = gui;
-
-// 	state->loadedGui = reserve_from_memory_arena(&state->persistentMemoryArena, gui.get_alloc_size());
-// 	gui.load(state->loadedGui, &state->persistentMemoryArena, &state->transientMemoryArena, platform, graphics);	
-// }
-
 internal void
-unload_scene_and_gui(GameState * state, game::PlatformInfo * platform, platform::GraphicsContext * graphics)
+unload_scene_and_gui(GameState * state, game::PlatformFunctions * functions, platform::Graphics * graphics)
 {
 	state->loadedSceneInfo = {};
 
-	platform->unload_scene(graphics);
+	functions->unload_scene(graphics);
 	clear_memory_arena(&state->persistentMemoryArena);
 
 	state->loadedScene = nullptr;
-	// state->loadedGui = nullptr;
-
 	state->sceneLoaded = false;
 }
 
@@ -151,35 +142,37 @@ extern "C" bool32
 GameUpdate(
 	game::Input * 			input,
 	game::Memory * 			memory,
-	game::PlatformInfo * 	platform,
+	game::PlatformFunctions * 	functions,
 	game::Network *			network,
 	game::SoundOutput * 	soundOutput,
 
 	// Todo(Leo): extra stupid name, but 'renderer' is also problematic, maybe combine with graphics context
 	game::RenderInfo * 		outRenderInfo,
-	platform::GraphicsContext * graphics)
+	platform::Graphics * graphics,
+	platform::Platform * platform)
 {
 	/* Note(Leo): This is reinterpreted each frame, we don't know and don't care
-	if it has been moved or whatever in platform layer*/
+	if it has been moved or whatever in functions layer*/
 	GameState * state = reinterpret_cast<GameState*>(memory->persistentMemory);
 
 	if (memory->isInitialized == false)
 	{
 
-		initialize_game_state (state, memory, platform);
+		initialize_game_state (state, memory, functions);
 		memory->isInitialized = true;
 
-		load_scene(state, platform, graphics, menuScene);
+		load_scene(state, functions, graphics, platform, menuScene);
 		std::cout << "Game initialized\n";
 	}
 	flush_memory_arena(&state->transientMemoryArena);
 	
 	outRenderInfo->prepare_drawing(graphics);
-	// if (state->loadedScene != nullptr)
-	// {
-	// 	state->loadedSceneInfo.update(state->loadedScene, input, outRenderInfo, platform, graphics);
-	// }
-	auto guiResult = state->loadedSceneInfo.update(state->loadedScene, input, outRenderInfo, platform, graphics);
+	auto guiResult = state->loadedSceneInfo.update(	state->loadedScene,
+													input,
+													outRenderInfo,
+													functions,
+													graphics,
+													platform);
 	outRenderInfo->finish_drawing(graphics);
 
 
@@ -191,20 +184,18 @@ GameUpdate(
 			break;
 
 		case MENU_LOADLEVEL_2D:
-			unload_scene_and_gui(state, platform, graphics);
-			load_scene(state, platform, graphics, scene2dInfo);
-			// load_gui(state, platform, graphics, defaultSceneGui);
+			unload_scene_and_gui(state, functions, graphics);
+			load_scene(state, functions, graphics, platform, scene2dInfo);
 			break;
 
 		case MENU_LOADLEVEL_3D:
-			unload_scene_and_gui(state, platform, graphics);
-			load_scene(state, platform, graphics, scene3dInfo);
-			// load_gui(state, platform, graphics, defaultSceneGui);
+			unload_scene_and_gui(state, functions, graphics);
+			load_scene(state, functions, graphics, platform, scene3dInfo);
 			break;
 
 		case SCENE_EXIT:
-			unload_scene_and_gui(state, platform, graphics);
-			load_scene(state, platform, graphics, menuScene);
+			unload_scene_and_gui(state, functions, graphics);
+			load_scene(state, functions, graphics, platform, menuScene);
 			break;
 
 		default:
@@ -215,13 +206,13 @@ GameUpdate(
 	// Todo(Leo): These still do not belong here
 	if (is_clicked(input->select))
 	{
-		if (platform->windowIsFullscreen)
+		if (functions->is_window_fullscreen(platform))
 		{
-			platform->set_window_fullscreen(false);
+			functions->set_window_fullscreen(false);
 		}
 		else
 		{
-			platform->set_window_fullscreen(true);
+			functions->set_window_fullscreen(true);
 		}
 	}
 

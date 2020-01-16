@@ -14,7 +14,7 @@ struct SceneGui
 };
 
 internal SceneGui
-make_scene_gui(MemoryArena * transientMemory, platform::GraphicsContext * graphics, game::PlatformInfo * platform)
+make_scene_gui(MemoryArena * transientMemory, platform::Graphics * graphics, game::PlatformFunctions * platform)
 {
 	SceneGui result = {};
 
@@ -39,7 +39,7 @@ internal MenuResult
 update_scene_gui(	SceneGui * gui,
 					game::Input * input,
 					game::RenderInfo * renderer,
-					platform::GraphicsContext * graphics)
+					platform::Graphics * graphics)
 {
 	// Overlay menu
 	if (is_clicked(input->start))
@@ -128,15 +128,15 @@ namespace default_scene_gui
 	load(	void * scenePtr,
 			MemoryArena * persistentMemory,
 			MemoryArena * transientMemory,
-			game::PlatformInfo * platformInfo,
-			platform::GraphicsContext * graphics);
+			game::PlatformFunctions * PlatformFunctions,
+			platform::Graphics * graphics);
 
 	internal MenuResult
 	update(	void * guiPtr,
 			game::Input * input,
 			game::RenderInfo * renderer,
-			game::PlatformInfo * platform,
-			platform::GraphicsContext * graphics);
+			game::PlatformFunctions * platform,
+			platform::Graphics * graphics);
 }
 
 
@@ -150,8 +150,8 @@ internal MenuResult
 default_scene_gui::update(	void * guiPtr,
 							game::Input * input,
 							game::RenderInfo * renderer,
-							game::PlatformInfo * platform,
-							platform::GraphicsContext * graphics)
+							game::PlatformFunctions * platform,
+							platform::Graphics * graphics)
 {
 	SceneGui * gui = reinterpret_cast<SceneGui*>(guiPtr);
 
@@ -224,14 +224,14 @@ internal void
 default_scene_gui::load(void * guiPtr,
 						MemoryArena * persistentMemory,
 						MemoryArena * transientMemory,
-						game::PlatformInfo * platformInfo,
-						platform::GraphicsContext * graphics)
+						game::PlatformFunctions * PlatformFunctions,
+						platform::Graphics * graphics)
 {
 	SceneGui * gui = reinterpret_cast<SceneGui*>(guiPtr);
 
 	auto textureAsset 	= load_texture_asset("textures/texture.jpg", transientMemory);
-	auto texture 		= platformInfo->push_texture(graphics, &textureAsset);
-	gui->material 		= platformInfo->push_gui_material(graphics, texture);
+	auto texture 		= PlatformFunctions->push_texture(graphics, &textureAsset);
+	gui->material 		= PlatformFunctions->push_gui_material(graphics, texture);
 
 	gui->gameGuiButtonCount 	= 2;
 	gui->buttons = {Rectangle{810, 500, 300, 120}, Rectangle{810, 640, 300, 120}};

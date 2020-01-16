@@ -70,8 +70,8 @@ vulkan::make_pipeline(
     VkPrimitiveTopology topology;
     switch(options.primitiveType)
     {
-        case platform::PipelineOptions::PRIMITIVE_LINE:     topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST; break;
-        case platform::PipelineOptions::PRIMITIVE_TRIANGLE: topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST; break;
+        case platform::RenderingOptions::PRIMITIVE_LINE:     topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST; break;
+        case platform::RenderingOptions::PRIMITIVE_TRIANGLE: topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST; break;
     }
 
     VkPipelineInputAssemblyStateCreateInfo inputAssembly = 
@@ -301,8 +301,8 @@ vulkan::make_line_pipeline(
     VkPrimitiveTopology topology;
     switch(options.primitiveType)
     {
-        case platform::PipelineOptions::PRIMITIVE_LINE:     topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST; break;
-        case platform::PipelineOptions::PRIMITIVE_TRIANGLE: topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST; break;
+        case platform::RenderingOptions::PRIMITIVE_LINE:     topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST; break;
+        case platform::RenderingOptions::PRIMITIVE_TRIANGLE: topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST; break;
     }
 
     VkPipelineInputAssemblyStateCreateInfo inputAssembly = 
