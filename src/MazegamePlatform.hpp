@@ -28,6 +28,11 @@ Interface definition between Platform and Game.
 	#define DEVELOPMENT_ASSERT(expr, msg) if (!(expr)) { PrintAssert(__FILE__, __LINE__, msg, #expr); abort(); }
 
 	#define DEVELOPMENT_ASSERT_POINTER(ptr, msg) if((ptr) == nullptr) { PrintAssert(__FILE__, __LINE__, msg), abort(); }
+
+	// Note(Leo): Some things need to asserted in production too, this is a reminder for those only.
+	#define PRODUCTION_ASSERT DEVELOPMENT_ASSERT
+
+
 #endif
 
 #include "MazegameEssentials.hpp"
@@ -47,12 +52,6 @@ needs to be specified for compiler. */
 
 namespace platform
 {
-	/* Note(Leo): these are defined in platform layer, and
-	can (and are supposed to) be used as opaque handles in
-	game layer*/
-	struct Graphics;
-	struct Platform;
-
 	struct RenderingOptions
 	{
 	    bool32 	enableDepth 		= true;
@@ -61,6 +60,68 @@ namespace platform
 	    uint32	pushConstantSize 	= 0;
 
 	    enum { PRIMITIVE_LINE, PRIMITIVE_TRIANGLE } primitiveType = PRIMITIVE_TRIANGLE;
+	};
+
+
+	/* Note(Leo): these are defined in platform layer, and
+	can (and are supposed to) be used as opaque handles in
+	game layer*/
+	struct Graphics;
+
+	using PushMeshFunc = MeshHandle (Graphics*, MeshAsset * asset);
+	using PushTextureFunc = TextureHandle (Graphics*, TextureAsset * asset);
+	using PushCubemapFunc = TextureHandle (Graphics*, StaticArray<TextureAsset, 6> * asset);
+
+	using PushMaterialFunc = MaterialHandle	(Graphics*, MaterialAsset * asset);
+	using PushGuiMaterialFunc = MaterialHandle (Graphics*, TextureHandle texture);
+
+	// Todo(Leo): Remove 'PushModelFunc', we can render also just passing mesh and material handles directly
+	using PushModelFunc = ModelHandle (Graphics*, MeshHandle mesh, MaterialHandle material);
+	using PushPipelineFunc = PipelineHandle (Graphics*, char const * vertexShaderPath, char const * fragmentShaderPath, RenderingOptions options);
+
+	using UnloadSceneFunc = void(Graphics*);
+
+	using UpdateCameraFunc = void(Graphics*, Matrix44 view, Matrix44 perspective);
+	using PrepareFrameFunc = void(Graphics*);
+	using FinishFrameFunc = void (Graphics*);
+
+	using DrawModelFunc = void(Graphics*, ModelHandle model, Matrix44 transform);
+	using DrawLineFunc = void(Graphics*, float3 start, float3 end, float4 color);
+	using DrawGuiFunc = void(Graphics*, float2 position, float2 size, MaterialHandle material, float4 color);
+
+	struct Window;
+
+	using GetWindowWidthFunc = uint32 (Window const *);
+	using GetWindowHeightFunc = uint32 (Window const *);
+	using IsWindowFullScreenFunc = bool32(Window const *);
+	using SetWindowFullscreenFunc = void (Window*, bool32 value);
+
+	struct Functions
+	{
+		// GRAPHICS FUNCTIONS
+		PushMeshFunc * 			push_mesh;
+		PushTextureFunc * 		push_texture;
+		PushCubemapFunc * 		push_cubemap;
+
+		PushMaterialFunc * 		push_material;
+		PushGuiMaterialFunc * 	push_gui_material;
+
+		PushModelFunc * 		push_model;
+		PushPipelineFunc * 		push_pipeline;
+		UnloadSceneFunc * 		unload_scene;
+
+		UpdateCameraFunc * 		update_camera;
+		PrepareFrameFunc * 		prepare_drawing;
+		FinishFrameFunc * 		finish_drawing;
+		DrawModelFunc * 		draw_model;
+		DrawLineFunc * 			draw_line;
+		DrawGuiFunc * 			draw_gui;
+		
+		// WINDOW FUNCTIONS	
+		GetWindowWidthFunc * 		get_window_width;
+		GetWindowHeightFunc * 		get_window_height;
+		IsWindowFullScreenFunc * 	is_window_fullscreen;
+		SetWindowFullscreenFunc * 	set_window_fullscreen;
 	};
 }
 
@@ -131,35 +192,6 @@ namespace game
 
 		real32 elapsedTime;
 	};
-
-
-	struct PlatformFunctions
-	{
-		// Todo(Leo): add context pointer so this too can be just a function pointer
-		std::function<void(bool32)> set_window_fullscreen;
-		
-		// void (*set_window_fullscreen) (platform::Platform*, bool32 fulls
-		int32 (*get_window_width)(platform::Platform*);
-		int32 (*get_window_height) (platform::Platform*);
-		bool32 (*is_window_fullscreen) (platform::Platform*);
-
-
-		MeshHandle 		(*push_mesh) 	(platform::Graphics * context, MeshAsset * asset);
-		TextureHandle 	(*push_texture) (platform::Graphics * context, TextureAsset * asset);
-		// Todo(Leo): We should use some more explicit argument than pointer to TextureAsset array
-		TextureHandle 	(*push_cubemap) (platform::Graphics * context, TextureAsset * asset);
-
-		MaterialHandle 	(*push_material) 	(platform::Graphics * context, MaterialAsset * asset);
-		MaterialHandle 	(*push_gui_material)(platform::Graphics * context, TextureHandle texture);
-
-		ModelHandle 	(*push_model) 		(platform::Graphics * context, MeshHandle mesh, MaterialHandle material);
-		PipelineHandle 	(*push_pipeline) 	(platform::Graphics * context,
-											char const * vertexShaderPath,
-											char const * fragmentShaderPath,
-											platform::RenderingOptions options);
-
-		void 			(*unload_scene) (platform::Graphics*);
-	};
 	
 	struct Memory
 	{
@@ -172,15 +204,6 @@ namespace game
 		uint64 transientMemorySize;
 	};
 
-	struct RenderInfo
-	{
-		void (*update_camera) 	(platform::Graphics*, Matrix44 view, Matrix44 perspective);
-		void (*prepare_drawing) (platform::Graphics*);
-		void (*finish_drawing) 	(platform::Graphics*);
-		void (*draw) 			(platform::Graphics*, ModelHandle, Matrix44);
-		void (*draw_line) 		(platform::Graphics*, Vector3 start, Vector3 end, float4 color);
-		void (*draw_gui) 		(platform::Graphics*, Vector2 position, Vector2 size, MaterialHandle material, float4 color);
-	};
 	
 	struct NetworkPackage
 	{
@@ -238,14 +261,13 @@ extern "C" bool32
 GameUpdate(
 	game::Input * 			input,
 	game::Memory * 			memory,
-	game::PlatformFunctions * 	PlatformFunctions,
 	game::Network *			network,
 	game::SoundOutput *		soundOutput,
-	game::RenderInfo * 		outRenderInfo,
 
 	// Are these understandable enough?
 	platform::Graphics*,
-	platform::Platform*);
+	platform::Window*,
+	platform::Functions*);
 
 #define MAZEGAME_PLATFORM_HPP
 #endif

@@ -23,10 +23,12 @@ struct GuiRendererSystemEntry
 };
 
 internal void
-update_render_system(platform::Graphics * graphics, game::RenderInfo * renderer, ArenaArray<RenderSystemEntry> entries)
+update_render_system(	ArenaArray<RenderSystemEntry> entries,
+						platform::Graphics * graphics,
+						platform::Functions * functions)
 {
 	for (int32 i = 0; i < entries.count(); ++i)
 	{
-		renderer->draw(graphics, entries[i].renderer->handle, get_matrix(entries[i].transform));
+		functions->draw_model(graphics, entries[i].renderer->handle, get_matrix(entries[i].transform));
 	}
 }

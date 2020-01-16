@@ -28,16 +28,16 @@ struct SceneInfo
 	void 		(*load)( 	void *						scenePtr,
 							MemoryArena *				persistentMemory,
 							MemoryArena *				transientMemory,
-							game::PlatformFunctions *	functions,
+
 							platform::Graphics*,
-							platform::Platform*);
+							platform::Window*,
+							platform::Functions*);
 
 	MenuResult 	(*update)(	void * 						guiPtr,
 							game::Input * 				input,
-							game::RenderInfo * 			renderer,
-							game::PlatformFunctions * 	functions,
 							platform::Graphics*,
-							platform::Platform*);
+							platform::Window*,
+							platform::Functions*);
 };
 
 internal SceneInfo

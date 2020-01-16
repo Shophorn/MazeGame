@@ -44,6 +44,7 @@ union VectorBase<Scalar, 2>
 
 	struct { scalar_type x, y; };
 	struct { scalar_type u, v; };
+	struct { scalar_type width, height; };
 
 	scalar_type components [dimension];
 
@@ -54,6 +55,10 @@ using Point2 = VectorBase<int32, 2>;
 using Vector2 = VectorBase<float, 2>;
 using float2 = VectorBase<float, 2>;
 
+#pragma message("Move u32 to rightful place")
+
+using u32 = uint32;
+using uint2 = VectorBase<u32, 2>;
 
 template<typename Scalar>
 union VectorBase<Scalar, 3>

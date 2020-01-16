@@ -128,7 +128,7 @@ vulkan::push_model (VulkanContext * context, MeshHandle mesh, MaterialHandle mat
 }
 
 TextureHandle
-vulkan::push_cubemap(VulkanContext * context, TextureAsset * assets)
+vulkan::push_cubemap(VulkanContext * context, StaticArray<TextureAsset, 6> * assets)
 {
     TextureHandle handle = { context->loadedTextures.size() };
     context->loadedTextures.push_back(vulkan::make_cubemap(context, assets));

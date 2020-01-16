@@ -35,7 +35,6 @@ staging buffer and actual vertex buffer. https://vulkan-tutorial.com/en/Vertex_b
 // Todo(Leo): hack to get two controller on single pc and use only 1st controller when online
 global_variable int globalXinputControllerIndex;
 
-#include "winapi_WindowMessages.cpp"
 #include "winapi_VulkanDebugStrings.cpp"
 #include "winapi_WinSocketDebugStrings.cpp"
 #include "winapi_ErrorStrings.hpp"
@@ -69,152 +68,7 @@ ReadBinaryFile (const char * fileName)
 #include "winapi_Audio.cpp"
 #include "winapi_Network.cpp"
 #include "winapi_Input.cpp"
-
-namespace winapi
-{
-    internal void
-    SetWindowFullScreen(HWND winWindow, winapi::State * state, bool32 setFullscreen)
-    {
-        // Study(Leo): https://devblogs.microsoft.com/oldnewthing/20100412-00/?p=14353
-        DWORD style = GetWindowLongPtr(winWindow, GWL_STYLE);
-        bool32 isFullscreen = !(style & WS_OVERLAPPEDWINDOW);
-
-        if (isFullscreen == false && setFullscreen)
-        {
-            // Todo(Leo): Actually use this value to check for potential errors
-            bool32 success;
-
-            success = GetWindowPlacement(winWindow, &state->windowedWindowPosition); 
-
-            HMONITOR monitor = MonitorFromWindow(winWindow, MONITOR_DEFAULTTOPRIMARY);
-            MONITORINFO monitorInfo = { sizeof(MONITORINFO) };
-            success = GetMonitorInfoW(monitor, &monitorInfo);
-
-            DWORD fullScreenStyle = (style & ~WS_OVERLAPPEDWINDOW);
-            SetWindowLongPtrW(winWindow, GWL_STYLE, fullScreenStyle);
-
-            // Note(Leo): Remember that height value starts from top and grows towards bottom
-            LONG left = monitorInfo.rcMonitor.left;
-            LONG top = monitorInfo.rcMonitor.top;
-            LONG width = monitorInfo.rcMonitor.right - left;
-            LONG heigth = monitorInfo.rcMonitor.bottom - top;
-            SetWindowPos(winWindow, HWND_TOP, left, top, width, heigth, SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
-
-            state->windowIsFullscreen = true;
-        }
-
-        else if (isFullscreen && setFullscreen == false)
-        {
-            SetWindowLongPtr(winWindow, GWL_STYLE, style | WS_OVERLAPPEDWINDOW);
-            SetWindowPlacement(winWindow, &state->windowedWindowPosition);
-            SetWindowPos(   winWindow, NULL, 0, 0, 0, 0,
-                            SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
-
-            state->windowIsFullscreen = false;
-        }
-    }
-
-    internal FILETIME
-    GetFileLastWriteTime(const char * fileName)
-    {
-        WIN32_FILE_ATTRIBUTE_DATA fileInfo = {};
-        if (GetFileAttributesExA(fileName, GetFileExInfoStandard, &fileInfo))
-        {
-        }
-        else
-        {
-            // Todo(Leo): Now what??? Getting file time failed --> file does not exist??
-        }    
-        FILETIME result = fileInfo.ftLastWriteTime;
-        return result;
-    }
-
-    internal State * 
-    GetStateFromWindow(HWND winWindow)
-    {
-        State * state = reinterpret_cast<State *> (GetWindowLongPtrW(winWindow, GWLP_USERDATA));
-        return state;
-    }
-
-    // Note(Leo): CALLBACK specifies calling convention for 32-bit applications
-    // https://stackoverflow.com/questions/15126454/what-does-the-callback-keyword-mean-in-a-win-32-c-application
-    internal LRESULT CALLBACK
-    MainWindowCallback (HWND window, UINT message, WPARAM wParam, LPARAM lParam)
-    {
-        LRESULT result = 0;
-        using namespace winapi;
-
-        switch (message)
-        {
-            case WM_KEYDOWN:
-                process_keyboard_input(GetStateFromWindow(window), wParam, true);
-                break;
-
-            case WM_KEYUP:
-                process_keyboard_input(GetStateFromWindow(window), wParam, false);
-                break;
-
-            case WM_CREATE:
-            {
-                CREATESTRUCTW * pCreate = reinterpret_cast<CREATESTRUCTW *>(lParam);
-                winapi::State * state = reinterpret_cast<winapi::State *>(pCreate->lpCreateParams);
-                SetWindowLongPtrW (window, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(state));
-            } break;
-
-            case WM_SIZE:
-            {
-                winapi::State * state            = winapi::GetStateFromWindow(window);
-                state->platform.window.width     = LOWORD(lParam);
-                state->platform.window.height    = HIWORD(lParam);
-
-                switch (wParam)
-                {
-                    case SIZE_RESTORED:
-                    case SIZE_MAXIMIZED:
-                        state->platform.window.isMinimized = false;
-                        break;
-
-                    case SIZE_MINIMIZED:
-                        state->platform.window.isMinimized = true;
-                        break;
-                }
-
-            } break;
-
-            case WM_CLOSE:
-            {
-                winapi::State * state = winapi::GetStateFromWindow(window);
-                state->isRunning = false;
-                std::cout << "window callback: WM_CLOSE\n";
-            } break;
-
-            // case WM_EXITSIZEMOVE:
-            // {
-            // } break;
-
-            default:
-                result = DefWindowProcW(window, message, wParam, lParam);
-        }
-        return result;
-    }
-
-    internal void
-    ProcessPendingMessages(winapi::State * state, HWND winWindow)
-    {
-        // Note(Leo): Apparently Windows requires us to do this.
-
-        MSG message;
-        while (PeekMessageW(&message, winWindow, 0, 0, PM_REMOVE))
-        {
-            switch (message.message)
-            {
-                default:
-                    TranslateMessage(&message);
-                    DispatchMessage(&message);
-            }
-        }
-    }
-}
+#include "winapi_Window.cpp"
 
 internal void
 Run(HINSTANCE winInstance)
@@ -223,65 +77,42 @@ Run(HINSTANCE winInstance)
     load_xinput();
 
     // ---------- INITIALIZE PLATFORM ------------
-    HWND winWindow;
-    VulkanContext vulkanContext;
+    WinAPIWindow window         = winapi::make_window(winInstance, 960, 540);
+    VulkanContext vulkanContext = winapi::make_vulkan_context(winInstance, window.hwnd);
+
+    HWNDUserPointer userPointer = 
     {
-        wchar windowClassName [] = L"MazegameWindowClass";
-        wchar windowTitle [] = L"Mazegame";
-
-        WNDCLASSW windowClass = {};
-        windowClass.style           = CS_VREDRAW | CS_HREDRAW;
-        windowClass.lpfnWndProc     = winapi::MainWindowCallback;
-        windowClass.hInstance       = winInstance;
-        windowClass.lpszClassName   = windowClassName;
-
-        // Study: https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-makeintresourcew
-        auto defaultArrowCursor = MAKEINTRESOURCEW(32512);
-        windowClass.hCursor = LoadCursorW(nullptr, defaultArrowCursor);
-
-        if (RegisterClassW(&windowClass) == 0)
-        {
-            // Todo(Leo): Logging and backup plan for class invalidness
-            std::cout << "Failed to register window class\n";
-            return;
-        }
-
-        int32 defaultWindowWidth = 960;
-        int32 defaultWindowHeight = 540;
-
-        winWindow = CreateWindowExW (
-            0, windowClassName, windowTitle, WS_OVERLAPPEDWINDOW | WS_VISIBLE,
-            CW_USEDEFAULT, CW_USEDEFAULT, defaultWindowWidth, defaultWindowHeight,
-            nullptr, nullptr, winInstance, &state);
-
-        if (winWindow == nullptr)
-        {
-            // Todo[Logging] (Leo): Log this and make backup plan
-            std::cout << "Failed to create window\n";
-            return;
-        }
-
-        vulkanContext = winapi::make_vulkan_context(winInstance, winWindow);
-        state.platformFunctions.set_window_fullscreen = [&winWindow, &state](bool32 fullscreen)
-        {
-            winapi::SetWindowFullScreen(winWindow, &state, fullscreen);
-            state.platform.window.isFullscreen = state.windowIsFullscreen;
-        };
-
+        .window = &window,
+        .state = &state,
+    };
+    SetWindowLongPtrW(window.hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(&userPointer));
+   
+    // SETTING FUNCTION POINTERS
+    {
         std::cout << "setting functions\n";
 
-        state.platformFunctions.push_mesh               = vulkan::push_mesh;
-        state.platformFunctions.push_model              = vulkan::push_model;
-        state.platformFunctions.push_material           = vulkan::push_material;
-        state.platformFunctions.push_gui_material       = vulkan::push_gui_material;
-        state.platformFunctions.push_texture            = vulkan::push_texture;
-        state.platformFunctions.push_cubemap            = vulkan::push_cubemap;
-        state.platformFunctions.push_pipeline           = vulkan::push_pipeline;
-        state.platformFunctions.unload_scene            = vulkan::unload_scene;
+        // GRAPHICS/VULKAN FUNCTIONS
+        state.platformFunctions.push_mesh           = vulkan::push_mesh;
+        state.platformFunctions.push_model          = vulkan::push_model;
+        state.platformFunctions.push_material       = vulkan::push_material;
+        state.platformFunctions.push_gui_material   = vulkan::push_gui_material;
+        state.platformFunctions.push_texture        = vulkan::push_texture;
+        state.platformFunctions.push_cubemap        = vulkan::push_cubemap;
+        state.platformFunctions.push_pipeline       = vulkan::push_pipeline;
+        state.platformFunctions.unload_scene        = vulkan::unload_scene;
 
-        state.platformFunctions.is_window_fullscreen    = [](platform::Platform * platform) { return platform->window.isFullscreen; };
-        state.platformFunctions.get_window_width        = [](platform::Platform * platform) { return platform->window.width; };
-        state.platformFunctions.get_window_height       = [](platform::Platform * platform) { return platform->window.height; };
+        state.platformFunctions.prepare_drawing  = vulkan::prepare_drawing;
+        state.platformFunctions.finish_drawing   = vulkan::finish_drawing;
+        state.platformFunctions.update_camera    = vulkan::update_camera;
+        state.platformFunctions.draw_model       = vulkan::record_draw_command;
+        state.platformFunctions.draw_line        = vulkan::record_line_draw_command;
+        state.platformFunctions.draw_gui         = vulkan::record_gui_draw_command;
+
+        // WINDOW FUNCTIONS
+        state.platformFunctions.get_window_width        = [](platform::Window const * window) { return window->width; };
+        state.platformFunctions.get_window_height       = [](platform::Window const * window) { return window->height; };
+        state.platformFunctions.is_window_fullscreen    = [](platform::Window const * window) { return window->isFullscreen; };
+        state.platformFunctions.set_window_fullscreen   = winapi::set_window_fullscreen;
 
         std::cout << "functions set!\n";   
     }
@@ -362,18 +193,6 @@ Run(HINSTANCE winInstance)
         vulkan::create_texture_sampler(&vulkanContext);
     }
 
-    game::RenderInfo gameRenderInfo = {};
-    {
-        gameRenderInfo.prepare_drawing  = vulkan::prepare_drawing;
-        gameRenderInfo.finish_drawing   = vulkan::finish_drawing;
-        
-        gameRenderInfo.update_camera    = vulkan::update_camera;
-
-        gameRenderInfo.draw             = vulkan::record_draw_command;
-        gameRenderInfo.draw_line        = vulkan::record_line_draw_command;
-        gameRenderInfo.draw_gui         = vulkan::record_gui_draw_command;
-    }
-
     // -------- INITIALIZE NETWORK ---------
     bool32 networkIsRuined = false;
     WinApiNetwork network = winapi::CreateNetwork();
@@ -421,9 +240,9 @@ Run(HINSTANCE winInstance)
 
         int32 gameUpdateRate = targetFrameTimeThreshold;
         {
-            HDC deviceContext = GetDC(winWindow);
+            HDC deviceContext = GetDC(window.hwnd);
             int monitorRefreshRate = GetDeviceCaps(deviceContext, VREFRESH);
-            ReleaseDC(winWindow, deviceContext);
+            ReleaseDC(window.hwnd, deviceContext);
 
             if (monitorRefreshRate > 1)
             {  
@@ -443,23 +262,15 @@ Run(HINSTANCE winInstance)
     /// ---------- LOAD GAME CODE ----------------------
     // Note(Leo): Only load game dynamically in development.
     winapi::Game game = {};
-    FILETIME dllWriteTime;
-    {
-        CopyFileA(GAMECODE_DLL_FILE_NAME, GAMECODE_DLL_FILE_NAME_TEMP, false);
-        game.dllHandle = LoadLibraryA(GAMECODE_DLL_FILE_NAME_TEMP);
-        if (game.dllHandle != nullptr)
-        {
-            game.Update = reinterpret_cast<winapi::Game::UpdateFunc *> (GetProcAddress(game.dllHandle, GAMECODE_UPDATE_FUNC_NAME));
-            dllWriteTime = winapi::GetFileLastWriteTime(GAMECODE_DLL_FILE_NAME);
-        }
-    }
+    winapi::load_game(&game);
 
     ////////////////////////////////////////////////////
     ///             MAIN LOOP                        ///
     ////////////////////////////////////////////////////
-    state.isRunning = true;
+
+    bool gameIsRunning = true;
     game::Input gameInput = {};
-    while(state.isRunning)
+    while(gameIsRunning)
     {
 
         /// ----- START TIME -----
@@ -467,28 +278,20 @@ Run(HINSTANCE winInstance)
         real64 frameStartTime = std::chrono::duration<real64, std::chrono::seconds::period>(currentTimeMark - startTimeMark).count();
 
         /// ----- RELOAD GAME CODE -----
-        FILETIME dllLatestWriteTime = winapi::GetFileLastWriteTime(GAMECODE_DLL_FILE_NAME);
-        if (CompareFileTime(&dllLatestWriteTime, &dllWriteTime) > 0)
+        FILETIME dllLatestWriteTime = get_file_write_time(GAMECODE_DLL_FILE_NAME);
+        if (CompareFileTime(&dllLatestWriteTime, &game.dllWriteTime) > 0)
         {
-            FreeLibrary(game.dllHandle);
-            game.dllHandle =  nullptr;
-
-            CopyFileA(GAMECODE_DLL_FILE_NAME, GAMECODE_DLL_FILE_NAME_TEMP, false);
-            game.dllHandle = LoadLibraryA(GAMECODE_DLL_FILE_NAME_TEMP);
-            if(game.IsLoaded())
-            {
-                game.Update = reinterpret_cast<winapi::Game::UpdateFunc *>(GetProcAddress(game.dllHandle, GAMECODE_UPDATE_FUNC_NAME));
-                dllWriteTime = dllLatestWriteTime;
-            }
+            winapi::unload_game(&game);
+            winapi::load_game(&game);
         }
 
         /// ----- HANDLE INPUT -----
         {
             // Note(Leo): this is not input only...
-            winapi::ProcessPendingMessages(&state, winWindow);
+            winapi::ProcessPendingMessages(&state, window.hwnd);
 
             HWND foregroundWindow = GetForegroundWindow();
-            bool32 windowIsActive = winWindow == foregroundWindow;
+            bool32 windowIsActive = window.hwnd == foregroundWindow;
 
             /* Note(Leo): Only get input from a single controller, locally this is a single
             player game. Use global controller index depending on network status to test
@@ -543,10 +346,8 @@ Run(HINSTANCE winInstance)
         }
 
         /// --------- UPDATE GAME -------------
-        /* Note(Leo): We previously had only drawing in this if-block, but due to need
-        to havee imageindex available during game update because of rendering, it is now moved up here.
-        I do not know yet what all this might do...*/
-        if (state.isRunning && state.windowIsDrawable())
+        // Note(Leo): Game is not updated when window is not drawable.
+        if (winapi::is_window_drawable(&window))
         {
             // Todo(Leo): Study fences
             
@@ -562,24 +363,27 @@ Run(HINSTANCE winInstance)
                                                                 VK_NULL_HANDLE,
                                                                 &imageIndex);
             
-            vulkanContext.currentDrawFrameIndex = imageIndex;
-            {   
-                if(game.IsLoaded())
-                {
-                    game::SoundOutput gameSoundOutput = {};
-                    winapi::GetAudioBuffer(&audio, &gameSoundOutput.sampleCount, &gameSoundOutput.samples);
+            if(winapi::is_loaded(&game))
+            {
+                vulkanContext.currentDrawFrameIndex = imageIndex;
+    
+                game::SoundOutput gameSoundOutput = {};
+                winapi::GetAudioBuffer(&audio, &gameSoundOutput.sampleCount, &gameSoundOutput.samples);
 
-                    bool32 gameIsAlive = game.Update(   &gameInput, &gameMemory, &state.platformFunctions,
-                                                        &gameNetwork, &gameSoundOutput, &gameRenderInfo,
-                                                        &vulkanContext, &state.platform);
+                gameIsRunning = game.Update(&gameInput, &gameMemory,
+                                            &gameNetwork, &gameSoundOutput,
+                                            
+                                            &vulkanContext,
+                                            &window,
+                                            &state.platformFunctions);
 
-                    if (gameIsAlive == false)
-                    {
-                        state.isRunning = false;
-                    }
-                    winapi::ReleaseAudioBuffer(&audio, gameSoundOutput.sampleCount);
-                }
+                winapi::ReleaseAudioBuffer(&audio, gameSoundOutput.sampleCount);
+            }
 
+            // Note(Leo): It doesn't so much matter where this is checked.
+            if (window.shouldClose)
+            {
+                gameIsRunning = false;
             }
 
             /// ---- DRAW -----    
@@ -596,15 +400,15 @@ Run(HINSTANCE winInstance)
 
                 case VK_SUBOPTIMAL_KHR:
                 case VK_ERROR_OUT_OF_DATE_KHR:
-                    vulkan::recreate_swapchain(&vulkanContext, state.platform.window.width, state.platform.window.height);
+                    vulkan::recreate_swapchain(&vulkanContext, window.width, window.height);
                     break;
 
                 default:
                     throw std::runtime_error("Failed to acquire swap chain image");
             }
-
-            // Todo(Leo): should this be in switch case where we draw succesfully???
         }
+
+
 
         // ----- POST-UPDATE NETWORK PASS ------
         // TODO[network](Leo): Now that we have fixed frame rate, we should count frames passed instead of time

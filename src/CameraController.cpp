@@ -38,16 +38,15 @@ struct CameraControllerSideScroller
 internal void
 update_camera_system(	
 						Camera * camera,
-						game::RenderInfo * renderer,
-						game::PlatformFunctions * functions,
 						game::Input * input,
 						platform::Graphics * graphics,
-						platform::Platform * platform)
+						platform::Window * window,
+						platform::Functions * functions)
 {
 	/* Note(Leo): Update aspect ratio each frame, in case screen size has changed.
 	This probably costs us less than checking if it has :D */
-    camera->aspectRatio = (float)functions->get_window_width(platform) / (float)functions->get_window_height(platform);
-    renderer->update_camera(graphics,
+    camera->aspectRatio = (float)functions->get_window_width(window) / (float)functions->get_window_height(window);
+    functions->update_camera(graphics,
     						camera->ViewProjection(),
 							camera->PerspectiveProjection());
 }

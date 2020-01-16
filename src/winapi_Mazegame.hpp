@@ -2,6 +2,10 @@
 Leo Tamminen
 
 Windows platform specific header for :MAZEGAME:
+
+Todo(Leo):
+    - change all windows functions to W-versions, instead of A-versions
+        (or change to macroed version, and set wideness from compiler).
 =============================================================================*/
 
 // Todo(Leo): Proper logging and severity system. Severe prints always, and mild only on error
@@ -16,32 +20,68 @@ WinApiLog(const char * message, HRESULT result)
     #endif
 }
 
+internal FILETIME
+get_file_write_time(const char * fileName)
+{
+    // Todo(Leo): Make this function sensible
+    WIN32_FILE_ATTRIBUTE_DATA fileInfo = {};
+    if (GetFileAttributesExA(fileName, GetFileExInfoStandard, &fileInfo))
+    {
+    }
+    else
+    {
+        // Todo(Leo): Now what??? Getting file time failed --> file does not exist??
+    }    
+    FILETIME result = fileInfo.ftLastWriteTime;
+    return result;
+}
+
+
 // Todo(Leo): Change to wide strings???
 constexpr static char GAMECODE_DLL_FILE_NAME [] = "Mazegame.dll";
 constexpr static char GAMECODE_DLL_FILE_NAME_TEMP [] = "Mazegame_temp.dll";
 constexpr static char GAMECODE_UPDATE_FUNC_NAME [] = "GameUpdate";
-
-
-struct platform::Platform
-{
-    struct {
-        int32   width;
-        int32   height;
-        bool32  isFullscreen;
-        bool32  isMinimized;
-    } window;  
-};
 
 namespace winapi
 {
     struct Game
     {
     	HMODULE dllHandle;
-    	bool32 IsLoaded() { return dllHandle != nullptr; }
+
+        // Note(Leo): this is for hot reloading game code during development
+        // Todo(Leo): Remove functionality from final game
+        FILETIME dllWriteTime;
 
     	using UpdateFunc = decltype(GameUpdate);
     	UpdateFunc * Update;	
     };
+
+    bool32 is_loaded(Game * game)
+    {
+        return game->dllHandle != nullptr;
+    }
+
+    void
+    load_game(Game * game)
+    {
+        DEVELOPMENT_ASSERT(is_loaded(game) == false, "Game code is already loaded, unload before reloading");
+
+        CopyFileA(GAMECODE_DLL_FILE_NAME, GAMECODE_DLL_FILE_NAME_TEMP, false);
+        game->dllHandle = LoadLibraryA(GAMECODE_DLL_FILE_NAME_TEMP);
+        if(game->dllHandle != nullptr)
+        {
+            FARPROC procAddress = GetProcAddress(game->dllHandle, GAMECODE_UPDATE_FUNC_NAME);
+            game->Update        = reinterpret_cast<Game::UpdateFunc *>(procAddress);
+            game->dllWriteTime  = get_file_write_time(GAMECODE_DLL_FILE_NAME);
+        }
+    }
+
+    void
+    unload_game(Game * game)
+    {
+        FreeLibrary(game->dllHandle);
+        game->dllHandle =  nullptr;
+    }
 
     struct KeyboardInput
     {
@@ -52,43 +92,13 @@ namespace winapi
 
     struct State
     {
-        game::PlatformFunctions platformFunctions = {};
-
-        platform::Platform platform;
-
-
-
-
-        bool32 isRunning; 
-
-        bool32 windowIsFullscreen;
-        WINDOWPLACEMENT windowedWindowPosition;        
-
+        // Input
         bool32 keyboardInputIsUsed;
-
         DWORD xinputLastPacketNumber;
         bool32 xinputIsUsed;
-
         KeyboardInput keyboardInput;
 
-        bool32 windowIsDrawable()
-        {
-            bool32 isDrawable = (platform.window.isMinimized == false)
-                                && (platform.window.width > 0)
-                                && (platform.window.height > 0);
-            return isDrawable;
-        }
-
-        // Todo(Leo): frame buffer size things do not belong here
-        VkExtent2D GetFrameBufferSize ()
-        {
-            VkExtent2D result = {
-                static_cast<uint32>(platform.window.width),
-                static_cast<uint32>(platform.window.height)
-            };
-            return result;
-        }
-        bool32 framebufferResized = false;
-
+        // Random??
+        platform::Functions platformFunctions = {};
     };  
 }

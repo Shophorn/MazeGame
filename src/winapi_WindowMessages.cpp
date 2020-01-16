@@ -102,6 +102,16 @@ winapi::WindowMessageString(uint32 message)
 		case WM_NCXBUTTONUP:                return "WM_NCXBUTTONUP";
 		case WM_NCXBUTTONDBLCLK:            return "WM_NCXBUTTONDBLCLK";
 
+		case WM_IME_SETCONTEXT:				return "WM_IME_SETCONTEXT";
+		case WM_IME_NOTIFY:					return "WM_IME_NOTIFY";
+		case WM_IME_CONTROL:				return "WM_IME_CONTROL";
+		case WM_IME_COMPOSITIONFULL:		return "WM_IME_COMPOSITIONFULL";
+		case WM_IME_SELECT:					return "WM_IME_SELECT";
+		case WM_IME_CHAR:					return "WM_IME_CHAR";
+		case WM_IME_REQUEST:				return "WM_IME_REQUEST";
+		case WM_IME_KEYDOWN:				return "WM_IME_KEYDOWN";
+		case WM_IME_KEYUP:					return "WM_IME_KEYUP"; 
+
 		default:
 			return "Unknown WM_MESSAGE";
 	}

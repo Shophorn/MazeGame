@@ -54,8 +54,8 @@ update_character(
 		game::Input * 					input,
 		Camera * 						worldCamera,
 		CollisionSystem3D *				collisionSystem,
-		game::RenderInfo *				rendering,
-		platform::Graphics * 	graphics)
+		platform::Graphics * 	graphics,
+		platform::Functions * 	functions)
 {
 	Vector3 movementVector = ProcessCharacterInput(input, worldCamera) * controller->speed * input->elapsedTime;
 
@@ -89,7 +89,7 @@ update_character(
 			bool32 hit = raycast_3d(collisionSystem, start, direction, distance, &raycastResult);
 			rayHit = rayHit || hit;
 
-			rendering->draw_line(graphics, start, start + direction, (hit ? float4 {0, 1, 0} : float4 {1, 0, 0}));
+			functions->draw_line(graphics, start, start + direction, (hit ? float4 {0, 1, 0} : float4 {1, 0, 0}));
 
 		}
 

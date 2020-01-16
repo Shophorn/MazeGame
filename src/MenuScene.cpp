@@ -15,17 +15,16 @@ struct MenuScene
     load(   void * guiPtr,
             MemoryArena * persistentMemory,
             MemoryArena * transientMemory,
-            game::PlatformFunctions * functions,
             platform::Graphics*,
-            platform::Platform*);
+            platform::Window*,
+            platform::Functions*);
 
     static MenuResult 
     update( void *                      guiPtr,
             game::Input *               input,
-            game::RenderInfo *          renderer,
-            game::PlatformFunctions *   functions,
             platform::Graphics*,
-            platform::Platform*);
+            platform::Window*,
+            platform::Functions*);
 };
 
 global_variable SceneInfo
@@ -40,9 +39,9 @@ void
 MenuScene::load(void * guiPtr,
                             MemoryArena * persistentMemory,
                             MemoryArena * transientMemory,
-                            game::PlatformFunctions * functions,
                             platform::Graphics * graphics,
-                            platform::Platform * platform)
+                            platform::Window*,
+                            platform::Functions* functions)
 {
     auto * gui = reinterpret_cast<MenuScene*>(guiPtr);
 
@@ -63,10 +62,9 @@ MenuScene::load(void * guiPtr,
 MenuResult
 MenuScene::update(  void *                      guiPtr,
                     game::Input *               input,
-                    game::RenderInfo *          renderer,
-                    game::PlatformFunctions *   functions,
                     platform::Graphics * graphics,
-                    platform::Platform * platform)
+                    platform::Window*,
+                    platform::Functions * functions)
 {
     auto * gui = reinterpret_cast<MenuScene*>(guiPtr);
 
@@ -96,7 +94,7 @@ MenuScene::update(  void *                      guiPtr,
             rect    = scale_rectangle(rect, {1.2f, 1.2f});
             color   = {1, 0.4f, 0.4f, 1}; 
         }
-        renderer->draw_gui(graphics, rect.position, rect.size, gui->material, color);
+        functions->draw_gui(graphics, rect.position, rect.size, gui->material, color);
     }
     
     MenuResult result = MENU_NONE;

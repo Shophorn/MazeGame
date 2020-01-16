@@ -1678,11 +1678,11 @@ vulkan::make_texture(TextureAsset * asset, VulkanContext * context)
 }
 
 internal VulkanTexture
-vulkan::make_cubemap(VulkanContext * context, TextureAsset * assets)
+vulkan::make_cubemap(VulkanContext * context, StaticArray<TextureAsset, 6> * assets)
 {
-    uint32 width        = assets[0].width;
-    uint32 height       = assets[0].height;
-    uint32 channels     = assets[0].channels;
+    uint32 width        = (*assets)[0].width;
+    uint32 height       = (*assets)[0].height;
+    uint32 channels     = (*assets)[0].channels;
     uint32 mipLevels    = compute_mip_levels(width, height);
 
     constexpr uint32 CUBEMAP_LAYERS = 6;
@@ -1696,8 +1696,8 @@ vulkan::make_cubemap(VulkanContext * context, TextureAsset * assets)
     vkMapMemory(context->device, context->stagingBufferPool.memory, 0, imageSize, 0, (void**)&data);
     for (int i = 0; i < 6; ++i)
     {
-        uint32 * start          = assets[i].pixels.begin();
-        uint32 * end            = assets[i].pixels.end();
+        uint32 * start          = (*assets)[i].pixels.begin();
+        uint32 * end            = (*assets)[i].pixels.end();
         uint32 * destination    = reinterpret_cast<uint32*>(data + (i * layerSize));
 
         std::copy(start, end, destination);

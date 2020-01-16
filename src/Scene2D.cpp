@@ -42,18 +42,17 @@ namespace scene_2d
 	internal MenuResult
 	update(	void * 						scenePtr,
 			game::Input * 				input,
-			game::RenderInfo * 			renderer,
-			game::PlatformFunctions * 	functions,
 			platform::Graphics*,
-			platform::Platform*);
+			platform::Window*,
+			platform::Functions*);
 
 	internal void
 	load(	void * 						scenePtr,
 			MemoryArena * 				persistentMemory,
 			MemoryArena * 				transientMemory,
-			game::PlatformFunctions * 	functions,
 			platform::Graphics*,
-			platform::Platform*);
+			platform::Window*,
+			platform::Functions*);
 }
 
 global_variable SceneInfo 
@@ -64,10 +63,9 @@ scene2dInfo = make_scene_info(	scene_2d::get_alloc_size,
 internal MenuResult
 scene_2d::update(	void * scenePtr,
 					game::Input * input,
-					game::RenderInfo * renderer,
-					game::PlatformFunctions * functions,
 					platform::Graphics * graphics,
-					platform::Platform * platform)
+					platform::Window * window,
+					platform::Functions * functions)
 {
 	Scene * scene = reinterpret_cast<Scene*>(scenePtr);
 
@@ -78,10 +76,10 @@ scene_2d::update(	void * scenePtr,
 	update_animator_system(input, scene->animatorSystem);
 
 	scene->cameraController.update(input);
-    update_camera_system(&scene->worldCamera, renderer, functions, input, graphics, platform);
-	update_render_system(graphics, renderer, scene->renderSystem);
+    update_camera_system(&scene->worldCamera, input, graphics, window, functions);
+	update_render_system(scene->renderSystem, graphics, functions);
 
-	auto result = update_scene_gui(&scene->gui, input, renderer, graphics);
+	auto result = update_scene_gui(&scene->gui, input, graphics, functions);
 	return result;
 }
 
@@ -89,9 +87,9 @@ internal void
 scene_2d::load(	void * scenePtr,
 				MemoryArena * persistentMemory,
 				MemoryArena * transientMemory,
-				game::PlatformFunctions * functions,
 				platform::Graphics * graphics,
-				platform::Platform * platform)
+				platform::Window * platform,
+				platform::Functions * functions)
 {
 	Scene * scene = reinterpret_cast<Scene*>(scenePtr);
 

@@ -14,17 +14,19 @@ struct SceneGui
 };
 
 internal SceneGui
-make_scene_gui(MemoryArena * transientMemory, platform::Graphics * graphics, game::PlatformFunctions * platform)
+make_scene_gui(	MemoryArena * transientMemory,
+				platform::Graphics * graphics,
+				platform::Functions * functions)
 {
 	SceneGui result = {};
 
-	#pragma message("Look at this")
-	/* Todo(Leo): We should make transientMemory to yield a temporary allocation. */
+	#pragma message("Make 'Checkpoint' struct for MemoryArena")
+	/* Todo(Leo): We should make transientMemory to yield a temporary allocation object. */
 
 	auto textureAsset 	= load_texture_asset("textures/texture.jpg", transientMemory);
-	auto texture 		= platform->push_texture(graphics, &textureAsset);
+	auto texture 		= functions->push_texture(graphics, &textureAsset);
 
-	result.material 	= platform->push_gui_material(graphics, texture);
+	result.material 	= functions->push_gui_material(graphics, texture);
 
 	result.buttons 		= {Rectangle{810, 500, 300, 120},
 							Rectangle{810, 640, 300, 120}};
@@ -38,8 +40,8 @@ make_scene_gui(MemoryArena * transientMemory, platform::Graphics * graphics, gam
 internal MenuResult
 update_scene_gui(	SceneGui * gui,
 					game::Input * input,
-					game::RenderInfo * renderer,
-					platform::Graphics * graphics)
+					platform::Graphics * graphics,
+					platform::Functions * functions)
 {
 	// Overlay menu
 	if (is_clicked(input->start))
@@ -99,7 +101,7 @@ update_scene_gui(	SceneGui * gui,
 				rect 	= scale_rectangle(gui->buttons[i], {1.2f, 1.2f});
 				color 	= {1, 0.4f, 0.4f, 1}; 
 			}
-			renderer->draw_gui(graphics, rect.position, rect.size, gui->material, color);
+			functions->draw_gui(graphics, rect.position, rect.size, gui->material, color);
 		}
 	}
 

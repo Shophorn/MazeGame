@@ -405,7 +405,7 @@ namespace vulkan
 	internal VulkanTexture make_texture(TextureAsset * asset, VulkanContext * context);
 	// internal VulkanTexture make_empty_texture(VulkanContext * context, VkFormat format, VkExtent2D size);
 	// Todo(Leo): Use some structure with fixed size of six TextureAssets in place of 'assets'
-	internal VulkanTexture make_cubemap(VulkanContext * context, TextureAsset * assets);
+	internal VulkanTexture make_cubemap(VulkanContext * context, StaticArray<TextureAsset, 6> * assets);
 	internal void destroy_texture(VulkanContext * context, VulkanTexture * texture);
 
 	internal VkDescriptorSetLayout create_material_descriptor_set_layout(VkDevice device, uint32 textureCount);
@@ -433,7 +433,7 @@ namespace vulkan
     internal MaterialHandle push_gui_material (VulkanContext * context, TextureHandle texture);
     internal MeshHandle 	push_mesh(VulkanContext * context, MeshAsset * mesh);
     internal ModelHandle 	push_model (VulkanContext * context, MeshHandle mesh, MaterialHandle material);
-    internal TextureHandle 	push_cubemap(VulkanContext * context, TextureAsset * assets);
+    internal TextureHandle 	push_cubemap(VulkanContext * context, StaticArray<TextureAsset, 6> * assets);
     internal PipelineHandle push_pipeline(VulkanContext * context, const char * vertexShaderPath, const char * fragmentShaderPath, platform::RenderingOptions options);
     internal void 			unload_scene(VulkanContext * context);
 

@@ -39,18 +39,17 @@ struct Scene3d
 	static MenuResult
 	update(	void * 						scenePtr, 
 			game::Input * 				input,
-			game::RenderInfo * 			renderer,
-			game::PlatformFunctions * 	functions,
 			platform::Graphics*,
-			platform::Platform*);
+			platform::Window*,
+			platform::Functions*);
 
 	static void
 	load(	void * 						scenePtr,
 			MemoryArena * 				persistentMemory,
 			MemoryArena * 				transientMemory,
-			game::PlatformFunctions * 	functions,
 			platform::Graphics*,
-			platform::Platform*);
+			platform::Window*,
+			platform::Functions*);
 };
 
 
@@ -62,35 +61,34 @@ scene3dInfo = make_scene_info(	get_size_of<Scene3d>,
 MenuResult
 Scene3d::update(	void * 						scenePtr,
 					game::Input * 				input,
-					game::RenderInfo * 			renderer,
-					game::PlatformFunctions * 	functions,
-					platform::Graphics * graphics,
-					platform::Platform * platform)
+					platform::Graphics * 	graphics,
+					platform::Window *	 	window,
+					platform::Functions * 	functions)
 {
 	Scene3d * scene = reinterpret_cast<Scene3d*>(scenePtr);
 
 	/* Sadly, we need to draw skybox before game logig, because otherwise
 	dedbug lines would be hidden */ 
-    draw_skybox(graphics, scene->skybox, &scene->worldCamera, renderer);
+    draw_skybox(graphics, scene->skybox, &scene->worldCamera, functions);
 
 	// Game Logic section
 	update_character(	&scene->characterController,
 						input,
 						&scene->worldCamera,
 						&scene->collisionSystem,
-						renderer,
-						graphics);
+						graphics,
+						functions);
 	update_camera_controller(&scene->cameraController, input);
 	update_animator_system(input, scene->animatorSystem);
 
 	
-	renderer->draw_gui(graphics, {20, 20}, {50, 50}, scene->uiMaterial, float4{1,0,1,1});
+	functions->draw_gui(graphics, {20, 20}, {50, 50}, scene->uiMaterial, float4{1,0,1,1});
 
 	// Rendering section
-    update_camera_system(&scene->worldCamera, renderer, functions, input, graphics, platform);
-	update_render_system(graphics, renderer, scene->renderSystem);
+    update_camera_system(&scene->worldCamera, input, graphics, window, functions);
+	update_render_system(scene->renderSystem, graphics, functions);
 
-	auto result = update_scene_gui(&scene->gui, input, renderer, graphics);
+	auto result = update_scene_gui(&scene->gui, input, graphics, functions);
 	return result;
 }
 
@@ -98,9 +96,9 @@ void
 Scene3d::load(	void * 						scenePtr, 
 				MemoryArena * 				persistentMemory,
 				MemoryArena * 				transientMemory,
-				game::PlatformFunctions * 	functions,
 				platform::Graphics *		graphics,
-				platform::Platform * 		platform)
+				platform::Window * 			window,
+				platform::Functions *		functions)
 {
 	Scene3d * scene = reinterpret_cast<Scene3d*>(scenePtr);
 
@@ -161,7 +159,7 @@ Scene3d::load(	void * 						scenePtr,
 
 		
 		// internet: (+X,-X,+Y,-Y,+Z,-Z).
-		TextureAsset skyboxTextureAssets [] =
+		StaticArray<TextureAsset,6> skyboxTextureAssets =
 		{
 			load_texture_asset("textures/miramar_rt.png", transientMemory),
 			load_texture_asset("textures/miramar_lf.png", transientMemory),
@@ -170,7 +168,7 @@ Scene3d::load(	void * 						scenePtr,
 			load_texture_asset("textures/miramar_up.png", transientMemory),
 			load_texture_asset("textures/miramar_dn.png", transientMemory),
 		};
-		auto skyboxTexture = functions->push_cubemap(graphics, skyboxTextureAssets);
+		auto skyboxTexture = functions->push_cubemap(graphics, &skyboxTextureAssets);
 
 		auto skyMaterialAsset = make_material_asset(skyPipeline, push_array(transientMemory, {skyboxTexture}));	
 		materials.sky 			= functions->push_material(graphics, &skyMaterialAsset);

@@ -51,14 +51,14 @@ struct GameState
 	MemoryArena transientMemoryArena;
 
 	// Todo(Leo): Maybe store game pointer to info struct??
-	SceneInfo loadedSceneInfo;
+	SceneInfo * loadedSceneInfo;
 	void * loadedScene;
 
 	bool32 sceneLoaded = false;
 };
 
 internal void
-initialize_game_state(GameState * state, game::Memory * memory, game::PlatformFunctions * PlatformFunctions)
+initialize_game_state(	GameState * state, game::Memory * memory)
 {
 	*state = {};
 
@@ -105,23 +105,29 @@ output_sound(int sampleCount, game::StereoSoundSample * samples)
 }
 
 internal void
-load_scene(GameState * state, game::PlatformFunctions * functions, platform::Graphics * graphics, platform::Platform * platform, SceneInfo scene)
+load_scene(	GameState * state,
+			SceneInfo * scene,
+			platform::Graphics * graphics,
+			platform::Window * system,
+			platform::Functions * functions)
 {
 	state->loadedSceneInfo = scene;
 
-	state->loadedScene = reserve_from_memory_arena(&state->persistentMemoryArena, scene.get_alloc_size());
-	scene.load(	state->loadedScene,
+	state->loadedScene = reserve_from_memory_arena(&state->persistentMemoryArena, scene->get_alloc_size());
+	scene->load(state->loadedScene,
 				&state->persistentMemoryArena,
 				&state->transientMemoryArena,
-				functions,
 				graphics,
-				platform);
+				system,
+				functions);
 
 	state->sceneLoaded = true;	
 }
 
 internal void
-unload_scene_and_gui(GameState * state, game::PlatformFunctions * functions, platform::Graphics * graphics)
+unload_scene_and_gui(	GameState * state,
+						platform::Graphics * graphics,
+						platform::Functions * functions)
 {
 	state->loadedSceneInfo = {};
 
@@ -142,14 +148,12 @@ extern "C" bool32
 GameUpdate(
 	game::Input * 			input,
 	game::Memory * 			memory,
-	game::PlatformFunctions * 	functions,
 	game::Network *			network,
 	game::SoundOutput * 	soundOutput,
 
-	// Todo(Leo): extra stupid name, but 'renderer' is also problematic, maybe combine with graphics context
-	game::RenderInfo * 		outRenderInfo,
-	platform::Graphics * graphics,
-	platform::Platform * platform)
+	platform::Graphics * 	graphics,
+	platform::Window * 		window,
+	platform::Functions * 	functions)
 {
 	/* Note(Leo): This is reinterpreted each frame, we don't know and don't care
 	if it has been moved or whatever in functions layer*/
@@ -158,22 +162,21 @@ GameUpdate(
 	if (memory->isInitialized == false)
 	{
 
-		initialize_game_state (state, memory, functions);
+		initialize_game_state (state, memory);
 		memory->isInitialized = true;
 
-		load_scene(state, functions, graphics, platform, menuScene);
+		load_scene(state, &menuScene, graphics, window, functions);
 		std::cout << "Game initialized\n";
 	}
 	flush_memory_arena(&state->transientMemoryArena);
 	
-	outRenderInfo->prepare_drawing(graphics);
-	auto guiResult = state->loadedSceneInfo.update(	state->loadedScene,
+	functions->prepare_drawing(graphics);
+	auto guiResult = state->loadedSceneInfo->update(state->loadedScene,
 													input,
-													outRenderInfo,
-													functions,
 													graphics,
-													platform);
-	outRenderInfo->finish_drawing(graphics);
+													window,
+													functions);
+	functions->finish_drawing(graphics);
 
 
 	bool32 gameIsAlive = true;
@@ -184,18 +187,18 @@ GameUpdate(
 			break;
 
 		case MENU_LOADLEVEL_2D:
-			unload_scene_and_gui(state, functions, graphics);
-			load_scene(state, functions, graphics, platform, scene2dInfo);
+			unload_scene_and_gui(state, graphics, functions);
+			load_scene(state, &scene2dInfo, graphics, window, functions);
 			break;
 
 		case MENU_LOADLEVEL_3D:
-			unload_scene_and_gui(state, functions, graphics);
-			load_scene(state, functions, graphics, platform, scene3dInfo);
+			unload_scene_and_gui(state, graphics, functions);
+			load_scene(state, &scene3dInfo, graphics, window, functions);
 			break;
 
 		case SCENE_EXIT:
-			unload_scene_and_gui(state, functions, graphics);
-			load_scene(state, functions, graphics, platform, menuScene);
+			unload_scene_and_gui(state, graphics, functions);
+			load_scene(state, &menuScene, graphics, window, functions);
 			break;
 
 		default:
@@ -206,13 +209,13 @@ GameUpdate(
 	// Todo(Leo): These still do not belong here
 	if (is_clicked(input->select))
 	{
-		if (functions->is_window_fullscreen(platform))
+		if (functions->is_window_fullscreen(window))
 		{
-			functions->set_window_fullscreen(false);
+			functions->set_window_fullscreen(window, false);
 		}
 		else
 		{
-			functions->set_window_fullscreen(true);
+			functions->set_window_fullscreen(window, true);
 		}
 	}
 
