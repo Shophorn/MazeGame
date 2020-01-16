@@ -385,8 +385,8 @@ Run(HINSTANCE winInstance)
     auto startTimeMark          = std::chrono::high_resolution_clock::now();
     real64 lastFrameStartTime   = 0;
 
-    MAZEGAME_NO_INIT real64 targetFrameTime;
-    MAZEGAME_NO_INIT uint32 deviceMinSchedulerGranularity;
+    real64 targetFrameTime;
+    uint32 deviceMinSchedulerGranularity;
     {
         TIMECAPS timeCaps;
         timeGetDevCaps(&timeCaps, sizeof(timeCaps));

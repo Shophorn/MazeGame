@@ -8,6 +8,7 @@ Scene description for 3d development scene
 #include "Collisions3D.cpp"
 #include "CharacterController3rdPerson.cpp"
 
+#include "DefaultSceneGui.cpp"
 
 namespace scene_3d
 {
@@ -34,12 +35,14 @@ namespace scene_3d
 		ModelHandle skybox;
 
 		MaterialHandle uiMaterial;
+
+		SceneGui gui;
 	};
 
 	internal uint64
 	get_alloc_size() { return sizeof(Scene); };
  
-	internal void
+	internal MenuResult
 	update(	void * 						scenePtr, 
 			game::Input * 				input,
 			game::RenderInfo * 			renderer,
@@ -59,7 +62,7 @@ scene3dInfo = make_scene_info(	scene_3d::get_alloc_size,
 								scene_3d::load,
 								scene_3d::update);
 
-internal void
+internal MenuResult
 scene_3d::update(	void * 						scenePtr,
 					game::Input * 				input,
 					game::RenderInfo * 			renderer,
@@ -88,6 +91,9 @@ scene_3d::update(	void * 						scenePtr,
 	// Rendering section
     update_camera_system(renderer, platform, input, &scene->worldCamera, graphics);
 	update_render_system(graphics, renderer, scene->renderSystem);
+
+	auto result = update_scene_gui(&scene->gui, input, renderer, graphics);
+	return result;
 }
 
 internal void 
@@ -171,6 +177,7 @@ scene_3d::load(	void * 						scenePtr,
 		materials.sky 			= platformInfo->push_material(graphics, &skyMaterialAsset);
 
 
+		scene->gui = make_scene_gui(transientMemory, graphics, platformInfo);
 		scene->uiMaterial = platformInfo->push_gui_material(graphics, faceTexture);
 	}
 

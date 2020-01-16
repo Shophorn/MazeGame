@@ -8,6 +8,31 @@ Memory managing things in :MAZEGAME:
 #include <algorithm>
 #include <type_traits>
 
+///////////////////////////////////
+/// 	STATIC ARRAY 			///
+///////////////////////////////////
+
+template<typename T, int32 Count>
+struct StaticArray
+{
+	T _items [Count];
+
+	constexpr int32 count () { return Count; }
+
+	T & operator [] (int32 index)
+	{
+		DEVELOPMENT_ASSERT (index < Count, "Index outside StaticArray bounds");
+		return _items[index];
+	}
+};
+
+template<typename T, int32 Count>
+T * begin(StaticArray<T, Count> array) { return array._items; }
+
+template<typename T, int32 Count>
+T * end(StaticArray<T, Count> array) { return array._items + Count; }
+
+
 ///////////////////////////////////////
 ///         MEMORY ARENA 			///
 ///////////////////////////////////////
@@ -63,8 +88,7 @@ clear_memory_arena(MemoryArena * arena)
 	std::fill_n(arena->memory, arena->size, 0);
 }
 
-template<typename T>
-internal T *
+template<typename T> internal T *
 push_empty_struct(MemoryArena * arena)
 {
 	T * result = reinterpret_cast<T*>(reserve_from_memory_arena(arena, sizeof(T)));
@@ -84,8 +108,9 @@ struct ArrayHeader
 	uint64 countInBytes;
 };
 
-template<typename T, typename TIndex = default_index_type>
-struct ArenaArray
+#define ARENA_ARRAY_TEMPLATE template<typename T, typename TIndex = default_index_type>
+
+ARENA_ARRAY_TEMPLATE struct ArenaArray
 {
 	/* Todo(Leo): This class supports only classes that are simple such as
 	pod types and others that do not need destructors or other unitilization
@@ -105,6 +130,7 @@ struct ArenaArray
 	uint64 capacity () 		{ return (get_header()->capacityInBytes) / sizeof(T); }
 	uint64 count ()  		{ return (get_header()->countInBytes) / sizeof(T); }
 
+	// Todo(Leo): Maybe make these free functions too.
 	T * begin() 			{ return reinterpret_cast<T*>(_data + sizeof(ArrayHeader)); }
 	T * end() 				{ return begin() + count(); }
 
@@ -133,40 +159,38 @@ private:
 	}
 };
 
-template<typename T, typename TIndex>
-internal ArrayHeader *
-get_array_header(ArenaArray<T, TIndex> array)
+namespace array_internal
 {
-	DEVELOPMENT_ASSERT(array._data != nullptr, "Invalid call to 'get_array_header()', ArenaArray is not initialized.");
-	return reinterpret_cast<ArrayHeader *>(array._data);
-}
+	ARENA_ARRAY_TEMPLATE internal ArrayHeader *
+	get_header(ArenaArray<T, TIndex> array)
+	{
+		DEVELOPMENT_ASSERT(array._data != nullptr, "Invalid call to 'array_internal::get_header()', ArenaArray is not initialized.");
+		return reinterpret_cast<ArrayHeader *>(array._data);
+	}
 
-template <typename T, typename TIndex>
-internal void 
-set_array_capacity(ArenaArray<T, TIndex> array, uint64 capacity)
-{
-	uint64 capacityInBytes = capacity * sizeof(T);
-	get_array_header(array)->capacityInBytes = capacityInBytes;
-}
+	ARENA_ARRAY_TEMPLATE internal void 
+	set_capacity(ArenaArray<T, TIndex> array, uint64 capacity)
+	{
+		uint64 capacityInBytes = capacity * sizeof(T);
+		get_header(array)->capacityInBytes = capacityInBytes;
+	}
 
-template <typename T, typename TIndex>
-internal void 
-set_array_count(ArenaArray<T, TIndex> array, uint64 count)
-{
-	uint64 countInBytes = count * sizeof(T);
-	get_array_header(array)->countInBytes = countInBytes;
-}
+	ARENA_ARRAY_TEMPLATE internal void 
+	set_count(ArenaArray<T, TIndex> array, uint64 count)
+	{
+		uint64 countInBytes = count * sizeof(T);
+		get_header(array)->countInBytes = countInBytes;
+	}
 
-template <typename T, typename TIndex>
-internal void
-increment_array_count(ArenaArray<T, TIndex> array, uint64 increment)
-{
-	uint64 newCount = array.count() + increment;
-	set_array_count(array, newCount);
-}
+	ARENA_ARRAY_TEMPLATE internal void
+	increment_count(ArenaArray<T, TIndex> array, uint64 increment)
+	{
+		uint64 newCount = array.count() + increment;
+		set_count(array, newCount);
+	}
+} // array_internal
 
-template<typename T, typename TIndex = default_index_type>
-internal ArenaArray<T, TIndex>
+ARENA_ARRAY_TEMPLATE internal ArenaArray<T, TIndex>
 reserve_array(MemoryArena * arena, uint64 capacity)
 {
 	/* Todo(Leo): make proper alignement between these two too, now it works fine,
@@ -178,25 +202,23 @@ reserve_array(MemoryArena * arena, uint64 capacity)
 	{
 		._data = memory
 	};
-	set_array_capacity (result, capacity);
-	set_array_count(result, 0);
+	array_internal::set_capacity (result, capacity);
+	array_internal::set_count(result, 0);
 
 	return result;
 }
 
-template<typename T, typename TIndex = default_index_type>
-internal ArenaArray<T, TIndex>
+ARENA_ARRAY_TEMPLATE internal ArenaArray<T, TIndex>
 push_array(MemoryArena * arena, uint64 capacity)
 {
 	auto result	= reserve_array<T, TIndex>(arena, capacity);
-	set_array_count(result, capacity);
+	array_internal::set_count(result, capacity);
 
 	return result;
 }
 
 
-template<typename T, typename TIndex = default_index_type>
-internal ArenaArray<T, TIndex>
+ARENA_ARRAY_TEMPLATE internal ArenaArray<T, TIndex>
 push_array(MemoryArena * arena, const T * begin, const T * end)
 {
 	uint64 count 	= end - begin;
@@ -206,15 +228,14 @@ push_array(MemoryArena * arena, const T * begin, const T * end)
 	return result;
 }
 
-template<typename T, typename TIndex = default_index_type>
-internal ArenaArray<T, TIndex>
+ARENA_ARRAY_TEMPLATE internal ArenaArray<T, TIndex>
 push_array(MemoryArena * arena, std::initializer_list<T> items)
 {
 	auto result = push_array<T, TIndex>(arena, items.begin(), items.end());
 	return result;
 }
 
-template<typename T, typename TIndex> internal ArenaArray<T, TIndex>
+ARENA_ARRAY_TEMPLATE internal ArenaArray<T, TIndex>
 copy_array_slice(MemoryArena * arena, ArenaArray<T, TIndex> original, TIndex start, uint64 count)
 {
 	DEVELOPMENT_ASSERT((start + count) <= original.capacity(), "Invalid copy slice region");
@@ -226,18 +247,19 @@ copy_array_slice(MemoryArena * arena, ArenaArray<T, TIndex> original, TIndex sta
 	return result;
 }
 
-template<typename T, typename TIndex> internal ArenaArray<T, TIndex>
+ARENA_ARRAY_TEMPLATE internal ArenaArray<T, TIndex>
 duplicate_array(MemoryArena * arena, ArenaArray<T, TIndex> original)
 {
 	auto result = reserve_array<T, TIndex>(arena, original.capacity());
-	set_array_count(result, original.count());
+	array_internal::set_count(result, original.count());
 
+	// Todo(Leo): Make own memory copies for the sake of education
 	std::copy(original.begin(), original.end(), result.begin());
 
 	return result;
 }
 
-template <typename T, typename TIndex> internal void
+ARENA_ARRAY_TEMPLATE internal void
 reverse_arena_array(ArenaArray<T, TIndex> array)
 {
 	T temp = array[0];
@@ -252,8 +274,7 @@ reverse_arena_array(ArenaArray<T, TIndex> array)
 	}
 }
 
-template<typename T, typename TIndex>
-internal TIndex
+ARENA_ARRAY_TEMPLATE internal TIndex
 push_one(ArenaArray<T, TIndex> array, T item)
 {
 	DEVELOPMENT_ASSERT(array.capacity() > 0, "Cannot push, ArenaArray is not initialized!");
@@ -261,13 +282,12 @@ push_one(ArenaArray<T, TIndex> array, T item)
 
 	TIndex index = {array.count()};
 	*array.end() = item;
-	increment_array_count(array, 1);
+	array_internal::increment_count(array, 1);
 
 	return index;
 }
 
-template<typename T, typename TIndex>
-internal void
+ARENA_ARRAY_TEMPLATE internal void
 push_range(ArenaArray<T, TIndex> array, const T * begin, const T * end)
 {
 	uint64 rangeLength = end - begin;
@@ -276,22 +296,23 @@ push_range(ArenaArray<T, TIndex> array, const T * begin, const T * end)
 	DEVELOPMENT_ASSERT((rangeLength + array.count()) <= array.capacity(), "Cannot push, ArenaArray is full!");
 
 	std::copy(begin, end, array.end());
-	increment_array_count(array, rangeLength);
+	array_internal::increment_count(array, rangeLength);
 }
 
-template<typename T, typename TIndex>
-internal void
+ARENA_ARRAY_TEMPLATE internal void
 push_many(ArenaArray<T, TIndex> array, std::initializer_list<T> items)
 {
 	push_range(array, items.begin(), items.end());
 }
 
-template<typename T, typename TIndex>
-internal void
+ARENA_ARRAY_TEMPLATE internal void
 flush_arena_array(ArenaArray<T, TIndex> array)
 {
-	set_array_count(array, 0);
+	array_internal::set_count(array, 0);
 }
+
+#undef ARENA_ARRAY_TEMPLATE
+
 
 #if MAZEGAME_DEVELOPMENT
 internal float 

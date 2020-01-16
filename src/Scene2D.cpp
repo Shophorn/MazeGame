@@ -5,6 +5,8 @@ shophorn @ internet
 Scene description for 2d development scene
 =============================================================================*/
 
+// #include "DefaultSceneGui.cpp"
+
 namespace scene_2d
 {
 	struct Scene
@@ -30,12 +32,14 @@ namespace scene_2d
 		CharacterControllerSideScroller::LadderTriggerFunc ladderTrigger2;
 		bool32 ladderOn = false;
 		bool32 ladder2On = false;
+
+		SceneGui gui;
 	};
 
 	internal uint64
 	get_alloc_size() { return sizeof(Scene); };
 
-	internal void
+	internal MenuResult
 	update(	void * 						scenePtr,
 			game::Input * 				input,
 			game::RenderInfo * 			renderer,
@@ -55,7 +59,7 @@ scene2dInfo = make_scene_info(	scene_2d::get_alloc_size,
 								scene_2d::load,
 								scene_2d::update);
 
-internal void
+internal MenuResult
 scene_2d::update(void * scenePtr, game::Input * input, game::RenderInfo * renderer, game::PlatformInfo * platform, platform::GraphicsContext * graphics)
 {
 	Scene * scene = reinterpret_cast<Scene*>(scenePtr);
@@ -69,12 +73,18 @@ scene_2d::update(void * scenePtr, game::Input * input, game::RenderInfo * render
 	scene->cameraController.update(input);
     update_camera_system(renderer, platform, input, &scene->worldCamera, graphics);
 	update_render_system(graphics, renderer, scene->renderSystem);
+
+	auto result = update_scene_gui(&scene->gui, input, renderer, graphics);
+	return result;
 }
 
 internal void 
 scene_2d::load(void * scenePtr, MemoryArena * persistentMemory, MemoryArena * transientMemory, game::PlatformInfo * platformInfo, platform::GraphicsContext * graphics)
 {
 	Scene * scene = reinterpret_cast<Scene*>(scenePtr);
+
+	// Note(Leo): lol this is so much better than others :D
+	scene->gui = make_scene_gui(transientMemory, graphics, platformInfo);
 
 	// auto * persistentMemory = &state->persistentMemoryArena;
 	// auto * transientMemory = &state->transientMemoryArena;

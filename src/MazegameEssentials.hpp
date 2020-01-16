@@ -14,12 +14,7 @@ Common essentials used all around in :MAZEGAME: project
 #define internal static
 #define global_variable static
 
-#define MAZEGAME_NO_INIT /* This is a tag to explicitly indicate that variable is intentionally left unitialized */
-
 #define ARRAY_COUNT(array) sizeof(array) / sizeof((array)[0])
-
-// Todo(Leo): does this make sense
-constexpr int BitSize(int bits) { return bits / 8; }
 
 /// SENSIBLE SIMPLE TYPES
 // Todo(Leo): These should come from platform layer, since that is where they are defined anyway
@@ -49,12 +44,14 @@ using bool32 = int32;
 using wchar = wchar_t;
 using byte = uint8;
 
+/* Note(Leo): Not super sure about these, they are currently not used consitently
+around codebase, but I left them where they were due to inability to make a decision */
 using real32 = float;
 using real64 = double;
 
 // Todo(Leo): Study Are there any other possibilities than these always being fixed
-static_assert(sizeof(real32) == BitSize(32), "Invalid type alias for real32");
-static_assert(sizeof(real64) == BitSize(64), "Invalid type alias for real64");
+static_assert(sizeof(real32) == 4, "Invalid type alias for real32");
+static_assert(sizeof(real64) == 8, "Invalid type alias for real64");
 
 /// NUMERIC LIMITS
 #include<limits>
@@ -91,6 +88,12 @@ const char *
 bool_str(bool value)
 {
 	return (value ? "True" : "False");
+}
+
+template<typename T>
+uint64 get_size_of()
+{ 
+    return sizeof(T);
 }
 
 #define MAZEGAME_ESSENTIALS_HPP

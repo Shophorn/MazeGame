@@ -6,8 +6,12 @@ Leo Tamminen
 #include "MazegamePlatform.hpp"
 #include "Mazegame.hpp"
 
-// Note(Leo): Make unity build here.
+
+// Todo(Leo): Handle has become stupid as it is now, pls remove
 #include "Handle.cpp"
+
+
+// Note(Leo): Make unity build here.
 #include "Random.cpp"
 #include "MapGenerator.cpp"
 #include "Transform3D.cpp"
@@ -28,12 +32,14 @@ Leo Tamminen
 #include "TextureLoader.cpp"
 
 #include "Scene.cpp"
-#include "Scene2D.cpp"
+
+#pragma message("Do this soon pls")
+/* Todo(Leo): Haxor: these should be in different translation units, and only include
+headers here. For now, 2d scene does not include its stuff because 3d scene does before it
+and both are still missing some because they are listed above. */
 #include "Scene3D.cpp"
-
-#include "MenuSystem.cpp"
-#include "DefaultSceneGui.cpp"
-
+#include "Scene2D.cpp"
+#include "MenuScene.cpp"
 
 // Note(Leo): This makes less sense as a 'state' now that we have 'Scene' struct
 struct GameState
@@ -48,8 +54,8 @@ struct GameState
 	SceneInfo loadedSceneInfo;
 	void * loadedScene;
 
-	SceneGuiInfo loadedGuiInfo;
-	void * loadedGui;
+	// SceneGuiInfo loadedGuiInfo;
+	// void * loadedGui;
 
 	bool32 sceneLoaded = false;
 };
@@ -112,14 +118,14 @@ load_scene(GameState * state, game::PlatformInfo * platform, platform::GraphicsC
 	state->sceneLoaded = true;	
 }
 
-internal void
-load_gui(GameState * state, game::PlatformInfo * platform, platform::GraphicsContext * graphics, SceneGuiInfo gui)
-{
-	state->loadedGuiInfo = gui;
+// internal void
+// load_gui(GameState * state, game::PlatformInfo * platform, platform::GraphicsContext * graphics, SceneGuiInfo gui)
+// {
+// 	state->loadedGuiInfo = gui;
 
-	state->loadedGui = reserve_from_memory_arena(&state->persistentMemoryArena, gui.get_alloc_size());
-	gui.load(state->loadedGui, &state->persistentMemoryArena, &state->transientMemoryArena, platform, graphics);	
-}
+// 	state->loadedGui = reserve_from_memory_arena(&state->persistentMemoryArena, gui.get_alloc_size());
+// 	gui.load(state->loadedGui, &state->persistentMemoryArena, &state->transientMemoryArena, platform, graphics);	
+// }
 
 internal void
 unload_scene_and_gui(GameState * state, game::PlatformInfo * platform, platform::GraphicsContext * graphics)
@@ -130,11 +136,17 @@ unload_scene_and_gui(GameState * state, game::PlatformInfo * platform, platform:
 	clear_memory_arena(&state->persistentMemoryArena);
 
 	state->loadedScene = nullptr;
-	state->loadedGui = nullptr;
+	// state->loadedGui = nullptr;
 
 	state->sceneLoaded = false;
 }
 
+
+/*Note(Leo): return whether or not game still continues
+
+Todo(Leo): indicate meaning of return value betterly somewhere,
+I almost forgot it.
+*/
 extern "C" bool32
 GameUpdate(
 	game::Input * 			input,
@@ -157,17 +169,17 @@ GameUpdate(
 		initialize_game_state (state, memory, platform);
 		memory->isInitialized = true;
 
-		load_gui(state, platform, graphics, menuSceneGuiGui);
+		load_scene(state, platform, graphics, menuScene);
 		std::cout << "Game initialized\n";
 	}
 	flush_memory_arena(&state->transientMemoryArena);
 	
 	outRenderInfo->prepare_drawing(graphics);
-	if (state->loadedScene != nullptr)
-	{
-		state->loadedSceneInfo.update(state->loadedScene, input, outRenderInfo, platform, graphics);
-	}
-	auto guiResult = state->loadedGuiInfo.update(state->loadedGui, input, outRenderInfo, platform, graphics);
+	// if (state->loadedScene != nullptr)
+	// {
+	// 	state->loadedSceneInfo.update(state->loadedScene, input, outRenderInfo, platform, graphics);
+	// }
+	auto guiResult = state->loadedSceneInfo.update(state->loadedScene, input, outRenderInfo, platform, graphics);
 	outRenderInfo->finish_drawing(graphics);
 
 
@@ -181,18 +193,18 @@ GameUpdate(
 		case MENU_LOADLEVEL_2D:
 			unload_scene_and_gui(state, platform, graphics);
 			load_scene(state, platform, graphics, scene2dInfo);
-			load_gui(state, platform, graphics, defaultSceneGui);
+			// load_gui(state, platform, graphics, defaultSceneGui);
 			break;
 
 		case MENU_LOADLEVEL_3D:
 			unload_scene_and_gui(state, platform, graphics);
 			load_scene(state, platform, graphics, scene3dInfo);
-			load_gui(state, platform, graphics, defaultSceneGui);
+			// load_gui(state, platform, graphics, defaultSceneGui);
 			break;
 
 		case SCENE_EXIT:
 			unload_scene_and_gui(state, platform, graphics);
-			load_gui(state, platform, graphics, menuSceneGuiGui);
+			load_scene(state, platform, graphics, menuScene);
 			break;
 
 		default:

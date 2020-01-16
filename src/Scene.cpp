@@ -2,9 +2,14 @@
 Leo Tamminen
 shophorn @ internet
 
-Scene description definitions
+Scene description definitions.
+
+Note(Leo): Scenes will eventually be loaded runtime from textfile or a database
+like structure. That is why 'SceneInfo' is not a template, as there will be no
+type for template parameter.
 =============================================================================*/
 
+// Todo (Leo): this is subpar construct, do something else
 enum MenuResult
 { 	
 	MENU_NONE,
@@ -16,30 +21,27 @@ enum MenuResult
 	SCENE_EXIT
 };
 
-using GetAllocSizeFunc 	= uint64();
-
-using LoadSceneFunc 	= void( void *						scenePtr,
-								MemoryArena *				persistentMemory,
-								MemoryArena *				transientMemory,
-								game::PlatformInfo *		platform,
-								platform::GraphicsContext * graphics);
-
-using UpdateSceneFunc 	= void(	void * 						scenePtr,
-								game::Input * 				input,
-								game::RenderInfo * 			renderer,
-								game::PlatformInfo * 		platform,
-								platform::GraphicsContext * graphics);
-
 struct SceneInfo
 {
-	// Todo(Leo): std::function allocates somewhere we don't know, should change
-	GetAllocSizeFunc * 	get_alloc_size;
-	LoadSceneFunc *		load;
-	UpdateSceneFunc *	update;
+	uint64 		(*get_alloc_size)();
+
+	void 		(*load)( 	void *						scenePtr,
+							MemoryArena *				persistentMemory,
+							MemoryArena *				transientMemory,
+							game::PlatformInfo *		platform,
+							platform::GraphicsContext * graphics);
+
+	MenuResult 	(*update)(	void * 						guiPtr,
+							game::Input * 				input,
+							game::RenderInfo * 			renderer,
+							game::PlatformInfo * 		platform,
+							platform::GraphicsContext * graphics);
 };
 
 internal SceneInfo
-make_scene_info(GetAllocSizeFunc * getAllocSizeFunc, LoadSceneFunc * loadFunc, UpdateSceneFunc * updateFunc)
+make_scene_info(decltype(SceneInfo::get_alloc_size) getAllocSizeFunc,
+				decltype(SceneInfo::load) 			loadFunc,
+				decltype(SceneInfo::update)			updateFunc)
 {
 	SceneInfo result = 
 	{
@@ -49,31 +51,3 @@ make_scene_info(GetAllocSizeFunc * getAllocSizeFunc, LoadSceneFunc * loadFunc, U
 	};
 	return result;
 }
-
-using LoadGuiFunc 	= LoadSceneFunc;
-
-using UpdateGuiFunc	= MenuResult(	void * 						guiPtr,
-									game::Input * 				input,
-									game::RenderInfo * 			renderer,
-									game::PlatformInfo * 		platform,
-									platform::GraphicsContext * graphics);
-
-struct SceneGuiInfo
-{
-	GetAllocSizeFunc * 	get_alloc_size;
-	LoadSceneFunc * 	load;
-	UpdateGuiFunc *		update;
-};
-
-internal SceneGuiInfo
-make_scene_gui_info(GetAllocSizeFunc * getAllocSizeFunc, LoadGuiFunc * loadFunc, UpdateGuiFunc * updateFunc)
-{
-	SceneGuiInfo result = 
-	{
-		.get_alloc_size 	= getAllocSizeFunc,
-		.load 				= loadFunc,
-		.update 			= updateFunc
-	};
-	return result;
-}
-
