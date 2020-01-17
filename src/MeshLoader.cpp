@@ -86,7 +86,7 @@ load_model_glb(MemoryArena * memoryArena, const char * filePath, const char * mo
 	u64 vertexCount 	= get_item_count(positionAccessorIndex);
 	bool32 isGood 		= 	(vertexCount == get_item_count(normalAccessorIndex))
 							&& (vertexCount == get_item_count(texcoordAccessorIndex));
-	DEVELOPMENT_ASSERT(isGood, "Did not read .glb properly: invalid vertex count among properties or invalid accessor indices.");
+	DEBUG_ASSERT(isGood, "Did not read .glb properly: invalid vertex count among properties or invalid accessor indices.");
 
 	////// VERTICES ///////
 

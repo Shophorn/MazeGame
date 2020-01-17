@@ -103,7 +103,7 @@ get_green(Pixel color)
 inline Pixel 
 get_pixel(TextureAsset * texture, u32 x, u32 y)
 {
-	DEVELOPMENT_ASSERT(x < texture->width && y < texture->height, "Invalid pixel coordinates!");
+	DEBUG_ASSERT(x < texture->width && y < texture->height, "Invalid pixel coordinates!");
 
 	u64 index = x + y * texture->width;
 	return texture->pixels[index];

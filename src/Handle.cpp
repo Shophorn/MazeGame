@@ -15,13 +15,13 @@ struct Handle
 
 	T * operator->()
 	{ 
-		DEVELOPMENT_ASSERT(_index > -1, "Cannot reference uninitialized Handle.");
+		DEBUG_ASSERT(_index > -1, "Cannot reference uninitialized Handle.");
 		return &storage[_index];
 	}
 
 	operator T * ()
 	{
-		DEVELOPMENT_ASSERT(_index > -1, "Cannot reference uninitialized Handle.");
+		DEBUG_ASSERT(_index > -1, "Cannot reference uninitialized Handle.");
 		return &storage[_index];	
 	}
 

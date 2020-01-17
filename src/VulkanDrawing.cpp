@@ -23,7 +23,7 @@ vulkan::update_camera(VulkanContext * context, Matrix44 view, Matrix44 perspecti
 void
 vulkan::prepare_drawing(VulkanContext * context)
 {
-    DEVELOPMENT_ASSERT((context->canDraw == false), "Invalid call to prepare_drawing() when finish_drawing() has not been called.")
+    DEBUG_ASSERT((context->canDraw == false), "Invalid call to prepare_drawing() when finish_drawing() has not been called.")
     context->canDraw = true;
 
     context->currentUniformBufferOffset = 0;
@@ -60,7 +60,7 @@ vulkan::prepare_drawing(VulkanContext * context)
         .pInheritanceInfo   = nullptr,
     };
 
-    DEVELOPMENT_ASSERT(
+    DEBUG_ASSERT(
         vkBeginCommandBuffer(frame->commandBuffers.primary, &primaryCmdBeginInfo) == VK_SUCCESS,
         "Failed to begin primary command buffer");
 
@@ -104,7 +104,7 @@ vulkan::prepare_drawing(VulkanContext * context)
         .pInheritanceInfo = &inheritanceInfo,
     };
 
-    DEVELOPMENT_ASSERT(
+    DEBUG_ASSERT(
         vkBeginCommandBuffer(frame->commandBuffers.scene, &sceneCmdBeginInfo) == VK_SUCCESS,
         "Failed to begin secondary scene command buffer");
 
@@ -113,19 +113,19 @@ vulkan::prepare_drawing(VulkanContext * context)
 void
 vulkan::finish_drawing(VulkanContext * context)
 {
-    DEVELOPMENT_ASSERT(context->canDraw, "Invalid call to finish_drawing() when prepare_drawing() has not been called.")
+    DEBUG_ASSERT(context->canDraw, "Invalid call to finish_drawing() when prepare_drawing() has not been called.")
     context->canDraw = false;
 
     VulkanVirtualFrame * frame = get_current_virtual_frame(context);
 
-    DEVELOPMENT_ASSERT(
+    DEBUG_ASSERT(
         vkEndCommandBuffer(frame->commandBuffers.scene) == VK_SUCCESS,
         "Failed to end secondary scene command buffer");
 
     vkCmdExecuteCommands(frame->commandBuffers.primary, 1, &frame->commandBuffers.scene);
     vkCmdEndRenderPass(frame->commandBuffers.primary);
     
-    DEVELOPMENT_ASSERT(
+    DEBUG_ASSERT(
         vkEndCommandBuffer(frame->commandBuffers.primary) == VK_SUCCESS,
         "Failed to end primary command buffer");
 }
@@ -220,7 +220,7 @@ vulkan::record_draw_command(VulkanContext * context, ModelHandle model, Matrix44
     vkUnmapMemory(context->device, context->modelUniformBuffer.memory);
 
     // std::cout << "[vulkan::record_draw_command()]\n";
-    DEVELOPMENT_ASSERT(context->canDraw, "Invalid call to record_draw_command() when prepare_drawing() has not been called.")
+    DEBUG_ASSERT(context->canDraw, "Invalid call to record_draw_command() when prepare_drawing() has not been called.")
 
     VkCommandBuffer commandBuffer   = get_current_virtual_frame(context)->commandBuffers.scene;
  
@@ -320,7 +320,7 @@ vulkan::record_line_draw_command(VulkanContext * context, Vector3 start, Vector3
     vulkan bufferless drawing
     https://www.saschawillems.de/blog/2016/08/13/vulkan-tutorial-on-rendering-a-fullscreen-quad-without-buffers/
     */
-    DEVELOPMENT_ASSERT(context->canDraw, "Invalid call to record_line_draw_command() when prepare_drawing() has not been called.")
+    DEBUG_ASSERT(context->canDraw, "Invalid call to record_line_draw_command() when prepare_drawing() has not been called.")
 
     VkCommandBuffer commandBuffer = get_current_virtual_frame(context)->commandBuffers.scene;
  

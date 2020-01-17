@@ -23,14 +23,10 @@ Interface definition between Platform and Game.
 	}
 	#endif
 
-	#define DEVELOPMENT_BAD_PATH(msg) PrintAssert(__FILE__, __LINE__, msg); abort();
-
-	#define DEVELOPMENT_ASSERT(expr, msg) if (!(expr)) { PrintAssert(__FILE__, __LINE__, msg, #expr); abort(); }
-
-	#define DEVELOPMENT_ASSERT_POINTER(ptr, msg) if((ptr) == nullptr) { PrintAssert(__FILE__, __LINE__, msg), abort(); }
+	#define DEBUG_ASSERT(expr, msg) if (!(expr)) { PrintAssert(__FILE__, __LINE__, msg, #expr); abort(); }
 
 	// Note(Leo): Some things need to asserted in production too, this is a reminder for those only.
-	#define PRODUCTION_ASSERT DEVELOPMENT_ASSERT
+	#define PRODUCTION_ASSERT DEBUG_ASSERT
 
 
 #endif
@@ -62,67 +58,46 @@ namespace platform
 	    enum { PRIMITIVE_LINE, PRIMITIVE_TRIANGLE } primitiveType = PRIMITIVE_TRIANGLE;
 	};
 
-
 	/* Note(Leo): these are defined in platform layer, and
 	can (and are supposed to) be used as opaque handles in
 	game layer*/
 	struct Graphics;
-
-	using PushMeshFunc = MeshHandle (Graphics*, MeshAsset * asset);
-	using PushTextureFunc = TextureHandle (Graphics*, TextureAsset * asset);
-	using PushCubemapFunc = TextureHandle (Graphics*, StaticArray<TextureAsset, 6> * asset);
-
-	using PushMaterialFunc = MaterialHandle	(Graphics*, MaterialAsset * asset);
-	using PushGuiMaterialFunc = MaterialHandle (Graphics*, TextureHandle texture);
-
-	// Todo(Leo): Remove 'PushModelFunc', we can render also just passing mesh and material handles directly
-	using PushModelFunc = ModelHandle (Graphics*, MeshHandle mesh, MaterialHandle material);
-	using PushPipelineFunc = PipelineHandle (Graphics*, char const * vertexShaderPath, char const * fragmentShaderPath, RenderingOptions options);
-
-	using UnloadSceneFunc = void(Graphics*);
-
-	using UpdateCameraFunc = void(Graphics*, Matrix44 view, Matrix44 perspective);
-	using PrepareFrameFunc = void(Graphics*);
-	using FinishFrameFunc = void (Graphics*);
-
-	using DrawModelFunc = void(Graphics*, ModelHandle model, Matrix44 transform);
-	using DrawLineFunc = void(Graphics*, float3 start, float3 end, float4 color);
-	using DrawGuiFunc = void(Graphics*, float2 position, float2 size, MaterialHandle material, float4 color);
-
 	struct Window;
-
-	using GetWindowWidthFunc = u32 (Window const *);
-	using GetWindowHeightFunc = u32 (Window const *);
-	using IsWindowFullScreenFunc = bool32(Window const *);
-	using SetWindowFullscreenFunc = void (Window*, bool32 value);
+	struct Network;
+	struct Audio;
 
 	struct Functions
 	{
 		// GRAPHICS FUNCTIONS
-		PushMeshFunc * 			push_mesh;
-		PushTextureFunc * 		push_texture;
-		PushCubemapFunc * 		push_cubemap;
+		MeshHandle (*push_mesh) (Graphics*, MeshAsset * asset);
+		TextureHandle (*push_texture) (Graphics*, TextureAsset * asset);
+		TextureHandle (*push_cubemap) (Graphics*, StaticArray<TextureAsset, 6> * asset);
 
-		PushMaterialFunc * 		push_material;
-		PushGuiMaterialFunc * 	push_gui_material;
+		MaterialHandle (*push_material) (Graphics*, MaterialAsset * asset);
+		MaterialHandle (*push_gui_material) (Graphics*, TextureHandle texture);
 
-		PushModelFunc * 		push_model;
-		PushPipelineFunc * 		push_pipeline;
-		UnloadSceneFunc * 		unload_scene;
+		// Todo(Leo): Remove 'push_model', we can render also just passing mesh and material handles directly
+		ModelHandle (*push_model) (Graphics*, MeshHandle mesh, MaterialHandle material);
+		PipelineHandle (*push_pipeline) (Graphics*, char const * vertexShaderFilename,
+													char const * fragmentShaderFilename,
+													RenderingOptions optios);
+		void (*unload_scene) (Graphics*);
 
-		UpdateCameraFunc * 		update_camera;
-		PrepareFrameFunc * 		prepare_drawing;
-		FinishFrameFunc * 		finish_drawing;
-		DrawModelFunc * 		draw_model;
-		DrawLineFunc * 			draw_line;
-		DrawGuiFunc * 			draw_gui;
-		
+		void (*update_camera) (Graphics*, Matrix44 view, Matrix44 perspective);
+		void (*prepare_frame) (Graphics*);
+		void (*finish_frame) (Graphics*);
+
+		void (*draw_model) (Graphics*, ModelHandle model, Matrix44 transform);
+		void (*draw_line) (Graphics*, float3 start, float3 end, float4 color);
+		void (*draw_gui) (Graphics*, float2 position, float2 size, MaterialHandle material, float4 color);
+
 		// WINDOW FUNCTIONS	
-		GetWindowWidthFunc * 		get_window_width;
-		GetWindowHeightFunc * 		get_window_height;
-		IsWindowFullScreenFunc * 	is_window_fullscreen;
-		SetWindowFullscreenFunc * 	set_window_fullscreen;
+		u32 (*get_window_width) (Window const *);
+		u32 (*get_window_height) (Window const *);
+		bool32 (*is_window_fullscreen) (Window const *);
+		void (*set_window_fullscreen) (Window*, bool32 value);
 	};
+
 }
 
 namespace game
@@ -161,7 +136,7 @@ namespace game
 				break;
 
 			default:
-				DEVELOPMENT_BAD_PATH("Invalid ButtonState value");
+				DEBUG_ASSERT(false, "Invalid ButtonState value");
 		}
 
 		return buttonState;
@@ -171,7 +146,6 @@ namespace game
 	{
 		float2 move;
 		float2 look;
-
 
 		// Todo(Leo): Do a proper separate mapping struct of meanings of specific buttons
 		ButtonState jump;
@@ -190,7 +164,7 @@ namespace game
 		ButtonState zoomIn;
 		ButtonState zoomOut;
 
-		real32 elapsedTime;
+		float elapsedTime;
 	};
 	
 	struct Memory
@@ -258,7 +232,7 @@ namespace std
 
 // TODO(Leo): can we put this into namespace? Should we?
 extern "C" bool32
-GameUpdate(
+update_game(
 	game::Input * 			input,
 	game::Memory * 			memory,
 	game::Network *			network,

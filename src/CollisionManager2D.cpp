@@ -41,7 +41,7 @@ struct CollisionManager2D
 
 		for (s32 i = 0; i < colliders.count(); ++i)
 		{
-			DEVELOPMENT_ASSERT(is_handle_valid(colliders[i]->transform), "Invalid transform passed to Collider2D");
+			DEBUG_ASSERT(is_handle_valid(colliders[i]->transform), "Invalid transform passed to Collider2D");
 
 			switch(colliders[i]->tag)
 			{

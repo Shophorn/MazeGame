@@ -56,7 +56,7 @@ namespace glTF
 			case ComponentType::FLOAT: 			return 4;
 
 			default:
-				DEVELOPMENT_ASSERT(false, "Hello bad choices: Invalid glTF component type");
+				DEBUG_ASSERT(false, "Hello bad choices: Invalid glTF component type");
 		}
 	}
 }

@@ -101,12 +101,12 @@ Run(HINSTANCE winInstance)
         state.platformFunctions.push_pipeline       = vulkan::push_pipeline;
         state.platformFunctions.unload_scene        = vulkan::unload_scene;
 
-        state.platformFunctions.prepare_drawing  = vulkan::prepare_drawing;
-        state.platformFunctions.finish_drawing   = vulkan::finish_drawing;
-        state.platformFunctions.update_camera    = vulkan::update_camera;
-        state.platformFunctions.draw_model       = vulkan::record_draw_command;
-        state.platformFunctions.draw_line        = vulkan::record_line_draw_command;
-        state.platformFunctions.draw_gui         = vulkan::record_gui_draw_command;
+        state.platformFunctions.prepare_frame       = vulkan::prepare_drawing;
+        state.platformFunctions.finish_frame        = vulkan::finish_drawing;
+        state.platformFunctions.update_camera       = vulkan::update_camera;
+        state.platformFunctions.draw_model          = vulkan::record_draw_command;
+        state.platformFunctions.draw_line           = vulkan::record_line_draw_command;
+        state.platformFunctions.draw_gui            = vulkan::record_gui_draw_command;
 
         // WINDOW FUNCTIONS
         state.platformFunctions.get_window_width        = [](platform::Window const * window) { return window->width; };

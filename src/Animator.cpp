@@ -40,7 +40,7 @@ struct Animator
 internal AnimationRig
 make_animation_rig(Handle<Transform3D> root, ArenaArray<Handle<Transform3D>> bones, ArenaArray<u64> currentBoneKeyframes)
 {
-	DEVELOPMENT_ASSERT(bones.count() == currentBoneKeyframes.count(), "Currently you must pass keyframe array with matching size to bones array. Sorry for inconvenience :)");
+	DEBUG_ASSERT(bones.count() == currentBoneKeyframes.count(), "Currently you must pass keyframe array with matching size to bones array. Sorry for inconvenience :)");
 
 	AnimationRig result 
 	{

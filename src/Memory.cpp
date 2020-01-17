@@ -21,7 +21,7 @@ struct StaticArray
 
 	T & operator [] (s32 index)
 	{
-		DEVELOPMENT_ASSERT (index < Count, "Index outside StaticArray bounds");
+		DEBUG_ASSERT (index < Count, "Index outside StaticArray bounds");
 		return _items[index];
 	}
 };
@@ -55,7 +55,7 @@ reserve_from_memory_arena(MemoryArena * arena, u64 size)
 {
 	size = align_up_to(size, MemoryArena::defaultAlignment);
 	
-	DEVELOPMENT_ASSERT(size <= arena->available(), "Not enough memory available in MemoryArena");
+	DEBUG_ASSERT(size <= arena->available(), "Not enough memory available in MemoryArena");
 
 	byte * result = arena->next();
 	arena->used += size;
@@ -144,7 +144,7 @@ private:
 	inline ArrayHeader * 
 	get_header ()
 	{ 
-		DEVELOPMENT_ASSERT(_data != nullptr, "Invalid call to 'get_header()', ArenaArray is not initialized.");
+		DEBUG_ASSERT(_data != nullptr, "Invalid call to 'get_header()', ArenaArray is not initialized.");
 		return reinterpret_cast<ArrayHeader*>(_data);
 	}
 
@@ -154,7 +154,7 @@ private:
 		#if MAZEGAME_DEVELOPMENT
 			char message [200];
 			sprintf(message,"Index (%d) is more than count (%d)", index, count());
-			DEVELOPMENT_ASSERT (index < count(), message);
+			DEBUG_ASSERT (index < count(), message);
 		#endif
 	}
 };
@@ -164,7 +164,7 @@ namespace array_internal
 	ARENA_ARRAY_TEMPLATE internal ArrayHeader *
 	get_header(ArenaArray<T, TIndex> array)
 	{
-		DEVELOPMENT_ASSERT(array._data != nullptr, "Invalid call to 'array_internal::get_header()', ArenaArray is not initialized.");
+		DEBUG_ASSERT(array._data != nullptr, "Invalid call to 'array_internal::get_header()', ArenaArray is not initialized.");
 		return reinterpret_cast<ArrayHeader *>(array._data);
 	}
 
@@ -238,7 +238,7 @@ push_array(MemoryArena * arena, std::initializer_list<T> items)
 ARENA_ARRAY_TEMPLATE internal ArenaArray<T, TIndex>
 copy_array_slice(MemoryArena * arena, ArenaArray<T, TIndex> original, TIndex start, u64 count)
 {
-	DEVELOPMENT_ASSERT((start + count) <= original.capacity(), "Invalid copy slice region");
+	DEBUG_ASSERT((start + count) <= original.capacity(), "Invalid copy slice region");
 
 	auto * begin 	= original.begin() + start;
 	auto * end 		= begin + count;
@@ -277,8 +277,8 @@ reverse_arena_array(ArenaArray<T, TIndex> array)
 ARENA_ARRAY_TEMPLATE internal TIndex
 push_one(ArenaArray<T, TIndex> array, T item)
 {
-	DEVELOPMENT_ASSERT(array.capacity() > 0, "Cannot push, ArenaArray is not initialized!");
-	DEVELOPMENT_ASSERT(array.count() < array.capacity(), "Cannot push, ArenaArray is full!");
+	DEBUG_ASSERT(array.capacity() > 0, "Cannot push, ArenaArray is not initialized!");
+	DEBUG_ASSERT(array.count() < array.capacity(), "Cannot push, ArenaArray is full!");
 
 	TIndex index = {array.count()};
 	*array.end() = item;
@@ -292,8 +292,8 @@ push_range(ArenaArray<T, TIndex> array, const T * begin, const T * end)
 {
 	u64 rangeLength = end - begin;
 
-	DEVELOPMENT_ASSERT(array.capacity() > 0, "Cannot push, ArenaArray is not initialized!");
-	DEVELOPMENT_ASSERT((rangeLength + array.count()) <= array.capacity(), "Cannot push, ArenaArray is full!");
+	DEBUG_ASSERT(array.capacity() > 0, "Cannot push, ArenaArray is not initialized!");
+	DEBUG_ASSERT((rangeLength + array.count()) <= array.capacity(), "Cannot push, ArenaArray is full!");
 
 	std::copy(begin, end, array.end());
 	array_internal::increment_count(array, rangeLength);

@@ -31,7 +31,7 @@ RandomValue()
 internal real32
 RandomRange(real32 min, real32 max)
 {
-    DEVELOPMENT_ASSERT (min <= max, "'min' must be smaller than 'max'");
+    DEBUG_ASSERT (min <= max, "'min' must be smaller than 'max'");
 
     real32 value = static_cast<real32>(xor128()) / static_cast<real32>(maxValue<u32>);
     real32 range = max - min;

@@ -1208,7 +1208,7 @@ vulkan::create_uniform_descriptor_pool(VulkanContext * context)
     poolInfo.pPoolSizes = &poolSizes[0];
     poolInfo.maxSets = 20;
 
-    DEVELOPMENT_ASSERT(
+    DEBUG_ASSERT(
         vkCreateDescriptorPool(context->device, &poolInfo, nullptr, &context->uniformDescriptorPool) == VK_SUCCESS,
         "Failed to create descriptor pool");
 }
@@ -1230,7 +1230,7 @@ vulkan::create_material_descriptor_pool(VulkanContext * context)
         .maxSets        = vulkan::MAX_LOADED_TEXTURES,
     };
 
-    DEVELOPMENT_ASSERT(
+    DEBUG_ASSERT(
         vkCreateDescriptorPool(context->device, &poolCreateInfo, nullptr, &context->materialDescriptorPool) == VK_SUCCESS,
         "Failed to create descriptor pool for materials!");
 }
@@ -1324,8 +1324,8 @@ vulkan::make_material_descriptor_set(
     u32 textureCount = context->loadedPipelines[pipelineHandle].info.options.textureCount;
     constexpr u32 maxTextures = 10;
     
-    DEVELOPMENT_ASSERT(textureCount < maxTextures, "Too many textures on material");
-    DEVELOPMENT_ASSERT(textureCount == textures.count(), "Wrong number of textures in ArenaArray 'textures'");
+    DEBUG_ASSERT(textureCount < maxTextures, "Too many textures on material");
+    DEBUG_ASSERT(textureCount == textures.count(), "Wrong number of textures in ArenaArray 'textures'");
 
     VkDescriptorSetAllocateInfo allocateInfo =
     { 
@@ -1433,7 +1433,7 @@ vulkan::make_framebuffer(   VulkanContext * context,
     };
 
     VkFramebuffer result;
-    DEVELOPMENT_ASSERT(
+    DEBUG_ASSERT(
         vkCreateFramebuffer(context->device, &createInfo, nullptr, &result) == VK_SUCCESS,
         "Failed to create framebuffer");
 
@@ -1978,7 +1978,7 @@ create_virtual_frames(VulkanContext * context)
         success = success && vkCreateSemaphore(context->device, &semaphoreInfo, nullptr, &frame.renderFinishedSemaphore) == VK_SUCCESS;
         success = success && vkCreateFence(context->device, &fenceInfo, nullptr, &frame.inFlightFence) == VK_SUCCESS;
 
-        DEVELOPMENT_ASSERT(success, "Failed to create VulkanVirtualFrame");
+        DEBUG_ASSERT(success, "Failed to create VulkanVirtualFrame");
     }
 }
 
@@ -2031,7 +2031,7 @@ namespace winapi
             .hinstance  = winInstance,
             .hwnd       = winWindow 
         };
-        DEVELOPMENT_ASSERT(vkCreateWin32SurfaceKHR(resultContext.instance, &surfaceCreateInfo, nullptr, &resultContext.surface) == VK_SUCCESS,
+        DEBUG_ASSERT(vkCreateWin32SurfaceKHR(resultContext.instance, &surfaceCreateInfo, nullptr, &resultContext.surface) == VK_SUCCESS,
                         "Failed to create win32 surface.");
 
         resultContext.physicalDevice = PickPhysicalDevice(resultContext.instance, resultContext.surface);

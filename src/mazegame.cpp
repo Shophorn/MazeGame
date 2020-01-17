@@ -144,7 +144,7 @@ Todo(Leo): indicate meaning of return value betterly somewhere,
 I almost forgot it.
 */
 extern "C" bool32
-GameUpdate(
+update_game(
 	game::Input * 			input,
 	game::Memory * 			memory,
 	game::Network *			network,
@@ -169,13 +169,13 @@ GameUpdate(
 	}
 	flush_memory_arena(&state->transientMemoryArena);
 	
-	functions->prepare_drawing(graphics);
+	functions->prepare_frame(graphics);
 	auto guiResult = state->loadedSceneInfo->update(state->loadedScene,
 													input,
 													graphics,
 													window,
 													functions);
-	functions->finish_drawing(graphics);
+	functions->finish_frame(graphics);
 
 
 	bool32 gameIsAlive = true;

@@ -40,20 +40,18 @@ get_file_write_time(const char * fileName)
 // Todo(Leo): Change to wide strings???
 constexpr static char GAMECODE_DLL_FILE_NAME [] = "Mazegame.dll";
 constexpr static char GAMECODE_DLL_FILE_NAME_TEMP [] = "Mazegame_temp.dll";
-constexpr static char GAMECODE_UPDATE_FUNC_NAME [] = "GameUpdate";
+constexpr static char GAMECODE_UPDATE_FUNC_NAME [] = "update_game";
 
 namespace winapi
 {
     struct Game
     {
-    	HMODULE dllHandle;
-
-        // Note(Leo): this is for hot reloading game code during development
+        // Note(Leo): these are for hot reloading game code during development
         // Todo(Leo): Remove functionality from final game
+    	HMODULE dllHandle;
         FILETIME dllWriteTime;
 
-    	using UpdateFunc = decltype(GameUpdate);
-    	UpdateFunc * Update;	
+    	decltype(update_game) * Update;	
     };
 
     bool32 is_loaded(Game * game)
@@ -64,14 +62,14 @@ namespace winapi
     void
     load_game(Game * game)
     {
-        DEVELOPMENT_ASSERT(is_loaded(game) == false, "Game code is already loaded, unload before reloading");
+        DEBUG_ASSERT(is_loaded(game) == false, "Game code is already loaded, unload before reloading");
 
         CopyFileA(GAMECODE_DLL_FILE_NAME, GAMECODE_DLL_FILE_NAME_TEMP, false);
         game->dllHandle = LoadLibraryA(GAMECODE_DLL_FILE_NAME_TEMP);
         if(game->dllHandle != nullptr)
         {
             FARPROC procAddress = GetProcAddress(game->dllHandle, GAMECODE_UPDATE_FUNC_NAME);
-            game->Update        = reinterpret_cast<Game::UpdateFunc *>(procAddress);
+            game->Update        = reinterpret_cast<decltype(update_game)*>(procAddress);
             game->dllWriteTime  = get_file_write_time(GAMECODE_DLL_FILE_NAME);
         }
     }

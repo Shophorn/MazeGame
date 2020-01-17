@@ -24,7 +24,7 @@ struct Circle
 internal bool32
 CircleCircleCollision(Circle a, Circle b)
 {
-	DEVELOPMENT_BAD_PATH("vector::get_sqr_distance() is not tested");
+	DEBUG_ASSERT(false, "vector::get_sqr_distance() and therefore this function too, is not tested");
 
 	real32 distanceThreshold = a.radius + b.radius;
 	real32 sqrDistanceThreshold = distanceThreshold * distanceThreshold;
