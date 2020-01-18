@@ -347,7 +347,7 @@ scene_2d::load(	void * scenePtr,
 
 		if (addPlatforms)
 		{
-			Vector3 platformPositions [] =
+			vector3 platformPositions [] =
 			{
 				{-6, 0, 6},
 				{-4, 0, 6},
@@ -385,13 +385,13 @@ scene_2d::load(	void * scenePtr,
 			auto keyholeMeshHandle 	= functions->push_mesh(graphics, &keyholeMeshAsset);
 
 			auto renderer 	= make_handle<Renderer>({push_model(keyholeMeshHandle, materials.environment)});
-			auto transform 	= make_handle<Transform3D>({Vector3{5, 0, 0}});
+			auto transform 	= make_handle<Transform3D>({vector3{5, 0, 0}});
 
 			push_one(scene->renderSystem, {transform, renderer});
 			push_collider(&scene->collisionManager, transform, {0.3f, 0.6f}, {0, 0.3f}, ColliderTag::Trigger);
 
 			renderer 	= make_handle<Renderer>({push_model(keyholeMeshHandle, materials.environment)});
-			transform 	= make_handle<Transform3D>({Vector3{4, 0, 6}});
+			transform 	= make_handle<Transform3D>({vector3{4, 0, 6}});
 
 			push_one(scene->renderSystem, {transform, renderer});
 			push_collider(&scene->collisionManager, transform, {0.3f, 0.6f}, {0, 0.3f}, ColliderTag::Trigger2);

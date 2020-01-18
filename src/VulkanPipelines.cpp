@@ -416,7 +416,7 @@ vulkan::make_line_pipeline(
     {
         .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
         .offset     = 0, 
-        .size       = sizeof(Vector4[3])
+        .size       = sizeof(vector4[3])
     };
 
     auto materialLayout = vulkan::create_material_descriptor_set_layout(context->device, 0);
@@ -644,7 +644,7 @@ vulkan::make_gui_pipeline(
     {
         .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
         .offset     = 0, 
-        .size       = sizeof(Vector4[3])
+        .size       = sizeof(vector4[3])
     };
 
     auto materialLayout = vulkan::create_material_descriptor_set_layout(context->device, 1);

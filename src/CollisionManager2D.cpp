@@ -8,8 +8,8 @@ enum struct ColliderTag : s32
 
 struct Collision2D
 {
-	Vector3 		position;
-	Vector3 		normal;
+	vector3 		position;
+	vector3 		normal;
 	ColliderTag 	tag;
 };
 
@@ -17,8 +17,8 @@ struct Collision2D
 struct Collider2D
 {
 	Handle<Transform3D>	transform;
-	float2			extents;
-	float2			offset;
+	vector2			extents;
+	vector2			offset;
 
 	ColliderTag	tag;
 
@@ -32,12 +32,12 @@ struct CollisionManager2D
 	ArenaArray<Collision2D> collisions;
 
 	bool32
-	raycast(float2 origin, float2 ray, bool32 laddersBlock)
+	raycast(vector2 origin, vector2 ray, bool32 laddersBlock)
 	{
-		float2 corners [4];
+		vector2 corners [4];
 		
-		float2 start 	= origin;
-		float2 end 	= origin + ray;
+		vector2 start 	= origin;
+		vector2 end 	= origin + ray;
 
 		for (s32 i = 0; i < colliders.count(); ++i)
 		{
@@ -58,17 +58,17 @@ struct CollisionManager2D
 						continue;
 			}
 
-			Vector3 worldPosition = get_world_position(colliders[i]->transform);
-			float2 position2D = {	worldPosition.x, worldPosition.z };
+			vector3 worldPosition = get_world_position(colliders[i]->transform);
+			vector2 position2D = {	worldPosition.x, worldPosition.z };
 
 			position2D += colliders[i]->offset;
-			float2 extents = colliders[i]->extents;
+			vector2 extents = colliders[i]->extents;
 
 			// Compute corners first
-			corners[0] = position2D + float2 {-extents.x, -extents.y};
-			corners[1] = position2D + float2 {extents.x, -extents.y};
-			corners[2] = position2D + float2 {-extents.x, extents.y};
-			corners[3] = position2D + float2 {extents.x, extents.y};
+			corners[0] = position2D + vector2 {-extents.x, -extents.y};
+			corners[1] = position2D + vector2 {extents.x, -extents.y};
+			corners[2] = position2D + vector2 {-extents.x, extents.y};
+			corners[3] = position2D + vector2 {extents.x, extents.y};
 
 			// (0<AM⋅AB<AB⋅AB)∧(0<AM⋅AD<AD⋅AD)
 			auto AMstart = start - corners[0];
@@ -106,8 +106,8 @@ struct CollisionManager2D
 		{
 			for (s32 b = a + 1; b < colliders.count(); ++b)
 			{
-				float2 positionA = float2{get_world_position(colliders[a]->transform).x, get_world_position(colliders[a]->transform).z} + colliders[a]->offset;
-				float2 positionB = float2{get_world_position(colliders[b]->transform).x, get_world_position(colliders[b]->transform).z} + colliders[b]->offset;
+				vector2 positionA = vector2{get_world_position(colliders[a]->transform).x, get_world_position(colliders[a]->transform).z} + colliders[a]->offset;
+				vector2 positionB = vector2{get_world_position(colliders[b]->transform).x, get_world_position(colliders[b]->transform).z} + colliders[b]->offset;
 
 				float xDeltaAtoB 	= positionB.x - positionA.x;
 				float xDistance		= Abs(xDeltaAtoB);
@@ -157,8 +157,8 @@ struct CollisionManager2D
 internal Handle<Collider2D>
 push_collider(	CollisionManager2D * manager,
 				Handle<Transform3D> transform,
-				float2 extents,
-				float2 offset = {0, 0},
+				vector2 extents,
+				vector2 offset = {0, 0},
 				ColliderTag tag = ColliderTag::Default)
 {
 	auto collider = make_handle<Collider2D>({

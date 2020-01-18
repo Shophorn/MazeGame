@@ -15,10 +15,10 @@ struct CharacterController3rdPerson
 
 	// State
 	float 	zSpeed;
-	Vector3 forward;
+	vector3 forward;
 
-	Vector3 hitRayPosition;
-	Vector3 hitRayNormal;
+	vector3 hitRayPosition;
+	vector3 hitRayNormal;
 };
 
 internal CharacterController3rdPerson
@@ -34,15 +34,15 @@ make_character(Handle<Transform3D> transform)
 	return result;
 }
 
-internal Vector3
+internal vector3
 ProcessCharacterInput(game::Input * input, Camera * camera)
 {
-	Vector3 viewForward = camera->forward;
+	vector3 viewForward = camera->forward;
 	viewForward.z 		= 0;
 	viewForward 		= vector::normalize(viewForward);
-	Vector3 viewRight 	= vector::cross(viewForward, World::Up);
+	vector3 viewRight 	= vector::cross(viewForward, World::Up);
 
-	Vector3 result = viewRight * input->move.x
+	vector3 result = viewRight * input->move.x
 					+ viewForward * input->move.y;
 
 	return result;
@@ -57,18 +57,18 @@ update_character(
 		platform::Graphics * 	graphics,
 		platform::Functions * 	functions)
 {
-	Vector3 movementVector = ProcessCharacterInput(input, worldCamera) * controller->speed * input->elapsedTime;
+	vector3 movementVector = ProcessCharacterInput(input, worldCamera) * controller->speed * input->elapsedTime;
 
-	Vector3 direction;
+	vector3 direction;
 	float distance;
 	vector::dissect(movementVector, &direction, &distance);
 
 	if (distance > 0)
 	{
 		constexpr int rayCount = 5;
-		Vector3 up 	= get_up(controller->transform);
+		vector3 up 	= get_up(controller->transform);
 
-		Vector3 rayStartPositions [rayCount];
+		vector3 rayStartPositions [rayCount];
 		float sineStep 	= 2.0f / (rayCount - 1);
 
 		rayStartPositions[0] = vector::rotate(direction * controller->collisionRadius, up, pi / 2.0f);
@@ -84,7 +84,7 @@ update_character(
 		RaycastResult raycastResult;
 		for (int i  = 0; i < rayCount; ++i)
 		{
-			Vector3 start = rayStartPositions[i] + up * 0.25f + controller->transform->position;
+			vector3 start = rayStartPositions[i] + up * 0.25f + controller->transform->position;
 
 			bool32 hit = raycast_3d(collisionSystem, start, direction, distance, &raycastResult);
 			rayHit = rayHit || hit;

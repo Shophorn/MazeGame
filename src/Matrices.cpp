@@ -3,6 +3,9 @@ Leo Tamminen
 
 Matrix structure declaration and definition.
 Matrices are column major.
+
+Todo(Leo):
+	- make matrix calls free functions
 =============================================================================*/
 #define MATRIX_TEMPLATE template <typename ValueType, int RowsCount, int ColumnsCount>
 #define MATRIX_TYPE MatrixBase<ValueType, RowsCount, ColumnsCount>
@@ -12,12 +15,9 @@ Matrices are column major.
 #define STATIC_ASSERT_SQUARE_MATRIX static_assert(RowsCount == ColumnsCount, "Matrix must be square matrix")
 #define STATIC_ASSERT_TRANSFORM_MATRIX static_assert((RowsCount == 4) && (ColumnsCount == 4), "Matrix must be 4x4 transform matrix")
 
-/* This is a tag to mark variables explicitly as not initialized.
-By convention variables should be initialized or marked MATRIX_NO_INIT */
-#define MATRIX_NO_INIT
 
 MATRIX_TEMPLATE
-union MatrixBase
+struct MatrixBase
 {
 	using value_type 					= ValueType;
 	constexpr static int rows_count 	= RowsCount;
@@ -30,9 +30,7 @@ union MatrixBase
 
 
 	/// -------- CONTENTS -------------------
-	// Todo(Leo): Is this better than columns only?
 	column_vector_type 	columns [columns_count];
-	value_type 			values 	[rows_count * columns_count];
 
 
 	/// ------- ACCESSORS ----------------------------
@@ -77,13 +75,11 @@ union MatrixBase
 	{
 		using transpose_type = MatrixBase<ValueType, columns_count, rows_count>;
 		
-		MATRIX_NO_INIT transpose_type result;
-
+		transpose_type result;
 		for (int row = 0; row < rows_count; ++row)
 		{
 			result.columns[row] = GetRow(row);
 		}
-
 		return result;
 	}
 
@@ -95,7 +91,7 @@ union MatrixBase
 		STATIC_ASSERT_TRANSFORM_MATRIX;
 
 		matrix_type result = Diagonal(1);
-		result[3] = Vector4{translate.x, translate.y, translate.z, 1.0f};
+		result[3] = vector4{translate.x, translate.y, translate.z, 1.0f};
 		return result;
 	}
 
@@ -130,7 +126,7 @@ union MatrixBase
 	{
 		STATIC_ASSERT_TRANSFORM_MATRIX;
 
-		real32 	x = rotation.x,
+		float 	x = rotation.x,
 				y = rotation.y,
 				z = rotation.z,
 				w = rotation.w;
@@ -148,7 +144,7 @@ union MatrixBase
 
 
 	class_member matrix_type
-	Transform(Vector3 translation, real32 uniformScale = 1.0f)
+	Transform(vector3 translation, float uniformScale = 1.0f)
 	{
 		STATIC_ASSERT_TRANSFORM_MATRIX;
 
@@ -164,16 +160,16 @@ union MatrixBase
 	}
 
 	class_member matrix_type
-	Transform(Vector3 translation, Quaternion rotation, real32 uniformScale = 1.0f)
+	Transform(vector3 translation, Quaternion rotation, float uniformScale = 1.0f)
 	{
 		STATIC_ASSERT_TRANSFORM_MATRIX;
 
-		real32 	x = rotation.x,
+		float 	x = rotation.x,
 				y = rotation.y,
 				z = rotation.z,
 				w = rotation.w;
 
-		real32 s = uniformScale;
+		float s = uniformScale;
 
 		// Note(Leo): Using SSE could be faster than this.
 		matrix_type result =
@@ -189,7 +185,7 @@ union MatrixBase
 
 	// TODO(Leo): Manually inline calculations
 	class_member matrix_type
-	Transform(Vector3 translation, Quaternion rotation, Vector3 scale)
+	Transform(vector3 translation, Quaternion rotation, vector3 scale)
 	{
 		STATIC_ASSERT_TRANSFORM_MATRIX;
 
@@ -200,7 +196,7 @@ union MatrixBase
 
 };
 
-using Matrix44 = MatrixBase<real32, 4, 4>;
+using Matrix44 = MatrixBase<float, 4, 4>;
 
 
 // Note(Leo): new style functions here
@@ -213,7 +209,7 @@ get_rotation_matrix(Quaternion quaternion)
 }
 
 Matrix44
-make_transform_matrix(Vector3 translation, float uniformScale = 1.0f)
+make_transform_matrix(vector3 translation, float uniformScale = 1.0f)
 {
 	Matrix44 result = {};
 
@@ -227,14 +223,14 @@ make_transform_matrix(Vector3 translation, float uniformScale = 1.0f)
 }
 
 Matrix44
-make_transform_matrix(Vector3 translation, Quaternion rotation, float uniformScale = 1.0f)
+make_transform_matrix(vector3 translation, Quaternion rotation, float uniformScale = 1.0f)
 {
-	real32 	x = rotation.x,
+	float 	x = rotation.x,
 			y = rotation.y,
 			z = rotation.z,
 			w = rotation.w;
 
-	real32 s = uniformScale;
+	float s = uniformScale;
 
 	// Note(Leo): Using SSE could be faster than this.
 	Matrix44 result =
@@ -248,33 +244,39 @@ make_transform_matrix(Vector3 translation, Quaternion rotation, float uniformSca
 	return result;	
 }
 
+template<typename LeftMatrixType, typename RightMatrixType>
+using ProductType = MatrixBase<typename LeftMatrixType::value_type,
+								LeftMatrixType::rows_count,
+								RightMatrixType::columns_count>;	
+
 template <typename ValueType, int LeftRows, int InnerSize, int RightColumns>
 auto operator * (
 	MatrixBase<ValueType, LeftRows, InnerSize> lhs,
 	MatrixBase<ValueType, InnerSize, RightColumns> rhs
 ){
+	// SETUP AND ASSERTIONS :D
 	using LeftMatrixType = decltype(lhs);
 	using RightMatrixType = decltype (rhs);
 
-	static_assert(
-		std::is_same_v<typename LeftMatrixType::value_type, typename RightMatrixType::value_type>,
-		"Cannot multiply matrices of different value types");
+	static_assert(	std::is_same_v<typename LeftMatrixType::value_type, typename RightMatrixType::value_type>,
+					"Cannot multiply matrices of different value types");
 
-	static_assert(
-		LeftMatrixType::columns_count == RightMatrixType::rows_count,
-		"Matrices' inner sizes must be equal");
+	static_assert(	LeftMatrixType::columns_count == RightMatrixType::rows_count,
+					"Matrices' inner sizes must be equal");
 
-	using value_type = typename LeftMatrixType::value_type;
-	constexpr int rows_count = LeftMatrixType::rows_count;
-	constexpr int columns_count = RightMatrixType::columns_count;
+	using product_type = ProductType<LeftMatrixType, RightMatrixType>;
 
-	using result_type = MatrixBase<value_type, rows_count, columns_count>;
+	// COMPUTATATION
+	auto leftTranspose = lhs.Transpose();
+	product_type product;
 
-	/* Todo(Leo): this would be better getting columns from transpose instead of
-	GetRow in each iteration */
-	result_type result;
-	MATRIX_LOOP_ELEMENTS { result[col][row] = vector::dot(lhs.GetRow(row), rhs[col]); }
-	return result;
+	for (int col = 0; col < product_type::columns_count; ++col)
+		for (int row = 0; row < product_type::rows_count; ++row)
+		{ 
+			product[col][row] = vector::dot(leftTranspose[row], rhs[col]);
+		}
+
+	return product;
 }
 
 
@@ -296,14 +298,15 @@ namespace std
 #endif
 
 
-// Todo (Leo): make template
-inline Vector3 
-operator * (const Matrix44 & mat, Vector3 vec)
-{
-	MatrixBase<real32, 4, 1> vecMatrix = { vec.x, vec.y, vec.z, 1.0	};
-	MatrixBase<real32, 4, 1> product = mat * vecMatrix;
+template<u32 Rows, u32 Columns>
+using matrixf = MatrixBase<float, Rows, Columns>;
 
-	// std::cout << vec << ", " << product << "\n";
+// Todo (Leo): make template
+inline vector3 
+operator * (const Matrix44 & mat, vector3 vec)
+{
+	matrixf<4,1> vecMatrix = { vec.x, vec.y, vec.z, 1.0	};
+	matrixf<4,1> product = mat * vecMatrix;
 
 	vec = {
 		product[0][0] / product[0][3],
@@ -312,10 +315,6 @@ operator * (const Matrix44 & mat, Vector3 vec)
 	};
 	return vec;
 }
-
-
-
-
 
 
 #undef MATRIX_TEMPLATE

@@ -4,9 +4,50 @@ Leo Tamminen
 Implementations of vulkan related functions
 =============================================================================*/
 #include "winapi_Vulkan.hpp"
+
 #include "VulkanScene.cpp"
 #include "VulkanDrawing.cpp"
 #include "VulkanPipelines.cpp"
+
+internal VkFormat
+vulkan::find_supported_format(
+    VkPhysicalDevice physicalDevice,
+    s32 candidateCount,
+    VkFormat * pCandidates,
+    VkImageTiling requestedTiling,
+    VkFormatFeatureFlags requestedFeatures
+){
+    bool32 requestOptimalTiling = requestedTiling == VK_IMAGE_TILING_OPTIMAL;
+
+    for (VkFormat * pFormat = pCandidates; pFormat != pCandidates + candidateCount; ++pFormat)
+    {
+        VkFormatProperties properties;
+        vkGetPhysicalDeviceFormatProperties(physicalDevice, *pFormat, &properties);
+
+        VkFormatFeatureFlags features = requestOptimalTiling ? 
+            properties.optimalTilingFeatures : properties.linearTilingFeatures;    
+
+        if ((features & requestedFeatures) == requestedFeatures)
+        {
+            return *pFormat;
+        }
+    }
+
+    throw std::runtime_error("Failed to find supported format");
+}
+
+internal VkFormat
+vulkan::find_supported_depth_format(VkPhysicalDevice physicalDevice)   
+{
+    VkFormat formats [] = { VK_FORMAT_D32_SFLOAT,
+                            VK_FORMAT_D32_SFLOAT_S8_UINT,
+                            VK_FORMAT_D24_UNORM_S8_UINT };
+    s32 formatCount = 3;
+    VkFormat result = find_supported_format(
+                        physicalDevice, formatCount, formats, VK_IMAGE_TILING_OPTIMAL, 
+                        VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
+    return result;
+}
 
 internal u32
 vulkan::find_memory_type (VkPhysicalDevice physicalDevice, u32 typeFilter, VkMemoryPropertyFlags properties)
@@ -759,57 +800,17 @@ CreateSwapchainAndImages(VulkanContext * context, VkExtent2D frameBufferSize)
     return resultSwapchain;
 }
 
-internal VkFormat
-FindSupportedFormat(
-    VkPhysicalDevice physicalDevice,
-    s32 candidateCount,
-    VkFormat * pCandidates,
-    VkImageTiling requestedTiling,
-    VkFormatFeatureFlags requestedFeatures
-){
-    bool32 requestOptimalTiling = requestedTiling == VK_IMAGE_TILING_OPTIMAL;
-
-    for (VkFormat * pFormat = pCandidates; pFormat != pCandidates + candidateCount; ++pFormat)
-    {
-        VkFormatProperties properties;
-        vkGetPhysicalDeviceFormatProperties(physicalDevice, *pFormat, &properties);
-
-        VkFormatFeatureFlags features = requestOptimalTiling ? 
-            properties.optimalTilingFeatures : properties.linearTilingFeatures;    
-
-        if ((features & requestedFeatures) == requestedFeatures)
-        {
-            return *pFormat;
-        }
-    }
-
-    throw std::runtime_error("Failed to find supported format");
-}
-
-internal VkFormat
-FindSupportedDepthFormat(VkPhysicalDevice physicalDevice)   
-{
-    VkFormat formats [] = { VK_FORMAT_D32_SFLOAT,
-                            VK_FORMAT_D32_SFLOAT_S8_UINT,
-                            VK_FORMAT_D24_UNORM_S8_UINT };
-    s32 formatCount = 3;
-
-
-    VkFormat result = FindSupportedFormat(
-                        physicalDevice, formatCount, formats, VK_IMAGE_TILING_OPTIMAL, 
-                        VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
-    return result;
-}
 
 internal VkRenderPass
-CreateRenderPass(VulkanContext * context, VulkanSwapchainItems * swapchainItems, VkSampleCountFlagBits msaaSamples)
+vulkan::make_render_pass(VulkanContext * context, VkFormat format, VkSampleCountFlagBits msaaSamples)
 {
-    constexpr int 
+    enum : s32
+    { 
         COLOR_ATTACHMENT_ID     = 0,
         DEPTH_ATTACHMENT_ID     = 1,
         RESOLVE_ATTACHMENT_ID   = 2,
-        ATTACHMENT_COUNT        = 3;
-
+        ATTACHMENT_COUNT        = 3,
+    };
     VkAttachmentDescription attachments[ATTACHMENT_COUNT] = {};
 
     /*
@@ -817,7 +818,7 @@ CreateRenderPass(VulkanContext * context, VulkanSwapchainItems * swapchainItems,
     using multisampling. After that final image is compiled to 'resolve'
     attachment that is image from swapchain and present that
     */
-    attachments[COLOR_ATTACHMENT_ID].format         = swapchainItems->imageFormat;
+    attachments[COLOR_ATTACHMENT_ID].format         = format;
     attachments[COLOR_ATTACHMENT_ID].samples        = msaaSamples;
     attachments[COLOR_ATTACHMENT_ID].loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
     attachments[COLOR_ATTACHMENT_ID].storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
@@ -826,7 +827,7 @@ CreateRenderPass(VulkanContext * context, VulkanSwapchainItems * swapchainItems,
     attachments[COLOR_ATTACHMENT_ID].initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
     attachments[COLOR_ATTACHMENT_ID].finalLayout    = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
-    attachments[DEPTH_ATTACHMENT_ID].format         = FindSupportedDepthFormat(context->physicalDevice);
+    attachments[DEPTH_ATTACHMENT_ID].format         = find_supported_depth_format(context->physicalDevice);
     attachments[DEPTH_ATTACHMENT_ID].samples        = msaaSamples;
     attachments[DEPTH_ATTACHMENT_ID].loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
     attachments[DEPTH_ATTACHMENT_ID].storeOp        = VK_ATTACHMENT_STORE_OP_DONT_CARE;
@@ -835,7 +836,7 @@ CreateRenderPass(VulkanContext * context, VulkanSwapchainItems * swapchainItems,
     attachments[DEPTH_ATTACHMENT_ID].initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
     attachments[DEPTH_ATTACHMENT_ID].finalLayout    = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
-    attachments[RESOLVE_ATTACHMENT_ID].format         = swapchainItems->imageFormat;
+    attachments[RESOLVE_ATTACHMENT_ID].format         = format;
     attachments[RESOLVE_ATTACHMENT_ID].samples        = VK_SAMPLE_COUNT_1_BIT;
     attachments[RESOLVE_ATTACHMENT_ID].loadOp         = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
     attachments[RESOLVE_ATTACHMENT_ID].storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
@@ -858,29 +859,29 @@ CreateRenderPass(VulkanContext * context, VulkanSwapchainItems * swapchainItems,
     resolveAttachmentRefs[0].attachment = RESOLVE_ATTACHMENT_ID;
     resolveAttachmentRefs[0].layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
-    VkSubpassDescription subpasses[1] = {};
-    subpasses[0].pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-    subpasses[0].colorAttachmentCount = COLOR_ATTACHMENT_COUNT;
-    subpasses[0].pColorAttachments = &colorAttachmentRefs[0];
-    subpasses[0].pResolveAttachments = &resolveAttachmentRefs[0];
-    subpasses[0].pDepthStencilAttachment = &depthStencilAttachmentRef;
+    VkSubpassDescription subpasses[1]       = {};
+    subpasses[0].pipelineBindPoint          = VK_PIPELINE_BIND_POINT_GRAPHICS;
+    subpasses[0].colorAttachmentCount       = COLOR_ATTACHMENT_COUNT;
+    subpasses[0].pColorAttachments          = &colorAttachmentRefs[0];
+    subpasses[0].pResolveAttachments        = &resolveAttachmentRefs[0];
+    subpasses[0].pDepthStencilAttachment    = &depthStencilAttachmentRef;
 
     // Note(Leo): subpass dependencies
     VkSubpassDependency dependencies[1] = {};
-    dependencies[0].srcSubpass = VK_SUBPASS_EXTERNAL;
-    dependencies[0].dstSubpass = 0;
-    dependencies[0].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    dependencies[0].srcAccessMask = 0;
-    dependencies[0].dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    dependencies[0].dstAccessMask = 0;//VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    dependencies[0].srcSubpass          = VK_SUBPASS_EXTERNAL;
+    dependencies[0].dstSubpass          = 0;
+    dependencies[0].srcStageMask        = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dependencies[0].srcAccessMask       = 0;
+    dependencies[0].dstStageMask        = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dependencies[0].dstAccessMask       = 0;//VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 
-    VkRenderPassCreateInfo renderPassInfo = { VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO };
-    renderPassInfo.attachmentCount = ATTACHMENT_COUNT;
-    renderPassInfo.pAttachments = &attachments[0];
-    renderPassInfo.subpassCount = ARRAY_COUNT(subpasses);
-    renderPassInfo.pSubpasses = &subpasses[0];
-    renderPassInfo.dependencyCount = ARRAY_COUNT(dependencies);
-    renderPassInfo.pDependencies = &dependencies[0];
+    VkRenderPassCreateInfo renderPassInfo   = { VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO };
+    renderPassInfo.attachmentCount          = ATTACHMENT_COUNT;
+    renderPassInfo.pAttachments             = &attachments[0];
+    renderPassInfo.subpassCount             = ARRAY_COUNT(subpasses);
+    renderPassInfo.pSubpasses               = &subpasses[0];
+    renderPassInfo.dependencyCount          = ARRAY_COUNT(dependencies);
+    renderPassInfo.pDependencies            = &dependencies[0];
 
     VkRenderPass resultRenderPass;
     if (vkCreateRenderPass(context->device, &renderPassInfo, nullptr, &resultRenderPass) != VK_SUCCESS)
@@ -1131,7 +1132,7 @@ vulkan::create_drawing_resources(VulkanContext * context)
                                                 VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
                                                 context->msaaSamples);
 
-    VkFormat depthFormat = FindSupportedDepthFormat(context->physicalDevice);
+    VkFormat depthFormat = find_supported_depth_format(context->physicalDevice);
     resultResources.depthImage = CreateImage(  context->device, context->physicalDevice,
                                                 context->swapchainItems.extent.width, context->swapchainItems.extent.height,
                                                 1, depthFormat, VK_IMAGE_TILING_OPTIMAL,
@@ -1390,11 +1391,11 @@ vulkan::make_material_descriptor_set(
     }
 
     VkDescriptorImageInfo samplerInfo = 
-        {
-            .sampler        = context->textureSampler,
-            .imageView      = context->loadedTextures[texture].view,
-            .imageLayout    = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-        };
+    {
+        .sampler        = context->textureSampler,
+        .imageView      = context->loadedTextures[texture].view,
+        .imageLayout    = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+    };
 
     VkWriteDescriptorSet writing =
     {  
@@ -1413,13 +1414,54 @@ vulkan::make_material_descriptor_set(
     return resultSet;
 }
 
+internal VkDescriptorSet
+make_offscreen_material_descriptor_set(
+    VulkanContext * context,
+    VulkanLoadedPipeline * pipeline,
+    VkDescriptorImageInfo * imageInfo)
+{
+    VkDescriptorSetAllocateInfo allocateInfo =
+    { 
+        .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+        .descriptorPool     = context->materialDescriptorPool,
+        .descriptorSetCount = 1,
+        .pSetLayouts        = &pipeline->materialLayout,
+    };
+
+    VkDescriptorSet resultSet;
+    VULKAN_CHECK(vkAllocateDescriptorSets(context->device, &allocateInfo, &resultSet));
+
+    // VkDescriptorImageInfo samplerInfo = 
+    // {
+    //     .sampler        = context->offscreenPass.sampler,
+    //     .imageView      = texture->view,
+    //     .imageLayout    = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+    // };
+
+    VkWriteDescriptorSet writing =
+    {  
+        .sType              = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        .dstSet             = resultSet,
+        .dstBinding         = DESCRIPTOR_LAYOUT_SAMPLER_BINDING,
+        .dstArrayElement    = 0,
+        .descriptorType     = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+        .descriptorCount    = 1,
+        .pImageInfo         = imageInfo,
+    };
+
+    // Note(Leo): Two first are write info, two latter are copy info
+    vkUpdateDescriptorSets(context->device, 1, &writing, 0, nullptr);
+
+    return resultSet;
+}
+
 internal VkFramebuffer
-vulkan::make_framebuffer(   VulkanContext * context,
+vulkan::make_framebuffer(   VkDevice        device,
                             VkRenderPass    renderPass,
-                            u32          attachmentCount,
+                            u32             attachmentCount,
                             VkImageView *   attachments,
-                            u32          width,
-                            u32          height)
+                            u32             width,
+                            u32             height)
 {
     VkFramebufferCreateInfo createInfo =
     {
@@ -1434,7 +1476,7 @@ vulkan::make_framebuffer(   VulkanContext * context,
 
     VkFramebuffer result;
     DEBUG_ASSERT(
-        vkCreateFramebuffer(context->device, &createInfo, nullptr, &result) == VK_SUCCESS,
+        vkCreateFramebuffer(device, &createInfo, nullptr, &result) == VK_SUCCESS,
         "Failed to create framebuffer");
 
     return result;
@@ -1542,7 +1584,7 @@ cmd_generate_mip_maps(  VkCommandBuffer commandBuffer,
 
 
 internal VulkanTexture
-vulkan::make_texture(TextureAsset * asset, VulkanContext * context)
+vulkan::make_texture(VulkanContext * context, TextureAsset * asset)
 {
     u32 width        = asset->width;
     u32 height       = asset->height;
@@ -1889,47 +1931,6 @@ CleanupSwapchain(VulkanContext * context)
     vulkan::destroy_loaded_pipeline(context, &context->guiDrawPipeline);
 }
 
-internal void
-Cleanup(VulkanContext * context)
-{
-    // Note(Leo): these are Graphics things
-    vulkan::unload_scene(context);
-
-    CleanupSwapchain(context);
-
-    vkDestroyDescriptorPool(context->device, context->uniformDescriptorPool, nullptr);
-    vkDestroyDescriptorPool(context->device, context->materialDescriptorPool, nullptr);
-
-    vkDestroySampler(context->device, context->textureSampler, nullptr);
-
-    // Todo(Leo): When we have scene, or different models, these too move away from here
-    vkDestroyDescriptorSetLayout(context->device, context->descriptorSetLayouts.model, nullptr);  
-    vkDestroyDescriptorSetLayout(context->device, context->descriptorSetLayouts.scene, nullptr);  
-
-    vulkan::destroy_buffer_resource(context->device, &context->staticMeshPool);
-    vulkan::destroy_buffer_resource(context->device, &context->stagingBufferPool);
-    vulkan::destroy_buffer_resource(context->device, &context->modelUniformBuffer);
-    vulkan::destroy_buffer_resource(context->device, &context->sceneUniformBuffer);
-    vulkan::destroy_buffer_resource(context->device, &context->guiUniformBuffer);
-
-    for (auto & frame : context->virtualFrames)
-    {
-        /* Note(Leo): command buffers are destroyed with command pool, but we need to destroy
-        framebuffers here, since they are always recreated immediately right after destroying
-        them in drawing procedure */
-        vkDestroyFramebuffer(context->device, frame.framebuffer, nullptr);
-        
-        vkDestroySemaphore(context->device, frame.renderFinishedSemaphore, nullptr);
-        vkDestroySemaphore(context->device, frame.imageAvailableSemaphore, nullptr);
-        vkDestroyFence(context->device, frame.inFlightFence, nullptr);
-    }
-
-    vkDestroyCommandPool(context->device, context->commandPool, nullptr);
-
-    vkDestroyDevice(context->device, nullptr);
-    vkDestroySurfaceKHR(context->instance, context->surface, nullptr);
-    vkDestroyInstance(context->instance, nullptr);
-}
 
 internal void
 create_virtual_frames(VulkanContext * context)
@@ -1973,6 +1974,8 @@ create_virtual_frames(VulkanContext * context)
         success = success && vkAllocateCommandBuffers(context->device, &secondaryCmdAllocateInfo, &frame.commandBuffers.scene) == VK_SUCCESS;
         success = success && vkAllocateCommandBuffers(context->device, &secondaryCmdAllocateInfo, &frame.commandBuffers.gui) == VK_SUCCESS;
 
+        success = success && vkAllocateCommandBuffers(context->device, &primaryCmdAllocateInfo, &frame.commandBuffers.offscreen) == VK_SUCCESS;
+
         // Synchronization stuff
         success = success && vkCreateSemaphore(context->device, &semaphoreInfo, nullptr, &frame.imageAvailableSemaphore) == VK_SUCCESS;
         success = success && vkCreateSemaphore(context->device, &semaphoreInfo, nullptr, &frame.renderFinishedSemaphore) == VK_SUCCESS;
@@ -1993,7 +1996,7 @@ vulkan::recreate_swapchain(VulkanContext * context, u32 width, u32 height)
     std::cout << "Recreating swapchain, width: " << width << ", height: " << height <<"\n";
 
     context->swapchainItems         = CreateSwapchainAndImages(context, {width, height} );
-    context->renderPass             = CreateRenderPass(context, &context->swapchainItems, context->msaaSamples);
+    context->renderPass             = make_render_pass(context, context->swapchainItems.imageFormat, context->msaaSamples);
     
     recreate_loaded_pipelines(context);
     context->lineDrawPipeline       = vulkan::make_line_pipeline(context, context->lineDrawPipeline.info);
@@ -2056,10 +2059,47 @@ namespace winapi
             .flags              = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
         };
 
-        if (vkCreateCommandPool(resultContext.device, &poolInfo, nullptr, &resultContext.commandPool) != VK_SUCCESS)
-        {
-            throw std::runtime_error("failed to create command pool");
-        }
+        assert(vkCreateCommandPool(resultContext.device, &poolInfo, nullptr, &resultContext.commandPool) == VK_SUCCESS);
+
+
+        // TODO [MEMORY] (Leo): Properly measure required amount
+        // TODO[memory] (Leo): Log usage
+        u64 staticMeshPoolSize       = megabytes(500);
+        u64 stagingBufferPoolSize    = megabytes(100);
+        u64 modelUniformBufferSize   = megabytes(100);
+        u64 sceneUniformBufferSize   = megabytes(100);
+        u64 guiUniformBufferSize     = megabytes(100);
+
+        // TODO[MEMORY] (Leo): This will need guarding against multithreads once we get there
+        resultContext.staticMeshPool = vulkan::make_buffer_resource(  
+                                        &resultContext, staticMeshPoolSize,
+                                        VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+                                        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+        resultContext.stagingBufferPool = vulkan::make_buffer_resource(  
+                                        &resultContext, stagingBufferPoolSize,
+                                        VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                                        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+        resultContext.modelUniformBuffer = vulkan::make_buffer_resource(  
+                                        &resultContext, modelUniformBufferSize,
+                                        VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                                        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+        resultContext.sceneUniformBuffer = vulkan::make_buffer_resource(
+                                        &resultContext, sceneUniformBufferSize,
+                                        VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                                        VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+
+        resultContext.guiUniformBuffer = vulkan::make_buffer_resource( 
+                                        &resultContext, guiUniformBufferSize,
+                                        VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                                        VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+
+
+
+
+
 
         /* 
         Above is device
@@ -2070,13 +2110,18 @@ namespace winapi
         /* Todo(Leo): now that everything is in VulkanContext, it does not make so much sense
         to explicitly specify each component as parameter */
         resultContext.swapchainItems      = CreateSwapchainAndImages(&resultContext, get_hwnd_size(winWindow));
-        resultContext.renderPass          = CreateRenderPass(&resultContext, &resultContext.swapchainItems, resultContext.msaaSamples);
-        
+        resultContext.renderPass          = vulkan::make_render_pass(&resultContext, resultContext.swapchainItems.imageFormat, resultContext.msaaSamples);
+
         resultContext.descriptorSetLayouts.scene    = CreateSceneDescriptorSetLayout(resultContext.device);
         resultContext.descriptorSetLayouts.model    = CreateModelDescriptorSetLayout(resultContext.device);
 
         vulkan::create_drawing_resources(&resultContext); 
         create_virtual_frames(&resultContext);
+        vulkan::create_uniform_descriptor_pool(&resultContext);
+        vulkan::create_material_descriptor_pool(&resultContext);
+        vulkan::create_model_descriptor_sets(&resultContext);
+        vulkan::create_scene_descriptor_sets(&resultContext);
+        vulkan::create_texture_sampler(&resultContext);
 
         {
             std::cout << "before pipelines\n";
@@ -2100,8 +2145,58 @@ namespace winapi
             std::cout << "gui pipeline created\n";
         }
 
-        std::cout << "\nVulkan Initialized succesfully\n\n";
+
+        std::cout << "\n[VULKAN]: Initialized succesfully\n\n";
 
         return resultContext;
+    }
+
+    internal void
+    destroy_vulkan_context(VulkanContext * context)
+    {
+        VkDevice device = context->device;
+
+        // Note(Leo): All draw frame operations are asynchronous, must wait for them to finish
+        vkDeviceWaitIdle(device);
+
+        // Note(Leo): these are Graphics things
+        vulkan::unload_scene(context);
+
+        CleanupSwapchain(context);
+
+        vkDestroyDescriptorPool(device, context->uniformDescriptorPool, nullptr);
+        vkDestroyDescriptorPool(device, context->materialDescriptorPool, nullptr);
+
+        vkDestroySampler(device, context->textureSampler, nullptr);
+
+        // Todo(Leo): When we have scene, or different models, these too move away from here
+        vkDestroyDescriptorSetLayout(device, context->descriptorSetLayouts.model, nullptr);  
+        vkDestroyDescriptorSetLayout(device, context->descriptorSetLayouts.scene, nullptr);  
+
+        vulkan::destroy_buffer_resource(device, &context->staticMeshPool);
+        vulkan::destroy_buffer_resource(device, &context->stagingBufferPool);
+        vulkan::destroy_buffer_resource(device, &context->modelUniformBuffer);
+        vulkan::destroy_buffer_resource(device, &context->sceneUniformBuffer);
+        vulkan::destroy_buffer_resource(device, &context->guiUniformBuffer);
+
+        for (auto & frame : context->virtualFrames)
+        {
+            /* Note(Leo): command buffers are destroyed with command pool, but we need to destroy
+            framebuffers here, since they are always recreated immediately right after destroying
+            them in drawing procedure */
+            vkDestroyFramebuffer(device, frame.framebuffer, nullptr);
+            
+            vkDestroySemaphore(device, frame.renderFinishedSemaphore, nullptr);
+            vkDestroySemaphore(device, frame.imageAvailableSemaphore, nullptr);
+            vkDestroyFence(device, frame.inFlightFence, nullptr);
+        }
+
+        vkDestroyCommandPool(device, context->commandPool, nullptr);
+
+        vkDestroyDevice(device, nullptr);
+        vkDestroySurfaceKHR(context->instance, context->surface, nullptr);
+        vkDestroyInstance(context->instance, nullptr);
+        
+        std::cout << "[VULKAN]: shut down\n";
     }
 }

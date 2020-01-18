@@ -4,7 +4,7 @@ shophorn @ github
 =============================================================================*/
 struct Transform3D
 {
-	Vector3 position 	= {0, 0, 0};
+	vector3 position 	= {0, 0, 0};
 	real32 scale 		= 1.0f;
 	Quaternion rotation = Quaternion::Identity();
 
@@ -26,7 +26,7 @@ struct Transform3D
 	// 	return result;
 	// }
 
-	// Vector3 get_world_position()
+	// vector3 get_world_position()
 	// {
 	// 	if (is_handle_valid(parent))
 	// 	{
@@ -52,7 +52,7 @@ get_matrix(Transform3D * transform)
 	return result;
 }
 
-Vector3
+vector3
 get_world_position(Transform3D * transform)
 {
 	if (is_handle_valid(transform->parent))
@@ -62,19 +62,19 @@ get_world_position(Transform3D * transform)
 	return transform->position;
 }
 
-Vector3
+vector3
 get_forward(Transform3D * transform)
 {
 	return get_rotation_matrix(transform->rotation) * World::Forward;
 }
 
-Vector3
+vector3
 get_right(Transform3D * transform)
 {
 	return get_rotation_matrix(transform->rotation) * World::Right;
 }
 
-Vector3
+vector3
 get_up(Transform3D * transform)
 {
 	return get_rotation_matrix(transform->rotation) * World::Up;

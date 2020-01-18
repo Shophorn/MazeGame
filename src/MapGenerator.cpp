@@ -16,7 +16,7 @@ struct HexMap
  	u32 & 
  	Cell (int x, int y) { return cells[x + y * cellCountPerDirection]; }
 
-	Vector3
+	vector3
 	GetCellPosition(s32 x, s32 y)
 	{
 		// Note(Leo): math stolen from catlike coding hex tutorial
@@ -26,7 +26,7 @@ struct HexMap
 		real32 cellOffsetX = ((cellCountPerDirection * cellInnerRadius) * 2.0f) / 2.0f;
 		real32 cellOffsetY = ((cellCountPerDirection * cellOuterRadius) * 1.5f) / 2.0f;
 
-		Vector3 cellPosition =
+		vector3 cellPosition =
 		{
 			(x + y * 0.5f - (y / 2)) * cellInnerRadius * 2.0f - cellOffsetX,
 			y * cellOuterRadius * 1.5f - cellOffsetY,
@@ -55,13 +55,13 @@ namespace map
 
 
 void
-AddHexCell(Vector3 cellPosition, HexMap * map, bool blocked, u16 * vertexIndex, Vertex * vertexArray, u16 * triangleIndex, u16 * triangleArray)
+AddHexCell(vector3 cellPosition, HexMap * map, bool blocked, u16 * vertexIndex, Vertex * vertexArray, u16 * triangleIndex, u16 * triangleArray)
 {
 	Vertex * vertexLocation = vertexArray + *vertexIndex;
 	u16 * triangleLocation = triangleArray + *triangleIndex;
 
-	Vector3 color = blocked ? Vector3{0.1f, 0.1f, 0.1f} : Vector3{1, 1, 1};
-	Vector3 normal = {0, 0, 1};
+	vector3 color = blocked ? vector3{0.1f, 0.1f, 0.1f} : vector3{1, 1, 1};
+	vector3 normal = {0, 0, 1};
 
 	real32 padding = 0.02f;
 	
@@ -69,14 +69,14 @@ AddHexCell(Vector3 cellPosition, HexMap * map, bool blocked, u16 * vertexIndex, 
 	real32 cellTileOuterRadius = map->cellSize - 2.0f * padding;
 	real32 cellTileInnerRadius = 0.866025404f * cellTileOuterRadius;
 
-	Vector3 hexCellCorners [6] =
+	vector3 hexCellCorners [6] =
 	{
-		Vector3{0, cellTileOuterRadius, 0},
-		Vector3{-cellTileInnerRadius, 0.5f * cellTileOuterRadius, 0},
-		Vector3{-cellTileInnerRadius, -0.5f * cellTileOuterRadius, 0},
-		Vector3{0, -cellTileOuterRadius, 0},
-		Vector3{cellTileInnerRadius, -0.5f * cellTileOuterRadius, 0},
-		Vector3{cellTileInnerRadius, 0.5f * cellTileOuterRadius, 0},
+		vector3{0, cellTileOuterRadius, 0},
+		vector3{-cellTileInnerRadius, 0.5f * cellTileOuterRadius, 0},
+		vector3{-cellTileInnerRadius, -0.5f * cellTileOuterRadius, 0},
+		vector3{0, -cellTileOuterRadius, 0},
+		vector3{cellTileInnerRadius, -0.5f * cellTileOuterRadius, 0},
+		vector3{cellTileInnerRadius, 0.5f * cellTileOuterRadius, 0},
 	};
 
 	vertexLocation[0].position = cellPosition;
@@ -104,13 +104,13 @@ AddHexCell(Vector3 cellPosition, HexMap * map, bool blocked, u16 * vertexIndex, 
 	vertexLocation[6].normal = normal;
 
 	real32 gridSize = map->WorldSize();
-	vertexLocation[0].texCoord = vector::coeff_add(size_cast<float2>(vertexLocation[0].position) / gridSize, 0.5f);
-	vertexLocation[1].texCoord = vector::coeff_add(size_cast<float2>(vertexLocation[1].position) / gridSize, 0.5f);
-	vertexLocation[2].texCoord = vector::coeff_add(size_cast<float2>(vertexLocation[2].position) / gridSize, 0.5f);
-	vertexLocation[3].texCoord = vector::coeff_add(size_cast<float2>(vertexLocation[3].position) / gridSize, 0.5f);
-	vertexLocation[4].texCoord = vector::coeff_add(size_cast<float2>(vertexLocation[4].position) / gridSize, 0.5f);
-	vertexLocation[5].texCoord = vector::coeff_add(size_cast<float2>(vertexLocation[5].position) / gridSize, 0.5f);
-	vertexLocation[6].texCoord = vector::coeff_add(size_cast<float2>(vertexLocation[6].position) / gridSize, 0.5f);
+	vertexLocation[0].texCoord = vector::coeff_add(size_cast<vector2>(vertexLocation[0].position) / gridSize, 0.5f);
+	vertexLocation[1].texCoord = vector::coeff_add(size_cast<vector2>(vertexLocation[1].position) / gridSize, 0.5f);
+	vertexLocation[2].texCoord = vector::coeff_add(size_cast<vector2>(vertexLocation[2].position) / gridSize, 0.5f);
+	vertexLocation[3].texCoord = vector::coeff_add(size_cast<vector2>(vertexLocation[3].position) / gridSize, 0.5f);
+	vertexLocation[4].texCoord = vector::coeff_add(size_cast<vector2>(vertexLocation[4].position) / gridSize, 0.5f);
+	vertexLocation[5].texCoord = vector::coeff_add(size_cast<vector2>(vertexLocation[5].position) / gridSize, 0.5f);
+	vertexLocation[6].texCoord = vector::coeff_add(size_cast<vector2>(vertexLocation[6].position) / gridSize, 0.5f);
 
 	triangleLocation[0] = *vertexIndex;
 	triangleLocation[1] = *vertexIndex + 1; 

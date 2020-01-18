@@ -11,6 +11,8 @@ Interface definition between Platform and Game.
 #include <functional>
 
 #if MAZEGAME_DEVELOPMENT
+	#include <cassert>
+
 	#if MAZEGAME_INCLUDE_STD_IOSTREAM
 	void PrintAssert(const char * file, int line, const char * message, const char * expression = nullptr)
 	{
@@ -63,14 +65,15 @@ namespace platform
 	game layer*/
 	struct Graphics;
 	struct Window;
-	struct Network;
-	struct Audio;
+	// struct Network;
+	// struct Audio;
 
 	struct Functions
 	{
 		// GRAPHICS FUNCTIONS
 		MeshHandle (*push_mesh) (Graphics*, MeshAsset * asset);
 		TextureHandle (*push_texture) (Graphics*, TextureAsset * asset);
+		TextureHandle (*push_render_texture) (Graphics*, u32 width, u32 height);
 		TextureHandle (*push_cubemap) (Graphics*, StaticArray<TextureAsset, 6> * asset);
 
 		MaterialHandle (*push_material) (Graphics*, MaterialAsset * asset);
@@ -88,8 +91,12 @@ namespace platform
 		void (*finish_frame) (Graphics*);
 
 		void (*draw_model) (Graphics*, ModelHandle model, Matrix44 transform);
-		void (*draw_line) (Graphics*, float3 start, float3 end, float4 color);
-		void (*draw_gui) (Graphics*, float2 position, float2 size, MaterialHandle material, float4 color);
+		void (*draw_line) (Graphics*, vector3 start, vector3 end, float4 color);
+		void (*draw_gui) (Graphics*, vector2 position, vector2 size, MaterialHandle material, float4 color);
+
+		// void (*prepare_shadow_pass)(Graphics*);
+		// void (*finish_shadow_pass) (Graphics*);
+		// void (*draw_shadow) (Graphics*, ModelHandle model, Matrix44 transform);
 
 		// WINDOW FUNCTIONS	
 		u32 (*get_window_width) (Window const *);
@@ -97,7 +104,6 @@ namespace platform
 		bool32 (*is_window_fullscreen) (Window const *);
 		void (*set_window_fullscreen) (Window*, bool32 value);
 	};
-
 }
 
 namespace game
@@ -144,8 +150,8 @@ namespace game
 
 	struct Input
 	{
-		float2 move;
-		float2 look;
+		vector2 move;
+		vector2 look;
 
 		// Todo(Leo): Do a proper separate mapping struct of meanings of specific buttons
 		ButtonState jump;
@@ -181,7 +187,7 @@ namespace game
 	
 	struct NetworkPackage
 	{
-		Vector3 characterPosition;
+		vector3 characterPosition;
 		Quaternion characterRotation;
 	};
 

@@ -146,53 +146,6 @@ Run(HINSTANCE winInstance)
 
     }
 
-   // -------- GPU MEMORY ---------------------- 
-   {
-        // TODO [MEMORY] (Leo): Properly measure required amount
-        // TODO[memory] (Leo): Log usage
-        u64 staticMeshPoolSize       = megabytes(500);
-        u64 stagingBufferPoolSize    = megabytes(100);
-        u64 modelUniformBufferSize   = megabytes(100);
-        u64 sceneUniformBufferSize   = megabytes(100);
-        u64 guiUniformBufferSize     = megabytes(100);
-
-        // TODO[MEMORY] (Leo): This will need guarding against multithreads once we get there
-        vulkanContext.staticMeshPool = vulkan::make_buffer_resource(  
-                                        &vulkanContext, staticMeshPoolSize,
-                                        VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-                                        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-
-        vulkanContext.stagingBufferPool = vulkan::make_buffer_resource(  
-                                        &vulkanContext, stagingBufferPoolSize,
-                                        VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                                        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-
-        vulkanContext.modelUniformBuffer = vulkan::make_buffer_resource(  
-                                        &vulkanContext, modelUniformBufferSize,
-                                        VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-                                        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-
-        vulkanContext.sceneUniformBuffer = vulkan::make_buffer_resource(
-                                        &vulkanContext, sceneUniformBufferSize,
-                                        VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-                                        VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
-
-        vulkanContext.guiUniformBuffer = vulkan::make_buffer_resource( 
-                                        &vulkanContext, guiUniformBufferSize,
-                                        VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-                                        VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
-    }
-
-    // -------- DRAWING ---------
-    {
-        // Note(Leo): After buffer creations!!
-        vulkan::create_uniform_descriptor_pool(&vulkanContext);
-        vulkan::create_material_descriptor_pool(&vulkanContext);
-        vulkan::create_model_descriptor_sets(&vulkanContext);
-        vulkan::create_scene_descriptor_sets(&vulkanContext);
-        vulkan::create_texture_sampler(&vulkanContext);
-    }
-
     // -------- INITIALIZE NETWORK ---------
     bool32 networkIsRuined = false;
     WinApiNetwork network = winapi::CreateNetwork();
@@ -270,6 +223,7 @@ Run(HINSTANCE winInstance)
 
     bool gameIsRunning = true;
     game::Input gameInput = {};
+
     while(gameIsRunning)
     {
 
@@ -450,15 +404,8 @@ Run(HINSTANCE winInstance)
     winapi::StopPlaying(&audio);
     winapi::ReleaseAudio(&audio);
     winapi::CloseNetwork(&network);
+    winapi::destroy_vulkan_context(&vulkanContext);
 
-    /// ------- CLEANUP VULKAN -----
-    {
-        // Note(Leo): All draw frame operations are asynchronous, must wait for them to finish
-        vkDeviceWaitIdle(vulkanContext.device);
-        Cleanup(&vulkanContext);
-
-        std::cout << "[VULKAN]: shut down\n";
-    }
     /// ----- Cleanup Windows
     {
         // Note(Leo): Windows will mostly clean up after us once process exits :)

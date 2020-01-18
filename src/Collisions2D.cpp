@@ -1,13 +1,13 @@
 struct Rectangle
 {
-	float2 position;
-	float2 size;
+	vector2 position;
+	vector2 size;
 };
 
 internal Rectangle
-scale_rectangle(Rectangle rect, float2 scale)
+scale_rectangle(Rectangle rect, vector2 scale)
 {
-	float2 center = rect.position + rect.size / 2.0f;
+	vector2 center = rect.position + rect.size / 2.0f;
 	rect.size.x *= scale.x;
 	rect.size.y *= scale.y;
 	rect.position = center - rect.size / 2.0f;
@@ -17,8 +17,8 @@ scale_rectangle(Rectangle rect, float2 scale)
 
 struct Circle
 {
-	float2 position;
-	real32 radius;
+	vector2 position;
+	float radius;
 };
 
 internal bool32
@@ -26,10 +26,10 @@ CircleCircleCollision(Circle a, Circle b)
 {
 	DEBUG_ASSERT(false, "vector::get_sqr_distance() and therefore this function too, is not tested");
 
-	real32 distanceThreshold = a.radius + b.radius;
-	real32 sqrDistanceThreshold = distanceThreshold * distanceThreshold;
+	float distanceThreshold = a.radius + b.radius;
+	float sqrDistanceThreshold = distanceThreshold * distanceThreshold;
 
-	real32 sqrDistance = vector::get_sqr_distance(a.position, b.position);
+	float sqrDistance = vector::get_sqr_distance(a.position, b.position);
 
 	bool32 result = sqrDistance < sqrDistanceThreshold;
 	return result;

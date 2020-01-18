@@ -1,7 +1,7 @@
 struct BoxCollider3D
 {
-	Vector3 extents;
-	Vector3 center; 
+	vector3 extents;
+	vector3 center; 
 };
 
 struct CollisionSystemEntry
@@ -27,7 +27,7 @@ push_collider_to_system(CollisionSystem3D * 	system,
 }
 
 internal float
-get_terrain_height(CollisionSystem3D * system, float2 position)
+get_terrain_height(CollisionSystem3D * system, vector2 position)
 {
 	position.x -= system->terrainTransform->position.x;
 	position.y -= system->terrainTransform->position.y;
@@ -38,13 +38,13 @@ get_terrain_height(CollisionSystem3D * system, float2 position)
 
 struct RaycastResult
 {
-	Vector3 hitNormal;
+	vector3 hitNormal;
 };
 
 internal bool32
 raycast_3d(	CollisionSystem3D * manager,
-			Vector3 rayStart,
-			Vector3 normalizedRayDirection,
+			vector3 rayStart,
+			vector3 normalizedRayDirection,
 			float rayLength,
 			RaycastResult * outResult = nullptr)
 {
@@ -55,12 +55,12 @@ raycast_3d(	CollisionSystem3D * manager,
 		auto collider = entry.collider;
 		auto transform = entry.transform;
 
-		Vector3 position = 	get_world_position(transform) + collider->center;
+		vector3 position = 	get_world_position(transform) + collider->center;
 
-		Vector3 min = position - collider->extents;
-		Vector3 max = position + collider->extents;
+		vector3 min = position - collider->extents;
+		vector3 max = position + collider->extents;
 
-		Vector3 inverseDirection = 
+		vector3 inverseDirection = 
 		{
 			1.0f / normalizedRayDirection.x,
 			1.0f / normalizedRayDirection.y,

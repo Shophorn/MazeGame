@@ -51,14 +51,8 @@ if compiler == 'clang++':
 	### COMPILE GAME CODE DLL
 	game_result = 0
 	if compile_game:
-		# Note(Leo): notice trailine whitespace...
-		# sceneSources = ("Scene3d.cpp "
-		# 				"Scene2d.cpp "
-		# 				"MenuScene.cpp ")
-		sceneSources = ""
-
-		game_call = "clang++ -shared {} {} {} -o Mazegame.dll src/Mazegame.cpp {} -DLL {} {}".format(
-					flags, definitions, includePath, sceneSources, libPath, libLinks)
+		game_call = "clang++ -shared {} {} {} -o Mazegame.dll src/Mazegame.cpp -DLL".format(
+					flags, definitions, includePath)
 
 		game_result = compile(game_call)
 

@@ -6,7 +6,7 @@ Skybox mesh creation and drawing.
 =============================================================================*/
 
 internal MeshAsset
-create_skybox(MemoryArena * arena)
+create_skybox_mesh(MemoryArena * arena)
 {
 	auto vertices = push_array<Vertex>(arena, 
 	{

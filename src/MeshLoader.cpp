@@ -119,15 +119,15 @@ load_model_glb(MemoryArena * memoryArena, const char * filePath, const char * mo
 	u64 normalStart 			= normalOffset;
 	u64 texcoordStart 		= texcoordOffset;
 
-	Vector3 * positionBuffer 	= reinterpret_cast<Vector3*>(buffer.begin() + positionOffset);
-	Vector3 * normalBuffer 		= reinterpret_cast<Vector3*>(buffer.begin() + normalOffset);
-	float2 * texcoordBuffer 	= reinterpret_cast<float2*>(buffer.begin() + texcoordOffset);
+	vector3 * positionBuffer 	= reinterpret_cast<vector3*>(buffer.begin() + positionOffset);
+	vector3 * normalBuffer 		= reinterpret_cast<vector3*>(buffer.begin() + normalOffset);
+	vector2 * texcoordBuffer 	= reinterpret_cast<vector2*>(buffer.begin() + texcoordOffset);
 
 	for (int i = 0; i < vertexCount; ++i)
 	{
-		Vector3 position 	= positionBuffer[i];
-		Vector3 normal 		= normalBuffer[i];
-		float2 texCoord    = texcoordBuffer[i];
+		vector3 position 	= positionBuffer[i];
+		vector3 normal 		= normalBuffer[i];
+		vector2 texCoord    = texcoordBuffer[i];
 
 		push_one(vertices, Vertex{
 			.position 	= position,
@@ -238,7 +238,7 @@ namespace mesh_ops
 	}
 
 	internal void
-	transform_tex_coords(MeshAsset * mesh, const float2 translation, const float2 scale)
+	transform_tex_coords(MeshAsset * mesh, const vector2 translation, const vector2 scale)
 	{
 		int vertexCount = mesh->vertices.count();
 		for(int vertexIndex = 0; vertexIndex < vertexCount; ++vertexIndex)

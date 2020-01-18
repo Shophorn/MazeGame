@@ -1,7 +1,7 @@
 struct Keyframe
 {
 	float time;
-	Vector3 position;
+	vector3 position;
 };
 
 // Data

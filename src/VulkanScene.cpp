@@ -32,7 +32,7 @@ TextureHandle
 vulkan::push_texture (VulkanContext * context, TextureAsset * texture)
 {
     TextureHandle handle = { context->loadedTextures.size() };
-    context->loadedTextures.push_back(vulkan::make_texture(texture, context));
+    context->loadedTextures.push_back(vulkan::make_texture(context, texture));
     return handle;
 }
 

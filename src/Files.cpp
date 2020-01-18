@@ -66,6 +66,7 @@ namespace glTF
 #else
 #undef internal
 
+// Todo(Leo): Move this to platform side, so we do not need to link against anything in game code
 #include <rapidjson/document.h>
 #include <string>
 

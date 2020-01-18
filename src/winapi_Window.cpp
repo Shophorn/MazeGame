@@ -41,8 +41,7 @@ namespace winapi
                             && (window->height > 0);
         return isDrawable;
     }
-
-    uint2
+    point2
     get_window_size(HWND hwnd)
     {
         RECT rect;
@@ -52,16 +51,6 @@ namespace winapi
         u32 height = rect.bottom - rect.top;
 
         return { width, height };
-    }
-
-
-    VkExtent2D
-    get_frame_buffer_size(WinAPIWindow const * window)
-    {
-        return{
-            .width = window->width,
-            .height = window->height,
-        };
     }
 
     internal void
@@ -229,8 +218,7 @@ namespace winapi
 
         PRODUCTION_ASSERT(hwnd != nullptr, "Failed to create window");
 
-
-        uint2 windowSize = get_window_size(hwnd);
+        point2 windowSize = get_window_size(hwnd);
 
         WinAPIWindow window = {};
 

@@ -19,18 +19,15 @@ struct StaticArray
 
 	constexpr s32 count () { return Count; }
 
+	T * begin() { return _items; }
+	T * end() { return _items + Count; }
+
 	T & operator [] (s32 index)
 	{
 		DEBUG_ASSERT (index < Count, "Index outside StaticArray bounds");
 		return _items[index];
 	}
 };
-
-template<typename T, s32 Count>
-T * begin(StaticArray<T, Count> array) { return array._items; }
-
-template<typename T, s32 Count>
-T * end(StaticArray<T, Count> array) { return array._items + Count; }
 
 
 ///////////////////////////////////////

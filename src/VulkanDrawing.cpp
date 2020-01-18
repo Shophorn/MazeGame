@@ -29,29 +29,25 @@ vulkan::prepare_drawing(VulkanContext * context)
     context->currentUniformBufferOffset = 0;
     context->currentBoundPipeline = PipelineHandle::Null;
 
+    VulkanVirtualFrame * frame = get_current_virtual_frame(context);
+
     // Note(Leo): We recreate these everytime we are here.
     // https://software.intel.com/en-us/articles/api-without-secrets-introduction-to-vulkan-part-4#inpage-nav-5
-    vkDestroyFramebuffer(context->device, get_current_virtual_frame(context)->framebuffer, nullptr);
+    vkDestroyFramebuffer(context->device, frame->framebuffer, nullptr);
 
-    u32 const attachmentCount = 3;
-    VkImageView attachments [attachmentCount] =
+    VkImageView attachments [] =
     {
         context->drawingResources.colorImageView,
         context->drawingResources.depthImageView,
         context->swapchainItems.imageViews[context->currentDrawFrameIndex],
     };
 
-    VulkanVirtualFrame * frame = get_current_virtual_frame(context);
-    frame->framebuffer = make_framebuffer(  context,
+    frame->framebuffer = make_framebuffer(  context->device,
                                             context->renderPass,
-                                            attachmentCount,
+                                            ARRAY_COUNT(attachments),
                                             attachments,
                                             context->swapchainItems.extent.width,
                                             context->swapchainItems.extent.height);    
-
-
-    /* Note (Leo): beginning command buffer implicitly resets it, if we have specified
-    VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT in command pool creation */
 
     VkCommandBufferBeginInfo primaryCmdBeginInfo =
     {
@@ -60,10 +56,12 @@ vulkan::prepare_drawing(VulkanContext * context)
         .pInheritanceInfo   = nullptr,
     };
 
+    /* Note (Leo): beginning command buffer implicitly resets it, if we have specified
+    VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT in command pool creation */
     DEBUG_ASSERT(
         vkBeginCommandBuffer(frame->commandBuffers.primary, &primaryCmdBeginInfo) == VK_SUCCESS,
         "Failed to begin primary command buffer");
-
+    
     VkClearValue clearValues [] =
     {
         { .color = {0.0f, 0.0f, 0.0f, 1.0f} },
@@ -82,6 +80,7 @@ vulkan::prepare_drawing(VulkanContext * context)
         .clearValueCount    = 2,
         .pClearValues       = clearValues,
     };
+
     vkCmdBeginRenderPass(frame->commandBuffers.primary, &renderPassInfo, VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS);
 
     VkCommandBufferInheritanceInfo inheritanceInfo =
@@ -107,7 +106,6 @@ vulkan::prepare_drawing(VulkanContext * context)
     DEBUG_ASSERT(
         vkBeginCommandBuffer(frame->commandBuffers.scene, &sceneCmdBeginInfo) == VK_SUCCESS,
         "Failed to begin secondary scene command buffer");
-
 }
 
 void
@@ -140,7 +138,7 @@ vulkan::draw_frame(VulkanContext * context, u32 imageIndex)
     context->sceneUnloaded      = false;
 
     // u32 frameIndex = context->virtualFrameIndex;
-    VulkanVirtualFrame * frame = get_current_virtual_frame(context);
+    VulkanVirtualFrame * frame  = get_current_virtual_frame(context);
 
 
     /* Note(Leo): reset here, so that if we have recreated swapchain above,
@@ -150,6 +148,11 @@ vulkan::draw_frame(VulkanContext * context, u32 imageIndex)
     // Note(Leo): We wait for these BEFORE drawing
     VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
     
+    VkCommandBuffer commandBuffers []
+    {
+        frame->commandBuffers.primary,
+    };
+
     VkSubmitInfo submitInfo =
     {
         .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
@@ -158,8 +161,8 @@ vulkan::draw_frame(VulkanContext * context, u32 imageIndex)
         .pWaitSemaphores        = &frame->imageAvailableSemaphore,
         .pWaitDstStageMask      = &waitStage,
 
-        .commandBufferCount     = (u32)(skipFrame ? 0 : 1),
-        .pCommandBuffers        = &frame->commandBuffers.primary,
+        .commandBufferCount     = (u32)(skipFrame ? 0 : (ARRAY_COUNT(commandBuffers))),
+        .pCommandBuffers        = commandBuffers,
 
         // Note(Leo): We signal these AFTER drawing
         .signalSemaphoreCount   = 1,
@@ -222,7 +225,8 @@ vulkan::record_draw_command(VulkanContext * context, ModelHandle model, Matrix44
     // std::cout << "[vulkan::record_draw_command()]\n";
     DEBUG_ASSERT(context->canDraw, "Invalid call to record_draw_command() when prepare_drawing() has not been called.")
 
-    VkCommandBuffer commandBuffer   = get_current_virtual_frame(context)->commandBuffers.scene;
+    VulkanVirtualFrame * frame      = get_current_virtual_frame(context);
+    VkCommandBuffer commandBuffer   = frame->commandBuffers.scene;
  
     MeshHandle meshHandle           = context->loadedModels[model].mesh;
     MaterialHandle materialHandle   = context->loadedModels[model].material;
@@ -314,7 +318,7 @@ vulkan::record_draw_command(VulkanContext * context, ModelHandle model, Matrix44
 }
 
 void
-vulkan::record_line_draw_command(VulkanContext * context, Vector3 start, Vector3 end, float4 color)
+vulkan::record_line_draw_command(VulkanContext * context, vector3 start, vector3 end, float4 color)
 {
     /*
     vulkan bufferless drawing
@@ -331,7 +335,8 @@ vulkan::record_line_draw_command(VulkanContext * context, Vector3 start, Vector3
         LAYOUT_MODEL    = 2,
     };
 
-    Vector4 pushConstants [] = 
+    // Todo(Leo): Define some struct etc. for this
+    vector4 pushConstants [] = 
     {
         {start.x, start.y, start.z, 0},
         {end.x, end.y, end.z, 0},
@@ -351,22 +356,22 @@ vulkan::record_line_draw_command(VulkanContext * context, Vector3 start, Vector3
 
 struct VulkanGuiPushConstants
 {
-    float2 bottomLeft;
-    float2 bottomRight;
-    float2 topLeft;
-    float2 topRight;
+    vector2 bottomLeft;
+    vector2 bottomRight;
+    vector2 topLeft;
+    vector2 topRight;
     float4 color;
 };
 
-void vulkan::record_gui_draw_command(VulkanContext * context, float2 position, float2 size, MaterialHandle materialHandle, float4 color)
+void vulkan::record_gui_draw_command(VulkanContext * context, vector2 position, vector2 size, MaterialHandle materialHandle, float4 color)
 {
     auto * frame = get_current_virtual_frame(context);
     enum : u32 { LAYOUT_SET_MATERIAL = 0 };
 
-    auto transform_point = [context](float2 position) -> float2
+    auto transform_point = [context](vector2 position) -> vector2
     {
         // Note(Leo): This is temporarily here only, aka scale to fit width.
-        const float2 referenceResolution = {1920, 1080};
+        const vector2 referenceResolution = {1920, 1080};
         float ratio = context->swapchainItems.extent.width / referenceResolution.x;
 
         float x = (position.x / context->swapchainItems.extent.width) * ratio * 2.0f - 1.0f;
@@ -378,15 +383,17 @@ void vulkan::record_gui_draw_command(VulkanContext * context, float2 position, f
     VulkanGuiPushConstants pushConstants =
     {
         transform_point(position),
-        transform_point(position + float2{size.x, 0}),
-        transform_point(position + float2{0, size.y}),
+        transform_point(position + vector2{size.x, 0}),
+        transform_point(position + vector2{0, size.y}),
         transform_point(position + size),
         color,
     };
 
-    vkCmdPushConstants(frame->commandBuffers.scene, context->guiDrawPipeline.layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pushConstants), &pushConstants);
+    vkCmdPushConstants( frame->commandBuffers.scene, context->guiDrawPipeline.layout,
+                        VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pushConstants), &pushConstants);
 
-    vkCmdBindPipeline(frame->commandBuffers.scene, VK_PIPELINE_BIND_POINT_GRAPHICS, context->guiDrawPipeline.pipeline);
+    vkCmdBindPipeline(  frame->commandBuffers.scene, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                        context->guiDrawPipeline.pipeline);
 
 
     // Todo(Leo): this is not good idea. Proper toggles etc and not null pointers for flow control, said wise in the internets

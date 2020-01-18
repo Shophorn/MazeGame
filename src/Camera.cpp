@@ -1,28 +1,27 @@
 struct Camera
 {
-	Vector3 position;
+	vector3 position;
 	// Todo(Leo): change to quaternion, maybe
-	Vector3 forward = World::Forward;
+	vector3 forward = World::Forward;
 
-	real32 fieldOfView;
-	real32 nearClipPlane;
-	real32 farClipPlane;
-	real32 aspectRatio;
-
-	void LookAt(Vector3 target);
-
-	Matrix44 ViewProjection();
-	Matrix44 PerspectiveProjection();
+	float fieldOfView;
+	float nearClipPlane;
+	float farClipPlane;
+	float aspectRatio;
 };
 
-void
-Camera::LookAt(Vector3 target)
+internal Camera
+make_camera(float fieldOfView, float nearClipPlane, float farClipPlane)
 {
-	forward = vector::normalize(target - position);
+	return {
+		.fieldOfView 	= fieldOfView,
+		.nearClipPlane 	= nearClipPlane,
+		.farClipPlane 	= farClipPlane,
+	};
 }
 
 Matrix44
-Camera::PerspectiveProjection()
+get_perspective_projection(Camera const * cam)
 {
 	/*
 	Todo(Leo): Do studies, this really affects many things
@@ -30,23 +29,23 @@ Camera::PerspectiveProjection()
 
 	Yay, works for now
 	*/
-	real32 canvasSize = Tan(ToRadians(fieldOfView / 2.0f)) * nearClipPlane;
+	float canvasSize = Tan(ToRadians(cam->fieldOfView / 2.0f)) * cam->nearClipPlane;
 
 	// Note(Leo): Vulkan NDC goes left-top = (-1, -1) to right-bottom = (1, 1)
-	real32 bottom = canvasSize / 2;
-	real32 top = -bottom;
+	float bottom = canvasSize / 2;
+	float top = -bottom;
 
-	real32 right = bottom * aspectRatio;
-	real32 left = -right;
+	float right = bottom * cam->aspectRatio;
+	float left = -right;
 
-    real32
+    float
     	b = bottom,
     	t = top,
     	r = right,
     	l = left,
 
-    	n = nearClipPlane,
-    	f = farClipPlane;
+    	n = cam->nearClipPlane,
+    	f = cam->farClipPlane;
 
 
     /* Study(Leo): why does this seem to use y-up and z-forward,
@@ -62,13 +61,13 @@ Camera::PerspectiveProjection()
 }
 
 Matrix44
-Camera::ViewProjection()
+get_view_projection(Camera const * cam)
 {
 	// Study: https://www.3dgep.com/understanding-the-view-matrix/
 
-	Vector3 zAxis 	= -forward;
-	Vector3 xAxis 	= vector::normalize(vector::cross(World::Up, zAxis));
-	Vector3 yAxis 	= vector::cross (zAxis, xAxis);
+	vector3 zAxis 	= -cam->forward;
+	vector3 xAxis 	= vector::normalize(vector::cross(World::Up, zAxis));
+	vector3 yAxis 	= vector::cross (zAxis, xAxis);
 
 	Matrix44 orientation = {
 		xAxis[0], yAxis[0], zAxis[0], 0,
@@ -79,7 +78,7 @@ Camera::ViewProjection()
 	
 	/* Todo(Leo): Translation can be done inline with matrix initialization
 	instead of as separate function call */
-	Matrix44 translation = Matrix44::Translate(-position);
+	Matrix44 translation = Matrix44::Translate(-cam->position);
 	Matrix44 result = orientation * translation;
 
 	return result;	
@@ -88,9 +87,9 @@ Camera::ViewProjection()
 Matrix44 
 get_rotation_matrix(Camera * camera)
 {
-	Vector3 zAxis 	= -camera->forward;
-	Vector3 xAxis 	= vector::normalize(vector::cross(World::Up, zAxis));
-	Vector3 yAxis 	= vector::cross (zAxis, xAxis);
+	vector3 zAxis 	= -camera->forward;
+	vector3 xAxis 	= vector::normalize(vector::cross(World::Up, zAxis));
+	vector3 yAxis 	= vector::cross (zAxis, xAxis);
 
 	Matrix44 orientation = {
 		xAxis[0], yAxis[0], zAxis[0], 0,

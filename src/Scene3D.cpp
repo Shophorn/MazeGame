@@ -32,9 +32,8 @@ struct Scene3d
 
 	ModelHandle skybox;
 
-	MaterialHandle uiMaterial;
 	SceneGui gui;
- 
+
  	// Todo(Leo): maybe make free functions
 	static MenuResult
 	update(	void * 						scenePtr, 
@@ -68,7 +67,7 @@ Scene3d::update(	void * 						scenePtr,
 	Scene3d * scene = reinterpret_cast<Scene3d*>(scenePtr);
 
 	/* Sadly, we need to draw skybox before game logig, because otherwise
-	dedbug lines would be hidden */ 
+	debug lines would be hidden */ 
     draw_skybox(graphics, scene->skybox, &scene->worldCamera, functions);
 
 	// Game Logic section
@@ -81,9 +80,8 @@ Scene3d::update(	void * 						scenePtr,
 	update_camera_controller(&scene->cameraController, input);
 	update_animator_system(input, scene->animatorSystem);
 
+	// functions->draw_gui(graphics, {1500, 20}, {400, 400}, MaterialHandle{12345}, float4{1,1,1,1});
 	
-	functions->draw_gui(graphics, {20, 20}, {50, 50}, scene->uiMaterial, float4{1,0,1,1});
-
 	// Rendering section
     update_camera_system(&scene->worldCamera, input, graphics, window, functions);
 	update_render_system(scene->renderSystem, graphics, functions);
@@ -101,8 +99,13 @@ Scene3d::load(	void * 						scenePtr,
 				platform::Functions *		functions)
 {
 	Scene3d * scene = reinterpret_cast<Scene3d*>(scenePtr);
+	
+
+	// Note(Leo): This is good, more this.
+	scene->gui = make_scene_gui(transientMemory, graphics, functions);
 
 	// Note(Leo): amounts are SWAG, rethink.
+	// Todo(Leo): this kind of allocation to static variables prevents us from hot-reloading
 	allocate_for_handle<Transform3D>	(persistentMemory, 100);
 	allocate_for_handle<BoxCollider3D>	(persistentMemory, 100);
 	allocate_for_handle<Renderer>		(persistentMemory, 100);
@@ -118,7 +121,6 @@ Scene3d::load(	void * 						scenePtr,
 		MaterialHandle ground;
 		MaterialHandle sky;
 	} materials;
-
 
 	// Create MateriaLs
 	{
@@ -170,12 +172,8 @@ Scene3d::load(	void * 						scenePtr,
 		};
 		auto skyboxTexture = functions->push_cubemap(graphics, &skyboxTextureAssets);
 
-		auto skyMaterialAsset = make_material_asset(skyPipeline, push_array(transientMemory, {skyboxTexture}));	
+		auto skyMaterialAsset 	= make_material_asset(skyPipeline, push_array(transientMemory, {skyboxTexture}));	
 		materials.sky 			= functions->push_material(graphics, &skyMaterialAsset);
-
-
-		scene->gui = make_scene_gui(transientMemory, graphics, functions);
-		scene->uiMaterial = functions->push_gui_material(graphics, faceTexture);
 	}
 
     auto push_model = [functions, graphics] (MeshHandle mesh, MaterialHandle material) -> ModelHandle
@@ -186,7 +184,7 @@ Scene3d::load(	void * 						scenePtr,
 
 	// Skybox
     {
-    	auto meshAsset 	= create_skybox(transientMemory);
+    	auto meshAsset 	= create_skybox_mesh(transientMemory);
     	auto meshHandle = functions->push_mesh(graphics, &meshAsset);
     	scene->skybox 	= push_model(meshHandle, materials.sky);
     }
@@ -216,21 +214,8 @@ Scene3d::load(	void * 						scenePtr,
 		push_one(scene->renderSystem, {transform, renderer});
 	}
 
-    scene->worldCamera =
-    {
-    	.forward 		= World::Forward,
-    	.fieldOfView 	= 60,
-    	.nearClipPlane 	= 0.1f,
-    	.farClipPlane 	= 1000.0f,
-    	// .aspectRatio 	= (float)functions->windowWidth / (float)functions->windowHeight	
-    };
-
-    scene->cameraController =
-    {
-    	.camera 		= &scene->worldCamera,
-    	.target 		= characterTransform
-    };
-
+	scene->worldCamera = make_camera(60, 0.1f, 1000.0f);
+	scene->cameraController = make_camera_controller_3rd_person(&scene->worldCamera, characterTransform);
 
 	// Environment
 	{
@@ -364,7 +349,7 @@ Scene3d::load(	void * 						scenePtr,
 		}
 
 		{
-			Vector3 platformPositions [] =
+			vector3 platformPositions [] =
 			{
 				{-6, 0, 6},
 				{-4, 0, 6},
@@ -400,7 +385,7 @@ Scene3d::load(	void * 						scenePtr,
 			auto keyholeMeshHandle 	= functions->push_mesh(graphics, &keyholeMeshAsset);
 
 			auto renderer 	= make_handle<Renderer>({push_model(keyholeMeshHandle, materials.environment)});
-			auto transform 	= make_handle<Transform3D>({Vector3{-3, 0, 0}});
+			auto transform 	= make_handle<Transform3D>({vector3{-3, 0, 0}});
 			auto collider 	= make_handle<BoxCollider3D>({
 				.extents 	= {0.3f, 0.3f, 0.6f},
 				.center 	= {0, 0, 0.3f}
@@ -410,7 +395,7 @@ Scene3d::load(	void * 						scenePtr,
 			push_collider_to_system(&scene->collisionSystem, collider, transform);
 
 			renderer 	= make_handle<Renderer>({push_model(keyholeMeshHandle, materials.environment)});
-			transform 	= make_handle<Transform3D>({Vector3{4, 0, 6}});
+			transform 	= make_handle<Transform3D>({vector3{4, 0, 6}});
 			collider 	= make_handle<BoxCollider3D>({
 				.extents 	= {0.3f, 0.3f, 0.6f},
 				.center 	= {0, 0, 0.3f}

@@ -51,9 +51,8 @@ union VectorBase<Scalar, 2>
 	VECTOR_SUBSCRIPT_OPERATORS;
 };
 
-using Point2 = VectorBase<s32, 2>;
-using float2 = VectorBase<float, 2>;
-using uint2 = VectorBase<u32, 2>;
+using vector2 = VectorBase<float, 2>;
+using point2 = VectorBase<u32, 2>;
 
 template<typename Scalar>
 union VectorBase<Scalar, 3>
@@ -72,8 +71,8 @@ union VectorBase<Scalar, 3>
 #define VECTOR_3_TEMPLATE 	template<typename Scalar>
 #define VECTOR_3_TYPE		VectorBase<Scalar, 3>
 
-using Vector3 = VectorBase<float, 3>;
-using float3 = VectorBase<float, 3>;
+using vector3 	= VectorBase<float, 3>;
+// using float3 	= VectorBase<float, 3>;
 
 template<typename Scalar>
 union VectorBase<Scalar, 4>
@@ -89,7 +88,7 @@ union VectorBase<Scalar, 4>
 	VECTOR_SUBSCRIPT_OPERATORS;
 };
 
-using Vector4 = VectorBase<float, 4>;
+using vector4 = VectorBase<float, 4>;
 using float4 = VectorBase<float, 4>;
 
 #undef VECTOR_SUBSCRIPT_OPERATORS

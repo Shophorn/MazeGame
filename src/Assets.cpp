@@ -18,8 +18,8 @@ enum HandleType
 template<HandleType T>
 struct BaseHandle
 {
-	u64 index =  -1;
-	operator u64() { return index; }	
+	u64 index_ =  -1;
+	operator u64() { return index_; }	
 	static constexpr HandleType type = T;
 
 	inline static const BaseHandle Null = {};
@@ -35,15 +35,22 @@ template<HandleType T>
 bool32
 is_valid_handle(BaseHandle<T> handle)
 {
-	return (BaseHandle<T>::Null.index != handle.index);
+	return (BaseHandle<T>::Null.index_ != handle.index_);
 }
+
+template <HandleType T>
+bool32 operator==(BaseHandle<T> a, BaseHandle<T> b)
+{
+	return a.index_ == b.index_;
+}
+
 
 struct Vertex
 {
-	Vector3 position 	= {};
-	Vector3 normal 		= {};
-	Vector3 color 		= {};
-	float2 texCoord 	= {};
+	vector3 position 	= {};
+	vector3 normal 		= {};
+	vector3 color 		= {};
+	vector2 texCoord 	= {};
 };
 
 enum struct IndexType : u32 { UInt16, UInt32 };
@@ -110,7 +117,7 @@ get_pixel(TextureAsset * texture, u32 x, u32 y)
 }
 
 internal Pixel
-get_closest_pixel(TextureAsset * texture, float2 texcoord)
+get_closest_pixel(TextureAsset * texture, vector2 texcoord)
 {
 	u32 u = round_to<u32>(texture->width * texcoord.u) % texture->width;
 	u32 v = round_to<u32>(texture->height * texcoord.v) % texture->height;

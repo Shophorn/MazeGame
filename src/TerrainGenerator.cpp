@@ -15,9 +15,9 @@ struct HeightMap
 };
 
 internal float
-get_height_at(HeightMap * map, float2 relativePosition)
+get_height_at(HeightMap * map, vector2 relativePosition)
 {
-	float2 gridSpacePosition = relativePosition * (map->gridSize / map->worldSize);
+	vector2 gridSpacePosition = relativePosition * (map->gridSize / map->worldSize);
 
 	s32 x0 		= floor_to<s32>(gridSpacePosition.x);
 	s32 x1 		= x0 + 1;
@@ -70,7 +70,7 @@ make_heightmap(MemoryArena * memory, TextureAsset * texture, u32 gridSize, float
 	{
 		for (float x = 0; x < gridSize; ++x)
 		{
-			float2 pixelCoord 	= {	x * textureScale * (texture->width - 1),
+			vector2 pixelCoord 	= {	x * textureScale * (texture->width - 1),
 									y * textureScale * (texture->height - 1)};
 
 			u32 u0 		= floor_to<u32>(pixelCoord.u);
@@ -153,7 +153,7 @@ generate_terrain(	MemoryArena * memory,
 			float heightBack 	= get_clamped_height(x, y - 1);			
 			float heightFront 	= get_clamped_height(x, y + 1);			
 
-			Vector3 normal = {	heightLeft - heightRight,
+			vector3 normal = {	heightLeft - heightRight,
 								heightBack - heightFront,
 								2 * gridTileSize};
 			normal = vector::normalize(normal);
