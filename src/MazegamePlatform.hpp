@@ -73,7 +73,6 @@ namespace platform
 		// GRAPHICS FUNCTIONS
 		MeshHandle (*push_mesh) (Graphics*, MeshAsset * asset);
 		TextureHandle (*push_texture) (Graphics*, TextureAsset * asset);
-		TextureHandle (*push_render_texture) (Graphics*, u32 width, u32 height);
 		TextureHandle (*push_cubemap) (Graphics*, StaticArray<TextureAsset, 6> * asset);
 
 		MaterialHandle (*push_material) (Graphics*, MaterialAsset * asset);
@@ -84,25 +83,47 @@ namespace platform
 		PipelineHandle (*push_pipeline) (Graphics*, char const * vertexShaderFilename,
 													char const * fragmentShaderFilename,
 													RenderingOptions optios);
-		void (*unload_scene) (Graphics*);
+		void (*unload_scene) 	(Graphics*);
 
-		void (*update_camera) (Graphics*, Matrix44 view, Matrix44 perspective);
-		void (*prepare_frame) (Graphics*);
-		void (*finish_frame) (Graphics*);
+		void (*update_camera) 	(Graphics*, Matrix44 view, Matrix44 perspective);
+		void (*prepare_frame) 	(Graphics*);
+		void (*finish_frame) 	(Graphics*);
 
-		void (*draw_model) (Graphics*, ModelHandle model, Matrix44 transform);
-		void (*draw_line) (Graphics*, vector3 start, vector3 end, float4 color);
-		void (*draw_gui) (Graphics*, vector2 position, vector2 size, MaterialHandle material, float4 color);
+		void (*draw_model) 	(Graphics*, ModelHandle model, Matrix44 transform);
+		void (*draw_line) 	(Graphics*, vector3 start, vector3 end, float4 color);
+		void (*draw_gui) 	(Graphics*, vector2 position, vector2 size, MaterialHandle material, float4 color);
 
-		// void (*prepare_shadow_pass)(Graphics*);
-		// void (*finish_shadow_pass) (Graphics*);
-		// void (*draw_shadow) (Graphics*, ModelHandle model, Matrix44 transform);
+		// void (*prepare_shadow_pass)	(Graphics*, Matrix44 const * view, Matrix44 const * perspective);
+		// void (*finish_shadow_pass) 	(Graphics*);
+		// void (*draw_shadow_model) 	(Graphics*, ModelHandle model, Matrix44 const * transform);
 
 		// WINDOW FUNCTIONS	
-		u32 (*get_window_width) (Window const *);
-		u32 (*get_window_height) (Window const *);
-		bool32 (*is_window_fullscreen) (Window const *);
-		void (*set_window_fullscreen) (Window*, bool32 value);
+		u32 (*get_window_width) 		(Window const *);
+		u32 (*get_window_height) 		(Window const *);
+		bool32 (*is_window_fullscreen) 	(Window const *);
+		void (*set_window_fullscreen) 	(Window*, bool32 value);
+	};
+
+	internal bool32
+	all_functions_set(Functions const * functions)
+	{
+		/* Note(Leo): this assumes that sizeof each pointer is same. 
+		This site suggests that it is so, but I'm still not 100% sure.
+		https://docs.oracle.com/cd/E19059-01/wrkshp50/805-4956/6j4mh6goi/index.html */
+
+		using 			function_ptr = void(*)();
+		u32 constexpr 	numFunctions = sizeof(Functions) / sizeof(function_ptr);
+
+		auto const * funcArray = reinterpret_cast<function_ptr const *>(functions);
+		for (u32 i = 0; i < numFunctions; ++i)
+		{
+			if (funcArray[i] == nullptr)
+			{
+				std::cout << "[all_functions_set()]: 'nullptr' found at " << i << "\n";
+				return false;
+			}
+		}
+		return true;
 	};
 }
 

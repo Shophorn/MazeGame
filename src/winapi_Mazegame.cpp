@@ -114,6 +114,8 @@ Run(HINSTANCE winInstance)
         state.platformFunctions.is_window_fullscreen    = [](platform::Window const * window) { return window->isFullscreen; };
         state.platformFunctions.set_window_fullscreen   = winapi::set_window_fullscreen;
 
+        assert(all_functions_set(&state.platformFunctions));
+
         std::cout << "functions set!\n";   
     }
 

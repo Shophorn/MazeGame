@@ -434,14 +434,19 @@ namespace vulkan
     internal void 			unload_scene(VulkanContext * context);
 
 	/// DRAWING, VulkanDrawing.cpp
-    internal void update_camera(VulkanContext * context, Matrix44 view, Matrix44 perspective);
-	internal void prepare_drawing(VulkanContext * context);
-	internal void finish_drawing(VulkanContext * context);
-	internal void record_draw_command(VulkanContext * context, ModelHandle handle, Matrix44 transform);
-	internal void record_line_draw_command(VulkanContext * context, vector3 start, vector3 end, float4 color);
-	internal void record_gui_draw_command(VulkanContext * context, vector2 position, vector2 size, MaterialHandle material, float4 color);
+    internal void update_camera				(VulkanContext*, Matrix44 view, Matrix44 perspective);
+	internal void prepare_drawing			(VulkanContext*);
+	internal void finish_drawing 			(VulkanContext*);
+	internal void record_draw_command 		(VulkanContext*, ModelHandle handle, Matrix44 transform);
+	internal void record_line_draw_command	(VulkanContext*, vector3 start, vector3 end, float4 color);
+	internal void record_gui_draw_command	(VulkanContext*, vector2 position, vector2 size, MaterialHandle material, float4 color);
+	internal void draw_frame 				(VulkanContext * context, u32 imageIndex);
+
+	internal void prepare_shadow_pass 		(VulkanContext*, Matrix44 const * view, Matrix44 const * perspective);
+	internal void finish_shadow_pass 		(VulkanContext*);
+	internal void draw_shadow_model			(VulkanContext*, ModelHandle model, Matrix44 const * transform);
+
 	// Lol, this is not given to game layer
-	internal void draw_frame(VulkanContext * context, u32 imageIndex);
 }
 
 
