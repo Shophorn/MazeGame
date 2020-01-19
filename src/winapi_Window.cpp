@@ -41,16 +41,14 @@ namespace winapi
                             && (window->height > 0);
         return isDrawable;
     }
+
     point2
-    get_window_size(HWND hwnd)
+    get_window_size(WinAPIWindow * window)
     {
-        RECT rect;
-        GetWindowRect(hwnd, &rect);
-
-        u32 width = rect.right - rect.left;
-        u32 height = rect.bottom - rect.top;
-
-        return { width, height };
+        return {
+            .width = window->width,
+            .height = window->height,
+        };
     }
 
     internal void
@@ -209,21 +207,23 @@ namespace winapi
         auto defaultArrowCursor = MAKEINTRESOURCEW(32512);
         windowClass.hCursor = LoadCursorW(nullptr, defaultArrowCursor);
 
-        PRODUCTION_ASSERT(RegisterClassW(&windowClass) != 0, "Failed to register window class");
+        RELEASE_ASSERT(RegisterClassW(&windowClass) != 0, "Failed to register window class");
 
         HWND hwnd = CreateWindowExW (
             0, windowClassName, windowTitle, WS_OVERLAPPEDWINDOW | WS_VISIBLE,
             CW_USEDEFAULT, CW_USEDEFAULT, width, height,
             nullptr, nullptr, winInstance, nullptr);
 
-        PRODUCTION_ASSERT(hwnd != nullptr, "Failed to create window");
+        RELEASE_ASSERT(hwnd != nullptr, "Failed to create window");
 
-        point2 windowSize = get_window_size(hwnd);
+        RECT windowRect;
+        GetWindowRect(hwnd, &windowRect);
 
         WinAPIWindow window = {};
 
-        window.width = windowSize.width;
-        window.height = windowSize.height;
+
+        window.width = windowRect.right - windowRect.left;
+        window.height = windowRect.bottom - windowRect.top;
         window.hwnd = hwnd;
         window.hInstance = winInstance;
 

@@ -5,9 +5,24 @@ Implementations of vulkan related functions
 =============================================================================*/
 #include "winapi_Vulkan.hpp"
 
+#include "VulkanCommandBuffers.cpp"
 #include "VulkanScene.cpp"
 #include "VulkanDrawing.cpp"
 #include "VulkanPipelines.cpp"
+#include "VulkanSwapchain.cpp"
+
+/* Note(leo): these are fixed per available renderpipeline thing. They describe
+'kinds' of resources or something, so their amount does not change
+
+IMPORTANT(Leo): These must be same in shaders
+Todo(Leo): this is stupid and dangerous, please remove.
+*/
+enum : u32
+{
+    DESCRIPTOR_LAYOUT_SCENE_BINDING     = 0,
+    DESCRIPTOR_LAYOUT_MODEL_BINDING     = 0,
+    DESCRIPTOR_LAYOUT_SAMPLER_BINDING   = 0,
+};
 
 internal VkFormat
 vulkan::find_supported_format(
@@ -68,49 +83,6 @@ vulkan::find_memory_type (VkPhysicalDevice physicalDevice, u32 typeFilter, VkMem
     throw std::runtime_error("Failed to find suitable memory type.");
 }   
 
-// Todo(Leo): see if we can change this to proper functional function
-internal void
-vulkan::CreateBuffer(
-    VkDevice                logicalDevice,
-    VkPhysicalDevice        physicalDevice,
-    VkDeviceSize            bufferSize,
-    VkBufferUsageFlags      usage,
-    VkMemoryPropertyFlags   memoryProperties,
-    VkBuffer *              resultBuffer,
-    VkDeviceMemory *        resultBufferMemory
-){
-    VkBufferCreateInfo bufferInfo = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
-    bufferInfo.size = bufferSize;
-    bufferInfo.usage = usage;
-    bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    bufferInfo.flags = 0;
-
-    if (vkCreateBuffer(logicalDevice, &bufferInfo, nullptr, resultBuffer) != VK_SUCCESS)
-    {
-        throw std::runtime_error("Failed to create buffer");
-    }
-
-    VkMemoryRequirements memoryRequirements;
-    vkGetBufferMemoryRequirements(logicalDevice, *resultBuffer, &memoryRequirements);
-
-    VkMemoryAllocateInfo allocateInfo = { VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO };
-    allocateInfo.allocationSize = memoryRequirements.size;
-    allocateInfo.memoryTypeIndex = vulkan::find_memory_type(
-                                        physicalDevice,
-                                        memoryRequirements.memoryTypeBits,
-                                        memoryProperties);
-
-    std::cout << "memoryTypeIndex : " << allocateInfo.memoryTypeIndex << "\n";
-
-    /* Todo(Leo): do not actually always use new allocate, but instead allocate
-    once and create allocator to handle multiple items */
-    if (vkAllocateMemory(logicalDevice, &allocateInfo, nullptr, resultBufferMemory) != VK_SUCCESS)
-    {
-        throw std::runtime_error("Failed to allocate buffer memory");
-    }
-
-    vkBindBufferMemory(logicalDevice, *resultBuffer, *resultBufferMemory, 0); 
-}
 
 internal VulkanBufferResource
 vulkan::make_buffer_resource(
@@ -119,21 +91,44 @@ vulkan::make_buffer_resource(
     VkBufferUsageFlags      usage,
     VkMemoryPropertyFlags   memoryProperties)
 {
-    VulkanBufferResource result = {};
+    VkBufferCreateInfo bufferInfo =
+    { 
+        .sType          = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+        .size           = size,
+        .usage          = usage,
+        .sharingMode    = VK_SHARING_MODE_EXCLUSIVE,
+        .flags          = 0,
+    };
 
-    // TODO(Leo): This is reminder to remove this system. It used to be so that result was passed with an out pointer
-    if (result.created == true)
+    VkBuffer buffer;
+    VULKAN_CHECK(vkCreateBuffer(context->device, &bufferInfo, nullptr, &buffer));
+
+    VkMemoryRequirements memoryRequirements;
+    vkGetBufferMemoryRequirements(context->device, buffer, &memoryRequirements);
+
+    VkMemoryAllocateInfo allocateInfo =
     {
-        // return;
-    }
-    
-    // TODO(Leo): inline this
-    vulkan::CreateBuffer(   context->device, context->physicalDevice, size,
-                            usage, memoryProperties, &result.buffer, &result.memory);
+        .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+        .allocationSize = memoryRequirements.size,
+        .memoryTypeIndex = find_memory_type(context->physicalDevice,
+                                            memoryRequirements.memoryTypeBits,
+                                            memoryProperties),
+    };
 
-    result.size = size;
-    result.created = true;
-    return result;
+    /* Todo(Leo): do not actually always use new allocate, but instead allocate
+    once and create allocator to handle multiple items */
+    VkDeviceMemory memory;
+    VULKAN_CHECK(vkAllocateMemory(context->device, &allocateInfo, nullptr, &memory));
+
+    vkBindBufferMemory(context->device, buffer, memory, 0); 
+
+    
+    return {
+        .buffer = buffer,
+        .memory = memory,
+        .used   = 0,
+        .size   = size,
+    };
 }
 
 internal void
@@ -141,8 +136,6 @@ vulkan::destroy_buffer_resource(VkDevice logicalDevice, VulkanBufferResource * r
 {
     vkDestroyBuffer(logicalDevice, resource->buffer, nullptr);
     vkFreeMemory(logicalDevice, resource->memory, nullptr);
-
-    resource->created = false;
 }
 
 internal VkVertexInputBindingDescription
@@ -155,10 +148,10 @@ vulkan::get_vertex_binding_description ()
     };
 }
 
-internal Array<VkVertexInputAttributeDescription, 4>
+internal StaticArray<VkVertexInputAttributeDescription, 4>
 vulkan::get_vertex_attribute_description()
 {
-	Array<VkVertexInputAttributeDescription, 4> value = {};
+	StaticArray<VkVertexInputAttributeDescription, 4> value = {};
 
 	value[0].binding = 0;
 	value[0].location = 0;
@@ -200,7 +193,7 @@ vulkan::convert_index_type(IndexType type)
 }
 
 internal VulkanSwapchainSupportDetails
-vulkan::QuerySwapChainSupport(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface)
+vulkan::query_swap_chain_support(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface)
 {
     VulkanSwapchainSupportDetails result = {};
 
@@ -229,7 +222,7 @@ vulkan::QuerySwapChainSupport(VkPhysicalDevice physicalDevice, VkSurfaceKHR surf
 }
 
 internal VkSurfaceFormatKHR
-vulkan::ChooseSwapSurfaceFormat(std::vector<VkSurfaceFormatKHR>& availableFormats)
+vulkan::choose_swapchain_surface_format(std::vector<VkSurfaceFormatKHR>& availableFormats)
 {
     constexpr VkFormat preferredFormat = VK_FORMAT_R8G8B8A8_UNORM;
     constexpr VkColorSpaceKHR preferredColorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
@@ -246,7 +239,7 @@ vulkan::ChooseSwapSurfaceFormat(std::vector<VkSurfaceFormatKHR>& availableFormat
 }
 
 internal VkPresentModeKHR
-vulkan::ChooseSurfacePresentMode(std::vector<VkPresentModeKHR> & availablePresentModes)
+vulkan::choose_surface_present_mode(std::vector<VkPresentModeKHR> & availablePresentModes)
 {
     // Todo(Leo): Is it really preferred???
     constexpr VkPresentModeKHR preferredPresentMode = VK_PRESENT_MODE_MAILBOX_KHR;
@@ -264,7 +257,7 @@ vulkan::ChooseSurfacePresentMode(std::vector<VkPresentModeKHR> & availablePresen
 
 
 VulkanQueueFamilyIndices
-vulkan::FindQueueFamilies (VkPhysicalDevice device, VkSurfaceKHR surface)
+vulkan::find_queue_families (VkPhysicalDevice device, VkSurfaceKHR surface)
 {
     // Note: A card must also have a graphics queue family available; We do want to draw after all
     VkQueueFamilyProperties queueFamilyProps [50];
@@ -302,7 +295,7 @@ vulkan::FindQueueFamilies (VkPhysicalDevice device, VkSurfaceKHR surface)
 
 
 VkShaderModule
-vulkan::CreateShaderModule(BinaryAsset code, VkDevice logicalDevice)
+vulkan::make_vk_shader_module(BinaryAsset code, VkDevice logicalDevice)
 {
     VkShaderModuleCreateInfo createInfo = {};
     createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
@@ -320,358 +313,8 @@ vulkan::CreateShaderModule(BinaryAsset code, VkDevice logicalDevice)
 
 
 
-/******************************************************************************
-
-Todo[Vulkan](Leo):
-AFTER THIS THESE FUNCTIONS ARE JUST YEETED HERE, SET THEM PROPERLY IN 'vulkan'
-NAMESPACE AND SPLIT TO MULTIPLE FILES IF APPROPRIATE
-
-
-*****************************************************************************/
-
-internal VkSampleCountFlagBits 
-GetMaxUsableMsaaSampleCount (VkPhysicalDevice physicalDevice)
-{
-    // Todo(Leo): to be easier on machine when developing for 2 players at same time
-    VkPhysicalDeviceProperties physicalDeviceProperties;
-    vkGetPhysicalDeviceProperties(physicalDevice, &physicalDeviceProperties);
-
-    VkSampleCountFlags counts = std::min(
-            physicalDeviceProperties.limits.framebufferColorSampleCounts,
-            physicalDeviceProperties.limits.framebufferDepthSampleCounts
-        );
-
-    VkSampleCountFlagBits result;
-
-    if (counts & VK_SAMPLE_COUNT_64_BIT) { result = VK_SAMPLE_COUNT_64_BIT; }
-    if (counts & VK_SAMPLE_COUNT_32_BIT) { result = VK_SAMPLE_COUNT_32_BIT; }
-    if (counts & VK_SAMPLE_COUNT_16_BIT) { result = VK_SAMPLE_COUNT_16_BIT; }
-    if (counts & VK_SAMPLE_COUNT_8_BIT) { result = VK_SAMPLE_COUNT_8_BIT; }
-    if (counts & VK_SAMPLE_COUNT_4_BIT) { result = VK_SAMPLE_COUNT_4_BIT; }
-    if (counts & VK_SAMPLE_COUNT_2_BIT) { result = VK_SAMPLE_COUNT_2_BIT; }
-
-    if (result > VULKAN_MAX_MSAA_SAMPLE_COUNT)
-    {
-        result = VULKAN_MAX_MSAA_SAMPLE_COUNT;
-    }
-
-    return result;
-}
-
-// Todo(Leo): put into namespace, I already forgot where this was :)
-internal VkInstance
-CreateInstance()
-{
-    auto CheckValidationLayerSupport = [] () -> bool32
-    {
-        VkLayerProperties availableLayers [50];
-        u32 availableLayersCount = ARRAY_COUNT(availableLayers);
-
-        bool32 result = true;
-        if (vkEnumerateInstanceLayerProperties (&availableLayersCount, availableLayers) == VK_SUCCESS)
-        {
-
-            for (
-                int validationLayerIndex = 0;
-                validationLayerIndex < vulkan::VALIDATION_LAYERS_COUNT;
-                ++validationLayerIndex)
-            {
-                bool32 layerFound = false;
-                for(
-                    int availableLayerIndex = 0; 
-                    availableLayerIndex < availableLayersCount; 
-                    ++availableLayerIndex)
-                {
-                    if (strcmp (vulkan::validationLayers[validationLayerIndex], availableLayers[availableLayerIndex].layerName) == 0)
-                    {
-                        layerFound = true;
-                        break;
-                    }
-                }
-
-                if (layerFound == false)
-                {
-                    result = false;
-                    break;
-                }
-            }
-        }
-
-        return result;
-    };
-
-    if (vulkan::enableValidationLayers && CheckValidationLayerSupport() == false)
-    {
-        throw std::runtime_error("Validation layers required but not present");
-    }
-
-    VkApplicationInfo appInfo = {};
-    appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-    appInfo.pApplicationName = "Vulkan practice";
-    appInfo.apiVersion = VK_API_VERSION_1_0;
-
-    VkInstanceCreateInfo instanceInfo = {};
-    instanceInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-    instanceInfo.pApplicationInfo = &appInfo;
-
-    instanceInfo.enabledExtensionCount = 2;
-    const char * extensions [] = {"VK_KHR_surface", "VK_KHR_win32_surface"}; 
-    instanceInfo.ppEnabledExtensionNames = extensions;
-
-    if constexpr (vulkan::enableValidationLayers)
-    {
-        instanceInfo.enabledLayerCount = vulkan::VALIDATION_LAYERS_COUNT;
-        instanceInfo.ppEnabledLayerNames = vulkan::validationLayers;
-    }
-    else
-    {
-        instanceInfo.enabledLayerCount = 0;
-    }
-
-    VkInstance instance;
-    if (vkCreateInstance(&instanceInfo, nullptr, &instance) != VK_SUCCESS)
-    {
-        // Todo: Bad stuff happened, abort
-    }
-
-    return instance;
-}
-
-internal VkPhysicalDevice
-PickPhysicalDevice(VkInstance vulkanInstance, VkSurfaceKHR surface)
-{
-    auto CheckDeviceExtensionSupport = [] (VkPhysicalDevice testDevice) -> bool32
-    {
-        VkExtensionProperties availableExtensions [100];
-        u32 availableExtensionsCount = ARRAY_COUNT(availableExtensions);
-        vkEnumerateDeviceExtensionProperties (testDevice, nullptr, &availableExtensionsCount, availableExtensions);
-
-        bool32 result = true;
-        for (int requiredIndex = 0;
-            requiredIndex < vulkan::DEVICE_EXTENSION_COUNT;
-            ++requiredIndex)
-        {
-
-            bool32 requiredExtensionFound = false;
-            for (int availableIndex = 0;
-                availableIndex < availableExtensionsCount;
-                ++availableIndex)
-            {
-                if (strcmp(vulkan::deviceExtensions[requiredIndex], availableExtensions[availableIndex].extensionName) == 0)
-                {
-                    requiredExtensionFound = true;
-                    break;
-                }
-            }
-
-            result = requiredExtensionFound;
-            if (result == false)
-            {
-                break;
-            }
-        }
-
-        return result;
-    };
-
-    auto IsPhysicalDeviceSuitable = [CheckDeviceExtensionSupport] (VkPhysicalDevice testDevice, VkSurfaceKHR surface) -> bool32
-    {
-        VkPhysicalDeviceProperties props;
-        vkGetPhysicalDeviceProperties(testDevice, &props);
-        bool32 isDedicatedGPU = props.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU;
-
-        VkPhysicalDeviceFeatures features;
-        vkGetPhysicalDeviceFeatures(testDevice, &features);
-
-        bool32 extensionsAreSupported = CheckDeviceExtensionSupport(testDevice);
-
-        bool32 swapchainIsOk = false;
-        if (extensionsAreSupported)
-        {
-            VulkanSwapchainSupportDetails swapchainSupport = vulkan::QuerySwapChainSupport(testDevice, surface);
-            swapchainIsOk = !swapchainSupport.formats.empty() && !swapchainSupport.presentModes.empty();
-        }
-
-        VulkanQueueFamilyIndices indices = vulkan::FindQueueFamilies(testDevice, surface);
-        return  isDedicatedGPU 
-                && indices.hasAll()
-                && extensionsAreSupported
-                && swapchainIsOk
-                && features.samplerAnisotropy;
-    };
-
-    VkPhysicalDevice resultPhysicalDevice;
-
-
-    VkPhysicalDevice devices [10];
-    u32 deviceCount = ARRAY_COUNT(devices);
-    vkEnumeratePhysicalDevices(vulkanInstance, &deviceCount, devices);
-
-    if (deviceCount == 0)
-    {
-        throw std::runtime_error("No GPU devices found");
-    }
-
-    for (int i = 0; i < deviceCount; i++)
-    {
-        if (IsPhysicalDeviceSuitable(devices[i], surface))
-        {
-            resultPhysicalDevice = devices[i];
-            break;
-        }
-    }
-
-    if (resultPhysicalDevice == VK_NULL_HANDLE)
-    {
-        throw std::runtime_error("No suitable GPU device found");
-    }
-
-    return resultPhysicalDevice;
-}
-
-internal VkDevice
-CreateLogicalDevice(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface)
-{
-    VulkanQueueFamilyIndices queueIndices = vulkan::FindQueueFamilies(physicalDevice, surface);
-    
-    /* Note: We need both graphics and present queue, but they might be on
-    separate devices (correct???), so we may need to end up with multiple queues */
-    int uniqueQueueFamilyCount = queueIndices.graphics == queueIndices.present ? 1 : 2;
-    VkDeviceQueueCreateInfo queueCreateInfos [2] = {};
-    float queuePriorities[/*queueCount*/] = { 1.0f };
-    for (int i = 0; i <uniqueQueueFamilyCount; ++i)
-    {
-        // VkDeviceQueueCreateInfo queueCreateInfo = {};
-        queueCreateInfos[i].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-        queueCreateInfos[i].queueFamilyIndex = queueIndices.getAt(i);
-        queueCreateInfos[i].queueCount = 1;
-
-        queueCreateInfos[i].pQueuePriorities = queuePriorities;
-    }
-
-    VkPhysicalDeviceFeatures physicalDeviceFeatures = {};
-    physicalDeviceFeatures.samplerAnisotropy = VK_TRUE;
-
-    VkDeviceCreateInfo deviceCreateInfo = {};
-    deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-    deviceCreateInfo.queueCreateInfoCount = 1;
-    deviceCreateInfo.pQueueCreateInfos = queueCreateInfos;
-    deviceCreateInfo.pEnabledFeatures = &physicalDeviceFeatures;
-    deviceCreateInfo.enabledExtensionCount = vulkan::DEVICE_EXTENSION_COUNT;
-    deviceCreateInfo.ppEnabledExtensionNames = vulkan::deviceExtensions;
-
-    if constexpr (vulkan::enableValidationLayers)
-    {
-        deviceCreateInfo.enabledLayerCount = vulkan::VALIDATION_LAYERS_COUNT;
-        deviceCreateInfo.ppEnabledLayerNames = vulkan::validationLayers;
-    }
-    else
-    {
-        deviceCreateInfo.enabledLayerCount = 0;
-    }
-
-    VkDevice resultLogicalDevice;
-
-    if (vkCreateDevice(physicalDevice, &deviceCreateInfo,nullptr, &resultLogicalDevice) != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to create vulkan logical device");
-    }
-
-    return resultLogicalDevice;
-}
-
-internal VkImage
-CreateImage(
-    VkDevice logicalDevice, 
-    VkPhysicalDevice physicalDevice,
-    u32 texWidth,
-    u32 texHeight,
-    u32 mipLevels,
-    VkFormat format,
-    VkImageTiling tiling,
-    VkImageUsageFlags usage,
-    VkSampleCountFlagBits msaaSamples
-){
-    VkImageCreateInfo imageInfo = { VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO };
-
-    imageInfo.imageType     = VK_IMAGE_TYPE_2D;
-    imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    imageInfo.sharingMode   = VK_SHARING_MODE_EXCLUSIVE; // note(leo): concerning queue families
-    imageInfo.arrayLayers   = 1;
-
-    imageInfo.extent        = { texWidth, texHeight, 1 };
-    imageInfo.mipLevels     = mipLevels;
-    imageInfo.format        = format;
-    imageInfo.tiling        = tiling;
-    imageInfo.usage         = usage;
-    imageInfo.samples       = msaaSamples;
-
-    imageInfo.flags         = 0;
-
-    VkImage resultImage;
-    if (vkCreateImage(logicalDevice, &imageInfo, nullptr, &resultImage) != VK_SUCCESS)
-    {
-        throw std::runtime_error ("Failed to create image");
-    }
-    return resultImage;
-}
-
-internal void
-create_image_and_memory(
-    VkDevice logicalDevice, 
-    VkPhysicalDevice physicalDevice,
-    u32 texWidth,
-    u32 texHeight,
-    u32 mipLevels,
-    VkFormat format,
-    VkImageTiling tiling,
-    VkImageUsageFlags usage,
-    VkMemoryPropertyFlags memoryFlags,
-    VkSampleCountFlagBits msaaSamples,
-    VkImage * resultImage,
-    VkDeviceMemory * resultImageMemory)
-{
-    VkImageCreateInfo imageInfo = { VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO };
-    imageInfo.imageType = VK_IMAGE_TYPE_2D;
-    imageInfo.extent = { texWidth, texHeight, 1 };
-    imageInfo.mipLevels = mipLevels;
-    imageInfo.arrayLayers = 1;
-    imageInfo.format = format;
-
-    imageInfo.tiling = tiling;
-    imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    imageInfo.usage = usage;
-    imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE; // note(leo): concerning queue families
-    imageInfo.samples = msaaSamples;
-    imageInfo.flags = 0;
-
-    // Note(Leo): some image formats may not be supported
-    if (vkCreateImage(logicalDevice, &imageInfo, nullptr, resultImage) != VK_SUCCESS)
-    {
-        throw std::runtime_error ("Failed to create image");
-    }
-
-    VkMemoryRequirements memoryRequirements;
-    vkGetImageMemoryRequirements (logicalDevice, *resultImage, &memoryRequirements);
-
-    VkMemoryAllocateInfo allocateInfo = { VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO };
-    allocateInfo.allocationSize = memoryRequirements.size;
-    allocateInfo.memoryTypeIndex = vulkan::find_memory_type (
-                                    physicalDevice,
-                                    memoryRequirements.memoryTypeBits,
-                                    memoryFlags);
-
-    if (vkAllocateMemory(logicalDevice, &allocateInfo, nullptr, resultImageMemory) != VK_SUCCESS)
-    {
-        throw std::runtime_error("Failed to allocate image memory");
-    }
-
-    vkBindImageMemory(logicalDevice, *resultImage, *resultImageMemory, 0);   
-}
-
-
 internal VkImageView
-create_image_view(
+vulkan::make_vk_image_view(
     VkDevice logicalDevice,
     VkImage image,
     u32 mipLevels,
@@ -695,114 +338,14 @@ create_image_view(
     imageViewInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
 
     VkImageView result;
-    if (vkCreateImageView(logicalDevice, &imageViewInfo, nullptr, &result) != VK_SUCCESS)
-    {
-        throw std::runtime_error ("Failed to create image view");
-    }
+    VULKAN_CHECK(vkCreateImageView(logicalDevice, &imageViewInfo, nullptr, &result));
 
     return result;
 }
 
 
-internal VulkanSwapchainItems
-CreateSwapchainAndImages(VulkanContext * context, VkExtent2D frameBufferSize)
-{
-    VulkanSwapchainItems resultSwapchain = {};
-
-    VulkanSwapchainSupportDetails swapchainSupport = vulkan::QuerySwapChainSupport(context->physicalDevice, context->surface);
-
-    VkSurfaceFormatKHR surfaceFormat = vulkan::ChooseSwapSurfaceFormat(swapchainSupport.formats);
-    VkPresentModeKHR presentMode = vulkan::ChooseSurfacePresentMode(swapchainSupport.presentModes);
-
-    // Find extent ie. size of drawing window
-    /* Note(Leo): max value is special value denoting that all are okay.
-    Or something else, so we need to ask platform */
-    if (swapchainSupport.capabilities.currentExtent.width != maxValue<u32>)
-    {
-        resultSwapchain.extent = swapchainSupport.capabilities.currentExtent;
-    }
-    else
-    {   
-        VkExtent2D min = swapchainSupport.capabilities.minImageExtent;
-        VkExtent2D max = swapchainSupport.capabilities.maxImageExtent;
-
-        resultSwapchain.extent.width = clamp(static_cast<u32>(frameBufferSize.width), min.width, max.width);
-        resultSwapchain.extent.height = clamp(static_cast<u32>(frameBufferSize.height), min.height, max.height);
-    }
-
-    std::cout << "Creating swapchain actually, width: " << resultSwapchain.extent.width << ", height: " << resultSwapchain.extent.height << "\n";
-
-    u32 imageCount = swapchainSupport.capabilities.minImageCount + 1;
-    u32 maxImageCount = swapchainSupport.capabilities.maxImageCount;
-    if (maxImageCount > 0 && imageCount > maxImageCount)
-    {
-        imageCount = maxImageCount;
-    }
-
-    VkSwapchainCreateInfoKHR createInfo = {};
-    createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-    createInfo.surface = context->surface;
-
-    createInfo.minImageCount = imageCount;
-    createInfo.imageFormat = surfaceFormat.format;
-    createInfo.imageColorSpace = surfaceFormat.colorSpace;
-    createInfo.imageExtent = resultSwapchain.extent;
-    createInfo.imageArrayLayers = 1;
-    createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-
-    VulkanQueueFamilyIndices queueIndices = vulkan::FindQueueFamilies(context->physicalDevice, context->surface);
-    u32 queueIndicesArray [2] = {queueIndices.graphics, queueIndices.present};
-
-    if (queueIndices.graphics == queueIndices.present)
-    {
-        createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    }
-    else
-    {
-        createInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
-        createInfo.queueFamilyIndexCount = 2;
-        createInfo.pQueueFamilyIndices = queueIndicesArray;
-    }
-
-    createInfo.preTransform = swapchainSupport.capabilities.currentTransform;
-    createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-    createInfo.presentMode = presentMode;
-    createInfo.clipped = VK_TRUE;
-    createInfo.oldSwapchain = VK_NULL_HANDLE;
-
-    if (vkCreateSwapchainKHR(context->device, &createInfo, nullptr, &resultSwapchain.swapchain) != VK_SUCCESS)
-    {
-        throw std::runtime_error("Failed to create swap chain");
-    }
-
-    resultSwapchain.imageFormat = surfaceFormat.format;
-
-
-    // Bug(Leo): following imageCount variable is reusing one from previous definition, maybe bug
-    // Note(Leo): Swapchain images are not created, they are gotten from api
-    vkGetSwapchainImagesKHR(context->device, resultSwapchain.swapchain, &imageCount, nullptr);
-    resultSwapchain.images.resize (imageCount);
-    vkGetSwapchainImagesKHR(context->device, resultSwapchain.swapchain, &imageCount, &resultSwapchain.images[0]);
-
-    std::cout << "Created swapchain and images\n";
-    
-    resultSwapchain.imageViews.resize(imageCount);
-
-    for (int i = 0; i < imageCount; ++i)
-    {
-        resultSwapchain.imageViews[i] = create_image_view(
-            context->device, resultSwapchain.images[i], 1, 
-            resultSwapchain.imageFormat, VK_IMAGE_ASPECT_COLOR_BIT);
-    }
-
-    std::cout << "Created image views\n";
-
-    return resultSwapchain;
-}
-
-
 internal VkRenderPass
-vulkan::make_render_pass(VulkanContext * context, VkFormat format, VkSampleCountFlagBits msaaSamples)
+vulkan::make_vk_render_pass(VulkanContext * context, VkFormat format, VkSampleCountFlagBits msaaSamples)
 {
     enum : s32
     { 
@@ -892,49 +435,10 @@ vulkan::make_render_pass(VulkanContext * context, VkFormat format, VkSampleCount
     return resultRenderPass;
 }
 
-/* Note(leo): these are fixed per available renderpipeline thing. They describe
-'kinds' of resources or something, so their amount does not change
 
-IMPORTANT(Leo): These must be same in shaders
-*/
-enum : u32
-{
-    DESCRIPTOR_LAYOUT_SCENE_BINDING     = 0,
-    DESCRIPTOR_LAYOUT_MODEL_BINDING     = 0,
-    DESCRIPTOR_LAYOUT_SAMPLER_BINDING   = 0,
-};
 
 internal VkDescriptorSetLayout
-CreateModelDescriptorSetLayout(VkDevice device)
-{
-    VkDescriptorSetLayoutBinding binding =
-    {
-        .binding            = DESCRIPTOR_LAYOUT_MODEL_BINDING,
-        .descriptorType     = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
-        .descriptorCount    = 1,
-        .stageFlags         = VK_SHADER_STAGE_VERTEX_BIT,
-        .pImmutableSamplers = nullptr,
-    };
-
-    VkDescriptorSetLayoutCreateInfo layoutCreateInfo =
-    { 
-        .sType          = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-        .bindingCount   = 1,
-        .pBindings      = &binding,
-    };
-
-    VkDescriptorSetLayout resultDescriptorSetLayout;
-
-    if(vkCreateDescriptorSetLayout(device, &layoutCreateInfo, nullptr, &resultDescriptorSetLayout) != VK_SUCCESS)
-    {
-        throw std::runtime_error("Failed to create the descriptor set layout");
-    }
-
-    return resultDescriptorSetLayout;
-}
-
-internal VkDescriptorSetLayout
-vulkan::create_material_descriptor_set_layout(VkDevice device, u32 textureCount)
+vulkan::make_material_vk_descriptor_set_layout(VkDevice device, u32 textureCount)
 {
     VkDescriptorSetLayoutBinding binding = 
     {
@@ -953,56 +457,188 @@ vulkan::create_material_descriptor_set_layout(VkDevice device, u32 textureCount)
     };
 
     VkDescriptorSetLayout resultDescriptorSetLayout;
-    if(vkCreateDescriptorSetLayout(device, &layoutCreateInfo, nullptr, &resultDescriptorSetLayout) != VK_SUCCESS)
-    {
-        throw std::runtime_error("Failed to create the descriptor set layout");
-    }
+    VULKAN_CHECK(vkCreateDescriptorSetLayout(device, &layoutCreateInfo, nullptr, &resultDescriptorSetLayout));
+    
     return resultDescriptorSetLayout;
 }
 
-internal VkDescriptorSetLayout
-CreateSceneDescriptorSetLayout(VkDevice device)
+
+internal VkDescriptorSet
+vulkan::make_material_vk_descriptor_set(
+    VulkanContext * context,
+    PipelineHandle pipelineHandle,
+    ArenaArray<TextureHandle> textures)
 {
-    VkDescriptorSetLayoutBinding binding =
-    {
-        .binding            = DESCRIPTOR_LAYOUT_SCENE_BINDING,
-        .descriptorType     = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-        .descriptorCount    = 1,
-        .stageFlags         = VK_SHADER_STAGE_VERTEX_BIT,
-        .pImmutableSamplers = nullptr, // Note(Leo): relevant for sampler stuff, like textures,
-    };
+    u32 textureCount = get_loaded_pipeline(context, pipelineHandle)->info.options.textureCount;
+    constexpr u32 maxTextures = 10;
+    
+    DEBUG_ASSERT(textureCount < maxTextures, "Too many textures on material");
+    DEBUG_ASSERT(textureCount == textures.count(), "Wrong number of textures in ArenaArray 'textures'");
 
-    VkDescriptorSetLayoutCreateInfo layoutCreateInfo =
+    VkDescriptorSetAllocateInfo allocateInfo =
     { 
-        .sType          = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-        .bindingCount   = 1,
-        .pBindings      = &binding,
+        .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+        .descriptorPool     = context->descriptorPools.material,
+        .descriptorSetCount = 1,
+        .pSetLayouts        = &get_loaded_pipeline(context, pipelineHandle)->materialLayout,
     };
 
-    VkDescriptorSetLayout resultDescriptorSetLayout;
+    VkDescriptorSet resultSet;
+    VULKAN_CHECK(vkAllocateDescriptorSets(context->device, &allocateInfo, &resultSet));
 
-    if(vkCreateDescriptorSetLayout(device, &layoutCreateInfo, nullptr, &resultDescriptorSetLayout) != VK_SUCCESS)
+    VkDescriptorImageInfo samplerInfos [maxTextures];
+    for (int i = 0; i < textureCount; ++i)
     {
-        throw std::runtime_error("Failed to create the descriptor set layout");
+        samplerInfos[i] = 
+        {
+            .sampler        = context->textureSampler,
+            .imageView      = get_loaded_texture(context, textures[i])->view,
+            .imageLayout    = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        };
     }
 
-    return resultDescriptorSetLayout;
+    VkWriteDescriptorSet writing =
+    {  
+        .sType              = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        .dstSet             = resultSet,
+        .dstBinding         = DESCRIPTOR_LAYOUT_SAMPLER_BINDING,
+        .dstArrayElement    = 0,
+        .descriptorType     = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+        .descriptorCount    = textureCount,
+        .pImageInfo         = samplerInfos,
+    };
+
+    // Note(Leo): Two first are write info, two latter are copy info
+    vkUpdateDescriptorSets(context->device, 1, &writing, 0, nullptr);
+
+    return resultSet;
+}
+
+internal VkDescriptorSet
+vulkan::make_material_vk_descriptor_set(
+    VulkanContext * context,
+    VulkanLoadedPipeline * pipeline,
+    VulkanTexture * texture,
+    VkDescriptorPool pool)
+{
+    VkDescriptorSetAllocateInfo allocateInfo =
+    { 
+        .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+        .descriptorPool     = pool,
+        .descriptorSetCount = 1,
+        .pSetLayouts        = &pipeline->materialLayout,
+    };
+
+    VkDescriptorSet resultSet;
+    VULKAN_CHECK(vkAllocateDescriptorSets(context->device, &allocateInfo, &resultSet));
+
+    VkDescriptorImageInfo samplerInfo = 
+    {
+        .sampler        = context->textureSampler,
+        .imageView      = texture->view,
+        .imageLayout    = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+    };
+
+    VkWriteDescriptorSet writing =
+    {  
+        .sType              = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        .dstSet             = resultSet,
+        .dstBinding         = DESCRIPTOR_LAYOUT_SAMPLER_BINDING,
+        .dstArrayElement    = 0,
+        .descriptorType     = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+        .descriptorCount    = 1,
+        .pImageInfo         = &samplerInfo,
+    };
+
+    // Note(Leo): Two first are write info, two latter are copy info
+    vkUpdateDescriptorSets(context->device, 1, &writing, 0, nullptr);
+
+    return resultSet;
+}
+
+internal VkFramebuffer
+vulkan::make_vk_framebuffer(VkDevice        device,
+                            VkRenderPass    renderPass,
+                            u32             attachmentCount,
+                            VkImageView *   attachments,
+                            u32             width,
+                            u32             height)
+{
+    VkFramebufferCreateInfo createInfo =
+    {
+        .sType              = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
+        .renderPass         = renderPass,
+        .attachmentCount    = attachmentCount,
+        .pAttachments       = attachments,
+        .width              = width,
+        .height             = height,
+        .layers             = 1,
+    };
+
+    VkFramebuffer result;
+    DEBUG_ASSERT(
+        vkCreateFramebuffer(device, &createInfo, nullptr, &result) == VK_SUCCESS,
+        "Failed to create framebuffer");
+
+    return result;
 }
 
 
+internal void
+vulkan::destroy_texture(VulkanContext * context, VulkanTexture * texture)
+{
+    vkDestroyImage(context->device, texture->image, nullptr);
+    vkFreeMemory(context->device, texture->memory, nullptr);
+    vkDestroyImageView(context->device, texture->view, nullptr);
+}
+
+
+
+internal VkImage
+vulkan::make_vk_image( VulkanContext * context,
+                    u32 texWidth,
+                    u32 texHeight,
+                    u32 mipLevels,
+                    VkFormat format,
+                    VkImageTiling tiling,
+                    VkImageUsageFlags usage,
+                    VkSampleCountFlagBits msaaSamples)
+{
+    VkImageCreateInfo imageInfo = {
+        .sType          = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+
+        .imageType      = VK_IMAGE_TYPE_2D,
+        .initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED,
+        .sharingMode    = VK_SHARING_MODE_EXCLUSIVE, // note(leo): concerning queue families
+        .arrayLayers    = 1,
+
+        .extent         = { texWidth, texHeight, 1 },
+        .mipLevels      = mipLevels,
+        .format         = format,
+        .tiling         = tiling,
+        .usage          = usage,
+        .samples        = msaaSamples,
+
+        .flags          = 0,
+    };
+
+    VkImage resultImage;
+    VULKAN_CHECK(vkCreateImage(context->device, &imageInfo, nullptr, &resultImage));
+    return resultImage;
+}
 
 // Change image layout from stored pixel array layout to device optimal layout
 internal void
-cmd_transition_image_layout(
+vulkan::cmd_transition_image_layout(
     VkCommandBuffer commandBuffer,
     VkDevice        device,
     VkQueue         graphicsQueue,
     VkImage         image,
     VkFormat        format,
-    u32          mipLevels,
+    u32             mipLevels,
     VkImageLayout   oldLayout,
     VkImageLayout   newLayout,
-    u32          layerCount = 1)
+    u32             layerCount)
 {
     VkImageMemoryBarrier barrier = { VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER };
     barrier.oldLayout = oldLayout; // Note(Leo): Can be VK_IMAGE_LAYOUT_UNDEFINED if we dont care??
@@ -1018,7 +654,7 @@ cmd_transition_image_layout(
     if (newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
     {
         barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-        if (vulkan::FormatHasStencilComponent(format))
+        if (vulkan::has_stencil_component(format))
         {
             barrier.subresourceRange.aspectMask |= VK_IMAGE_ASPECT_STENCIL_BIT;
         }
@@ -1100,91 +736,491 @@ cmd_transition_image_layout(
                             1, &barrier);
 }
 
-// Todo(Leo): Remove this
-internal void
-TransitionImageLayout(
-    VkDevice        device,
-    VkCommandPool   commandPool,
-    VkQueue         graphicsQueue,
-    VkImage         image,
-    VkFormat        format,
-    u32          mipLevels,
-    VkImageLayout   oldLayout,
-    VkImageLayout   newLayout)
+/* Todo(Leo): this belongs to winapi namespace because it is definetly windows specific.
+Make better separation between windows part of this and vulkan part of this. */
+namespace winapi
 {
-    VkCommandBuffer commandBuffer = vulkan::begin_command_buffer(device, commandPool);
-
-    cmd_transition_image_layout(commandBuffer, device, graphicsQueue, image, format, mipLevels, oldLayout, newLayout);
-
-    vulkan::execute_command_buffer (device, commandPool, graphicsQueue, commandBuffer);
+    internal VulkanContext create_vulkan_context  (WinAPIWindow*);
+    internal void destroy_vulkan_context        (VulkanContext*);
 }
 
+namespace winapi_vulkan_internal_
+{   
+    internal VkInstance         create_vk_instance();
+    internal VkSurfaceKHR       create_vk_surface(VkInstance, WinAPIWindow*);
+    internal VkPhysicalDevice   create_vk_physical_device(VkInstance, VkSurfaceKHR);
+    internal VkDevice           create_vk_device(VkPhysicalDevice, VkSurfaceKHR);
+    internal VkSampleCountFlagBits get_max_usable_msaa_samplecount(VkPhysicalDevice);
 
-internal void
-vulkan::create_drawing_resources(VulkanContext * context)
+    internal void init_model_descriptor_set_layout(VulkanContext*);
+    internal void init_scene_descriptor_set_layout(VulkanContext*);
+
+    internal void init_material_descriptor_pool   (VulkanContext*);
+    internal void init_uniform_descriptor_pool    (VulkanContext*);
+    internal void init_persistent_descriptor_pool (VulkanContext*, u32 descriptorCount, u32 maxSets);
+
+    internal void init_model_descriptor_sets      (VulkanContext*);
+    internal void init_scene_descriptor_sets      (VulkanContext*);
+    internal void init_texture_sampler            (VulkanContext*);
+    internal void init_virtual_frames             (VulkanContext*);
+}
+
+internal VulkanContext
+winapi::create_vulkan_context(WinAPIWindow * window)
 {
-    VulkanDrawingResources resultResources = {};
 
-    VkFormat colorFormat = context->swapchainItems.imageFormat;
-    resultResources.colorImage = CreateImage(  context->device, context->physicalDevice,
-                                                context->swapchainItems.extent.width, context->swapchainItems.extent.height,
-                                                1, colorFormat, VK_IMAGE_TILING_OPTIMAL,
-                                                VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-                                                context->msaaSamples);
-
-    VkFormat depthFormat = find_supported_depth_format(context->physicalDevice);
-    resultResources.depthImage = CreateImage(  context->device, context->physicalDevice,
-                                                context->swapchainItems.extent.width, context->swapchainItems.extent.height,
-                                                1, depthFormat, VK_IMAGE_TILING_OPTIMAL,
-                                                VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
-                                                context->msaaSamples);
-
-    VkMemoryRequirements colorMemoryRequirements, depthMemoryRequirements;
-    vkGetImageMemoryRequirements(context->device, resultResources.colorImage, &colorMemoryRequirements);
-    vkGetImageMemoryRequirements(context->device, resultResources.depthImage, &depthMemoryRequirements);
-
-
-    // Todo(Leo): Do these need to be aligned like below????
-    u64 colorMemorySize = colorMemoryRequirements.size;
-    u64 depthMemorySize = depthMemoryRequirements.size;
-    // u64 colorMemorySize = align_up_to(colorMemoryRequirements.alignment, colorMemoryRequirements.size);
-    // u64 depthMemorySize = align_up_to(depthMemoryRequirements.alignment, depthMemoryRequirements.size);
-
-    u32 memoryTypeIndex = vulkan::find_memory_type(
-                                context->physicalDevice,
-                                colorMemoryRequirements.memoryTypeBits | depthMemoryRequirements.memoryTypeBits,
-                                VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-
-    VkMemoryAllocateInfo allocateInfo = { VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO };
-    allocateInfo.allocationSize = (colorMemorySize + depthMemorySize);
-    allocateInfo.memoryTypeIndex = memoryTypeIndex;
-
-    if (vkAllocateMemory(context->device, &allocateInfo, nullptr, &resultResources.memory))
+    VulkanContext context = {};
     {
-        throw std::runtime_error("Failed to allocate drawing resource memory");
-    }            
+        using namespace winapi_vulkan_internal_;
 
-    // Todo(Leo): Result check binding memories
-    vkBindImageMemory(context->device, resultResources.colorImage, resultResources.memory, 0);
-    vkBindImageMemory(context->device, resultResources.depthImage, resultResources.memory, colorMemorySize);
+        context.instance          = create_vk_instance();
+        // TODO(Leo): (if necessary, but at this point) Setup debug callbacks, look vulkan-tutorial.com
+        context.surface           = create_vk_surface(context.instance, window);
+        context.physicalDevice    = create_vk_physical_device(context.instance, context.surface);
+        context.device            = create_vk_device(context.physicalDevice, context.surface);
 
-    resultResources.colorImageView = create_image_view(  context->device, resultResources.colorImage,
-                                                        1, colorFormat, VK_IMAGE_ASPECT_COLOR_BIT);
+        // Get physical device properties
+        context.msaaSamples = get_max_usable_msaa_samplecount(context.physicalDevice);
+        vkGetPhysicalDeviceProperties(context.physicalDevice, &context.physicalDeviceProperties);
 
-    resultResources.depthImageView = create_image_view(  context->device, resultResources.depthImage,
-                                                        1, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT);
+    }
 
-    TransitionImageLayout(  context->device, context->commandPool, context->graphicsQueue, resultResources.colorImage, colorFormat, 1,
-                            VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+    /// END OF PLATFORM SECTION ////////////////////
 
-    TransitionImageLayout(  context->device, context->commandPool, context->graphicsQueue, resultResources.depthImage, depthFormat, 1,
-                            VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+    /* Todo(Leo): this probably means that we can end winapi section here,
+    and move rest to platform independent section. */
 
-    context->drawingResources = resultResources;
+    VulkanQueueFamilyIndices queueFamilyIndices = vulkan::find_queue_families(context.physicalDevice, context.surface);
+    vkGetDeviceQueue(context.device, queueFamilyIndices.graphics, 0, &context.queues.graphics);
+    vkGetDeviceQueue(context.device, queueFamilyIndices.present, 0, &context.queues.present);
+
+    /// START OF RESOURCES SECTION ////////////////////
+    VkCommandPoolCreateInfo poolInfo =
+    {
+        .sType              = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+        .queueFamilyIndex   = queueFamilyIndices.graphics,
+        .flags              = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
+    };
+    assert(vkCreateCommandPool(context.device, &poolInfo, nullptr, &context.commandPool) == VK_SUCCESS);
+
+
+    // TODO [MEMORY] (Leo): Properly measure required amount
+    // TODO[memory] (Leo): Log usage
+    u64 staticMeshPoolSize       = megabytes(500);
+    u64 stagingBufferPoolSize    = megabytes(100);
+    u64 modelUniformBufferSize   = megabytes(100);
+    u64 sceneUniformBufferSize   = megabytes(100);
+    u64 guiUniformBufferSize     = megabytes(100);
+
+    // TODO[MEMORY] (Leo): This will need guarding against multithreads once we get there
+    context.staticMeshPool = vulkan::make_buffer_resource(  
+                                    &context, staticMeshPoolSize,
+                                    VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+                                    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+    context.stagingBufferPool = vulkan::make_buffer_resource(  
+                                    &context, stagingBufferPoolSize,
+                                    VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+    context.modelUniformBuffer = vulkan::make_buffer_resource(  
+                                    &context, modelUniformBufferSize,
+                                    VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+    context.sceneUniformBuffer = vulkan::make_buffer_resource(
+                                    &context, sceneUniformBufferSize,
+                                    VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                                    VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+
+    /// END OF RESOURCES
+
+    {
+        using namespace winapi_vulkan_internal_;
+
+        init_scene_descriptor_set_layout (&context);
+        init_model_descriptor_set_layout (&context);
+        init_virtual_frames (&context);
+        init_uniform_descriptor_pool (&context);
+        init_material_descriptor_pool (&context);
+        init_persistent_descriptor_pool (&context, 20, 20);
+        init_model_descriptor_sets (&context);
+        init_scene_descriptor_sets (&context);
+        init_texture_sampler (&context);
+    }
+
+    vulkan::create_drawing_resources(&context, window->width, window->height);
+
+    // PLATFORM defined resources that GAME uses
+    {
+        std::cout << "before pipelines\n";
+
+        VulkanPipelineLoadInfo info = 
+        {
+            .vertexShaderPath       = "shaders/line_vert.spv",
+            .fragmentShaderPath     = "shaders/line_frag.spv",
+            .options.primitiveType  = platform::RenderingOptions::PRIMITIVE_LINE
+        };
+        context.lineDrawPipeline = vulkan::make_line_pipeline(&context, info);
+
+        // ---------------------------------------------------------------------
+
+        VulkanPipelineLoadInfo info2 =
+        {
+            .vertexShaderPath    = "shaders/gui_vert2.spv",
+            .fragmentShaderPath    = "shaders/gui_frag2.spv",
+        };
+        context.guiDrawPipeline = vulkan::make_gui_pipeline(&context, info2);
+    }
+
+    // PLATFORM defined debug resources that PLATFORM uses
+    {
+        context.debugTextures.white = vulkan::make_texture(&context, 512, 512, {1,1,1,1});
+        context.defaultGuiMaterial = 
+        {
+            .pipeline = PipelineHandle::Null,
+            .descriptorSet = vulkan::make_material_vk_descriptor_set(   &context,
+                                                                        &context.guiDrawPipeline,
+                                                                        &context.debugTextures.white,
+                                                                        context.descriptorPools.persistent),
+        };
+
+    }
+
+
+
+
+    std::cout << "\n[VULKAN]: Initialized succesfully\n\n";
+
+    return context;
 }
 
 internal void
-vulkan::create_uniform_descriptor_pool(VulkanContext * context)
+winapi::destroy_vulkan_context(VulkanContext * context)
+{
+    VkDevice device = context->device;
+
+    // Note(Leo): All draw frame operations are asynchronous, must wait for them to finish
+    vkDeviceWaitIdle(device);
+
+    vulkan::unload_scene(context);
+
+    vulkan::destroy_texture(context, &context->debugTextures.white);
+
+    vulkan::destroy_drawing_resources(context);
+
+    vkDestroyDescriptorPool(device, context->descriptorPools.uniform, nullptr);
+    vkDestroyDescriptorPool(device, context->descriptorPools.material, nullptr);
+
+    vkDestroySampler(device, context->textureSampler, nullptr);
+
+    // Todo(Leo): When we have scene, or different models, these too move away from here
+    vkDestroyDescriptorSetLayout(device, context->descriptorSetLayouts.model, nullptr);  
+    vkDestroyDescriptorSetLayout(device, context->descriptorSetLayouts.scene, nullptr);  
+
+    vulkan::destroy_buffer_resource(device, &context->staticMeshPool);
+    vulkan::destroy_buffer_resource(device, &context->stagingBufferPool);
+    vulkan::destroy_buffer_resource(device, &context->modelUniformBuffer);
+    vulkan::destroy_buffer_resource(device, &context->sceneUniformBuffer);
+
+    for (auto & frame : context->virtualFrames)
+    {
+        /* Note(Leo): command buffers are destroyed with command pool, but we need to destroy
+        framebuffers here, since they are always recreated immediately right after destroying
+        them in drawing procedure */
+        vkDestroyFramebuffer(device, frame.framebuffer, nullptr);
+        
+        vkDestroySemaphore(device, frame.renderFinishedSemaphore, nullptr);
+        vkDestroySemaphore(device, frame.imageAvailableSemaphore, nullptr);
+        vkDestroyFence(device, frame.inFlightFence, nullptr);
+    }
+
+    vkDestroyCommandPool(device, context->commandPool, nullptr);
+
+    vkDestroyDevice(device, nullptr);
+    vkDestroySurfaceKHR(context->instance, context->surface, nullptr);
+    vkDestroyInstance(context->instance, nullptr);
+    
+    std::cout << "[VULKAN]: shut down\n";
+}
+
+
+internal VkInstance
+winapi_vulkan_internal_::create_vk_instance()
+{
+    auto CheckValidationLayerSupport = [] () -> bool32
+    {
+        VkLayerProperties availableLayers [50];
+        u32 availableLayersCount = ARRAY_COUNT(availableLayers);
+
+        bool32 result = true;
+        if (vkEnumerateInstanceLayerProperties (&availableLayersCount, availableLayers) == VK_SUCCESS)
+        {
+
+            for (
+                int validationLayerIndex = 0;
+                validationLayerIndex < vulkan::VALIDATION_LAYERS_COUNT;
+                ++validationLayerIndex)
+            {
+                bool32 layerFound = false;
+                for(
+                    int availableLayerIndex = 0; 
+                    availableLayerIndex < availableLayersCount; 
+                    ++availableLayerIndex)
+                {
+                    if (strcmp (vulkan::validationLayers[validationLayerIndex], availableLayers[availableLayerIndex].layerName) == 0)
+                    {
+                        layerFound = true;
+                        break;
+                    }
+                }
+
+                if (layerFound == false)
+                {
+                    result = false;
+                    break;
+                }
+            }
+        }
+
+        return result;
+    };
+
+    // Note(Leo): If validation is enable, check support
+    assert (!vulkan::enableValidationLayers || CheckValidationLayerSupport());
+
+    VkApplicationInfo appInfo = {};
+    appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
+    appInfo.pApplicationName = "Vulkan practice";
+    appInfo.apiVersion = VK_API_VERSION_1_0;
+
+    VkInstanceCreateInfo instanceInfo = {};
+    instanceInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+    instanceInfo.pApplicationInfo = &appInfo;
+
+    instanceInfo.enabledExtensionCount = 2;
+    const char * extensions [] = {"VK_KHR_surface", "VK_KHR_win32_surface"}; 
+    instanceInfo.ppEnabledExtensionNames = extensions;
+
+    if constexpr (vulkan::enableValidationLayers)
+    {
+        instanceInfo.enabledLayerCount = vulkan::VALIDATION_LAYERS_COUNT;
+        instanceInfo.ppEnabledLayerNames = vulkan::validationLayers;
+    }
+    else
+    {
+        instanceInfo.enabledLayerCount = 0;
+    }
+
+    VkInstance instance;
+    VULKAN_CHECK(vkCreateInstance(&instanceInfo, nullptr, &instance));
+    
+
+    return instance;
+}
+
+internal VkSurfaceKHR
+winapi_vulkan_internal_::create_vk_surface(VkInstance instance, WinAPIWindow * window)
+{
+    VkWin32SurfaceCreateInfoKHR surfaceCreateInfo =
+    {
+        .sType      = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR,
+        .hinstance  = window->hInstance,
+        .hwnd       = window->hwnd, 
+    };
+    VkSurfaceKHR result;
+    VULKAN_CHECK(vkCreateWin32SurfaceKHR(instance, &surfaceCreateInfo, nullptr, &result));
+    return result;
+}
+
+internal VkPhysicalDevice
+winapi_vulkan_internal_::create_vk_physical_device(VkInstance vulkanInstance, VkSurfaceKHR surface)
+{
+    auto CheckDeviceExtensionSupport = [] (VkPhysicalDevice testDevice) -> bool32
+    {
+        VkExtensionProperties availableExtensions [100];
+        u32 availableExtensionsCount = ARRAY_COUNT(availableExtensions);
+        vkEnumerateDeviceExtensionProperties (testDevice, nullptr, &availableExtensionsCount, availableExtensions);
+
+        bool32 result = true;
+        for (int requiredIndex = 0;
+            requiredIndex < vulkan::DEVICE_EXTENSION_COUNT;
+            ++requiredIndex)
+        {
+
+            bool32 requiredExtensionFound = false;
+            for (int availableIndex = 0;
+                availableIndex < availableExtensionsCount;
+                ++availableIndex)
+            {
+                if (strcmp(vulkan::deviceExtensions[requiredIndex], availableExtensions[availableIndex].extensionName) == 0)
+                {
+                    requiredExtensionFound = true;
+                    break;
+                }
+            }
+
+            result = requiredExtensionFound;
+            if (result == false)
+            {
+                break;
+            }
+        }
+
+        return result;
+    };
+
+    auto IsPhysicalDeviceSuitable = [CheckDeviceExtensionSupport] (VkPhysicalDevice testDevice, VkSurfaceKHR surface) -> bool32
+    {
+        VkPhysicalDeviceProperties props;
+        vkGetPhysicalDeviceProperties(testDevice, &props);
+        bool32 isDedicatedGPU = props.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU;
+
+        VkPhysicalDeviceFeatures features;
+        vkGetPhysicalDeviceFeatures(testDevice, &features);
+
+        bool32 extensionsAreSupported = CheckDeviceExtensionSupport(testDevice);
+
+        bool32 swapchainIsOk = false;
+        if (extensionsAreSupported)
+        {
+            VulkanSwapchainSupportDetails swapchainSupport = vulkan::query_swap_chain_support(testDevice, surface);
+            swapchainIsOk = !swapchainSupport.formats.empty() && !swapchainSupport.presentModes.empty();
+        }
+
+        VulkanQueueFamilyIndices indices = vulkan::find_queue_families(testDevice, surface);
+        return  isDedicatedGPU 
+                && indices.hasAll()
+                && extensionsAreSupported
+                && swapchainIsOk
+                && features.samplerAnisotropy;
+    };
+
+    VkPhysicalDevice resultPhysicalDevice;
+
+
+    VkPhysicalDevice devices [10];
+    u32 deviceCount = ARRAY_COUNT(devices);
+    vkEnumeratePhysicalDevices(vulkanInstance, &deviceCount, devices);
+
+    // Note(Leo): No gpu found at all, or no vulkan supporting gpu
+    RELEASE_ASSERT(deviceCount != 0, "");
+
+    for (int i = 0; i < deviceCount; i++)
+    {
+        if (IsPhysicalDeviceSuitable(devices[i], surface))
+        {
+            resultPhysicalDevice = devices[i];
+            break;
+        }
+    }
+
+    // Note(Leo): no suitable GPU device found
+    RELEASE_ASSERT(resultPhysicalDevice != VK_NULL_HANDLE, "");
+    return resultPhysicalDevice;
+}
+
+internal VkDevice
+winapi_vulkan_internal_::create_vk_device(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface)
+{
+    VulkanQueueFamilyIndices queueIndices = vulkan::find_queue_families(physicalDevice, surface);
+    
+    /* Note: We need both graphics and present queue, but they might be on
+    separate devices (correct???), so we may need to end up with multiple queues */
+    int uniqueQueueFamilyCount = queueIndices.graphics == queueIndices.present ? 1 : 2;
+    VkDeviceQueueCreateInfo queueCreateInfos [2] = {};
+    float queuePriorities[/*queueCount*/] = { 1.0f };
+    for (int i = 0; i <uniqueQueueFamilyCount; ++i)
+    {
+        // VkDeviceQueueCreateInfo queueCreateInfo = {};
+        queueCreateInfos[i].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+        queueCreateInfos[i].queueFamilyIndex = queueIndices.getAt(i);
+        queueCreateInfos[i].queueCount = 1;
+
+        queueCreateInfos[i].pQueuePriorities = queuePriorities;
+    }
+
+    VkPhysicalDeviceFeatures physicalDeviceFeatures = {};
+    physicalDeviceFeatures.samplerAnisotropy = VK_TRUE;
+
+    VkDeviceCreateInfo deviceCreateInfo = {};
+    deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+    deviceCreateInfo.queueCreateInfoCount = 1;
+    deviceCreateInfo.pQueueCreateInfos = queueCreateInfos;
+    deviceCreateInfo.pEnabledFeatures = &physicalDeviceFeatures;
+    deviceCreateInfo.enabledExtensionCount = vulkan::DEVICE_EXTENSION_COUNT;
+    deviceCreateInfo.ppEnabledExtensionNames = vulkan::deviceExtensions;
+
+    if constexpr (vulkan::enableValidationLayers)
+    {
+        deviceCreateInfo.enabledLayerCount = vulkan::VALIDATION_LAYERS_COUNT;
+        deviceCreateInfo.ppEnabledLayerNames = vulkan::validationLayers;
+    }
+    else
+    {
+        deviceCreateInfo.enabledLayerCount = 0;
+    }
+
+    VkDevice resultLogicalDevice;
+
+    VULKAN_CHECK(vkCreateDevice(physicalDevice, &deviceCreateInfo,nullptr, &resultLogicalDevice));
+
+    return resultLogicalDevice;
+}
+
+internal VkSampleCountFlagBits 
+winapi_vulkan_internal_::get_max_usable_msaa_samplecount(VkPhysicalDevice physicalDevice)
+{
+    // Todo(Leo): to be easier on machine when developing for 2 players at same time
+    VkPhysicalDeviceProperties physicalDeviceProperties;
+    vkGetPhysicalDeviceProperties(physicalDevice, &physicalDeviceProperties);
+
+    VkSampleCountFlags counts = std::min(
+            physicalDeviceProperties.limits.framebufferColorSampleCounts,
+            physicalDeviceProperties.limits.framebufferDepthSampleCounts
+        );
+
+    VkSampleCountFlagBits result;
+
+    if (counts & VK_SAMPLE_COUNT_64_BIT) { result = VK_SAMPLE_COUNT_64_BIT; }
+    if (counts & VK_SAMPLE_COUNT_32_BIT) { result = VK_SAMPLE_COUNT_32_BIT; }
+    if (counts & VK_SAMPLE_COUNT_16_BIT) { result = VK_SAMPLE_COUNT_16_BIT; }
+    if (counts & VK_SAMPLE_COUNT_8_BIT) { result = VK_SAMPLE_COUNT_8_BIT; }
+    if (counts & VK_SAMPLE_COUNT_4_BIT) { result = VK_SAMPLE_COUNT_4_BIT; }
+    if (counts & VK_SAMPLE_COUNT_2_BIT) { result = VK_SAMPLE_COUNT_2_BIT; }
+
+    if (result > VULKAN_MAX_MSAA_SAMPLE_COUNT)
+    {
+        result = VULKAN_MAX_MSAA_SAMPLE_COUNT;
+    }
+
+    return result;
+}
+
+internal void
+winapi_vulkan_internal_::init_persistent_descriptor_pool(VulkanContext * context, u32 descriptorCount, u32 maxSets)
+{
+    // Note(Leo): this posr sheds soma light on max set vs descriptorCount confusion.
+    // https://www.reddit.com/r/vulkan/comments/8u9zqr/having_trouble_understanding_descriptor_pool/
+    VkDescriptorPoolSize poolSize =
+    {
+        .type               = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+        .descriptorCount    = descriptorCount,
+    };
+
+    VkDescriptorPoolCreateInfo poolCreateInfo =
+    {
+        .sType          = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+        .poolSizeCount  = 1,
+        .pPoolSizes     = &poolSize,
+        .maxSets        = maxSets,
+    };
+
+    VULKAN_CHECK(vkCreateDescriptorPool(context->device, &poolCreateInfo, nullptr, &context->descriptorPools.persistent));
+}
+
+internal void
+winapi_vulkan_internal_::init_uniform_descriptor_pool(VulkanContext * context)
 {
     /*
     Note(Leo): 
@@ -1209,13 +1245,11 @@ vulkan::create_uniform_descriptor_pool(VulkanContext * context)
     poolInfo.pPoolSizes = &poolSizes[0];
     poolInfo.maxSets = 20;
 
-    DEBUG_ASSERT(
-        vkCreateDescriptorPool(context->device, &poolInfo, nullptr, &context->uniformDescriptorPool) == VK_SUCCESS,
-        "Failed to create descriptor pool");
+    VULKAN_CHECK( vkCreateDescriptorPool(context->device, &poolInfo, nullptr, &context->descriptorPools.uniform));
 }
 
 internal void
-vulkan::create_material_descriptor_pool(VulkanContext * context)
+winapi_vulkan_internal_::init_material_descriptor_pool(VulkanContext * context)
 {
     VkDescriptorPoolSize poolSize =
     {
@@ -1231,27 +1265,22 @@ vulkan::create_material_descriptor_pool(VulkanContext * context)
         .maxSets        = vulkan::MAX_LOADED_TEXTURES,
     };
 
-    DEBUG_ASSERT(
-        vkCreateDescriptorPool(context->device, &poolCreateInfo, nullptr, &context->materialDescriptorPool) == VK_SUCCESS,
-        "Failed to create descriptor pool for materials!");
+    VULKAN_CHECK(vkCreateDescriptorPool(context->device, &poolCreateInfo, nullptr, &context->descriptorPools.material));
 }
 
 internal void
-vulkan::create_model_descriptor_sets(VulkanContext * context)
+winapi_vulkan_internal_::init_model_descriptor_sets(VulkanContext * context)
 {
     VkDescriptorSetAllocateInfo allocateInfo =
     { 
         .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-        .descriptorPool     = context->uniformDescriptorPool,
+        .descriptorPool     = context->descriptorPools.uniform,
         .descriptorSetCount = 1,
         .pSetLayouts        = &context->descriptorSetLayouts.model,
     };
 
     VkDescriptorSet resultDescriptorSet;
-    if (vkAllocateDescriptorSets(context->device, &allocateInfo, &resultDescriptorSet) != VK_SUCCESS)
-    {
-        throw std::runtime_error("Failed to allocate DESCRIPTOR SETS");
-    }
+    VULKAN_CHECK (vkAllocateDescriptorSets(context->device, &allocateInfo, &resultDescriptorSet));
 
     VkDescriptorBufferInfo modelBufferInfo =
     {
@@ -1278,22 +1307,19 @@ vulkan::create_model_descriptor_sets(VulkanContext * context)
 }
 
 internal void
-vulkan::create_scene_descriptor_sets(VulkanContext * context)
+winapi_vulkan_internal_::init_scene_descriptor_sets(VulkanContext * context)
 {
     VkDescriptorSetAllocateInfo allocateInfo =
     { 
         .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-        .descriptorPool     = context->uniformDescriptorPool,
+        .descriptorPool     = context->descriptorPools.uniform,
         .descriptorSetCount = 1,
         .pSetLayouts        = &context->descriptorSetLayouts.scene,
     };
 
     VkDescriptorSet resultDescriptorSet;
-    if (vkAllocateDescriptorSets(context->device, &allocateInfo, &resultDescriptorSet) != VK_SUCCESS)
-    {
-        throw std::runtime_error("Failed to allocate DESCRIPTOR SETS");
-    }
-
+    VULKAN_CHECK(vkAllocateDescriptorSets(context->device, &allocateInfo, &resultDescriptorSet));
+    
     VkDescriptorBufferInfo sceneBufferInfo =
     {
         .buffer = context->sceneUniformBuffer.buffer,
@@ -1316,568 +1342,8 @@ vulkan::create_scene_descriptor_sets(VulkanContext * context)
     context->uniformDescriptorSets.scene = resultDescriptorSet;
 }
 
-internal VkDescriptorSet
-vulkan::make_material_descriptor_set(
-    VulkanContext * context,
-    PipelineHandle pipelineHandle,
-    ArenaArray<TextureHandle> textures)
-{
-    u32 textureCount = context->loadedPipelines[pipelineHandle].info.options.textureCount;
-    constexpr u32 maxTextures = 10;
-    
-    DEBUG_ASSERT(textureCount < maxTextures, "Too many textures on material");
-    DEBUG_ASSERT(textureCount == textures.count(), "Wrong number of textures in ArenaArray 'textures'");
-
-    VkDescriptorSetAllocateInfo allocateInfo =
-    { 
-        .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-        .descriptorPool     = context->materialDescriptorPool,
-        .descriptorSetCount = 1,
-        .pSetLayouts        = &context->loadedPipelines[pipelineHandle].materialLayout,
-    };
-
-    VkDescriptorSet resultSet;
-    if (vkAllocateDescriptorSets(context->device, &allocateInfo, &resultSet) != VK_SUCCESS)
-    {
-        throw std::runtime_error("Failed to allocate DESCRIPTOR SETS");
-    }
-
-    VkDescriptorImageInfo samplerInfos [maxTextures];
-    for (int i = 0; i < textureCount; ++i)
-    {
-        samplerInfos[i] = 
-        {
-            .sampler        = context->textureSampler,
-            .imageView      = context->loadedTextures[textures[i]].view,
-            .imageLayout    = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-        };
-    }
-
-    VkWriteDescriptorSet writing =
-    {  
-        .sType              = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-        .dstSet             = resultSet,
-        .dstBinding         = DESCRIPTOR_LAYOUT_SAMPLER_BINDING,
-        .dstArrayElement    = 0,
-        .descriptorType     = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-        .descriptorCount    = textureCount,
-        .pImageInfo         = samplerInfos,
-    };
-
-    // Note(Leo): Two first are write info, two latter are copy info
-    vkUpdateDescriptorSets(context->device, 1, &writing, 0, nullptr);
-
-    return resultSet;
-}
-
-internal VkDescriptorSet
-vulkan::make_material_descriptor_set(
-    VulkanContext * context,
-    VulkanLoadedPipeline * pipeline,
-    TextureHandle texture)
-{
-    VkDescriptorSetAllocateInfo allocateInfo =
-    { 
-        .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-        .descriptorPool     = context->materialDescriptorPool,
-        .descriptorSetCount = 1,
-        .pSetLayouts        = &pipeline->materialLayout,
-    };
-
-    VkDescriptorSet resultSet;
-    if (vkAllocateDescriptorSets(context->device, &allocateInfo, &resultSet) != VK_SUCCESS)
-    {
-        throw std::runtime_error("Failed to allocate DESCRIPTOR SETS");
-    }
-
-    VkDescriptorImageInfo samplerInfo = 
-    {
-        .sampler        = context->textureSampler,
-        .imageView      = context->loadedTextures[texture].view,
-        .imageLayout    = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-    };
-
-    VkWriteDescriptorSet writing =
-    {  
-        .sType              = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-        .dstSet             = resultSet,
-        .dstBinding         = DESCRIPTOR_LAYOUT_SAMPLER_BINDING,
-        .dstArrayElement    = 0,
-        .descriptorType     = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-        .descriptorCount    = 1,
-        .pImageInfo         = &samplerInfo,
-    };
-
-    // Note(Leo): Two first are write info, two latter are copy info
-    vkUpdateDescriptorSets(context->device, 1, &writing, 0, nullptr);
-
-    return resultSet;
-}
-
-internal VkDescriptorSet
-make_offscreen_material_descriptor_set(
-    VulkanContext * context,
-    VulkanLoadedPipeline * pipeline,
-    VkDescriptorImageInfo * imageInfo)
-{
-    VkDescriptorSetAllocateInfo allocateInfo =
-    { 
-        .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-        .descriptorPool     = context->materialDescriptorPool,
-        .descriptorSetCount = 1,
-        .pSetLayouts        = &pipeline->materialLayout,
-    };
-
-    VkDescriptorSet resultSet;
-    VULKAN_CHECK(vkAllocateDescriptorSets(context->device, &allocateInfo, &resultSet));
-
-    // VkDescriptorImageInfo samplerInfo = 
-    // {
-    //     .sampler        = context->offscreenPass.sampler,
-    //     .imageView      = texture->view,
-    //     .imageLayout    = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-    // };
-
-    VkWriteDescriptorSet writing =
-    {  
-        .sType              = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-        .dstSet             = resultSet,
-        .dstBinding         = DESCRIPTOR_LAYOUT_SAMPLER_BINDING,
-        .dstArrayElement    = 0,
-        .descriptorType     = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-        .descriptorCount    = 1,
-        .pImageInfo         = imageInfo,
-    };
-
-    // Note(Leo): Two first are write info, two latter are copy info
-    vkUpdateDescriptorSets(context->device, 1, &writing, 0, nullptr);
-
-    return resultSet;
-}
-
-internal VkFramebuffer
-vulkan::make_framebuffer(   VkDevice        device,
-                            VkRenderPass    renderPass,
-                            u32             attachmentCount,
-                            VkImageView *   attachments,
-                            u32             width,
-                            u32             height)
-{
-    VkFramebufferCreateInfo createInfo =
-    {
-        .sType              = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
-        .renderPass         = renderPass,
-        .attachmentCount    = attachmentCount,
-        .pAttachments       = attachments,
-        .width              = width,
-        .height             = height,
-        .layers             = 1,
-    };
-
-    VkFramebuffer result;
-    DEBUG_ASSERT(
-        vkCreateFramebuffer(device, &createInfo, nullptr, &result) == VK_SUCCESS,
-        "Failed to create framebuffer");
-
-    return result;
-}
-
-
-internal u32
-compute_mip_levels(u32 texWidth, u32 texHeight)
-{
-   u32 result = std::floor(std::log2(std::max(texWidth, texHeight))) + 1;
-   return result;
-}
-
 internal void
-cmd_generate_mip_maps(  VkCommandBuffer commandBuffer,
-                    VkPhysicalDevice physicalDevice,
-                    VkImage image,
-                    VkFormat imageFormat,
-                    u32 texWidth,
-                    u32 texHeight,
-                    u32 mipLevels,
-                    u32 layerCount = 1)
-{
-    VkFormatProperties formatProperties;
-    vkGetPhysicalDeviceFormatProperties(physicalDevice, imageFormat, &formatProperties);
-
-    if ((formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT) == false)
-    {
-        throw std::runtime_error("Texture image format does not support blitting!");
-    }
-
-    VkImageMemoryBarrier barrier = { VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER };
-    barrier.image = image;
-    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    barrier.subresourceRange.baseArrayLayer = 0;
-    barrier.subresourceRange.layerCount = layerCount;
-    barrier.subresourceRange.levelCount = 1;
-
-    int mipWidth = texWidth;
-    int mipHeight = texHeight;
-
-
-    // Todo(Leo): stupid loop with some stuff outside... fix pls
-    for (int i = 1; i <mipLevels; ++i)
-    {
-        int newMipWidth = mipWidth > 1 ? mipWidth / 2 : 1;
-        int newMipHeight = mipHeight > 1 ? mipHeight / 2 : 1;
-
-        barrier.subresourceRange.baseMipLevel = i - 1;
-        barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-        barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-        barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-        barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-
-        vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT,
-            VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
-
-        VkImageBlit blit = {};
-        
-        blit.srcOffsets [0] = {0, 0, 0};
-        blit.srcOffsets [1] = {mipWidth, mipHeight, 1};
-        blit.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        blit.srcSubresource.mipLevel = i - 1;
-        blit.srcSubresource.baseArrayLayer = 0;
-        blit.srcSubresource.layerCount = layerCount; 
-
-        blit.dstOffsets [0] = {0, 0, 0};
-        blit.dstOffsets [1] = {newMipWidth, newMipHeight, 1};
-        blit.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        blit.dstSubresource.mipLevel = i;
-        blit.dstSubresource.baseArrayLayer = 0;
-        blit.dstSubresource.layerCount = layerCount;
-
-        vkCmdBlitImage(commandBuffer,
-            image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-            image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-            1, &blit, VK_FILTER_LINEAR);
-
-        barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-        barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-        barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-
-        vkCmdPipelineBarrier (commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT,
-            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr,
-            1, &barrier);
-
-        mipWidth = newMipWidth;
-        mipHeight = newMipHeight;
-    }
-
-    barrier.subresourceRange.baseMipLevel = mipLevels - 1;
-    barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-    barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-    barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-
-    vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT,
-        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr,
-        1, &barrier);
-}
-
-
-
-internal VulkanTexture
-vulkan::make_texture(VulkanContext * context, TextureAsset * asset)
-{
-    u32 width        = asset->width;
-    u32 height       = asset->height;
-    u32 mipLevels    = compute_mip_levels(width, height);
-
-
-    VkDeviceSize imageSize = width * height * asset->channels;
-
-    void * data;
-    vkMapMemory(context->device, context->stagingBufferPool.memory, 0, imageSize, 0, &data);
-    memcpy (data, (void*)asset->pixels.begin(), imageSize);
-    vkUnmapMemory(context->device, context->stagingBufferPool.memory);
-
-    VkImageCreateInfo imageInfo =
-    {
-        .sType          = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-        .imageType      = VK_IMAGE_TYPE_2D,
-        .extent         = { width, height, 1 },
-        .mipLevels      = mipLevels,
-        .arrayLayers    = 1,
-        .format         = VK_FORMAT_R8G8B8A8_UNORM,
-
-        .tiling         = VK_IMAGE_TILING_OPTIMAL,
-        .initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED,
-        .usage          = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-        .sharingMode    = VK_SHARING_MODE_EXCLUSIVE, // Note(Leo): this concerns queue families,
-        .samples        = VK_SAMPLE_COUNT_1_BIT,
-        .flags          = 0,
-    };
-
-    VkImage resultImage = {};
-    VkDeviceMemory resultImageMemory = {};
-
-    // Note(Leo): some image formats may not be supported
-    if (vkCreateImage(context->device, &imageInfo, nullptr, &resultImage) != VK_SUCCESS)
-    {
-        throw std::runtime_error ("Failed to create image");
-    }
-
-    VkMemoryRequirements memoryRequirements;
-    vkGetImageMemoryRequirements (context->device, resultImage, &memoryRequirements);
-
-    VkMemoryAllocateInfo allocateInfo =
-    { 
-        .sType              = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-        .allocationSize     = memoryRequirements.size,
-        .memoryTypeIndex    = vulkan::find_memory_type( context->physicalDevice,
-                                                        memoryRequirements.memoryTypeBits,
-                                                        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT),
-    };
-
-    if (vkAllocateMemory(context->device, &allocateInfo, nullptr, &resultImageMemory) != VK_SUCCESS)
-    {
-        throw std::runtime_error("Failed to allocate image memory");
-    }
-
-    vkBindImageMemory(context->device, resultImage, resultImageMemory, 0);   
-
-    /* Note(Leo):
-        1. change layout to copy optimal
-        2. copy contents
-        3. change layout to read optimal
-
-        This last is good to use after generated textures, finally some 
-        benefits from this verbose nonsense :D
-    */
-
-    VkCommandBuffer commandBuffer = vulkan::begin_command_buffer(context->device, context->commandPool);
-    
-    // Todo(Leo): begin and end command buffers once only and then just add commands from inside these
-    cmd_transition_image_layout(commandBuffer, context->device, context->graphicsQueue,
-                            resultImage, VK_FORMAT_R8G8B8A8_UNORM, mipLevels,
-                            VK_IMAGE_LAYOUT_UNDEFINED,
-                            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-
-    VkBufferImageCopy region =
-    {
-        .bufferOffset       = 0,
-        .bufferRowLength    = 0,
-        .bufferImageHeight  = 0,
-
-        .imageSubresource.aspectMask        = VK_IMAGE_ASPECT_COLOR_BIT,
-        .imageSubresource.mipLevel          = 0,
-        .imageSubresource.baseArrayLayer    = 0,
-        .imageSubresource.layerCount        = 1,
-
-        .imageOffset = { 0, 0, 0 },
-        .imageExtent = { width, height, 1 },
-    };
-    vkCmdCopyBufferToImage (commandBuffer, context->stagingBufferPool.buffer, resultImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
-
-
-    /// CREATE MIP MAPS
-    cmd_generate_mip_maps(  commandBuffer, context->physicalDevice,
-                        resultImage, VK_FORMAT_R8G8B8A8_UNORM,
-                        asset->width, asset->height, mipLevels);
-
-    vulkan::execute_command_buffer (context->device, context->commandPool, context->graphicsQueue, commandBuffer);
-
-    /// CREATE IMAGE VIEW
-    VkImageViewCreateInfo imageViewInfo =
-    { 
-        .sType      = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-        .image      = resultImage,
-        .viewType   = VK_IMAGE_VIEW_TYPE_2D,
-        .format     = VK_FORMAT_R8G8B8A8_UNORM,
-
-        .subresourceRange.aspectMask        = VK_IMAGE_ASPECT_COLOR_BIT,
-        .subresourceRange.baseMipLevel      = 0,
-        .subresourceRange.levelCount        = mipLevels,
-        .subresourceRange.baseArrayLayer    = 0,
-        .subresourceRange.layerCount        = 1,
-
-        .components.r = VK_COMPONENT_SWIZZLE_IDENTITY,
-        .components.g = VK_COMPONENT_SWIZZLE_IDENTITY,
-        .components.b = VK_COMPONENT_SWIZZLE_IDENTITY,
-        .components.a = VK_COMPONENT_SWIZZLE_IDENTITY,
-    };
-
-    VkImageView resultView = {};
-    if (vkCreateImageView(context->device, &imageViewInfo, nullptr, &resultView) != VK_SUCCESS)
-    {
-        throw std::runtime_error ("Failed to create image view");
-    }
-
-    VulkanTexture resultTexture =
-    {
-        .image      = resultImage,
-        .memory     = resultImageMemory,
-        .view       = resultView,
-    };
-    return resultTexture;
-}
-
-internal VulkanTexture
-vulkan::make_cubemap(VulkanContext * context, StaticArray<TextureAsset, 6> * assets)
-{
-    u32 width        = (*assets)[0].width;
-    u32 height       = (*assets)[0].height;
-    u32 channels     = (*assets)[0].channels;
-    u32 mipLevels    = compute_mip_levels(width, height);
-
-    constexpr u32 CUBEMAP_LAYERS = 6;
-
-    VkDeviceSize layerSize = width * height * channels;
-    VkDeviceSize imageSize = layerSize * CUBEMAP_LAYERS;
-
-    VkExtent3D extent = { width, height, 1};
-
-    byte * data;
-    vkMapMemory(context->device, context->stagingBufferPool.memory, 0, imageSize, 0, (void**)&data);
-    for (int i = 0; i < 6; ++i)
-    {
-        u32 * start          = (*assets)[i].pixels.begin();
-        u32 * end            = (*assets)[i].pixels.end();
-        u32 * destination    = reinterpret_cast<u32*>(data + (i * layerSize));
-
-        std::copy(start, end, destination);
-    }
-    vkUnmapMemory(context->device, context->stagingBufferPool.memory);
-
-    VkImageCreateInfo imageInfo =
-    {
-        .sType          = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-        .imageType      = VK_IMAGE_TYPE_2D,
-        .extent         = extent,
-        .mipLevels      = mipLevels,
-        .arrayLayers    = CUBEMAP_LAYERS,
-        .format         = VK_FORMAT_R8G8B8A8_UNORM,
-
-        .tiling         = VK_IMAGE_TILING_OPTIMAL,
-        .initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED,
-        .usage          = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-        .sharingMode    = VK_SHARING_MODE_EXCLUSIVE, // Note(Leo): this concerns queue families,
-        .samples        = VK_SAMPLE_COUNT_1_BIT,
-        .flags          = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT,
-    };
-
-    VkImage resultImage = {};
-    VkDeviceMemory resultImageMemory = {};
-
-    // Note(Leo): some image formats may not be supported
-    if (vkCreateImage(context->device, &imageInfo, nullptr, &resultImage) != VK_SUCCESS)
-    {
-        throw std::runtime_error ("Failed to create image");
-    }
-
-    VkMemoryRequirements memoryRequirements;
-    vkGetImageMemoryRequirements (context->device, resultImage, &memoryRequirements);
-
-    VkMemoryAllocateInfo allocateInfo =
-    { 
-        .sType              = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-        .allocationSize     = memoryRequirements.size,
-        .memoryTypeIndex    = vulkan::find_memory_type( context->physicalDevice,
-                                                        memoryRequirements.memoryTypeBits,
-                                                        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT),
-    };
-
-    if (vkAllocateMemory(context->device, &allocateInfo, nullptr, &resultImageMemory) != VK_SUCCESS)
-    {
-        throw std::runtime_error("Failed to allocate image memory");
-    }
-
-    vkBindImageMemory(context->device, resultImage, resultImageMemory, 0);   
-
-    /* Note(Leo):
-        1. change layout to copy optimal
-        2. copy contents
-        3. change layout to read optimal
-
-        This last is good to use after generated textures, finally some 
-        benefits from this verbose nonsense :D
-    */
-
-    VkCommandBuffer commandBuffer = vulkan::begin_command_buffer(context->device, context->commandPool);
-    
-    // Todo(Leo): begin and end command buffers once only and then just add commands from inside these
-    cmd_transition_image_layout(commandBuffer, context->device, context->graphicsQueue,
-                                resultImage, VK_FORMAT_R8G8B8A8_UNORM, mipLevels,
-                                VK_IMAGE_LAYOUT_UNDEFINED,
-                                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, CUBEMAP_LAYERS);
-
-    VkBufferImageCopy region =
-    {
-        .bufferOffset       = 0,
-        .bufferRowLength    = 0,
-        .bufferImageHeight  = 0,
-
-        .imageSubresource.aspectMask        = VK_IMAGE_ASPECT_COLOR_BIT,
-        .imageSubresource.mipLevel          = 0,
-        .imageSubresource.baseArrayLayer    = 0,
-        .imageSubresource.layerCount        = CUBEMAP_LAYERS,
-
-        .imageOffset = { 0, 0, 0 },
-        .imageExtent = extent,
-    };
-    vkCmdCopyBufferToImage (commandBuffer, context->stagingBufferPool.buffer, resultImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
-
-
-    /// CREATE MIP MAPS
-    cmd_generate_mip_maps(  commandBuffer, context->physicalDevice,
-                        resultImage, VK_FORMAT_R8G8B8A8_UNORM,
-                        width, height, mipLevels, CUBEMAP_LAYERS);
-
-    vulkan::execute_command_buffer (context->device, context->commandPool, context->graphicsQueue, commandBuffer);
-
-    /// CREATE IMAGE VIEW
-    VkImageViewCreateInfo imageViewInfo =
-    { 
-        .sType      = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-        .image      = resultImage,
-        .viewType   = VK_IMAGE_VIEW_TYPE_CUBE,
-        .format     = VK_FORMAT_R8G8B8A8_UNORM,
-
-        .subresourceRange.aspectMask        = VK_IMAGE_ASPECT_COLOR_BIT,
-        .subresourceRange.baseMipLevel      = 0,
-        .subresourceRange.levelCount        = mipLevels,
-        .subresourceRange.baseArrayLayer    = 0,
-        .subresourceRange.layerCount        = CUBEMAP_LAYERS,
-
-        .components.r = VK_COMPONENT_SWIZZLE_IDENTITY,
-        .components.g = VK_COMPONENT_SWIZZLE_IDENTITY,
-        .components.b = VK_COMPONENT_SWIZZLE_IDENTITY,
-        .components.a = VK_COMPONENT_SWIZZLE_IDENTITY,
-    };
-
-    VkImageView resultView = {};
-    if (vkCreateImageView(context->device, &imageViewInfo, nullptr, &resultView) != VK_SUCCESS)
-    {
-        throw std::runtime_error ("Failed to create image view");
-    }
-
-    VulkanTexture resultTexture =
-    {
-        .image      = resultImage,
-        .memory     = resultImageMemory,
-        .view       = resultView,
-    };
-    return resultTexture;
-}
-
-
-internal void
-vulkan::destroy_texture(VulkanContext * context, VulkanTexture * texture)
-{
-    vkDestroyImage(context->device, texture->image, nullptr);
-    vkFreeMemory(context->device, texture->memory, nullptr);
-    vkDestroyImageView(context->device, texture->view, nullptr);
-}
-
-internal void
-vulkan::create_texture_sampler(VulkanContext * context)
+winapi_vulkan_internal_::init_texture_sampler(VulkanContext * context)
 {
     VkSamplerCreateInfo samplerInfo =
     { 
@@ -1903,37 +1369,11 @@ vulkan::create_texture_sampler(VulkanContext * context)
         .mipLodBias         = 0.0f,
     };
 
-    if (vkCreateSampler(context->device, &samplerInfo, nullptr, &context->textureSampler) != VK_SUCCESS)
-    {
-        throw std::runtime_error("Failed to create texture sampler!");
-    }
+    VULKAN_CHECK(vkCreateSampler(context->device, &samplerInfo, nullptr, &context->textureSampler));
 }
 
 internal void
-CleanupSwapchain(VulkanContext * context)
-{
-    vkDestroyImage      (context->device, context->drawingResources.colorImage, nullptr);
-    vkDestroyImageView  (context->device, context->drawingResources.colorImageView, nullptr);
-    vkDestroyImage      (context->device, context->drawingResources.depthImage, nullptr);
-    vkDestroyImageView  (context->device, context->drawingResources.depthImageView, nullptr);
-    vkFreeMemory        (context->device, context->drawingResources.memory, nullptr);
-
-    vkDestroyRenderPass(context->device, context->renderPass, nullptr);
-
-    for (auto imageView : context->swapchainItems.imageViews)
-    {
-        vkDestroyImageView(context->device, imageView, nullptr);
-    }
-
-    vkDestroySwapchainKHR(context->device, context->swapchainItems.swapchain, nullptr);
-
-    vulkan::destroy_loaded_pipeline(context, &context->lineDrawPipeline);
-    vulkan::destroy_loaded_pipeline(context, &context->guiDrawPipeline);
-}
-
-
-internal void
-create_virtual_frames(VulkanContext * context)
+winapi_vulkan_internal_::init_virtual_frames(VulkanContext * context)
 {
     VkCommandBufferAllocateInfo primaryCmdAllocateInfo =
     {
@@ -1985,218 +1425,49 @@ create_virtual_frames(VulkanContext * context)
     }
 }
 
-
 internal void
-vulkan::recreate_swapchain(VulkanContext * context, u32 width, u32 height)
+winapi_vulkan_internal_::init_model_descriptor_set_layout(VulkanContext * context)
 {
-    vkDeviceWaitIdle(context->device);
+    VkDescriptorSetLayoutBinding binding =
+    {
+        .binding            = DESCRIPTOR_LAYOUT_MODEL_BINDING,
+        .descriptorType     = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+        .descriptorCount    = 1,
+        .stageFlags         = VK_SHADER_STAGE_VERTEX_BIT,
+        .pImmutableSamplers = nullptr,
+    };
 
-    CleanupSwapchain(context);
+    VkDescriptorSetLayoutCreateInfo layoutCreateInfo =
+    { 
+        .sType          = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+        .bindingCount   = 1,
+        .pBindings      = &binding,
+    };
 
-    std::cout << "Recreating swapchain, width: " << width << ", height: " << height <<"\n";
-
-    context->swapchainItems         = CreateSwapchainAndImages(context, {width, height} );
-    context->renderPass             = make_render_pass(context, context->swapchainItems.imageFormat, context->msaaSamples);
-    
-    recreate_loaded_pipelines(context);
-    context->lineDrawPipeline       = vulkan::make_line_pipeline(context, context->lineDrawPipeline.info);
-    context->guiDrawPipeline        = vulkan::make_gui_pipeline(context, context->guiDrawPipeline.info);
-    
-    create_drawing_resources(context);
+    VULKAN_CHECK(vkCreateDescriptorSetLayout(context->device, &layoutCreateInfo, nullptr, &context->descriptorSetLayouts.model));
 }
 
-/* Todo(Leo): this belongs to winapi namespace because it is definetly windows specific.
-Make better separation between windows part of this and vulkan part of this. */
-namespace winapi
+internal void
+winapi_vulkan_internal_::init_scene_descriptor_set_layout(VulkanContext * context)
 {
-    VkExtent2D get_hwnd_size(HWND winWindow)
+    VkDescriptorSetLayoutBinding binding =
     {
-        RECT rect;
-        GetWindowRect(winWindow, &rect);
+        .binding            = DESCRIPTOR_LAYOUT_SCENE_BINDING,
+        .descriptorType     = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+        .descriptorCount    = 1,
+        .stageFlags         = VK_SHADER_STAGE_VERTEX_BIT,
+        .pImmutableSamplers = nullptr,
+    };
 
-        return {
-            .width = (u32)(rect.right - rect.left),
-            .height = (u32)(rect.bottom - rect.top),
-        };
-    }
+    VkDescriptorSetLayoutCreateInfo layoutCreateInfo =
+    { 
+        .sType          = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+        .bindingCount   = 1,
+        .pBindings      = &binding,
+    };
 
-    internal VulkanContext
-    make_vulkan_context(HINSTANCE winInstance, HWND winWindow)
-    {
-        VulkanContext resultContext = {};
-
-        resultContext.instance = CreateInstance();
-        // TODO(Leo): (if necessary, but at this point) Setup debug callbacks, look vulkan-tutorial.com
-        
-        VkWin32SurfaceCreateInfoKHR surfaceCreateInfo =
-        {
-            .sType      = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR,
-            .hinstance  = winInstance,
-            .hwnd       = winWindow 
-        };
-        DEBUG_ASSERT(vkCreateWin32SurfaceKHR(resultContext.instance, &surfaceCreateInfo, nullptr, &resultContext.surface) == VK_SUCCESS,
-                        "Failed to create win32 surface.");
-
-        resultContext.physicalDevice = PickPhysicalDevice(resultContext.instance, resultContext.surface);
-        vkGetPhysicalDeviceProperties(resultContext.physicalDevice, &resultContext.physicalDeviceProperties);
-        resultContext.msaaSamples = GetMaxUsableMsaaSampleCount(resultContext.physicalDevice);
-        std::cout << "Sample count: " << vulkan::to_str(resultContext.msaaSamples) << "\n";
-
-        resultContext.physicalDevice = resultContext.physicalDevice;
-        resultContext.physicalDeviceProperties = resultContext.physicalDeviceProperties;
-
-        resultContext.device = CreateLogicalDevice(resultContext.physicalDevice, resultContext.surface);
-
-        VulkanQueueFamilyIndices queueFamilyIndices = vulkan::FindQueueFamilies(resultContext.physicalDevice, resultContext.surface);
-        vkGetDeviceQueue(resultContext.device, queueFamilyIndices.graphics, 0, &resultContext.graphicsQueue);
-        vkGetDeviceQueue(resultContext.device, queueFamilyIndices.present, 0, &resultContext.presentQueue);
-
-        /// ---- Create Command Pool ----
-        VkCommandPoolCreateInfo poolInfo =
-        {
-            .sType              = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-            .queueFamilyIndex   = queueFamilyIndices.graphics,
-            .flags              = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
-        };
-
-        assert(vkCreateCommandPool(resultContext.device, &poolInfo, nullptr, &resultContext.commandPool) == VK_SUCCESS);
-
-
-        // TODO [MEMORY] (Leo): Properly measure required amount
-        // TODO[memory] (Leo): Log usage
-        u64 staticMeshPoolSize       = megabytes(500);
-        u64 stagingBufferPoolSize    = megabytes(100);
-        u64 modelUniformBufferSize   = megabytes(100);
-        u64 sceneUniformBufferSize   = megabytes(100);
-        u64 guiUniformBufferSize     = megabytes(100);
-
-        // TODO[MEMORY] (Leo): This will need guarding against multithreads once we get there
-        resultContext.staticMeshPool = vulkan::make_buffer_resource(  
-                                        &resultContext, staticMeshPoolSize,
-                                        VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-                                        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-
-        resultContext.stagingBufferPool = vulkan::make_buffer_resource(  
-                                        &resultContext, stagingBufferPoolSize,
-                                        VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                                        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-
-        resultContext.modelUniformBuffer = vulkan::make_buffer_resource(  
-                                        &resultContext, modelUniformBufferSize,
-                                        VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-                                        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-
-        resultContext.sceneUniformBuffer = vulkan::make_buffer_resource(
-                                        &resultContext, sceneUniformBufferSize,
-                                        VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-                                        VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
-
-        resultContext.guiUniformBuffer = vulkan::make_buffer_resource( 
-                                        &resultContext, guiUniformBufferSize,
-                                        VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-                                        VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
-
-
-
-
-
-
-        /* 
-        Above is device
-        -----------------------------------------------------------------------
-        Below is content
-        */ 
-
-        /* Todo(Leo): now that everything is in VulkanContext, it does not make so much sense
-        to explicitly specify each component as parameter */
-        resultContext.swapchainItems      = CreateSwapchainAndImages(&resultContext, get_hwnd_size(winWindow));
-        resultContext.renderPass          = vulkan::make_render_pass(&resultContext, resultContext.swapchainItems.imageFormat, resultContext.msaaSamples);
-
-        resultContext.descriptorSetLayouts.scene    = CreateSceneDescriptorSetLayout(resultContext.device);
-        resultContext.descriptorSetLayouts.model    = CreateModelDescriptorSetLayout(resultContext.device);
-
-        vulkan::create_drawing_resources(&resultContext); 
-        create_virtual_frames(&resultContext);
-        vulkan::create_uniform_descriptor_pool(&resultContext);
-        vulkan::create_material_descriptor_pool(&resultContext);
-        vulkan::create_model_descriptor_sets(&resultContext);
-        vulkan::create_scene_descriptor_sets(&resultContext);
-        vulkan::create_texture_sampler(&resultContext);
-
-        {
-            std::cout << "before pipelines\n";
-
-            VulkanPipelineLoadInfo info = 
-            {
-                .vertexShaderPath       = "shaders/line_vert.spv",
-                .fragmentShaderPath     = "shaders/line_frag.spv",
-                .options.primitiveType  = platform::RenderingOptions::PRIMITIVE_LINE
-            };
-            resultContext.lineDrawPipeline = vulkan::make_line_pipeline(&resultContext, info);
-
-            std::cout << "line pipeline created\n";
-
-            VulkanPipelineLoadInfo info2 =
-            {
-                .vertexShaderPath    = "shaders/gui_vert2.spv",
-                .fragmentShaderPath    = "shaders/gui_frag2.spv",
-            };
-            resultContext.guiDrawPipeline = vulkan::make_gui_pipeline(&resultContext, info2);
-            std::cout << "gui pipeline created\n";
-        }
-
-
-        std::cout << "\n[VULKAN]: Initialized succesfully\n\n";
-
-        return resultContext;
-    }
-
-    internal void
-    destroy_vulkan_context(VulkanContext * context)
-    {
-        VkDevice device = context->device;
-
-        // Note(Leo): All draw frame operations are asynchronous, must wait for them to finish
-        vkDeviceWaitIdle(device);
-
-        // Note(Leo): these are Graphics things
-        vulkan::unload_scene(context);
-
-        CleanupSwapchain(context);
-
-        vkDestroyDescriptorPool(device, context->uniformDescriptorPool, nullptr);
-        vkDestroyDescriptorPool(device, context->materialDescriptorPool, nullptr);
-
-        vkDestroySampler(device, context->textureSampler, nullptr);
-
-        // Todo(Leo): When we have scene, or different models, these too move away from here
-        vkDestroyDescriptorSetLayout(device, context->descriptorSetLayouts.model, nullptr);  
-        vkDestroyDescriptorSetLayout(device, context->descriptorSetLayouts.scene, nullptr);  
-
-        vulkan::destroy_buffer_resource(device, &context->staticMeshPool);
-        vulkan::destroy_buffer_resource(device, &context->stagingBufferPool);
-        vulkan::destroy_buffer_resource(device, &context->modelUniformBuffer);
-        vulkan::destroy_buffer_resource(device, &context->sceneUniformBuffer);
-        vulkan::destroy_buffer_resource(device, &context->guiUniformBuffer);
-
-        for (auto & frame : context->virtualFrames)
-        {
-            /* Note(Leo): command buffers are destroyed with command pool, but we need to destroy
-            framebuffers here, since they are always recreated immediately right after destroying
-            them in drawing procedure */
-            vkDestroyFramebuffer(device, frame.framebuffer, nullptr);
-            
-            vkDestroySemaphore(device, frame.renderFinishedSemaphore, nullptr);
-            vkDestroySemaphore(device, frame.imageAvailableSemaphore, nullptr);
-            vkDestroyFence(device, frame.inFlightFence, nullptr);
-        }
-
-        vkDestroyCommandPool(device, context->commandPool, nullptr);
-
-        vkDestroyDevice(device, nullptr);
-        vkDestroySurfaceKHR(context->instance, context->surface, nullptr);
-        vkDestroyInstance(context->instance, nullptr);
-        
-        std::cout << "[VULKAN]: shut down\n";
-    }
+    VULKAN_CHECK(vkCreateDescriptorSetLayout(   context->device,
+                                                &layoutCreateInfo,
+                                                nullptr,
+                                                &context->descriptorSetLayouts.scene));
 }

@@ -24,12 +24,12 @@ void
 vulkan::prepare_drawing(VulkanContext * context)
 {
     DEBUG_ASSERT((context->canDraw == false), "Invalid call to prepare_drawing() when finish_drawing() has not been called.")
-    context->canDraw = true;
+    context->canDraw                    = true;
 
     context->currentUniformBufferOffset = 0;
-    context->currentBoundPipeline = PipelineHandle::Null;
+    context->currentBoundPipeline       = PipelineHandle::Null;
 
-    VulkanVirtualFrame * frame = get_current_virtual_frame(context);
+    auto * frame = get_current_virtual_frame(context);
 
     // Note(Leo): We recreate these everytime we are here.
     // https://software.intel.com/en-us/articles/api-without-secrets-introduction-to-vulkan-part-4#inpage-nav-5
@@ -39,15 +39,17 @@ vulkan::prepare_drawing(VulkanContext * context)
     {
         context->drawingResources.colorImageView,
         context->drawingResources.depthImageView,
-        context->swapchainItems.imageViews[context->currentDrawFrameIndex],
+
+        // Todo(Leo): make nice accessor :D
+        context->drawingResources.imageViews[context->currentDrawFrameIndex],
     };
 
-    frame->framebuffer = make_framebuffer(  context->device,
-                                            context->renderPass,
-                                            ARRAY_COUNT(attachments),
-                                            attachments,
-                                            context->swapchainItems.extent.width,
-                                            context->swapchainItems.extent.height);    
+    frame->framebuffer = make_vk_framebuffer(   context->device,
+                                                context->drawingResources.renderPass,
+                                                ARRAY_COUNT(attachments),
+                                                attachments,
+                                                context->drawingResources.extent.width,
+                                                context->drawingResources.extent.height);    
 
     VkCommandBufferBeginInfo primaryCmdBeginInfo =
     {
@@ -58,9 +60,7 @@ vulkan::prepare_drawing(VulkanContext * context)
 
     /* Note (Leo): beginning command buffer implicitly resets it, if we have specified
     VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT in command pool creation */
-    DEBUG_ASSERT(
-        vkBeginCommandBuffer(frame->commandBuffers.primary, &primaryCmdBeginInfo) == VK_SUCCESS,
-        "Failed to begin primary command buffer");
+    VULKAN_CHECK(vkBeginCommandBuffer(frame->commandBuffers.primary, &primaryCmdBeginInfo));
     
     VkClearValue clearValues [] =
     {
@@ -71,11 +71,11 @@ vulkan::prepare_drawing(VulkanContext * context)
     VkRenderPassBeginInfo renderPassInfo =
     {
         .sType              = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-        .renderPass         = context->renderPass,
+        .renderPass         = context->drawingResources.renderPass,
         .framebuffer        = frame->framebuffer,
         
         .renderArea.offset  = {0, 0},
-        .renderArea.extent  = context->swapchainItems.extent,
+        .renderArea.extent  = context->drawingResources.extent,
 
         .clearValueCount    = 2,
         .pClearValues       = clearValues,
@@ -86,7 +86,7 @@ vulkan::prepare_drawing(VulkanContext * context)
     VkCommandBufferInheritanceInfo inheritanceInfo =
     {
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_INHERITANCE_INFO,
-        .renderPass = context->renderPass,
+        .renderPass = context->drawingResources.renderPass,
 
         // Todo(Leo): so far we only have 1 subpass, but whenever it changes, this probably must too
         .subpass = 0,
@@ -103,41 +103,36 @@ vulkan::prepare_drawing(VulkanContext * context)
         .pInheritanceInfo = &inheritanceInfo,
     };
 
-    DEBUG_ASSERT(
-        vkBeginCommandBuffer(frame->commandBuffers.scene, &sceneCmdBeginInfo) == VK_SUCCESS,
-        "Failed to begin secondary scene command buffer");
+    VULKAN_CHECK (vkBeginCommandBuffer(frame->commandBuffers.scene, &sceneCmdBeginInfo));
 }
 
 void
 vulkan::finish_drawing(VulkanContext * context)
 {
-    DEBUG_ASSERT(context->canDraw, "Invalid call to finish_drawing() when prepare_drawing() has not been called.")
+    assert(context->canDraw);
     context->canDraw = false;
+
+    record_gui_draw_command(context, {1500, 20}, {400, 400}, MaterialHandle::Null, {0,1,1,1});
 
     VulkanVirtualFrame * frame = get_current_virtual_frame(context);
 
-    DEBUG_ASSERT(
-        vkEndCommandBuffer(frame->commandBuffers.scene) == VK_SUCCESS,
-        "Failed to end secondary scene command buffer");
+    VULKAN_CHECK(vkEndCommandBuffer(frame->commandBuffers.scene));
 
     vkCmdExecuteCommands(frame->commandBuffers.primary, 1, &frame->commandBuffers.scene);
     vkCmdEndRenderPass(frame->commandBuffers.primary);
     
-    DEBUG_ASSERT(
-        vkEndCommandBuffer(frame->commandBuffers.primary) == VK_SUCCESS,
-        "Failed to end primary command buffer");
+    VULKAN_CHECK(vkEndCommandBuffer(frame->commandBuffers.primary));
 }
 
 
 internal void
-vulkan::draw_frame(VulkanContext * context, u32 imageIndex)
+vulkan::draw_frame(VulkanContext * context)
 {
     /* Note(Leo): these have to do with sceneloading in game layer. We are then unloading
     all resources associated with command buffer, which makes it invalid to submit to queue */
     bool32 skipFrame            = context->sceneUnloaded;
     context->sceneUnloaded      = false;
 
-    // u32 frameIndex = context->virtualFrameIndex;
     VulkanVirtualFrame * frame  = get_current_virtual_frame(context);
 
 
@@ -169,10 +164,7 @@ vulkan::draw_frame(VulkanContext * context, u32 imageIndex)
         .pSignalSemaphores      = &frame->renderFinishedSemaphore,
     };
 
-    if (vkQueueSubmit(context->graphicsQueue, 1, &submitInfo, frame->inFlightFence) != VK_SUCCESS)
-    {
-        throw std::runtime_error("Failed to submit draw command buffer");
-    }
+    VULKAN_CHECK(vkQueueSubmit(context->queues.graphics, 1, &submitInfo, frame->inFlightFence));
 
     VkPresentInfoKHR presentInfo =
     {
@@ -182,14 +174,14 @@ vulkan::draw_frame(VulkanContext * context, u32 imageIndex)
         .pResults            = nullptr,
 
         .swapchainCount  = 1,
-        .pSwapchains     = &context->swapchainItems.swapchain,
-        .pImageIndices   = &imageIndex,
+        .pSwapchains     = &context->drawingResources.swapchain,
+        .pImageIndices   = &context->currentDrawFrameIndex,
     };
 
     // Todo(Leo): Should we do something with this??
-    VkResult result = vkQueuePresentKHR(context->presentQueue, &presentInfo);
+    VkResult result = vkQueuePresentKHR(context->queues.present, &presentInfo);
 
-    #pragma message ("Is this correct place to advance??????")
+    // Todo(Leo): Is this correct place to advance??????
     // Should we have a proper "all rendering done"-function?
     advance_virtual_frame(context);
 
@@ -372,10 +364,10 @@ void vulkan::record_gui_draw_command(VulkanContext * context, vector2 position, 
     {
         // Note(Leo): This is temporarily here only, aka scale to fit width.
         const vector2 referenceResolution = {1920, 1080};
-        float ratio = context->swapchainItems.extent.width / referenceResolution.x;
+        float ratio = context->drawingResources.extent.width / referenceResolution.x;
 
-        float x = (position.x / context->swapchainItems.extent.width) * ratio * 2.0f - 1.0f;
-        float y = (position.y / context->swapchainItems.extent.height) * ratio * 2.0f - 1.0f;
+        float x = (position.x / context->drawingResources.extent.width) * ratio * 2.0f - 1.0f;
+        float y = (position.y / context->drawingResources.extent.height) * ratio * 2.0f - 1.0f;
 
         return {x, y};
     };
@@ -397,21 +389,45 @@ void vulkan::record_gui_draw_command(VulkanContext * context, vector2 position, 
 
 
     // Todo(Leo): this is not good idea. Proper toggles etc and not null pointers for flow control, said wise in the internets
-    if(is_valid_handle(materialHandle))
-    {
-        vkCmdBindDescriptorSets(    frame->commandBuffers.scene,
-                                    VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                    context->guiDrawPipeline.layout,
-                                    LAYOUT_SET_MATERIAL,
-                                    1,
-                                    &context->loadedGuiMaterials[materialHandle].descriptorSet,
-                                    0,
-                                    nullptr);
-    }
+    VulkanMaterial * material = is_valid_handle(materialHandle) ?
+                                get_loaded_gui_material(context, materialHandle) :
+                                &context->defaultGuiMaterial;
+
+    vkCmdBindDescriptorSets(    frame->commandBuffers.scene,
+                                VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                context->guiDrawPipeline.layout,
+                                LAYOUT_SET_MATERIAL,
+                                1,
+                                &material->descriptorSet,
+                                0,
+                                nullptr);
+
 
     vkCmdDraw(frame->commandBuffers.scene, 4, 1, 0, 0);
 
-
     // Note(Leo): This must be done so that next time we draw normally, we know to bind thos descriptors again
     context->currentBoundPipeline = PipelineHandle::Null;
+}
+
+internal void
+vulkan::prepare_shadow_pass (VulkanContext*, Matrix44 view, Matrix44 perspective)
+{
+    // std::cout << "[prepare_shadow_pass()]\n";
+
+    
+
+    
+
+}
+
+internal void
+vulkan::finish_shadow_pass (VulkanContext*)
+{
+    // std::cout << "[finish_shadow_pass()]\n";
+}
+
+internal void
+vulkan::draw_shadow_model (VulkanContext*, ModelHandle model, Matrix44 transform)
+{
+    // std::cout << "[draw_shadow_model()]\n";
 }

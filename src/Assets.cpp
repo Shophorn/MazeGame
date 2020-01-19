@@ -116,6 +116,22 @@ get_pixel(TextureAsset * texture, u32 x, u32 y)
 	return texture->pixels[index];
 }
 
+inline u8
+value_to_byte(float value)
+{
+	return (u8)(value * 255);
+}
+
+inline u32
+make_pixel(float4 color)
+{
+	u32 pixel = (u32)value_to_byte(color.a) << 24
+				| (u32)value_to_byte(color.r) << 16
+				| (u32)value_to_byte(color.g) << 8
+				| (u32)value_to_byte(color.b);
+	return pixel;
+}
+
 internal Pixel
 get_closest_pixel(TextureAsset * texture, vector2 texcoord)
 {

@@ -27,8 +27,8 @@ vulkan::make_pipeline(
     BinaryAsset vertexShaderCode = ReadBinaryFile(info.vertexShaderPath.c_str());
     BinaryAsset fragmentShaderCode = ReadBinaryFile(info.fragmentShaderPath.c_str());
 
-    VkShaderModule vertexShaderModule = vulkan::CreateShaderModule(vertexShaderCode, context->device);
-    VkShaderModule fragmentShaderModule = vulkan::CreateShaderModule(fragmentShaderCode, context->device);
+    VkShaderModule vertexShaderModule = make_vk_shader_module(vertexShaderCode, context->device);
+    VkShaderModule fragmentShaderModule = make_vk_shader_module(fragmentShaderCode, context->device);
 
     auto & options = info.options;
 
@@ -85,8 +85,8 @@ vulkan::make_pipeline(
     {
         .x          = 0.0f,
         .y          = 0.0f,
-        .width      = (float) context->swapchainItems.extent.width,
-        .height     = (float) context->swapchainItems.extent.height,
+        .width      = (float) context->drawingResources.extent.width,
+        .height     = (float) context->drawingResources.extent.height,
         .minDepth   = 0.0f,
         .maxDepth   = 1.0f,
     };
@@ -94,7 +94,7 @@ vulkan::make_pipeline(
     VkRect2D scissor =
     {
         .offset = {0, 0},
-        .extent = context->swapchainItems.extent,
+        .extent = context->drawingResources.extent,
     };
 
     VkPipelineViewportStateCreateInfo viewportState =
@@ -181,7 +181,7 @@ vulkan::make_pipeline(
         .back               = {},
     };
 
-    auto materialLayout = vulkan::create_material_descriptor_set_layout(context->device, options.textureCount);
+    auto materialLayout = make_material_vk_descriptor_set_layout(context->device, options.textureCount);
     VkDescriptorSetLayout descriptorSetLayouts [3]
     {
         context->descriptorSetLayouts.scene,
@@ -220,7 +220,7 @@ vulkan::make_pipeline(
         .pColorBlendState       = &colorBlending,
         .pDynamicState          = nullptr,
         .layout                 = layout,
-        .renderPass             = context->renderPass,
+        .renderPass             = context->drawingResources.renderPass,
         .subpass                = 0,
 
         // Note(Leo): These are for cheaper re-use of pipelines, not used right now.
@@ -258,8 +258,8 @@ vulkan::make_line_pipeline(
     BinaryAsset vertexShaderCode = ReadBinaryFile(info.vertexShaderPath.c_str());
     BinaryAsset fragmentShaderCode = ReadBinaryFile(info.fragmentShaderPath.c_str());
 
-    VkShaderModule vertexShaderModule = vulkan::CreateShaderModule(vertexShaderCode, context->device);
-    VkShaderModule fragmentShaderModule = vulkan::CreateShaderModule(fragmentShaderCode, context->device);
+    VkShaderModule vertexShaderModule = make_vk_shader_module(vertexShaderCode, context->device);
+    VkShaderModule fragmentShaderModule = make_vk_shader_module(fragmentShaderCode, context->device);
 
     auto & options = info.options;
 
@@ -316,8 +316,8 @@ vulkan::make_line_pipeline(
     {
         .x          = 0.0f,
         .y          = 0.0f,
-        .width      = (float) context->swapchainItems.extent.width,
-        .height     = (float) context->swapchainItems.extent.height,
+        .width      = (float) context->drawingResources.extent.width,
+        .height     = (float) context->drawingResources.extent.height,
         .minDepth   = 0.0f,
         .maxDepth   = 1.0f,
     };
@@ -325,7 +325,7 @@ vulkan::make_line_pipeline(
     VkRect2D scissor =
     {
         .offset = {0, 0},
-        .extent = context->swapchainItems.extent,
+        .extent = context->drawingResources.extent,
     };
 
     VkPipelineViewportStateCreateInfo viewportState =
@@ -419,7 +419,7 @@ vulkan::make_line_pipeline(
         .size       = sizeof(vector4[3])
     };
 
-    auto materialLayout = vulkan::create_material_descriptor_set_layout(context->device, 0);
+    auto materialLayout = make_material_vk_descriptor_set_layout(context->device, 0);
     VkDescriptorSetLayout descriptorSetLayouts [3]
     {
         context->descriptorSetLayouts.scene,
@@ -458,7 +458,7 @@ vulkan::make_line_pipeline(
         .pColorBlendState       = &colorBlending,
         .pDynamicState          = nullptr,
         .layout                 = layout,
-        .renderPass             = context->renderPass,
+        .renderPass             = context->drawingResources.renderPass,
         .subpass                = 0,
 
         // Note(Leo): These are for cheaper re-use of pipelines, not used right now.
@@ -496,8 +496,8 @@ vulkan::make_gui_pipeline(
     BinaryAsset vertexShaderCode = ReadBinaryFile(info.vertexShaderPath.c_str());
     BinaryAsset fragmentShaderCode = ReadBinaryFile(info.fragmentShaderPath.c_str());
 
-    VkShaderModule vertexShaderModule = vulkan::CreateShaderModule(vertexShaderCode, context->device);
-    VkShaderModule fragmentShaderModule = vulkan::CreateShaderModule(fragmentShaderCode, context->device);
+    VkShaderModule vertexShaderModule = make_vk_shader_module(vertexShaderCode, context->device);
+    VkShaderModule fragmentShaderModule = make_vk_shader_module(fragmentShaderCode, context->device);
 
     auto & options = info.options;
 
@@ -544,8 +544,8 @@ vulkan::make_gui_pipeline(
     {
         .x          = 0.0f,
         .y          = 0.0f,
-        .width      = (float) context->swapchainItems.extent.width,
-        .height     = (float) context->swapchainItems.extent.height,
+        .width      = (float) context->drawingResources.extent.width,
+        .height     = (float) context->drawingResources.extent.height,
         .minDepth   = 0.0f,
         .maxDepth   = 1.0f,
     };
@@ -553,7 +553,7 @@ vulkan::make_gui_pipeline(
     VkRect2D scissor =
     {
         .offset = {0, 0},
-        .extent = context->swapchainItems.extent,
+        .extent = context->drawingResources.extent,
     };
 
     VkPipelineViewportStateCreateInfo viewportState =
@@ -647,7 +647,7 @@ vulkan::make_gui_pipeline(
         .size       = sizeof(vector4[3])
     };
 
-    auto materialLayout = vulkan::create_material_descriptor_set_layout(context->device, 1);
+    auto materialLayout = make_material_vk_descriptor_set_layout(context->device, 1);
 
     VkPipelineLayoutCreateInfo pipelineLayoutInfo =
     {
@@ -680,7 +680,7 @@ vulkan::make_gui_pipeline(
         .pColorBlendState       = &colorBlending,
         .pDynamicState          = nullptr,
         .layout                 = layout,
-        .renderPass             = context->renderPass,
+        .renderPass             = context->drawingResources.renderPass,
         .subpass                = 0,
 
         // Note(Leo): These are for cheaper re-use of pipelines, not used right now.

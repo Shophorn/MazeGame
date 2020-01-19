@@ -57,8 +57,6 @@ struct VulkanBufferResource
     // Todo[memory, vulkan](Leo): IMPORTANT Enforce/track these
     u64 used;
     u64 size;
-
-    bool32 created;
 };
 
 struct VulkanQueueFamilyIndices
@@ -89,26 +87,6 @@ struct VulkanSwapchainSupportDetails
     std::vector<VkPresentModeKHR> presentModes;
 };
 
-struct VulkanSwapchainItems
-{
-    VkSwapchainKHR swapchain;
-    VkExtent2D extent;
-
-    VkFormat imageFormat;
-    std::vector<VkImage> images;
-    std::vector<VkImageView> imageViews;
-};
-
-struct VulkanDrawingResources
-{
-	VkDeviceMemory memory;
-
-	VkImage colorImage;
-	VkImageView colorImageView;
-
-	VkImage depthImage;	
-	VkImageView depthImageView;
-};
 
 struct VulkanTexture
 {
@@ -205,24 +183,36 @@ struct platform::Graphics
 	VkDevice 						device; // Note(Leo): this is Logical Device.
 	VkPhysicalDevice 				physicalDevice;
 	VkPhysicalDeviceProperties 		physicalDeviceProperties;
-
 	VkSurfaceKHR 					surface;
-	VkQueue 						graphicsQueue;
-	VkQueue 						presentQueue;
 
-	VkCommandPool 					commandPool;
+	struct {
+		VkQueue graphics;
+		VkQueue present;
+	} queues;
+
+
 
     VulkanVirtualFrame virtualFrames [VIRTUAL_FRAME_COUNT];
     u32 virtualFrameIndex = 0;
-
-    VkResult currentFrameDrawAction;
-    u32 currentFrameImageIndex;
 
     struct
     {
     	VkDescriptorSetLayout scene;
     	VkDescriptorSetLayout model;
     } descriptorSetLayouts;
+
+    // VkDescriptorPool uniformDescriptorPool;
+    // VkDescriptorPool materialDescriptorPool;
+
+    // VkDescriptorPool persistentDescriptorPool;
+
+    struct
+    {
+    	VkDescriptorPool uniform;
+    	VkDescriptorPool material;
+
+    	VkDescriptorPool persistent;
+    } descriptorPools;
 
     struct
     {
@@ -231,36 +221,39 @@ struct platform::Graphics
     } uniformDescriptorSets;
 
 
-    VulkanSwapchainItems 	swapchainItems;
-    VkRenderPass            renderPass;
-
-    // MULTISAMPLING
-    VkSampleCountFlagBits msaaSamples;
+    // Uncategorized
+	VkCommandPool 			commandPool;
+    VkSampleCountFlagBits 	msaaSamples;
+    VkSampler 				textureSampler;			
 
     /* Note(Leo): color and depth images for initial writing. These are
     afterwards resolved to actual framebufferimage */
-    VulkanDrawingResources drawingResources;
 
-    /* Note(Leo): image and sampler are now (as in Vulkan) unrelated, and same
-    sampler can be used with multiple images, noice */
-    VkSampler textureSampler;			
+	struct {
+	    VkSwapchainKHR swapchain;
+	    VkExtent2D extent;
 
-    /* Note(Leo): uniform descriptor pool os recreated on swapchain recreate,
-	since they are written and read each frame and thus there needs to be one for
-	every swapchain image. Materials are only read each frame so one set of those
-	is sufficient. However there is one set per material, so the pool is bigger.*/
-    VkDescriptorPool      		uniformDescriptorPool;
-    VkDescriptorPool      		materialDescriptorPool;
+	    VkFormat imageFormat;
+	    std::vector<VkImage> images;
+	    std::vector<VkImageView> imageViews;
 
-    VulkanBufferResource       	stagingBufferPool;
+	    VkRenderPass            renderPass;
+
+	    // Note(Leo): these are attchaments.
+		VkDeviceMemory memory;
+
+		VkImage colorImage;
+		VkImageView colorImageView;
+
+		VkImage depthImage;	
+		VkImageView depthImageView;
+	} drawingResources = {};
     
-    // Note(Leo): After this these need to be recreated on unload as empty containers
-    VulkanBufferResource 		staticMeshPool;
-    VulkanBufferResource 		modelUniformBuffer;
-    VulkanBufferResource 		sceneUniformBuffer;
-    VulkanBufferResource		guiUniformBuffer;
-    
-
+    VulkanBufferResource stagingBufferPool;
+    VulkanBufferResource staticMeshPool;
+    VulkanBufferResource modelUniformBuffer;
+    VulkanBufferResource sceneUniformBuffer;
+   
     // Todo(Leo): Use our own arena arrays for these.
     std::vector<VulkanMesh>  			loadedMeshes;
 	std::vector<VulkanTexture> 			loadedTextures;
@@ -273,6 +266,11 @@ struct platform::Graphics
 
     VulkanLoadedPipeline		guiDrawPipeline;	
 	std::vector<VulkanMaterial> loadedGuiMaterials;
+	VulkanMaterial 				defaultGuiMaterial;
+
+	struct {
+		VulkanTexture white;
+	} debugTextures;
 
     // u32 currentDrawImageIndex;
     u32 currentDrawFrameIndex;
@@ -285,33 +283,39 @@ struct platform::Graphics
 
 using VulkanContext = platform::Graphics;
 
-internal void
-advance_virtual_frame(VulkanContext * context)
-{
-	context->virtualFrameIndex += 1;
-	context->virtualFrameIndex %= VIRTUAL_FRAME_COUNT;
-}
-
-internal VulkanVirtualFrame *
-get_current_virtual_frame(VulkanContext * context)
-{
-	return &context->virtualFrames[context->virtualFrameIndex];
-}
-
-internal VulkanLoadedPipeline *
-get_loaded_pipeline(VulkanContext * context, PipelineHandle handle)
-{
-	return &context->loadedPipelines[handle];
-}
-
-internal VulkanTexture *
-get_loaded_texture(VulkanContext * context, TextureHandle handle)
-{
-    return &context->loadedTextures[handle];
-}
-
 namespace vulkan
 {
+	internal void
+	advance_virtual_frame(VulkanContext * context)
+	{
+		context->virtualFrameIndex += 1;
+		context->virtualFrameIndex %= VIRTUAL_FRAME_COUNT;
+	}
+
+	internal inline VulkanVirtualFrame *
+	get_current_virtual_frame(VulkanContext * context)
+	{
+		return &context->virtualFrames[context->virtualFrameIndex];
+	}
+
+	internal inline VulkanLoadedPipeline *
+	get_loaded_pipeline(VulkanContext * context, PipelineHandle handle)
+	{
+		return &context->loadedPipelines[handle];
+	}
+
+	internal inline VulkanTexture *
+	get_loaded_texture(VulkanContext * context, TextureHandle handle)
+	{
+	    return &context->loadedTextures[handle];
+	}
+
+	internal inline VulkanMaterial *
+	get_loaded_gui_material(VulkanContext * context, MaterialHandle handle)
+	{
+		return &context->loadedGuiMaterials[handle];
+	}
+
     internal VkFormat find_supported_format(    VkPhysicalDevice physicalDevice,
                                                 s32 candidateCount,
                                                 VkFormat * pCandidates,
@@ -338,32 +342,21 @@ namespace vulkan
 
     constexpr s32 MAX_LOADED_TEXTURES = 100;
 
-	internal VkVertexInputBindingDescription get_vertex_binding_description ();
-	// Todo(Leo): Remove this 'Array', use somthing else
-	internal Array<VkVertexInputAttributeDescription, 4> get_vertex_attribute_description();
-
+    // Todo(Leo): this is internal to the some place
 	internal VkIndexType convert_index_type(IndexType);
 
 
-	internal void
-	CreateBuffer(
-	    VkDevice                logicalDevice,
-	    VkPhysicalDevice        physicalDevice,
-	    VkDeviceSize            bufferSize,
-	    VkBufferUsageFlags      usage,
-	    VkMemoryPropertyFlags   memoryProperties,
-	    VkBuffer *              resultBuffer,
-	    VkDeviceMemory *        resultBufferMemory);
+	internal VkVertexInputBindingDescription 					get_vertex_binding_description ();
+	internal StaticArray<VkVertexInputAttributeDescription, 4> 	get_vertex_attribute_description();
 
-	internal VulkanBufferResource make_buffer_resource(	VulkanContext * context,
-														VkDeviceSize size,
-														VkBufferUsageFlags usage,
-														VkMemoryPropertyFlags memoryProperties);
-
-	internal void destroy_buffer_resource(VkDevice logicalDevice, VulkanBufferResource * resource);
+	// HELPER FUNCTIONS
+	internal VulkanQueueFamilyIndices find_queue_families (VkPhysicalDevice device, VkSurfaceKHR surface);
+	internal VkPresentModeKHR choose_surface_present_mode(std::vector<VkPresentModeKHR> & availablePresentModes);
+	internal VulkanSwapchainSupportDetails query_swap_chain_support(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface);
+	internal VkSurfaceFormatKHR choose_swapchain_surface_format(std::vector<VkSurfaceFormatKHR>& availableFormats);
 
     internal inline bool32
-    FormatHasStencilComponent(VkFormat format)
+    has_stencil_component(VkFormat format)
     {
         bool32 result = (format == VK_FORMAT_D32_SFLOAT_S8_UINT) || (format == VK_FORMAT_D24_UNORM_S8_UINT);
         return result;
@@ -376,62 +369,68 @@ namespace vulkan
     	return align_up_to(alignment, size);
     } 
 
-	internal VulkanSwapchainSupportDetails QuerySwapChainSupport(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface);
-	internal VkSurfaceFormatKHR ChooseSwapSurfaceFormat(std::vector<VkSurfaceFormatKHR>& availableFormats);
-	internal VkPresentModeKHR ChooseSurfacePresentMode(std::vector<VkPresentModeKHR> & availablePresentModes);
-	internal VulkanQueueFamilyIndices FindQueueFamilies (VkPhysicalDevice device, VkSurfaceKHR surface);
-	internal VkShaderModule CreateShaderModule(BinaryAsset code, VkDevice logicalDevice);
-	internal void recreate_swapchain(VulkanContext * context, u32 width, u32 height);
-
-	internal VkFramebuffer make_framebuffer(VkDevice       device, 
-                            				VkRenderPass    renderPass,
-                            				u32             attachmentCount,
-                            				VkImageView *   attachments,
-                            				u32             width,
-                            				u32             height);
-
-	internal VulkanLoadedPipeline make_pipeline(VulkanContext * context, VulkanPipelineLoadInfo loadInfo);
-	internal VulkanLoadedPipeline make_line_pipeline(VulkanContext * context, VulkanPipelineLoadInfo loadInfo);
-	internal VulkanLoadedPipeline make_gui_pipeline(VulkanContext * context, VulkanPipelineLoadInfo loadInfo);
-	internal void destroy_loaded_pipeline(VulkanContext * context, VulkanLoadedPipeline * pipeline);
-
-	internal VulkanTexture make_texture(VulkanContext * context, TextureAsset * asset);
-	internal VulkanTexture make_cubemap(VulkanContext * context, StaticArray<TextureAsset, 6> * assets);
-	internal void destroy_texture(VulkanContext * context, VulkanTexture * texture);
-
-	internal VkDescriptorSetLayout create_material_descriptor_set_layout(VkDevice device, u32 textureCount);
-	internal VkDescriptorSet make_material_descriptor_set(	VulkanContext * context,
-															PipelineHandle pipeline,
-															ArenaArray<TextureHandle> textures);
-	
-	internal VkDescriptorSet make_material_descriptor_set(	VulkanContext * context,
-															VulkanLoadedPipeline * pipeline,
-															TextureHandle texture);
-	
-
-    internal VkRenderPass make_render_pass(VulkanContext * context, VkFormat format, VkSampleCountFlagBits msaaSamples);
+    internal VkCommandBuffer begin_command_buffer(VkDevice, VkCommandPool);
+    internal void execute_command_buffer(VkCommandBuffer, VkDevice, VkCommandPool, VkQueue);
+	internal void cmd_transition_image_layout(	VkCommandBuffer commandBuffer,
+											    VkDevice        device,
+											    VkQueue         graphicsQueue,
+											    VkImage         image,
+											    VkFormat        format,
+											    u32             mipLevels,
+											    VkImageLayout   oldLayout,
+											    VkImageLayout   newLayout,
+											    u32             layerCount = 1);
 
 
-	internal void create_drawing_resources(VulkanContext * context);
-	internal void create_material_descriptor_pool(VulkanContext * context);
-	internal void create_uniform_descriptor_pool(VulkanContext * context);
-	internal void create_model_descriptor_sets(VulkanContext * context);
-	internal void create_scene_descriptor_sets(VulkanContext * context);
-	internal void create_texture_sampler(VulkanContext * context);
+    /// INITIALIZATION CALLS
+	internal void create_drawing_resources		(VulkanContext*, u32 width, u32 height);
+	internal void recreate_drawing_resources 	(VulkanContext*, u32 width, u32 height);
+	internal void destroy_drawing_resources 	(VulkanContext*);					
 
+	/// INTERNAL RESOURCES, CUSTOM
+	internal VulkanLoadedPipeline make_pipeline 		(VulkanContext*, VulkanPipelineLoadInfo loadInfo);
+	internal VulkanLoadedPipeline make_line_pipeline 	(VulkanContext*, VulkanPipelineLoadInfo loadInfo);
+	internal VulkanLoadedPipeline make_gui_pipeline 	(VulkanContext*, VulkanPipelineLoadInfo loadInfo);
+	internal void destroy_loaded_pipeline 				(VulkanContext*, VulkanLoadedPipeline * pipeline);
+
+	internal VulkanTexture make_texture	(VulkanContext*, TextureAsset * asset);
+	internal VulkanTexture make_texture	(VulkanContext * context, u32 width, u32 height, float4 color);
+	internal VulkanTexture make_cubemap	(VulkanContext*, StaticArray<TextureAsset, 6> * assets);
+	internal void destroy_texture 		(VulkanContext*, VulkanTexture * texture);
+
+	internal VulkanBufferResource make_buffer_resource(	VulkanContext*,
+														VkDeviceSize size,
+														VkBufferUsageFlags usage,
+														VkMemoryPropertyFlags memoryProperties);
+	internal void destroy_buffer_resource(VkDevice device, VulkanBufferResource * resource);
+
+	/// INTERNAL RESOURCES, VULKAN TYPES
+    internal VkRenderPass 			make_vk_render_pass(VulkanContext*, VkFormat format, VkSampleCountFlagBits msaaSamples);
+	internal VkDescriptorSetLayout 	make_material_vk_descriptor_set_layout(VkDevice device, u32 textureCount);
+	internal VkDescriptorSet 		make_material_vk_descriptor_set(VulkanContext*, PipelineHandle pipeline, ArenaArray<TextureHandle> textures);
+	internal VkDescriptorSet 		make_material_vk_descriptor_set(VulkanContext*, 
+																	VulkanLoadedPipeline * pipeline,
+																	VulkanTexture * texture,
+																	VkDescriptorPool pool);
+	internal VkFramebuffer 			make_vk_framebuffer(VkDevice, VkRenderPass, u32 attachmentCount, VkImageView * attachments, u32 width, u32 height);
+	internal VkShaderModule 		make_vk_shader_module(BinaryAsset file, VkDevice logicalDevice);
+	internal VkImage 				make_vk_image(	VulkanContext*, u32 width, u32 height, u32 mipLevels, VkFormat format,
+											    	VkImageTiling tiling, VkImageUsageFlags usage,
+											    	VkSampleCountFlagBits msaaSamples);
+	internal VkImageView 			make_vk_image_view(VkDevice device, VkImage image, u32 mipLevels, VkFormat format, VkImageAspectFlags aspectFlags);
 
 	// Note(Leo): SCENE and DRAWING functions are passed as pointers to game layer.
 	/// SCENE, VulkanScene.cpp
-    internal TextureHandle 	push_texture (VulkanContext * context, TextureAsset * texture);
-    internal TextureHandle  push_render_texture (VulkanContext * context, u32 width, u32 height);
-    internal TextureHandle 	push_cubemap(VulkanContext * context, StaticArray<TextureAsset, 6> * assets);
+    internal TextureHandle 	push_texture (VulkanContext*, TextureAsset * texture);
+    internal TextureHandle  push_render_texture (VulkanContext*, u32 width, u32 height);
+    internal TextureHandle 	push_cubemap(VulkanContext*, StaticArray<TextureAsset, 6> * assets);
 
-    internal MaterialHandle push_material (VulkanContext * context, MaterialAsset * asset);
-    internal MaterialHandle push_gui_material (VulkanContext * context, TextureHandle texture);
-    internal MeshHandle 	push_mesh(VulkanContext * context, MeshAsset * mesh);
-    internal ModelHandle 	push_model (VulkanContext * context, MeshHandle mesh, MaterialHandle material);
-    internal PipelineHandle push_pipeline(VulkanContext * context, const char * vertexShaderPath, const char * fragmentShaderPath, platform::RenderingOptions options);
-    internal void 			unload_scene(VulkanContext * context);
+    internal MaterialHandle push_material (VulkanContext*, MaterialAsset * asset);
+    internal MaterialHandle push_gui_material (VulkanContext*, TextureHandle texture);
+    internal MeshHandle 	push_mesh(VulkanContext*, MeshAsset * mesh);
+    internal ModelHandle 	push_model (VulkanContext*, MeshHandle mesh, MaterialHandle material);
+    internal PipelineHandle push_pipeline(VulkanContext*, const char * vertexShaderPath, const char * fragmentShaderPath, platform::RenderingOptions options);
+    internal void 			unload_scene(VulkanContext*);
 
 	/// DRAWING, VulkanDrawing.cpp
     internal void update_camera				(VulkanContext*, Matrix44 view, Matrix44 perspective);
@@ -440,11 +439,11 @@ namespace vulkan
 	internal void record_draw_command 		(VulkanContext*, ModelHandle handle, Matrix44 transform);
 	internal void record_line_draw_command	(VulkanContext*, vector3 start, vector3 end, float4 color);
 	internal void record_gui_draw_command	(VulkanContext*, vector2 position, vector2 size, MaterialHandle material, float4 color);
-	internal void draw_frame 				(VulkanContext * context, u32 imageIndex);
+	internal void draw_frame 				(VulkanContext * context);
 
-	internal void prepare_shadow_pass 		(VulkanContext*, Matrix44 const * view, Matrix44 const * perspective);
+	internal void prepare_shadow_pass 		(VulkanContext*, Matrix44 view, Matrix44 perspective);
 	internal void finish_shadow_pass 		(VulkanContext*);
-	internal void draw_shadow_model			(VulkanContext*, ModelHandle model, Matrix44 const * transform);
+	internal void draw_shadow_model			(VulkanContext*, ModelHandle model, Matrix44 transform);
 
 	// Lol, this is not given to game layer
 }

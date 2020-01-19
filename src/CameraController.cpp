@@ -36,8 +36,7 @@ struct CameraControllerSideScroller
 };
 
 internal void
-update_camera_system(	
-						Camera * camera,
+update_camera_system(	Camera * camera,
 						game::Input * input,
 						platform::Graphics * graphics,
 						platform::Window * window,

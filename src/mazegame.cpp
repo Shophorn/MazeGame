@@ -160,7 +160,6 @@ update_game(
 
 	if (memory->isInitialized == false)
 	{
-
 		initialize_game_state (state, memory);
 		memory->isInitialized = true;
 

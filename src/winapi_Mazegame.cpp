@@ -15,7 +15,6 @@ Windows platform layer for mazegame
 #define VK_USE_PLATFORM_WIN32_KHR
 #include <vulkan/vulkan.h>
 
-#include <stdexcept>
 #include <vector>
 #include <fstream>
 #include <chrono>
@@ -63,22 +62,89 @@ ReadBinaryFile (const char * fileName)
 }
 
 // Note(Leo): make unity build
-#include "winapi_VulkanCommandBuffers.cpp"
+#include "winapi_Input.cpp"
+#include "winapi_Window.cpp"
 #include "winapi_Vulkan.cpp"
 #include "winapi_Audio.cpp"
 #include "winapi_Network.cpp"
-#include "winapi_Input.cpp"
-#include "winapi_Window.cpp"
 
 internal void
-Run(HINSTANCE winInstance)
+Run(HINSTANCE hInstance)
 {
     winapi::State state = {};
     load_xinput();
 
     // ---------- INITIALIZE PLATFORM ------------
-    WinAPIWindow window         = winapi::make_window(winInstance, 960, 540);
-    VulkanContext vulkanContext = winapi::make_vulkan_context(winInstance, window.hwnd);
+    WinAPIWindow window         = winapi::make_window(hInstance, 960, 540);
+
+
+    /// --------- TIMING ---------------------------
+    auto startTimeMark          = std::chrono::high_resolution_clock::now();
+    double lastFrameStartTime   = 0;
+
+    double targetFrameTime;
+    u32 deviceMinSchedulerGranularity;
+    {
+        TIMECAPS timeCaps;
+        timeGetDevCaps(&timeCaps, sizeof(timeCaps));
+        deviceMinSchedulerGranularity = timeCaps.wPeriodMin;
+
+        // TODO(LEO): Make proper settings :)
+        /* NOTE(Leo): Change to lower framerate if on battery. My development
+        laptop at least changes to slower processing speed when not on power,
+        though this probably depends on power settings. These are just some
+        arbitrary values that happen to work on development laptop. */
+        SYSTEM_POWER_STATUS powerStatus;
+        GetSystemPowerStatus (&powerStatus);
+
+        double targetFrameTimeYesPower = 60;
+        double targetFrameTimeNoPower = 30;
+
+        constexpr BYTE AC_ONLINE = 1;
+        double targetFrameTimeThreshold = (powerStatus.ACLineStatus == AC_ONLINE) ? targetFrameTimeYesPower : targetFrameTimeNoPower;
+
+        if (powerStatus.ACLineStatus == AC_ONLINE)
+        {
+            std::cout << "Power detected\n";
+        }
+        else
+        {
+            std::cout << "No power detected\n";
+        }
+
+        s32 gameUpdateRate = targetFrameTimeThreshold;
+        {
+            HDC deviceContext = GetDC(window.hwnd);
+            int monitorRefreshRate = GetDeviceCaps(deviceContext, VREFRESH);
+            ReleaseDC(window.hwnd, deviceContext);
+
+            if (monitorRefreshRate > 1)
+            {  
+                gameUpdateRate = monitorRefreshRate;
+
+                while((gameUpdateRate / 2.0f) > targetFrameTimeThreshold)
+                {
+                    gameUpdateRate /= 2.0f;
+                }
+            }
+        }
+        targetFrameTime = 1.0f / gameUpdateRate;
+        
+        std::cout << "Target frame time = " << targetFrameTime << ", (fps = " << 1.0 / targetFrameTime << ")\n";
+    }
+
+
+
+
+
+
+
+
+    VulkanContext vulkanContext = winapi::create_vulkan_context(&window);
+
+
+
+
 
     HWNDUserPointer userPointer = 
     {
@@ -91,28 +157,35 @@ Run(HINSTANCE winInstance)
     {
         std::cout << "setting functions\n";
 
-        // GRAPHICS/VULKAN FUNCTIONS
-        state.platformFunctions.push_mesh           = vulkan::push_mesh;
-        state.platformFunctions.push_model          = vulkan::push_model;
-        state.platformFunctions.push_material       = vulkan::push_material;
-        state.platformFunctions.push_gui_material   = vulkan::push_gui_material;
-        state.platformFunctions.push_texture        = vulkan::push_texture;
-        state.platformFunctions.push_cubemap        = vulkan::push_cubemap;
-        state.platformFunctions.push_pipeline       = vulkan::push_pipeline;
-        state.platformFunctions.unload_scene        = vulkan::unload_scene;
+        state.platformFunctions =
+        {
+            // GRAPHICS/VULKAN FUNCTIONS
+            .push_mesh           = vulkan::push_mesh,
+            .push_texture        = vulkan::push_texture,
+            .push_cubemap        = vulkan::push_cubemap,
+            .push_material       = vulkan::push_material,
+            .push_gui_material   = vulkan::push_gui_material,
+            .push_model          = vulkan::push_model,
+            .push_pipeline       = vulkan::push_pipeline,
+            .unload_scene        = vulkan::unload_scene,
 
-        state.platformFunctions.prepare_frame       = vulkan::prepare_drawing;
-        state.platformFunctions.finish_frame        = vulkan::finish_drawing;
-        state.platformFunctions.update_camera       = vulkan::update_camera;
-        state.platformFunctions.draw_model          = vulkan::record_draw_command;
-        state.platformFunctions.draw_line           = vulkan::record_line_draw_command;
-        state.platformFunctions.draw_gui            = vulkan::record_gui_draw_command;
+            .prepare_frame       = vulkan::prepare_drawing,
+            .finish_frame        = vulkan::finish_drawing,
+            .update_camera       = vulkan::update_camera,
+            .draw_model          = vulkan::record_draw_command,
+            .draw_line           = vulkan::record_line_draw_command,
+            .draw_gui            = vulkan::record_gui_draw_command,
 
-        // WINDOW FUNCTIONS
-        state.platformFunctions.get_window_width        = [](platform::Window const * window) { return window->width; };
-        state.platformFunctions.get_window_height       = [](platform::Window const * window) { return window->height; };
-        state.platformFunctions.is_window_fullscreen    = [](platform::Window const * window) { return window->isFullscreen; };
-        state.platformFunctions.set_window_fullscreen   = winapi::set_window_fullscreen;
+            .prepare_shadow_pass    = vulkan::prepare_shadow_pass,
+            .finish_shadow_pass     = vulkan::finish_shadow_pass,
+            .draw_shadow_model      = vulkan::draw_shadow_model,
+
+            // WINDOW FUNCTIONS
+            .get_window_width        = [](platform::Window const * window) { return window->width; },
+            .get_window_height       = [](platform::Window const * window) { return window->height; },
+            .is_window_fullscreen    = [](platform::Window const * window) { return window->isFullscreen; },
+            .set_window_fullscreen   = winapi::set_window_fullscreen,
+        };
 
         assert(all_functions_set(&state.platformFunctions));
 
@@ -152,67 +225,12 @@ Run(HINSTANCE winInstance)
     bool32 networkIsRuined = false;
     WinApiNetwork network = winapi::CreateNetwork();
     game::Network gameNetwork = {};
-    real64 networkSendDelay     = 1.0 / 20;
-    real64 networkNextSendTime  = 0;
+    double networkSendDelay     = 1.0 / 20;
+    double networkNextSendTime  = 0;
     
     /// --------- INITIALIZE AUDIO ----------------
     WinApiAudio audio = winapi::CreateAudio();
     winapi::StartPlaying(&audio);                
-
-    /// --------- TIMING ---------------------------
-    auto startTimeMark          = std::chrono::high_resolution_clock::now();
-    real64 lastFrameStartTime   = 0;
-
-    real64 targetFrameTime;
-    u32 deviceMinSchedulerGranularity;
-    {
-        TIMECAPS timeCaps;
-        timeGetDevCaps(&timeCaps, sizeof(timeCaps));
-        deviceMinSchedulerGranularity = timeCaps.wPeriodMin;
-
-        // TODO(LEO): Make proper settings :)
-        /* NOTE(Leo): Change to lower framerate if on battery. My development
-        laptop at least changes to slower processing speed when not on power,
-        though this probably depends on power settings. These are just some
-        arbitrary values that happen to work on development laptop. */
-        SYSTEM_POWER_STATUS powerStatus;
-        GetSystemPowerStatus (&powerStatus);
-
-        real64 targetFrameTimeYesPower = 60;
-        real64 targetFrameTimeNoPower = 30;
-
-        constexpr BYTE AC_ONLINE = 1;
-        real64 targetFrameTimeThreshold = (powerStatus.ACLineStatus == AC_ONLINE) ? targetFrameTimeYesPower : targetFrameTimeNoPower;
-
-        if (powerStatus.ACLineStatus == AC_ONLINE)
-        {
-            std::cout << "Power detected\n";
-        }
-        else
-        {
-            std::cout << "No power detected\n";
-        }
-
-        s32 gameUpdateRate = targetFrameTimeThreshold;
-        {
-            HDC deviceContext = GetDC(window.hwnd);
-            int monitorRefreshRate = GetDeviceCaps(deviceContext, VREFRESH);
-            ReleaseDC(window.hwnd, deviceContext);
-
-            if (monitorRefreshRate > 1)
-            {  
-                gameUpdateRate = monitorRefreshRate;
-
-                while((gameUpdateRate / 2.0f) > targetFrameTimeThreshold)
-                {
-                    gameUpdateRate /= 2.0f;
-                }
-            }
-        }
-        targetFrameTime = 1.0f / gameUpdateRate;
-        
-        std::cout << "Target frame time = " << targetFrameTime << ", (fps = " << 1.0 / targetFrameTime << ")\n";
-    }
 
     /// ---------- LOAD GAME CODE ----------------------
     // Note(Leo): Only load game dynamically in development.
@@ -231,7 +249,7 @@ Run(HINSTANCE winInstance)
 
         /// ----- START TIME -----
         auto currentTimeMark = std::chrono::high_resolution_clock::now();
-        real64 frameStartTime = std::chrono::duration<real64, std::chrono::seconds::period>(currentTimeMark - startTimeMark).count();
+        double frameStartTime = std::chrono::duration<double, std::chrono::seconds::period>(currentTimeMark - startTimeMark).count();
 
         /// ----- RELOAD GAME CODE -----
         FILETIME dllLatestWriteTime = get_file_write_time(GAMECODE_DLL_FILE_NAME);
@@ -307,21 +325,18 @@ Run(HINSTANCE winInstance)
         {
             // Todo(Leo): Study fences
             // Todo(Leo): Vulkan related things should be moved to vulkan section            
-            vkWaitForFences(vulkanContext.device, 1, &get_current_virtual_frame(&vulkanContext)->inFlightFence,
+            vkWaitForFences(vulkanContext.device, 1, &vulkan::get_current_virtual_frame(&vulkanContext)->inFlightFence,
                             VK_TRUE, VULKAN_NO_TIME_OUT);
 
-            u32 imageIndex;
             VkResult getNextImageResult = vkAcquireNextImageKHR(vulkanContext.device,
-                                                                vulkanContext.swapchainItems.swapchain,
+                                                                vulkanContext.drawingResources.swapchain,
                                                                 VULKAN_NO_TIME_OUT,//MaxValue<u64>,
-                                                                get_current_virtual_frame(&vulkanContext)->imageAvailableSemaphore,
+                                                                vulkan::get_current_virtual_frame(&vulkanContext)->imageAvailableSemaphore,
                                                                 VK_NULL_HANDLE,
-                                                                &imageIndex);
+                                                                &vulkanContext.currentDrawFrameIndex);
             
             if(winapi::is_loaded(&game))
             {
-                vulkanContext.currentDrawFrameIndex = imageIndex;
-    
                 game::SoundOutput gameSoundOutput = {};
                 winapi::GetAudioBuffer(&audio, &gameSoundOutput.sampleCount, &gameSoundOutput.samples);
 
@@ -350,12 +365,12 @@ Run(HINSTANCE winInstance)
             switch (getNextImageResult)
             {
                 case VK_SUCCESS:
-                    vulkan::draw_frame(&vulkanContext, imageIndex);
+                    vulkan::draw_frame(&vulkanContext);
                     break;
 
                 case VK_SUBOPTIMAL_KHR:
                 case VK_ERROR_OUT_OF_DATE_KHR:
-                    vulkan::recreate_swapchain(&vulkanContext, window.width, window.height);
+                    vulkan::recreate_drawing_resources(&vulkanContext, window.width, window.height);
                     break;
 
                 default:
@@ -379,10 +394,10 @@ Run(HINSTANCE winInstance)
         /// ----- WAIT FOR TARGET FRAMETIME -----
         {
             auto currentTimeMark = std::chrono::high_resolution_clock::now();
-            real64 currentTimeSeconds = std::chrono::duration<real64, std::chrono::seconds::period>(currentTimeMark - startTimeMark).count();
+            double currentTimeSeconds = std::chrono::duration<double, std::chrono::seconds::period>(currentTimeMark - startTimeMark).count();
 
-            real64 elapsedSeconds = currentTimeSeconds - frameStartTime;
-            real64 timeToSleepSeconds = targetFrameTime - elapsedSeconds;
+            double elapsedSeconds = currentTimeSeconds - frameStartTime;
+            double timeToSleepSeconds = targetFrameTime - elapsedSeconds;
 
             /* TODO[time](Leo): It seems okay to sleep 0 milliseconds in case the time to sleep ends up being
             less than 1 millisecond on floating point representation. Also we may want to do a busy loop over
@@ -422,7 +437,7 @@ Run(HINSTANCE winInstance)
 
 int CALLBACK
 WinMain(
-    HINSTANCE   winInstance,
+    HINSTANCE   hInstance,
     HINSTANCE   previousWinInstance,
     LPSTR       cmdLine,
     int         showCommand)
@@ -430,7 +445,7 @@ WinMain(
     /* Todo(Leo): we should make a decision about how we handle errors etc.
     Currently there are exceptions (which lead here) and asserts mixed ;) */
     try {
-        Run(winInstance);
+        Run(hInstance);
     } catch (const std::exception& e) {
         std::cerr << e.what() << std::endl;
         return EXIT_FAILURE;

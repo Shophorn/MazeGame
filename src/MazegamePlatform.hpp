@@ -28,13 +28,12 @@ Interface definition between Platform and Game.
 	#define DEBUG_ASSERT(expr, msg) if (!(expr)) { PrintAssert(__FILE__, __LINE__, msg, #expr); abort(); }
 
 	// Note(Leo): Some things need to asserted in production too, this is a reminder for those only.
-	#define PRODUCTION_ASSERT DEBUG_ASSERT
+	#define RELEASE_ASSERT DEBUG_ASSERT
 
 
 #endif
 
 #include "MazegameEssentials.hpp"
-#include "Array.hpp"
 
 /* Note(Leo): This is called 'Unity-build'. Basically import all things in single
 translation unit(??) to reduce pressure on linker and enable more optimizations.
@@ -70,32 +69,31 @@ namespace platform
 
 	struct Functions
 	{
-		// GRAPHICS FUNCTIONS
-		MeshHandle (*push_mesh) (Graphics*, MeshAsset * asset);
-		TextureHandle (*push_texture) (Graphics*, TextureAsset * asset);
-		TextureHandle (*push_cubemap) (Graphics*, StaticArray<TextureAsset, 6> * asset);
-
-		MaterialHandle (*push_material) (Graphics*, MaterialAsset * asset);
+		// GRAPHICS SCENE FUNCTIONS
+		MeshHandle 	(*push_mesh) 			(Graphics*, MeshAsset * asset);
+		TextureHandle (*push_texture) 		(Graphics*, TextureAsset * asset);
+		TextureHandle (*push_cubemap) 		(Graphics*, StaticArray<TextureAsset, 6> * asset);
+		MaterialHandle (*push_material) 	(Graphics*, MaterialAsset * asset);
 		MaterialHandle (*push_gui_material) (Graphics*, TextureHandle texture);
 
 		// Todo(Leo): Remove 'push_model', we can render also just passing mesh and material handles directly
-		ModelHandle (*push_model) (Graphics*, MeshHandle mesh, MaterialHandle material);
-		PipelineHandle (*push_pipeline) (Graphics*, char const * vertexShaderFilename,
-													char const * fragmentShaderFilename,
-													RenderingOptions optios);
+		ModelHandle (*push_model) 			(Graphics*, MeshHandle mesh, MaterialHandle material);
+		PipelineHandle (*push_pipeline) 	(Graphics*, char const * vertexShaderFilename,
+														char const * fragmentShaderFilename,
+														RenderingOptions optios);
 		void (*unload_scene) 	(Graphics*);
 
+		// GRAPHICS DRAW FUNCTIONS
 		void (*update_camera) 	(Graphics*, Matrix44 view, Matrix44 perspective);
 		void (*prepare_frame) 	(Graphics*);
 		void (*finish_frame) 	(Graphics*);
+		void (*draw_model) 		(Graphics*, ModelHandle model, Matrix44 transform);
+		void (*draw_line) 		(Graphics*, vector3 start, vector3 end, float4 color);
+		void (*draw_gui) 		(Graphics*, vector2 position, vector2 size, MaterialHandle material, float4 color);
 
-		void (*draw_model) 	(Graphics*, ModelHandle model, Matrix44 transform);
-		void (*draw_line) 	(Graphics*, vector3 start, vector3 end, float4 color);
-		void (*draw_gui) 	(Graphics*, vector2 position, vector2 size, MaterialHandle material, float4 color);
-
-		// void (*prepare_shadow_pass)	(Graphics*, Matrix44 const * view, Matrix44 const * perspective);
-		// void (*finish_shadow_pass) 	(Graphics*);
-		// void (*draw_shadow_model) 	(Graphics*, ModelHandle model, Matrix44 const * transform);
+		void (*prepare_shadow_pass)	(Graphics*, Matrix44 view, Matrix44 perspective);
+		void (*finish_shadow_pass) 	(Graphics*);
+		void (*draw_shadow_model) 	(Graphics*, ModelHandle model, Matrix44 transform);
 
 		// WINDOW FUNCTIONS	
 		u32 (*get_window_width) 		(Window const *);
@@ -114,12 +112,12 @@ namespace platform
 		using 			function_ptr = void(*)();
 		u32 constexpr 	numFunctions = sizeof(Functions) / sizeof(function_ptr);
 
-		auto const * funcArray = reinterpret_cast<function_ptr const *>(functions);
+		auto * funcArray = reinterpret_cast<function_ptr const *>(functions);
 		for (u32 i = 0; i < numFunctions; ++i)
 		{
 			if (funcArray[i] == nullptr)
 			{
-				std::cout << "[all_functions_set()]: 'nullptr' found at " << i << "\n";
+				std::cout << "[all_functions_set()]: Unset function at '" << i << "'\n";
 				return false;
 			}
 		}

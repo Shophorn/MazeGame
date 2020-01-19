@@ -80,11 +80,20 @@ Scene3d::update(	void * 						scenePtr,
 	update_camera_controller(&scene->cameraController, input);
 	update_animator_system(input, scene->animatorSystem);
 
+	functions->prepare_shadow_pass(	graphics,
+									get_view_projection(&scene->worldCamera),
+									get_perspective_projection(&scene->worldCamera));
+
+	// Todo(Leo): actually draw shadows for all objects
+	functions->finish_shadow_pass (graphics);
+
 	// functions->draw_gui(graphics, {1500, 20}, {400, 400}, MaterialHandle{12345}, float4{1,1,1,1});
 	
 	// Rendering section
     update_camera_system(&scene->worldCamera, input, graphics, window, functions);
 	update_render_system(scene->renderSystem, graphics, functions);
+
+
 
 	auto result = update_scene_gui(&scene->gui, input, graphics, functions);
 	return result;

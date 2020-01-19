@@ -43,7 +43,7 @@ vulkan::push_material (VulkanContext * context, MaterialAsset * asset)
     VulkanMaterial material = 
     {
         .pipeline = asset->pipeline,
-        .descriptorSet = vulkan::make_material_descriptor_set(context, asset->pipeline, asset->textures)
+        .descriptorSet = make_material_vk_descriptor_set(context, asset->pipeline, asset->textures)
     };
     context->loadedMaterials.push_back(material);
 
@@ -57,7 +57,10 @@ vulkan::push_gui_material (VulkanContext * context, TextureHandle texture)
     VulkanMaterial material = 
     {
         .pipeline = PipelineHandle::Null,
-        .descriptorSet = vulkan::make_material_descriptor_set(context, &context->guiDrawPipeline, texture)
+        .descriptorSet = make_material_vk_descriptor_set(   context,
+                                                            &context->guiDrawPipeline,
+                                                            get_loaded_texture(context, texture),
+                                                            context->descriptorPools.material),
     };
     context->loadedGuiMaterials.push_back(material);
 
@@ -86,7 +89,7 @@ vulkan::push_mesh(VulkanContext * context, MeshAsset * mesh)
     VkBufferCopy copyRegion = { 0, context->staticMeshPool.used, totalBufferSize };
     vkCmdCopyBuffer(commandBuffer, context->stagingBufferPool.buffer, context->staticMeshPool.buffer, 1, &copyRegion);
 
-    vulkan::execute_command_buffer(context->device, context->commandPool, context->graphicsQueue, commandBuffer);
+    vulkan::execute_command_buffer(commandBuffer,context->device, context->commandPool, context->queues.graphics);
 
     VulkanMesh model = {};
 
@@ -169,7 +172,7 @@ vulkan::unload_scene(VulkanContext * context)
     context->loadedTextures.resize(0);
 
     // Materials
-    vkResetDescriptorPool(context->device, context->materialDescriptorPool, 0);   
+    vkResetDescriptorPool(context->device, context->descriptorPools.material, 0);   
     context->loadedMaterials.resize(0);
 
     // Rendered objects
@@ -179,4 +182,530 @@ vulkan::unload_scene(VulkanContext * context)
     context->loadedPipelines.resize(0);
 
     context->sceneUnloaded = true;
+}
+
+namespace vulkan_scene_internal_
+{
+    internal u32 compute_mip_levels (u32 texWidth, u32 texHeight);
+    internal void cmd_generate_mip_maps(    VkCommandBuffer commandBuffer,
+                                            VkPhysicalDevice physicalDevice,
+                                            VkImage image,
+                                            VkFormat imageFormat,
+                                            u32 texWidth,
+                                            u32 texHeight,
+                                            u32 mipLevels,
+                                            u32 layerCount = 1);
+}
+
+internal u32
+vulkan_scene_internal_::compute_mip_levels(u32 texWidth, u32 texHeight)
+{
+   u32 result = std::floor(std::log2(std::max(texWidth, texHeight))) + 1;
+   return result;
+}
+
+internal void
+vulkan_scene_internal_::cmd_generate_mip_maps(  VkCommandBuffer commandBuffer,
+                                                VkPhysicalDevice physicalDevice,
+                                                VkImage image,
+                                                VkFormat imageFormat,
+                                                u32 texWidth,
+                                                u32 texHeight,
+                                                u32 mipLevels,
+                                                u32 layerCount)
+{
+    VkFormatProperties formatProperties;
+    vkGetPhysicalDeviceFormatProperties(physicalDevice, imageFormat, &formatProperties);
+
+    // Note(Leo): Texture image format does not support blitting
+    assert(formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT);
+
+    VkImageMemoryBarrier barrier = { VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER };
+    barrier.image = image;
+    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    barrier.subresourceRange.baseArrayLayer = 0;
+    barrier.subresourceRange.layerCount = layerCount;
+    barrier.subresourceRange.levelCount = 1;
+
+    int mipWidth = texWidth;
+    int mipHeight = texHeight;
+
+    // Todo(Leo): stupid loop with some stuff outside... fix pls
+    for (int i = 1; i <mipLevels; ++i)
+    {
+        int newMipWidth = mipWidth > 1 ? mipWidth / 2 : 1;
+        int newMipHeight = mipHeight > 1 ? mipHeight / 2 : 1;
+
+        barrier.subresourceRange.baseMipLevel = i - 1;
+        barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+        barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+
+        vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT,
+            VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
+
+        VkImageBlit blit = {};
+        
+        blit.srcOffsets [0] = {0, 0, 0};
+        blit.srcOffsets [1] = {mipWidth, mipHeight, 1};
+        blit.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        blit.srcSubresource.mipLevel = i - 1;
+        blit.srcSubresource.baseArrayLayer = 0;
+        blit.srcSubresource.layerCount = layerCount; 
+
+        blit.dstOffsets [0] = {0, 0, 0};
+        blit.dstOffsets [1] = {newMipWidth, newMipHeight, 1};
+        blit.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        blit.dstSubresource.mipLevel = i;
+        blit.dstSubresource.baseArrayLayer = 0;
+        blit.dstSubresource.layerCount = layerCount;
+
+        vkCmdBlitImage(commandBuffer,
+            image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+            image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            1, &blit, VK_FILTER_LINEAR);
+
+        barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+        barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+        barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+        vkCmdPipelineBarrier (commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT,
+            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr,
+            1, &barrier);
+
+        mipWidth = newMipWidth;
+        mipHeight = newMipHeight;
+    }
+
+    barrier.subresourceRange.baseMipLevel = mipLevels - 1;
+    barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+    vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT,
+        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr,
+        1, &barrier);
+}
+
+internal VulkanTexture
+vulkan::make_texture(VulkanContext * context, TextureAsset * asset)
+{
+    using namespace vulkan_scene_internal_;
+
+    u32 width        = asset->width;
+    u32 height       = asset->height;
+    u32 mipLevels    = compute_mip_levels(width, height);
+
+
+    VkDeviceSize imageSize = width * height * asset->channels;
+
+    void * data;
+    vkMapMemory(context->device, context->stagingBufferPool.memory, 0, imageSize, 0, &data);
+    memcpy (data, (void*)asset->pixels.begin(), imageSize);
+    vkUnmapMemory(context->device, context->stagingBufferPool.memory);
+
+    VkImageCreateInfo imageInfo =
+    {
+        .sType          = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+        .imageType      = VK_IMAGE_TYPE_2D,
+        .extent         = { width, height, 1 },
+        .mipLevels      = mipLevels,
+        .arrayLayers    = 1,
+        .format         = VK_FORMAT_R8G8B8A8_UNORM,
+
+        .tiling         = VK_IMAGE_TILING_OPTIMAL,
+        .initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED,
+        .usage          = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+        .sharingMode    = VK_SHARING_MODE_EXCLUSIVE, // Note(Leo): this concerns queue families,
+        .samples        = VK_SAMPLE_COUNT_1_BIT,
+        .flags          = 0,
+    };
+
+    VkImage resultImage = {};
+    VkDeviceMemory resultImageMemory = {};
+
+    VULKAN_CHECK(vkCreateImage(context->device, &imageInfo, nullptr, &resultImage));
+
+    VkMemoryRequirements memoryRequirements;
+    vkGetImageMemoryRequirements (context->device, resultImage, &memoryRequirements);
+
+    VkMemoryAllocateInfo allocateInfo =
+    { 
+        .sType              = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+        .allocationSize     = memoryRequirements.size,
+        .memoryTypeIndex    = vulkan::find_memory_type( context->physicalDevice,
+                                                        memoryRequirements.memoryTypeBits,
+                                                        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT),
+    };
+
+    VULKAN_CHECK(vkAllocateMemory(context->device, &allocateInfo, nullptr, &resultImageMemory));
+   
+
+    vkBindImageMemory(context->device, resultImage, resultImageMemory, 0);   
+
+    /* Note(Leo):
+        1. change layout to copy optimal
+        2. copy contents
+        3. change layout to read optimal
+
+        This last is good to use after generated textures, finally some 
+        benefits from this verbose nonsense :D
+    */
+
+    VkCommandBuffer cmd = begin_command_buffer(context->device, context->commandPool);
+    
+    // Todo(Leo): begin and end command buffers once only and then just add commands from inside these
+    cmd_transition_image_layout(cmd, context->device, context->queues.graphics,
+                            resultImage, VK_FORMAT_R8G8B8A8_UNORM, mipLevels,
+                            VK_IMAGE_LAYOUT_UNDEFINED,
+                            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+
+    VkBufferImageCopy region =
+    {
+        .bufferOffset       = 0,
+        .bufferRowLength    = 0,
+        .bufferImageHeight  = 0,
+
+        .imageSubresource.aspectMask        = VK_IMAGE_ASPECT_COLOR_BIT,
+        .imageSubresource.mipLevel          = 0,
+        .imageSubresource.baseArrayLayer    = 0,
+        .imageSubresource.layerCount        = 1,
+
+        .imageOffset = { 0, 0, 0 },
+        .imageExtent = { width, height, 1 },
+    };
+    vkCmdCopyBufferToImage (cmd, context->stagingBufferPool.buffer, resultImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+
+
+    /// CREATE MIP MAPS
+    cmd_generate_mip_maps(  cmd, context->physicalDevice,
+                        resultImage, VK_FORMAT_R8G8B8A8_UNORM,
+                        asset->width, asset->height, mipLevels);
+
+    execute_command_buffer (cmd, context->device, context->commandPool, context->queues.graphics);
+
+    /// CREATE IMAGE VIEW
+    VkImageViewCreateInfo imageViewInfo =
+    { 
+        .sType      = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+        .image      = resultImage,
+        .viewType   = VK_IMAGE_VIEW_TYPE_2D,
+        .format     = VK_FORMAT_R8G8B8A8_UNORM,
+
+        .subresourceRange.aspectMask        = VK_IMAGE_ASPECT_COLOR_BIT,
+        .subresourceRange.baseMipLevel      = 0,
+        .subresourceRange.levelCount        = mipLevels,
+        .subresourceRange.baseArrayLayer    = 0,
+        .subresourceRange.layerCount        = 1,
+
+        .components.r = VK_COMPONENT_SWIZZLE_IDENTITY,
+        .components.g = VK_COMPONENT_SWIZZLE_IDENTITY,
+        .components.b = VK_COMPONENT_SWIZZLE_IDENTITY,
+        .components.a = VK_COMPONENT_SWIZZLE_IDENTITY,
+    };
+
+    VkImageView resultView = {};
+    VULKAN_CHECK(vkCreateImageView(context->device, &imageViewInfo, nullptr, &resultView));
+
+    VulkanTexture resultTexture =
+    {
+        .image      = resultImage,
+        .memory     = resultImageMemory,
+        .view       = resultView,
+    };
+    return resultTexture;
+}
+
+internal VulkanTexture
+vulkan::make_texture(VulkanContext * context, u32 width, u32 height, float4 color)
+{
+    using namespace vulkan_scene_internal_;
+
+    u32 mipLevels    = compute_mip_levels(width, height);
+
+    u32 channels = 4;
+    VkDeviceSize imageSize = width * height * channels;
+
+    u32 pixelCount = width * height;
+    u32 pixelValue = make_pixel(color);
+
+    u32 * data;
+    vkMapMemory(context->device, context->stagingBufferPool.memory, 0, imageSize, 0, (void**)&data);
+
+    for (u32 i = 0; i < pixelCount; ++i)
+    {
+        data[i] = pixelValue;
+    }
+
+    // memcpy (data, (void*)asset->pixels.begin(), imageSize);
+
+
+
+    vkUnmapMemory(context->device, context->stagingBufferPool.memory);
+
+    VkImageCreateInfo imageInfo =
+    {
+        .sType          = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+        .imageType      = VK_IMAGE_TYPE_2D,
+        .extent         = { width, height, 1 },
+        .mipLevels      = mipLevels,
+        .arrayLayers    = 1,
+        .format         = VK_FORMAT_R8G8B8A8_UNORM,
+
+        .tiling         = VK_IMAGE_TILING_OPTIMAL,
+        .initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED,
+        .usage          = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+        .sharingMode    = VK_SHARING_MODE_EXCLUSIVE, // Note(Leo): this concerns queue families,
+        .samples        = VK_SAMPLE_COUNT_1_BIT,
+        .flags          = 0,
+    };
+
+    VkImage resultImage = {};
+    VkDeviceMemory resultImageMemory = {};
+
+    VULKAN_CHECK(vkCreateImage(context->device, &imageInfo, nullptr, &resultImage));
+
+    VkMemoryRequirements memoryRequirements;
+    vkGetImageMemoryRequirements (context->device, resultImage, &memoryRequirements);
+
+    VkMemoryAllocateInfo allocateInfo =
+    { 
+        .sType              = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+        .allocationSize     = memoryRequirements.size,
+        .memoryTypeIndex    = vulkan::find_memory_type( context->physicalDevice,
+                                                        memoryRequirements.memoryTypeBits,
+                                                        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT),
+    };
+
+    VULKAN_CHECK(vkAllocateMemory(context->device, &allocateInfo, nullptr, &resultImageMemory));
+   
+
+    vkBindImageMemory(context->device, resultImage, resultImageMemory, 0);   
+
+    /* Note(Leo):
+        1. change layout to copy optimal
+        2. copy contents
+        3. change layout to read optimal
+
+        This last is good to use after generated textures, finally some 
+        benefits from this verbose nonsense :D
+    */
+
+    VkCommandBuffer cmd = begin_command_buffer(context->device, context->commandPool);
+    
+    // Todo(Leo): begin and end command buffers once only and then just add commands from inside these
+    cmd_transition_image_layout(cmd, context->device, context->queues.graphics,
+                            resultImage, VK_FORMAT_R8G8B8A8_UNORM, mipLevels,
+                            VK_IMAGE_LAYOUT_UNDEFINED,
+                            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+
+    VkBufferImageCopy region =
+    {
+        .bufferOffset       = 0,
+        .bufferRowLength    = 0,
+        .bufferImageHeight  = 0,
+
+        .imageSubresource.aspectMask        = VK_IMAGE_ASPECT_COLOR_BIT,
+        .imageSubresource.mipLevel          = 0,
+        .imageSubresource.baseArrayLayer    = 0,
+        .imageSubresource.layerCount        = 1,
+
+        .imageOffset = { 0, 0, 0 },
+        .imageExtent = { width, height, 1 },
+    };
+    vkCmdCopyBufferToImage (cmd, context->stagingBufferPool.buffer, resultImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+
+
+    /// CREATE MIP MAPS
+    cmd_generate_mip_maps(  cmd, context->physicalDevice,
+                            resultImage, VK_FORMAT_R8G8B8A8_UNORM,
+                            width, height, mipLevels);
+
+    execute_command_buffer (cmd, context->device, context->commandPool, context->queues.graphics);
+
+    /// CREATE IMAGE VIEW
+    VkImageViewCreateInfo imageViewInfo =
+    { 
+        .sType      = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+        .image      = resultImage,
+        .viewType   = VK_IMAGE_VIEW_TYPE_2D,
+        .format     = VK_FORMAT_R8G8B8A8_UNORM,
+
+        .subresourceRange.aspectMask        = VK_IMAGE_ASPECT_COLOR_BIT,
+        .subresourceRange.baseMipLevel      = 0,
+        .subresourceRange.levelCount        = mipLevels,
+        .subresourceRange.baseArrayLayer    = 0,
+        .subresourceRange.layerCount        = 1,
+
+        .components.r = VK_COMPONENT_SWIZZLE_IDENTITY,
+        .components.g = VK_COMPONENT_SWIZZLE_IDENTITY,
+        .components.b = VK_COMPONENT_SWIZZLE_IDENTITY,
+        .components.a = VK_COMPONENT_SWIZZLE_IDENTITY,
+    };
+
+    VkImageView resultView = {};
+    VULKAN_CHECK(vkCreateImageView(context->device, &imageViewInfo, nullptr, &resultView));
+
+    VulkanTexture resultTexture =
+    {
+        .image      = resultImage,
+        .memory     = resultImageMemory,
+        .view       = resultView,
+    };
+    return resultTexture;
+}
+
+internal VulkanTexture
+vulkan::make_cubemap(VulkanContext * context, StaticArray<TextureAsset, 6> * assets)
+{
+    using namespace vulkan_scene_internal_;
+
+    u32 width        = (*assets)[0].width;
+    u32 height       = (*assets)[0].height;
+    u32 channels     = (*assets)[0].channels;
+    u32 mipLevels    = compute_mip_levels(width, height);
+
+    constexpr u32 CUBEMAP_LAYERS = 6;
+
+    VkDeviceSize layerSize = width * height * channels;
+    VkDeviceSize imageSize = layerSize * CUBEMAP_LAYERS;
+
+    VkExtent3D extent = { width, height, 1};
+
+    byte * data;
+    vkMapMemory(context->device, context->stagingBufferPool.memory, 0, imageSize, 0, (void**)&data);
+    for (int i = 0; i < 6; ++i)
+    {
+        u32 * start          = (*assets)[i].pixels.begin();
+        u32 * end            = (*assets)[i].pixels.end();
+        u32 * destination    = reinterpret_cast<u32*>(data + (i * layerSize));
+
+        std::copy(start, end, destination);
+    }
+    vkUnmapMemory(context->device, context->stagingBufferPool.memory);
+
+    VkImageCreateInfo imageInfo =
+    {
+        .sType          = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+        .imageType      = VK_IMAGE_TYPE_2D,
+        .extent         = extent,
+        .mipLevels      = mipLevels,
+        .arrayLayers    = CUBEMAP_LAYERS,
+        .format         = VK_FORMAT_R8G8B8A8_UNORM,
+
+        .tiling         = VK_IMAGE_TILING_OPTIMAL,
+        .initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED,
+        .usage          = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+        .sharingMode    = VK_SHARING_MODE_EXCLUSIVE, // Note(Leo): this concerns queue families,
+        .samples        = VK_SAMPLE_COUNT_1_BIT,
+        .flags          = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT,
+    };
+
+    VkImage resultImage = {};
+    VkDeviceMemory resultImageMemory = {};
+
+    // Note(Leo): some image formats may not be supported
+    if (vkCreateImage(context->device, &imageInfo, nullptr, &resultImage) != VK_SUCCESS)
+    {
+        throw std::runtime_error ("Failed to create image");
+    }
+
+    VkMemoryRequirements memoryRequirements;
+    vkGetImageMemoryRequirements (context->device, resultImage, &memoryRequirements);
+
+    VkMemoryAllocateInfo allocateInfo =
+    { 
+        .sType              = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+        .allocationSize     = memoryRequirements.size,
+        .memoryTypeIndex    = vulkan::find_memory_type( context->physicalDevice,
+                                                        memoryRequirements.memoryTypeBits,
+                                                        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT),
+    };
+
+    if (vkAllocateMemory(context->device, &allocateInfo, nullptr, &resultImageMemory) != VK_SUCCESS)
+    {
+        throw std::runtime_error("Failed to allocate image memory");
+    }
+
+    vkBindImageMemory(context->device, resultImage, resultImageMemory, 0);   
+
+    /* Note(Leo):
+        1. change layout to copy optimal
+        2. copy contents
+        3. change layout to read optimal
+
+        This last is good to use after generated textures, finally some 
+        benefits from this verbose nonsense :D
+    */
+
+    VkCommandBuffer cmd = begin_command_buffer(context->device, context->commandPool);
+    
+    // Todo(Leo): begin and end command buffers once only and then just add commands from inside these
+    cmd_transition_image_layout(cmd, context->device, context->queues.graphics,
+                                resultImage, VK_FORMAT_R8G8B8A8_UNORM, mipLevels,
+                                VK_IMAGE_LAYOUT_UNDEFINED,
+                                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, CUBEMAP_LAYERS);
+
+    VkBufferImageCopy region =
+    {
+        .bufferOffset       = 0,
+        .bufferRowLength    = 0,
+        .bufferImageHeight  = 0,
+
+        .imageSubresource.aspectMask        = VK_IMAGE_ASPECT_COLOR_BIT,
+        .imageSubresource.mipLevel          = 0,
+        .imageSubresource.baseArrayLayer    = 0,
+        .imageSubresource.layerCount        = CUBEMAP_LAYERS,
+
+        .imageOffset = { 0, 0, 0 },
+        .imageExtent = extent,
+    };
+    vkCmdCopyBufferToImage (cmd, context->stagingBufferPool.buffer, resultImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+
+
+    /// CREATE MIP MAPS
+    cmd_generate_mip_maps(  cmd, context->physicalDevice,
+                            resultImage, VK_FORMAT_R8G8B8A8_UNORM,
+                            width, height, mipLevels, CUBEMAP_LAYERS);
+
+    execute_command_buffer(cmd, context->device, context->commandPool, context->queues.graphics);
+
+    /// CREATE IMAGE VIEW
+    VkImageViewCreateInfo imageViewInfo =
+    { 
+        .sType      = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+        .image      = resultImage,
+        .viewType   = VK_IMAGE_VIEW_TYPE_CUBE,
+        .format     = VK_FORMAT_R8G8B8A8_UNORM,
+
+        .subresourceRange.aspectMask        = VK_IMAGE_ASPECT_COLOR_BIT,
+        .subresourceRange.baseMipLevel      = 0,
+        .subresourceRange.levelCount        = mipLevels,
+        .subresourceRange.baseArrayLayer    = 0,
+        .subresourceRange.layerCount        = CUBEMAP_LAYERS,
+
+        .components.r = VK_COMPONENT_SWIZZLE_IDENTITY,
+        .components.g = VK_COMPONENT_SWIZZLE_IDENTITY,
+        .components.b = VK_COMPONENT_SWIZZLE_IDENTITY,
+        .components.a = VK_COMPONENT_SWIZZLE_IDENTITY,
+    };
+
+    VkImageView resultView = {};
+    if (vkCreateImageView(context->device, &imageViewInfo, nullptr, &resultView) != VK_SUCCESS)
+    {
+        throw std::runtime_error ("Failed to create image view");
+    }
+
+    VulkanTexture resultTexture =
+    {
+        .image      = resultImage,
+        .memory     = resultImageMemory,
+        .view       = resultView,
+    };
+    return resultTexture;
 }
