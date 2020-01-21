@@ -89,7 +89,8 @@ update_character(
 			bool32 hit = raycast_3d(collisionSystem, start, direction, distance, &raycastResult);
 			rayHit = rayHit || hit;
 
-			functions->draw_line(graphics, start, start + direction, (hit ? float4 {0, 1, 0} : float4 {1, 0, 0}));
+			float4 lineColor = hit ? float4{0,1,0,1} : float4{1,0,0,1};
+			functions->draw_line(graphics, start, start + direction, 5.0f, lineColor);
 
 		}
 

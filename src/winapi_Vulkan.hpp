@@ -10,10 +10,8 @@ STUDY: https://devblogs.nvidia.com/vulkan-dos-donts/
 
 #ifndef WIN_VULKAN_HPP
 
-using string_literal = char const *;
-
 internal void 
-print_vulkan_assert(string_literal file, s32 line, VkResult result)
+print_vulkan_assert(char const * file, s32 line, VkResult result)
 {
     std::cout << "Vulkan check failed [" << file << ":" << line << "]: " << vulkan::to_str(result) << "(" << result << ")\n";
 }
@@ -190,8 +188,6 @@ struct platform::Graphics
 		VkQueue present;
 	} queues;
 
-
-
     VulkanVirtualFrame virtualFrames [VIRTUAL_FRAME_COUNT];
     u32 virtualFrameIndex = 0;
 
@@ -200,11 +196,6 @@ struct platform::Graphics
     	VkDescriptorSetLayout scene;
     	VkDescriptorSetLayout model;
     } descriptorSetLayouts;
-
-    // VkDescriptorPool uniformDescriptorPool;
-    // VkDescriptorPool materialDescriptorPool;
-
-    // VkDescriptorPool persistentDescriptorPool;
 
     struct
     {
@@ -237,7 +228,7 @@ struct platform::Graphics
 	    std::vector<VkImage> images;
 	    std::vector<VkImageView> imageViews;
 
-	    VkRenderPass            renderPass;
+	    VkRenderPass renderPass;
 
 	    // Note(Leo): these are attchaments.
 		VkDeviceMemory memory;
@@ -249,6 +240,7 @@ struct platform::Graphics
 		VkImageView depthImageView;
 	} drawingResources = {};
     
+
     VulkanBufferResource stagingBufferPool;
     VulkanBufferResource staticMeshPool;
     VulkanBufferResource modelUniformBuffer;
@@ -267,6 +259,8 @@ struct platform::Graphics
     VulkanLoadedPipeline		guiDrawPipeline;	
 	std::vector<VulkanMaterial> loadedGuiMaterials;
 	VulkanMaterial 				defaultGuiMaterial;
+
+	std::vector<void(*)(platform::Graphics*)> cleanups = {};
 
 	struct {
 		VulkanTexture white;
@@ -330,24 +324,20 @@ namespace vulkan
 	constexpr bool32 enableValidationLayers = false;
 	#endif
 
-	constexpr const char * validationLayers[] = {
+	constexpr char const * validationLayers[] = {
 	    "VK_LAYER_KHRONOS_validation"
 	};
-	constexpr int VALIDATION_LAYERS_COUNT = ARRAY_COUNT(validationLayers);
+	constexpr int VALIDATION_LAYERS_COUNT = get_array_count(validationLayers);
 
-	constexpr const char * deviceExtensions [] = {
+	constexpr char const * deviceExtensions [] = {
 	    VK_KHR_SWAPCHAIN_EXTENSION_NAME
 	};
-	constexpr int DEVICE_EXTENSION_COUNT = ARRAY_COUNT(deviceExtensions);
+	constexpr int DEVICE_EXTENSION_COUNT = get_array_count(deviceExtensions);
 
     constexpr s32 MAX_LOADED_TEXTURES = 100;
 
     // Todo(Leo): this is internal to the some place
 	internal VkIndexType convert_index_type(IndexType);
-
-
-	internal VkVertexInputBindingDescription 					get_vertex_binding_description ();
-	internal StaticArray<VkVertexInputAttributeDescription, 4> 	get_vertex_attribute_description();
 
 	// HELPER FUNCTIONS
 	internal VulkanQueueFamilyIndices find_queue_families (VkPhysicalDevice device, VkSurfaceKHR surface);
@@ -388,10 +378,9 @@ namespace vulkan
 	internal void destroy_drawing_resources 	(VulkanContext*);					
 
 	/// INTERNAL RESOURCES, CUSTOM
-	internal VulkanLoadedPipeline make_pipeline 		(VulkanContext*, VulkanPipelineLoadInfo loadInfo);
-	internal VulkanLoadedPipeline make_line_pipeline 	(VulkanContext*, VulkanPipelineLoadInfo loadInfo);
-	internal VulkanLoadedPipeline make_gui_pipeline 	(VulkanContext*, VulkanPipelineLoadInfo loadInfo);
-	internal void destroy_loaded_pipeline 				(VulkanContext*, VulkanLoadedPipeline * pipeline);
+	internal VulkanLoadedPipeline make_pipeline 		(VulkanContext*, VulkanPipelineLoadInfo);
+	internal void recreate_loaded_pipeline				(VulkanContext*, VulkanLoadedPipeline*);
+	internal void destroy_loaded_pipeline 				(VulkanContext*, VulkanLoadedPipeline*);
 
 	internal VulkanTexture make_texture	(VulkanContext*, TextureAsset * asset);
 	internal VulkanTexture make_texture	(VulkanContext * context, u32 width, u32 height, float4 color);
@@ -429,7 +418,7 @@ namespace vulkan
     internal MaterialHandle push_gui_material (VulkanContext*, TextureHandle texture);
     internal MeshHandle 	push_mesh(VulkanContext*, MeshAsset * mesh);
     internal ModelHandle 	push_model (VulkanContext*, MeshHandle mesh, MaterialHandle material);
-    internal PipelineHandle push_pipeline(VulkanContext*, const char * vertexShaderPath, const char * fragmentShaderPath, platform::RenderingOptions options);
+    internal PipelineHandle push_pipeline(VulkanContext*, char const * vertexShaderPath, char const * fragmentShaderPath, platform::RenderingOptions options);
     internal void 			unload_scene(VulkanContext*);
 
 	/// DRAWING, VulkanDrawing.cpp
@@ -437,7 +426,7 @@ namespace vulkan
 	internal void prepare_drawing			(VulkanContext*);
 	internal void finish_drawing 			(VulkanContext*);
 	internal void record_draw_command 		(VulkanContext*, ModelHandle handle, Matrix44 transform);
-	internal void record_line_draw_command	(VulkanContext*, vector3 start, vector3 end, float4 color);
+	internal void record_line_draw_command	(VulkanContext*, vector3 start, vector3 end, float width, float4 color);
 	internal void record_gui_draw_command	(VulkanContext*, vector2 position, vector2 size, MaterialHandle material, float4 color);
 	internal void draw_frame 				(VulkanContext * context);
 

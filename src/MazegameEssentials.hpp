@@ -16,6 +16,7 @@ Common essentials used all around in :MAZEGAME: project
 
 #define ARRAY_COUNT(array) sizeof(array) / sizeof((array)[0])
 
+
 /// SENSIBLE SIMPLE TYPES
 // Todo(Leo): These should come from platform layer, since that is where they are defined anyway
 using s8    = signed char;
@@ -68,6 +69,12 @@ constexpr u64 kilobytes 	(u64 amount) { return 1024 * amount; }
 constexpr u64 megabytes 	(u64 amount) { return 1024 * kilobytes(amount); }
 constexpr u64 gigabytes 	(u64 amount) { return 1024 * megabytes(amount); }
 constexpr u64 terabytes 	(u64 amount) { return 1024 * gigabytes(amount); }
+
+template<typename T, u32 Count>
+constexpr u32 get_array_count(const T (&array)[Count])
+{
+    return Count;
+}
 
 inline u64
 align_up_to(u64 alignment, u64 size)

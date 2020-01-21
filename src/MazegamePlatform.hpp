@@ -8,7 +8,6 @@ Interface definition between Platform and Game.
 
 #define MAZEGAME_INCLUDE_STD_IOSTREAM 1
 #include <iostream>
-#include <functional>
 
 #if MAZEGAME_DEVELOPMENT
 	#include <cassert>
@@ -54,9 +53,26 @@ namespace platform
 	    bool32 	enableDepth 		= true;
 	    bool32 	clampDepth 			= false;
 	    s32 	textureCount 		= 0;
-	    u32	pushConstantSize 	= 0;
+	    u32		pushConstantSize 	= 0;
 
-	    enum { PRIMITIVE_LINE, PRIMITIVE_TRIANGLE } primitiveType = PRIMITIVE_TRIANGLE;
+	    float 	lineWidth 			= 1.0f;
+	    bool32	useVertexInput		= true;
+
+	    enum {
+	    	PRIMITIVE_LINE,
+    		PRIMITIVE_TRIANGLE,
+    		PRIMITIVE_TRIANGLE_STRIP
+	    } primitiveType = PRIMITIVE_TRIANGLE;
+
+	    enum {
+	    	CULL_BACK,
+	    	CULL_FRONT,
+	    	CULL_NONE
+	    } cullMode = CULL_BACK;
+
+	    bool32 useSceneLayoutSet 	= true;
+	    bool32 useMaterialLayoutSet = true;
+	    bool32 useModelLayoutSet 	= true;
 	};
 
 	/* Note(Leo): these are defined in platform layer, and
@@ -88,7 +104,7 @@ namespace platform
 		void (*prepare_frame) 	(Graphics*);
 		void (*finish_frame) 	(Graphics*);
 		void (*draw_model) 		(Graphics*, ModelHandle model, Matrix44 transform);
-		void (*draw_line) 		(Graphics*, vector3 start, vector3 end, float4 color);
+		void (*draw_line) 		(Graphics*, vector3 start, vector3 end, float width, float4 color);
 		void (*draw_gui) 		(Graphics*, vector2 position, vector2 size, MaterialHandle material, float4 color);
 
 		void (*prepare_shadow_pass)	(Graphics*, Matrix44 view, Matrix44 perspective);

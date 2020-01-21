@@ -104,6 +104,26 @@ vulkan::prepare_drawing(VulkanContext * context)
     };
 
     VULKAN_CHECK (vkBeginCommandBuffer(frame->commandBuffers.scene, &sceneCmdBeginInfo));
+
+    VkViewport viewport =
+    {
+        .x          = 0.0f,
+        .y          = 0.0f,
+        .width      = (float) context->drawingResources.extent.width,
+        .height     = (float) context->drawingResources.extent.height,
+        .minDepth   = 0.0f,
+        .maxDepth   = 1.0f,
+    };
+    vkCmdSetViewport(frame->commandBuffers.scene, 0, 1, &viewport);
+
+    VkRect2D scissor =
+    {
+        .offset = {0, 0},
+        .extent = context->drawingResources.extent,
+    };
+    vkCmdSetScissor(frame->commandBuffers.scene, 0, 1, &scissor);
+
+
 }
 
 void
@@ -123,6 +143,7 @@ vulkan::finish_drawing(VulkanContext * context)
     
     VULKAN_CHECK(vkEndCommandBuffer(frame->commandBuffers.primary));
 }
+
 
 
 internal void
@@ -156,7 +177,7 @@ vulkan::draw_frame(VulkanContext * context)
         .pWaitSemaphores        = &frame->imageAvailableSemaphore,
         .pWaitDstStageMask      = &waitStage,
 
-        .commandBufferCount     = (u32)(skipFrame ? 0 : (ARRAY_COUNT(commandBuffers))),
+        .commandBufferCount     = (u32)(skipFrame ? 0 : (get_array_count(commandBuffers))),
         .pCommandBuffers        = commandBuffers,
 
         // Note(Leo): We signal these AFTER drawing
@@ -310,7 +331,7 @@ vulkan::record_draw_command(VulkanContext * context, ModelHandle model, Matrix44
 }
 
 void
-vulkan::record_line_draw_command(VulkanContext * context, vector3 start, vector3 end, float4 color)
+vulkan::record_line_draw_command(VulkanContext * context, vector3 start, vector3 end, float width, float4 color)
 {
     /*
     vulkan bufferless drawing

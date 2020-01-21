@@ -2,6 +2,10 @@
 Leo Tamminen
 
 Memory managing things in :MAZEGAME:
+
+While we are not aiming to satisfy any standard per se, when making irrelevant
+but compulsory design choices, look at: 
+	- https://en.cppreference.com/w/cpp/named_req/Container
 =============================================================================*/
 #include <cstring>
 #include <initializer_list>
@@ -12,23 +16,24 @@ Memory managing things in :MAZEGAME:
 /// 	STATIC ARRAY 			///
 ///////////////////////////////////
 
-template<typename T, s32 Count>
+template<typename T, u32 Count>
 struct StaticArray
 {
+	static_assert(Count != 0, "Why would you do this?");
+
 	T _items [Count];
 
-	constexpr s32 count () { return Count; }
+	constexpr u32 count () { return Count; }
 
 	T * begin() { return _items; }
-	T * end() { return _items + Count; }
+	T * end() 	{ return _items + Count; }
 
-	T & operator [] (s32 index)
+	T & operator [] (u32 index)
 	{
 		DEBUG_ASSERT (index < Count, "Index outside StaticArray bounds");
 		return _items[index];
 	}
 };
-
 
 ///////////////////////////////////////
 ///         MEMORY ARENA 			///

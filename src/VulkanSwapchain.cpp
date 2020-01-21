@@ -29,8 +29,6 @@ vulkan::create_drawing_resources(VulkanContext * context, u32 width, u32 height)
         resources->extent.height = clamp(height, min.height, max.height);
     }
 
-    std::cout << "Creating swapchain actually, width: " << resources->extent.width << ", height: " << resources->extent.height << "\n";
-
     u32 imageCount = swapchainSupport.capabilities.minImageCount + 1;
     u32 maxImageCount = swapchainSupport.capabilities.maxImageCount;
     if (maxImageCount > 0 && imageCount > maxImageCount)
@@ -81,8 +79,6 @@ vulkan::create_drawing_resources(VulkanContext * context, u32 width, u32 height)
     resources->images.resize (imageCount);
     vkGetSwapchainImagesKHR(context->device, resources->swapchain, &imageCount, &resources->images[0]);
 
-    std::cout << "Created swapchain and images\n";
-    
     resources->imageViews.resize(imageCount);
 
     for (int i = 0; i < imageCount; ++i)
@@ -96,9 +92,7 @@ vulkan::create_drawing_resources(VulkanContext * context, u32 width, u32 height)
                                                                 context->drawingResources.imageFormat,
                                                                 context->msaaSamples);
 
-    using namespace vulkan_swapchain_internal_;
-    create_attachments(context);
-    std::cout << "Created image views\n";
+    vulkan_swapchain_internal_::create_attachments(context);
 }
 
 
@@ -133,10 +127,10 @@ vulkan::recreate_drawing_resources(VulkanContext * context, u32 width, u32 heigh
     // Todo(Leo): these maybe should go somewhere else
     recreate_loaded_pipelines(context);
 
-    vulkan::destroy_loaded_pipeline(context, &context->lineDrawPipeline);
-    vulkan::destroy_loaded_pipeline(context, &context->guiDrawPipeline);
-    context->lineDrawPipeline       = make_line_pipeline(context, context->lineDrawPipeline.info);
-    context->guiDrawPipeline        = make_gui_pipeline(context, context->guiDrawPipeline.info);
+    destroy_loaded_pipeline(context, &context->lineDrawPipeline);
+    destroy_loaded_pipeline(context, &context->guiDrawPipeline);
+    context->lineDrawPipeline       = make_pipeline(context, context->lineDrawPipeline.info);
+    context->guiDrawPipeline        = make_pipeline(context, context->guiDrawPipeline.info);
 
 }
 

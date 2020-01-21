@@ -47,8 +47,7 @@ vulkan::find_supported_format(
             return *pFormat;
         }
     }
-
-    throw std::runtime_error("Failed to find supported format");
+    DEBUG_ASSERT(false, "Failed to find supported format");
 }
 
 internal VkFormat
@@ -79,8 +78,7 @@ vulkan::find_memory_type (VkPhysicalDevice physicalDevice, u32 typeFilter, VkMem
             return i;
         }
     }
-    
-    throw std::runtime_error("Failed to find suitable memory type.");
+    DEBUG_ASSERT(false, "Failed to find suitable memory type.");
 }   
 
 
@@ -121,7 +119,6 @@ vulkan::make_buffer_resource(
     VULKAN_CHECK(vkAllocateMemory(context->device, &allocateInfo, nullptr, &memory));
 
     vkBindBufferMemory(context->device, buffer, memory, 0); 
-
     
     return {
         .buffer = buffer,
@@ -138,43 +135,6 @@ vulkan::destroy_buffer_resource(VkDevice logicalDevice, VulkanBufferResource * r
     vkFreeMemory(logicalDevice, resource->memory, nullptr);
 }
 
-internal VkVertexInputBindingDescription
-vulkan::get_vertex_binding_description ()
-{
-    return {
-        .binding    = 0,
-        .stride     = sizeof(Vertex),
-        .inputRate  = VK_VERTEX_INPUT_RATE_VERTEX
-    };
-}
-
-internal StaticArray<VkVertexInputAttributeDescription, 4>
-vulkan::get_vertex_attribute_description()
-{
-	StaticArray<VkVertexInputAttributeDescription, 4> value = {};
-
-	value[0].binding = 0;
-	value[0].location = 0;
-	value[0].format = VK_FORMAT_R32G32B32_SFLOAT;
-	value[0].offset = offsetof(Vertex, position);
-
-	value[1].binding = 0;
-	value[1].location = 1;
-	value[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-	value[1].offset = offsetof(Vertex, normal);
-
-	value[2].binding = 0;
-	value[2].location = 2;
-	value[2].format = VK_FORMAT_R32G32B32_SFLOAT;
-	value[2].offset = offsetof(Vertex, color);	
-
-	value[3].binding = 0;
-	value[3].location = 3;
-	value[3].format = VK_FORMAT_R32G32_SFLOAT;
-	value[3].offset = offsetof(Vertex, texCoord);
-
-	return value;
-}	
 
 internal VkIndexType
 vulkan::convert_index_type(IndexType type)
@@ -416,7 +376,7 @@ vulkan::make_vk_render_pass(VulkanContext * context, VkFormat format, VkSampleCo
     dependencies[0].srcStageMask        = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
     dependencies[0].srcAccessMask       = 0;
     dependencies[0].dstStageMask        = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    dependencies[0].dstAccessMask       = 0;//VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    dependencies[0].dstAccessMask       = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 
     VkRenderPassCreateInfo renderPassInfo   = { VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO };
     renderPassInfo.attachmentCount          = ATTACHMENT_COUNT;
@@ -427,10 +387,7 @@ vulkan::make_vk_render_pass(VulkanContext * context, VkFormat format, VkSampleCo
     renderPassInfo.pDependencies            = &dependencies[0];
 
     VkRenderPass resultRenderPass;
-    if (vkCreateRenderPass(context->device, &renderPassInfo, nullptr, &resultRenderPass) != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to create render pass");
-    }
+    VULKAN_CHECK (vkCreateRenderPass(context->device, &renderPassInfo, nullptr, &resultRenderPass));
 
     return resultRenderPass;
 }
@@ -744,13 +701,20 @@ namespace winapi
     internal void destroy_vulkan_context        (VulkanContext*);
 }
 
+
 namespace winapi_vulkan_internal_
 {   
+    using CleanupFunc = void (VulkanContext*);
+    internal void add_cleanup(VulkanContext*, CleanupFunc * cleanupFunc);
+
+
     internal VkInstance         create_vk_instance();
     internal VkSurfaceKHR       create_vk_surface(VkInstance, WinAPIWindow*);
     internal VkPhysicalDevice   create_vk_physical_device(VkInstance, VkSurfaceKHR);
     internal VkDevice           create_vk_device(VkPhysicalDevice, VkSurfaceKHR);
     internal VkSampleCountFlagBits get_max_usable_msaa_samplecount(VkPhysicalDevice);
+
+    internal void init_memory (VulkanContext*);
 
     internal void init_model_descriptor_set_layout(VulkanContext*);
     internal void init_scene_descriptor_set_layout(VulkanContext*);
@@ -768,7 +732,7 @@ namespace winapi_vulkan_internal_
 internal VulkanContext
 winapi::create_vulkan_context(WinAPIWindow * window)
 {
-
+    // Note(Leo): This is actual winapi part of vulkan context
     VulkanContext context = {};
     {
         using namespace winapi_vulkan_internal_;
@@ -801,43 +765,14 @@ winapi::create_vulkan_context(WinAPIWindow * window)
         .queueFamilyIndex   = queueFamilyIndices.graphics,
         .flags              = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
     };
-    assert(vkCreateCommandPool(context.device, &poolInfo, nullptr, &context.commandPool) == VK_SUCCESS);
+    RELEASE_ASSERT(vkCreateCommandPool(context.device, &poolInfo, nullptr, &context.commandPool) == VK_SUCCESS, "");
 
-
-    // TODO [MEMORY] (Leo): Properly measure required amount
-    // TODO[memory] (Leo): Log usage
-    u64 staticMeshPoolSize       = megabytes(500);
-    u64 stagingBufferPoolSize    = megabytes(100);
-    u64 modelUniformBufferSize   = megabytes(100);
-    u64 sceneUniformBufferSize   = megabytes(100);
-    u64 guiUniformBufferSize     = megabytes(100);
-
-    // TODO[MEMORY] (Leo): This will need guarding against multithreads once we get there
-    context.staticMeshPool = vulkan::make_buffer_resource(  
-                                    &context, staticMeshPoolSize,
-                                    VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-                                    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-
-    context.stagingBufferPool = vulkan::make_buffer_resource(  
-                                    &context, stagingBufferPoolSize,
-                                    VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-
-    context.modelUniformBuffer = vulkan::make_buffer_resource(  
-                                    &context, modelUniformBufferSize,
-                                    VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-                                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-
-    context.sceneUniformBuffer = vulkan::make_buffer_resource(
-                                    &context, sceneUniformBufferSize,
-                                    VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-                                    VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
-
-    /// END OF RESOURCES
 
     {
         using namespace winapi_vulkan_internal_;
 
+        // Note(Leo): these are expected to add_cleanup any functionality required
+        init_memory(&context);
         init_scene_descriptor_set_layout (&context);
         init_model_descriptor_set_layout (&context);
         init_virtual_frames (&context);
@@ -847,35 +782,74 @@ winapi::create_vulkan_context(WinAPIWindow * window)
         init_model_descriptor_sets (&context);
         init_scene_descriptor_sets (&context);
         init_texture_sampler (&context);
+    
+        vulkan::create_drawing_resources(&context, window->width, window->height);
+        add_cleanup(&context, [](VulkanContext * context)
+        {
+            vulkan::destroy_drawing_resources(context);
+        });
+        
+        context.debugTextures.white = vulkan::make_texture(&context, 512, 512, {1,1,1,1});
+        add_cleanup(&context, [](VulkanContext * context)
+        {
+            vulkan::destroy_texture(context, &context->debugTextures.white);
+        });
     }
 
-    vulkan::create_drawing_resources(&context, window->width, window->height);
 
     // PLATFORM defined resources that GAME uses
     {
-        std::cout << "before pipelines\n";
+        std::cout << "[create_vulkan_context()]: before pipelines\n";
 
-        VulkanPipelineLoadInfo info = 
+        VulkanPipelineLoadInfo linePipelineInfo = 
         {
-            .vertexShaderPath       = "shaders/line_vert.spv",
-            .fragmentShaderPath     = "shaders/line_frag.spv",
-            .options.primitiveType  = platform::RenderingOptions::PRIMITIVE_LINE
-        };
-        context.lineDrawPipeline = vulkan::make_line_pipeline(&context, info);
+            .vertexShaderPath           = "shaders/line_vert.spv",
+            .fragmentShaderPath         = "shaders/line_frag.spv",
 
+            .options.primitiveType      = platform::RenderingOptions::PRIMITIVE_LINE,
+            .options.lineWidth          = 2.0f,
+            .options.pushConstantSize   = sizeof(float4) * 3,
+
+            .options.useVertexInput      = false,
+            .options.useSceneLayoutSet      = true,
+            .options.useMaterialLayoutSet   = false,
+            .options.useModelLayoutSet      = false,
+        };
+        context.lineDrawPipeline = vulkan::make_pipeline(&context, linePipelineInfo);
+
+
+        std::cout << "[create_vulkan_context()]: after lines\n";
         // ---------------------------------------------------------------------
 
-        VulkanPipelineLoadInfo info2 =
+        VulkanPipelineLoadInfo guiPipelineInfo =
         {
             .vertexShaderPath    = "shaders/gui_vert2.spv",
             .fragmentShaderPath    = "shaders/gui_frag2.spv",
+
+            .options.primitiveType = platform::RenderingOptions::PRIMITIVE_TRIANGLE_STRIP,
+            .options.cullMode = platform::RenderingOptions::CULL_NONE,
+            .options.pushConstantSize = sizeof(vector2) * 4 + sizeof(float4),
+            .options.textureCount = 1,
+            .options.useVertexInput = false,
+
+            .options.useSceneLayoutSet      = false,
+            .options.useMaterialLayoutSet   = true,
+            .options.useModelLayoutSet      = false,
         };
-        context.guiDrawPipeline = vulkan::make_gui_pipeline(&context, info2);
+        context.guiDrawPipeline = vulkan::make_pipeline(&context, guiPipelineInfo);
+
+        std::cout << "[create_vulkan_context()]: after gui\n";
+
+        winapi_vulkan_internal_::add_cleanup(&context, [](VulkanContext * context)
+        {
+            vulkan::destroy_loaded_pipeline(context, &context->lineDrawPipeline);
+            vulkan::destroy_loaded_pipeline(context, &context->guiDrawPipeline);
+        });
     }
 
     // PLATFORM defined debug resources that PLATFORM uses
     {
-        context.debugTextures.white = vulkan::make_texture(&context, 512, 512, {1,1,1,1});
+
         context.defaultGuiMaterial = 
         {
             .pipeline = PipelineHandle::Null,
@@ -887,9 +861,6 @@ winapi::create_vulkan_context(WinAPIWindow * window)
 
     }
 
-
-
-
     std::cout << "\n[VULKAN]: Initialized succesfully\n\n";
 
     return context;
@@ -898,50 +869,32 @@ winapi::create_vulkan_context(WinAPIWindow * window)
 internal void
 winapi::destroy_vulkan_context(VulkanContext * context)
 {
-    VkDevice device = context->device;
-
     // Note(Leo): All draw frame operations are asynchronous, must wait for them to finish
-    vkDeviceWaitIdle(device);
+    vkDeviceWaitIdle(context->device);
 
     vulkan::unload_scene(context);
 
-    vulkan::destroy_texture(context, &context->debugTextures.white);
-
-    vulkan::destroy_drawing_resources(context);
-
-    vkDestroyDescriptorPool(device, context->descriptorPools.uniform, nullptr);
-    vkDestroyDescriptorPool(device, context->descriptorPools.material, nullptr);
-
-    vkDestroySampler(device, context->textureSampler, nullptr);
-
-    // Todo(Leo): When we have scene, or different models, these too move away from here
-    vkDestroyDescriptorSetLayout(device, context->descriptorSetLayouts.model, nullptr);  
-    vkDestroyDescriptorSetLayout(device, context->descriptorSetLayouts.scene, nullptr);  
-
-    vulkan::destroy_buffer_resource(device, &context->staticMeshPool);
-    vulkan::destroy_buffer_resource(device, &context->stagingBufferPool);
-    vulkan::destroy_buffer_resource(device, &context->modelUniformBuffer);
-    vulkan::destroy_buffer_resource(device, &context->sceneUniformBuffer);
-
-    for (auto & frame : context->virtualFrames)
+    while(context->cleanups.size() > 0)
     {
-        /* Note(Leo): command buffers are destroyed with command pool, but we need to destroy
-        framebuffers here, since they are always recreated immediately right after destroying
-        them in drawing procedure */
-        vkDestroyFramebuffer(device, frame.framebuffer, nullptr);
-        
-        vkDestroySemaphore(device, frame.renderFinishedSemaphore, nullptr);
-        vkDestroySemaphore(device, frame.imageAvailableSemaphore, nullptr);
-        vkDestroyFence(device, frame.inFlightFence, nullptr);
+        context->cleanups.back()(context);
+        context->cleanups.pop_back();
     }
 
-    vkDestroyCommandPool(device, context->commandPool, nullptr);
 
-    vkDestroyDevice(device, nullptr);
+
+    vkDestroyCommandPool(context->device, context->commandPool, nullptr);
+
+    vkDestroyDevice(context->device, nullptr);
     vkDestroySurfaceKHR(context->instance, context->surface, nullptr);
     vkDestroyInstance(context->instance, nullptr);
     
     std::cout << "[VULKAN]: shut down\n";
+}
+
+internal void 
+winapi_vulkan_internal_::add_cleanup(VulkanContext * context, CleanupFunc * cleanup)
+{
+    context->cleanups.push_back(cleanup);
 }
 
 
@@ -1093,7 +1046,8 @@ winapi_vulkan_internal_::create_vk_physical_device(VkInstance vulkanInstance, Vk
                 && indices.hasAll()
                 && extensionsAreSupported
                 && swapchainIsOk
-                && features.samplerAnisotropy;
+                && features.samplerAnisotropy
+                && features.wideLines;
     };
 
     VkPhysicalDevice resultPhysicalDevice;
@@ -1142,6 +1096,7 @@ winapi_vulkan_internal_::create_vk_device(VkPhysicalDevice physicalDevice, VkSur
 
     VkPhysicalDeviceFeatures physicalDeviceFeatures = {};
     physicalDeviceFeatures.samplerAnisotropy = VK_TRUE;
+    physicalDeviceFeatures.wideLines = VK_TRUE;
 
     VkDeviceCreateInfo deviceCreateInfo = {};
     deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
@@ -1198,6 +1153,49 @@ winapi_vulkan_internal_::get_max_usable_msaa_samplecount(VkPhysicalDevice physic
 }
 
 internal void
+winapi_vulkan_internal_::init_memory(VulkanContext * context)
+{
+    // TODO [MEMORY] (Leo): Properly measure required amount
+    // TODO[memory] (Leo): Log usage
+    u64 staticMeshPoolSize       = megabytes(500);
+    u64 stagingBufferPoolSize    = megabytes(100);
+    u64 modelUniformBufferSize   = megabytes(100);
+    u64 sceneUniformBufferSize   = megabytes(100);
+    u64 guiUniformBufferSize     = megabytes(100);
+
+    // TODO[MEMORY] (Leo): This will need guarding against multithreads once we get there
+    context->staticMeshPool = vulkan::make_buffer_resource(  
+                                    context, staticMeshPoolSize,
+                                    VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+                                    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+    context->stagingBufferPool = vulkan::make_buffer_resource(  
+                                    context, stagingBufferPoolSize,
+                                    VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+    context->modelUniformBuffer = vulkan::make_buffer_resource(  
+                                    context, modelUniformBufferSize,
+                                    VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+    context->sceneUniformBuffer = vulkan::make_buffer_resource(
+                                    context, sceneUniformBufferSize,
+                                    VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                                    VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+
+
+    add_cleanup(context, [](VulkanContext * context){
+        vulkan::destroy_buffer_resource(context->device, &context->staticMeshPool);
+        vulkan::destroy_buffer_resource(context->device, &context->stagingBufferPool);
+        vulkan::destroy_buffer_resource(context->device, &context->modelUniformBuffer);
+        vulkan::destroy_buffer_resource(context->device, &context->sceneUniformBuffer);
+    });
+
+
+};
+
+internal void
 winapi_vulkan_internal_::init_persistent_descriptor_pool(VulkanContext * context, u32 descriptorCount, u32 maxSets)
 {
     // Note(Leo): this posr sheds soma light on max set vs descriptorCount confusion.
@@ -1217,6 +1215,11 @@ winapi_vulkan_internal_::init_persistent_descriptor_pool(VulkanContext * context
     };
 
     VULKAN_CHECK(vkCreateDescriptorPool(context->device, &poolCreateInfo, nullptr, &context->descriptorPools.persistent));
+
+    add_cleanup(context, [](VulkanContext * context)
+    {
+        vkDestroyDescriptorPool(context->device, context->descriptorPools.persistent, nullptr);
+    });
 }
 
 internal void
@@ -1246,6 +1249,11 @@ winapi_vulkan_internal_::init_uniform_descriptor_pool(VulkanContext * context)
     poolInfo.maxSets = 20;
 
     VULKAN_CHECK( vkCreateDescriptorPool(context->device, &poolInfo, nullptr, &context->descriptorPools.uniform));
+
+    add_cleanup(context, [](VulkanContext * context)
+    {
+        vkDestroyDescriptorPool(context->device, context->descriptorPools.uniform, nullptr);
+    });
 }
 
 internal void
@@ -1266,6 +1274,11 @@ winapi_vulkan_internal_::init_material_descriptor_pool(VulkanContext * context)
     };
 
     VULKAN_CHECK(vkCreateDescriptorPool(context->device, &poolCreateInfo, nullptr, &context->descriptorPools.material));
+
+    add_cleanup(context, [](VulkanContext * context)
+    {
+        vkDestroyDescriptorPool(context->device, context->descriptorPools.material, nullptr);
+    });
 }
 
 internal void
@@ -1370,7 +1383,13 @@ winapi_vulkan_internal_::init_texture_sampler(VulkanContext * context)
     };
 
     VULKAN_CHECK(vkCreateSampler(context->device, &samplerInfo, nullptr, &context->textureSampler));
+
+    add_cleanup(context, [](VulkanContext * context)
+    {
+        vkDestroySampler(context->device, context->textureSampler, nullptr);
+    });
 }
+
 
 internal void
 winapi_vulkan_internal_::init_virtual_frames(VulkanContext * context)
@@ -1423,6 +1442,21 @@ winapi_vulkan_internal_::init_virtual_frames(VulkanContext * context)
 
         DEBUG_ASSERT(success, "Failed to create VulkanVirtualFrame");
     }
+
+    add_cleanup(context, [](VulkanContext * context)
+    {
+        for (auto & frame : context->virtualFrames)
+        {
+            /* Note(Leo): command buffers are destroyed with command pool, but we need to destroy
+            framebuffers here, since they are always recreated immediately right after destroying
+            them in drawing procedure */
+            vkDestroyFramebuffer(context->device, frame.framebuffer, nullptr);
+            
+            vkDestroySemaphore(context->device, frame.renderFinishedSemaphore, nullptr);
+            vkDestroySemaphore(context->device, frame.imageAvailableSemaphore, nullptr);
+            vkDestroyFence(context->device, frame.inFlightFence, nullptr);
+        }
+    });
 }
 
 internal void
@@ -1445,6 +1479,11 @@ winapi_vulkan_internal_::init_model_descriptor_set_layout(VulkanContext * contex
     };
 
     VULKAN_CHECK(vkCreateDescriptorSetLayout(context->device, &layoutCreateInfo, nullptr, &context->descriptorSetLayouts.model));
+
+    add_cleanup(context, [](VulkanContext * context)
+    {
+        vkDestroyDescriptorSetLayout(context->device, context->descriptorSetLayouts.model, nullptr);
+    });
 }
 
 internal void
@@ -1470,4 +1509,11 @@ winapi_vulkan_internal_::init_scene_descriptor_set_layout(VulkanContext * contex
                                                 &layoutCreateInfo,
                                                 nullptr,
                                                 &context->descriptorSetLayouts.scene));
+
+    add_cleanup(context, [](VulkanContext * context)
+    {
+        vkDestroyDescriptorSetLayout(context->device, context->descriptorSetLayouts.scene, nullptr);
+    });
 }
+
+#undef CLEANUP
