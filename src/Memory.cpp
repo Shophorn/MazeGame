@@ -7,7 +7,6 @@ While we are not aiming to satisfy any standard per se, when making irrelevant
 but compulsory design choices, look at: 
 	- https://en.cppreference.com/w/cpp/named_req/Container
 =============================================================================*/
-#include <cstring>
 #include <initializer_list>
 #include <algorithm>
 #include <type_traits>
@@ -21,17 +20,17 @@ struct StaticArray
 {
 	static_assert(Count != 0, "Why would you do this?");
 
-	T _items [Count];
+	T items_ [Count];
 
 	constexpr u32 count () { return Count; }
 
-	T * begin() { return _items; }
-	T * end() 	{ return _items + Count; }
+	T * begin() { return items_; }
+	T * end() 	{ return items_ + Count; }
 
 	T & operator [] (u32 index)
 	{
 		DEBUG_ASSERT (index < Count, "Index outside StaticArray bounds");
-		return _items[index];
+		return items_[index];
 	}
 };
 
@@ -57,6 +56,7 @@ reserve_from_memory_arena(MemoryArena * arena, u64 size)
 {
 	size = align_up_to(size, MemoryArena::defaultAlignment);
 	
+	// Todo(Leo): this seems like we would like to throw an actual exception, so we find who did what
 	DEBUG_ASSERT(size <= arena->available(), "Not enough memory available in MemoryArena");
 
 	byte * result = arena->next();
@@ -90,19 +90,9 @@ clear_memory_arena(MemoryArena * arena)
 	std::fill_n(arena->memory, arena->size, 0);
 }
 
-template<typename T> internal T *
-push_empty_struct(MemoryArena * arena)
-{
-	T * result = reinterpret_cast<T*>(reserve_from_memory_arena(arena, sizeof(T)));
-	return result;
-}
-
-
 ///////////////////////////////////////
 ///         ARENA ARRAY 			///
 ///////////////////////////////////////
-
-using default_index_type = u64;
 
 struct ArrayHeader
 {
@@ -110,31 +100,23 @@ struct ArrayHeader
 	u64 countInBytes;
 };
 
-#define ARENA_ARRAY_TEMPLATE template<typename T, typename TIndex = default_index_type>
+#define ARENA_ARRAY_TEMPLATE template<typename T, typename TIndex = u64>
 
 ARENA_ARRAY_TEMPLATE struct ArenaArray
 {
-	/* Todo(Leo): This class supports only classes that are simple such as
-	pod types and others that do not need destructors or other unitilization
-	only.
-	
-	Should we do somthing about that, at least to enforce T to be simple?
-	*/
-
-	/* Todo(Leo): Also hide implementation. C-style maybe, now that I have found
-	myself liking c-style function calls :)
-	*/
+	// Note(Leo): Do we need more constraints
+	static_assert(std::is_trivially_destructible<T>::value, "Only simple types suppported");
 
 	/* Todo(Leo): Maybe make this also just an offset from start of arena.
 	And store pointer to arena instead? */
-	byte * _data = nullptr;
+	byte * _data;
 
-	u64 capacity () 		{ return (get_header()->capacityInBytes) / sizeof(T); }
-	u64 count ()  		{ return (get_header()->countInBytes) / sizeof(T); }
+	u64 capacity () { return (get_header()->capacityInBytes) / sizeof(T); }
+	u64 count ()  	{ return (get_header()->countInBytes) / sizeof(T); }
 
 	// Todo(Leo): Maybe make these free functions too.
-	T * begin() 			{ return reinterpret_cast<T*>(_data + sizeof(ArrayHeader)); }
-	T * end() 				{ return begin() + count(); }
+	T * begin() 	{ return reinterpret_cast<T*>(_data + sizeof(ArrayHeader)); }
+	T * end() 		{ return begin() + count(); }
 
 	T & operator [] (TIndex index)
 	{
@@ -161,12 +143,12 @@ private:
 	}
 };
 
-namespace array_internal
+namespace arena_array_internal_
 {
 	ARENA_ARRAY_TEMPLATE internal ArrayHeader *
 	get_header(ArenaArray<T, TIndex> array)
 	{
-		DEBUG_ASSERT(array._data != nullptr, "Invalid call to 'array_internal::get_header()', ArenaArray is not initialized.");
+		DEBUG_ASSERT(array._data != nullptr, "Invalid call to 'arena_array_internal_::get_header()', ArenaArray is not initialized.");
 		return reinterpret_cast<ArrayHeader *>(array._data);
 	}
 
@@ -190,7 +172,7 @@ namespace array_internal
 		u64 newCount = array.count() + increment;
 		set_count(array, newCount);
 	}
-} // array_internal
+} // arena_array_internal_
 
 ARENA_ARRAY_TEMPLATE internal ArenaArray<T, TIndex>
 reserve_array(MemoryArena * arena, u64 capacity)
@@ -204,8 +186,8 @@ reserve_array(MemoryArena * arena, u64 capacity)
 	{
 		._data = memory
 	};
-	array_internal::set_capacity (result, capacity);
-	array_internal::set_count(result, 0);
+	arena_array_internal_::set_capacity (result, capacity);
+	arena_array_internal_::set_count(result, 0);
 
 	return result;
 }
@@ -214,7 +196,7 @@ ARENA_ARRAY_TEMPLATE internal ArenaArray<T, TIndex>
 push_array(MemoryArena * arena, u64 capacity)
 {
 	auto result	= reserve_array<T, TIndex>(arena, capacity);
-	array_internal::set_count(result, capacity);
+	arena_array_internal_::set_count(result, capacity);
 
 	return result;
 }
@@ -253,7 +235,7 @@ ARENA_ARRAY_TEMPLATE internal ArenaArray<T, TIndex>
 duplicate_array(MemoryArena * arena, ArenaArray<T, TIndex> original)
 {
 	auto result = reserve_array<T, TIndex>(arena, original.capacity());
-	array_internal::set_count(result, original.count());
+	arena_array_internal_::set_count(result, original.count());
 
 	// Todo(Leo): Make own memory copies for the sake of education
 	std::copy(original.begin(), original.end(), result.begin());
@@ -284,7 +266,7 @@ push_one(ArenaArray<T, TIndex> array, T item)
 
 	TIndex index = {array.count()};
 	*array.end() = item;
-	array_internal::increment_count(array, 1);
+	arena_array_internal_::increment_count(array, 1);
 
 	return index;
 }
@@ -298,7 +280,7 @@ push_range(ArenaArray<T, TIndex> array, const T * begin, const T * end)
 	DEBUG_ASSERT((rangeLength + array.count()) <= array.capacity(), "Cannot push, ArenaArray is full!");
 
 	std::copy(begin, end, array.end());
-	array_internal::increment_count(array, rangeLength);
+	arena_array_internal_::increment_count(array, rangeLength);
 }
 
 ARENA_ARRAY_TEMPLATE internal void
@@ -310,7 +292,7 @@ push_many(ArenaArray<T, TIndex> array, std::initializer_list<T> items)
 ARENA_ARRAY_TEMPLATE internal void
 flush_arena_array(ArenaArray<T, TIndex> array)
 {
-	array_internal::set_count(array, 0);
+	arena_array_internal_::set_count(array, 0);
 }
 
 #undef ARENA_ARRAY_TEMPLATE

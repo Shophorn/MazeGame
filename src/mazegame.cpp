@@ -6,10 +6,9 @@ Leo Tamminen
 #include "MazegamePlatform.hpp"
 #include "Mazegame.hpp"
 
-
 // Todo(Leo): Handle has become stupid as it is now, pls remove
+// Todo(Leo): Or fix, they use static global variable, that will be reinit to invalid value when hot-reloading game
 #include "Handle.cpp"
-
 
 // Note(Leo): Make unity build here.
 #include "Random.cpp"
@@ -49,15 +48,12 @@ struct GameState
 	MemoryArena persistentMemoryArena;
 	MemoryArena transientMemoryArena;
 
-	// Todo(Leo): Maybe store game pointer to info struct??
 	SceneInfo * loadedSceneInfo;
 	void * loadedScene;
-
-	bool32 sceneLoaded = false;
 };
 
 internal void
-initialize_game_state(	GameState * state, game::Memory * memory)
+initialize_game_state(GameState * state, game::Memory * memory)
 {
 	*state = {};
 
@@ -70,6 +66,8 @@ initialize_game_state(	GameState * state, game::Memory * memory)
 	byte * transientMemory 			= reinterpret_cast<byte*>(memory->transientMemory);
 	u64 transientMemorySize 		= memory->transientMemorySize;
 	state->transientMemoryArena 	= make_memory_arena(transientMemory, transientMemorySize);
+
+	memory->isInitialized = true;
 }
 
 internal void
@@ -119,14 +117,12 @@ load_scene(	GameState * state,
 				graphics,
 				system,
 				functions);
-
-	state->sceneLoaded = true;	
 }
 
 internal void
-unload_scene_and_gui(	GameState * state,
-						platform::Graphics * graphics,
-						platform::Functions * functions)
+unload_scene(	GameState * state,
+				platform::Graphics * graphics,
+				platform::Functions * functions)
 {
 	state->loadedSceneInfo = {};
 
@@ -134,14 +130,11 @@ unload_scene_and_gui(	GameState * state,
 	clear_memory_arena(&state->persistentMemoryArena);
 
 	state->loadedScene = nullptr;
-	state->sceneLoaded = false;
 }
 
 
-/*Note(Leo): return whether or not game still continues
-
-Todo(Leo): indicate meaning of return value betterly somewhere,
-I almost forgot it.
+/* Note(Leo): return whether or not game still continues
+Todo(Leo): indicate meaning of return value betterly somewhere, I almost forgot it.
 */
 extern "C" bool32
 update_game(
@@ -155,17 +148,16 @@ update_game(
 	platform::Functions * 	functions)
 {
 	/* Note(Leo): This is reinterpreted each frame, we don't know and don't care
-	if it has been moved or whatever in functions layer*/
+	if it has been moved or whatever in platform layer*/
 	GameState * state = reinterpret_cast<GameState*>(memory->persistentMemory);
 
 	if (memory->isInitialized == false)
 	{
 		initialize_game_state (state, memory);
-		memory->isInitialized = true;
-
 		load_scene(state, &menuScene, graphics, window, functions);
-		std::cout << "Game initialized\n";
 	}
+
+	// Note(Leo): Free space for current frame.
 	flush_memory_arena(&state->transientMemoryArena);
 	
 	functions->prepare_frame(graphics);
@@ -185,17 +177,17 @@ update_game(
 			break;
 
 		case MENU_LOADLEVEL_2D:
-			unload_scene_and_gui(state, graphics, functions);
+			unload_scene(state, graphics, functions);
 			load_scene(state, &scene2dInfo, graphics, window, functions);
 			break;
 
 		case MENU_LOADLEVEL_3D:
-			unload_scene_and_gui(state, graphics, functions);
+			unload_scene(state, graphics, functions);
 			load_scene(state, &scene3dInfo, graphics, window, functions);
 			break;
 
 		case SCENE_EXIT:
-			unload_scene_and_gui(state, graphics, functions);
+			unload_scene(state, graphics, functions);
 			load_scene(state, &menuScene, graphics, window, functions);
 			break;
 

@@ -6,8 +6,8 @@ struct BoxCollider3D
 
 struct CollisionSystemEntry
 {
-	Handle<BoxCollider3D> collider = {};
-	Handle<Transform3D> transform = {};
+	Handle<BoxCollider3D> collider;
+	Handle<Transform3D> transform;
 };
 
 struct CollisionSystem3D

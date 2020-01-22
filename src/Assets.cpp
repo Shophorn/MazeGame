@@ -47,10 +47,10 @@ bool32 operator==(BaseHandle<T> a, BaseHandle<T> b)
 
 struct Vertex
 {
-	vector3 position 	= {};
-	vector3 normal 		= {};
-	vector3 color 		= {};
-	vector2 texCoord 	= {};
+	vector3 position;
+	vector3 normal;
+	vector3 color;
+	vector2 texCoord;
 };
 
 enum struct IndexType : u32 { UInt16, UInt32 };
