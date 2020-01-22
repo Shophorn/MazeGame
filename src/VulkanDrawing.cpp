@@ -46,7 +46,7 @@ vulkan::prepare_drawing(VulkanContext * context)
 
     frame->framebuffer = make_vk_framebuffer(   context->device,
                                                 context->drawingResources.renderPass,
-                                                ARRAY_COUNT(attachments),
+                                                get_array_count(attachments),
                                                 attachments,
                                                 context->drawingResources.extent.width,
                                                 context->drawingResources.extent.height);    
@@ -122,19 +122,19 @@ vulkan::prepare_drawing(VulkanContext * context)
         .extent = context->drawingResources.extent,
     };
     vkCmdSetScissor(frame->commandBuffers.scene, 0, 1, &scissor);
-
-
 }
 
 void
 vulkan::finish_drawing(VulkanContext * context)
 {
+
     assert(context->canDraw);
     context->canDraw = false;
 
+    VulkanVirtualFrame * frame = get_current_virtual_frame(context);
+
     record_gui_draw_command(context, {1500, 20}, {400, 400}, MaterialHandle::Null, {0,1,1,1});
 
-    VulkanVirtualFrame * frame = get_current_virtual_frame(context);
 
     VULKAN_CHECK(vkEndCommandBuffer(frame->commandBuffers.scene));
 
@@ -142,30 +142,32 @@ vulkan::finish_drawing(VulkanContext * context)
     vkCmdEndRenderPass(frame->commandBuffers.primary);
     
     VULKAN_CHECK(vkEndCommandBuffer(frame->commandBuffers.primary));
-}
+// }
 
 
 
-internal void
-vulkan::draw_frame(VulkanContext * context)
-{
+// internal void
+// vulkan::draw_frame(VulkanContext * context)
+// {
     /* Note(Leo): these have to do with sceneloading in game layer. We are then unloading
     all resources associated with command buffer, which makes it invalid to submit to queue */
     bool32 skipFrame            = context->sceneUnloaded;
     context->sceneUnloaded      = false;
 
-    VulkanVirtualFrame * frame  = get_current_virtual_frame(context);
+    // VulkanVirtualFrame * frame  = get_current_virtual_frame(context);
 
 
     /* Note(Leo): reset here, so that if we have recreated swapchain above,
     our fences will be left in signaled state */
     vkResetFences(context->device, 1, &frame->inFlightFence);
 
+
     // Note(Leo): We wait for these BEFORE drawing
     VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
     
     VkCommandBuffer commandBuffers []
     {
+        // frame->commandBuffers.offscreen,
         frame->commandBuffers.primary,
     };
 
@@ -202,6 +204,7 @@ vulkan::draw_frame(VulkanContext * context)
     // Todo(Leo): Should we do something with this??
     VkResult result = vkQueuePresentKHR(context->queues.present, &presentInfo);
 
+
     // Todo(Leo): Is this correct place to advance??????
     // Should we have a proper "all rendering done"-function?
     advance_virtual_frame(context);
@@ -219,6 +222,10 @@ vulkan::draw_frame(VulkanContext * context)
     // }
 }
 
+internal void
+vulkan::draw_frame(VulkanContext * context)
+{
+}
 
 void
 vulkan::record_draw_command(VulkanContext * context, ModelHandle model, Matrix44 transform)
@@ -328,6 +335,7 @@ vulkan::record_draw_command(VulkanContext * context, ModelHandle model, Matrix44
                             &renderInfo.uniformBufferOffset);
 
     vkCmdDrawIndexed(commandBuffer, renderInfo.indexCount, 1, 0, 0, 0);
+
 }
 
 void
@@ -431,24 +439,16 @@ void vulkan::record_gui_draw_command(VulkanContext * context, vector2 position, 
 }
 
 internal void
-vulkan::prepare_shadow_pass (VulkanContext*, Matrix44 view, Matrix44 perspective)
+vulkan::prepare_shadow_pass (VulkanContext * context, Matrix44 view, Matrix44 perspective)
 {
-    // std::cout << "[prepare_shadow_pass()]\n";
-
-    
-
-    
-
 }
 
 internal void
-vulkan::finish_shadow_pass (VulkanContext*)
+vulkan::finish_shadow_pass (VulkanContext * context)
 {
-    // std::cout << "[finish_shadow_pass()]\n";
 }
 
 internal void
-vulkan::draw_shadow_model (VulkanContext*, ModelHandle model, Matrix44 transform)
+vulkan::draw_shadow_model (VulkanContext * context, ModelHandle model, Matrix44 transform)
 {
-    // std::cout << "[draw_shadow_model()]\n";
 }

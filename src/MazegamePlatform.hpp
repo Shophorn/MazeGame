@@ -46,8 +46,16 @@ needs to be specified for compiler. */
 #include "Memory.cpp"
 #include "Assets.cpp"
 
+
 namespace platform
 {
+	enum FrameResult
+	{
+		FRAME_OK,
+		FRAME_RECREATE,
+		FRAME_BAD_PROBLEM,
+	};
+
 	struct RenderingOptions
 	{
 	    bool32 	enableDepth 		= true;
@@ -118,6 +126,7 @@ namespace platform
 		void (*set_window_fullscreen) 	(Window*, bool32 value);
 	};
 
+
 	internal bool32
 	all_functions_set(Functions const * functions)
 	{
@@ -139,6 +148,12 @@ namespace platform
 		}
 		return true;
 	};
+
+
+
+	// Note(Leo): these are for platform layer only.
+	FrameResult prepare_frame(Graphics*);
+	void fill_functions(Graphics*, Functions*);
 }
 
 namespace game

@@ -29,9 +29,10 @@ vulkan::destroy_loaded_pipeline(VulkanContext * context, VulkanLoadedPipeline * 
 }
 
 internal void
-vulkan::recreate_loaded_pipeline(VulkanContext*, VulkanLoadedPipeline*)
+vulkan::recreate_loaded_pipeline(VulkanContext * context, VulkanLoadedPipeline * pipeline)
 {
-
+    destroy_loaded_pipeline(context, pipeline);
+    *pipeline = make_pipeline(context, pipeline->info);
 }
 
 internal VulkanLoadedPipeline

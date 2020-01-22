@@ -4,6 +4,9 @@ import os
 os.system("glslangValidator -V src/shader.vert -o shaders/vert.spv")
 os.system("glslangValidator -V src/shader.frag -o shaders/frag.spv")
 
+os.system("glslangValidator -V src/shadow_shader.vert -o shaders/shadow_vert.spv")
+os.system("glslangValidator -V src/shadow_shader.frag -o shaders/shadow_frag.spv")
+
 os.system("glslangValidator -V src/line_shader.vert -o shaders/line_vert.spv")
 os.system("glslangValidator -V src/line_shader.frag -o shaders/line_frag.spv")
 

@@ -3,30 +3,18 @@ Leo Tamminen
 
 Implementation of Graphics interface for VulkanContext
 =============================================================================*/
-// Note(Leo): Destroy vulkan objects only but keep load infos.
-internal void
-destroy_loaded_pipelines(VulkanContext * context)
+namespace vulkan_scene_internal_
 {
-    for (int i = 0; i < context->loadedPipelines.size(); ++i)
-    {
-        vulkan::destroy_loaded_pipeline(context, &context->loadedPipelines[i]);
-    }
+    internal u32 compute_mip_levels (u32 texWidth, u32 texHeight);
+    internal void cmd_generate_mip_maps(    VkCommandBuffer commandBuffer,
+                                            VkPhysicalDevice physicalDevice,
+                                            VkImage image,
+                                            VkFormat imageFormat,
+                                            u32 texWidth,
+                                            u32 texHeight,
+                                            u32 mipLevels,
+                                            u32 layerCount = 1);
 }
-
-
-internal void
-recreate_loaded_pipelines(VulkanContext * context)
-{
-    destroy_loaded_pipelines(context);
-
-    for (int i = 0; i < context->loadedPipelines.size(); ++i)
-    {
-        auto pipeline = vulkan::make_pipeline(context, context->loadedPipelines[i].info);
-        context->loadedPipelines[i] = pipeline;
-    }
-}
-
-
 
 TextureHandle
 vulkan::push_texture (VulkanContext * context, TextureAsset * texture)
@@ -178,23 +166,13 @@ vulkan::unload_scene(VulkanContext * context)
     // Rendered objects
     context->loadedModels.resize(0);
 
-    destroy_loaded_pipelines(context);
+    for (auto & pipeline : context->loadedPipelines)
+    {
+        destroy_loaded_pipeline(context, &pipeline);
+    }
     context->loadedPipelines.resize(0);
 
     context->sceneUnloaded = true;
-}
-
-namespace vulkan_scene_internal_
-{
-    internal u32 compute_mip_levels (u32 texWidth, u32 texHeight);
-    internal void cmd_generate_mip_maps(    VkCommandBuffer commandBuffer,
-                                            VkPhysicalDevice physicalDevice,
-                                            VkImage image,
-                                            VkFormat imageFormat,
-                                            u32 texWidth,
-                                            u32 texHeight,
-                                            u32 mipLevels,
-                                            u32 layerCount = 1);
 }
 
 internal u32
@@ -422,7 +400,7 @@ vulkan::make_texture(VulkanContext * context, TextureAsset * asset)
 }
 
 internal VulkanTexture
-vulkan::make_texture(VulkanContext * context, u32 width, u32 height, float4 color)
+vulkan::make_texture(VulkanContext * context, u32 width, u32 height, float4 color, VkFormat format)
 {
     using namespace vulkan_scene_internal_;
 
@@ -455,7 +433,7 @@ vulkan::make_texture(VulkanContext * context, u32 width, u32 height, float4 colo
         .extent         = { width, height, 1 },
         .mipLevels      = mipLevels,
         .arrayLayers    = 1,
-        .format         = VK_FORMAT_R8G8B8A8_UNORM,
+        .format         = format,
 
         .tiling         = VK_IMAGE_TILING_OPTIMAL,
         .initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED,
@@ -500,7 +478,7 @@ vulkan::make_texture(VulkanContext * context, u32 width, u32 height, float4 colo
     
     // Todo(Leo): begin and end command buffers once only and then just add commands from inside these
     cmd_transition_image_layout(cmd, context->device, context->queues.graphics,
-                            resultImage, VK_FORMAT_R8G8B8A8_UNORM, mipLevels,
+                            resultImage, format, mipLevels,
                             VK_IMAGE_LAYOUT_UNDEFINED,
                             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
@@ -523,7 +501,7 @@ vulkan::make_texture(VulkanContext * context, u32 width, u32 height, float4 colo
 
     /// CREATE MIP MAPS
     cmd_generate_mip_maps(  cmd, context->physicalDevice,
-                            resultImage, VK_FORMAT_R8G8B8A8_UNORM,
+                            resultImage, format,
                             width, height, mipLevels);
 
     execute_command_buffer (cmd, context->device, context->commandPool, context->queues.graphics);
@@ -534,7 +512,7 @@ vulkan::make_texture(VulkanContext * context, u32 width, u32 height, float4 colo
         .sType      = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
         .image      = resultImage,
         .viewType   = VK_IMAGE_VIEW_TYPE_2D,
-        .format     = VK_FORMAT_R8G8B8A8_UNORM,
+        .format     = format,
 
         .subresourceRange.aspectMask        = VK_IMAGE_ASPECT_COLOR_BIT,
         .subresourceRange.baseMipLevel      = 0,

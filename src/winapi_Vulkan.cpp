@@ -221,7 +221,7 @@ vulkan::find_queue_families (VkPhysicalDevice device, VkSurfaceKHR surface)
 {
     // Note: A card must also have a graphics queue family available; We do want to draw after all
     VkQueueFamilyProperties queueFamilyProps [50];
-    u32 queueFamilyCount = ARRAY_COUNT(queueFamilyProps);
+    u32 queueFamilyCount = get_array_count(queueFamilyProps);
     vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilyProps);
 
     // std::cout << "queueFamilyCount: " << queueFamilyCount << "\n";
@@ -381,9 +381,9 @@ vulkan::make_vk_render_pass(VulkanContext * context, VkFormat format, VkSampleCo
     VkRenderPassCreateInfo renderPassInfo   = { VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO };
     renderPassInfo.attachmentCount          = ATTACHMENT_COUNT;
     renderPassInfo.pAttachments             = &attachments[0];
-    renderPassInfo.subpassCount             = ARRAY_COUNT(subpasses);
+    renderPassInfo.subpassCount             = get_array_count(subpasses);
     renderPassInfo.pSubpasses               = &subpasses[0];
-    renderPassInfo.dependencyCount          = ARRAY_COUNT(dependencies);
+    renderPassInfo.dependencyCount          = get_array_count(dependencies);
     renderPassInfo.pDependencies            = &dependencies[0];
 
     VkRenderPass resultRenderPass;
@@ -391,6 +391,8 @@ vulkan::make_vk_render_pass(VulkanContext * context, VkFormat format, VkSampleCo
 
     return resultRenderPass;
 }
+
+
 
 
 
@@ -493,6 +495,48 @@ vulkan::make_material_vk_descriptor_set(
     {
         .sampler        = context->textureSampler,
         .imageView      = texture->view,
+        .imageLayout    = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+    };
+
+    VkWriteDescriptorSet writing =
+    {  
+        .sType              = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        .dstSet             = resultSet,
+        .dstBinding         = DESCRIPTOR_LAYOUT_SAMPLER_BINDING,
+        .dstArrayElement    = 0,
+        .descriptorType     = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+        .descriptorCount    = 1,
+        .pImageInfo         = &samplerInfo,
+    };
+
+    // Note(Leo): Two first are write info, two latter are copy info
+    vkUpdateDescriptorSets(context->device, 1, &writing, 0, nullptr);
+
+    return resultSet;
+}
+
+internal VkDescriptorSet
+vulkan::make_material_vk_descriptor_set(
+    VulkanContext * context,
+    VulkanLoadedPipeline * pipeline,
+    VkImageView imageView,
+    VkDescriptorPool pool)
+{
+    VkDescriptorSetAllocateInfo allocateInfo =
+    { 
+        .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+        .descriptorPool     = pool,
+        .descriptorSetCount = 1,
+        .pSetLayouts        = &pipeline->materialLayout,
+    };
+
+    VkDescriptorSet resultSet;
+    VULKAN_CHECK(vkAllocateDescriptorSets(context->device, &allocateInfo, &resultSet));
+
+    VkDescriptorImageInfo samplerInfo = 
+    {
+        .sampler        = context->textureSampler,
+        .imageView      = imageView,
         .imageLayout    = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
     };
 
@@ -681,7 +725,7 @@ vulkan::cmd_transition_image_layout(
 
     else
     {
-        throw std::runtime_error("This layout transition is not supported!");
+        DEBUG_ASSERT(false, "This layout transition is not supported!");
     }
 
     VkDependencyFlags dependencyFlags = 0;
@@ -704,15 +748,14 @@ namespace winapi
 
 namespace winapi_vulkan_internal_
 {   
-    using CleanupFunc = void (VulkanContext*);
-    internal void add_cleanup(VulkanContext*, CleanupFunc * cleanupFunc);
+    internal void add_cleanup(VulkanContext*, VulkanContext::CleanupFunc * cleanupFunc);
 
 
-    internal VkInstance         create_vk_instance();
-    internal VkSurfaceKHR       create_vk_surface(VkInstance, WinAPIWindow*);
-    internal VkPhysicalDevice   create_vk_physical_device(VkInstance, VkSurfaceKHR);
-    internal VkDevice           create_vk_device(VkPhysicalDevice, VkSurfaceKHR);
-    internal VkSampleCountFlagBits get_max_usable_msaa_samplecount(VkPhysicalDevice);
+    internal VkInstance             create_vk_instance();
+    internal VkSurfaceKHR           create_vk_surface(VkInstance, WinAPIWindow*);
+    internal VkPhysicalDevice       create_vk_physical_device(VkInstance, VkSurfaceKHR);
+    internal VkDevice               create_vk_device(VkPhysicalDevice, VkSurfaceKHR);
+    internal VkSampleCountFlagBits  get_max_usable_msaa_samplecount(VkPhysicalDevice);
 
     internal void init_memory (VulkanContext*);
 
@@ -754,22 +797,26 @@ winapi::create_vulkan_context(WinAPIWindow * window)
     /* Todo(Leo): this probably means that we can end winapi section here,
     and move rest to platform independent section. */
 
-    VulkanQueueFamilyIndices queueFamilyIndices = vulkan::find_queue_families(context.physicalDevice, context.surface);
-    vkGetDeviceQueue(context.device, queueFamilyIndices.graphics, 0, &context.queues.graphics);
-    vkGetDeviceQueue(context.device, queueFamilyIndices.present, 0, &context.queues.present);
-
-    /// START OF RESOURCES SECTION ////////////////////
-    VkCommandPoolCreateInfo poolInfo =
-    {
-        .sType              = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-        .queueFamilyIndex   = queueFamilyIndices.graphics,
-        .flags              = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
-    };
-    RELEASE_ASSERT(vkCreateCommandPool(context.device, &poolInfo, nullptr, &context.commandPool) == VK_SUCCESS, "");
-
-
     {
         using namespace winapi_vulkan_internal_;
+
+        VulkanQueueFamilyIndices queueFamilyIndices = vulkan::find_queue_families(context.physicalDevice, context.surface);
+        vkGetDeviceQueue(context.device, queueFamilyIndices.graphics, 0, &context.queues.graphics);
+        vkGetDeviceQueue(context.device, queueFamilyIndices.present, 0, &context.queues.present);
+
+        /// START OF RESOURCES SECTION ////////////////////
+        VkCommandPoolCreateInfo poolInfo =
+        {
+            .sType              = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+            .queueFamilyIndex   = queueFamilyIndices.graphics,
+            .flags              = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
+        };
+        RELEASE_ASSERT(vkCreateCommandPool(context.device, &poolInfo, nullptr, &context.commandPool) == VK_SUCCESS, "");
+
+        add_cleanup(&context, [](VulkanContext * context)
+        {
+            vkDestroyCommandPool(context->device, context->commandPool, nullptr);
+        });
 
         // Note(Leo): these are expected to add_cleanup any functionality required
         init_memory(&context);
@@ -789,7 +836,7 @@ winapi::create_vulkan_context(WinAPIWindow * window)
             vulkan::destroy_drawing_resources(context);
         });
         
-        context.debugTextures.white = vulkan::make_texture(&context, 512, 512, {1,1,1,1});
+        context.debugTextures.white = vulkan::make_texture(&context, 512, 512, {1,1,1,1}, VK_FORMAT_R8G8B8A8_UNORM);
         add_cleanup(&context, [](VulkanContext * context)
         {
             vulkan::destroy_texture(context, &context->debugTextures.white);
@@ -799,8 +846,6 @@ winapi::create_vulkan_context(WinAPIWindow * window)
 
     // PLATFORM defined resources that GAME uses
     {
-        std::cout << "[create_vulkan_context()]: before pipelines\n";
-
         VulkanPipelineLoadInfo linePipelineInfo = 
         {
             .vertexShaderPath           = "shaders/line_vert.spv",
@@ -817,8 +862,6 @@ winapi::create_vulkan_context(WinAPIWindow * window)
         };
         context.lineDrawPipeline = vulkan::make_pipeline(&context, linePipelineInfo);
 
-
-        std::cout << "[create_vulkan_context()]: after lines\n";
         // ---------------------------------------------------------------------
 
         VulkanPipelineLoadInfo guiPipelineInfo =
@@ -838,8 +881,6 @@ winapi::create_vulkan_context(WinAPIWindow * window)
         };
         context.guiDrawPipeline = vulkan::make_pipeline(&context, guiPipelineInfo);
 
-        std::cout << "[create_vulkan_context()]: after gui\n";
-
         winapi_vulkan_internal_::add_cleanup(&context, [](VulkanContext * context)
         {
             vulkan::destroy_loaded_pipeline(context, &context->lineDrawPipeline);
@@ -849,7 +890,6 @@ winapi::create_vulkan_context(WinAPIWindow * window)
 
     // PLATFORM defined debug resources that PLATFORM uses
     {
-
         context.defaultGuiMaterial = 
         {
             .pipeline = PipelineHandle::Null,
@@ -880,19 +920,15 @@ winapi::destroy_vulkan_context(VulkanContext * context)
         context->cleanups.pop_back();
     }
 
-
-
-    vkDestroyCommandPool(context->device, context->commandPool, nullptr);
-
-    vkDestroyDevice(context->device, nullptr);
-    vkDestroySurfaceKHR(context->instance, context->surface, nullptr);
-    vkDestroyInstance(context->instance, nullptr);
+    vkDestroyDevice     (context->device, nullptr);
+    vkDestroySurfaceKHR (context->instance, context->surface, nullptr);
+    vkDestroyInstance   (context->instance, nullptr);
     
     std::cout << "[VULKAN]: shut down\n";
 }
 
 internal void 
-winapi_vulkan_internal_::add_cleanup(VulkanContext * context, CleanupFunc * cleanup)
+winapi_vulkan_internal_::add_cleanup(VulkanContext * context, VulkanContext::CleanupFunc * cleanup)
 {
     context->cleanups.push_back(cleanup);
 }
@@ -904,7 +940,7 @@ winapi_vulkan_internal_::create_vk_instance()
     auto CheckValidationLayerSupport = [] () -> bool32
     {
         VkLayerProperties availableLayers [50];
-        u32 availableLayersCount = ARRAY_COUNT(availableLayers);
+        u32 availableLayersCount = get_array_count(availableLayers);
 
         bool32 result = true;
         if (vkEnumerateInstanceLayerProperties (&availableLayersCount, availableLayers) == VK_SUCCESS)
@@ -992,7 +1028,7 @@ winapi_vulkan_internal_::create_vk_physical_device(VkInstance vulkanInstance, Vk
     auto CheckDeviceExtensionSupport = [] (VkPhysicalDevice testDevice) -> bool32
     {
         VkExtensionProperties availableExtensions [100];
-        u32 availableExtensionsCount = ARRAY_COUNT(availableExtensions);
+        u32 availableExtensionsCount = get_array_count(availableExtensions);
         vkEnumerateDeviceExtensionProperties (testDevice, nullptr, &availableExtensionsCount, availableExtensions);
 
         bool32 result = true;
@@ -1054,7 +1090,7 @@ winapi_vulkan_internal_::create_vk_physical_device(VkInstance vulkanInstance, Vk
 
 
     VkPhysicalDevice devices [10];
-    u32 deviceCount = ARRAY_COUNT(devices);
+    u32 deviceCount = get_array_count(devices);
     vkEnumeratePhysicalDevices(vulkanInstance, &deviceCount, devices);
 
     // Note(Leo): No gpu found at all, or no vulkan supporting gpu
@@ -1191,8 +1227,6 @@ winapi_vulkan_internal_::init_memory(VulkanContext * context)
         vulkan::destroy_buffer_resource(context->device, &context->modelUniformBuffer);
         vulkan::destroy_buffer_resource(context->device, &context->sceneUniformBuffer);
     });
-
-
 };
 
 internal void
@@ -1515,5 +1549,3 @@ winapi_vulkan_internal_::init_scene_descriptor_set_layout(VulkanContext * contex
         vkDestroyDescriptorSetLayout(context->device, context->descriptorSetLayouts.scene, nullptr);
     });
 }
-
-#undef CLEANUP

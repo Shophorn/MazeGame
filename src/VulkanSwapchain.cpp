@@ -125,13 +125,12 @@ vulkan::recreate_drawing_resources(VulkanContext * context, u32 width, u32 heigh
     
 
     // Todo(Leo): these maybe should go somewhere else
-    recreate_loaded_pipelines(context);
-
-    destroy_loaded_pipeline(context, &context->lineDrawPipeline);
-    destroy_loaded_pipeline(context, &context->guiDrawPipeline);
-    context->lineDrawPipeline       = make_pipeline(context, context->lineDrawPipeline.info);
-    context->guiDrawPipeline        = make_pipeline(context, context->guiDrawPipeline.info);
-
+    for(auto & pipeline : context->loadedPipelines)
+    {
+        recreate_loaded_pipeline(context, &pipeline);
+    }
+    recreate_loaded_pipeline(context, &context->lineDrawPipeline);
+    recreate_loaded_pipeline(context, &context->guiDrawPipeline);
 }
 
 internal void

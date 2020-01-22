@@ -132,20 +132,8 @@ Run(HINSTANCE hInstance)
         
         std::cout << "Target frame time = " << targetFrameTime << ", (fps = " << 1.0 / targetFrameTime << ")\n";
     }
-
-
-
-
-
-
-
-
+    
     VulkanContext vulkanContext = winapi::create_vulkan_context(&window);
-
-
-
-
-
     HWNDUserPointer userPointer = 
     {
         .window = &window,
@@ -159,33 +147,13 @@ Run(HINSTANCE hInstance)
 
         state.platformFunctions =
         {
-            // GRAPHICS/VULKAN FUNCTIONS
-            .push_mesh           = vulkan::push_mesh,
-            .push_texture        = vulkan::push_texture,
-            .push_cubemap        = vulkan::push_cubemap,
-            .push_material       = vulkan::push_material,
-            .push_gui_material   = vulkan::push_gui_material,
-            .push_model          = vulkan::push_model,
-            .push_pipeline       = vulkan::push_pipeline,
-            .unload_scene        = vulkan::unload_scene,
-
-            .prepare_frame       = vulkan::prepare_drawing,
-            .finish_frame        = vulkan::finish_drawing,
-            .update_camera       = vulkan::update_camera,
-            .draw_model          = vulkan::record_draw_command,
-            .draw_line           = vulkan::record_line_draw_command,
-            .draw_gui            = vulkan::record_gui_draw_command,
-
-            .prepare_shadow_pass    = vulkan::prepare_shadow_pass,
-            .finish_shadow_pass     = vulkan::finish_shadow_pass,
-            .draw_shadow_model      = vulkan::draw_shadow_model,
-
             // WINDOW FUNCTIONS
             .get_window_width        = [](platform::Window const * window) { return window->width; },
             .get_window_height       = [](platform::Window const * window) { return window->height; },
             .is_window_fullscreen    = [](platform::Window const * window) { return window->isFullscreen; },
             .set_window_fullscreen   = winapi::set_window_fullscreen,
         };
+        platform::fill_functions(&vulkanContext, &state.platformFunctions);
 
         assert(all_functions_set(&state.platformFunctions));
 
@@ -323,58 +291,40 @@ Run(HINSTANCE hInstance)
         // Note(Leo): Game is not updated when window is not drawable.
         if (winapi::is_window_drawable(&window))
         {
-            // Todo(Leo): Study fences
-            // Todo(Leo): Vulkan related things should be moved to vulkan section            
-            vkWaitForFences(vulkanContext.device, 1, &vulkan::get_current_virtual_frame(&vulkanContext)->inFlightFence,
-                            VK_TRUE, VULKAN_NO_TIME_OUT);
 
-            VkResult getNextImageResult = vkAcquireNextImageKHR(vulkanContext.device,
-                                                                vulkanContext.drawingResources.swapchain,
-                                                                VULKAN_NO_TIME_OUT,//MaxValue<u64>,
-                                                                vulkan::get_current_virtual_frame(&vulkanContext)->imageAvailableSemaphore,
-                                                                VK_NULL_HANDLE,
-                                                                &vulkanContext.currentDrawFrameIndex);
+            game::SoundOutput gameSoundOutput = {};
+            winapi::GetAudioBuffer(&audio, &gameSoundOutput.sampleCount, &gameSoundOutput.samples);
             
-            if(winapi::is_loaded(&game))
+            switch(platform::prepare_frame(&vulkanContext))
             {
-                game::SoundOutput gameSoundOutput = {};
-                winapi::GetAudioBuffer(&audio, &gameSoundOutput.sampleCount, &gameSoundOutput.samples);
+                case platform::FRAME_OK:
+                    gameIsRunning = game.Update(&gameInput, &gameMemory,
+                                                &gameNetwork, &gameSoundOutput,
+                                                
+                                                &vulkanContext,
+                                                &window,
+                                                &state.platformFunctions);
 
-                gameIsRunning = game.Update(&gameInput, &gameMemory,
-                                            &gameNetwork, &gameSoundOutput,
-                                            
-                                            &vulkanContext,
-                                            &window,
-                                            &state.platformFunctions);
+                    // vulkan::draw_frame(&vulkanContext);
+                    break;
 
-                winapi::ReleaseAudioBuffer(&audio, gameSoundOutput.sampleCount);
+                case platform::FRAME_RECREATE:
+                    // Todo(Leo): this is last function we actually call specifically from 'vulkan'
+                    // and not platform. Do something about that.
+                    vulkan::recreate_drawing_resources(&vulkanContext, window.width, window.height);
+                    break;
+
+                case platform::FRAME_BAD_PROBLEM:
+                    DEBUG_ASSERT(false, "We should not be here, please investigate");
+
+
             }
 
+            winapi::ReleaseAudioBuffer(&audio, gameSoundOutput.sampleCount);
             // Note(Leo): It doesn't so much matter where this is checked.
             if (window.shouldClose)
             {
                 gameIsRunning = false;
-            }
-
-            /// ---- DRAW -----    
-            /*
-            Note(Leo): Only draw image if we have window that is not minimized. Vulkan on windows MUST not
-            have framebuffer size 0, which is what minimized window is.
-            */
-        
-            switch (getNextImageResult)
-            {
-                case VK_SUCCESS:
-                    vulkan::draw_frame(&vulkanContext);
-                    break;
-
-                case VK_SUBOPTIMAL_KHR:
-                case VK_ERROR_OUT_OF_DATE_KHR:
-                    vulkan::recreate_drawing_resources(&vulkanContext, window.width, window.height);
-                    break;
-
-                default:
-                    throw std::runtime_error("Failed to acquire swap chain image");
             }
         }
 

@@ -136,23 +136,6 @@ struct VulkanLoadedPipeline
 	VkDescriptorSetLayout	materialLayout;
 };
 
-// struct VulkanOffscreenPass
-// {
-//     u32 width;
-//     u32 height;
-    
-//     VkFramebuffer framebuffer;
-//     struct
-//     {
-//         VulkanTexture color;
-//         VulkanTexture depth;
-//     } attachments;
-
-//     VkRenderPass renderPass;
-//     VkSampler sampler;
-//     VkDescriptorImageInfo descriptor;
-// };
-
 struct VulkanVirtualFrame
 {
 	struct
@@ -168,7 +151,7 @@ struct VulkanVirtualFrame
 	} commandBuffers;
 
 	VkFramebuffer  framebuffer;
-    VkFramebuffer  bonusFramebuffer;
+    VkFramebuffer  shadowFramebuffer;
 
 	VkSemaphore    imageAvailableSemaphore;
 	VkSemaphore    renderFinishedSemaphore;
@@ -211,7 +194,6 @@ struct platform::Graphics
    	 	VkDescriptorSet scene;
     } uniformDescriptorSets;
 
-
     // Uncategorized
 	VkCommandPool 			commandPool;
     VkSampleCountFlagBits 	msaaSamples;
@@ -221,25 +203,24 @@ struct platform::Graphics
     afterwards resolved to actual framebufferimage */
 
 	struct {
-	    VkSwapchainKHR swapchain;
-	    VkExtent2D extent;
+	    VkSwapchainKHR 	swapchain;
+	    VkExtent2D 		extent;
 
-	    VkFormat imageFormat;
-	    std::vector<VkImage> images;
-	    std::vector<VkImageView> imageViews;
+	    VkFormat 					imageFormat;
+	    std::vector<VkImage> 		images;
+	    std::vector<VkImageView> 	imageViews;
 
 	    VkRenderPass renderPass;
 
 	    // Note(Leo): these are attchaments.
 		VkDeviceMemory memory;
 
-		VkImage colorImage;
+		VkImage 	colorImage;
 		VkImageView colorImageView;
 
-		VkImage depthImage;	
+		VkImage 	depthImage;	
 		VkImageView depthImageView;
 	} drawingResources = {};
-    
 
     VulkanBufferResource stagingBufferPool;
     VulkanBufferResource staticMeshPool;
@@ -247,6 +228,7 @@ struct platform::Graphics
     VulkanBufferResource sceneUniformBuffer;
    
     // Todo(Leo): Use our own arena arrays for these.
+    // Todo(Leo): Expose a function to game layer to reserve memory for these
     std::vector<VulkanMesh>  			loadedMeshes;
 	std::vector<VulkanTexture> 			loadedTextures;
 	std::vector<VulkanMaterial>			loadedMaterials;
@@ -260,7 +242,9 @@ struct platform::Graphics
 	std::vector<VulkanMaterial> loadedGuiMaterials;
 	VulkanMaterial 				defaultGuiMaterial;
 
-	std::vector<void(*)(platform::Graphics*)> cleanups = {};
+	// Note(Leo): This is a list of functions to call when destroying this.
+    using CleanupFunc = void (platform::Graphics*);
+	std::vector<CleanupFunc*> cleanups = {};
 
 	struct {
 		VulkanTexture white;
@@ -382,9 +366,6 @@ namespace vulkan
 	internal void recreate_loaded_pipeline				(VulkanContext*, VulkanLoadedPipeline*);
 	internal void destroy_loaded_pipeline 				(VulkanContext*, VulkanLoadedPipeline*);
 
-	internal VulkanTexture make_texture	(VulkanContext*, TextureAsset * asset);
-	internal VulkanTexture make_texture	(VulkanContext * context, u32 width, u32 height, float4 color);
-	internal VulkanTexture make_cubemap	(VulkanContext*, StaticArray<TextureAsset, 6> * assets);
 	internal void destroy_texture 		(VulkanContext*, VulkanTexture * texture);
 
 	internal VulkanBufferResource make_buffer_resource(	VulkanContext*,
@@ -401,25 +382,16 @@ namespace vulkan
 																	VulkanLoadedPipeline * pipeline,
 																	VulkanTexture * texture,
 																	VkDescriptorPool pool);
+	internal VkDescriptorSet 		make_material_vk_descriptor_set(VulkanContext*, 
+																	VulkanLoadedPipeline * pipeline,
+																	VkImageView imageView,
+																	VkDescriptorPool pool);
 	internal VkFramebuffer 			make_vk_framebuffer(VkDevice, VkRenderPass, u32 attachmentCount, VkImageView * attachments, u32 width, u32 height);
 	internal VkShaderModule 		make_vk_shader_module(BinaryAsset file, VkDevice logicalDevice);
 	internal VkImage 				make_vk_image(	VulkanContext*, u32 width, u32 height, u32 mipLevels, VkFormat format,
 											    	VkImageTiling tiling, VkImageUsageFlags usage,
 											    	VkSampleCountFlagBits msaaSamples);
 	internal VkImageView 			make_vk_image_view(VkDevice device, VkImage image, u32 mipLevels, VkFormat format, VkImageAspectFlags aspectFlags);
-
-	// Note(Leo): SCENE and DRAWING functions are passed as pointers to game layer.
-	/// SCENE, VulkanScene.cpp
-    internal TextureHandle 	push_texture (VulkanContext*, TextureAsset * texture);
-    internal TextureHandle  push_render_texture (VulkanContext*, u32 width, u32 height);
-    internal TextureHandle 	push_cubemap(VulkanContext*, StaticArray<TextureAsset, 6> * assets);
-
-    internal MaterialHandle push_material (VulkanContext*, MaterialAsset * asset);
-    internal MaterialHandle push_gui_material (VulkanContext*, TextureHandle texture);
-    internal MeshHandle 	push_mesh(VulkanContext*, MeshAsset * mesh);
-    internal ModelHandle 	push_model (VulkanContext*, MeshHandle mesh, MaterialHandle material);
-    internal PipelineHandle push_pipeline(VulkanContext*, char const * vertexShaderPath, char const * fragmentShaderPath, platform::RenderingOptions options);
-    internal void 			unload_scene(VulkanContext*);
 
 	/// DRAWING, VulkanDrawing.cpp
     internal void update_camera				(VulkanContext*, Matrix44 view, Matrix44 perspective);
@@ -428,15 +400,85 @@ namespace vulkan
 	internal void record_draw_command 		(VulkanContext*, ModelHandle handle, Matrix44 transform);
 	internal void record_line_draw_command	(VulkanContext*, vector3 start, vector3 end, float width, float4 color);
 	internal void record_gui_draw_command	(VulkanContext*, vector2 position, vector2 size, MaterialHandle material, float4 color);
-	internal void draw_frame 				(VulkanContext * context);
 
 	internal void prepare_shadow_pass 		(VulkanContext*, Matrix44 view, Matrix44 perspective);
 	internal void finish_shadow_pass 		(VulkanContext*);
 	internal void draw_shadow_model			(VulkanContext*, ModelHandle model, Matrix44 transform);
 
-	// Lol, this is not given to game layer
+	// internal platform::FrameResult prepare_frame (VulkanContext*);
+	internal void draw_frame 		(VulkanContext * context);
+
+
+
+    internal TextureHandle  push_texture (VulkanContext * context, TextureAsset * texture);
+    internal MaterialHandle push_material (VulkanContext * context, MaterialAsset * asset);
+    internal MaterialHandle push_gui_material (VulkanContext * context, TextureHandle texture);
+    internal MeshHandle     push_mesh(VulkanContext * context, MeshAsset * mesh);
+    internal ModelHandle    push_model (VulkanContext * context, MeshHandle mesh, MaterialHandle material);
+    internal TextureHandle  push_cubemap(VulkanContext * context, StaticArray<TextureAsset, 6> * assets);
+    internal PipelineHandle push_pipeline(VulkanContext * context, const char * vertexShaderPath, const char * fragmentShaderPath, platform::RenderingOptions options);
+    internal void           unload_scene(VulkanContext * context);
+    
+    internal VulkanTexture  make_texture(VulkanContext * context, TextureAsset * asset);
+    internal VulkanTexture  make_texture(VulkanContext * context, u32 width, u32 height, float4 color, VkFormat format);
+    internal VulkanTexture  make_cubemap(VulkanContext * context, StaticArray<TextureAsset, 6> * assets);        
+
 }
 
+
+
+platform::FrameResult
+platform::prepare_frame(VulkanContext * context)
+{
+	VulkanVirtualFrame * frame = vulkan::get_current_virtual_frame(context);
+
+    vkWaitForFences(context->device, 1, &frame->inFlightFence, VK_TRUE, VULKAN_NO_TIME_OUT);
+
+    VkResult result = vkAcquireNextImageKHR(context->device,
+                                            context->drawingResources.swapchain,
+                                            VULKAN_NO_TIME_OUT,//MaxValue<u64>,
+                                            frame->imageAvailableSemaphore,
+                                            VK_NULL_HANDLE,
+                                            &context->currentDrawFrameIndex);
+
+    switch(result)
+    {
+    	case VK_SUCCESS:
+    		return platform::FRAME_OK;
+
+	    case VK_SUBOPTIMAL_KHR:
+	    case VK_ERROR_OUT_OF_DATE_KHR:
+	    	return platform::FRAME_RECREATE;
+
+	    default:
+	    	return platform::FRAME_BAD_PROBLEM;
+    }
+}
+
+void
+platform::fill_functions(VulkanContext * context, platform::Functions * functions)
+{
+ 	functions->push_mesh              = vulkan::push_mesh;
+ 	functions->push_texture           = vulkan::push_texture;
+ 	functions->push_cubemap           = vulkan::push_cubemap;
+ 	functions->push_material          = vulkan::push_material;
+ 	functions->push_gui_material      = vulkan::push_gui_material;
+ 	functions->push_model             = vulkan::push_model;
+ 	functions->push_pipeline          = vulkan::push_pipeline;
+ 	functions->unload_scene           = vulkan::unload_scene;
+    
+ 	functions->prepare_frame          = vulkan::prepare_drawing;
+ 	functions->finish_frame           = vulkan::finish_drawing;
+ 	functions->update_camera          = vulkan::update_camera;
+ 	functions->draw_model             = vulkan::record_draw_command;
+ 	functions->draw_line              = vulkan::record_line_draw_command;
+ 	functions->draw_gui               = vulkan::record_gui_draw_command;
+
+ 	functions->prepare_shadow_pass    = vulkan::prepare_shadow_pass;
+ 	functions->finish_shadow_pass     = vulkan::finish_shadow_pass;
+ 	functions->draw_shadow_model      = vulkan::draw_shadow_model;
+
+}
 
 #define WIN_VULKAN_HPP
 #endif

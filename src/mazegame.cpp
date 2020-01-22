@@ -57,6 +57,7 @@ initialize_game_state(GameState * state, game::Memory * memory)
 {
 	*state = {};
 
+
 	// // Note(Leo): Create persistent arena in the same memoryblock as game state, right after it.
 	u64 gameStateSize 				= align_up_to(sizeof(GameState), MemoryArena::defaultAlignment);
 	byte * persistentMemory 		= reinterpret_cast<byte *> (memory->persistentMemory) + gameStateSize;
