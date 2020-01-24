@@ -42,7 +42,7 @@ global_variable int globalXinputControllerIndex;
 // Todo(Leo): Vulkan implementation depends on this, not cool
 using BinaryAsset = std::vector<u8>;
 BinaryAsset
-ReadBinaryFile (const char * fileName)
+read_binary_file (const char * fileName)
 {
     std::ifstream file (fileName, std::ios::ate | std::ios::binary);
 

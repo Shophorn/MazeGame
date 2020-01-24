@@ -15,7 +15,7 @@ Implementations of vulkan related functions
 'kinds' of resources or something, so their amount does not change
 
 IMPORTANT(Leo): These must be same in shaders
-Todo(Leo): this is stupid and dangerous, please remove.
+Todo(Leo): this is stupid, please remove.
 */
 enum : u32
 {
@@ -81,7 +81,6 @@ vulkan::find_memory_type (VkPhysicalDevice physicalDevice, u32 typeFilter, VkMem
     DEBUG_ASSERT(false, "Failed to find suitable memory type.");
 }   
 
-
 internal VulkanBufferResource
 vulkan::make_buffer_resource(
     VulkanContext *         context,
@@ -134,7 +133,6 @@ vulkan::destroy_buffer_resource(VkDevice logicalDevice, VulkanBufferResource * r
     vkDestroyBuffer(logicalDevice, resource->buffer, nullptr);
     vkFreeMemory(logicalDevice, resource->memory, nullptr);
 }
-
 
 internal VkIndexType
 vulkan::convert_index_type(IndexType type)
@@ -215,7 +213,6 @@ vulkan::choose_surface_present_mode(std::vector<VkPresentModeKHR> & availablePre
     return result;
 }
 
-
 VulkanQueueFamilyIndices
 vulkan::find_queue_families (VkPhysicalDevice device, VkSurfaceKHR surface)
 {
@@ -253,7 +250,6 @@ vulkan::find_queue_families (VkPhysicalDevice device, VkSurfaceKHR surface)
     return result;
 }
 
-
 VkShaderModule
 vulkan::make_vk_shader_module(BinaryAsset code, VkDevice logicalDevice)
 {
@@ -270,8 +266,6 @@ vulkan::make_vk_shader_module(BinaryAsset code, VkDevice logicalDevice)
 
     return result;
 }
-
-
 
 internal VkImageView
 vulkan::make_vk_image_view(
@@ -516,11 +510,13 @@ vulkan::make_material_vk_descriptor_set(
 }
 
 internal VkDescriptorSet
-vulkan::make_material_vk_descriptor_set(
-    VulkanContext * context,
-    VulkanLoadedPipeline * pipeline,
-    VkImageView imageView,
-    VkDescriptorPool pool)
+make_material_vk_descriptor_set_2(
+    VulkanContext *         context,
+    VulkanLoadedPipeline *  pipeline,
+    VkImageView             imageView,
+    VkDescriptorPool        pool,
+    VkSampler               sampler,
+    VkImageLayout           layout)
 {
     VkDescriptorSetAllocateInfo allocateInfo =
     { 
@@ -535,9 +531,9 @@ vulkan::make_material_vk_descriptor_set(
 
     VkDescriptorImageInfo samplerInfo = 
     {
-        .sampler        = context->textureSampler,
+        .sampler        = sampler,
         .imageView      = imageView,
-        .imageLayout    = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        .imageLayout    = layout,
     };
 
     VkWriteDescriptorSet writing =
@@ -584,7 +580,6 @@ vulkan::make_vk_framebuffer(VkDevice        device,
     return result;
 }
 
-
 internal void
 vulkan::destroy_texture(VulkanContext * context, VulkanTexture * texture)
 {
@@ -592,8 +587,6 @@ vulkan::destroy_texture(VulkanContext * context, VulkanTexture * texture)
     vkFreeMemory(context->device, texture->memory, nullptr);
     vkDestroyImageView(context->device, texture->view, nullptr);
 }
-
-
 
 internal VkImage
 vulkan::make_vk_image( VulkanContext * context,
@@ -652,7 +645,7 @@ vulkan::cmd_transition_image_layout(
 
     barrier.image = image;
 
-    if (newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
+    if (newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL || newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL)
     {
         barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
         if (vulkan::has_stencil_component(format))
@@ -699,6 +692,26 @@ vulkan::cmd_transition_image_layout(
         sourceStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
         destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
     }
+
+    else if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED 
+            && newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+    {
+        barrier.srcAccessMask = 0;
+        barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+        sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+        destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+    }
+    else if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED
+            && newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL)
+    {
+        barrier.srcAccessMask = 0;
+        barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+        sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+        destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+
+    }
     // DEPTH IMAGE
     else if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED
             && newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
@@ -737,6 +750,37 @@ vulkan::cmd_transition_image_layout(
                             1, &barrier);
 }
 
+VkSampler
+vulkan::make_vk_sampler(VkDevice device)
+{
+    VkSamplerCreateInfo samplerInfo =
+    { 
+        .sType              = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+        .magFilter          = VK_FILTER_LINEAR,
+        .minFilter          = VK_FILTER_LINEAR,
+
+        .addressModeU       = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+        .addressModeV       = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+        .addressModeW       = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+
+        .anisotropyEnable   = VK_TRUE,
+        .maxAnisotropy      = 16,
+
+        .borderColor                 = VK_BORDER_COLOR_INT_OPAQUE_WHITE,
+        .unnormalizedCoordinates     = VK_FALSE,
+        .compareEnable               = VK_FALSE,
+        .compareOp                   = VK_COMPARE_OP_ALWAYS,
+
+        .mipmapMode         = VK_SAMPLER_MIPMAP_MODE_LINEAR,
+        .minLod             = 0.0f,
+        .maxLod             = VULKAN_MAX_LOD_FLOAT,
+        .mipLodBias         = 0.0f,
+    };
+    VkSampler result;
+    VULKAN_CHECK(vkCreateSampler(device, &samplerInfo, nullptr, &result));
+    return result;
+}
+
 /* Todo(Leo): this belongs to winapi namespace because it is definetly windows specific.
 Make better separation between windows part of this and vulkan part of this. */
 namespace winapi
@@ -744,7 +788,6 @@ namespace winapi
     internal VulkanContext create_vulkan_context  (WinAPIWindow*);
     internal void destroy_vulkan_context        (VulkanContext*);
 }
-
 
 namespace winapi_vulkan_internal_
 {   
@@ -757,19 +800,17 @@ namespace winapi_vulkan_internal_
     internal VkDevice               create_vk_device(VkPhysicalDevice, VkSurfaceKHR);
     internal VkSampleCountFlagBits  get_max_usable_msaa_samplecount(VkPhysicalDevice);
 
-    internal void init_memory (VulkanContext*);
-
-    internal void init_model_descriptor_set_layout(VulkanContext*);
-    internal void init_scene_descriptor_set_layout(VulkanContext*);
-
-    internal void init_material_descriptor_pool   (VulkanContext*);
-    internal void init_uniform_descriptor_pool    (VulkanContext*);
-    internal void init_persistent_descriptor_pool (VulkanContext*, u32 descriptorCount, u32 maxSets);
-
-    internal void init_model_descriptor_sets      (VulkanContext*);
-    internal void init_scene_descriptor_sets      (VulkanContext*);
-    internal void init_texture_sampler            (VulkanContext*);
-    internal void init_virtual_frames             (VulkanContext*);
+    // Todo(Leo): These are not winapi specific, so they could move to universal vulkan layer
+    internal void init_memory                       (VulkanContext*);
+    internal void init_model_descriptor_set_layout  (VulkanContext*);
+    internal void init_scene_descriptor_set_layout  (VulkanContext*);
+    internal void init_material_descriptor_pool     (VulkanContext*);
+    internal void init_uniform_descriptor_pool      (VulkanContext*);
+    internal void init_persistent_descriptor_pool   (VulkanContext*, u32 descriptorCount, u32 maxSets);
+    internal void init_model_descriptor_sets        (VulkanContext*);
+    internal void init_scene_descriptor_sets        (VulkanContext*);
+    internal void init_virtual_frames               (VulkanContext*);
+    internal void init_shadow_pass                  (VulkanContext*, u32 width, u32 height);
 }
 
 internal VulkanContext
@@ -828,14 +869,21 @@ winapi::create_vulkan_context(WinAPIWindow * window)
         init_persistent_descriptor_pool (&context, 20, 20);
         init_model_descriptor_sets (&context);
         init_scene_descriptor_sets (&context);
-        init_texture_sampler (&context);
     
+        context.textureSampler = vulkan::make_vk_sampler(context.device);
+        add_cleanup(&context, [](VulkanContext * context)
+        {
+            vkDestroySampler(context->device, context->textureSampler, nullptr);
+        });
+
         vulkan::create_drawing_resources(&context, window->width, window->height);
         add_cleanup(&context, [](VulkanContext * context)
         {
             vulkan::destroy_drawing_resources(context);
         });
         
+        init_shadow_pass(&context, 1024, 1024);
+
         context.debugTextures.white = vulkan::make_texture(&context, 512, 512, {1,1,1,1}, VK_FORMAT_R8G8B8A8_UNORM);
         add_cleanup(&context, [](VulkanContext * context)
         {
@@ -848,14 +896,14 @@ winapi::create_vulkan_context(WinAPIWindow * window)
     {
         VulkanPipelineLoadInfo linePipelineInfo = 
         {
-            .vertexShaderPath           = "shaders/line_vert.spv",
-            .fragmentShaderPath         = "shaders/line_frag.spv",
+            .vertexShaderPath               = "shaders/line_vert.spv",
+            .fragmentShaderPath             = "shaders/line_frag.spv",
 
-            .options.primitiveType      = platform::RenderingOptions::PRIMITIVE_LINE,
-            .options.lineWidth          = 2.0f,
-            .options.pushConstantSize   = sizeof(float4) * 3,
+            .options.primitiveType          = platform::RenderingOptions::PRIMITIVE_LINE,
+            .options.lineWidth              = 2.0f,
+            .options.pushConstantSize       = sizeof(float4) * 3,
 
-            .options.useVertexInput      = false,
+            .options.useVertexInput         = false,
             .options.useSceneLayoutSet      = true,
             .options.useMaterialLayoutSet   = false,
             .options.useModelLayoutSet      = false,
@@ -866,14 +914,14 @@ winapi::create_vulkan_context(WinAPIWindow * window)
 
         VulkanPipelineLoadInfo guiPipelineInfo =
         {
-            .vertexShaderPath    = "shaders/gui_vert2.spv",
-            .fragmentShaderPath    = "shaders/gui_frag2.spv",
+            .vertexShaderPath               = "shaders/gui_vert2.spv",
+            .fragmentShaderPath             = "shaders/gui_frag2.spv",
 
-            .options.primitiveType = platform::RenderingOptions::PRIMITIVE_TRIANGLE_STRIP,
-            .options.cullMode = platform::RenderingOptions::CULL_NONE,
-            .options.pushConstantSize = sizeof(vector2) * 4 + sizeof(float4),
-            .options.textureCount = 1,
-            .options.useVertexInput = false,
+            .options.primitiveType          = platform::RenderingOptions::PRIMITIVE_TRIANGLE_STRIP,
+            .options.cullMode               = platform::RenderingOptions::CULL_NONE,
+            .options.pushConstantSize       = sizeof(vector2) * 4 + sizeof(float4),
+            .options.textureCount           = 1,
+            .options.useVertexInput         = false,
 
             .options.useSceneLayoutSet      = false,
             .options.useMaterialLayoutSet   = true,
@@ -881,10 +929,14 @@ winapi::create_vulkan_context(WinAPIWindow * window)
         };
         context.guiDrawPipeline = vulkan::make_pipeline(&context, guiPipelineInfo);
 
+        guiPipelineInfo.fragmentShaderPath = "shaders/shadow_view_frag.spv";
+        context.shadowPass.debugView = vulkan::make_pipeline(&context, guiPipelineInfo);
+
         winapi_vulkan_internal_::add_cleanup(&context, [](VulkanContext * context)
         {
             vulkan::destroy_loaded_pipeline(context, &context->lineDrawPipeline);
             vulkan::destroy_loaded_pipeline(context, &context->guiDrawPipeline);
+            vulkan::destroy_loaded_pipeline(context, &context->shadowPass.debugView);
         });
     }
 
@@ -893,10 +945,13 @@ winapi::create_vulkan_context(WinAPIWindow * window)
         context.defaultGuiMaterial = 
         {
             .pipeline = PipelineHandle::Null,
-            .descriptorSet = vulkan::make_material_vk_descriptor_set(   &context,
-                                                                        &context.guiDrawPipeline,
-                                                                        &context.debugTextures.white,
-                                                                        context.descriptorPools.persistent),
+            .descriptorSet = make_material_vk_descriptor_set_2( &context,
+                                                                &context.shadowPass.debugView,
+                                                                context.shadowPass.attachment.view,
+                                                                // &context.debugTextures.white,
+                                                                context.descriptorPools.persistent,
+                                                                context.shadowPass.sampler,
+                                                                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL),
         };
 
     }
@@ -1390,42 +1445,6 @@ winapi_vulkan_internal_::init_scene_descriptor_sets(VulkanContext * context)
 }
 
 internal void
-winapi_vulkan_internal_::init_texture_sampler(VulkanContext * context)
-{
-    VkSamplerCreateInfo samplerInfo =
-    { 
-        .sType              = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
-        .magFilter          = VK_FILTER_LINEAR,
-        .minFilter          = VK_FILTER_LINEAR,
-
-        .addressModeU       = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-        .addressModeV       = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-        .addressModeW       = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-
-        .anisotropyEnable   = VK_TRUE,
-        .maxAnisotropy      = 16,
-
-        .borderColor                 = VK_BORDER_COLOR_INT_OPAQUE_BLACK,
-        .unnormalizedCoordinates     = VK_FALSE,
-        .compareEnable               = VK_FALSE,
-        .compareOp                   = VK_COMPARE_OP_ALWAYS,
-
-        .mipmapMode         = VK_SAMPLER_MIPMAP_MODE_LINEAR,
-        .minLod             = 0.0f,
-        .maxLod             = VULKAN_MAX_LOD_FLOAT,
-        .mipLodBias         = 0.0f,
-    };
-
-    VULKAN_CHECK(vkCreateSampler(context->device, &samplerInfo, nullptr, &context->textureSampler));
-
-    add_cleanup(context, [](VulkanContext * context)
-    {
-        vkDestroySampler(context->device, context->textureSampler, nullptr);
-    });
-}
-
-
-internal void
 winapi_vulkan_internal_::init_virtual_frames(VulkanContext * context)
 {
     VkCommandBufferAllocateInfo primaryCmdAllocateInfo =
@@ -1467,9 +1486,10 @@ winapi_vulkan_internal_::init_virtual_frames(VulkanContext * context)
         success = success && vkAllocateCommandBuffers(context->device, &secondaryCmdAllocateInfo, &frame.commandBuffers.scene) == VK_SUCCESS;
         success = success && vkAllocateCommandBuffers(context->device, &secondaryCmdAllocateInfo, &frame.commandBuffers.gui) == VK_SUCCESS;
 
-        success = success && vkAllocateCommandBuffers(context->device, &primaryCmdAllocateInfo, &frame.commandBuffers.offscreen) == VK_SUCCESS;
+        success = success && vkAllocateCommandBuffers(context->device, &secondaryCmdAllocateInfo, &frame.commandBuffers.offscreen) == VK_SUCCESS;
 
         // Synchronization stuff
+        success = success && vkCreateSemaphore(context->device, &semaphoreInfo, nullptr, &frame.shadowPassWaitSemaphore) == VK_SUCCESS;
         success = success && vkCreateSemaphore(context->device, &semaphoreInfo, nullptr, &frame.imageAvailableSemaphore) == VK_SUCCESS;
         success = success && vkCreateSemaphore(context->device, &semaphoreInfo, nullptr, &frame.renderFinishedSemaphore) == VK_SUCCESS;
         success = success && vkCreateFence(context->device, &fenceInfo, nullptr, &frame.inFlightFence) == VK_SUCCESS;
@@ -1486,6 +1506,7 @@ winapi_vulkan_internal_::init_virtual_frames(VulkanContext * context)
             them in drawing procedure */
             vkDestroyFramebuffer(context->device, frame.framebuffer, nullptr);
             
+            vkDestroySemaphore(context->device, frame.shadowPassWaitSemaphore, nullptr);
             vkDestroySemaphore(context->device, frame.renderFinishedSemaphore, nullptr);
             vkDestroySemaphore(context->device, frame.imageAvailableSemaphore, nullptr);
             vkDestroyFence(context->device, frame.inFlightFence, nullptr);
@@ -1547,5 +1568,270 @@ winapi_vulkan_internal_::init_scene_descriptor_set_layout(VulkanContext * contex
     add_cleanup(context, [](VulkanContext * context)
     {
         vkDestroyDescriptorSetLayout(context->device, context->descriptorSetLayouts.scene, nullptr);
+    });
+}
+
+void
+winapi_vulkan_internal_::init_shadow_pass(VulkanContext * context, u32 width, u32 height)
+{
+    using namespace vulkan;
+    VkFormat format = VK_FORMAT_D32_SFLOAT;
+
+    context->shadowPass.width = width;
+    context->shadowPass.height = height;
+
+    context->shadowPass.attachment = make_shadow_texture(context, context->shadowPass.width, context->shadowPass.height, format);
+
+    context->shadowPass.sampler = make_vk_sampler(context->device);
+
+    VkAttachmentDescription attachment =
+    {
+        .format         = format,
+        .samples        = VK_SAMPLE_COUNT_1_BIT,
+        .loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR,
+        .storeOp        = VK_ATTACHMENT_STORE_OP_STORE,
+        .stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+        .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+        .initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED,
+        .finalLayout    = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+    };
+
+
+
+    // Note(Leo): there can be only one depth attachment
+    VkAttachmentReference depthStencilAttachmentRef =
+    {
+        .attachment = 0,
+        .layout     = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+    };
+
+    VkSubpassDescription subpasses[1]       = {};
+    subpasses[0].pipelineBindPoint          = VK_PIPELINE_BIND_POINT_GRAPHICS;
+    subpasses[0].colorAttachmentCount       = 0;
+    subpasses[0].pColorAttachments          = nullptr;
+    subpasses[0].pResolveAttachments        = nullptr;
+    subpasses[0].pDepthStencilAttachment    = &depthStencilAttachmentRef;
+
+    // Note(Leo): subpass dependencies
+    VkSubpassDependency dependencies[2]     = {};
+    dependencies[0].srcSubpass              = VK_SUBPASS_EXTERNAL;
+    dependencies[0].dstSubpass              = 0;
+    
+    dependencies[0].srcStageMask            = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+    dependencies[0].dstStageMask            = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+
+    dependencies[0].srcAccessMask           = VK_ACCESS_SHADER_READ_BIT;
+    dependencies[0].dstAccessMask           = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+    dependencies[0].dependencyFlags         = VK_DEPENDENCY_BY_REGION_BIT;
+
+    dependencies[1].srcSubpass              = 0;
+    dependencies[1].dstSubpass              = VK_SUBPASS_EXTERNAL;
+    
+    dependencies[1].srcStageMask            = VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+    dependencies[1].dstStageMask            = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+
+    dependencies[1].srcAccessMask           = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+    dependencies[1].dstAccessMask           = VK_ACCESS_SHADER_READ_BIT;
+    dependencies[1].dependencyFlags         = VK_DEPENDENCY_BY_REGION_BIT;
+
+    VkRenderPassCreateInfo renderPassInfo   = { VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO };
+    renderPassInfo.attachmentCount          = 1;
+    renderPassInfo.pAttachments             = &attachment;
+    renderPassInfo.subpassCount             = 1;
+    renderPassInfo.pSubpasses               = subpasses;
+    renderPassInfo.dependencyCount          = get_array_count(dependencies);
+    renderPassInfo.pDependencies            = &dependencies[0];
+
+    VULKAN_CHECK (vkCreateRenderPass(context->device, &renderPassInfo, nullptr, &context->shadowPass.renderPass));
+
+    context->shadowPass.framebuffer = make_vk_framebuffer(  context->device,
+                                                            context->shadowPass.renderPass,
+                                                            1,
+                                                            &context->shadowPass.attachment.view,
+                                                            context->shadowPass.width,
+                                                            context->shadowPass.height);    
+
+{
+    VkShaderModule vertexShaderModule = make_vk_shader_module(read_binary_file("shaders/shadow_vert.spv"), context->device);
+
+    VkPipelineShaderStageCreateInfo shaderStages [] =
+    {
+        {
+            .sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+            .stage  = VK_SHADER_STAGE_VERTEX_BIT,
+            .module = vertexShaderModule,
+            .pName  = "main",
+        },
+    };
+
+    VkPipelineVertexInputStateCreateInfo vertexInputInfo;
+    auto bindingDescription     = vulkan_pipelines_internal_::get_vertex_binding_description();
+    auto attributeDescriptions  = vulkan_pipelines_internal_::get_vertex_attribute_description();
+
+    vertexInputInfo = {
+        .sType                              = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+        .vertexBindingDescriptionCount      = 1,
+        .pVertexBindingDescriptions         = &bindingDescription,
+        .vertexAttributeDescriptionCount    = attributeDescriptions.count(),
+        .pVertexAttributeDescriptions       = &attributeDescriptions[0],
+    };
+
+    VkPrimitiveTopology topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+    VkPipelineInputAssemblyStateCreateInfo inputAssembly = 
+    {
+        .sType                  = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
+        .topology               = topology,
+        .primitiveRestartEnable = VK_FALSE,
+    };
+
+    VkViewport viewport =
+    {
+        .x          = 0.0f,
+        .y          = 0.0f,
+        .width      = (float) context->shadowPass.width,
+        .height     = (float) context->shadowPass.height,
+        .minDepth   = 0.0f,
+        .maxDepth   = 1.0f,
+    };
+
+    VkRect2D scissor =
+    {
+        .offset = {0, 0},
+        .extent = {context->shadowPass.width, context->shadowPass.height},
+    };
+
+    VkPipelineViewportStateCreateInfo viewportState =
+    {
+        .sType          = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
+        .viewportCount  = 1,
+        .pViewports     = &viewport,
+        .scissorCount   = 1,
+        .pScissors      = &scissor,
+    };
+
+    VkCullModeFlags cullMode = VK_CULL_MODE_NONE;
+
+    VkPipelineRasterizationStateCreateInfo rasterizer =
+    {
+        .sType                      = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
+        .depthClampEnable           = VK_FALSE,
+        .rasterizerDiscardEnable    = VK_FALSE,
+        .polygonMode                = VK_POLYGON_MODE_FILL,
+        .lineWidth                  = 1.0f,
+        .cullMode                   = cullMode,
+        .frontFace                  = VK_FRONT_FACE_COUNTER_CLOCKWISE,
+        .depthBiasEnable            = VK_FALSE,
+        .depthBiasConstantFactor    = 0.0f,
+        .depthBiasClamp             = 0.0f,
+        .depthBiasSlopeFactor       = 0.0f,
+    };
+
+    VkPipelineMultisampleStateCreateInfo multisampling =
+    {
+        .sType                  = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
+        .sampleShadingEnable    = VK_FALSE,
+        .rasterizationSamples   = VK_SAMPLE_COUNT_1_BIT,
+        .minSampleShading       = 1.0f,
+        .pSampleMask            = nullptr,
+        .alphaToCoverageEnable  = VK_FALSE,
+        .alphaToOneEnable       = VK_FALSE,
+    };
+
+
+    VkPipelineColorBlendStateCreateInfo colorBlending =
+    {
+        .sType              = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
+        .logicOpEnable      = VK_FALSE,
+        .logicOp            = VK_LOGIC_OP_COPY,
+        .attachmentCount    = 0,
+        .pAttachments       = nullptr,
+        .blendConstants[0]  = 0.0f,
+        .blendConstants[1]  = 0.0f,
+        .blendConstants[2]  = 0.0f,
+        .blendConstants[3]  = 0.0f,
+    };
+
+    VkPipelineDepthStencilStateCreateInfo depthStencil =
+    { 
+        .sType              = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
+
+        .depthTestEnable    = VK_TRUE,
+        .depthWriteEnable   = VK_TRUE,
+        .depthCompareOp     = VK_COMPARE_OP_LESS_OR_EQUAL,
+
+        .depthBoundsTestEnable  = VK_FALSE,
+        .minDepthBounds         = 0.0f,
+        .maxDepthBounds         = 1.0f,
+
+        .stencilTestEnable  = VK_FALSE,
+        .front              = {},
+        .back               = {},
+    };
+
+
+    u32 setLayoutCount = 0;
+    VkDescriptorSetLayout setLayouts [3];
+
+    if (true) { setLayouts[setLayoutCount++] = context->descriptorSetLayouts.scene; }
+    if (true) { setLayouts[setLayoutCount++] = context->descriptorSetLayouts.model; }
+
+    VkPipelineLayoutCreateInfo pipelineLayoutInfo =
+    {
+        .sType                  = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+        .setLayoutCount         = setLayoutCount,
+        .pSetLayouts            = setLayouts,
+        .pushConstantRangeCount = 0,
+        .pPushConstantRanges    = nullptr,
+    };
+
+    VkPipelineLayout layout;
+    VULKAN_CHECK(vkCreatePipelineLayout (context->device, &pipelineLayoutInfo, nullptr, &layout));
+
+    VkGraphicsPipelineCreateInfo pipelineInfo =
+    {
+        .sType                  = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+        .stageCount             = 1,
+        .pStages                = shaderStages,
+
+        .pVertexInputState      = &vertexInputInfo,
+        .pInputAssemblyState    = &inputAssembly,
+        .pViewportState         = &viewportState,
+        .pRasterizationState    = &rasterizer,
+        .pMultisampleState      = &multisampling,
+        .pDepthStencilState     = &depthStencil,
+        .pColorBlendState       = &colorBlending,
+        .pDynamicState          = nullptr,
+
+        .layout                 = layout,
+        .renderPass             = context->shadowPass.renderPass,
+        .subpass                = 0,
+
+        // Note(Leo): These are for cheaper re-use of pipelines, not used right now.
+        // Study(Leo): Like inheritance??
+        .basePipelineHandle = VK_NULL_HANDLE,
+        .basePipelineIndex = -1,
+    };
+
+
+    VkPipeline pipeline;
+    VULKAN_CHECK(vkCreateGraphicsPipelines(context->device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline));
+
+    // Note: These can only be destroyed AFTER vkCreateGraphicsPipelines
+    // vkDestroyShaderModule(context->device, fragmentShaderModule, nullptr);
+    vkDestroyShaderModule(context->device, vertexShaderModule, nullptr);
+
+    context->shadowPass.pipeline = pipeline;
+    context->shadowPass.layout = layout;
+
+}
+
+    add_cleanup(context, [](VulkanContext * context)
+    {
+        destroy_texture(context, &context->shadowPass.attachment);
+        vkDestroySampler(context->device, context->shadowPass.sampler, nullptr);
+        vkDestroyRenderPass(context->device, context->shadowPass.renderPass, nullptr);
+        vkDestroyFramebuffer(context->device, context->shadowPass.framebuffer, nullptr);
+        vkDestroyPipeline(context->device, context->shadowPass.pipeline, nullptr);
+        vkDestroyPipelineLayout(context->device, context->shadowPass.layout, nullptr);
     });
 }

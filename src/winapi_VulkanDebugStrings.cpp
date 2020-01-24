@@ -4,17 +4,23 @@ namespace vulkan
 	char const * to_str(VkResult);
 	char const * to_str(VkFormat);
 	char const * to_str(VkImageLayout);
-}
 
-// Todo(Leo): Headers included elsewhere
-namespace std
-{
-	ostream & operator << (ostream & os, VkSampleCountFlagBits value) { return os << vulkan::to_str(value); }
-	ostream & operator << (ostream & os, VkResult value) { return os << vulkan::to_str(value); }
-	ostream & operator << (ostream & os, VkFormat value) { return os << vulkan::to_str(value); }
-	ostream & operator << (ostream & os, VkImageLayout value) { return os << vulkan::to_str(value); }
-}
+	template <typename TVulkanEnum>
+	std::ostream & insert_stream(std::ostream & os, TVulkanEnum value)
+	{
+		os << to_str(value) << "(" << (u64)value << ")";
+		return os;
+	}
+	
+	#define STREAM_OP(TVulkanEnum) std::ostream & operator << (std::ostream & os, TVulkanEnum value) { return insert_stream(os, value); }
 
+	STREAM_OP(VkSampleCountFlagBits);
+	STREAM_OP(VkResult);
+	STREAM_OP(VkFormat);
+	STREAM_OP(VkImageLayout);
+
+	#undef STREAM_OP
+}
 
 
 char const *

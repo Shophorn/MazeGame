@@ -70,8 +70,8 @@ constexpr u64 megabytes 	(u64 amount) { return 1024 * kilobytes(amount); }
 constexpr u64 gigabytes 	(u64 amount) { return 1024 * megabytes(amount); }
 constexpr u64 terabytes 	(u64 amount) { return 1024 * gigabytes(amount); }
 
-template<typename T, u32 Count>
-constexpr u32 get_array_count(const T (&array)[Count])
+template<typename _, u32 Count>
+constexpr u32 get_array_count(const _ (&array)[Count])
 {
     return Count;
 }

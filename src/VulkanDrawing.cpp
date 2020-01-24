@@ -62,38 +62,17 @@ vulkan::prepare_drawing(VulkanContext * context)
     VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT in command pool creation */
     VULKAN_CHECK(vkBeginCommandBuffer(frame->commandBuffers.primary, &primaryCmdBeginInfo));
     
-    VkClearValue clearValues [] =
-    {
-        { .color = {0.0f, 0.0f, 0.0f, 1.0f} },
-        { .depthStencil = {1.0f, 0} }
-    };
-
-    VkRenderPassBeginInfo renderPassInfo =
-    {
-        .sType              = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-        .renderPass         = context->drawingResources.renderPass,
-        .framebuffer        = frame->framebuffer,
-        
-        .renderArea.offset  = {0, 0},
-        .renderArea.extent  = context->drawingResources.extent,
-
-        .clearValueCount    = 2,
-        .pClearValues       = clearValues,
-    };
-
-    vkCmdBeginRenderPass(frame->commandBuffers.primary, &renderPassInfo, VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS);
-
     VkCommandBufferInheritanceInfo inheritanceInfo =
     {
-        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_INHERITANCE_INFO,
-        .renderPass = context->drawingResources.renderPass,
+        .sType                  = VK_STRUCTURE_TYPE_COMMAND_BUFFER_INHERITANCE_INFO,
+        .renderPass             = context->drawingResources.renderPass,
 
         // Todo(Leo): so far we only have 1 subpass, but whenever it changes, this probably must too
-        .subpass = 0,
-        .framebuffer = frame->framebuffer,
-        .occlusionQueryEnable = VK_FALSE,
-        .queryFlags = 0,
-        .pipelineStatistics = 0,
+        .subpass                = 0,
+        .framebuffer            = frame->framebuffer,
+        .occlusionQueryEnable   = VK_FALSE,
+        .queryFlags             = 0,
+        .pipelineStatistics     = 0,
     };
 
     VkCommandBufferBeginInfo sceneCmdBeginInfo =
@@ -102,7 +81,6 @@ vulkan::prepare_drawing(VulkanContext * context)
         .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT | VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT,
         .pInheritanceInfo = &inheritanceInfo,
     };
-
     VULKAN_CHECK (vkBeginCommandBuffer(frame->commandBuffers.scene, &sceneCmdBeginInfo));
 
     VkViewport viewport =
@@ -122,220 +100,213 @@ vulkan::prepare_drawing(VulkanContext * context)
         .extent = context->drawingResources.extent,
     };
     vkCmdSetScissor(frame->commandBuffers.scene, 0, 1, &scissor);
+
+    // -----------------------------------------------------
+    VkCommandBufferInheritanceInfo shadowInheritanceInfo =
+    {
+        .sType                  = VK_STRUCTURE_TYPE_COMMAND_BUFFER_INHERITANCE_INFO,
+        .renderPass             = context->shadowPass.renderPass,
+
+        // Todo(Leo): so far we only have 1 subpass, but whenever it changes, this probably must too
+        .subpass                = 0,
+        .framebuffer            = context->shadowPass.framebuffer,
+        .occlusionQueryEnable   = VK_FALSE,
+        .queryFlags             = 0,
+        .pipelineStatistics     = 0,
+    };
+
+    VkCommandBufferBeginInfo shadowCmdBeginInfo =
+    {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+        .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT | VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT,
+        .pInheritanceInfo = &shadowInheritanceInfo,
+    };
+    VULKAN_CHECK(vkBeginCommandBuffer(frame->commandBuffers.offscreen, &shadowCmdBeginInfo));
+
+    
+    // u32 shadowPassSceneSet = 0;
+    // vkCmdBindDescriptorSets(frame->commandBuffers.offscreen, VK_PIPELINE_BIND_POINT_GRAPHICS, context->shadowPass.layout,
+    //                         shadowPassSceneSet, 1, &context->uniformDescriptorSets.scene,
+    //                         0, nullptr);    
 }
 
 void
 vulkan::finish_drawing(VulkanContext * context)
 {
-
     assert(context->canDraw);
     context->canDraw = false;
 
     VulkanVirtualFrame * frame = get_current_virtual_frame(context);
 
+    // SHADOWS RENDER PASS ----------------------------------------------------
+    VULKAN_CHECK(vkEndCommandBuffer(frame->commandBuffers.offscreen));
+
+    VkClearValue shadowClearValue = { .depthStencil = {1.0f, 0} };
+    VkRenderPassBeginInfo shadowRenderPassInfo =
+    {
+        .sType              = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+        .renderPass         = context->shadowPass.renderPass,
+        .framebuffer        = context->shadowPass.framebuffer,
+        
+        .renderArea.offset  = {0, 0},
+        .renderArea.extent  = {context->shadowPass.width, context->shadowPass.height},
+
+        .clearValueCount    = 1,
+        .pClearValues       = &shadowClearValue,
+    };
+    vkCmdBeginRenderPass(frame->commandBuffers.primary, &shadowRenderPassInfo, VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS);
+    vkCmdExecuteCommands(frame->commandBuffers.primary, 1, &frame->commandBuffers.offscreen);
+    vkCmdEndRenderPass(frame->commandBuffers.primary);
+
+    // Note(Leo): Debug quad, MaterialHandle::Null directs to debug material where shadow image is bound
     record_gui_draw_command(context, {1500, 20}, {400, 400}, MaterialHandle::Null, {0,1,1,1});
 
-
+    // MAIN SCENE RENDER PASS -------------------------------------------------
     VULKAN_CHECK(vkEndCommandBuffer(frame->commandBuffers.scene));
 
+    VkClearValue clearValues [] =
+    {
+        { .color = {0.35f, 0.0f, 0.35f, 1.0f} },
+        { .depthStencil = {1.0f, 0} }
+    };
+    VkRenderPassBeginInfo renderPassInfo =
+    {
+        .sType              = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+        .renderPass         = context->drawingResources.renderPass,
+        .framebuffer        = frame->framebuffer,
+        
+        .renderArea.offset  = {0, 0},
+        .renderArea.extent  = context->drawingResources.extent,
+
+        .clearValueCount    = 2,
+        .pClearValues       = clearValues,
+    };
+    vkCmdBeginRenderPass(frame->commandBuffers.primary, &renderPassInfo, VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS);
     vkCmdExecuteCommands(frame->commandBuffers.primary, 1, &frame->commandBuffers.scene);
     vkCmdEndRenderPass(frame->commandBuffers.primary);
     
+
+    // PRIMARY COMMAND BUFFER -------------------------------------------------
     VULKAN_CHECK(vkEndCommandBuffer(frame->commandBuffers.primary));
-// }
 
-
-
-// internal void
-// vulkan::draw_frame(VulkanContext * context)
-// {
     /* Note(Leo): these have to do with sceneloading in game layer. We are then unloading
     all resources associated with command buffer, which makes it invalid to submit to queue */
     bool32 skipFrame            = context->sceneUnloaded;
     context->sceneUnloaded      = false;
 
-    // VulkanVirtualFrame * frame  = get_current_virtual_frame(context);
-
-
-    /* Note(Leo): reset here, so that if we have recreated swapchain above,
-    our fences will be left in signaled state */
-    vkResetFences(context->device, 1, &frame->inFlightFence);
-
-
-    // Note(Leo): We wait for these BEFORE drawing
-    VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    
-    VkCommandBuffer commandBuffers []
-    {
-        // frame->commandBuffers.offscreen,
-        frame->commandBuffers.primary,
-    };
-
+    VkPipelineStageFlags waitStages [] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT  };
     VkSubmitInfo submitInfo =
     {
-        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-
-        .waitSemaphoreCount     = 1,
+        .sType                  = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+        .waitSemaphoreCount     = get_array_count(waitStages),
         .pWaitSemaphores        = &frame->imageAvailableSemaphore,
-        .pWaitDstStageMask      = &waitStage,
-
-        .commandBufferCount     = (u32)(skipFrame ? 0 : (get_array_count(commandBuffers))),
-        .pCommandBuffers        = commandBuffers,
-
-        // Note(Leo): We signal these AFTER drawing
+        .pWaitDstStageMask      = waitStages,
+        .commandBufferCount     = (u32)(skipFrame ? 0 : 1),
+        .pCommandBuffers        = &frame->commandBuffers.primary,
         .signalSemaphoreCount   = 1,
         .pSignalSemaphores      = &frame->renderFinishedSemaphore,
     };
-
+    vkResetFences(context->device, 1, &frame->inFlightFence);
     VULKAN_CHECK(vkQueueSubmit(context->queues.graphics, 1, &submitInfo, frame->inFlightFence));
 
     VkPresentInfoKHR presentInfo =
     {
-        .sType               = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
-        .waitSemaphoreCount  = 1,
-        .pWaitSemaphores     = &frame->renderFinishedSemaphore,
-        .pResults            = nullptr,
-
-        .swapchainCount  = 1,
-        .pSwapchains     = &context->drawingResources.swapchain,
-        .pImageIndices   = &context->currentDrawFrameIndex,
+        .sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+        .waitSemaphoreCount = 1,
+        .pWaitSemaphores    = &frame->renderFinishedSemaphore,
+        .swapchainCount     = 1,
+        .pSwapchains        = &context->drawingResources.swapchain,
+        .pImageIndices      = &context->currentDrawFrameIndex,
+        .pResults           = nullptr,
     };
 
-    // Todo(Leo): Should we do something with this??
+    // Todo(Leo): Should we do something with this? We are handling VK_ERROR_OUT_OF_DATE_KHR elsewhere anyway.
     VkResult result = vkQueuePresentKHR(context->queues.present, &presentInfo);
+    if (result != VK_SUCCESS)
+    {
+        std::cout << "[finish_drawing()]: present result = " << result << "\n";
+    }
 
-
-    // Todo(Leo): Is this correct place to advance??????
-    // Should we have a proper "all rendering done"-function?
     advance_virtual_frame(context);
-
-    // // Todo, Study(Leo): Somebody on interenet told us to do this. No Idea why???
-    // // Note(Leo): Do after presenting to not interrupt semaphores at whrong time
-    // if(result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || context->framebufferResized)
-    // {
-    //     context->framebufferResized = false;
-    //     recreate_swapchain(context);
-    // }
-    // else if (result != VK_SUCCESS)
-    // {
-    //     throw std::runtime_error("Failed to present swapchain");
-    // }
 }
 
-internal void
-vulkan::draw_frame(VulkanContext * context)
-{
-}
 
 void
 vulkan::record_draw_command(VulkanContext * context, ModelHandle model, Matrix44 transform)
 {
-    // // Todo(Leo): Single mapping is really enough, offsets can be used here too
-    // Note(Leo): using this we can use separate buffer sections for each framebuffer, not sure if necessary though
+    /* Todo(Leo): Get rid of these, we can just as well get them directly from user.
+    That is more flexible and then we don't need to save that data in multiple places. */
+    MeshHandle meshHandle           = context->loadedModels[model].mesh;
+    MaterialHandle materialHandle   = context->loadedModels[model].material;
+
     u32 modelUniformBufferOffset = context->currentUniformBufferOffset;
     u32 modelMatrixSize          = get_aligned_uniform_buffer_size(context, sizeof(transform));
 
     context->currentUniformBufferOffset += modelMatrixSize;
 
+    // Todo(Leo): Just map this once when rendering starts
     Matrix44 * pModelMatrix;
     vkMapMemory(context->device, context->modelUniformBuffer.memory, modelUniformBufferOffset, modelMatrixSize, 0, (void**)&pModelMatrix);
     *pModelMatrix = transform;
     vkUnmapMemory(context->device, context->modelUniformBuffer.memory);
 
-    // std::cout << "[vulkan::record_draw_command()]\n";
     DEBUG_ASSERT(context->canDraw, "Invalid call to record_draw_command() when prepare_drawing() has not been called.")
 
     VulkanVirtualFrame * frame      = get_current_virtual_frame(context);
-    VkCommandBuffer commandBuffer   = frame->commandBuffers.scene;
  
-    MeshHandle meshHandle           = context->loadedModels[model].mesh;
-    MaterialHandle materialHandle   = context->loadedModels[model].material;
+    auto * mesh = get_loaded_mesh(context, meshHandle);
+    auto * material = get_loaded_material(context, materialHandle);
+    auto * pipeline = get_loaded_pipeline(context, material->pipeline);
 
-    // Todo(Leo): This was not needed elsewhere so I brought it here, it can be removed
-    struct VulkanRenderInfo
-    {
-        VkBuffer meshBuffer;
-
-        VkDeviceSize vertexOffset;
-        VkDeviceSize indexOffset;
-        
-        u32 indexCount;
-        VkIndexType indexType;
-        
-        u32 uniformBufferOffset;
-
-        u32 materialIndex;
-    };
-
-
-    VulkanRenderInfo renderInfo =
-    {
-        .meshBuffer             = context->loadedMeshes[meshHandle].buffer, 
-        .vertexOffset           = context->loadedMeshes[meshHandle].vertexOffset,
-        .indexOffset            = context->loadedMeshes[meshHandle].indexOffset,
-        .indexCount             = context->loadedMeshes[meshHandle].indexCount,
-        .indexType              = context->loadedMeshes[meshHandle].indexType,
-
-        .uniformBufferOffset    = modelUniformBufferOffset,//context->loadedModels[model].uniformBufferOffset,
-        
-        .materialIndex          = (u32)materialHandle,
-    };
-
-    // Todo(Leo): This is bad, these will be about to change
-    enum : u32
-    {
-        LAYOUT_SCENE    = 0,
-        LAYOUT_MATERIAL = 1,
-        LAYOUT_MODEL    = 2,
-    };
-
-
-    auto materialIndex          = renderInfo.materialIndex;
-    PipelineHandle newPipeline  = context->loadedMaterials[materialIndex].pipeline;
-    if (newPipeline != context->currentBoundPipeline)
-    {
-        context->currentBoundPipeline   = newPipeline;
+    // Material type
+    vkCmdBindPipeline(frame->commandBuffers.scene, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->pipeline);
     
-        // Material type
-        vkCmdBindPipeline(      commandBuffer,
-                                VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                context->loadedPipelines[context->currentBoundPipeline].pipeline);
-        // Scene
-        vkCmdBindDescriptorSets(commandBuffer,
-                                VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                context->loadedPipelines[context->currentBoundPipeline].layout,
-                                LAYOUT_SCENE,
-                                1, 
-                                &context->uniformDescriptorSets.scene,
-                                0,
-                                nullptr);
-    }
+    VkDescriptorSet sets [] =
+    {   
+        context->uniformDescriptorSets.scene,
+        material->descriptorSet,
+        context->uniformDescriptorSets.model,
+    };
 
-    // Bind material
-    vkCmdBindDescriptorSets(commandBuffer,
-                            VK_PIPELINE_BIND_POINT_GRAPHICS,
-                            context->loadedPipelines[context->currentBoundPipeline].layout,
-                            LAYOUT_MATERIAL,
-                            1, 
-                            &context->loadedMaterials[materialIndex].descriptorSet,
-                            0,
-                            nullptr);
+    // Note(Leo): this works, because models are only dynamic set
+    u32 dynamicOffsets [] = {modelUniformBufferOffset};
+
+    vkCmdBindDescriptorSets(frame->commandBuffers.scene, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->layout,
+                            0, get_array_count(sets), sets,
+                            get_array_count(dynamicOffsets), dynamicOffsets);
+
+    vkCmdBindVertexBuffers(frame->commandBuffers.scene, 0, 1, &mesh->buffer, &mesh->vertexOffset);
+    vkCmdBindIndexBuffer(frame->commandBuffers.scene, mesh->buffer, mesh->indexOffset, mesh->indexType);
+
+    vkCmdDrawIndexed(frame->commandBuffers.scene, mesh->indexCount, 1, 0, 0, 0);
+
+    // ------------------------------------------------
+
     // Bind model info
-    vkCmdBindVertexBuffers(commandBuffer, 0, 1, &renderInfo.meshBuffer, &renderInfo.vertexOffset);
-    vkCmdBindIndexBuffer(commandBuffer, renderInfo.meshBuffer, renderInfo.indexOffset, renderInfo.indexType);
+    vkCmdBindVertexBuffers(frame->commandBuffers.offscreen, 0, 1, &mesh->buffer, &mesh->vertexOffset);
+    vkCmdBindIndexBuffer(frame->commandBuffers.offscreen, mesh->buffer, mesh->indexOffset, mesh->indexType);
 
-    // Bind entity transform
-    vkCmdBindDescriptorSets(commandBuffer,
+
+    u32 shadowPassSceneSet = 0;
+    u32 shadowPassModelSet = 1;
+
+    VkDescriptorSet shadowSets [] =
+    {
+        context->uniformDescriptorSets.scene,
+        context->uniformDescriptorSets.model,
+    };
+
+    vkCmdBindPipeline(frame->commandBuffers.offscreen, VK_PIPELINE_BIND_POINT_GRAPHICS, context->shadowPass.pipeline);
+    vkCmdBindDescriptorSets(frame->commandBuffers.offscreen,
                             VK_PIPELINE_BIND_POINT_GRAPHICS,
-                            context->loadedPipelines[context->currentBoundPipeline].layout,
-                            LAYOUT_MODEL,
+                            context->shadowPass.layout,
+                            0,
+                            2,
+                            shadowSets,
                             1,
-                            &context->uniformDescriptorSets.model,
-                            1,
-                            &renderInfo.uniformBufferOffset);
+                            &modelUniformBufferOffset);
 
-    vkCmdDrawIndexed(commandBuffer, renderInfo.indexCount, 1, 0, 0, 0);
-
+    vkCmdDrawIndexed(frame->commandBuffers.offscreen, mesh->indexCount, 1, 0, 0, 0);
 }
 
 void
@@ -351,9 +322,9 @@ vulkan::record_line_draw_command(VulkanContext * context, vector3 start, vector3
  
     enum : u32
     {
-        LAYOUT_SCENE    = 0,
-        LAYOUT_MATERIAL = 1,
-        LAYOUT_MODEL    = 2,
+        LAYOUT_SET_SCENE    = 0,
+        LAYOUT_SET_MATERIAL = 1,
+        LAYOUT_SET_MODEL    = 2,
     };
 
     // Todo(Leo): Define some struct etc. for this
@@ -368,7 +339,7 @@ vulkan::record_line_draw_command(VulkanContext * context, vector3 start, vector3
 
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, context->lineDrawPipeline.pipeline);
     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, context->lineDrawPipeline.layout,
-                            LAYOUT_SCENE, 1, &context->uniformDescriptorSets.scene, 0, nullptr);
+                            LAYOUT_SET_SCENE, 1, &context->uniformDescriptorSets.scene, 0, nullptr);
     vkCmdDraw(commandBuffer, 2, 1, 0, 0);
 
     // Note(Leo): This must be done so that next time we draw normally, we know to bind thos descriptors again
@@ -387,7 +358,6 @@ struct VulkanGuiPushConstants
 void vulkan::record_gui_draw_command(VulkanContext * context, vector2 position, vector2 size, MaterialHandle materialHandle, float4 color)
 {
     auto * frame = get_current_virtual_frame(context);
-    enum : u32 { LAYOUT_SET_MATERIAL = 0 };
 
     auto transform_point = [context](vector2 position) -> vector2
     {
@@ -410,27 +380,20 @@ void vulkan::record_gui_draw_command(VulkanContext * context, vector2 position, 
         color,
     };
 
-    vkCmdPushConstants( frame->commandBuffers.scene, context->guiDrawPipeline.layout,
+    auto * pipeline = is_valid_handle(materialHandle) ? &context->guiDrawPipeline : &context->shadowPass.debugView;
+    auto * material = is_valid_handle(materialHandle) ? get_loaded_gui_material(context, materialHandle) :
+                                                        &context->defaultGuiMaterial;
+
+    vkCmdPushConstants( frame->commandBuffers.scene, pipeline->layout,
                         VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pushConstants), &pushConstants);
 
     vkCmdBindPipeline(  frame->commandBuffers.scene, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                        context->guiDrawPipeline.pipeline);
+                        pipeline->pipeline);
 
-
-    // Todo(Leo): this is not good idea. Proper toggles etc and not null pointers for flow control, said wise in the internets
-    VulkanMaterial * material = is_valid_handle(materialHandle) ?
-                                get_loaded_gui_material(context, materialHandle) :
-                                &context->defaultGuiMaterial;
-
-    vkCmdBindDescriptorSets(    frame->commandBuffers.scene,
-                                VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                context->guiDrawPipeline.layout,
-                                LAYOUT_SET_MATERIAL,
-                                1,
-                                &material->descriptorSet,
-                                0,
-                                nullptr);
-
+    // // Todo(Leo): this is not good idea. Proper toggles etc and not null pointers for flow control, said wise in the internets
+    vkCmdBindDescriptorSets(frame->commandBuffers.scene, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->layout,
+                            0, 1, &material->descriptorSet,
+                            0, nullptr);
 
     vkCmdDraw(frame->commandBuffers.scene, 4, 1, 0, 0);
 

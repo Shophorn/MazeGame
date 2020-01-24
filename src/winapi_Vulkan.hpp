@@ -134,6 +134,11 @@ struct VulkanLoadedPipeline
 	VkPipeline 				pipeline;
 	VkPipelineLayout 		layout;
 	VkDescriptorSetLayout	materialLayout;
+
+	// Todo(Leo): use these
+	// u32 sceneSetIndex;
+	// u32 materialSetIndex;
+	// u32 modelSetIndex;
 };
 
 struct VulkanVirtualFrame
@@ -153,6 +158,7 @@ struct VulkanVirtualFrame
 	VkFramebuffer  framebuffer;
     VkFramebuffer  shadowFramebuffer;
 
+    VkSemaphore 	shadowPassWaitSemaphore;
 	VkSemaphore    imageAvailableSemaphore;
 	VkSemaphore    renderFinishedSemaphore;
 	VkFence        inFlightFence; // Todo(Leo): Change to queuesubmitfence or commandbufferfence etc..
@@ -222,6 +228,24 @@ struct platform::Graphics
 		VkImageView depthImageView;
 	} drawingResources = {};
 
+
+	struct
+	{
+		u32 width;
+		u32 height;
+
+		VulkanTexture attachment;
+		VkSampler sampler; 
+
+		VkRenderPass renderPass;
+		VkFramebuffer framebuffer;
+
+		VkPipelineLayout 	layout;
+		VkPipeline 			pipeline;
+
+		VulkanLoadedPipeline debugView;
+	} shadowPass;
+
     VulkanBufferResource stagingBufferPool;
     VulkanBufferResource staticMeshPool;
     VulkanBufferResource modelUniformBuffer;
@@ -289,9 +313,21 @@ namespace vulkan
 	}
 
 	internal inline VulkanMaterial *
+	get_loaded_material(VulkanContext * context, MaterialHandle handle)
+	{
+		return &context->loadedMaterials[handle];
+	}
+
+	internal inline VulkanMaterial *
 	get_loaded_gui_material(VulkanContext * context, MaterialHandle handle)
 	{
 		return &context->loadedGuiMaterials[handle];
+	}
+
+	internal inline VulkanMesh *
+	get_loaded_mesh(VulkanContext * context, MeshHandle handle)
+	{
+		return &context->loadedMeshes[handle];
 	}
 
     internal VkFormat find_supported_format(    VkPhysicalDevice physicalDevice,
@@ -392,6 +428,7 @@ namespace vulkan
 											    	VkImageTiling tiling, VkImageUsageFlags usage,
 											    	VkSampleCountFlagBits msaaSamples);
 	internal VkImageView 			make_vk_image_view(VkDevice device, VkImage image, u32 mipLevels, VkFormat format, VkImageAspectFlags aspectFlags);
+	internal VkSampler				make_vk_sampler(VkDevice device);
 
 	/// DRAWING, VulkanDrawing.cpp
     internal void update_camera				(VulkanContext*, Matrix44 view, Matrix44 perspective);
@@ -404,11 +441,6 @@ namespace vulkan
 	internal void prepare_shadow_pass 		(VulkanContext*, Matrix44 view, Matrix44 perspective);
 	internal void finish_shadow_pass 		(VulkanContext*);
 	internal void draw_shadow_model			(VulkanContext*, ModelHandle model, Matrix44 transform);
-
-	// internal platform::FrameResult prepare_frame (VulkanContext*);
-	internal void draw_frame 		(VulkanContext * context);
-
-
 
     internal TextureHandle  push_texture (VulkanContext * context, TextureAsset * texture);
     internal MaterialHandle push_material (VulkanContext * context, MaterialAsset * asset);

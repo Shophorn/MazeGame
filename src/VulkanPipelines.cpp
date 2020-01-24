@@ -40,8 +40,8 @@ vulkan::make_pipeline(
     VulkanContext * context,
     VulkanPipelineLoadInfo info)
 {
-    BinaryAsset vertexShaderCode = ReadBinaryFile(info.vertexShaderPath.c_str());
-    BinaryAsset fragmentShaderCode = ReadBinaryFile(info.fragmentShaderPath.c_str());
+    BinaryAsset vertexShaderCode = read_binary_file(info.vertexShaderPath.c_str());
+    BinaryAsset fragmentShaderCode = read_binary_file(info.fragmentShaderPath.c_str());
 
     VkShaderModule vertexShaderModule = make_vk_shader_module(vertexShaderCode, context->device);
     VkShaderModule fragmentShaderModule = make_vk_shader_module(fragmentShaderCode, context->device);
@@ -242,22 +242,41 @@ vulkan::make_pipeline(
     }
 
 
-    u32 setLayoutCount = 0;
-    VkDescriptorSetLayout setLayouts [3];
+    u32 setLayoutBindingCount = 0;
+    VkDescriptorSetLayout setLayoutBindings [3];
 
     auto materialLayout = make_material_vk_descriptor_set_layout(context->device, options.textureCount);
 
+    // u32 sceneSetIndex = -1;
+    // u32 materialSetIndex = -1;
+    // u32 modelSetIndex = -1;
 
-    if (options.useSceneLayoutSet) { setLayouts[setLayoutCount++] = context->descriptorSetLayouts.scene; }
-    if (options.useMaterialLayoutSet) { setLayouts[setLayoutCount++] = materialLayout; }
-    if (options.useModelLayoutSet) { setLayouts[setLayoutCount++] = context->descriptorSetLayouts.model; }
+    if (options.useSceneLayoutSet)
+    { 
+        setLayoutBindings[setLayoutBindingCount] = context->descriptorSetLayouts.scene;
+        // sceneSetIndex = setLayoutBindingCount;
+        ++setLayoutBindingCount;
+    }
+
+    if (options.useMaterialLayoutSet)
+    { 
+        setLayoutBindings[setLayoutBindingCount] = materialLayout;
+        // materialSetIndex = setLayoutBindingCount;
+        ++setLayoutBindingCount;
+    }
+    if (options.useModelLayoutSet)
+    { 
+        setLayoutBindings[setLayoutBindingCount] = context->descriptorSetLayouts.model;
+        // modelSetIndex = setLayoutBindingCount;
+        ++setLayoutBindingCount;
+    }
 
 
     VkPipelineLayoutCreateInfo pipelineLayoutInfo =
     {
         .sType                  = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-        .setLayoutCount         = setLayoutCount,
-        .pSetLayouts            = setLayouts,
+        .setLayoutCount         = setLayoutBindingCount,
+        .pSetLayouts            = setLayoutBindings,
         .pushConstantRangeCount = pushConstantRangeCount,
         .pPushConstantRanges    = &pushConstantRange,
     };
@@ -276,7 +295,7 @@ vulkan::make_pipeline(
         .pInputAssemblyState    = &inputAssembly,
         .pViewportState         = &viewportState,
         .pRasterizationState    = &rasterizer,
-        .pMultisampleState      = &multisampling,
+        .pMultisampleState      = &multisampling,   
         .pDepthStencilState     = &depthStencil,
         .pColorBlendState       = &colorBlending,
         .pDynamicState          = &dynamicState,
@@ -291,7 +310,6 @@ vulkan::make_pipeline(
         .basePipelineIndex = -1,
     };
 
-
     VkPipeline pipeline;
     VULKAN_CHECK(vkCreateGraphicsPipelines(context->device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline));
 
@@ -303,7 +321,11 @@ vulkan::make_pipeline(
         .info           = info,
         .pipeline       = pipeline,
         .layout         = layout,
-        .materialLayout = materialLayout
+        .materialLayout = materialLayout,
+
+        // .sceneSetIndex      = sceneSetIndex,
+        // .materialSetIndex   = materialSetIndex,
+        // .modelSetIndex      = modelSetIndex,
     };
 }
 
