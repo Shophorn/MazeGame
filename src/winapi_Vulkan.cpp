@@ -896,8 +896,8 @@ winapi::create_vulkan_context(WinAPIWindow * window)
     {
         VulkanPipelineLoadInfo linePipelineInfo = 
         {
-            .vertexShaderPath               = "shaders/line_vert.spv",
-            .fragmentShaderPath             = "shaders/line_frag.spv",
+            .vertexShaderPath               = "assets/shaders/line_vert.spv",
+            .fragmentShaderPath             = "assets/shaders/line_frag.spv",
 
             .options.primitiveType          = platform::RenderingOptions::PRIMITIVE_LINE,
             .options.lineWidth              = 2.0f,
@@ -914,8 +914,8 @@ winapi::create_vulkan_context(WinAPIWindow * window)
 
         VulkanPipelineLoadInfo guiPipelineInfo =
         {
-            .vertexShaderPath               = "shaders/gui_vert2.spv",
-            .fragmentShaderPath             = "shaders/gui_frag2.spv",
+            .vertexShaderPath               = "assets/shaders/gui_vert2.spv",
+            .fragmentShaderPath             = "assets/shaders/gui_frag2.spv",
 
             .options.primitiveType          = platform::RenderingOptions::PRIMITIVE_TRIANGLE_STRIP,
             .options.cullMode               = platform::RenderingOptions::CULL_NONE,
@@ -929,7 +929,7 @@ winapi::create_vulkan_context(WinAPIWindow * window)
         };
         context.guiDrawPipeline = vulkan::make_pipeline(&context, guiPipelineInfo);
 
-        guiPipelineInfo.fragmentShaderPath = "shaders/shadow_view_frag.spv";
+        guiPipelineInfo.fragmentShaderPath = "assets/shaders/shadow_view_frag.spv";
         context.shadowPass.debugView = vulkan::make_pipeline(&context, guiPipelineInfo);
 
         winapi_vulkan_internal_::add_cleanup(&context, [](VulkanContext * context)
@@ -1652,7 +1652,7 @@ winapi_vulkan_internal_::init_shadow_pass(VulkanContext * context, u32 width, u3
                                                             context->shadowPass.height);    
 
 {
-    VkShaderModule vertexShaderModule = make_vk_shader_module(read_binary_file("shaders/shadow_vert.spv"), context->device);
+    VkShaderModule vertexShaderModule = make_vk_shader_module(read_binary_file("assets/shaders/shadow_vert.spv"), context->device);
 
     VkPipelineShaderStageCreateInfo shaderStages [] =
     {

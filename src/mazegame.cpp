@@ -84,7 +84,7 @@ output_sound(int sampleCount, game::StereoSoundSample * samples)
 	{
 		fileLoaded = true;
 		
-		file.load("sounds/Wind-Mark_DiAngelo-1940285615.wav");
+		file.load("assets/sounds/Wind-Mark_DiAngelo-1940285615.wav");
 		fileSampleCount = file.getNumSamplesPerChannel();
 	}
 

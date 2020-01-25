@@ -2,6 +2,9 @@
 Leo Tamminen
 
 Texture Loader
+
+Todo(Leo):
+    - use own allocator for loading
 =============================================================================*/
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
@@ -25,11 +28,7 @@ load_texture_asset(const char * assetPath, MemoryArena * memoryArena)
     s32 width, height, channels;
     stbi_uc * stbi_pixels = stbi_load(assetPath, &width, &height, &channels, STBI_rgb_alpha);
 
-    if(stbi_pixels == nullptr)
-    {
-        // Todo[Error](Leo): Proper aka adhering to some convention handling and logging
-        throw std::runtime_error("Failed to load image");
-    }
+    DEBUG_ASSERT(stbi_pixels != nullptr, assetPath);
 
     auto begin  = reinterpret_cast<u32*>(stbi_pixels);
     auto end    = begin + (width * height);

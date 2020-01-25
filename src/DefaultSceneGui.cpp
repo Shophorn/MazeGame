@@ -22,7 +22,7 @@ make_scene_gui(	MemoryArena * transientMemory,
 
 	/* Todo(Leo): We should make transientMemory to yield a temporary allocation object. */
 
-	auto textureAsset 	= load_texture_asset("textures/texture.jpg", transientMemory);
+	auto textureAsset 	= load_texture_asset("assets/textures/texture.jpg", transientMemory);
 	auto texture 		= functions->push_texture(graphics, &textureAsset);
 
 	result.material 	= functions->push_gui_material(graphics, texture);

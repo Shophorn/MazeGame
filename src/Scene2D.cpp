@@ -120,7 +120,7 @@ scene_2d::load(	void * scenePtr,
 
 	// Create MateriaLs
 	{
-		PipelineHandle shader = functions->push_pipeline(graphics, "shaders/vert.spv", "shaders/frag.spv", {.textureCount = 3});
+		PipelineHandle shader = functions->push_pipeline(graphics, "assets/shaders/vert.spv", "assets/shaders/frag.spv", {.textureCount = 3});
 
 		TextureAsset whiteTextureAsset = make_texture_asset(push_array<u32>(transientMemory, {0xffffffff}), 1, 1);
 		TextureAsset blackTextureAsset = make_texture_asset(push_array<u32>(transientMemory, {0xff000000}), 1, 1);
@@ -135,9 +135,9 @@ scene_2d::load(	void * scenePtr,
 			return result;
 		};
 
-		auto tilesTexture 	= load_and_push_texture("textures/tiles.jpg");
-		auto lavaTexture 	= load_and_push_texture("textures/lava.jpg");
-		auto faceTexture 	= load_and_push_texture("textures/texture.jpg");
+		auto tilesTexture 	= load_and_push_texture("assets/textures/tiles.jpg");
+		auto lavaTexture 	= load_and_push_texture("assets/textures/lava.jpg");
+		auto faceTexture 	= load_and_push_texture("assets/textures/texture.jpg");
 
 		auto push_material = [shader, functions, transientMemory, graphics](MaterialType type, TextureHandle a, TextureHandle b, TextureHandle c) -> MaterialHandle
 		{
@@ -175,7 +175,7 @@ scene_2d::load(	void * scenePtr,
 	// Characters
 	Handle<Transform3D> characterTransform = {};
 	{
-		auto characterMesh 			= load_model_obj(transientMemory, "models/character.obj");
+		auto characterMesh 			= load_model_obj(transientMemory, "assets/models/character.obj");
 		auto characterMeshHandle 	= functions->push_mesh(graphics, &characterMesh);
 
 		// Our dude
@@ -243,7 +243,7 @@ scene_2d::load(	void * scenePtr,
 
 		if (addPillars)
 		{
-			auto pillarMesh 		= load_model_glb(transientMemory, "models/big_pillar.glb", "big_pillar");
+			auto pillarMesh 		= load_model_glb(transientMemory, "assets/models/big_pillar.glb", "big_pillar");
 			auto pillarMeshHandle 	= functions->push_mesh(graphics, &pillarMesh);
 
 			auto renderer 	= make_handle<Renderer>({push_model(pillarMeshHandle, materials.environment)});
@@ -261,7 +261,7 @@ scene_2d::load(	void * scenePtr,
 
 		if (addLadders)
 		{
-			auto ladderMesh 		= load_model_glb(transientMemory, "models/ladder.glb", "LadderSection");
+			auto ladderMesh 		= load_model_glb(transientMemory, "assets/models/ladder.glb", "LadderSection");
 			auto ladderMeshHandle 	= functions->push_mesh(graphics, &ladderMesh);
 
 			auto root1 	= make_handle<Transform3D>({0, 0.5f, -ladderHeight});
@@ -365,7 +365,7 @@ scene_2d::load(	void * scenePtr,
 				{8, 0, 12},
 			};
 
-			auto platformMeshAsset 	= load_model_obj(transientMemory, "models/platform.obj");
+			auto platformMeshAsset 	= load_model_obj(transientMemory, "assets/models/platform.obj");
 			auto platformMeshHandle = functions->push_mesh(graphics, &platformMeshAsset);
 
 			int platformCount = 12;
@@ -381,7 +381,7 @@ scene_2d::load(	void * scenePtr,
 
 		if(addButtons)
 		{
-			auto keyholeMeshAsset 	= load_model_obj(transientMemory, "models/keyhole.obj");
+			auto keyholeMeshAsset 	= load_model_obj(transientMemory, "assets/models/keyhole.obj");
 			auto keyholeMeshHandle 	= functions->push_mesh(graphics, &keyholeMeshAsset);
 
 			auto renderer 	= make_handle<Renderer>({push_model(keyholeMeshHandle, materials.environment)});

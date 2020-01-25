@@ -45,7 +45,7 @@ MenuScene::load(void * guiPtr,
 {
     auto * gui = reinterpret_cast<MenuScene*>(guiPtr);
 
-    auto textureAsset   = load_texture_asset("textures/texture.jpg", transientMemory);
+    auto textureAsset   = load_texture_asset("assets/textures/texture.jpg", transientMemory);
     auto texture        = functions->push_texture(graphics, &textureAsset);
     gui->material       = functions->push_gui_material(graphics, texture);
 
