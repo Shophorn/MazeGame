@@ -68,7 +68,7 @@ Scene3d::update(	void * 						scenePtr,
 
 	/* Sadly, we need to draw skybox before game logig, because otherwise
 	debug lines would be hidden */ 
-    // draw_skybox(graphics, scene->skybox, &scene->worldCamera, functions);
+    draw_skybox(graphics, scene->skybox, &scene->worldCamera, functions);
 
 	// Game Logic section
 	update_character(	&scene->characterController,
@@ -80,15 +80,6 @@ Scene3d::update(	void * 						scenePtr,
 	update_camera_controller(&scene->cameraController, input);
 	update_animator_system(input, scene->animatorSystem);
 
-	functions->prepare_shadow_pass(	graphics,
-									get_view_projection(&scene->worldCamera),
-									get_perspective_projection(&scene->worldCamera));
-
-	// Todo(Leo): actually draw shadows for all objects
-	functions->finish_shadow_pass (graphics);
-
-	// functions->draw_gui(graphics, {1500, 20}, {400, 400}, MaterialHandle{12345}, float4{1,1,1,1});
-	
 	// Rendering section
     update_camera_system(&scene->worldCamera, input, graphics, window, functions);
 	update_render_system(scene->renderSystem, graphics, functions);
@@ -223,7 +214,7 @@ Scene3d::load(	void * 						scenePtr,
 		push_one(scene->renderSystem, {transform, renderer});
 	}
 
-	scene->worldCamera = make_camera(60, 0.1f, 100.0f);
+	scene->worldCamera = make_camera(60, 0.1f, 1000.0f);
 	scene->cameraController = make_camera_controller_3rd_person(&scene->worldCamera, characterTransform);
 
 	// Environment

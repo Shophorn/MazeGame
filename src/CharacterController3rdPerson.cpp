@@ -40,7 +40,7 @@ ProcessCharacterInput(game::Input * input, Camera * camera)
 	vector3 viewForward = camera->forward;
 	viewForward.z 		= 0;
 	viewForward 		= vector::normalize(viewForward);
-	vector3 viewRight 	= vector::cross(viewForward, World::Up);
+	vector3 viewRight 	= vector::cross(viewForward, world::up);
 
 	vector3 result = viewRight * input->move.x
 					+ viewForward * input->move.y;
@@ -108,8 +108,8 @@ update_character(
 			// controller->transform->position += direction * distance - projectionOnNormal;
 		}
 
-		float angleToWorldForward 		= vector::get_signed_angle(World::Forward, direction, World::Up);
-		controller->transform->rotation = Quaternion::AxisAngle(World::Up, angleToWorldForward);
+		float angleToWorldForward 		= vector::get_signed_angle(world::forward, direction, world::up);
+		controller->transform->rotation = Quaternion::AxisAngle(world::up, angleToWorldForward);
 		
 	}
 

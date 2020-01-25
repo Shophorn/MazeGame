@@ -5,7 +5,7 @@ shophorn @ internet
 Vulkan drawing functions' definitions.
 =============================================================================*/
 void 
-vulkan::update_camera(VulkanContext * context, Matrix44 view, Matrix44 perspective)
+vulkan::update_camera(VulkanContext * context, Camera const * camera)
 {
     // Todo(Leo): alignment
 
@@ -14,8 +14,8 @@ vulkan::update_camera(VulkanContext * context, Matrix44 view, Matrix44 perspecti
     vkMapMemory(context->device, context->sceneUniformBuffer.memory,
                 0, sizeof(VulkanCameraUniformBufferObject), 0, (void**)&pUbo);
 
-    pUbo->view          = view;
-    pUbo->perspective   = perspective;
+    pUbo->view          = get_view_projection(camera);
+    pUbo->perspective   = get_perspective_projection(camera);
 
     vkUnmapMemory(context->device, context->sceneUniformBuffer.memory);
 }
@@ -399,19 +399,4 @@ void vulkan::record_gui_draw_command(VulkanContext * context, vector2 position, 
 
     // Note(Leo): This must be done so that next time we draw normally, we know to bind thos descriptors again
     context->currentBoundPipeline = PipelineHandle::Null;
-}
-
-internal void
-vulkan::prepare_shadow_pass (VulkanContext * context, Matrix44 view, Matrix44 perspective)
-{
-}
-
-internal void
-vulkan::finish_shadow_pass (VulkanContext * context)
-{
-}
-
-internal void
-vulkan::draw_shadow_model (VulkanContext * context, ModelHandle model, Matrix44 transform)
-{
 }

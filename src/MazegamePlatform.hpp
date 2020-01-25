@@ -47,6 +47,8 @@ needs to be specified for compiler. */
 #include "Assets.cpp"
 
 
+#include "Camera.cpp"
+
 namespace platform
 {
 	enum FrameResult
@@ -83,10 +85,22 @@ namespace platform
 	    bool32 useModelLayoutSet 	= true;
 	};
 
+	/* 
+	Note(Leo): this is honest forward declaration to couple lines downward
+	Note(Leo): this will not be needed in final game, where game is same
+	executable instead of separate dll like now.
+	*/
+	struct Functions;
+
 	/* Note(Leo): these are defined in platform layer, and
 	can (and are supposed to) be used as opaque handles in
 	game layer*/
 	struct Graphics;
+
+	// Note(Leo): these are for platform layer only.
+	FrameResult prepare_frame(Graphics*);
+	void fill_functions(Graphics*, Functions*);
+
 	struct Window;
 	// struct Network;
 	// struct Audio;
@@ -108,16 +122,12 @@ namespace platform
 		void (*unload_scene) 	(Graphics*);
 
 		// GRAPHICS DRAW FUNCTIONS
-		void (*update_camera) 	(Graphics*, Matrix44 view, Matrix44 perspective);
+		void (*update_camera) 	(Graphics*, Camera const *);
 		void (*prepare_frame) 	(Graphics*);
 		void (*finish_frame) 	(Graphics*);
 		void (*draw_model) 		(Graphics*, ModelHandle model, Matrix44 transform);
 		void (*draw_line) 		(Graphics*, vector3 start, vector3 end, float width, float4 color);
 		void (*draw_gui) 		(Graphics*, vector2 position, vector2 size, MaterialHandle material, float4 color);
-
-		void (*prepare_shadow_pass)	(Graphics*, Matrix44 view, Matrix44 perspective);
-		void (*finish_shadow_pass) 	(Graphics*);
-		void (*draw_shadow_model) 	(Graphics*, ModelHandle model, Matrix44 transform);
 
 		// WINDOW FUNCTIONS	
 		u32 (*get_window_width) 		(Window const *);
@@ -148,12 +158,6 @@ namespace platform
 		}
 		return true;
 	};
-
-
-
-	// Note(Leo): these are for platform layer only.
-	FrameResult prepare_frame(Graphics*);
-	void fill_functions(Graphics*, Functions*);
 }
 
 namespace game

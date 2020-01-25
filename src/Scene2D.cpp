@@ -204,7 +204,7 @@ scene_2d::load(	void * scenePtr,
 
     scene->worldCamera =
     {
-    	.forward 		= World::Forward,
+    	.forward 		= world::forward,
     	.fieldOfView 	= 60,
     	.nearClipPlane 	= 0.1f,
     	.farClipPlane 	= 1000.0f,

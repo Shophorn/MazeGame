@@ -27,7 +27,7 @@ struct CameraControllerSideScroller
 			distance = Min(distance, maxDistance);
 		}
 
-		vector3 direction = World::Forward;
+		vector3 direction = world::forward;
 		camera->forward = direction;
 		camera->position = 	baseOffset
 							+ target->position
@@ -45,9 +45,7 @@ update_camera_system(	Camera * camera,
 	/* Note(Leo): Update aspect ratio each frame, in case screen size has changed.
 	This probably costs us less than checking if it has :D */
     camera->aspectRatio = (float)functions->get_window_width(window) / (float)functions->get_window_height(window);
-    functions->update_camera(	graphics,
-    							get_view_projection(camera),
-    							get_perspective_projection(camera));
+    functions->update_camera(graphics, camera);
 }
 
 struct CameraController3rdPerson

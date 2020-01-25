@@ -2,7 +2,7 @@ struct Camera
 {
 	vector3 position;
 	// Todo(Leo): change to quaternion, maybe
-	vector3 forward = World::Forward;
+	vector3 forward = world::forward;
 
 	float fieldOfView;
 	float nearClipPlane;
@@ -66,7 +66,7 @@ get_view_projection(Camera const * cam)
 	// Study: https://www.3dgep.com/understanding-the-view-matrix/
 
 	vector3 zAxis 	= -cam->forward;
-	vector3 xAxis 	= vector::normalize(vector::cross(World::Up, zAxis));
+	vector3 xAxis 	= vector::normalize(vector::cross(world::up, zAxis));
 	vector3 yAxis 	= vector::cross (zAxis, xAxis);
 
 	Matrix44 orientation = {
@@ -88,7 +88,7 @@ Matrix44
 get_rotation_matrix(Camera * camera)
 {
 	vector3 zAxis 	= -camera->forward;
-	vector3 xAxis 	= vector::normalize(vector::cross(World::Up, zAxis));
+	vector3 xAxis 	= vector::normalize(vector::cross(world::up, zAxis));
 	vector3 yAxis 	= vector::cross (zAxis, xAxis);
 
 	Matrix44 orientation = {

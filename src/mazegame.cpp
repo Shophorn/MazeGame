@@ -15,7 +15,6 @@ Leo Tamminen
 #include "MapGenerator.cpp"
 #include "Transform3D.cpp"
 #include "Animator.cpp"
-#include "Camera.cpp"
 #include "Collisions2D.cpp"
 #include "CollisionManager2D.cpp"
 #include "Skybox.cpp"

@@ -72,7 +72,21 @@ union VectorBase<Scalar, 3>
 #define VECTOR_3_TYPE		VectorBase<Scalar, 3>
 
 using vector3 	= VectorBase<float, 3>;
-// using float3 	= VectorBase<float, 3>;
+using float3 	= VectorBase<float, 3>;
+
+struct world
+{
+	/*
+	Note(Leo): Right handed coordinate system, x right, y, forward, z up.
+	*/
+
+	static constexpr vector3 left 		= {-1,  0,  0};
+	static constexpr vector3 right 		= { 1,  0,  0};
+	static constexpr vector3 back 		= { 0, -1,  0};
+	static constexpr vector3 forward 	= { 0,  1,  0};
+	static constexpr vector3 down 		= { 0,  0, -1};
+	static constexpr vector3 up 		= { 0,  0,  1};
+};
 
 template<typename Scalar>
 union VectorBase<Scalar, 4>

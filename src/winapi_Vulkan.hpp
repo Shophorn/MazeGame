@@ -431,16 +431,12 @@ namespace vulkan
 	internal VkSampler				make_vk_sampler(VkDevice device);
 
 	/// DRAWING, VulkanDrawing.cpp
-    internal void update_camera				(VulkanContext*, Matrix44 view, Matrix44 perspective);
+    internal void update_camera				(VulkanContext*, Camera const *);
 	internal void prepare_drawing			(VulkanContext*);
 	internal void finish_drawing 			(VulkanContext*);
 	internal void record_draw_command 		(VulkanContext*, ModelHandle handle, Matrix44 transform);
 	internal void record_line_draw_command	(VulkanContext*, vector3 start, vector3 end, float width, float4 color);
 	internal void record_gui_draw_command	(VulkanContext*, vector2 position, vector2 size, MaterialHandle material, float4 color);
-
-	internal void prepare_shadow_pass 		(VulkanContext*, Matrix44 view, Matrix44 perspective);
-	internal void finish_shadow_pass 		(VulkanContext*);
-	internal void draw_shadow_model			(VulkanContext*, ModelHandle model, Matrix44 transform);
 
     internal TextureHandle  push_texture (VulkanContext * context, TextureAsset * texture);
     internal MaterialHandle push_material (VulkanContext * context, MaterialAsset * asset);
@@ -505,11 +501,6 @@ platform::fill_functions(VulkanContext * context, platform::Functions * function
  	functions->draw_model             = vulkan::record_draw_command;
  	functions->draw_line              = vulkan::record_line_draw_command;
  	functions->draw_gui               = vulkan::record_gui_draw_command;
-
- 	functions->prepare_shadow_pass    = vulkan::prepare_shadow_pass;
- 	functions->finish_shadow_pass     = vulkan::finish_shadow_pass;
- 	functions->draw_shadow_model      = vulkan::draw_shadow_model;
-
 }
 
 #define WIN_VULKAN_HPP

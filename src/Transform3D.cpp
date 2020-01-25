@@ -65,17 +65,17 @@ get_world_position(Transform3D * transform)
 vector3
 get_forward(Transform3D * transform)
 {
-	return get_rotation_matrix(transform->rotation) * World::Forward;
+	return get_rotation_matrix(transform->rotation) * world::forward;
 }
 
 vector3
 get_right(Transform3D * transform)
 {
-	return get_rotation_matrix(transform->rotation) * World::Right;
+	return get_rotation_matrix(transform->rotation) * world::right;
 }
 
 vector3
 get_up(Transform3D * transform)
 {
-	return get_rotation_matrix(transform->rotation) * World::Up;
+	return get_rotation_matrix(transform->rotation) * world::up;
 }
