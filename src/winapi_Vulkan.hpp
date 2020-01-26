@@ -38,6 +38,16 @@ struct VulkanCameraUniformBufferObject
 	alignas(16) Matrix44 perspective;
 };
 
+namespace vulkan
+{
+	struct LightingUniformBufferObject
+	{
+		vector4 direction;
+		float4 color;
+		float4 ambient;
+	};
+}
+
 // Todo[rendering] (Leo): Use this VulkanModelUniformBufferObject
 // struct VulkanModelUniformBufferObject
 // {
@@ -136,9 +146,10 @@ struct VulkanLoadedPipeline
 	VkDescriptorSetLayout	materialLayout;
 
 	// Todo(Leo): use these
-	// u32 sceneSetIndex;
-	// u32 materialSetIndex;
-	// u32 modelSetIndex;
+	u32 sceneSetIndex;
+	u32 modelSetIndex;
+	u32 materialSetIndex;
+	u32 lightingSetIndex;
 };
 
 struct VulkanVirtualFrame
@@ -182,12 +193,6 @@ struct platform::Graphics
 
     struct
     {
-    	VkDescriptorSetLayout scene;
-    	VkDescriptorSetLayout model;
-    } descriptorSetLayouts;
-
-    struct
-    {
     	VkDescriptorPool uniform;
     	VkDescriptorPool material;
 
@@ -196,9 +201,20 @@ struct platform::Graphics
 
     struct
     {
+    	VkDescriptorSetLayout camera;
+    	VkDescriptorSetLayout model;
+    	VkDescriptorSetLayout lighting;
+    } descriptorSetLayouts;
+
+    struct
+    {
+   	 	VkDescriptorSet camera;
 	    VkDescriptorSet model;
-   	 	VkDescriptorSet scene;
+   	 	VkDescriptorSet lighting;
     } uniformDescriptorSets;
+
+    u32 cameraUniformOffset = 0;
+    u32 lightingUniformOffset = 256;
 
     // Uncategorized
 	VkCommandPool 			commandPool;
@@ -355,6 +371,12 @@ namespace vulkan
 	constexpr int DEVICE_EXTENSION_COUNT = get_array_count(deviceExtensions);
 
     constexpr s32 MAX_LOADED_TEXTURES = 100;
+
+    enum : u32
+    {
+    	SHADER_LIGHTING_SET = 3
+    };
+
 
     // Todo(Leo): this is internal to the some place
 	internal VkIndexType convert_index_type(IndexType);

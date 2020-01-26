@@ -11,19 +11,6 @@ Implementations of vulkan related functions
 #include "VulkanPipelines.cpp"
 #include "VulkanSwapchain.cpp"
 
-/* Note(leo): these are fixed per available renderpipeline thing. They describe
-'kinds' of resources or something, so their amount does not change
-
-IMPORTANT(Leo): These must be same in shaders
-Todo(Leo): this is stupid, please remove.
-*/
-enum : u32
-{
-    DESCRIPTOR_LAYOUT_SCENE_BINDING     = 0,
-    DESCRIPTOR_LAYOUT_MODEL_BINDING     = 0,
-    DESCRIPTOR_LAYOUT_SAMPLER_BINDING   = 0,
-};
-
 internal VkFormat
 vulkan::find_supported_format(
     VkPhysicalDevice physicalDevice,
@@ -395,7 +382,7 @@ vulkan::make_material_vk_descriptor_set_layout(VkDevice device, u32 textureCount
 {
     VkDescriptorSetLayoutBinding binding = 
     {
-        .binding             = DESCRIPTOR_LAYOUT_SAMPLER_BINDING,
+        .binding             = 0,
         .descriptorCount     = textureCount,
         .descriptorType      = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
         .stageFlags          = VK_SHADER_STAGE_FRAGMENT_BIT,
@@ -454,7 +441,7 @@ vulkan::make_material_vk_descriptor_set(
     {  
         .sType              = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
         .dstSet             = resultSet,
-        .dstBinding         = DESCRIPTOR_LAYOUT_SAMPLER_BINDING,
+        .dstBinding         = 0,
         .dstArrayElement    = 0,
         .descriptorType     = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
         .descriptorCount    = textureCount,
@@ -496,7 +483,7 @@ vulkan::make_material_vk_descriptor_set(
     {  
         .sType              = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
         .dstSet             = resultSet,
-        .dstBinding         = DESCRIPTOR_LAYOUT_SAMPLER_BINDING,
+        .dstBinding         = 0,
         .dstArrayElement    = 0,
         .descriptorType     = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
         .descriptorCount    = 1,
@@ -540,7 +527,7 @@ make_material_vk_descriptor_set_2(
     {  
         .sType              = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
         .dstSet             = resultSet,
-        .dstBinding         = DESCRIPTOR_LAYOUT_SAMPLER_BINDING,
+        .dstBinding         = 0,
         .dstArrayElement    = 0,
         .descriptorType     = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
         .descriptorCount    = 1,
@@ -801,14 +788,11 @@ namespace winapi_vulkan_internal_
     internal VkSampleCountFlagBits  get_max_usable_msaa_samplecount(VkPhysicalDevice);
 
     // Todo(Leo): These are not winapi specific, so they could move to universal vulkan layer
-    internal void init_memory                       (VulkanContext*);
-    internal void init_model_descriptor_set_layout  (VulkanContext*);
-    internal void init_scene_descriptor_set_layout  (VulkanContext*);
+    internal void init_memory           (VulkanContext*);
+    internal void init_uniform_buffers  (VulkanContext*);
+
     internal void init_material_descriptor_pool     (VulkanContext*);
-    internal void init_uniform_descriptor_pool      (VulkanContext*);
     internal void init_persistent_descriptor_pool   (VulkanContext*, u32 descriptorCount, u32 maxSets);
-    internal void init_model_descriptor_sets        (VulkanContext*);
-    internal void init_scene_descriptor_sets        (VulkanContext*);
     internal void init_virtual_frames               (VulkanContext*);
     internal void init_shadow_pass                  (VulkanContext*, u32 width, u32 height);
 }
@@ -861,14 +845,12 @@ winapi::create_vulkan_context(WinAPIWindow * window)
 
         // Note(Leo): these are expected to add_cleanup any functionality required
         init_memory(&context);
-        init_scene_descriptor_set_layout (&context);
-        init_model_descriptor_set_layout (&context);
-        init_virtual_frames (&context);
-        init_uniform_descriptor_pool (&context);
+
+        init_uniform_buffers (&context);
+
         init_material_descriptor_pool (&context);
         init_persistent_descriptor_pool (&context, 20, 20);
-        init_model_descriptor_sets (&context);
-        init_scene_descriptor_sets (&context);
+        init_virtual_frames (&context);
     
         context.textureSampler = vulkan::make_vk_sampler(context.device);
         add_cleanup(&context, [](VulkanContext * context)
@@ -1311,38 +1293,155 @@ winapi_vulkan_internal_::init_persistent_descriptor_pool(VulkanContext * context
     });
 }
 
-internal void
-winapi_vulkan_internal_::init_uniform_descriptor_pool(VulkanContext * context)
+VkDescriptorSetLayout
+make_vk_descriptor_set_layout(VkDevice device, VkDescriptorType type, VkShaderStageFlags stageFlags)
 {
-    /*
-    Note(Leo): 
-    There needs to only one per type, not one per user
+    VkDescriptorSetLayoutBinding binding =
+    {
+        .binding            = 0,
+        .descriptorType     = type,
+        .descriptorCount    = 1,
+        .stageFlags         = stageFlags,
+        .pImmutableSamplers = nullptr,
+    };
 
-    We create a single big buffer and then use offsets to divide it to smaller chunks
+    // Todo(Leo): we could use this to bind camera and light simultaneously
+    VkDescriptorSetLayoutCreateInfo layoutCreateInfo =
+    { 
+        .sType          = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+        .bindingCount   = 1,
+        .pBindings      = &binding,
+    };
 
-    'count' is one for actor (characters, animated scenery) uniform buffers which are dynamic and 
-    one for static scenery.
-    */
-    constexpr s32 count = 2;
-    VkDescriptorPoolSize poolSizes [count] = {};
+    VkDescriptorSetLayout result;
+    VULKAN_CHECK(vkCreateDescriptorSetLayout(device, &layoutCreateInfo, nullptr, &result));
+    return result;    
+}
 
-    poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
-    poolSizes[0].descriptorCount = 1; // Note(Leo): 2 = 1 for 3d models and 1 for gui 
+internal VkDescriptorSet
+allocate_vk_descriptor_set(VkDevice device, VkDescriptorPool pool, VkDescriptorSetLayout layout)
+{
 
-    poolSizes[1].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    poolSizes[1].descriptorCount = 1;
+    VkDescriptorSetAllocateInfo allocateInfo =
+    { 
+        .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+        .descriptorPool     = pool,
+        .descriptorSetCount = 1,
+      
+        // Todo(Leo): is this okay, quick google did not tell..
+        .pSetLayouts        = &layout,
+    };
+
+    VkDescriptorSet result;
+    VULKAN_CHECK (vkAllocateDescriptorSets(device, &allocateInfo, &result));    
+    return result;
+}
+
+internal void
+update_descriptor_buffer(VkDescriptorSet set, VkDevice device, VkDescriptorType type, VkBuffer buffer, u32 offset, u32 range)
+{
+    VkDescriptorBufferInfo bufferInfo =
+    {
+        .buffer = buffer,
+        .offset = offset,
+
+        // Todo(Leo): Align Align, this works now because matrix44 happens to fit 64 bytes.
+        .range = range,
+    };
+
+    VkWriteDescriptorSet descriptorWrite =
+    {
+        .sType              = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        .dstSet             = set,
+        .dstBinding         = 0,
+        .dstArrayElement    = 0,
+        .descriptorType     = type,
+        .descriptorCount    = 1,
+        .pBufferInfo        = &bufferInfo,
+    };
+    vkUpdateDescriptorSets(device, 1, &descriptorWrite, 0, nullptr);
+}
+
+internal void
+winapi_vulkan_internal_::init_uniform_buffers(VulkanContext * context)
+{
+    // constexpr s32 count = 2;
+    VkDescriptorPoolSize poolSizes [] =
+    {
+        { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1},
+        { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 2}
+    };
 
     VkDescriptorPoolCreateInfo poolInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO };
-    poolInfo.poolSizeCount = count;
-    poolInfo.pPoolSizes = &poolSizes[0];
-    poolInfo.maxSets = 20;
+    poolInfo.poolSizeCount  = get_array_count(poolSizes);
+    poolInfo.pPoolSizes     = poolSizes;
+    poolInfo.maxSets        = 20;
 
     VULKAN_CHECK( vkCreateDescriptorPool(context->device, &poolInfo, nullptr, &context->descriptorPools.uniform));
 
+    ///////////////////////////////
+    ///         MODEL           ///
+    ///////////////////////////////
+    context->descriptorSetLayouts.model = make_vk_descriptor_set_layout(context->device, 
+                                                                        VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+                                                                        VK_SHADER_STAGE_VERTEX_BIT);
+
+    context->uniformDescriptorSets.model = allocate_vk_descriptor_set(  context->device,
+                                                                        context->descriptorPools.uniform,
+                                                                        context->descriptorSetLayouts.model);
+    update_descriptor_buffer(   context->uniformDescriptorSets.model,
+                                context->device,
+                                VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+                                context->modelUniformBuffer.buffer,
+                                0, sizeof(Matrix44));
+
+    ///////////////////////////////
+    ///         CAMERA          ///
+    ///////////////////////////////
+    context->descriptorSetLayouts.camera = make_vk_descriptor_set_layout(   context->device,
+                                                                            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                                                                            VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
+
+    context->uniformDescriptorSets.camera = allocate_vk_descriptor_set( context->device,
+                                                                        context->descriptorPools.uniform,
+                                                                        context->descriptorSetLayouts.camera);
+    update_descriptor_buffer(   context->uniformDescriptorSets.camera,
+                                context->device,
+                                VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                                context->sceneUniformBuffer.buffer,
+                                context->cameraUniformOffset,
+                                sizeof(VulkanCameraUniformBufferObject));
+
+    ///////////////////////////////
+    ///        LIGHTING         ///
+    ///////////////////////////////
+    context->descriptorSetLayouts.lighting = make_vk_descriptor_set_layout( context->device,
+                                                                            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                                                                            VK_SHADER_STAGE_FRAGMENT_BIT);
+    context->uniformDescriptorSets.lighting = allocate_vk_descriptor_set(   context->device,
+                                                                            context->descriptorPools.uniform,
+                                                                            context->descriptorSetLayouts.lighting);
+
+    update_descriptor_buffer(   context->uniformDescriptorSets.lighting,
+                                context->device,
+                                VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                                context->sceneUniformBuffer.buffer,
+                                context->lightingUniformOffset,
+                                sizeof(vulkan::LightingUniformBufferObject));
+
+    ///////////////////////////////
+    ///         CLEANUP         ///
+    ///////////////////////////////
     add_cleanup(context, [](VulkanContext * context)
     {
+        vkDestroyDescriptorSetLayout(context->device, context->descriptorSetLayouts.camera, nullptr);
+        vkDestroyDescriptorSetLayout(context->device, context->descriptorSetLayouts.lighting, nullptr);
+        vkDestroyDescriptorSetLayout(context->device, context->descriptorSetLayouts.model, nullptr);
+
+        // Notice(Leo): this must be last
         vkDestroyDescriptorPool(context->device, context->descriptorPools.uniform, nullptr);
     });
+
 }
 
 internal void
@@ -1368,80 +1467,6 @@ winapi_vulkan_internal_::init_material_descriptor_pool(VulkanContext * context)
     {
         vkDestroyDescriptorPool(context->device, context->descriptorPools.material, nullptr);
     });
-}
-
-internal void
-winapi_vulkan_internal_::init_model_descriptor_sets(VulkanContext * context)
-{
-    VkDescriptorSetAllocateInfo allocateInfo =
-    { 
-        .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-        .descriptorPool     = context->descriptorPools.uniform,
-        .descriptorSetCount = 1,
-        .pSetLayouts        = &context->descriptorSetLayouts.model,
-    };
-
-    VkDescriptorSet resultDescriptorSet;
-    VULKAN_CHECK (vkAllocateDescriptorSets(context->device, &allocateInfo, &resultDescriptorSet));
-
-    VkDescriptorBufferInfo modelBufferInfo =
-    {
-        .buffer = context->modelUniformBuffer.buffer,
-        .offset = 0,
-
-        // Todo(Leo): Align Align, this works now because matrix44 happens to fit 64 bytes.
-        .range = sizeof(Matrix44),
-    };
-
-    VkWriteDescriptorSet descriptorWrite =
-    {
-        .sType              = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-        .dstSet             = resultDescriptorSet,
-        .dstBinding         = DESCRIPTOR_LAYOUT_MODEL_BINDING,
-        .dstArrayElement    = 0,
-        .descriptorType     = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
-        .descriptorCount    = 1,
-        .pBufferInfo        = &modelBufferInfo,
-    };
-
-    vkUpdateDescriptorSets(context->device, 1, &descriptorWrite, 0, nullptr);
-    context->uniformDescriptorSets.model = resultDescriptorSet;
-}
-
-internal void
-winapi_vulkan_internal_::init_scene_descriptor_sets(VulkanContext * context)
-{
-    VkDescriptorSetAllocateInfo allocateInfo =
-    { 
-        .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-        .descriptorPool     = context->descriptorPools.uniform,
-        .descriptorSetCount = 1,
-        .pSetLayouts        = &context->descriptorSetLayouts.scene,
-    };
-
-    VkDescriptorSet resultDescriptorSet;
-    VULKAN_CHECK(vkAllocateDescriptorSets(context->device, &allocateInfo, &resultDescriptorSet));
-    
-    VkDescriptorBufferInfo sceneBufferInfo =
-    {
-        .buffer = context->sceneUniformBuffer.buffer,
-        .offset = 0,
-        .range = sizeof(VulkanCameraUniformBufferObject),
-    };
-
-    VkWriteDescriptorSet descriptorWrite =
-    {
-        .sType              = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-        .dstSet             = resultDescriptorSet,
-        .dstBinding         = DESCRIPTOR_LAYOUT_SCENE_BINDING,
-        .dstArrayElement    = 0,
-        .descriptorType     = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-        .descriptorCount    = 1,
-        .pBufferInfo        = &sceneBufferInfo,
-    };
-
-    vkUpdateDescriptorSets(context->device, 1, &descriptorWrite, 0, nullptr);
-    context->uniformDescriptorSets.scene = resultDescriptorSet;
 }
 
 internal void
@@ -1511,63 +1536,6 @@ winapi_vulkan_internal_::init_virtual_frames(VulkanContext * context)
             vkDestroySemaphore(context->device, frame.imageAvailableSemaphore, nullptr);
             vkDestroyFence(context->device, frame.inFlightFence, nullptr);
         }
-    });
-}
-
-internal void
-winapi_vulkan_internal_::init_model_descriptor_set_layout(VulkanContext * context)
-{
-    VkDescriptorSetLayoutBinding binding =
-    {
-        .binding            = DESCRIPTOR_LAYOUT_MODEL_BINDING,
-        .descriptorType     = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
-        .descriptorCount    = 1,
-        .stageFlags         = VK_SHADER_STAGE_VERTEX_BIT,
-        .pImmutableSamplers = nullptr,
-    };
-
-    VkDescriptorSetLayoutCreateInfo layoutCreateInfo =
-    { 
-        .sType          = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-        .bindingCount   = 1,
-        .pBindings      = &binding,
-    };
-
-    VULKAN_CHECK(vkCreateDescriptorSetLayout(context->device, &layoutCreateInfo, nullptr, &context->descriptorSetLayouts.model));
-
-    add_cleanup(context, [](VulkanContext * context)
-    {
-        vkDestroyDescriptorSetLayout(context->device, context->descriptorSetLayouts.model, nullptr);
-    });
-}
-
-internal void
-winapi_vulkan_internal_::init_scene_descriptor_set_layout(VulkanContext * context)
-{
-    VkDescriptorSetLayoutBinding binding =
-    {
-        .binding            = DESCRIPTOR_LAYOUT_SCENE_BINDING,
-        .descriptorType     = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-        .descriptorCount    = 1,
-        .stageFlags         = VK_SHADER_STAGE_VERTEX_BIT,
-        .pImmutableSamplers = nullptr,
-    };
-
-    VkDescriptorSetLayoutCreateInfo layoutCreateInfo =
-    { 
-        .sType          = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-        .bindingCount   = 1,
-        .pBindings      = &binding,
-    };
-
-    VULKAN_CHECK(vkCreateDescriptorSetLayout(   context->device,
-                                                &layoutCreateInfo,
-                                                nullptr,
-                                                &context->descriptorSetLayouts.scene));
-
-    add_cleanup(context, [](VulkanContext * context)
-    {
-        vkDestroyDescriptorSetLayout(context->device, context->descriptorSetLayouts.scene, nullptr);
     });
 }
 
@@ -1772,7 +1740,7 @@ winapi_vulkan_internal_::init_shadow_pass(VulkanContext * context, u32 width, u3
     u32 setLayoutCount = 0;
     VkDescriptorSetLayout setLayouts [3];
 
-    if (true) { setLayouts[setLayoutCount++] = context->descriptorSetLayouts.scene; }
+    if (true) { setLayouts[setLayoutCount++] = context->descriptorSetLayouts.camera; }
     if (true) { setLayouts[setLayoutCount++] = context->descriptorSetLayouts.model; }
 
     VkPipelineLayoutCreateInfo pipelineLayoutInfo =

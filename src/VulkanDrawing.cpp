@@ -12,7 +12,7 @@ vulkan::update_camera(VulkanContext * context, Camera const * camera)
     // Note (Leo): map vulkan memory directly to right type so we can easily avoid one (small) memcpy per frame
     VulkanCameraUniformBufferObject * pUbo;
     vkMapMemory(context->device, context->sceneUniformBuffer.memory,
-                0, sizeof(VulkanCameraUniformBufferObject), 0, (void**)&pUbo);
+                context->cameraUniformOffset, sizeof(VulkanCameraUniformBufferObject), 0, (void**)&pUbo);
 
     pUbo->view          = get_view_projection(camera);
     pUbo->perspective   = get_perspective_projection(camera);
@@ -23,6 +23,18 @@ vulkan::update_camera(VulkanContext * context, Camera const * camera)
 void
 vulkan::prepare_drawing(VulkanContext * context)
 {
+    LightingUniformBufferObject * light;
+    vkMapMemory(context->device, context->sceneUniformBuffer.memory,
+                context->lightingUniformOffset, sizeof(light), 0, (void**)&light);
+
+    light->direction    = size_cast<vector4>(vector::normalize(vector3{2, 1, -1.5f}));
+    light->color        = {0.5, 0.5, 1};
+    light->ambient      = {0.1, 0.1, 0.2};
+
+    vkUnmapMemory(context->device, context->sceneUniformBuffer.memory);
+
+    // -----------------------------------------------------------
+    
     DEBUG_ASSERT((context->canDraw == false), "Invalid call to prepare_drawing() when finish_drawing() has not been called.")
     context->canDraw                    = true;
 
@@ -123,11 +135,6 @@ vulkan::prepare_drawing(VulkanContext * context)
     };
     VULKAN_CHECK(vkBeginCommandBuffer(frame->commandBuffers.offscreen, &shadowCmdBeginInfo));
 
-    
-    // u32 shadowPassSceneSet = 0;
-    // vkCmdBindDescriptorSets(frame->commandBuffers.offscreen, VK_PIPELINE_BIND_POINT_GRAPHICS, context->shadowPass.layout,
-    //                         shadowPassSceneSet, 1, &context->uniformDescriptorSets.scene,
-    //                         0, nullptr);    
 }
 
 void
@@ -263,9 +270,10 @@ vulkan::record_draw_command(VulkanContext * context, ModelHandle model, Matrix44
     
     VkDescriptorSet sets [] =
     {   
-        context->uniformDescriptorSets.scene,
+        context->uniformDescriptorSets.camera,
         material->descriptorSet,
         context->uniformDescriptorSets.model,
+        context->uniformDescriptorSets.lighting,
     };
 
     // Note(Leo): this works, because models are only dynamic set
@@ -274,6 +282,7 @@ vulkan::record_draw_command(VulkanContext * context, ModelHandle model, Matrix44
     vkCmdBindDescriptorSets(frame->commandBuffers.scene, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->layout,
                             0, get_array_count(sets), sets,
                             get_array_count(dynamicOffsets), dynamicOffsets);
+
 
     vkCmdBindVertexBuffers(frame->commandBuffers.scene, 0, 1, &mesh->buffer, &mesh->vertexOffset);
     vkCmdBindIndexBuffer(frame->commandBuffers.scene, mesh->buffer, mesh->indexOffset, mesh->indexType);
@@ -292,7 +301,7 @@ vulkan::record_draw_command(VulkanContext * context, ModelHandle model, Matrix44
 
     VkDescriptorSet shadowSets [] =
     {
-        context->uniformDescriptorSets.scene,
+        context->uniformDescriptorSets.camera,
         context->uniformDescriptorSets.model,
     };
 
@@ -319,13 +328,6 @@ vulkan::record_line_draw_command(VulkanContext * context, vector3 start, vector3
     DEBUG_ASSERT(context->canDraw, "Invalid call to record_line_draw_command() when prepare_drawing() has not been called.")
 
     VkCommandBuffer commandBuffer = get_current_virtual_frame(context)->commandBuffers.scene;
- 
-    enum : u32
-    {
-        LAYOUT_SET_SCENE    = 0,
-        LAYOUT_SET_MATERIAL = 1,
-        LAYOUT_SET_MODEL    = 2,
-    };
 
     // Todo(Leo): Define some struct etc. for this
     vector4 pushConstants [] = 
@@ -339,7 +341,7 @@ vulkan::record_line_draw_command(VulkanContext * context, vector3 start, vector3
 
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, context->lineDrawPipeline.pipeline);
     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, context->lineDrawPipeline.layout,
-                            LAYOUT_SET_SCENE, 1, &context->uniformDescriptorSets.scene, 0, nullptr);
+                            0, 1, &context->uniformDescriptorSets.camera, 0, nullptr);
     vkCmdDraw(commandBuffer, 2, 1, 0, 0);
 
     // Note(Leo): This must be done so that next time we draw normally, we know to bind thos descriptors again

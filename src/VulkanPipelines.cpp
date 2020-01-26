@@ -242,41 +242,48 @@ vulkan::make_pipeline(
     }
 
 
-    u32 setLayoutBindingCount = 0;
-    VkDescriptorSetLayout setLayoutBindings [3];
+    u32 layoutSetCount = 0;
+    VkDescriptorSetLayout layoutSets [4];
 
     auto materialLayout = make_material_vk_descriptor_set_layout(context->device, options.textureCount);
 
-    // u32 sceneSetIndex = -1;
-    // u32 materialSetIndex = -1;
-    // u32 modelSetIndex = -1;
+    u32 sceneSetIndex = -1;
+    u32 modelSetIndex = -1;
+    u32 materialSetIndex = -1;
+    u32 lightingSetIndex = -1;
 
     if (options.useSceneLayoutSet)
     { 
-        setLayoutBindings[setLayoutBindingCount] = context->descriptorSetLayouts.scene;
-        // sceneSetIndex = setLayoutBindingCount;
-        ++setLayoutBindingCount;
+        layoutSets[layoutSetCount] = context->descriptorSetLayouts.camera;
+        sceneSetIndex = layoutSetCount;
+        ++layoutSetCount;
     }
 
     if (options.useMaterialLayoutSet)
     { 
-        setLayoutBindings[setLayoutBindingCount] = materialLayout;
-        // materialSetIndex = setLayoutBindingCount;
-        ++setLayoutBindingCount;
+        layoutSets[layoutSetCount] = materialLayout;
+        materialSetIndex = layoutSetCount;
+        ++layoutSetCount;
     }
     if (options.useModelLayoutSet)
     { 
-        setLayoutBindings[setLayoutBindingCount] = context->descriptorSetLayouts.model;
-        // modelSetIndex = setLayoutBindingCount;
-        ++setLayoutBindingCount;
+        layoutSets[layoutSetCount] = context->descriptorSetLayouts.model;
+        modelSetIndex = layoutSetCount;
+        ++layoutSetCount;
     }
 
+    if (options.useLighting)
+    {
+        layoutSets[layoutSetCount] = context->descriptorSetLayouts.lighting;
+        lightingSetIndex = layoutSetCount;
+        ++layoutSetCount;
+    }
 
     VkPipelineLayoutCreateInfo pipelineLayoutInfo =
     {
         .sType                  = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-        .setLayoutCount         = setLayoutBindingCount,
-        .pSetLayouts            = setLayoutBindings,
+        .setLayoutCount         = layoutSetCount,
+        .pSetLayouts            = layoutSets,
         .pushConstantRangeCount = pushConstantRangeCount,
         .pPushConstantRanges    = &pushConstantRange,
     };
@@ -323,9 +330,10 @@ vulkan::make_pipeline(
         .layout         = layout,
         .materialLayout = materialLayout,
 
-        // .sceneSetIndex      = sceneSetIndex,
-        // .materialSetIndex   = materialSetIndex,
-        // .modelSetIndex      = modelSetIndex,
+        .sceneSetIndex      = sceneSetIndex,
+        .materialSetIndex   = materialSetIndex,
+        .modelSetIndex      = modelSetIndex,
+        .lightingSetIndex   = lightingSetIndex,
     };
 }
 

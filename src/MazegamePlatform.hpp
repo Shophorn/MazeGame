@@ -83,6 +83,7 @@ namespace platform
 	    bool32 useSceneLayoutSet 	= true;
 	    bool32 useMaterialLayoutSet = true;
 	    bool32 useModelLayoutSet 	= true;
+	    bool32 useLighting			= true;
 	};
 
 	/* 
