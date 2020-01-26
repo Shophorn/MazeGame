@@ -125,6 +125,7 @@ Scene3d::load(	void * 						scenePtr,
 	// Create MateriaLs
 	{
 		PipelineHandle normalPipeline 	= functions->push_pipeline(graphics, "assets/shaders/vert.spv", "assets/shaders/frag.spv", {.textureCount = 3});
+		PipelineHandle terrainPipeline 	= functions->push_pipeline(graphics, "assets/shaders/vert.spv", "assets/shaders/terrain_frag.spv", {.textureCount = 3});
 		PipelineHandle skyPipeline 		= functions->push_pipeline(graphics, "assets/shaders/vert_sky.spv", "assets/shaders/frag_sky.spv", {.enableDepth = false, .textureCount = 1});
 
 		TextureAsset whiteTextureAsset = make_texture_asset(push_array<u32>(transientMemory, {0xffffffff}), 1, 1);
@@ -156,7 +157,7 @@ Scene3d::load(	void * 						scenePtr,
 		{
 			.character 		= push_material(normalPipeline, lavaTexture, faceTexture, blackTexture),
 			.environment 	= push_material(normalPipeline, tilesTexture, blackTexture, blackTexture),
-			.ground 		= push_material(normalPipeline, groundTexture, blackTexture, blackTexture),
+			.ground 		= push_material(terrainPipeline, groundTexture, blackTexture, blackTexture),
 		};
 
 		

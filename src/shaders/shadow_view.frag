@@ -12,10 +12,10 @@ layout(binding = SAMPLER_BIND_ID, set = 0) uniform sampler2D texSampler;
 
 float LinearizeDepth(float depth)
 {
-  float n = 0.1; // camera z near
-  float f = 1000; // camera z far
-  float z = depth;
-  return (2.0 * n) / (f + n - z * (f - n));	
+	float n = 0.1; // camera z near
+	float f = 1000; // camera z far
+	float z = depth;
+	return (2.0 * n) / (f + n - z * (f - n));	
 }
 
 void main()

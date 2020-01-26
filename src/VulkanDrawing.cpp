@@ -28,7 +28,7 @@ vulkan::prepare_drawing(VulkanContext * context)
                 context->lightingUniformOffset, sizeof(light), 0, (void**)&light);
 
     light->direction    = size_cast<vector4>(vector::normalize(vector3{2, 1, -1.5f}));
-    light->color        = {0.5, 0.5, 1};
+    light->color        = {0.98, 0.95, 0.92};
     light->ambient      = {0.1, 0.1, 0.2};
 
     vkUnmapMemory(context->device, context->sceneUniformBuffer.memory);

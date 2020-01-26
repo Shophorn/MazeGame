@@ -3,6 +3,7 @@ import os
 # -V means outputting spir-v intermediate binary code
 os.system("glslangValidator -V src/shaders/shader.vert -o assets/shaders/vert.spv")
 os.system("glslangValidator -V src/shaders/shader.frag -o assets/shaders/frag.spv")
+os.system("glslangValidator -V src/shaders/terrain_shader.frag -o assets/shaders/terrain_frag.spv")
 
 os.system("glslangValidator -V src/shaders/shadow_shader.vert -o assets/shaders/shadow_vert.spv")
 os.system("glslangValidator -V src/shaders/shadow_view.frag -o assets/shaders/shadow_view_frag.spv")
