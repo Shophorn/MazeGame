@@ -10,6 +10,7 @@ but compulsory design choices, look at:
 #include <initializer_list>
 #include <algorithm>
 #include <type_traits>
+#include <cstring>
 
 ///////////////////////////////////
 /// 	STATIC ARRAY 			///
@@ -52,7 +53,7 @@ struct MemoryArena
 };
 
 internal byte *
-reserve_from_memory_arena(MemoryArena * arena, u64 size)
+reserve_from_memory_arena(MemoryArena * arena, u64 size, bool clear = false)
 {
 	size = align_up_to(size, MemoryArena::defaultAlignment);
 	
@@ -61,6 +62,11 @@ reserve_from_memory_arena(MemoryArena * arena, u64 size)
 
 	byte * result = arena->next();
 	arena->used += size;
+
+	if (clear)
+	{
+		std::memset(result, 0, size);
+	}
 
 	return result;
 }
@@ -81,13 +87,6 @@ internal void
 flush_memory_arena(MemoryArena * arena)
 {
 	arena->used = 0;
-}
-
-internal void
-clear_memory_arena(MemoryArena * arena)
-{
-	arena->used = 0;
-	std::fill_n(arena->memory, arena->size, 0);
 }
 
 ///////////////////////////////////////

@@ -914,6 +914,7 @@ winapi::create_vulkan_context(WinAPIWindow * window)
         guiPipelineInfo.fragmentShaderPath = "assets/shaders/shadow_view_frag.spv";
         context.shadowPass.debugView = vulkan::make_pipeline(&context, guiPipelineInfo);
 
+        // Todo(Leo): seems like these are leaving some undestroyed instances behind
         winapi_vulkan_internal_::add_cleanup(&context, [](VulkanContext * context)
         {
             vulkan::destroy_loaded_pipeline(context, &context->lineDrawPipeline);

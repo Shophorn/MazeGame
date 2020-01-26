@@ -110,7 +110,7 @@ load_scene(	GameState * state,
 {
 	state->loadedSceneInfo = scene;
 
-	state->loadedScene = reserve_from_memory_arena(&state->persistentMemoryArena, scene->get_alloc_size());
+	state->loadedScene = reserve_from_memory_arena(&state->persistentMemoryArena, scene->get_alloc_size(), true);
 	scene->load(state->loadedScene,
 				&state->persistentMemoryArena,
 				&state->transientMemoryArena,
@@ -127,7 +127,7 @@ unload_scene(	GameState * state,
 	state->loadedSceneInfo = {};
 
 	functions->unload_scene(graphics);
-	clear_memory_arena(&state->persistentMemoryArena);
+	flush_memory_arena(&state->persistentMemoryArena);
 
 	state->loadedScene = nullptr;
 }
