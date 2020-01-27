@@ -89,6 +89,8 @@ bool_str(bool value)
 	return (value ? "True" : "False");
 }
 
+
+// Todo(Leo): this makes no sense, remove it.
 template<typename T>
 u64 get_size_of()
 { 

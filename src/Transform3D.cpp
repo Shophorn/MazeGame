@@ -62,6 +62,7 @@ get_world_position(Transform3D * transform)
 	return transform->position;
 }
 
+// Todo(Leo): make these const
 vector3
 get_forward(Transform3D * transform)
 {
