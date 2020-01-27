@@ -35,9 +35,9 @@ make_character(Handle<Transform3D> transform)
 }
 
 internal vector3
-ProcessCharacterInput(game::Input * input, Camera * camera)
+process_player_input(game::Input * input, Camera * camera)
 {
-	vector3 viewForward = camera->forward;
+	vector3 viewForward = get_forward(camera);
 	viewForward.z 		= 0;
 	viewForward 		= vector::normalize(viewForward);
 	vector3 viewRight 	= vector::cross(viewForward, world::up);
@@ -57,7 +57,7 @@ update_character(
 		platform::Graphics * 	graphics,
 		platform::Functions * 	functions)
 {
-	vector3 movementVector = ProcessCharacterInput(input, worldCamera) * controller->speed * input->elapsedTime;
+	vector3 movementVector = process_player_input(input, worldCamera) * controller->speed * input->elapsedTime;
 
 	vector3 direction;
 	float distance;
@@ -109,7 +109,7 @@ update_character(
 		}
 
 		float angleToWorldForward 		= vector::get_signed_angle(world::forward, direction, world::up);
-		controller->transform->rotation = Quaternion::AxisAngle(world::up, angleToWorldForward);
+		controller->transform->rotation = quaternion::AxisAngle(world::up, angleToWorldForward);
 		
 	}
 

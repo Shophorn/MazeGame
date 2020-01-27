@@ -79,6 +79,11 @@ scene_2d::update(	void * scenePtr,
     update_camera_system(&scene->worldCamera, input, graphics, window, functions);
 	update_render_system(scene->renderSystem, graphics, functions);
 
+	Light light = { vector::normalize(vector3{1, 1, -3}), {0.95, 0.95, 0.9}};
+	float3 ambient = {0.2, 0.25, 0.4};
+	functions->update_lighting(graphics, &light, &scene->worldCamera, ambient);
+
+
 	auto result = update_scene_gui(&scene->gui, input, graphics, functions);
 	return result;
 }
@@ -202,13 +207,7 @@ scene_2d::load(	void * scenePtr,
 		push_one(scene->renderSystem, {transform, renderer});
 	}
 
-    scene->worldCamera =
-    {
-    	.forward 		= world::forward,
-    	.fieldOfView 	= 60,
-    	.nearClipPlane 	= 0.1f,
-    	.farClipPlane 	= 1000.0f,
-    };
+    scene->worldCamera = make_camera(45, 0.1f, 1000.0f);
 
     scene->cameraController =
     {
@@ -229,7 +228,8 @@ scene_2d::load(	void * scenePtr,
 
 		{
 			auto groundQuad 	= mesh_primitives::create_quad(transientMemory, false);
-			auto meshTransform	= Matrix44::Translate({-width / 2, -depth /2, 0}) * Matrix44::Scale({width, depth, 0});
+			auto meshTransform	= matrix::multiply(	make_translation_matrix({-width / 2, -depth /2, 0}),
+													make_scale_matrix({width, depth, 0}));
 			mesh_ops::transform(&groundQuad, meshTransform);
 			mesh_ops::transform_tex_coords(&groundQuad, {0,0}, {width / 2, depth / 2});
 

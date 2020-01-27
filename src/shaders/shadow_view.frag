@@ -21,7 +21,7 @@ float LinearizeDepth(float depth)
 void main()
 {
 	float depth = texture(texSampler, fragTexCoord).r;
-	depth = LinearizeDepth(depth);
+	// depth = LinearizeDepth(depth);
 	outColor.rgb = depth.rrr; //fragColor * texture(texSampler, fragTexCoord).rgb;
 	// outColor.rgb = 0.5.rrr;
 	outColor.a = 1.0;

@@ -738,7 +738,7 @@ vulkan::cmd_transition_image_layout(
 }
 
 VkSampler
-vulkan::make_vk_sampler(VkDevice device)
+vulkan::make_vk_sampler(VkDevice device, VkSamplerAddressMode addressMode)
 {
     VkSamplerCreateInfo samplerInfo =
     { 
@@ -746,9 +746,9 @@ vulkan::make_vk_sampler(VkDevice device)
         .magFilter          = VK_FILTER_LINEAR,
         .minFilter          = VK_FILTER_LINEAR,
 
-        .addressModeU       = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-        .addressModeV       = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-        .addressModeW       = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+        .addressModeU       = addressMode,
+        .addressModeV       = addressMode,
+        .addressModeW       = addressMode,
 
         .anisotropyEnable   = VK_TRUE,
         .maxAnisotropy      = 16,
@@ -852,7 +852,7 @@ winapi::create_vulkan_context(WinAPIWindow * window)
         init_persistent_descriptor_pool (&context, 20, 20);
         init_virtual_frames (&context);
     
-        context.textureSampler = vulkan::make_vk_sampler(context.device);
+        context.textureSampler = vulkan::make_vk_sampler(context.device, VK_SAMPLER_ADDRESS_MODE_REPEAT);
         add_cleanup(&context, [](VulkanContext * context)
         {
             vkDestroySampler(context->device, context->textureSampler, nullptr);
@@ -864,7 +864,7 @@ winapi::create_vulkan_context(WinAPIWindow * window)
             vulkan::destroy_drawing_resources(context);
         });
         
-        init_shadow_pass(&context, 1024, 1024);
+        init_shadow_pass(&context, 1024 * 4, 1024 * 4);
 
         context.debugTextures.white = vulkan::make_texture(&context, 512, 512, {1,1,1,1}, VK_FORMAT_R8G8B8A8_UNORM);
         add_cleanup(&context, [](VulkanContext * context)
@@ -1339,7 +1339,7 @@ allocate_vk_descriptor_set(VkDevice device, VkDescriptorPool pool, VkDescriptorS
 }
 
 internal void
-update_descriptor_buffer(VkDescriptorSet set, VkDevice device, VkDescriptorType type, VkBuffer buffer, u32 offset, u32 range)
+update_vk_descriptor_buffer(VkDescriptorSet set, VkDevice device, VkDescriptorType type, VkBuffer buffer, u32 offset, u32 range)
 {
     VkDescriptorBufferInfo bufferInfo =
     {
@@ -1364,13 +1364,32 @@ update_descriptor_buffer(VkDescriptorSet set, VkDevice device, VkDescriptorType 
 }
 
 internal void
+update_vk_descriptor_image( VkDescriptorSet set, VkDevice device, VkDescriptorType type,
+                            VkSampler sampler, VkImageView view, VkImageLayout layout)
+{
+    VkDescriptorImageInfo info = { sampler, view, layout };
+
+    VkWriteDescriptorSet write = 
+    {
+        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        .dstSet = set,
+        .dstBinding = 0,
+        .dstArrayElement = 0,
+        .descriptorType = type,
+        .descriptorCount = 1,
+        .pImageInfo = &info,
+    };
+    vkUpdateDescriptorSets(device, 1, &write, 0, nullptr);
+}
+
+internal void
 winapi_vulkan_internal_::init_uniform_buffers(VulkanContext * context)
 {
     // constexpr s32 count = 2;
     VkDescriptorPoolSize poolSizes [] =
     {
         { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1},
-        { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 2}
+        { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 10}
     };
 
     VkDescriptorPoolCreateInfo poolInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO };
@@ -1390,7 +1409,7 @@ winapi_vulkan_internal_::init_uniform_buffers(VulkanContext * context)
     context->uniformDescriptorSets.model = allocate_vk_descriptor_set(  context->device,
                                                                         context->descriptorPools.uniform,
                                                                         context->descriptorSetLayouts.model);
-    update_descriptor_buffer(   context->uniformDescriptorSets.model,
+    update_vk_descriptor_buffer(   context->uniformDescriptorSets.model,
                                 context->device,
                                 VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
                                 context->modelUniformBuffer.buffer,
@@ -1406,7 +1425,7 @@ winapi_vulkan_internal_::init_uniform_buffers(VulkanContext * context)
     context->uniformDescriptorSets.camera = allocate_vk_descriptor_set( context->device,
                                                                         context->descriptorPools.uniform,
                                                                         context->descriptorSetLayouts.camera);
-    update_descriptor_buffer(   context->uniformDescriptorSets.camera,
+    update_vk_descriptor_buffer(   context->uniformDescriptorSets.camera,
                                 context->device,
                                 VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
                                 context->sceneUniformBuffer.buffer,
@@ -1423,12 +1442,27 @@ winapi_vulkan_internal_::init_uniform_buffers(VulkanContext * context)
                                                                             context->descriptorPools.uniform,
                                                                             context->descriptorSetLayouts.lighting);
 
-    update_descriptor_buffer(   context->uniformDescriptorSets.lighting,
+    update_vk_descriptor_buffer(   context->uniformDescriptorSets.lighting,
                                 context->device,
                                 VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
                                 context->sceneUniformBuffer.buffer,
                                 context->lightingUniformOffset,
                                 sizeof(vulkan::LightingUniformBufferObject));
+
+    // Note(Leo): this is only bound to shadowmap rendering
+    context->uniformDescriptorSets.lightCamera = allocate_vk_descriptor_set(context->device,
+                                                                            context->descriptorPools.uniform,
+                                                                            context->descriptorSetLayouts.camera);
+
+    update_vk_descriptor_buffer(   context->uniformDescriptorSets.lightCamera,
+                                context->device,
+                                VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                                context->sceneUniformBuffer.buffer,
+                                context->lightCameraUniformOffset,
+                                sizeof(VulkanCameraUniformBufferObject));
+
+
+
 
     ///////////////////////////////
     ///         CLEANUP         ///
@@ -1549,9 +1583,8 @@ winapi_vulkan_internal_::init_shadow_pass(VulkanContext * context, u32 width, u3
     context->shadowPass.width = width;
     context->shadowPass.height = height;
 
-    context->shadowPass.attachment = make_shadow_texture(context, context->shadowPass.width, context->shadowPass.height, format);
-
-    context->shadowPass.sampler = make_vk_sampler(context->device);
+    context->shadowPass.attachment  = make_shadow_texture(context, context->shadowPass.width, context->shadowPass.height, format);
+    context->shadowPass.sampler     = make_vk_sampler(context->device, VK_SAMPLER_ADDRESS_MODE_REPEAT);
 
     VkAttachmentDescription attachment =
     {
@@ -1620,179 +1653,197 @@ winapi_vulkan_internal_::init_shadow_pass(VulkanContext * context, u32 width, u3
                                                             context->shadowPass.width,
                                                             context->shadowPass.height);    
 
-{
-    VkShaderModule vertexShaderModule = make_vk_shader_module(read_binary_file("assets/shaders/shadow_vert.spv"), context->device);
-
-    VkPipelineShaderStageCreateInfo shaderStages [] =
     {
+        VkShaderModule vertexShaderModule = make_vk_shader_module(read_binary_file("assets/shaders/shadow_vert.spv"), context->device);
+
+        VkPipelineShaderStageCreateInfo shaderStages [] =
         {
-            .sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-            .stage  = VK_SHADER_STAGE_VERTEX_BIT,
-            .module = vertexShaderModule,
-            .pName  = "main",
-        },
-    };
+            {
+                .sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+                .stage  = VK_SHADER_STAGE_VERTEX_BIT,
+                .module = vertexShaderModule,
+                .pName  = "main",
+            },
+        };
 
-    VkPipelineVertexInputStateCreateInfo vertexInputInfo;
-    auto bindingDescription     = vulkan_pipelines_internal_::get_vertex_binding_description();
-    auto attributeDescriptions  = vulkan_pipelines_internal_::get_vertex_attribute_description();
+        VkPipelineVertexInputStateCreateInfo vertexInputInfo;
+        auto bindingDescription     = vulkan_pipelines_internal_::get_vertex_binding_description();
+        auto attributeDescriptions  = vulkan_pipelines_internal_::get_vertex_attribute_description();
 
-    vertexInputInfo = {
-        .sType                              = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-        .vertexBindingDescriptionCount      = 1,
-        .pVertexBindingDescriptions         = &bindingDescription,
-        .vertexAttributeDescriptionCount    = attributeDescriptions.count(),
-        .pVertexAttributeDescriptions       = &attributeDescriptions[0],
-    };
+        vertexInputInfo = {
+            .sType                              = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+            .vertexBindingDescriptionCount      = 1,
+            .pVertexBindingDescriptions         = &bindingDescription,
+            .vertexAttributeDescriptionCount    = attributeDescriptions.count(),
+            .pVertexAttributeDescriptions       = &attributeDescriptions[0],
+        };
 
-    VkPrimitiveTopology topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-    VkPipelineInputAssemblyStateCreateInfo inputAssembly = 
-    {
-        .sType                  = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
-        .topology               = topology,
-        .primitiveRestartEnable = VK_FALSE,
-    };
+        VkPrimitiveTopology topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+        VkPipelineInputAssemblyStateCreateInfo inputAssembly = 
+        {
+            .sType                  = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
+            .topology               = topology,
+            .primitiveRestartEnable = VK_FALSE,
+        };
 
-    VkViewport viewport =
-    {
-        .x          = 0.0f,
-        .y          = 0.0f,
-        .width      = (float) context->shadowPass.width,
-        .height     = (float) context->shadowPass.height,
-        .minDepth   = 0.0f,
-        .maxDepth   = 1.0f,
-    };
+        VkViewport viewport =
+        {
+            .x          = 0.0f,
+            .y          = 0.0f,
+            .width      = (float) context->shadowPass.width,
+            .height     = (float) context->shadowPass.height,
+            .minDepth   = 0.0f,
+            .maxDepth   = 1.0f,
+        };
 
-    VkRect2D scissor =
-    {
-        .offset = {0, 0},
-        .extent = {context->shadowPass.width, context->shadowPass.height},
-    };
+        VkRect2D scissor =
+        {
+            .offset = {0, 0},
+            .extent = {context->shadowPass.width, context->shadowPass.height},
+        };
 
-    VkPipelineViewportStateCreateInfo viewportState =
-    {
-        .sType          = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
-        .viewportCount  = 1,
-        .pViewports     = &viewport,
-        .scissorCount   = 1,
-        .pScissors      = &scissor,
-    };
+        VkPipelineViewportStateCreateInfo viewportState =
+        {
+            .sType          = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
+            .viewportCount  = 1,
+            .pViewports     = &viewport,
+            .scissorCount   = 1,
+            .pScissors      = &scissor,
+        };
 
-    VkCullModeFlags cullMode = VK_CULL_MODE_NONE;
+        VkCullModeFlags cullMode = VK_CULL_MODE_NONE;
 
-    VkPipelineRasterizationStateCreateInfo rasterizer =
-    {
-        .sType                      = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
-        .depthClampEnable           = VK_FALSE,
-        .rasterizerDiscardEnable    = VK_FALSE,
-        .polygonMode                = VK_POLYGON_MODE_FILL,
-        .lineWidth                  = 1.0f,
-        .cullMode                   = cullMode,
-        .frontFace                  = VK_FRONT_FACE_COUNTER_CLOCKWISE,
-        .depthBiasEnable            = VK_FALSE,
-        .depthBiasConstantFactor    = 0.0f,
-        .depthBiasClamp             = 0.0f,
-        .depthBiasSlopeFactor       = 0.0f,
-    };
+        VkPipelineRasterizationStateCreateInfo rasterizer =
+        {
+            .sType                      = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
+            .depthClampEnable           = VK_FALSE,
+            .rasterizerDiscardEnable    = VK_FALSE,
+            .polygonMode                = VK_POLYGON_MODE_FILL,
+            .lineWidth                  = 1.0f,
+            .cullMode                   = cullMode,
+            .frontFace                  = VK_FRONT_FACE_COUNTER_CLOCKWISE,
+            .depthBiasEnable            = VK_FALSE,
+            .depthBiasConstantFactor    = 0.0f,
+            .depthBiasClamp             = 0.0f,
+            .depthBiasSlopeFactor       = 0.0f,
+        };
 
-    VkPipelineMultisampleStateCreateInfo multisampling =
-    {
-        .sType                  = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
-        .sampleShadingEnable    = VK_FALSE,
-        .rasterizationSamples   = VK_SAMPLE_COUNT_1_BIT,
-        .minSampleShading       = 1.0f,
-        .pSampleMask            = nullptr,
-        .alphaToCoverageEnable  = VK_FALSE,
-        .alphaToOneEnable       = VK_FALSE,
-    };
-
-
-    VkPipelineColorBlendStateCreateInfo colorBlending =
-    {
-        .sType              = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
-        .logicOpEnable      = VK_FALSE,
-        .logicOp            = VK_LOGIC_OP_COPY,
-        .attachmentCount    = 0,
-        .pAttachments       = nullptr,
-        .blendConstants[0]  = 0.0f,
-        .blendConstants[1]  = 0.0f,
-        .blendConstants[2]  = 0.0f,
-        .blendConstants[3]  = 0.0f,
-    };
-
-    VkPipelineDepthStencilStateCreateInfo depthStencil =
-    { 
-        .sType              = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
-
-        .depthTestEnable    = VK_TRUE,
-        .depthWriteEnable   = VK_TRUE,
-        .depthCompareOp     = VK_COMPARE_OP_LESS_OR_EQUAL,
-
-        .depthBoundsTestEnable  = VK_FALSE,
-        .minDepthBounds         = 0.0f,
-        .maxDepthBounds         = 1.0f,
-
-        .stencilTestEnable  = VK_FALSE,
-        .front              = {},
-        .back               = {},
-    };
+        VkPipelineMultisampleStateCreateInfo multisampling =
+        {
+            .sType                  = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
+            .sampleShadingEnable    = VK_FALSE,
+            .rasterizationSamples   = VK_SAMPLE_COUNT_1_BIT,
+            .minSampleShading       = 1.0f,
+            .pSampleMask            = nullptr,
+            .alphaToCoverageEnable  = VK_FALSE,
+            .alphaToOneEnable       = VK_FALSE,
+        };
 
 
-    u32 setLayoutCount = 0;
-    VkDescriptorSetLayout setLayouts [3];
+        VkPipelineColorBlendStateCreateInfo colorBlending =
+        {
+            .sType              = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
+            .logicOpEnable      = VK_FALSE,
+            .logicOp            = VK_LOGIC_OP_COPY,
+            .attachmentCount    = 0,
+            .pAttachments       = nullptr,
+            .blendConstants[0]  = 0.0f,
+            .blendConstants[1]  = 0.0f,
+            .blendConstants[2]  = 0.0f,
+            .blendConstants[3]  = 0.0f,
+        };
 
-    if (true) { setLayouts[setLayoutCount++] = context->descriptorSetLayouts.camera; }
-    if (true) { setLayouts[setLayoutCount++] = context->descriptorSetLayouts.model; }
+        VkPipelineDepthStencilStateCreateInfo depthStencil =
+        { 
+            .sType              = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
 
-    VkPipelineLayoutCreateInfo pipelineLayoutInfo =
-    {
-        .sType                  = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-        .setLayoutCount         = setLayoutCount,
-        .pSetLayouts            = setLayouts,
-        .pushConstantRangeCount = 0,
-        .pPushConstantRanges    = nullptr,
-    };
+            .depthTestEnable    = VK_TRUE,
+            .depthWriteEnable   = VK_TRUE,
+            .depthCompareOp     = VK_COMPARE_OP_LESS_OR_EQUAL,
 
-    VkPipelineLayout layout;
-    VULKAN_CHECK(vkCreatePipelineLayout (context->device, &pipelineLayoutInfo, nullptr, &layout));
+            .depthBoundsTestEnable  = VK_FALSE,
+            .minDepthBounds         = 0.0f,
+            .maxDepthBounds         = 1.0f,
 
-    VkGraphicsPipelineCreateInfo pipelineInfo =
-    {
-        .sType                  = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
-        .stageCount             = 1,
-        .pStages                = shaderStages,
-
-        .pVertexInputState      = &vertexInputInfo,
-        .pInputAssemblyState    = &inputAssembly,
-        .pViewportState         = &viewportState,
-        .pRasterizationState    = &rasterizer,
-        .pMultisampleState      = &multisampling,
-        .pDepthStencilState     = &depthStencil,
-        .pColorBlendState       = &colorBlending,
-        .pDynamicState          = nullptr,
-
-        .layout                 = layout,
-        .renderPass             = context->shadowPass.renderPass,
-        .subpass                = 0,
-
-        // Note(Leo): These are for cheaper re-use of pipelines, not used right now.
-        // Study(Leo): Like inheritance??
-        .basePipelineHandle = VK_NULL_HANDLE,
-        .basePipelineIndex = -1,
-    };
+            .stencilTestEnable  = VK_FALSE,
+            .front              = {},
+            .back               = {},
+        };
 
 
-    VkPipeline pipeline;
-    VULKAN_CHECK(vkCreateGraphicsPipelines(context->device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline));
+        u32 setLayoutCount = 0;
+        VkDescriptorSetLayout setLayouts [3];
 
-    // Note: These can only be destroyed AFTER vkCreateGraphicsPipelines
-    // vkDestroyShaderModule(context->device, fragmentShaderModule, nullptr);
-    vkDestroyShaderModule(context->device, vertexShaderModule, nullptr);
+        if (true) { setLayouts[setLayoutCount++] = context->descriptorSetLayouts.camera; }
+        if (true) { setLayouts[setLayoutCount++] = context->descriptorSetLayouts.model; }
 
-    context->shadowPass.pipeline = pipeline;
-    context->shadowPass.layout = layout;
+        VkPipelineLayoutCreateInfo pipelineLayoutInfo =
+        {
+            .sType                  = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+            .setLayoutCount         = setLayoutCount,
+            .pSetLayouts            = setLayouts,
+            .pushConstantRangeCount = 0,
+            .pPushConstantRanges    = nullptr,
+        };
 
-}
+        VkPipelineLayout layout;
+        VULKAN_CHECK(vkCreatePipelineLayout (context->device, &pipelineLayoutInfo, nullptr, &layout));
+
+        VkGraphicsPipelineCreateInfo pipelineInfo =
+        {
+            .sType                  = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+            .stageCount             = 1,
+            .pStages                = shaderStages,
+
+            .pVertexInputState      = &vertexInputInfo,
+            .pInputAssemblyState    = &inputAssembly,
+            .pViewportState         = &viewportState,
+            .pRasterizationState    = &rasterizer,
+            .pMultisampleState      = &multisampling,
+            .pDepthStencilState     = &depthStencil,
+            .pColorBlendState       = &colorBlending,
+            .pDynamicState          = nullptr,
+
+            .layout                 = layout,
+            .renderPass             = context->shadowPass.renderPass,
+            .subpass                = 0,
+
+            // Note(Leo): These are for cheaper re-use of pipelines, not used right now.
+            // Study(Leo): Like inheritance??
+            .basePipelineHandle = VK_NULL_HANDLE,
+            .basePipelineIndex = -1,
+        };
+
+
+        VkPipeline pipeline;
+        VULKAN_CHECK(vkCreateGraphicsPipelines(context->device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline));
+
+        // Note: These can only be destroyed AFTER vkCreateGraphicsPipelines
+        // vkDestroyShaderModule(context->device, fragmentShaderModule, nullptr);
+        vkDestroyShaderModule(context->device, vertexShaderModule, nullptr);
+
+        context->shadowPass.pipeline = pipeline;
+        context->shadowPass.layout = layout;
+
+    }
+
+    context->descriptorSetLayouts.shadowMap = make_vk_descriptor_set_layout(context->device,
+                                                                            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                                                                            VK_SHADER_STAGE_FRAGMENT_BIT);
+    context->shadowMapDescriptorSet = allocate_vk_descriptor_set(   context->device,
+                                                                    context->descriptorPools.material,
+                                                                    context->descriptorSetLayouts.shadowMap);
+
+    std::cout << "Shdow sampler: " << context->shadowMapDescriptorSet << "\n";
+
+    update_vk_descriptor_image(context->shadowMapDescriptorSet,
+                                context->device,
+                                VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                                context->shadowPass.sampler,
+                                context->shadowPass.attachment.view,
+                                VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL);
+
+
 
     add_cleanup(context, [](VulkanContext * context)
     {

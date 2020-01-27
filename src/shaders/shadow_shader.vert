@@ -2,8 +2,9 @@
 
 layout (set = 0) uniform CameraProjections 
 {
-	mat4 view;
-	mat4 projection;
+	mat4 view_;
+	mat4 projection_;
+	mat4 lightViewProjection;
 } camera;
 
 layout(set = 1) uniform ModelProjection
@@ -22,7 +23,7 @@ layout (location = 3) in vec2 inTexCoord;
 
 void main ()
 {
-	gl_Position = camera.projection * camera.view * model.model * vec4(inPosition, 1.0);
+	gl_Position = camera.lightViewProjection * model.model * vec4(inPosition, 1.0);
 
 	// // Todo(Leo): Check correctness???
 	// fragNormal = (transpose(inverse(model.model)) * vec4(inNormal, 0)).xyz;

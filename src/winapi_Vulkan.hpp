@@ -22,7 +22,7 @@ print_vulkan_assert(char const * file, s32 line, VkResult result)
 constexpr s32 VIRTUAL_FRAME_COUNT = 3;
 
 
-constexpr u64 VULKAN_NO_TIME_OUT	= maxValue<u64>;
+constexpr u64 VULKAN_NO_TIME_OUT	= math::highest_value<u64>;
 constexpr real32 VULKAN_MAX_LOD_FLOAT = 100.0f;
 
 constexpr s32 VULKAN_MAX_MODEL_COUNT = 2000;
@@ -35,7 +35,8 @@ constexpr VkSampleCountFlagBits VULKAN_MAX_MSAA_SAMPLE_COUNT = VK_SAMPLE_COUNT_1
 struct VulkanCameraUniformBufferObject
 {
 	alignas(16) Matrix44 view;
-	alignas(16) Matrix44 perspective;
+	alignas(16) Matrix44 projection;
+	Matrix44 lightViewProjection;
 };
 
 namespace vulkan
@@ -204,6 +205,7 @@ struct platform::Graphics
     	VkDescriptorSetLayout camera;
     	VkDescriptorSetLayout model;
     	VkDescriptorSetLayout lighting;
+    	VkDescriptorSetLayout shadowMap;
     } descriptorSetLayouts;
 
     struct
@@ -211,10 +213,15 @@ struct platform::Graphics
    	 	VkDescriptorSet camera;
 	    VkDescriptorSet model;
    	 	VkDescriptorSet lighting;
+   	 	VkDescriptorSet lightCamera;
     } uniformDescriptorSets;
 
+	VkDescriptorSet shadowMapDescriptorSet;
+
+    // Todo(Leo): set these dynamically
     u32 cameraUniformOffset = 0;
     u32 lightingUniformOffset = 256;
+    u32 lightCameraUniformOffset = 512;
 
     // Uncategorized
 	VkCommandPool 			commandPool;
@@ -450,12 +457,13 @@ namespace vulkan
 											    	VkImageTiling tiling, VkImageUsageFlags usage,
 											    	VkSampleCountFlagBits msaaSamples);
 	internal VkImageView 			make_vk_image_view(VkDevice device, VkImage image, u32 mipLevels, VkFormat format, VkImageAspectFlags aspectFlags);
-	internal VkSampler				make_vk_sampler(VkDevice device);
+	internal VkSampler				make_vk_sampler(VkDevice, VkSamplerAddressMode);
 
 	/// DRAWING, VulkanDrawing.cpp
-    internal void update_camera				(VulkanContext*, Camera const *);
 	internal void prepare_drawing			(VulkanContext*);
 	internal void finish_drawing 			(VulkanContext*);
+    internal void update_camera				(VulkanContext*, Camera const *);
+    internal void update_lighting			(VulkanContext*, Light const *, Camera const *, float3 ambient);
 	internal void record_draw_command 		(VulkanContext*, ModelHandle handle, Matrix44 transform);
 	internal void record_line_draw_command	(VulkanContext*, vector3 start, vector3 end, float width, float4 color);
 	internal void record_gui_draw_command	(VulkanContext*, vector2 position, vector2 size, MaterialHandle material, float4 color);
@@ -508,21 +516,22 @@ platform::prepare_frame(VulkanContext * context)
 void
 platform::fill_functions(VulkanContext * context, platform::Functions * functions)
 {
- 	functions->push_mesh              = vulkan::push_mesh;
- 	functions->push_texture           = vulkan::push_texture;
- 	functions->push_cubemap           = vulkan::push_cubemap;
- 	functions->push_material          = vulkan::push_material;
- 	functions->push_gui_material      = vulkan::push_gui_material;
- 	functions->push_model             = vulkan::push_model;
- 	functions->push_pipeline          = vulkan::push_pipeline;
- 	functions->unload_scene           = vulkan::unload_scene;
+ 	functions->push_mesh           	= vulkan::push_mesh;
+ 	functions->push_texture        	= vulkan::push_texture;
+ 	functions->push_cubemap        	= vulkan::push_cubemap;
+ 	functions->push_material       	= vulkan::push_material;
+ 	functions->push_gui_material   	= vulkan::push_gui_material;
+ 	functions->push_model          	= vulkan::push_model;
+ 	functions->push_pipeline       	= vulkan::push_pipeline;
+ 	functions->unload_scene        	= vulkan::unload_scene;
     
- 	functions->prepare_frame          = vulkan::prepare_drawing;
- 	functions->finish_frame           = vulkan::finish_drawing;
- 	functions->update_camera          = vulkan::update_camera;
- 	functions->draw_model             = vulkan::record_draw_command;
- 	functions->draw_line              = vulkan::record_line_draw_command;
- 	functions->draw_gui               = vulkan::record_gui_draw_command;
+ 	functions->prepare_frame       	= vulkan::prepare_drawing;
+ 	functions->finish_frame        	= vulkan::finish_drawing;
+ 	functions->update_camera       	= vulkan::update_camera;
+ 	functions->update_lighting		= vulkan::update_lighting;
+ 	functions->draw_model         	= vulkan::record_draw_command;
+ 	functions->draw_line          	= vulkan::record_line_draw_command;
+ 	functions->draw_gui           	= vulkan::record_gui_draw_command;
 }
 
 #define WIN_VULKAN_HPP

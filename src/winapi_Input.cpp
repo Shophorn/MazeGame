@@ -50,12 +50,12 @@ internal float
 xinput_convert_joystick_value(s16 value)
 {
     float deadZone = 0.2f;
-    float result = static_cast<float>(value) / maxValue<s16>;
+    float result = static_cast<float>(value) / math::highest_value<s16>;
 
     float sign = Sign(result);
     result *= sign; // cheap abs()
     result -= deadZone;
-    result = Max(0.0f, result);
+    result = math::max(0.0f, result);
     result /= (1.0f - deadZone);
     result *= sign;
 

@@ -97,8 +97,8 @@ raycast_3d(	CollisionSystem3D * manager,
 		}			
 	
 
-		float distanceToMin = Max(xDistanceToMin, yDistanceToMin);
-		float distanceToMax = Min(xDistanceToMax, yDistanceToMax);
+		float distanceToMin = math::max(xDistanceToMin, yDistanceToMin);
+		float distanceToMax = math::min(xDistanceToMax, yDistanceToMax);
 		
 
 		if ((distanceToMin > zDistanceToMax) || (zDistanceToMin > distanceToMax))
@@ -107,8 +107,8 @@ raycast_3d(	CollisionSystem3D * manager,
 			continue;
 		}			
 
-		distanceToMin = Max(distanceToMin, zDistanceToMin);
-		distanceToMax = Min(distanceToMax, zDistanceToMax);
+		distanceToMin = math::max(distanceToMin, zDistanceToMin);
+		distanceToMax = math::min(distanceToMax, zDistanceToMax);
 
 		// Todo(Leo): make and use global epsilon
 		if (distanceToMin > 0.0f && distanceToMin < rayLength)

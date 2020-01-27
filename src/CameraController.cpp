@@ -19,16 +19,16 @@ struct CameraControllerSideScroller
 		if (is_pressed(input->zoomIn))
 		{
 			distance -= distance * relativeZoomSpeed * input->elapsedTime;
-			distance = Max(distance, minDistance);
+			distance = math::max(distance, minDistance);
 		}
 		else if(is_pressed(input->zoomOut))
 		{
 			distance += distance * relativeZoomSpeed * input->elapsedTime;
-			distance = Min(distance, maxDistance);
+			distance = math::min(distance, maxDistance);
 		}
 
 		vector3 direction = world::forward;
-		camera->forward = direction;
+		camera->direction = direction;
 		camera->position = 	baseOffset
 							+ target->position
 							- (direction * distance); 
@@ -90,12 +90,12 @@ update_camera_controller(CameraController3rdPerson * controller, game::Input * i
 	if (is_pressed(input->zoomIn))
 	{
 		controller->distance -= controller->distance * controller->relativeZoomSpeed * input->elapsedTime;
-		controller->distance = Max(controller->distance, controller->minDistance);
+		controller->distance = math::max(controller->distance, controller->minDistance);
 	}
 	else if(is_pressed(input->zoomOut))
 	{
 		controller->distance += controller->distance * controller->relativeZoomSpeed * input->elapsedTime;
-		controller->distance = Min(controller->distance, controller->maxDistance);
+		controller->distance = math::min(controller->distance, controller->maxDistance);
 	}
 
     controller->orbitDegrees += input->look.x * controller->rotateSpeed * input->elapsedTime;
@@ -139,5 +139,5 @@ update_camera_controller(CameraController3rdPerson * controller, game::Input * i
     vector3 targetPosition = trackedPosition + controller->baseOffset;
     
     controller->camera->position = targetPosition + localPosition;
-	controller->camera->forward = vector::normalize(targetPosition - controller->camera->position);
+	controller->camera->direction = vector::normalize(targetPosition - controller->camera->position);
 }

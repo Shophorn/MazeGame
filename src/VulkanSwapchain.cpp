@@ -16,7 +16,7 @@ vulkan::create_drawing_resources(VulkanContext * context, u32 width, u32 height)
     // Find extent ie. size of drawing window
     /* Note(Leo): max value is special value denoting that all are okay.
     Or something else, so we need to ask platform */
-    if (swapchainSupport.capabilities.currentExtent.width != maxValue<u32>)
+    if (swapchainSupport.capabilities.currentExtent.width != math::highest_value<u32>)
     {
         resources->extent = swapchainSupport.capabilities.currentExtent;
     }

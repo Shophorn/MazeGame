@@ -54,14 +54,6 @@ using real64 = double;
 static_assert(sizeof(real32) == 4, "Invalid type alias for 'real32'");
 static_assert(sizeof(real64) == 8, "Invalid type alias for 'real64'");
 
-/// NUMERIC LIMITS
-#include<limits>
-template <typename Number>
-static constexpr Number minValue = std::numeric_limits<Number>::min();
-
-template <typename Number>
-static constexpr Number maxValue = std::numeric_limits<Number>::max();
-
 /// SIZE MODIFIERS
 /* Todo(Leo): Study memory sizes around, maybe these should be actual multiples of 1000
 This seems to be just a Windows convention, correct? */

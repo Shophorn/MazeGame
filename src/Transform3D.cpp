@@ -6,7 +6,7 @@ struct Transform3D
 {
 	vector3 position 	= {0, 0, 0};
 	real32 scale 		= 1.0f;
-	Quaternion rotation = Quaternion::Identity();
+	quaternion rotation = quaternion::Identity();
 
 	Handle<Transform3D> parent;
 
@@ -44,10 +44,10 @@ get_matrix(Transform3D * transform)
 	occupy first half of struct, and rotation the other half by itself. Does this matter,
 	and furthermore does that matter in this function call, both in order arguments are put
 	there as well as is the order same as this' members order. */
-	Matrix44 result = Matrix44::Transform(transform->position, transform->rotation, transform->scale);
+	Matrix44 result = make_transform_matrix(transform->position, transform->rotation, transform->scale);
 	if (is_handle_valid(transform->parent))
 	{
-		result = result * get_matrix(transform->parent);
+		result = matrix::multiply(result, get_matrix(transform->parent));
 	}
 	return result;
 }
@@ -65,17 +65,17 @@ get_world_position(Transform3D * transform)
 vector3
 get_forward(Transform3D * transform)
 {
-	return get_rotation_matrix(transform->rotation) * world::forward;
+	return make_rotation_matrix(transform->rotation) * world::forward;
 }
 
 vector3
 get_right(Transform3D * transform)
 {
-	return get_rotation_matrix(transform->rotation) * world::right;
+	return make_rotation_matrix(transform->rotation) * world::right;
 }
 
 vector3
 get_up(Transform3D * transform)
 {
-	return get_rotation_matrix(transform->rotation) * world::up;
+	return make_rotation_matrix(transform->rotation) * world::up;
 }

@@ -22,7 +22,7 @@ internal real32
 RandomValue()
 {
   	real32 value 	= static_cast<real32>(xor128());
-  	real32 max 		= static_cast<real32>(maxValue<u32>);
+  	real32 max 		= static_cast<real32>(math::highest_value<u32>);
   	real32 result 	= value / max;
 
   	return result;
@@ -33,7 +33,7 @@ RandomRange(real32 min, real32 max)
 {
     DEBUG_ASSERT (min <= max, "'min' must be smaller than 'max'");
 
-    real32 value = static_cast<real32>(xor128()) / static_cast<real32>(maxValue<u32>);
+    real32 value = static_cast<real32>(xor128()) / static_cast<real32>(math::highest_value<u32>);
     real32 range = max - min;
     real32 result = min + (value * range);
 

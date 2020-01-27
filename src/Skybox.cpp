@@ -71,12 +71,3 @@ create_skybox_mesh(MemoryArena * arena)
 	auto result = make_mesh_asset(vertices, indices);
 	return result;
 }
-
-internal void
-draw_skybox(platform::Graphics * graphics, ModelHandle skybox, Camera * camera, platform::Functions * functions)
-{
-	// Note(Leo): For now, copy camera transform. When we get a proper shader, these can be removed.
-	// Matrix44 matrix = make_transform_matrix(camera->position);
-	Matrix44 matrix = get_rotation_matrix(camera);
-	functions->draw_model(graphics, skybox, matrix);
-}

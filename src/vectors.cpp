@@ -1,12 +1,11 @@
 /*=============================================================================
 Leo Tamminen
 
-:MAZEGAME:'s vector structures and functions.
-
-TODO(Leo): I would like to get some unary operator type functions (like normalize())
-as member functions, but I have not yet figured good way to do that
+Vector math structures and functions.
 
 TODO(Leo):
+	- Clean up this file, so that there are declarations in namespace braces, and
+		definitions outside, like dot and cross are now
 	- Full testing
 	- SIMD / SSE / AVX
 =============================================================================*/
@@ -398,65 +397,40 @@ namespace vector
 		VECTOR_LOOP_ELEMENTS { result = result && vec.components[i] >= value; }
 		return result;
 	}
-}
 
-
-
-VECTOR_TEMPLATE bool32
-CoeffLessThan(VECTOR_TYPE rhs, VECTOR_TYPE lhs)
-{
-	bool32 result = true;
-	VECTOR_LOOP_ELEMENTS { result = result && rhs.components[i] < lhs.components[i]; }
-	return result;
-}
-
-VECTOR_TEMPLATE bool32
-CoeffLessThanOrEqual(VECTOR_TYPE rhs, VECTOR_TYPE lhs)
-{
-	bool32 result = true;
-	VECTOR_LOOP_ELEMENTS { result = result && rhs.components[i] <= lhs.components[i]; }
-	return result;
-}
-
-VECTOR_TEMPLATE bool32
-CoeffGreaterThan(VECTOR_TYPE rhs, VECTOR_TYPE lhs)
-{
-	bool32 result = true;
-	VECTOR_LOOP_ELEMENTS { result = result && rhs.components[i] > lhs.components[i]; }
-	return result;
-}
-
-VECTOR_TEMPLATE bool32
-CoeffGreaterThanOrEqual(VECTOR_TYPE rhs, VECTOR_TYPE lhs)
-{
-	bool32 result = true;
-	VECTOR_LOOP_ELEMENTS { result = result && rhs.components[i] >= lhs.components[i]; }
-	return result;
 }
 
 namespace vector
 {
-// --------------- PRODUCTS ----------------------
-	VECTOR_TEMPLATE Scalar
-	dot(VECTOR_TYPE a, VECTOR_TYPE b)
-	{
-		Scalar result = 0;
-		VECTOR_LOOP_ELEMENTS { result += a[i] * b[i]; }
-		return result;
-	}
+	template<typename TVector> auto dot(TVector a, TVector b) -> typename TVector::scalar_type;
+	VECTOR_3_TEMPLATE VECTOR_3_TYPE		cross(VECTOR_3_TYPE lhs, VECTOR_3_TYPE rhs);
+}
 
-	VECTOR_3_TEMPLATE VECTOR_3_TYPE
-	cross(VECTOR_3_TYPE lhs, VECTOR_3_TYPE rhs)
+template<typename TVector> auto
+vector::dot(TVector a, TVector b) -> typename TVector::scalar_type
+{
+	typename TVector::scalar_type result;
+	for (int i = 0; i <TVector::dimension; ++i)
 	{
-		lhs = {
-			lhs.y * rhs.z - lhs.z * rhs.y,
-			lhs.z * rhs.x - lhs.x * rhs.z,
-			lhs.x * rhs.y - lhs.y * rhs.x
-		};
-		return lhs;
+		result += a[i] * b[i];
 	}
+	return result;
+}
 
+
+VECTOR_3_TEMPLATE VECTOR_3_TYPE
+vector::cross(VECTOR_3_TYPE lhs, VECTOR_3_TYPE rhs)
+{
+	lhs = {
+		lhs.y * rhs.z - lhs.z * rhs.y,
+		lhs.z * rhs.x - lhs.x * rhs.z,
+		lhs.x * rhs.y - lhs.y * rhs.x
+	};
+	return lhs;
+}
 // --------------- OTHER HANDY STUFF --------------------
+namespace vector
+{
 	VECTOR_TEMPLATE Scalar
 	get_length (VECTOR_TYPE vec)
 	{
@@ -548,10 +522,13 @@ namespace vector
 		return result;
 	}
 	
-	VECTOR_TEMPLATE VECTOR_TYPE
-	interpolate(VECTOR_TYPE a, VECTOR_TYPE b, Scalar t)
+	template<typename TVector>
+	TVector interpolate(TVector a, TVector b, typename TVector::scalar_type t)
 	{
-		VECTOR_LOOP_ELEMENTS { a.components[i] = ::interpolate(a.components[i], b.components[i], t); }
+		for (int i = 0; i < TVector::dimension; ++i)
+		{
+			a[i] = ::interpolate(a[i], b[i], t);
+		}
 		return a;
 	}
 
@@ -579,6 +556,28 @@ namespace vector
 
 		vec = projection + rotatedRejection;
 		return vec;
+	}
+
+	template<typename TVector>
+	TVector lowest_value() 
+	{
+		TVector result;
+		for (int i = 0; i < TVector::dimension; ++i)
+		{
+			result[i] = math::lowest_value<typename TVector::scalar_type>;
+		}
+		return result;
+	};
+
+	template<typename TVector>
+	TVector highest_value()
+	{
+		TVector result;
+		for (int i = 0; i < TVector::dimension; ++i)
+		{
+			result[i] = math::highest_value<typename TVector::scalar_type>;
+		}
+		return result;
 	}
 }
 

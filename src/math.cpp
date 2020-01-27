@@ -51,19 +51,32 @@ round_to<u32, float>(float value)
 }
 
 
+#include<limits>
+namespace math
+{   
+//     /// NUMERIC LIMITS
+// template <typename Number>
+// static constexpr Number minValue = std::numeric_limits<Number>::min();
 
-template<typename Number>
-internal Number 
-Min(Number a, Number b)
-{
-    return (a < b) ? a : b;
-}
+// template <typename Number>
+// static constexpr Number maxValue = std::numeric_limits<Number>::max();
 
-template<typename Number>
-internal Number 
-Max(Number a, Number b)
-{
-    return (a > b) ? a : b;
+    template<typename TNumber> constexpr TNumber lowest_value = std::numeric_limits<TNumber>::lowest();
+    template<typename TNumber> constexpr TNumber highest_value = std::numeric_limits<TNumber>::max();
+
+    template<typename Number>
+    internal Number 
+    min(Number a, Number b)
+    {
+        return (a < b) ? a : b;
+    }
+
+    template<typename Number>
+    internal Number 
+    max(Number a, Number b)
+    {
+        return (a > b) ? a : b;
+    }
 }
 
 template<typename Number>

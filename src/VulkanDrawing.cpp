@@ -4,6 +4,31 @@ shophorn @ internet
 
 Vulkan drawing functions' definitions.
 =============================================================================*/
+namespace vulkan_drawing_internal_
+{
+
+    /* Note(Leo): This is EXPERIMENTAL. Idea is that we don't need to always
+    create a new struct, but we can just reuse same. Vulkan functions always want
+    a pointer to struct, so we cannot use a return value from a function, but this
+    way we always have that struct here ready for us and we modify it accordingly
+    with each call and return pointer to it. We can do this, since each thread 
+    only has one usage of this at any time.
+
+    Returned pointer is only valid until this is called again. Or rather, pointer
+    will stay valid for the duration of thread, but values of struct will not. */
+
+    thread_local VkCommandBufferInheritanceInfo global_inheritanceInfo_ = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_INHERITANCE_INFO };
+    VkCommandBufferInheritanceInfo const *
+
+    get_vk_command_buffer_inheritance_info(VkRenderPass renderPass, VkFramebuffer framebuffer)
+    {
+        global_inheritanceInfo_.renderPass = renderPass;
+        global_inheritanceInfo_.framebuffer = framebuffer;
+
+        return &global_inheritanceInfo_;
+    }
+}
+
 void 
 vulkan::update_camera(VulkanContext * context, Camera const * camera)
 {
@@ -14,8 +39,34 @@ vulkan::update_camera(VulkanContext * context, Camera const * camera)
     vkMapMemory(context->device, context->sceneUniformBuffer.memory,
                 context->cameraUniformOffset, sizeof(VulkanCameraUniformBufferObject), 0, (void**)&pUbo);
 
-    pUbo->view          = get_view_projection(camera);
-    pUbo->perspective   = get_perspective_projection(camera);
+    pUbo->view          = get_view_transform(camera);
+    pUbo->projection   = get_projection_transform(camera);
+
+    vkUnmapMemory(context->device, context->sceneUniformBuffer.memory);
+}
+
+void
+vulkan::update_lighting(VulkanContext * context, Light const * light, Camera const * camera, float3 ambient)
+{
+    LightingUniformBufferObject * lightPtr;
+    vkMapMemory(context->device, context->sceneUniformBuffer.memory,
+                context->lightingUniformOffset, sizeof(vulkan::LightingUniformBufferObject), 0, (void**)&lightPtr);
+
+    lightPtr->direction    = size_cast<vector4>(light->direction);
+    lightPtr->color        = size_cast<float4>(light->color);
+    lightPtr->ambient      = size_cast<float4>(ambient);
+
+    vkUnmapMemory(context->device, context->sceneUniformBuffer.memory);
+
+    // ------------------------------------------------------------------------------
+
+    Matrix44 lightViewProjection = get_light_view_projection (light, camera);
+
+    VulkanCameraUniformBufferObject * pUbo;
+    vkMapMemory(context->device, context->sceneUniformBuffer.memory,
+                context->cameraUniformOffset, sizeof(VulkanCameraUniformBufferObject), 0, (void**)&pUbo);
+
+    pUbo->lightViewProjection = lightViewProjection;
 
     vkUnmapMemory(context->device, context->sceneUniformBuffer.memory);
 }
@@ -23,18 +74,6 @@ vulkan::update_camera(VulkanContext * context, Camera const * camera)
 void
 vulkan::prepare_drawing(VulkanContext * context)
 {
-    LightingUniformBufferObject * light;
-    vkMapMemory(context->device, context->sceneUniformBuffer.memory,
-                context->lightingUniformOffset, sizeof(light), 0, (void**)&light);
-
-    light->direction    = size_cast<vector4>(vector::normalize(vector3{2, 1, -1.5f}));
-    light->color        = {0.98, 0.95, 0.92};
-    light->ambient      = {0.1, 0.1, 0.2};
-
-    vkUnmapMemory(context->device, context->sceneUniformBuffer.memory);
-
-    // -----------------------------------------------------------
-    
     DEBUG_ASSERT((context->canDraw == false), "Invalid call to prepare_drawing() when finish_drawing() has not been called.")
     context->canDraw                    = true;
 
@@ -74,24 +113,11 @@ vulkan::prepare_drawing(VulkanContext * context)
     VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT in command pool creation */
     VULKAN_CHECK(vkBeginCommandBuffer(frame->commandBuffers.primary, &primaryCmdBeginInfo));
     
-    VkCommandBufferInheritanceInfo inheritanceInfo =
-    {
-        .sType                  = VK_STRUCTURE_TYPE_COMMAND_BUFFER_INHERITANCE_INFO,
-        .renderPass             = context->drawingResources.renderPass,
-
-        // Todo(Leo): so far we only have 1 subpass, but whenever it changes, this probably must too
-        .subpass                = 0,
-        .framebuffer            = frame->framebuffer,
-        .occlusionQueryEnable   = VK_FALSE,
-        .queryFlags             = 0,
-        .pipelineStatistics     = 0,
-    };
-
     VkCommandBufferBeginInfo sceneCmdBeginInfo =
     {
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
         .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT | VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT,
-        .pInheritanceInfo = &inheritanceInfo,
+        .pInheritanceInfo = vulkan_drawing_internal_::get_vk_command_buffer_inheritance_info(context->drawingResources.renderPass, frame->framebuffer),
     };
     VULKAN_CHECK (vkBeginCommandBuffer(frame->commandBuffers.scene, &sceneCmdBeginInfo));
 
@@ -114,24 +140,14 @@ vulkan::prepare_drawing(VulkanContext * context)
     vkCmdSetScissor(frame->commandBuffers.scene, 0, 1, &scissor);
 
     // -----------------------------------------------------
-    VkCommandBufferInheritanceInfo shadowInheritanceInfo =
-    {
-        .sType                  = VK_STRUCTURE_TYPE_COMMAND_BUFFER_INHERITANCE_INFO,
-        .renderPass             = context->shadowPass.renderPass,
-
-        // Todo(Leo): so far we only have 1 subpass, but whenever it changes, this probably must too
-        .subpass                = 0,
-        .framebuffer            = context->shadowPass.framebuffer,
-        .occlusionQueryEnable   = VK_FALSE,
-        .queryFlags             = 0,
-        .pipelineStatistics     = 0,
-    };
 
     VkCommandBufferBeginInfo shadowCmdBeginInfo =
     {
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
         .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT | VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT,
-        .pInheritanceInfo = &shadowInheritanceInfo,
+
+        // Note(Leo): the pointer in this is actually same as above, but this function call changes values of struct at the other end of pointer.
+        .pInheritanceInfo = vulkan_drawing_internal_::get_vk_command_buffer_inheritance_info(context->shadowPass.renderPass, context->shadowPass.framebuffer),
     };
     VULKAN_CHECK(vkBeginCommandBuffer(frame->commandBuffers.offscreen, &shadowCmdBeginInfo));
 
@@ -274,6 +290,8 @@ vulkan::record_draw_command(VulkanContext * context, ModelHandle model, Matrix44
         material->descriptorSet,
         context->uniformDescriptorSets.model,
         context->uniformDescriptorSets.lighting,
+        context->defaultGuiMaterial.descriptorSet,
+        // context->shadowMapDescriptorSet
     };
 
     // Note(Leo): this works, because models are only dynamic set

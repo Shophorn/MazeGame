@@ -1,4 +1,4 @@
-struct Quaternion
+struct quaternion
 {
 	union
 	{
@@ -8,20 +8,20 @@ struct Quaternion
 	
 	real32 w;
 
-	constexpr class_member Quaternion
+	constexpr class_member quaternion
 	Identity()
 	{
-		constexpr Quaternion identity = {0, 0, 0, 1};
+		constexpr quaternion identity = {0, 0, 0, 1};
 		return identity;
 	}
 
-	class_member Quaternion
+	class_member quaternion
 	AxisAngle(vector3 axis, real32 angle)
 	{
 		angle *= -1;
 		real32 halfAngle = angle / 2.0f;
 
-		Quaternion result = {};
+		quaternion result = {};
 
 		result.w = Cosine(halfAngle);
 		result.vector = axis * Sine(halfAngle);

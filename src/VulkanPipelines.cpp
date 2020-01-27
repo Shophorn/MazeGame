@@ -243,7 +243,7 @@ vulkan::make_pipeline(
 
 
     u32 layoutSetCount = 0;
-    VkDescriptorSetLayout layoutSets [4];
+    VkDescriptorSetLayout layoutSets [5];
 
     auto materialLayout = make_material_vk_descriptor_set_layout(context->device, options.textureCount);
 
@@ -276,6 +276,9 @@ vulkan::make_pipeline(
     {
         layoutSets[layoutSetCount] = context->descriptorSetLayouts.lighting;
         lightingSetIndex = layoutSetCount;
+        ++layoutSetCount;
+    
+        layoutSets[layoutSetCount] = context->descriptorSetLayouts.shadowMap;
         ++layoutSetCount;
     }
 

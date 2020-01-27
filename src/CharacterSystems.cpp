@@ -44,7 +44,7 @@ struct CharacterControllerSideScroller
 			bool32 leftRayHit 		= collisionManager->raycast(leftRayOrigin, leftRay, false);
 
 			if (leftRayHit)
-				xMovement = Max(0.0f, xMovement);
+				xMovement = math::max(0.0f, xMovement);
 
 			targetRotationRadians = -pi / 2.0f;
 		}
@@ -58,7 +58,7 @@ struct CharacterControllerSideScroller
 			bool32 rightRayHit		= collisionManager->raycast(rightRayOrigin, rightRay, false); 
 
 			if (rightRayHit)
-				xMovement = Min(0.0f, xMovement);
+				xMovement = math::min(0.0f, xMovement);
 
 			targetRotationRadians = pi / 2.0f;
 		}
@@ -83,8 +83,8 @@ struct CharacterControllerSideScroller
 		bool32 downRayHit = collisionManager->raycast(downRayOrigin, downRay, movingDown);
 		if (downRayHit)
 		{
-			zMovement = Max(0.0f, zMovement);
-			zSpeed = Max(0.0f, zSpeed);
+			zMovement = math::max(0.0f, zMovement);
+			zSpeed = math::max(0.0f, zSpeed);
 		}
 
 		if ((Abs(zMovement) > Abs(xMovement)) && (Abs(xMovement / input->elapsedTime) < (0.1f * speed)))
@@ -99,7 +99,7 @@ struct CharacterControllerSideScroller
 		}
 
 		transform->position += {xMovement, 0, zMovement};
-		transform->rotation = Quaternion::AxisAngle(world::up, currentRotationRadians);
+		transform->rotation = quaternion::AxisAngle(world::up, currentRotationRadians);
 
 		if (collider->hasCollision && collider->collision->tag == ColliderTag::Trigger)
 		{

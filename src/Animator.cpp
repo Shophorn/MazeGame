@@ -58,7 +58,7 @@ update_animation_keyframes(Animation * animation, u64 * currentBoneKeyframe, flo
 		&& time > animation->keyframes[*currentBoneKeyframe].time)
 	{
 		*currentBoneKeyframe += 1;
-		*currentBoneKeyframe = Min(*currentBoneKeyframe, animation->keyframes.count());
+		*currentBoneKeyframe = math::min(*currentBoneKeyframe, animation->keyframes.count());
 	}	
 }
 
@@ -141,7 +141,7 @@ compute_duration (ArenaArray<Animation> animations)
 				++keyframeIndex)
 		{
 			float time = animations[animationIndex].keyframes[keyframeIndex].time;
-			duration = Max(duration, time);
+			duration = math::max(duration, time);
 		}
 	}
 

@@ -68,7 +68,7 @@ Scene3d::update(	void * 						scenePtr,
 
 	/* Sadly, we need to draw skybox before game logig, because otherwise
 	debug lines would be hidden */ 
-    draw_skybox(graphics, scene->skybox, &scene->worldCamera, functions);
+	functions->draw_model(graphics, scene->skybox, matrix::make_identity<Matrix44>());
 
 	// Game Logic section
 	update_character(	&scene->characterController,
@@ -84,6 +84,10 @@ Scene3d::update(	void * 						scenePtr,
     update_camera_system(&scene->worldCamera, input, graphics, window, functions);
 	update_render_system(scene->renderSystem, graphics, functions);
 
+
+	Light light = { vector::normalize(vector3{1, 1, -3}), {0.95, 0.95, 0.9}};
+	float3 ambient = {0.2, 0.25, 0.4};
+	functions->update_lighting(graphics, &light, &scene->worldCamera, ambient);
 
 
 	auto result = update_scene_gui(&scene->gui, input, graphics, functions);
@@ -215,7 +219,7 @@ Scene3d::load(	void * 						scenePtr,
 		push_one(scene->renderSystem, {transform, renderer});
 	}
 
-	scene->worldCamera = make_camera(60, 0.1f, 1000.0f);
+	scene->worldCamera = make_camera(50, 0.1f, 1000.0f);
 	scene->cameraController = make_camera_controller_3rd_person(&scene->worldCamera, characterTransform);
 
 	// Environment

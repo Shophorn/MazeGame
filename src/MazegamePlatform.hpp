@@ -48,6 +48,7 @@ needs to be specified for compiler. */
 
 
 #include "Camera.cpp"
+#include "Light.cpp"
 
 namespace platform
 {
@@ -115,7 +116,7 @@ namespace platform
 		MaterialHandle (*push_material) 	(Graphics*, MaterialAsset * asset);
 		MaterialHandle (*push_gui_material) (Graphics*, TextureHandle texture);
 
-		// Todo(Leo): Remove 'push_model', we can render also just passing mesh and material handles directly
+		// Todo(Leo): Maybe remove 'push_model', we can render also just passing mesh and material handles directly
 		ModelHandle (*push_model) 			(Graphics*, MeshHandle mesh, MaterialHandle material);
 		PipelineHandle (*push_pipeline) 	(Graphics*, char const * vertexShaderFilename,
 														char const * fragmentShaderFilename,
@@ -123,9 +124,10 @@ namespace platform
 		void (*unload_scene) 	(Graphics*);
 
 		// GRAPHICS DRAW FUNCTIONS
-		void (*update_camera) 	(Graphics*, Camera const *);
 		void (*prepare_frame) 	(Graphics*);
 		void (*finish_frame) 	(Graphics*);
+		void (*update_camera) 	(Graphics*, Camera const *);
+		void (*update_lighting)	(Graphics*, Light const *, Camera const * camera, float3 ambient);
 		void (*draw_model) 		(Graphics*, ModelHandle model, Matrix44 transform);
 		void (*draw_line) 		(Graphics*, vector3 start, vector3 end, float width, float4 color);
 		void (*draw_gui) 		(Graphics*, vector2 position, vector2 size, MaterialHandle material, float4 color);
@@ -243,7 +245,7 @@ namespace game
 	struct NetworkPackage
 	{
 		vector3 characterPosition;
-		Quaternion characterRotation;
+		quaternion characterRotation;
 	};
 
 	constexpr s32 NETWORK_PACKAGE_SIZE = sizeof(NetworkPackage);
