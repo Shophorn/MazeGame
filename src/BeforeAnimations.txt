@@ -1,0 +1,4 @@
+Before Animations:
+	- meshes to not interleaved (this also double as a practice)
+	- handles to use non-static allocation
+	- arrays to be passed by reference (maybe, this maybe is not so important)

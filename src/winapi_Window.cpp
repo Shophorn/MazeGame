@@ -46,8 +46,8 @@ namespace winapi
     get_window_size(WinAPIWindow * window)
     {
         return {
-            .width = window->width,
-            .height = window->height,
+            .x = window->width,
+            .y = window->height,
         };
     }
 

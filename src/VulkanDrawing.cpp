@@ -52,9 +52,9 @@ vulkan::update_lighting(VulkanContext * context, Light const * light, Camera con
     vkMapMemory(context->device, context->sceneUniformBuffer.memory,
                 context->lightingUniformOffset, sizeof(vulkan::LightingUniformBufferObject), 0, (void**)&lightPtr);
 
-    lightPtr->direction    = size_cast<vector4>(light->direction);
-    lightPtr->color        = size_cast<float4>(light->color);
-    lightPtr->ambient      = size_cast<float4>(ambient);
+    lightPtr->direction    = vector::convert<vector4>(light->direction);
+    lightPtr->color        = vector::convert<float4>(light->color);
+    lightPtr->ambient      = vector::convert<float4>(ambient);
 
     vkUnmapMemory(context->device, context->sceneUniformBuffer.memory);
 

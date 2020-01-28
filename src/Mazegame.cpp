@@ -132,7 +132,6 @@ unload_scene(	GameState * state,
 	state->loadedScene = nullptr;
 }
 
-
 /* Note(Leo): return whether or not game still continues
 Todo(Leo): indicate meaning of return value betterly somewhere, I almost forgot it.
 */
