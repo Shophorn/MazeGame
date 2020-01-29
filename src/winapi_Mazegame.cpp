@@ -385,9 +385,6 @@ Run(HINSTANCE hInstance)
     }
 }
 
-
-#include "vectors2.cpp"
-
 int CALLBACK
 WinMain(
     HINSTANCE   hInstance,
@@ -395,10 +392,6 @@ WinMain(
     LPSTR       cmdLine,
     int         showCommand)
 {
-    test_vectors_2();
-    return 0;
-
-
 
     /* Todo(Leo): we should make a decision about how we handle errors etc.
     Currently there are exceptions (which lead here) and asserts mixed ;) */

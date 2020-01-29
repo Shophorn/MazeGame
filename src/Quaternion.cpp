@@ -2,11 +2,11 @@ struct quaternion
 {
 	union
 	{
-		struct {real32 x, y, z; };
+		struct {float x, y, z; };
 		vector3 vector;
 	};
 	
-	real32 w;
+	float w;
 
 	constexpr class_member quaternion
 	Identity()
@@ -16,10 +16,10 @@ struct quaternion
 	}
 
 	class_member quaternion
-	AxisAngle(vector3 axis, real32 angle)
+	AxisAngle(vector3 axis, float angle)
 	{
 		angle *= -1;
-		real32 halfAngle = angle / 2.0f;
+		float halfAngle = angle / 2.0f;
 
 		quaternion result = {};
 

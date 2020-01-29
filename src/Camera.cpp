@@ -81,9 +81,9 @@ get_view_transform(Camera const * camera)
 	vector3 zAxis 	= cross (yAxis, xAxis);
 
 	Matrix44 orientation = {
-		xAxis[0], zAxis[0], yAxis[0], 0,
-		xAxis[1], zAxis[1], yAxis[1], 0,
-		xAxis[2], zAxis[2], yAxis[2], 0,
+		xAxis.x, zAxis.x, yAxis.x, 0,
+		xAxis.y, zAxis.y, yAxis.y, 0,
+		xAxis.z, zAxis.z, yAxis.z, 0,
 		0, 0, 0, 1
 	};
 	

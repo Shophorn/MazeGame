@@ -125,18 +125,18 @@ value_to_byte(float value)
 inline u32
 make_pixel(float4 color)
 {
-	u32 pixel = (u32)value_to_byte(color.a) << 24
-				| (u32)value_to_byte(color.r) << 16
-				| (u32)value_to_byte(color.g) << 8
-				| (u32)value_to_byte(color.b);
+	u32 pixel = (u32)value_to_byte(color.w) << 24
+				| (u32)value_to_byte(color.x) << 16
+				| (u32)value_to_byte(color.y) << 8
+				| (u32)value_to_byte(color.z);
 	return pixel;
 }
 
 internal Pixel
 get_closest_pixel(TextureAsset * texture, vector2 texcoord)
 {
-	u32 u = round_to<u32>(texture->width * texcoord.u) % texture->width;
-	u32 v = round_to<u32>(texture->height * texcoord.v) % texture->height;
+	u32 u = round_to<u32>(texture->width * texcoord.x) % texture->width;
+	u32 v = round_to<u32>(texture->height * texcoord.y) % texture->height;
 
 	u64 index = u + v * texture->width;
 	return texture->pixels[index];

@@ -73,13 +73,13 @@ make_heightmap(MemoryArena * memory, TextureAsset * texture, u32 gridSize, float
 			vector2 pixelCoord 	= {	x * textureScale * (texture->width - 1),
 									y * textureScale * (texture->height - 1)};
 
-			u32 u0 		= floor_to<u32>(pixelCoord.u);
+			u32 u0 		= floor_to<u32>(pixelCoord.x);
 			u32 u1 		= u0 + 1;
-			float uFraction = pixelCoord.u - u0;
+			float uFraction = pixelCoord.x - u0;
 			
-			u32 v0 		= floor_to<u32>(pixelCoord.v);
+			u32 v0 		= floor_to<u32>(pixelCoord.y);
 			u32 v1 		= v0 + 1;
-			float vFraction	= pixelCoord.v - v0;
+			float vFraction	= pixelCoord.y - v0;
 
 			float height00  = get_value(u0, v0);
 			float height10  = get_value(u1, v0);

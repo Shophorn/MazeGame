@@ -1,10 +1,7 @@
 /*=============================================================================
 Leo Tamminen
 
-:MAZEGAME:'s vector structures and functions.
-
-TODO(Leo): I would like to get some unary operator type functions (like normalize())
-as member functions, but I have not yet figured good way to do that
+Vector function templates and template instantiations
 
 TODO(Leo):
 	- Full testing
@@ -13,64 +10,27 @@ TODO(Leo):
 
 
 // ------------------ DEFINITIONS ---------------------------------
-#define VECTOR_TEMPLATE 	template<typename Scalar, u32 Dimension>
-#define VECTOR_TYPE			VectorBase<Scalar, Dimension>
+template<typename S, u32 D>
+struct Vector;
 
-#define VECTOR_LOOP_ELEMENTS for (int i = 0; i < Dimension; ++i)
-
-#define VECTOR_SUBSCRIPT_OPERATORS 											\
-	scalar_type & operator [](int index) { return components[index]; }			\
-	scalar_type operator [] (int index) const { return components[index]; }
-
-VECTOR_TEMPLATE
-union VectorBase
-{
-	using scalar_type = Scalar;
-	static constexpr int dimension = Dimension;
-
-	scalar_type components [dimension];
-
-	static_assert(dimension > 1, "No vectors of 1 dimension allowed");
-
-	VECTOR_SUBSCRIPT_OPERATORS;
+template<typename S>
+struct Vector<S, 2>
+{ 
+	S x, y;
 };
 
-template<typename Scalar>
-union VectorBase<Scalar, 2>
-{
-	using scalar_type = Scalar;
-	static constexpr int dimension = 2;
+using vector2 = Vector<float, 2>;
+using point2 = Vector<u32, 2>;
 
-	struct { scalar_type x, y; };
-	struct { scalar_type u, v; };
-
-	scalar_type components [dimension];
-
-	VECTOR_SUBSCRIPT_OPERATORS;
+template<typename S>
+struct Vector<S, 3>
+{ 
+	S x, y, z; 
 };
 
-using vector2 = VectorBase<float, 2>;
-using point2 = VectorBase<u32, 2>;
-
-template<typename Scalar>
-union VectorBase<Scalar, 3>
-{
-	using scalar_type = Scalar;
-	static constexpr int dimension = 3;
-
-	struct { scalar_type x, y, z; };
-	struct { scalar_type r, g, b; };
-
-	scalar_type components [dimension];
-
-	VECTOR_SUBSCRIPT_OPERATORS;
-};
-
-#define VECTOR_3_TEMPLATE 	template<typename Scalar>
-#define VECTOR_3_TYPE		VectorBase<Scalar, 3>
-
-using vector3 	= VectorBase<float, 3>;
-using float3 	= VectorBase<float, 3>;
+using vector3 	= Vector<float, 3>;
+using v3 		= Vector<float, 3>;
+using float3 	= Vector<float, 3>;
 
 struct world
 {
@@ -78,187 +38,187 @@ struct world
 	Note(Leo): Right handed coordinate system, x right, y, forward, z up.
 	*/
 
-	static constexpr vector3 left 		= {-1,  0,  0};
-	static constexpr vector3 right 		= { 1,  0,  0};
-	static constexpr vector3 back 		= { 0, -1,  0};
-	static constexpr vector3 forward 	= { 0,  1,  0};
-	static constexpr vector3 down 		= { 0,  0, -1};
-	static constexpr vector3 up 		= { 0,  0,  1};
+	static constexpr v3 left 		= {-1,  0,  0};
+	static constexpr v3 right 		= { 1,  0,  0};
+	static constexpr v3 back 		= { 0, -1,  0};
+	static constexpr v3 forward 	= { 0,  1,  0};
+	static constexpr v3 down 		= { 0,  0, -1};
+	static constexpr v3 up 			= { 0,  0,  1};
 };
 
-template<typename Scalar>
-union VectorBase<Scalar, 4>
+template<typename S>
+struct Vector<S, 4>
 {
-	using scalar_type = Scalar;
-	static constexpr int dimension = 4;
-
-	struct { scalar_type x, y, z, w; };
-	struct { scalar_type r, g, b, a; };
-
-	scalar_type components [dimension];
-
-	VECTOR_SUBSCRIPT_OPERATORS;
+	S x, y, z, w;
 };
 
-using vector4 = VectorBase<float, 4>;
-using float4 = VectorBase<float, 4>;
-
-#undef VECTOR_SUBSCRIPT_OPERATORS
-
-
-namespace vector_meta
-{
-	template<typename TVector3>
-	using Enable3 = typename std::enable_if<TVector3::dimension == 3, TVector3>::type;
-
-	template<typename> constexpr bool32 is_vector_template = false;
-	template<typename T, u32 D> constexpr bool32 is_vector_template<VectorBase<T,D>> = true;
-
-	template<typename T>
-	using Enable = typename std::enable_if<is_vector_template<T>, T>::type;
-}
+using vector4 = Vector<float, 4>;
+using float4 = Vector<float, 4>;
 
 
 namespace vector
 {
-	using namespace vector_meta;
+	template <typename S, u32 D> S * 				begin(Vector<S, D> * vec);
+	template <typename S, u32 D> S const * 			const_begin(Vector<S, D> const * vec);
 
-	template<typename TVector>
-	using Scalar = typename TVector::scalar_type;
+	template<typename S, u32 D> S 					dot(Vector<S,D> const & a, Vector<S,D> const & b);
+	template<typename S, u32 D>	Vector<S,D>			interpolate(Vector<S,D> a, Vector<S,D> b, S t);
+	template<typename S, u32 D> Vector<S,D>			normalize(Vector<S,D> vec);
+	template<typename S, u32 D> S					get_length(Vector<S,D> const & vec);
+	template<typename S, u32 D> Vector<S, D>		clamp_length(Vector<S,D> vec, S maxLength);
+	template<typename S, u32 D> Vector<S, D> 		scale(Vector<S,D> vec, Vector<S,D> const & scale);
+	template<typename S, u32 D> void 				dissect (Vector<S,D> const & vec, Vector<S,D> * outDirection, S * outLength);
+	template<typename S, u32 D> Vector<S,D>			project (Vector<S,D> vec, Vector<S,D> const & projectionTarget);
+	template<typename S, u32 D> S 					get_sqr_distance(Vector<S,D> const & a, Vector<S,D> const & b);
 
-	template<typename TVector> Scalar<TVector> 		dot(TVector a, TVector b);
-	template<typename TVector> Enable3<TVector>		cross(TVector lhs, TVector rhs);
-	
-	template<typename TVector> TVector 				interpolate(TVector a, TVector b, Scalar<TVector> t);
-	template<typename TVector> TVector 				normalize(TVector vec);
-	template<typename TVector> Scalar<TVector>		get_length(TVector vec); 			
-	template<typename TVector> TVector 				clamp_length(TVector vec, Scalar<TVector> maxLength);
+	template<typename TNew, typename Told> TNew		convert(Told const & old);
 
-	template<typename TNew, typename TOld> TNew		convert(TOld vec);
-
-	template<typename TVector> TVector 				scale(TVector vec, TVector const & scale);
-	template<typename TVector> Enable3<TVector> 	rotate(TVector vec, TVector axis, Scalar<TVector> angleInRadians);
-
-	template<typename TVector> void 				dissect (TVector vec, TVector * outDirection, Scalar<TVector> * outLength);
-	template<typename TVector> TVector 				project (TVector vec, TVector const & projectionTarget);
-	template<typename TVec> Scalar<Enable3<TVec>> 	get_signed_angle(TVec from, TVec to, TVec axis);
-	template<typename TVector> Scalar<TVector> 		get_sqr_distance(TVector const & a, TVector const & b);
+	// 3-dimensional vectors specific
+	template<typename S> Vector<S, 3>				cross(Vector<S,3> lhs, Vector<S,3> const & rhs);
+	template<typename S> Vector<S, 3> 				rotate(Vector<S,3> vec, Vector<S,3> const & axis, S angleInRadians);
+	template<typename S> S 							get_signed_angle(Vector<S,3> const & from, Vector<S,3> const & to, Vector<S,3> const & axis);
 }
 
-
-namespace vector_operators
+namespace vector_operators_
 {
-	#define VECTOR_OPERATOR template<typename TVec> vector_meta::Enable<TVec>
+	#define VECTOR_OPERATOR template<typename S, u32 D> Vector<S,D>
 
-	VECTOR_OPERATOR & 	operator += (TVec & a, TVec const & b);
-	VECTOR_OPERATOR 	operator + 	(TVec a, TVec const & b);
-	VECTOR_OPERATOR &	operator -= (TVec & a, TVec const & b);
-	VECTOR_OPERATOR 	operator - 	(TVec a, TVec const & b);
+	VECTOR_OPERATOR & 	operator += (Vector<S,D> &, Vector<S,D> const &);
+	VECTOR_OPERATOR 	operator + 	(Vector<S,D>, 	Vector<S,D> const &);
+	VECTOR_OPERATOR &	operator -= (Vector<S,D> &, Vector<S,D> const &);
+	VECTOR_OPERATOR 	operator - 	(Vector<S,D>, 	Vector<S,D> const &);
 
-	VECTOR_OPERATOR &	operator *= (TVec & vec, vector::Scalar<TVec> s);
-	VECTOR_OPERATOR 	operator * 	(TVec vec, vector::Scalar<TVec> s);
-	VECTOR_OPERATOR &	operator /= (TVec & vec, vector::Scalar<TVec> s);
-	VECTOR_OPERATOR 	operator / 	(TVec vec, vector::Scalar<TVec> s);
+	VECTOR_OPERATOR &	operator *= (Vector<S,D> &, S);
+	VECTOR_OPERATOR 	operator * 	(Vector<S,D>, 	S);
+	VECTOR_OPERATOR &	operator /= (Vector<S,D> &, S);
+	VECTOR_OPERATOR 	operator / 	(Vector<S,D>, 	S);
 
-	VECTOR_OPERATOR		operator - 	(TVec vec);
+	VECTOR_OPERATOR		operator - 	(Vector<S,D>);
 
 	#undef VECTOR_OPERATOR
 }
-using namespace vector_operators;
 
+/* Note(Leo): these are in namespace to begin with only that we get errors
+if either definition or declaration is changed. */
+using namespace vector_operators_;
 
-template<typename TVector> vector_meta::Enable<TVector> &
-vector_operators::operator += (TVector & a, TVector const & b)
+template<typename S, u32 D> Vector<S,D> &
+vector_operators_::operator += (Vector<S,D> & a, Vector<S,D> const & b)
 {
-	for (int i = 0; i < TVector::dimension; ++i)
+	S * pA 			= vector::begin(&a);
+	S const * pB	= vector::const_begin(&b);
+
+	for (int i = 0; i < D; ++i)
 	{
-		a[i] += b[i];
+		pA[i] += pB[i];
 	}
 	return a;
 }
 
-template<typename TVector> vector_meta::Enable<TVector>
-vector_operators::operator + (TVector a, TVector const & b)
+template <typename S, u32 D> Vector<S,D>
+vector_operators_::operator + (Vector<S,D> a, Vector<S,D> const & b)
 {
 	a += b;
 	return a;
 }
 
 
-template<typename TVector> vector_meta::Enable<TVector> &
-vector_operators::operator -= (TVector & a, TVector const & b)
+template <typename S, u32 D> Vector<S,D> &
+vector_operators_::operator -= (Vector<S,D> & a, Vector<S,D> const & b)
 {
-	for (int i = 0; i < TVector::dimension; ++i)
+	S * pA 			= vector::begin(&a);
+	S const * pB 	= vector::const_begin(&b);
+	
+	for (int i = 0; i < D; ++i)
 	{
-		a[i] -= b[i];
+		pA[i] -= pB[i];
 	}
 	return a;
 }
 
-template<typename TVector> vector_meta::Enable<TVector>
-vector_operators::operator - (TVector a, TVector const & b)
+template <typename S, u32 D> Vector<S,D>
+vector_operators_::operator - (Vector<S,D> a, Vector<S,D> const & b)
 {
 	a -= b;
 	return a;
 }
 
-template <typename TVector> vector_meta::Enable<TVector> &
-vector_operators::operator *= (TVector & vec, vector::Scalar<TVector> s)
+template <typename S, u32 D> Vector<S,D> &
+vector_operators_::operator *= (Vector<S,D> & vec, S value)
 {
-	for (int i = 0; i < TVector::dimension; ++i)
+	auto * pVec = vector::begin(&vec);
+
+	for (int i = 0; i < D; ++i)
 	{
-		vec[i] *= s;
+		pVec[i] *= value;
 	}
 	return vec;
 }
 
-template <typename TVector> vector_meta::Enable<TVector>
-vector_operators::operator * (TVector vec, vector::Scalar<TVector> s)
+template <typename S, u32 D> Vector<S,D>
+vector_operators_::operator * (Vector<S,D> vec, S value)
 {
-	vec *= s;
+	vec *= value;
 	return vec;
 }
 
-template <typename TVector> vector_meta::Enable<TVector> &
-vector_operators::operator /= (TVector & vec, vector::Scalar<TVector> s)
+template <typename S, u32 D> Vector<S,D> &
+vector_operators_::operator /= (Vector<S,D> & vec, S value)
 {
-	for (int i = 0; i < TVector::dimension; ++i)
+	auto * pVec = vector::begin(&vec);
+	for (int i = 0; i < D; ++i)
 	{
-		vec[i] /= s;
+		pVec[i] /= value;
 	}
 	return vec;
 }
 
-template <typename TVector> vector_meta::Enable<TVector>
-vector_operators::operator / (TVector vec, vector::Scalar<TVector> s)
+template <typename S, u32 D> Vector<S,D>
+vector_operators_::operator / (Vector<S,D> vec, S value)
 {
-	vec /= s;
+	vec /= value;
 	return vec;
 }
 
-template<typename TVector> vector_meta::Enable<TVector>
-vector_operators::operator - (TVector vec)
+template <typename S, u32 D> Vector<S,D>
+vector_operators_::operator - (Vector<S,D> vec)
 {
-	for(int i = 0; i < TVector::dimension; ++i)
+	auto * pVec = vector::begin(&vec);
+	for(int i = 0; i < D; ++i)
 	{
-		vec[i] = -vec[i];
+		pVec[i] = -pVec[i];
 	}
 	return vec;
 }
 
-template<typename TVector> vector::Scalar<TVector>
-vector::dot(TVector a, TVector b)
+template <typename T, u32 D> T * 
+vector::begin(Vector<T, D> * vec)
 {
-	Scalar<TVector> result = 0;
-	for (int i = 0; i < TVector::dimension; ++i)
+	return reinterpret_cast<T*> (vec);
+}
+
+template <typename T, u32 D> T const * 
+vector::const_begin(Vector<T, D> const * vec)
+{
+	return reinterpret_cast<T const *>(vec);
+}
+
+template<typename S, u32 D> S
+vector::dot(Vector<S,D> const & a, Vector<S,D> const & b)
+{
+	S const * pA = const_begin(&a);
+	S const * pB = const_begin(&b);
+
+	S result = 0;
+	for (int i = 0; i < D; ++i)
 	{
-		result += a[i] * b[i];
+		result += pA[i] * pB[i];
 	}
 	return result;
 }
 
-template<typename TVector> vector_meta::Enable3<TVector>
-vector::cross(TVector lhs, TVector rhs)
+template<typename S> Vector<S,3>
+vector::cross(Vector<S,3> lhs, Vector<S,3> const & rhs)
 {
 	lhs = {
 		lhs.y * rhs.z - lhs.z * rhs.y,
@@ -268,37 +228,42 @@ vector::cross(TVector lhs, TVector rhs)
 	return lhs;
 }
 
-template<typename TVector> TVector
-vector::interpolate(TVector a, TVector b, typename TVector::scalar_type t)
+template<typename S, u32 D> Vector<S,D>
+vector::interpolate(Vector<S, D> a, Vector<S, D> b, S t)
 {
-	for (int i = 0; i < TVector::dimension; ++i)
+	S * pA = begin(&a);
+	S const * pB = const_begin(&b);
+
+	for (int i = 0; i < D; ++i)
 	{
-		a[i] = ::interpolate(a[i], b[i], t);
+		pA[i] = ::interpolate(pA[i], pB[i], t);
 	}
-	return a;
+	return a;	
 }
 
-template<typename TVector> TVector
-vector::normalize(TVector vec)
+template<typename S, u32 D> Vector<S,D>
+vector::normalize(Vector<S,D> vec)
 {
 	vec /= get_length(vec);
 	return vec;
 }
 
-template <typename TVector> vector::Scalar<TVector>
-vector::get_length(TVector vec)
+template<typename S, u32 D> S
+vector::get_length(Vector<S,D> const & vec)
 {
-	Scalar<TVector> result = 0;
-	for (int i = 0; i < TVector::dimension; ++i)
+	S result = 0;
+
+	S const * pVec = const_begin(&vec);
+	for (int i = 0; i < D; ++i)
 	{
-		result += vec[i] * vec[i];
+		result += pVec[i] * pVec[i];
 	}
 	result = Root2(result);
 	return result;
 }
 
-template<typename TVector> TVector
-vector::clamp_length(TVector vec, Scalar<TVector> maxLength)
+template<typename S, u32 D> Vector<S,D>
+vector::clamp_length(Vector<S,D> vec, S maxLength)
 {
 	auto length = get_length(vec);
 	if (length > maxLength)
@@ -308,23 +273,65 @@ vector::clamp_length(TVector vec, Scalar<TVector> maxLength)
 	return vec;
 }
 
-template<typename TNew, typename TOld> TNew
-vector::convert(TOld old)
+namespace vector_meta_
 {
-	TNew result = {};
-	for (int i = 0; i < TNew::dimension && i < TOld::dimension; ++i)
+	template<typename S, u32 D>
+	struct VectorInfo
 	{
-		result[i] = old[i];
-	}
-	return result;
+		using scalar_type = S;
+		constexpr static u32 dimension = D;
+	};
+
+	template<template<typename, u32> typename V, typename S, u32 D>
+	constexpr VectorInfo<S,D> get_info(V<S,D> const &) { return {}; }
+ 	
+	template<typename TVector>
+ 	using Info = decltype(get_info(std::declval<TVector>()));
+
+	template<typename> constexpr bool32 isVectorTemplate = false;
+	template<typename T, u32 D> constexpr bool32 isVectorTemplate<Vector<T,D>> = true;
 }
 
-template<typename TVector> TVector
-vector::scale(TVector vec, TVector const & scale)
-{
-	for (int i = 0; i < TVector::dimension; ++i)
+template<typename TNew, typename TOld> TNew
+vector::convert(TOld const & old)
+{	
+
+	using namespace vector_meta_;
+
+	constexpr bool32 valid = isVectorTemplate<TNew> && isVectorTemplate<TOld>;
+	static_assert(valid, "Can only convert Vector types");
+
+	/* Note(Leo): this is to stop compiling these for invalid types. static_assert
+	does not necessrily stop there, but merely reports an error. */
+	if constexpr(valid)
 	{
-		vec[i] *= scale[i];
+		using SNew = typename Info<TNew>::scalar_type;
+		constexpr u32 dimension = math::min(Info<TNew>::dimension, Info<TOld>::dimension);
+		
+
+		TNew result = {};	
+	
+		auto * pResult 		= begin(&result);
+		auto const * pOld 	= const_begin(&old);
+
+
+		for (u32 i = 0; i < dimension; ++i)
+		{
+			pResult[i] = static_cast<SNew>(pOld[i]);
+		}
+		return result;
+	}
+}
+
+template<typename S, u32 D> Vector<S,D>
+vector::scale(Vector<S,D> vec, Vector<S,D> const & scale)
+{
+	S * pVec 		= begin(&vec);
+	S const * pScale = const_begin(&scale);
+
+	for (int i = 0; i < D; ++i)
+	{
+		pVec[i] *= pScale[i];
 	}
 	return vec;
 }
@@ -349,11 +356,12 @@ vector::scale(TVector vec, TVector const & scale)
 // 	return vec;
 // }
 
-template<typename TVector> void
-vector::dissect(TVector vec, TVector * outDirection, Scalar<TVector> * outLength)
+template<typename S, u32 D> void
+vector::dissect(Vector<S,D> const & vec, Vector<S,D> * outDirection, S * outLength)
 {
 	*outLength = get_length(vec);
 
+	// Todo(Leo): use epsilon
 	if (Abs(*outLength) == 0.0f)
 	{
 		*outLength = 0;
@@ -366,48 +374,51 @@ vector::dissect(TVector vec, TVector * outDirection, Scalar<TVector> * outLength
 }
 
 
-template<typename TVector> TVector
-vector::project(TVector vec, TVector const & projectionTarget)
+template<typename S, u32 D> Vector<S,D>
+vector::project(Vector<S,D> vec, Vector<S,D> const & projectionTarget)
 {
-	Scalar<TVector> c = dot(projectionTarget, vec) / dot(vec, vec);
+	S c = dot(projectionTarget, vec) / dot(vec, vec);
 	return projectionTarget * c;
 }
 
-template<typename TVector> vector::Scalar<vector_meta::Enable3<TVector>>
-vector::get_signed_angle(TVector from, TVector to, TVector axis)
+template<typename S> S
+vector::get_signed_angle(Vector<S,3> const & from, Vector<S,3> const & to, Vector<S,3> const & axis)
 {
 	// Todo(Leo): Check if this relly is correct
-	auto a = dot(cross(from, to), axis);
-	auto b = dot(to, from);
+	S a = dot(cross(from, to), axis);
+	S b = dot(to, from);
 
-	auto result = ArcTan2(a, b);
+	S result = ArcTan2(a, b);
 	return result;
 }
 
-template<typename TVector> vector::Scalar<TVector>
-vector::get_sqr_distance(TVector const & a, TVector const & b)
+template<typename S, u32 D> S
+vector::get_sqr_distance(Vector<S,D> const & a, Vector<S,D> const & b)
 {
-	Scalar<TVector> distance = 0;
-	for (u32 i = 0; i < TVector::dimension; ++i)
+	S const * pA = const_begin(&a);
+	S const * pB = const_begin(&b);
+
+	S distance = 0;
+	for (u32 i = 0; i < D; ++i)
 	{
-		Scalar<TVector> s = a[i] - b[i];
+		S s = pA[i] - pB[i];
 		distance += s * s;
 	}
 	return distance;
 }
 
-template<typename TVector> vector_meta::Enable3<TVector>
-vector::rotate(TVector vec, TVector axis, Scalar<TVector> angleInRadians)
+template<typename S> Vector<S,3>
+vector::rotate(Vector<S,3> vec, Vector<S,3> const & axis, S angleInRadians)
 {
-	auto projection 		= project(vec, axis);
-	auto rejection 			= vec - projection;
+	Vector<S,3> projection 	= project(vec, axis);
+	Vector<S,3> rejection 	= vec - projection;
 
-	auto w 					= cross(axis, rejection);
-	auto rejectionLength 	= get_length(rejection);
-	auto x1 				= Cosine(angleInRadians) / rejectionLength;
-	auto x2 				= Sine(angleInRadians) / get_length(w);
+	Vector<S,3> w 			= cross(axis, rejection);
+	S rejectionLength 		= get_length(rejection);
+	S x1 					= Cosine(angleInRadians) / rejectionLength;
+	S x2 					= Sine(angleInRadians) / get_length(w);
 
-	auto rotatedRejection 	= (rejection * x1 + w * x2) * rejectionLength;
+	Vector<S,3> rotatedRejection = (rejection * x1 + w * x2) * rejectionLength;
 
 	vec = projection + rotatedRejection;
 	return vec;	
@@ -417,11 +428,11 @@ vector::rotate(TVector vec, TVector axis, Scalar<TVector> angleInRadians)
 
 namespace std
 {	
-	VECTOR_TEMPLATE ostream &
-	operator << (ostream & os, VECTOR_TYPE vec)
+	template<typename T, u32 D> ostream &
+	operator << (ostream & os, Vector<T,D> vec)
 	{
 		os << "(" << vec[0];
-		for (int i = 1; i < Dimension; ++i)
+		for (int i = 1; i < D; ++i)
 		{
 			os << "," << vec[i];
 		}
@@ -431,14 +442,3 @@ namespace std
 }
 
 #endif
-
-
-/* Note(Leo): Undefine macros here, since they definetly are not intended
-to be used around. */
-#undef VECTOR_TEMPLATE
-#undef VECTOR_TYPE
-
-#undef VECTOR_3_TEMPLATE
-#undef VECTOR_3_TYPE
-
-#undef VECTOR_LOOP_ELEMENTS

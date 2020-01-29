@@ -11,48 +11,47 @@ struct MatrixBase
 	constexpr static u32 rows_count 	= Rows;
 	constexpr static u32 columns_count 	= Columns;
 
-	using column_type = VectorBase<Scalar, Rows>;
+	using column_type = Vector<Scalar, Rows>;
 
 	/// -------- CONTENTS -------------------
 	column_type columns [columns_count];
 
 	/// ------- ACCESSORS ----------------------------
-	column_type & operator [] (s32 index) { return columns[index]; }
-	column_type operator [] (s32 index) const { return columns[index]; }
+	column_type & operator [] (s32 column) 				{ return columns[column]; }
+	column_type operator [] (s32 column) const 			{ return columns[column]; }
+	scalar_type & operator()(u32 column, u32 row) 		{ return vector::begin(&columns[column])[row];}
+	scalar_type operator() (u32 column, u32 row) const 	{ return vector::const_begin(&columns[column])[row];	}
 };
 
-namespace
+
+
+namespace matrix_meta
 {
 	template<typename TMatrix>
-	constexpr bool is_square_matrix = (TMatrix::columns_count == TMatrix::rows_count);
-
-	template<typename TLeft, typename TRight>
-	constexpr bool is_same_scalar_type = std::is_same_v<typename TLeft::scalar_type, typename TRight::scalar_type>;
-
-	template <typename TMatrix>
-	using RowVectorType = VectorBase<typename TMatrix::scalar_type, TMatrix::columns_count>;
+	using ScalarType = typename TMatrix::scalar_type;
 
 	template<typename TMatrix>
-	using ColumnVectorType = VectorBase<typename TMatrix::scalar_type, TMatrix::rows_count>;
-
-	template<typename TMatrix>
-	using TransposeMatrixType = MatrixBase<typename TMatrix::scalar_type,
+	using TransposeType = MatrixBase<typename TMatrix::scalar_type,
 											TMatrix::columns_count,
 											TMatrix::rows_count>;
 
 	template<typename TLeft, typename TRight>
-	using ProductMatrixType = MatrixBase<typename TLeft::scalar_type,
+	using ProductType = MatrixBase<typename TLeft::scalar_type,
 											TLeft::rows_count,
 											TRight::columns_count>;
+
+	template<typename> constexpr bool32 isMatrixType = false;
+	template<typename S, u32 R, u32 C> constexpr bool32 isMatrixType<MatrixBase<S,R,C>> = true;
 }
 
 namespace matrix
 {
-	template<typename TMatrix> TMatrix make_identity();
+	using namespace matrix_meta;
 
-	template<typename TMatrix> RowVectorType<TMatrix> get_row(TMatrix const & matrix, s32 row);
-	template<typename TMatrix> TransposeMatrixType<TMatrix> transpose(TMatrix const & matrix);
-	template<typename TLeft, typename TRight> ProductMatrixType<TLeft, TRight> multiply(TLeft, TRight const &);	
+	template<typename TMatrix> TMatrix 										make_identity();
+
+	template<typename TMatrix> TransposeType<TMatrix> 						transpose(TMatrix const &);
+	template<typename TLeft, typename TRight> ProductType<TLeft, TRight> 	multiply(TLeft const &, TRight const &);	
 }
 
 using Matrix44 = MatrixBase<float, 4, 4>;
@@ -88,10 +87,10 @@ Matrix44
 make_scale_matrix(vector3 scale)
 {
 	Matrix44 result = {};
-	result[0][0] = scale [0];
-	result[1][1] = scale [1];
-	result[2][2] = scale [2];
-	result[3][3] = 1.0f;
+	result(0,0) = scale.x;
+	result(1,1) = scale.y;
+	result(2,2) = scale.z;
+	result(3,3) = 1.0f;
 	return result;	
 }
 
@@ -100,9 +99,9 @@ make_transform_matrix(vector3 translation, float uniformScale = 1.0f)
 {
 	Matrix44 result = {};
 
-	result[0][0] = uniformScale;
-	result[1][1] = uniformScale;
-	result[2][2] = uniformScale;
+	result(0,0) = uniformScale;
+	result(1,1) = uniformScale;
+	result(2,2) = uniformScale;
 
 	result[3] = { translation.x, translation.y, translation.z, 1.0f };
 
@@ -133,64 +132,84 @@ make_transform_matrix(vector3 translation, quaternion rotation, float uniformSca
 template<typename TMatrix> TMatrix 
 matrix::make_identity()
 {
-	static_assert(is_square_matrix<TMatrix>, "No identity available for non-square matrices.");
+	static_assert(TMatrix::columns_count == TMatrix::rows_count, "No identity available for non-square matrices.");
 
 	TMatrix result = {};
 	for (s32 i = 0; i < TMatrix::rows_count; ++i)
 	{
-		result [i][i] = 1;
-	}
-	return result;
-}
-
-template<typename TMatrix> RowVectorType<TMatrix>
-matrix::get_row(TMatrix const & matrix, s32 row)
-{
-	RowVectorType<TMatrix> result;
-	for (s32 col = 0; col < TMatrix::columns_count; ++col)
-	{
-		result[col] = matrix[col][row];
+		result(i, i) = 1;
 	}
 	return result;
 }
 
 /* Todo(Leo): we COULD do some smart tricks with this depending
 on shape of the matrix. */
-template<typename TMatrix> TransposeMatrixType<TMatrix>
+template<typename TMatrix> matrix::TransposeType<TMatrix>
 matrix::transpose(TMatrix const & matrix)
 {
-	TransposeMatrixType<TMatrix> result;
+	TransposeType<TMatrix> result;
 
 	for (u32 col = 0; col < TMatrix::columns_count; ++col)
 		for (u32 row = 0; row < TMatrix::rows_count; ++row)
 		{
-			result[row][col] = matrix[col][row];
+			result(col, row) = matrix(row, col);
 		}
 	return result;
 }
 
-template<typename TLeft, typename TRight> ProductMatrixType<TLeft, TRight>
-matrix::multiply(TLeft lhs, TRight const & rhs)
+template<typename TLeft, typename TRight> matrix::ProductType<TLeft, TRight>
+matrix::multiply(TLeft const & lhs, TRight const & rhs)
 {
-	static_assert(is_same_scalar_type<TLeft, TRight>, "Cannot multiply matrices of different scalar types.");
+	static_assert(std::is_same<	typename TLeft::scalar_type,
+								typename TRight::scalar_type>::value, "Cannot multiply matrices of different scalar types");
+	static_assert(TLeft::columns_count == TRight::rows_count, "Cannot multiply matrices with incompatible inner size");
 
 	using namespace vector;
 
 	// Note(Leo): this is done to get easy access to rows
-	lhs = transpose(lhs);
+	TransposeType<TLeft> lhsTranspose = transpose(lhs);
 
-	ProductMatrixType<TLeft, TRight> product;
+	ProductType<TLeft, TRight> product;
 	constexpr u32 columns 	= decltype(product)::columns_count;
 	constexpr u32 rows 		= decltype(product)::rows_count;
 
 	for (u32 col = 0; col < columns; ++col)
 		for (u32 row = 0; row < rows; ++row)
 		{
-			product[col][row] = dot(lhs[row], rhs[col]);
+			product(col, row) = dot(lhsTranspose[row], rhs[col]);
 		}
 
 	return product;
 }
+
+// template<typename TLeft, typename TRight> std::enable_if_t<	matrix::isMatrixType<TLeft> && matrix::isMatrixType<TRight>,
+// 															matrix::ProductType<TLeft, TRight>>
+// operator * (TLeft const & lhs, TRight const & rhs)
+// {
+// 	static_assert(std::is_same<	typename TLeft::scalar_type,
+// 								typename TRight::scalar_type>::value, "Cannot multiply matrices of different scalar types");
+// 	static_assert(TLeft::columns_count == TRight::rows_count, "Cannot multiply matrices with incompatible inner size");
+
+// 	using namespace matrix;
+// 	using namespace vector;
+
+// 	// Note(Leo): this is done to get easy access to rows
+// 	TransposeType<TLeft> lhsTranspose = transpose(lhs);
+
+// 	ProductType<TLeft, TRight> product;
+// 	constexpr u32 columns 	= decltype(product)::columns_count;
+// 	constexpr u32 rows 		= decltype(product)::rows_count;
+
+// 	for (u32 col = 0; col < columns; ++col)
+// 		for (u32 row = 0; row < rows; ++row)
+// 		{
+// 			product(col, row) = dot(lhsTranspose[row], rhs[col]);
+// 		}
+
+// 	return product;
+// }
+
+
 
 #if MAZEGAME_INCLUDE_STD_IOSTREAM
 namespace std
@@ -214,12 +233,12 @@ inline vector3
 operator * (const Matrix44 & mat, vector3 vec)
 {
 	MatrixBase<float,4,1> vecMatrix = { vec.x, vec.y, vec.z, 1.0	};
-	MatrixBase<float,4,1> product = matrix::multiply(mat, vecMatrix);//mat * vecMatrix;
+	MatrixBase<float,4,1> product = matrix::multiply(mat, vecMatrix);
 
 	vec = {
-		product[0][0] / product[0][3],
-		product[0][1] / product[0][3],
-		product[0][2] / product[0][3]
+		product(0,0) / product(0,3),
+		product(0,1) / product(0,3),
+		product(0,2) / product(0,3)
 	};
 	return vec;
 }
