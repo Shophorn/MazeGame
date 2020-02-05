@@ -780,7 +780,6 @@ namespace winapi_vulkan_internal_
 {   
     internal void add_cleanup(VulkanContext*, VulkanContext::CleanupFunc * cleanupFunc);
 
-
     internal VkInstance             create_vk_instance();
     internal VkSurfaceKHR           create_vk_surface(VkInstance, WinAPIWindow*);
     internal VkPhysicalDevice       create_vk_physical_device(VkInstance, VkSurfaceKHR);
@@ -912,6 +911,7 @@ winapi::create_vulkan_context(WinAPIWindow * window)
         context.guiDrawPipeline = vulkan::make_pipeline(&context, guiPipelineInfo);
 
         guiPipelineInfo.fragmentShaderPath = "assets/shaders/shadow_view_frag.spv";
+
         context.shadowPass.debugView = vulkan::make_pipeline(&context, guiPipelineInfo);
 
         // Todo(Leo): seems like these are leaving some undestroyed instances behind
@@ -1834,8 +1834,6 @@ winapi_vulkan_internal_::init_shadow_pass(VulkanContext * context, u32 width, u3
                                                                     context->descriptorPools.material,
                                                                     context->descriptorSetLayouts.shadowMap);
 
-    std::cout << "Shdow sampler: " << context->shadowMapDescriptorSet << "\n";
-
     update_vk_descriptor_image(context->shadowMapDescriptorSet,
                                 context->device,
                                 VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
@@ -1843,15 +1841,15 @@ winapi_vulkan_internal_::init_shadow_pass(VulkanContext * context, u32 width, u3
                                 context->shadowPass.attachment.view,
                                 VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL);
 
-
-
     add_cleanup(context, [](VulkanContext * context)
     {
         destroy_texture(context, &context->shadowPass.attachment);
+
         vkDestroySampler(context->device, context->shadowPass.sampler, nullptr);
         vkDestroyRenderPass(context->device, context->shadowPass.renderPass, nullptr);
         vkDestroyFramebuffer(context->device, context->shadowPass.framebuffer, nullptr);
         vkDestroyPipeline(context->device, context->shadowPass.pipeline, nullptr);
         vkDestroyPipelineLayout(context->device, context->shadowPass.layout, nullptr);
+        vkDestroyDescriptorSetLayout(context->device, context->descriptorSetLayouts.shadowMap, nullptr);
     });
 }

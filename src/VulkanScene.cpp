@@ -279,7 +279,6 @@ vulkan::make_texture(VulkanContext * context, TextureAsset * asset)
     u32 height       = asset->height;
     u32 mipLevels    = compute_mip_levels(width, height);
 
-
     VkDeviceSize imageSize = width * height * asset->channels;
 
     void * data;
@@ -359,15 +358,12 @@ vulkan::make_texture(VulkanContext * context, TextureAsset * asset)
     };
     vkCmdCopyBufferToImage (cmd, context->stagingBufferPool.buffer, resultImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 
-
-    /// CREATE MIP MAPS
     cmd_generate_mip_maps(  cmd, context->physicalDevice,
                         resultImage, VK_FORMAT_R8G8B8A8_UNORM,
                         asset->width, asset->height, mipLevels);
 
     execute_command_buffer (cmd, context->device, context->commandPool, context->queues.graphics);
 
-    /// CREATE IMAGE VIEW
     VkImageViewCreateInfo imageViewInfo =
     { 
         .sType      = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
@@ -415,14 +411,11 @@ vulkan::make_texture(VulkanContext * context, u32 width, u32 height, float4 colo
     u32 * data;
     vkMapMemory(context->device, context->stagingBufferPool.memory, 0, imageSize, 0, (void**)&data);
 
+    // Todo(Leo): use make_material_vk_descriptor_set
     for (u32 i = 0; i < pixelCount; ++i)
     {
         data[i] = pixelValue;
     }
-
-    // memcpy (data, (void*)asset->pixels.begin(), imageSize);
-
-
 
     vkUnmapMemory(context->device, context->stagingBufferPool.memory);
 

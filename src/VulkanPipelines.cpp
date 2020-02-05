@@ -19,12 +19,11 @@ internal void
 vulkan::destroy_loaded_pipeline(VulkanContext * context, VulkanLoadedPipeline * pipeline)
 {
     vkDestroyPipeline(context->device, pipeline->pipeline, nullptr);
-    pipeline->layout = VK_NULL_HANDLE;
- 
     vkDestroyPipelineLayout(context->device, pipeline->layout, nullptr);
-    pipeline->pipeline = VK_NULL_HANDLE;
-
     vkDestroyDescriptorSetLayout(context->device, pipeline->materialLayout, nullptr);
+ 
+    pipeline->pipeline = VK_NULL_HANDLE;
+    pipeline->layout = VK_NULL_HANDLE;
     pipeline->materialLayout = VK_NULL_HANDLE;
 }
 
