@@ -11,24 +11,24 @@ struct Manager;
 template<typename T>
 struct Handle
 {
-	s64 _index = -1;
+	u32 thing_;
+	u32 index_;
 
 	T * operator->()
 	{ 
-		DEBUG_ASSERT(_index > -1, "Cannot reference uninitialized Handle.");
-		return &storage[_index];
+		DEBUG_ASSERT(thing_ > 0, "Cannot reference uninitialized Handle.");
+		return &storage[index_];
 	}
 
 	operator T * ()
 	{
-		DEBUG_ASSERT(_index > -1, "Cannot reference uninitialized Handle.");
-		return &storage[_index];	
+		DEBUG_ASSERT(thing_ > 0, "Cannot reference uninitialized Handle.");
+		return &storage[index_];	
 	}
-
 
 	/* Todo(Leo): this is bad
 		1. doesn't work with multiple scenes/allocations
-		2. when we reload game, this is lost, and stops working
+		2. when we reload game, this is lost, and stops working -> prevents hot reloading
 	*/
 	inline global_variable ArenaArray<T> storage;
 };
@@ -38,7 +38,7 @@ template<typename T>
 internal bool32
 is_handle_valid(Handle<T> handle)
 {
-	bool32 result = (handle._index > -1) && (handle._index < Handle<T>::storage.count());
+	bool32 result = (handle.thing_ > 0) && (handle.index_ < Handle<T>::storage.count());
 	return result;	
 }
 
@@ -49,13 +49,14 @@ make_handle(T item)
 	/* Note(Leo): We use concrete item instead of constructor arguments
 	and rely on copy elision to remove copy */
 	Handle<T> result = {};
-	result._index = push_one(Handle<T>::storage, item);
+	result.thing_ = 1;
+	result.index_ = push_one(Handle<T>::storage, item);
 	return result;
 }
 
 template<typename T>
 internal void
-allocate_for_handle(MemoryArena * memoryArena, u64 count)
+allocate_for_handle(MemoryArena * memoryArena, u32 count)
 {
 	Handle<T>::storage = reserve_array<T>(memoryArena, count);
 }

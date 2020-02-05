@@ -36,6 +36,7 @@ headers here. For now, 2d scene does not include its stuff because 3d scene does
 and both are still missing some because they are listed above. */
 #include "Scene3D.cpp"
 #include "Scene2D.cpp"
+#include "BoxingScene.cpp"
 #include "MenuScene.cpp"
 
 // Note(Leo): This makes less sense as a 'state' now that we have 'Scene' struct
@@ -183,6 +184,11 @@ update_game(
 		case MENU_LOADLEVEL_3D:
 			unload_scene(state, graphics, functions);
 			load_scene(state, &scene3dInfo, graphics, window, functions);
+			break;
+
+		case MENU_LOADLEVEL_BOXING:
+			unload_scene(state, graphics, functions);
+			load_scene(state, &boxingSceneInfo, graphics, window, functions);
 			break;
 
 		case SCENE_EXIT:

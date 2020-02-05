@@ -16,7 +16,7 @@ layout (set = 3) uniform Lighting
 layout(location = 0) in vec3 fragColor;
 layout(location = 1) in vec2 fragTexCoord;
 layout(location = 2) in vec3 fragNormal;
-layout(location = 3) in vec4 shadowCoords;
+layout(location = 3) in vec4 lightCoords;
 
 
 layout(location = 0) out vec4 outColor;
@@ -34,17 +34,33 @@ layout(	binding = SAMPLER_BIND_ID,
 		set = SAMPLER_SET_ID
 ) uniform sampler2D texSampler[TEXTURE_COUNT];
 
+layout(binding = 0, set = 4) uniform sampler2D lightMap;
+
 void main()
 {
 	float ldotn = dot(-light.direction.xyz, fragNormal);
-	float ligthIntensity = smoothstep(-0.05, 0.05, ldotn);
-	ligthIntensity = mix(ldotn, ligthIntensity, 0.85);
-	// float ligthIntensity = mix(ldotn, step(0, ldotn), 0.9);
+	float lightIntensity = smoothstep(-0.05, 0.05, ldotn);
+	lightIntensity = mix(ldotn, lightIntensity, 0.85);
+	// float lightIntensity = mix(ldotn, step(0, ldotn), 0.9);
 
 	vec3 albedo = texture(texSampler[ALBEDO_INDEX], fragTexCoord).rgb;
 	float metallic = texture(texSampler[METALLIC_INDEX], fragTexCoord).r;
 
-	vec3 light = light.ambient.rgb + (light.color.rgb * ligthIntensity);
+	float lightDepthFromTexture = texture(lightMap, lightCoords.xy).r;
+
+	const float epsilon = 0.0001;
+	float inLight = 1.0 - step(lightDepthFromTexture + epsilon, lightCoords.z);
+
+	if (inLight < 0.5)
+	{
+		lightIntensity *= (1.0 - lightCoords.w);
+	}
+
+
+
+
+
+	vec3 light = light.ambient.rgb + (light.color.rgb * lightIntensity);
 	vec3 color = light * albedo;
 
 	// outColor.rgb = mix(color, normalize(camera.view[3].rgb), 0.3);

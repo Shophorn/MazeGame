@@ -5,8 +5,8 @@ struct CameraControllerSideScroller
 	Handle<Transform3D>	target;
 
 	// State
-	vector3 baseOffset = {0, 0, 1};
-	float distance = 20.0f;
+	vector3 baseOffset 	= {0, 0, 1};
+	float distance 		= 20.0f;
 
 	// Properties
 	float minDistance 			= 5.0f;
