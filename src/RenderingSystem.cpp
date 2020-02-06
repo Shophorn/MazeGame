@@ -29,6 +29,6 @@ update_render_system(	ArenaArray<RenderSystemEntry> entries,
 {
 	for (s32 i = 0; i < entries.count(); ++i)
 	{
-		functions->draw_model(graphics, entries[i].renderer->handle, get_matrix(entries[i].transform));
+		functions->draw_model(graphics, entries[i].renderer->handle, get_matrix(entries[i].transform), true);
 	}
 }

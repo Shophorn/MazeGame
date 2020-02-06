@@ -13,7 +13,6 @@ Scene description for 3d development scene
 struct Scene3d
 {
 	ArenaArray<RenderSystemEntry> renderSystem = {};
-	ArenaArray<Handle<Animator>> animatorSystem = {};
 	CollisionSystem3D collisionSystem = {};
 
 	Camera worldCamera;
@@ -33,6 +32,10 @@ struct Scene3d
 	ModelHandle skybox;
 
 	SceneGui gui;
+
+	// ArenaArray<Transform3D> 	transformStorage;
+	// ArenaArray<BoxCollider3D> 	colliderStorage;
+	// ArenaArray<Renderer> 		rendererStorage;
 
  	// Todo(Leo): maybe make free functions
 	static MenuResult
@@ -58,17 +61,17 @@ scene3dInfo = make_scene_info(	get_size_of<Scene3d>,
 								Scene3d::update);
 
 MenuResult
-Scene3d::update(	void * 						scenePtr,
-					game::Input * 				input,
+Scene3d::update(	void * 					scenePtr,
+					game::Input * 			input,
 					platform::Graphics * 	graphics,
 					platform::Window *	 	window,
 					platform::Functions * 	functions)
 {
 	Scene3d * scene = reinterpret_cast<Scene3d*>(scenePtr);
 
-	/* Sadly, we need to draw skybox before game logig, because otherwise
-	debug lines would be hidden */ 
-	functions->draw_model(graphics, scene->skybox, matrix::make_identity<Matrix44>());
+	/* Sadly, we need to draw skybox before game logic, because otherwise
+	debug lines would be hidden. This can be fixed though, just make debug pipeline similar to shadows. */ 
+	functions->draw_model(graphics, scene->skybox, matrix::make_identity<Matrix44>(), false);
 
 	// Game Logic section
 	update_character(	&scene->characterController,
@@ -78,7 +81,6 @@ Scene3d::update(	void * 						scenePtr,
 						graphics,
 						functions);
 	update_camera_controller(&scene->cameraController, input);
-	update_animator_system(input, scene->animatorSystem);
 
 	// Rendering section
     update_camera_system(&scene->worldCamera, input, graphics, window, functions);
@@ -113,10 +115,8 @@ Scene3d::load(	void * 						scenePtr,
 	allocate_for_handle<Transform3D>	(persistentMemory, 100);
 	allocate_for_handle<BoxCollider3D>	(persistentMemory, 100);
 	allocate_for_handle<Renderer>		(persistentMemory, 100);
-	allocate_for_handle<Animator>		(persistentMemory, 100);
 
 	scene->renderSystem = reserve_array<RenderSystemEntry>(persistentMemory, 100);
-	scene->animatorSystem = reserve_array<Handle<Animator>>(persistentMemory, 100);
 	scene->collisionSystem.colliders = reserve_array<CollisionSystemEntry>(persistentMemory, 100);
 
 	struct MaterialCollection {
@@ -226,7 +226,6 @@ Scene3d::load(	void * 						scenePtr,
 	{
 		constexpr float depth = 100;
 		constexpr float width = 100;
-		constexpr float ladderHeight = 1.0f;
 
 		{
 			// Note(Leo): this is maximum size we support with u16 mesh vertex indices
@@ -270,87 +269,6 @@ Scene3d::load(	void * 						scenePtr,
 
 			push_one(scene->renderSystem, {transform, renderer});
 			push_collider_to_system(&scene->collisionSystem, collider, transform);
-		}
-
-		{
-			auto ladderMesh 		= load_model_glb(transientMemory, "assets/models/ladder.glb", "LadderSection");
-			auto ladderMeshHandle 	= functions->push_mesh(graphics, &ladderMesh);
-
-			auto root1 	= make_handle<Transform3D>({0, 0.5f, -ladderHeight});
-			auto root2 	= make_handle<Transform3D>({10, 0.5f, 6 - ladderHeight});
-			auto bones1 = reserve_array<Handle<Transform3D>>(persistentMemory, 6);
-			auto bones2 = reserve_array<Handle<Transform3D>>(persistentMemory, 6);
-
-			int ladderRigBoneCount = 6;
-			auto animations = reserve_array<Animation>(persistentMemory, ladderRigBoneCount);
-
-			auto parent1 = root1;
-			auto parent2 = root2;
-			
-			int ladder2StartIndex = 6;
-			int ladderCount = 12;
-			for (int ladderIndex = 0; ladderIndex < ladderCount; ++ladderIndex)
-			{
-				auto renderer 	= make_handle<Renderer>({push_model(ladderMeshHandle, materials.environment)});
-				auto transform 	= make_handle<Transform3D>({});
-
-				push_one(scene->renderSystem, {transform, renderer});
-
-				if (ladderIndex < ladder2StartIndex)
-				{
-					transform->parent = parent1;
-					parent1 = transform;
-					push_one(bones1, transform);
-	
-
-					// Todo(Leo): only one animation needed, move somewhere else				
-					auto keyframes = push_array(persistentMemory, {
-						Keyframe{(ladderIndex % ladder2StartIndex) * 0.12f, {0, 0, 0}},
-						Keyframe{((ladderIndex % ladder2StartIndex) + 1) * 0.15f, {0, 0, ladderHeight}}
-					});
-					push_one(animations, {keyframes});
-				}
-				else
-				{
-					transform->parent = parent2;
-					parent2 = transform;	
-					push_one(bones2, transform);
-				}
-			}	
-
-			scene->laddersUpAnimation 	= make_animation_clip(animations);
-			scene->laddersDownAnimation = duplicate_animation_clip(persistentMemory, &scene->laddersUpAnimation);
-			reverse_animation_clip(&scene->laddersDownAnimation);
-
-			auto keyframeCounters1 = push_array<u64>(persistentMemory, bones1.count());
-			auto keyframeCounters2 = push_array<u64>(persistentMemory, bones2.count());
-
-			auto rig1 = make_animation_rig(root1, bones1, keyframeCounters1);
-			auto rig2 = make_animation_rig(root2, bones2, keyframeCounters2);
-
-			auto animator1 = make_animator(rig1);
-			auto animator2 = make_animator(rig2);
-
-			push_one(scene->animatorSystem, make_handle(animator1));
-			push_one(scene->animatorSystem, make_handle(animator2));
-
-			scene->ladderTrigger1 = [scene]() -> void
-			{
-				scene->ladderOn = !scene->ladderOn;
-				if (scene->ladderOn)
-					play_animation_clip(scene->animatorSystem[0], &scene->laddersUpAnimation);
-				else
-					play_animation_clip(scene->animatorSystem[0], &scene->laddersDownAnimation);
-			};
-
-			scene->ladderTrigger2 = [scene]() -> void
-			{
-				scene->ladder2On = !scene->ladder2On;
-				if (scene->ladder2On)
-					play_animation_clip(scene->animatorSystem[1], &scene->laddersUpAnimation);
-				else
-					play_animation_clip(scene->animatorSystem[1], &scene->laddersDownAnimation);
-			};
 		}
 
 		{

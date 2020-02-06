@@ -1,16 +1,14 @@
 /*=============================================================================
 Leo Tamminen
 shophorn @ github
-
-Handle is kinda like super lazy smart pointer, or not a smart one at all. It
-merely holds a reference to an object in a specially reserved container 'storage'.
 =============================================================================*/
-
-struct Manager;
 
 template<typename T>
 struct Handle
 {
+	/* Note(Leo): we will store various metadata in 'thing_' later, such as
+	validity, container index, generation etc. We can manage with u32's max value
+	amount of items, and this will still be just a size of pointer. */
 	u32 thing_;
 	u32 index_;
 
@@ -46,8 +44,10 @@ template<typename T>
 internal Handle<T>
 make_handle(T item)
 {
-	/* Note(Leo): We use concrete item instead of constructor arguments
-	and rely on copy elision to remove copy */
+	/* Note(Leo): 	We use concrete item instead of constructor arguments
+					and rely on copy elision to remove copy.
+
+					However, I am not sure if it works that way.*/
 	Handle<T> result = {};
 	result.thing_ = 1;
 	result.index_ = push_one(Handle<T>::storage, item);

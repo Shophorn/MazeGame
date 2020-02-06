@@ -255,7 +255,7 @@ vulkan::finish_drawing(VulkanContext * context)
 
 
 void
-vulkan::record_draw_command(VulkanContext * context, ModelHandle model, Matrix44 transform)
+vulkan::record_draw_command(VulkanContext * context, ModelHandle model, Matrix44 transform, bool32 castShadow)
 {
     /* Todo(Leo): Get rid of these, we can just as well get them directly from user.
     That is more flexible and then we don't need to save that data in multiple places. */
@@ -308,32 +308,35 @@ vulkan::record_draw_command(VulkanContext * context, ModelHandle model, Matrix44
     vkCmdDrawIndexed(frame->commandBuffers.scene, mesh->indexCount, 1, 0, 0, 0);
 
     // ------------------------------------------------
-
-    // Bind model info
-    vkCmdBindVertexBuffers(frame->commandBuffers.offscreen, 0, 1, &mesh->buffer, &mesh->vertexOffset);
-    vkCmdBindIndexBuffer(frame->commandBuffers.offscreen, mesh->buffer, mesh->indexOffset, mesh->indexType);
-
-
-    u32 shadowPassSceneSet = 0;
-    u32 shadowPassModelSet = 1;
-
-    VkDescriptorSet shadowSets [] =
+    ///////////////////////////
+    ///   SHADOW PASS       ///
+    ///////////////////////////
+    if (castShadow)
     {
-        context->uniformDescriptorSets.camera,
-        context->uniformDescriptorSets.model,
-    };
+        vkCmdBindVertexBuffers(frame->commandBuffers.offscreen, 0, 1, &mesh->buffer, &mesh->vertexOffset);
+        vkCmdBindIndexBuffer(frame->commandBuffers.offscreen, mesh->buffer, mesh->indexOffset, mesh->indexType);
 
-    vkCmdBindPipeline(frame->commandBuffers.offscreen, VK_PIPELINE_BIND_POINT_GRAPHICS, context->shadowPass.pipeline);
-    vkCmdBindDescriptorSets(frame->commandBuffers.offscreen,
-                            VK_PIPELINE_BIND_POINT_GRAPHICS,
-                            context->shadowPass.layout,
-                            0,
-                            2,
-                            shadowSets,
-                            1,
-                            &modelUniformBufferOffset);
+        u32 shadowPassSceneSet = 0;
+        u32 shadowPassModelSet = 1;
 
-    vkCmdDrawIndexed(frame->commandBuffers.offscreen, mesh->indexCount, 1, 0, 0, 0);
+        VkDescriptorSet shadowSets [] =
+        {
+            context->uniformDescriptorSets.camera,
+            context->uniformDescriptorSets.model,
+        };
+
+        vkCmdBindPipeline(frame->commandBuffers.offscreen, VK_PIPELINE_BIND_POINT_GRAPHICS, context->shadowPass.pipeline);
+        vkCmdBindDescriptorSets(frame->commandBuffers.offscreen,
+                                VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                context->shadowPass.layout,
+                                0,
+                                2,
+                                shadowSets,
+                                1,
+                                &modelUniformBufferOffset);
+
+        vkCmdDrawIndexed(frame->commandBuffers.offscreen, mesh->indexCount, 1, 0, 0, 0);
+    }
 }
 
 void
