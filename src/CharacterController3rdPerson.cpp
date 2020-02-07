@@ -7,7 +7,7 @@ shophorn @ intenet
 struct CharacterController3rdPerson
 {
 	// References
-	Handle<Transform3D> transform;
+	Transform3D * transform;
 
 	// Properties
 	float speed = 10;
@@ -22,7 +22,7 @@ struct CharacterController3rdPerson
 };
 
 internal CharacterController3rdPerson
-make_character(Handle<Transform3D> transform)
+make_character(Transform3D * transform)
 {
 	CharacterController3rdPerson result =
 	{

@@ -72,6 +72,8 @@ namespace winapi
             game->Update        = reinterpret_cast<decltype(update_game)*>(procAddress);
             game->dllWriteTime  = get_file_write_time(GAMECODE_DLL_FILE_NAME);
         }
+
+        DEBUG_ASSERT(is_loaded(game), "Game not loaded");
     }
 
     void

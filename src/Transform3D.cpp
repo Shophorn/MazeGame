@@ -8,34 +8,12 @@ struct Transform3D
 	real32 scale 		= 1.0f;
 	quaternion rotation = quaternion::Identity();
 
-	Handle<Transform3D> parent;
-
-	// Matrix44 get_matrix()
-	// {
-	// 	 Study(Leo): members of this struct are ordered so that position and scale would
-	// 	occupy first half of struct, and rotation the other half by itself. Does this matter,
-	// 	and furthermore does that matter in this function call, both in order arguments are put
-	// 	there as well as is the order same as this' members order. 
-	// 	Matrix44 result = Matrix44::Transform(position, rotation, scale);
-
-	// 	if (is_handle_valid(parent))
-	// 	{
-	// 		result = result * parent->get_matrix();
-	// 	}
-
-	// 	return result;
-	// }
-
-	// vector3 get_world_position()
-	// {
-	// 	if (is_handle_valid(parent))
-	// 	{
-	// 		return parent->get_matrix() * position;
-	// 	}
-
-	// 	return position;
-	// }
+	// Todo(Leo): this won't work if we are to realloc any memory.
+	Transform3D * parent;
 };
+
+// template<>
+// struct Handle<Transform3D> {};
 
 Matrix44
 get_matrix(Transform3D * transform)
@@ -45,7 +23,7 @@ get_matrix(Transform3D * transform)
 	and furthermore does that matter in this function call, both in order arguments are put
 	there as well as is the order same as this' members order. */
 	Matrix44 result = make_transform_matrix(transform->position, transform->rotation, transform->scale);
-	if (is_handle_valid(transform->parent))
+	if (transform->parent != nullptr)
 	{
 		result = matrix::multiply(result, get_matrix(transform->parent));
 	}
@@ -55,7 +33,7 @@ get_matrix(Transform3D * transform)
 vector3
 get_world_position(Transform3D * transform)
 {
-	if (is_handle_valid(transform->parent))
+	if (transform->parent != nullptr)
 	{
 		return get_matrix(transform->parent) * transform->position;
 	}	

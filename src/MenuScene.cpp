@@ -27,10 +27,12 @@ struct MenuScene
             platform::Functions*);
 };
 
-global_variable SceneInfo
-menuScene = make_scene_info(    get_size_of<MenuScene>,
-                                MenuScene::load,
-                                MenuScene::update);
+SceneInfo get_menu_scene_info()
+{
+    return make_scene_info( get_size_of<MenuScene>,
+                            MenuScene::load,
+                            MenuScene::update);
+}
 
 ///////////////////////////////////////
 ///             LOAD                ///

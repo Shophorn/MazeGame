@@ -6,10 +6,6 @@ Leo Tamminen
 #include "MazegamePlatform.hpp"
 #include "Mazegame.hpp"
 
-// Todo(Leo): Handle has become stupid as it is now, pls remove
-// Todo(Leo): Or fix, they use static global variable, that will be reinit to invalid value when hot-reloading game
-#include "Handle.cpp"
-
 // Note(Leo): Make unity build here.
 #include "Random.cpp"
 #include "MapGenerator.cpp"
@@ -49,7 +45,7 @@ struct GameState
 
 	bool isInitialized;
 
-	SceneInfo * loadedSceneInfo;
+	SceneInfo loadedSceneInfo;
 	void * loadedScene;
 };
 
@@ -75,7 +71,7 @@ internal void
 output_sound(int sampleCount, game::StereoSoundSample * samples)
 {
 	return;
-
+/*
 	// Note(Leo): Shit these are bad :DD
 	local_persist int runningSampleIndex = 0;
 	local_persist AudioFile<float> file;
@@ -92,7 +88,7 @@ output_sound(int sampleCount, game::StereoSoundSample * samples)
 	}
 
 	// Todo(Leo): get volume from some input structure
-	real32 volume = 0.5f;
+	float volume = 0.5f;
 
 	for (int sampleIndex = 0; sampleIndex < sampleCount; ++sampleIndex)
 	{
@@ -102,19 +98,20 @@ output_sound(int sampleCount, game::StereoSoundSample * samples)
 		fileSampleIndex += 1;
 		fileSampleIndex %= fileSampleCount;
 	}
+	*/
 }
 
 internal void
 load_scene(	GameState * state,
-			SceneInfo * scene,
+			SceneInfo scene,
 			platform::Graphics * graphics,
 			platform::Window * system,
 			platform::Functions * functions)
 {
 	state->loadedSceneInfo = scene;
 
-	state->loadedScene = allocate_from_memory_arena(&state->persistentMemoryArena, scene->get_alloc_size(), true);
-	scene->load(state->loadedScene,
+	state->loadedScene = allocate_from_memory_arena(&state->persistentMemoryArena, scene.get_alloc_size(), true);
+	scene.load(	state->loadedScene,
 				&state->persistentMemoryArena,
 				&state->transientMemoryArena,
 				graphics,
@@ -156,14 +153,14 @@ update_game(
 	if (state->isInitialized == false)
 	{
 		initialize_game_state (state, memory);
-		load_scene(state, &menuScene, graphics, window, functions);
+		load_scene(state, get_menu_scene_info(), graphics, window, functions);
 	}
 
 	// Note(Leo): Free space for current frame.
 	flush_memory_arena(&state->transientMemoryArena);
 	
 	functions->prepare_frame(graphics);
-	auto guiResult = state->loadedSceneInfo->update(state->loadedScene,
+	auto guiResult = state->loadedSceneInfo.update(	state->loadedScene,
 													input,
 													graphics,
 													window,
@@ -179,17 +176,17 @@ update_game(
 
 		case MENU_LOADLEVEL_2D:
 			unload_scene(state, graphics, functions);
-			load_scene(state, &scene2dInfo, graphics, window, functions);
+			load_scene(state, get_2d_scene_info(), graphics, window, functions);
 			break;
 
 		case MENU_LOADLEVEL_3D:
 			unload_scene(state, graphics, functions);
-			load_scene(state, &scene3dInfo, graphics, window, functions);
+			load_scene(state, get_3d_scene_info(), graphics, window, functions);
 			break;
 
 		case SCENE_EXIT:
 			unload_scene(state, graphics, functions);
-			load_scene(state, &menuScene, graphics, window, functions);
+			load_scene(state, get_menu_scene_info(), graphics, window, functions);
 			break;
 
 		default:

@@ -20,8 +20,8 @@ struct AnimationClip
 // Property/State
 struct AnimationRig
 {
-	Handle<Transform3D> root;
-	ArenaArray<Handle<Transform3D>> bones;
+	Transform3D * root;
+	ArenaArray<Transform3D*> bones;
 	ArenaArray<u64> currentBoneKeyframes;
 };
 
@@ -38,7 +38,7 @@ struct Animator
 };
 
 internal AnimationRig
-make_animation_rig(Handle<Transform3D> root, ArenaArray<Handle<Transform3D>> bones, ArenaArray<u64> currentBoneKeyframes)
+make_animation_rig(Transform3D * root, ArenaArray<Transform3D*> bones, ArenaArray<u64> currentBoneKeyframes)
 {
 	DEBUG_ASSERT(bones.count() == currentBoneKeyframes.count(), "Currently you must pass keyframe array with matching size to bones array. Sorry for inconvenience :)");
 
@@ -63,7 +63,7 @@ update_animation_keyframes(Animation * animation, u64 * currentBoneKeyframe, flo
 }
 
 internal void
-update_animation_target(Animation * animation, Handle<Transform3D> target, u64 currentBoneKeyframe, float time)
+update_animation_target(Animation * animation, Transform3D * target, u64 currentBoneKeyframe, float time)
 {
 	bool32 isBeforeFirstKeyFrame 	= currentBoneKeyframe == 0; 
 	bool32 isAfterLastKeyFrame 		= currentBoneKeyframe >= animation->keyframes.count();
@@ -90,7 +90,6 @@ update_animation_target(Animation * animation, Handle<Transform3D> target, u64 c
 		target->position = vector::interpolate(previousKeyframe.position, currentKeyframe.position, relativeTime); 
 	}
 }
-
 
 internal AnimationClip
 duplicate_animation_clip(MemoryArena * memoryArena, AnimationClip * original)
@@ -160,42 +159,42 @@ make_animation_clip (ArenaArray<Animation> animations)
 }
 
 internal void
-update_animator_system(game::Input * input, ArenaArray<Handle<Animator>> animators)
+update_animator_system(game::Input * input, ArenaArray<Animator> animators)
 {
-	for (auto animator : animators)
+	for (auto & animator : animators)
 	{
-		if (animator->isPlaying == false)
+		if (animator.isPlaying == false)
 			continue;
 
 
-		float timeStep = animator->playbackSpeed * input->elapsedTime;
-		animator->time += timeStep;
+		float timeStep = animator.playbackSpeed * input->elapsedTime;
+		animator.time += timeStep;
 
 
-		for (int i = 0; i < animator->clip->animations.count(); ++i)
+		for (int i = 0; i < animator.clip->animations.count(); ++i)
 		{
-			update_animation_keyframes(	&animator->clip->animations[i],
-										&animator->rig.currentBoneKeyframes[i],
-										animator->time);
+			update_animation_keyframes(	&animator.clip->animations[i],
+										&animator.rig.currentBoneKeyframes[i],
+										animator.time);
 
-			update_animation_target(	&animator->clip->animations[i],
-										animator->rig.bones[i],
-										animator->rig.currentBoneKeyframes[i],
-										animator->time);
+			update_animation_target(	&animator.clip->animations[i],
+										animator.rig.bones[i],
+										animator.rig.currentBoneKeyframes[i],
+										animator.time);
 		}
 
-		bool framesLeft = animator->time < animator->clip->duration;
+		bool framesLeft = animator.time < animator.clip->duration;
 
 		if (framesLeft == false)
 		{
-			animator->isPlaying = false;
+			animator.isPlaying = false;
 			// std::cout << "[Animator]: AnimationClip complete\n";
 		}
 	}
 }
 
 internal Animator
-make_animator(AnimationRig  rig)
+make_animator(AnimationRig rig)
 {
 	Animator result = 
 	{
@@ -206,7 +205,7 @@ make_animator(AnimationRig  rig)
 
 
 internal void
-play_animation_clip(Handle<Animator> animator, AnimationClip * clip)
+play_animation_clip(Animator * animator, AnimationClip * clip)
 {
 	animator->clip = clip;
 	animator->time = 0.0f;

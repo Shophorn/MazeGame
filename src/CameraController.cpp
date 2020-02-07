@@ -2,7 +2,7 @@ struct CameraControllerSideScroller
 {
 	// References
 	Camera * 		camera;
-	Handle<Transform3D>	target;
+	Transform3D *	target;
 
 	// State
 	vector3 baseOffset 	= {0, 0, 1};
@@ -52,7 +52,7 @@ struct CameraController3rdPerson
 {
 	// References, these must be set separately
 	Camera *				camera;
-	Handle<Transform3D> 	target;
+	Transform3D * 	target;
 	
 	// This is also property but it is calculated when creating the camera
 	vector3 lastTrackedPosition;
@@ -74,7 +74,7 @@ struct CameraController3rdPerson
 };
 
 internal CameraController3rdPerson
-make_camera_controller_3rd_person(Camera * camera, Handle<Transform3D> target)
+make_camera_controller_3rd_person(Camera * camera, Transform3D * target)
 {
 	return {
 		.camera 			= camera,

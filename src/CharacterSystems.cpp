@@ -9,8 +9,8 @@ Player Character Systems
 struct CharacterControllerSideScroller
 {
 	// References
-	Handle<Transform3D> transform;
-	Handle<Collider2D> collider;
+	Transform3D * transform;
+	Collider2D * collider;
 
 	// Properties
 	float speed 			= 10;

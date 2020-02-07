@@ -13,10 +13,9 @@ struct Collision2D
 	ColliderTag 	tag;
 };
 
-
 struct Collider2D
 {
-	Handle<Transform3D>	transform;
+	Transform3D *	transform;
 	vector2			extents;
 	vector2			offset;
 
@@ -28,7 +27,7 @@ struct Collider2D
 
 struct CollisionManager2D
 {
-	ArenaArray<Handle<Collider2D>> colliders;
+	ArenaArray<Collider2D> colliders;
 	ArenaArray<Collision2D> collisions;
 
 	bool32
@@ -41,9 +40,9 @@ struct CollisionManager2D
 
 		for (s32 i = 0; i < colliders.count(); ++i)
 		{
-			DEBUG_ASSERT(is_handle_valid(colliders[i]->transform), "Invalid transform passed to Collider2D");
+			DEBUG_ASSERT(colliders[i].transform != nullptr, "Invalid transform passed to Collider2D");
 
-			switch(colliders[i]->tag)
+			switch(colliders[i].tag)
 			{
 				case ColliderTag::Default:
 					// Note(Leo): This means we stay in loop, confusing much
@@ -58,11 +57,11 @@ struct CollisionManager2D
 						continue;
 			}
 
-			vector3 worldPosition = get_world_position(colliders[i]->transform);
+			vector3 worldPosition = get_world_position(colliders[i].transform);
 			vector2 position2D = {	worldPosition.x, worldPosition.z };
 
-			position2D += colliders[i]->offset;
-			vector2 extents = colliders[i]->extents;
+			position2D += colliders[i].offset;
+			vector2 extents = colliders[i].extents;
 
 			// Compute corners first
 			corners[0] = position2D + vector2 {-extents.x, -extents.y};
@@ -97,8 +96,8 @@ struct CollisionManager2D
 
 		for (s32 i = 0; i < colliders.count(); ++i)
 		{
-			colliders[i]->hasCollision = false;
-			colliders[i]->collision = nullptr;
+			colliders[i].hasCollision = false;
+			colliders[i].collision = nullptr;
 		}
 
 		// Calculate new collisions
@@ -106,14 +105,14 @@ struct CollisionManager2D
 		{
 			for (s32 b = a + 1; b < colliders.count(); ++b)
 			{
-				vector2 positionA = vector2{get_world_position(colliders[a]->transform).x, get_world_position(colliders[a]->transform).z} + colliders[a]->offset;
-				vector2 positionB = vector2{get_world_position(colliders[b]->transform).x, get_world_position(colliders[b]->transform).z} + colliders[b]->offset;
+				vector2 positionA = vector2{get_world_position(colliders[a].transform).x, get_world_position(colliders[a].transform).z} + colliders[a].offset;
+				vector2 positionB = vector2{get_world_position(colliders[b].transform).x, get_world_position(colliders[b].transform).z} + colliders[b].offset;
 
 				float xDeltaAtoB 	= positionB.x - positionA.x;
 				float xDistance		= Abs(xDeltaAtoB);
 
-				float xRadiusA = colliders[a]->extents.x;
-				float xRadiusB = colliders[b]->extents.x;
+				float xRadiusA = colliders[a].extents.x;
+				float xRadiusB = colliders[b].extents.x;
 				float xLimit = xRadiusA + xRadiusB;
 
 				bool32 xCollision = xDistance < xLimit; 
@@ -121,16 +120,16 @@ struct CollisionManager2D
 				float zDeltaAtoB 	= positionB.y - positionA.y;
 				float zDistance		= Abs(zDeltaAtoB);
 
-				float zRadiusA = colliders[a]->extents.y;
-				float zRadiusB = colliders[b]->extents.y;
+				float zRadiusA = colliders[a].extents.y;
+				float zRadiusB = colliders[b].extents.y;
 				float zLimit = zRadiusA + zRadiusB;
 
 				bool32 zCollision = zDistance < zLimit; 
 
 				if (xCollision && zCollision)
 				{
-					colliders[a]->hasCollision = true;
-					colliders[b]->hasCollision = true;
+					colliders[a].hasCollision = true;
+					colliders[b].hasCollision = true;
 
 					float xNormalA = Sign(xDeltaAtoB);
 					float xNormalB = -xNormalA;
@@ -138,35 +137,45 @@ struct CollisionManager2D
 					u64 collisionIndexForA = push_one(collisions, {
 						.position 	= positionB.x + xNormalB * xRadiusB,
 						.normal 	= {xNormalB, 0, 0},
-						.tag 		= colliders[b]->tag
+						.tag 		= colliders[b].tag
 					});
-					colliders[a]->collision = &collisions[collisionIndexForA];
+					colliders[a].collision = &collisions[collisionIndexForA];
 
 					u64 collisionIndexForB = push_one(collisions, {
 						.position 	= positionA.x + xNormalA * xRadiusA, 
 						.normal 	= {xNormalA, 0, 0},
-						.tag 		= colliders[a]->tag
+						.tag 		= colliders[a].tag
 					});
-					colliders[b]->collision = &collisions[collisionIndexForB];
+					colliders[b].collision = &collisions[collisionIndexForB];
 				}
 			}
 		}
 	}
 };
 
-internal Handle<Collider2D>
-push_collider(	CollisionManager2D * manager,
-				Handle<Transform3D> transform,
-				vector2 extents,
-				vector2 offset = {0, 0},
-				ColliderTag tag = ColliderTag::Default)
+
+internal Collider2D *
+push_collider(	CollisionManager2D * 	manager,
+				Transform3D * 			transform,
+				vector2 				extents,
+				vector2 				offset = {0, 0},
+				ColliderTag 			tag = ColliderTag::Default)
 {
-	auto collider = make_handle<Collider2D>({
+	auto index = push_one(manager->colliders,
+	{
 		.transform 	= transform,
 		.extents 	= extents,
 		.offset		= offset,
 		.tag 		= tag
 	});
-	auto index = push_one(manager->colliders, collider);
-	return collider;
+	return &manager->colliders[index];
+
+	// auto collider = make_handle<Collider2D>({
+	// 	.transform 	= transform,
+	// 	.extents 	= extents,
+	// 	.offset		= offset,
+	// 	.tag 		= tag
+	// });
+	// push_one(manager->colliders, collider);
+	// return collider;
 }

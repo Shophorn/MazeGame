@@ -6,24 +6,34 @@ struct BoxCollider3D
 
 struct CollisionSystemEntry
 {
-	Handle<BoxCollider3D> collider;
-	Handle<Transform3D> transform;
+	BoxCollider3D * collider;
+	Transform3D * transform;
 };
 
 struct CollisionSystem3D
 {
-	ArenaArray<CollisionSystemEntry> colliders = {};
+	ArenaArray<CollisionSystemEntry> entries_;
+	ArenaArray<BoxCollider3D> colliders_;
 
+	// Todo(Leo): include these to above
 	HeightMap terrainCollider;
-	Handle<Transform3D> terrainTransform;
+	Transform3D * terrainTransform;
 };
 
 internal void
-push_collider_to_system(CollisionSystem3D * 	system,
-						Handle<BoxCollider3D> 	collider,
-						Handle<Transform3D>		transform)
+allocate_collision_system(CollisionSystem3D * system, MemoryArena * memoryArena, u32 count)
 {
-	push_one(system->colliders, {collider, transform});
+	system->entries_ = reserve_array<CollisionSystemEntry>(memoryArena, count); 
+	system->colliders_ = reserve_array<BoxCollider3D>(memoryArena, count);
+}
+
+internal void
+push_collider_to_system(CollisionSystem3D * system,
+						BoxCollider3D  		collider,
+						Transform3D *		transform)
+{
+	auto index = push_one(system->colliders_, collider);
+	push_one(system->entries_, {&system->colliders_[index], transform});
 }
 
 internal float
@@ -50,7 +60,7 @@ raycast_3d(	CollisionSystem3D * manager,
 {
 	// https://www.scratchapixel.com/lessons/3d-basic-rendering/minimal-ray-tracer-rendering-simple-shapes/ray-box-intersection
 
-	for (auto entry : manager->colliders)
+	for (auto entry : manager->entries_)
 	{
 		auto collider = entry.collider;
 		auto transform = entry.transform;
