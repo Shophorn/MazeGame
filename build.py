@@ -11,7 +11,7 @@ import sys
 silent = '--silent' in sys.argv
 compiler = 'clang++'
 
-compile_platform = True
+compile_platform = False
 compile_game = True
 
 def compile(call):

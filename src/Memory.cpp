@@ -53,7 +53,7 @@ struct MemoryArena
 };
 
 internal byte *
-reserve_from_memory_arena(MemoryArena * arena, u64 size, bool clear = false)
+allocate_from_memory_arena(MemoryArena * arena, u64 size, bool clear = false)
 {
 	size = align_up_to(size, MemoryArena::defaultAlignment);
 	
@@ -103,18 +103,18 @@ struct ArrayHeader
 
 ARENA_ARRAY_TEMPLATE struct ArenaArray
 {
-	// Note(Leo): Do we need more constraints
+	// Todo(Leo): Do we need more constraints?
 	static_assert(std::is_trivially_destructible<T>::value, "Only simple types suppported");
 
 	/* Todo(Leo): Maybe make this also just an offset from start of arena.
 	And store pointer to arena instead? */
-	byte * _data;
+	byte * data_;
 
 	u64 capacity () { return (get_header()->capacityInBytes) / sizeof(T); }
 	u64 count ()  	{ return (get_header()->countInBytes) / sizeof(T); }
 
 	// Todo(Leo): Maybe make these free functions too.
-	T * begin() 	{ return reinterpret_cast<T*>(_data + sizeof(ArrayHeader)); }
+	T * begin() 	{ return reinterpret_cast<T*>(data_ + sizeof(ArrayHeader)); }
 	T * end() 		{ return begin() + count(); }
 
 	T & operator [] (TIndex index)
@@ -127,8 +127,8 @@ private:
 	inline ArrayHeader * 
 	get_header ()
 	{ 
-		DEBUG_ASSERT(_data != nullptr, "Invalid call to 'get_header()', ArenaArray is not initialized.");
-		return reinterpret_cast<ArrayHeader*>(_data);
+		DEBUG_ASSERT(data_ != nullptr, "Invalid call to 'get_header()', ArenaArray is not initialized.");
+		return reinterpret_cast<ArrayHeader*>(data_);
 	}
 
 	inline void
@@ -147,8 +147,8 @@ namespace arena_array_internal_
 	ARENA_ARRAY_TEMPLATE internal ArrayHeader *
 	get_header(ArenaArray<T, TIndex> array)
 	{
-		DEBUG_ASSERT(array._data != nullptr, "Invalid call to 'arena_array_internal_::get_header()', ArenaArray is not initialized.");
-		return reinterpret_cast<ArrayHeader *>(array._data);
+		DEBUG_ASSERT(array.data_ != nullptr, "Invalid call to 'arena_array_internal_::get_header()', ArenaArray is not initialized.");
+		return reinterpret_cast<ArrayHeader *>(array.data_);
 	}
 
 	ARENA_ARRAY_TEMPLATE internal void 
@@ -179,11 +179,11 @@ reserve_array(MemoryArena * arena, u64 capacity)
 	/* Todo(Leo): make proper alignement between these two too, now it works fine,
 	since header aligns on 64 anyway */
 	u64 size = sizeof(ArrayHeader) + (sizeof(T) * capacity);
-	byte * memory = reserve_from_memory_arena(arena, size);
+	byte * memory = allocate_from_memory_arena(arena, size);
 
 	ArenaArray<T, TIndex> result =
 	{
-		._data = memory
+		.data_ = memory
 	};
 	arena_array_internal_::set_capacity (result, capacity);
 	arena_array_internal_::set_count(result, 0);

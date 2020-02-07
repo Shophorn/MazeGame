@@ -101,7 +101,7 @@ namespace platform
 
 	// Note(Leo): these are for platform layer only.
 	FrameResult prepare_frame(Graphics*);
-	void fill_functions(Graphics*, Functions*);
+	void set_functions(Graphics*, Functions*);
 
 	struct Window;
 	// struct Network;
@@ -160,6 +160,12 @@ namespace platform
 			}
 		}
 		return true;
+	};
+
+	struct Memory
+	{
+		void * memory;
+		u64 size;
 	};
 }
 
@@ -230,17 +236,6 @@ namespace game
 		float elapsedTime;
 	};
 	
-	struct Memory
-	{
-		bool32 isInitialized;
-
-		void * persistentMemory;
-		u64 persistentMemorySize;
-
-		void * transientMemory;
-		u64 transientMemorySize;
-	};
-
 	
 	struct NetworkPackage
 	{
@@ -297,7 +292,7 @@ namespace std
 extern "C" bool32
 update_game(
 	game::Input * 			input,
-	game::Memory * 			memory,
+	platform::Memory * 		memory,
 	game::Network *			network,
 	game::SoundOutput *		soundOutput,
 

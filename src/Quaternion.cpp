@@ -8,14 +8,14 @@ struct quaternion
 	
 	float w;
 
-	constexpr class_member quaternion
+	constexpr static quaternion
 	Identity()
 	{
 		constexpr quaternion identity = {0, 0, 0, 1};
 		return identity;
 	}
 
-	class_member quaternion
+	static quaternion
 	AxisAngle(vector3 axis, float angle)
 	{
 		angle *= -1;

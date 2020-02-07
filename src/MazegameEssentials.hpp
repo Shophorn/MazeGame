@@ -7,14 +7,11 @@ Common essentials used all around in :MAZEGAME: project
 #if !defined MAZEGAME_ESSENTIALS_HPP
 
 // SEARCHABILITY BOOST
-#define class_member static
 #define local_persist static
+#define global_variable static
 
 // Todo(Leo): this might not e good idea... Or good name anyway, some libraries seem to use it internaly (rapidjson at least)
 #define internal static
-#define global_variable static
-
-#define ARRAY_COUNT(array) sizeof(array) / sizeof((array)[0])
 
 
 /// SENSIBLE SIMPLE TYPES

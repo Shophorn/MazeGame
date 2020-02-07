@@ -143,8 +143,6 @@ Run(HINSTANCE hInstance)
    
     // SETTING FUNCTION POINTERS
     {
-        std::cout << "setting functions\n";
-
         state.platformFunctions =
         {
             // WINDOW FUNCTIONS
@@ -153,40 +151,26 @@ Run(HINSTANCE hInstance)
             .is_window_fullscreen    = [](platform::Window const * window) { return window->isFullscreen; },
             .set_window_fullscreen   = winapi::set_window_fullscreen,
         };
-        platform::fill_functions(&vulkanContext, &state.platformFunctions);
+        platform::set_functions(&vulkanContext, &state.platformFunctions);
 
         assert(all_functions_set(&state.platformFunctions));
-
-        std::cout << "functions set!\n";   
     }
 
     // ------- MEMORY ---------------------------
-    game::Memory gameMemory = {};
-    MemoryArena platformTransientMemoryArena;
+    platform::Memory gameMemory = {};
     {
         // TODO [MEMORY] (Leo): Properly measure required amount
         // TODO [MEMORY] (Leo): Think of alignment
-        gameMemory.persistentMemorySize = gigabytes(1);
-        gameMemory.transientMemorySize  = gigabytes(1);
+        gameMemory.size = gigabytes(2);
 
-        u64 totalGameMemorySize = gameMemory.persistentMemorySize + gameMemory.transientMemorySize;
-
-        u64 platformTransientMemorySize = megabytes(1);
-        u64 totalMemorySize = totalGameMemorySize + platformTransientMemorySize;
-   
         // TODO [MEMORY] (Leo): Check support for large pages
     #if MAZEGAME_DEVELOPMENT
         void * baseAddress = (void*)terabytes(2);
-        void * memoryBlock = VirtualAlloc(baseAddress, totalMemorySize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+        gameMemory.memory = VirtualAlloc(baseAddress, gameMemory.size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
     #else
-        void * memoryBlock = VirtualAlloc(nullptr, totalMemorySize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+        gameMemory.memory = VirtualAlloc(nullptr, gameMemory.size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
     #endif
-
-        gameMemory.persistentMemory     = memoryBlock;
-        gameMemory.transientMemory      = (byte *)memoryBlock + gameMemory.persistentMemorySize;
-
-        platformTransientMemoryArena = make_memory_arena((byte *)memoryBlock + totalGameMemorySize, platformTransientMemorySize);
-
+        assert(gameMemory.memory != nullptr);
     }
 
     // -------- INITIALIZE NETWORK ---------
@@ -337,9 +321,6 @@ Run(HINSTANCE hInstance)
             networkNextSendTime = frameStartTime + networkSendDelay;
             winapi::NetworkSend(&network, &gameNetwork.outPackage);
         }
-
-        /// ----- CLEAR MEMORY ------
-        flush_memory_arena(&platformTransientMemoryArena);
 
         /// ----- WAIT FOR TARGET FRAMETIME -----
         {

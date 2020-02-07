@@ -1,0 +1,152 @@
+template<typename S, u32 D, typename V>
+struct TestVec
+{	
+
+	template<typename ... TArgs>
+	static typename std::enable_if<sizeof...(TArgs) == D, V>::type
+	make (TArgs&& ... args)
+	{
+		return {{}, std::forward<S>(args)...};
+	};
+
+
+
+	static S * 			begin(V * vec);
+	static S const * 	const_begin(V const * vec);
+
+	static S 			dot(V const & a, V const & b);
+	static V			interpolate(V a, V b, S t);
+	static V			normalize(V vec);
+	static S			get_length(V const & vec);
+	static V			clamp_length(V vec, S maxLength);
+	static V 			scale(V vec, V const & scale);
+	static void 		dissect (V const & vec, V * outDirection, S * outLength);
+	static V			project (V vec, V const & projectionTarget);
+	static S 			get_sqr_distance(V const & a, V const & b);
+
+
+	template<typename T> static V convert_from(T const & old);
+
+	// // 3-dimensional vectors specific
+	// static V			cross(V lhs, V const & rhs);
+	// static Vector<S, 3> 				rotate(Vector<S,3> vec, Vector<S,3> const & axis, S angleInRadians);
+	// static S 						get_signed_angle(Vector<S,3> const & from, Vector<S,3> const & to, Vector<S,3> const & axis);
+};
+
+struct v2 : TestVec<float, 2, v2>
+{
+	float x, y;
+};
+
+
+
+
+template<typename S, typename V>
+struct TestVec3 : TestVec<S, 3, V> 
+{
+	static V cross(V lhs, V const & rhs);
+};
+
+struct w3 : TestVec3<float, w3>
+{
+	float x, y, z;
+};
+
+static_assert(std::is_pod_v<w3>, 				"not pod");
+static_assert(std::is_aggregate_v<w3>, 			"not aggregate");
+static_assert(std::is_standard_layout_v<w3>, 	"not standard_layout");
+static_assert(std::is_trivial_v<w3>, 			"not trivial");
+
+void test()
+{
+	v2 a = v2::make(3,4);
+	v2 b = {};
+
+	float c = v2::dot(a, b);
+
+	w3 d = {};
+
+	v2 e = v2::convert_from(d);
+
+	w3 f = w3::make(1, 2, 3);
+	w3 g = w3::cross(d, f);
+}
+
+
+
+template<typename S, u32 D, typename V>
+S * TestVec<S,D,V>::begin(V * vec)
+{
+	return reinterpret_cast<S*>(vec);
+}
+
+template<typename S, u32 D, typename V>
+S const * TestVec<S,D,V>::const_begin(V const * vec)
+{
+	return reinterpret_cast<S const *>(vec);
+}
+
+template<typename S, u32 D, typename V>
+S TestVec<S,D,V>::dot(V const & a, V const & b)
+{
+	S const * ptrToA = const_begin(&a);
+	S const * ptrToB = const_begin(&b);
+
+	S result = 0;
+	for (int i = 0; i < D; ++i)
+	{
+		result += ptrToA[i] * ptrToB[i];
+	}
+
+	return result;
+}
+
+template<typename S, u32 D>
+struct TestVecInfo
+{
+	using scalar_type = S;
+	static constexpr u32 dimension = D;
+};
+
+template<typename S, u32 D, typename V>
+constexpr TestVecInfo<S,D> get_tv_info(TestVec<S,D,V> const &)
+{
+	return {};
+}
+
+template<typename S, u32 D, typename V>
+using VectorInfo = decltype(get_tv_info(std::declval<TestVec<S,D,V>>()));
+
+
+template<typename S, u32 D, typename VNew>
+template<typename VOld>
+VNew TestVec<S,D,VNew>::convert_from(VOld const & old)
+{
+	using old_scalar_type = typename VectorInfo<VOld,D,VNew>::scalar_type;
+	u32 dimension = math::min(VectorInfo<VOld,D,VNew>::dimension, D);
+
+	VNew result = {};
+
+	auto ptrToResult = VNew::begin(&result);
+	auto ptrToOld = VOld::const_begin(&old);
+
+	for (int i = 0; i < dimension; ++i)
+	{
+		ptrToResult[i] = static_cast<S>(ptrToOld[i]);
+	}
+
+	return result;
+}
+
+
+template<typename S, typename V>
+V TestVec3<S,V>::cross(V lhs, V const & rhs)
+{
+	lhs = {{},
+		lhs.y * rhs.z - lhs.z * rhs.y,
+		lhs.z * rhs.x - lhs.x * rhs.z,
+		lhs.x * rhs.y - lhs.y * rhs.x 
+	};
+	return lhs;
+}
+

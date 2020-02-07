@@ -514,7 +514,7 @@ platform::prepare_frame(VulkanContext * context)
 }
 
 void
-platform::fill_functions(VulkanContext * context, platform::Functions * functions)
+platform::set_functions(VulkanContext * context, platform::Functions * functions)
 {
  	functions->push_mesh           	= vulkan::push_mesh;
  	functions->push_texture        	= vulkan::push_texture;

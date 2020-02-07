@@ -33,9 +33,15 @@ struct Scene3d
 
 	SceneGui gui;
 
-	// ArenaArray<Transform3D> 	transformStorage;
-	// ArenaArray<BoxCollider3D> 	colliderStorage;
-	// ArenaArray<Renderer> 		rendererStorage;
+	// using ComponentTypes = TypeList<Transform3D,
+	// 								BoxCollider3D,
+	// 								Renderer>;
+
+	// ComponentManager<ComponentTypes> componentManager;
+
+	ArenaArray<Transform3D> 	transformStorage;
+	ArenaArray<BoxCollider3D> 	colliderStorage;
+	ArenaArray<Renderer> 		rendererStorage;
 
  	// Todo(Leo): maybe make free functions
 	static MenuResult

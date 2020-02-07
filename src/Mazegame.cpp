@@ -47,32 +47,35 @@ struct GameState
 	MemoryArena persistentMemoryArena;
 	MemoryArena transientMemoryArena;
 
+	bool isInitialized;
+
 	SceneInfo * loadedSceneInfo;
 	void * loadedScene;
 };
 
 internal void
-initialize_game_state(GameState * state, game::Memory * memory)
+initialize_game_state(GameState * state, platform::Memory * memory)
 {
 	*state = {};
 
-
 	// // Note(Leo): Create persistent arena in the same memoryblock as game state, right after it.
 	u64 gameStateSize 				= align_up_to(sizeof(GameState), MemoryArena::defaultAlignment);
-	byte * persistentMemory 		= reinterpret_cast<byte *> (memory->persistentMemory) + gameStateSize;
-	u64 persistentMemorySize 		= memory->persistentMemorySize - gameStateSize;
+	byte * persistentMemory 		= reinterpret_cast<byte *>(memory->memory) + gameStateSize;
+	u64 persistentMemorySize 		= (memory->size / 2) - gameStateSize;
 	state->persistentMemoryArena 	= make_memory_arena(persistentMemory, persistentMemorySize); 
 
-	byte * transientMemory 			= reinterpret_cast<byte*>(memory->transientMemory);
-	u64 transientMemorySize 		= memory->transientMemorySize;
+	byte * transientMemory 			= reinterpret_cast<byte*>(memory->memory) + gameStateSize + persistentMemorySize;
+	u64 transientMemorySize 		= memory->size / 2;
 	state->transientMemoryArena 	= make_memory_arena(transientMemory, transientMemorySize);
 
-	memory->isInitialized = true;
+	state->isInitialized = true;
 }
 
 internal void
 output_sound(int sampleCount, game::StereoSoundSample * samples)
 {
+	return;
+
 	// Note(Leo): Shit these are bad :DD
 	local_persist int runningSampleIndex = 0;
 	local_persist AudioFile<float> file;
@@ -110,7 +113,7 @@ load_scene(	GameState * state,
 {
 	state->loadedSceneInfo = scene;
 
-	state->loadedScene = reserve_from_memory_arena(&state->persistentMemoryArena, scene->get_alloc_size(), true);
+	state->loadedScene = allocate_from_memory_arena(&state->persistentMemoryArena, scene->get_alloc_size(), true);
 	scene->load(state->loadedScene,
 				&state->persistentMemoryArena,
 				&state->transientMemoryArena,
@@ -138,7 +141,7 @@ Todo(Leo): indicate meaning of return value betterly somewhere, I almost forgot 
 extern "C" bool32
 update_game(
 	game::Input * 			input,
-	game::Memory * 			memory,
+	platform::Memory * 			memory,
 	game::Network *			network,
 	game::SoundOutput * 	soundOutput,
 
@@ -148,9 +151,9 @@ update_game(
 {
 	/* Note(Leo): This is reinterpreted each frame, we don't know and don't care
 	if it has been moved or whatever in platform layer*/
-	GameState * state = reinterpret_cast<GameState*>(memory->persistentMemory);
+	GameState * state = reinterpret_cast<GameState*>(memory->memory);
 
-	if (memory->isInitialized == false)
+	if (state->isInitialized == false)
 	{
 		initialize_game_state (state, memory);
 		load_scene(state, &menuScene, graphics, window, functions);
@@ -166,7 +169,6 @@ update_game(
 													window,
 													functions);
 	functions->finish_frame(graphics);
-
 
 	bool32 gameIsAlive = true;
 	switch(guiResult)
