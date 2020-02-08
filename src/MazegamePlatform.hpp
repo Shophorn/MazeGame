@@ -167,6 +167,18 @@ namespace platform
 		void * memory;
 		u64 size;
 	};
+
+	struct StereoSoundSample
+	{
+		float left;
+		float right;
+	};
+
+	struct SoundOutput
+	{
+		s32 sampleCount;
+		StereoSoundSample * samples;
+	};
 }
 
 namespace game
@@ -253,18 +265,6 @@ namespace game
 		NetworkPackage inPackage;
 		NetworkPackage outPackage;
 	};
-
-	struct StereoSoundSample
-	{
-		float left;
-		float right;
-	};
-
-	struct SoundOutput
-	{
-		s32 sampleCount;
-		StereoSoundSample * samples;
-	};
 }
 
 #if MAZEGAME_INCLUDE_STD_IOSTREAM
@@ -294,7 +294,7 @@ update_game(
 	game::Input * 			input,
 	platform::Memory * 		memory,
 	game::Network *			network,
-	game::SoundOutput *		soundOutput,
+	platform::SoundOutput *	soundOutput,
 
 	// Are these understandable enough?
 	platform::Graphics*,

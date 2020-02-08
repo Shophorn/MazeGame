@@ -34,6 +34,36 @@ and both are still missing some because they are listed above. */
 #include "Scene2D.cpp"
 #include "MenuScene.cpp"
 
+
+struct AudioClip
+{
+	AudioFile<float> file;
+	s32 sampleCount;
+	s32 sampleIndex;
+};
+
+AudioClip load_audio_clip(char const * filepath)
+{
+	AudioClip clip = {};
+	clip.file.load(filepath);
+	clip.sampleCount = clip.file.getNumSamplesPerChannel();
+
+	return clip;
+}
+
+platform::StereoSoundSample
+get_next_sample(AudioClip * clip)
+{
+	platform::StereoSoundSample sample = {
+		.left = clip->file.samples[0][clip->sampleIndex],
+		.right = clip->file.samples[1][clip->sampleIndex]
+	};
+
+	clip->sampleIndex = (clip->sampleIndex + 1) % clip->sampleCount;
+
+	return sample;
+}
+
 // Note(Leo): This makes less sense as a 'state' now that we have 'Scene' struct
 struct GameState
 {
@@ -47,6 +77,9 @@ struct GameState
 
 	SceneInfo loadedSceneInfo;
 	void * loadedScene;
+
+	// Todo(Leo): move to scene
+	AudioClip backgroundAudio;
 };
 
 internal void
@@ -64,41 +97,10 @@ initialize_game_state(GameState * state, platform::Memory * memory)
 	u64 transientMemorySize 		= memory->size / 2;
 	state->transientMemoryArena 	= make_memory_arena(transientMemory, transientMemorySize);
 
+	state->backgroundAudio = load_audio_clip("assets/sounds/Wind-Mark_DiAngelo-1940285615.wav");
+
+
 	state->isInitialized = true;
-}
-
-internal void
-output_sound(int sampleCount, game::StereoSoundSample * samples)
-{
-	return;
-/*
-	// Note(Leo): Shit these are bad :DD
-	local_persist int runningSampleIndex = 0;
-	local_persist AudioFile<float> file;
-	local_persist bool32 fileLoaded = false;
-	local_persist s32 fileSampleCount;
-	local_persist s32 fileSampleIndex;
-
-	if (fileLoaded == false)
-	{
-		fileLoaded = true;
-		
-		file.load("assets/sounds/Wind-Mark_DiAngelo-1940285615.wav");
-		fileSampleCount = file.getNumSamplesPerChannel();
-	}
-
-	// Todo(Leo): get volume from some input structure
-	float volume = 0.5f;
-
-	for (int sampleIndex = 0; sampleIndex < sampleCount; ++sampleIndex)
-	{
-		samples[sampleIndex].left = file.samples[0][fileSampleIndex] * volume;
-		samples[sampleIndex].right = file.samples[1][fileSampleIndex] * volume;
-
-		fileSampleIndex += 1;
-		fileSampleIndex %= fileSampleCount;
-	}
-	*/
 }
 
 internal void
@@ -138,9 +140,9 @@ Todo(Leo): indicate meaning of return value betterly somewhere, I almost forgot 
 extern "C" bool32
 update_game(
 	game::Input * 			input,
-	platform::Memory * 			memory,
+	platform::Memory * 		memory,
 	game::Network *			network,
-	game::SoundOutput * 	soundOutput,
+	platform::SoundOutput *	soundOutput,
 
 	platform::Graphics * 	graphics,
 	platform::Window * 		window,
@@ -207,9 +209,16 @@ update_game(
 		}
 	}
 
-	/// Output sound
+	/* Todo(Leo): this should probably be the master mixer, and scenes
+	just put their audio in it.	*/
 	{
-		output_sound(soundOutput->sampleCount, soundOutput->samples);
+		// Todo(Leo): get volume from some input structure
+		float volume = 0.5f;
+
+		for (int i = 0; i < soundOutput->sampleCount; ++i)
+		{
+			soundOutput->samples[i] = get_next_sample(&state->backgroundAudio);
+		}
 	}
 
 	// Note(Leo): This is just a reminder
