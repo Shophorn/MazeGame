@@ -178,6 +178,9 @@ namespace platform
 	{
 		s32 sampleCount;
 		StereoSoundSample * samples;
+
+		StereoSoundSample * begin() { return samples; }
+		StereoSoundSample * end() { return samples + sampleCount; }
 	};
 }
 

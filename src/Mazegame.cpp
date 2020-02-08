@@ -215,9 +215,9 @@ update_game(
 		// Todo(Leo): get volume from some input structure
 		float volume = 0.5f;
 
-		for (int i = 0; i < soundOutput->sampleCount; ++i)
+		for (auto & sample : *soundOutput)
 		{
-			soundOutput->samples[i] = get_next_sample(&state->backgroundAudio);
+			sample = get_next_sample(&state->backgroundAudio);
 		}
 	}
 
