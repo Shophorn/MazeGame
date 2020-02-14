@@ -27,9 +27,9 @@ namespace glTF
 
 
 	inline constexpr s32 headerLength 			= 3 * sizeof(u32);
-	inline constexpr s32 chunkInfoLength 			= 2 * sizeof(u32);  
+	inline constexpr s32 chunkInfoLength 		= 2 * sizeof(u32);  
 	
-	inline constexpr s32 chunkLengthPosition 		= 0;
+	inline constexpr s32 chunkLengthPosition 	= 0;
 	inline constexpr s32 chunkTypePosition 		= sizeof(u32);
 
 	enum struct ChunkType : u32 { Json = 0x4e4f534a, Binary = 0x004e4942 };
@@ -44,7 +44,7 @@ namespace glTF
     	FLOAT 			= 5126,
 	};
 
-	u64 get_default_stride (ComponentType type)
+	u32 get_component_size (ComponentType type)
 	{
 		switch (type)
 		{
@@ -56,8 +56,22 @@ namespace glTF
 			case ComponentType::FLOAT: 			return 4;
 
 			default:
-				DEBUG_ASSERT(false, "Hello bad choices: Invalid glTF component type");
+				DEBUG_ASSERT(false, "Hello from bad choices department: 'Invalid glTF component type'");
 		}
+	}
+
+	u32 get_component_count(char const * word)
+	{
+		if (strcmp(word, "SCALAR") == 0) return 1;
+		if (strcmp(word, "VEC2") == 0) return 2;
+		if (strcmp(word, "VEC3") == 0) return 3;
+		if (strcmp(word, "VEC4") == 0) return 4;
+		if (strcmp(word, "MAT2") == 0) return 4;
+		if (strcmp(word, "MAT3") == 0) return 9;
+		if (strcmp(word, "MAT4") == 0) return 16;
+
+		assert(false);
+		return -1;
 	}
 }
 

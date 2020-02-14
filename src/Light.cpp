@@ -6,12 +6,12 @@ This is light in all its anticlimaxiness.
 =====================================*/
 struct Light
 {
-	vector3 direction;
-	float3 color;
+	v3 direction;
+	v3 color;
 };
 
 
-internal Matrix44
+internal m44
 get_light_view_projection(Light const * directionalLight, Camera const * camera)
 {
 	// compute camera view frustrum corners in world space
@@ -23,9 +23,9 @@ get_light_view_projection(Light const * directionalLight, Camera const * camera)
 /*
 	struct Camera
 	{
-		vector3 position;
+		v3 position;
 		// Todo(Leo): change to quaternion, maybe
-		vector3 forward = world::forward;
+		v3 forward = world::forward;
 
 		float fieldOfView;
 		float nearClipPlane;
@@ -35,47 +35,47 @@ get_light_view_projection(Light const * directionalLight, Camera const * camera)
 */
 	float shadowDistance = 100;
 
-	vector3 cameraRight 	= get_right(camera);
-	vector3 cameraForward 	= get_forward(camera);
-	vector3 cameraUp 		= get_up(camera);
+	v3 cameraRight 	= get_right(camera);
+	v3 cameraForward 	= get_forward(camera);
+	v3 cameraUp 		= get_up(camera);
 
-	vector3 right = cameraRight * Tan(camera->verticalFieldOfView / 2.0f) * camera->aspectRatio;
-	vector3 forward = cameraForward;
-	vector3 up = cameraUp * Tan(camera->verticalFieldOfView / 2.0f);
+	v3 right = cameraRight * Tan(camera->verticalFieldOfView / 2.0f) * camera->aspectRatio;
+	v3 forward = cameraForward;
+	v3 up = cameraUp * Tan(camera->verticalFieldOfView / 2.0f);
 
-	vector3 nearTopLeft 	= camera->position + (forward + up - right) * camera->nearClipPlane;
-	vector3 nearTopRight 	= camera->position + (forward + up + right) * camera->nearClipPlane;
-	vector3 nearBottomLeft 	= camera->position + (forward - up - right) * camera->nearClipPlane;
-	vector3 nearBottomRight = camera->position + (forward - up + right) * camera->nearClipPlane;
+	v3 nearTopLeft 	= camera->position + (forward + up - right) * camera->nearClipPlane;
+	v3 nearTopRight 	= camera->position + (forward + up + right) * camera->nearClipPlane;
+	v3 nearBottomLeft 	= camera->position + (forward - up - right) * camera->nearClipPlane;
+	v3 nearBottomRight = camera->position + (forward - up + right) * camera->nearClipPlane;
 
-	vector3 farTopLeft 		= camera->position + (forward + up - right) * shadowDistance;
-	vector3 farTopRight 	= camera->position + (forward + up + right) * shadowDistance;
-	vector3 farBottomLeft 	= camera->position + (forward - up - right) * shadowDistance;
-	vector3 farBottomRight 	= camera->position + (forward - up + right) * shadowDistance;
+	v3 farTopLeft 		= camera->position + (forward + up - right) * shadowDistance;
+	v3 farTopRight 	= camera->position + (forward + up + right) * shadowDistance;
+	v3 farBottomLeft 	= camera->position + (forward - up - right) * shadowDistance;
+	v3 farBottomRight 	= camera->position + (forward - up + right) * shadowDistance;
 
 
-	vector3 lightPosition = (nearTopLeft + nearTopRight + nearBottomLeft + nearBottomRight + farTopLeft + farTopRight + farBottomLeft + farBottomRight) / 8.0f;
+	v3 lightPosition = (nearTopLeft + nearTopRight + nearBottomLeft + nearBottomRight + farTopLeft + farTopRight + farBottomLeft + farBottomRight) / 8.0f;
 
 	Camera lightCamera = {};
 	lightCamera.position = lightPosition - directionalLight->direction * 100.0f;
 	lightCamera.direction = directionalLight->direction;
 
-	Matrix44 lightView = get_view_transform(&lightCamera);
+	m44 lightView = get_view_transform(&lightCamera);
 
-	// Matrix44 lightRotation = lightView;
+	// m44 lightRotation = lightView;
 	// lightRotation[3] = {0, 0, 0, 1};
 
-	// // Matrix44 inverseLightRotation = matrix::transpose(lightRotation);
+	// // m44 inverseLightRotation = matrix::transpose(lightRotation);
 	// // // Study(Leo): Rotation matrices are "orthogonal", so they can be inverted by taking transpose
 
-	// // Matrix44 inverseLightTranslation = make_translation_matrix(-lightPosition);
+	// // m44 inverseLightTranslation = make_translation_matrix(-lightPosition);
 
 	// // // right: TR
 	// // // inverse: RiTi
 
-	// // Matrix44 inverseLightTransform = matrix::multiply(inverseLightRotation,inverseLightTranslation);
+	// // m44 inverseLightTransform = matrix::multiply(inverseLightRotation,inverseLightTranslation);
 
-	// // auto transform_to_light_space = [&](vector3 worldPosition)
+	// // auto transform_to_light_space = [&](v3 worldPosition)
 	// // {	
 	// // 	worldPosition = inverseLightTransform * worldPosition;
 	// // 	return worldPosition;
@@ -96,7 +96,7 @@ get_light_view_projection(Light const * directionalLight, Camera const * camera)
 	float shadowBoxDepth = -100;
 	float shadowBoxHeight = -500;
 
-	Matrix44 lightProjection =
+	m44 lightProjection =
 	{
 		2.0f / shadowBoxWidth, 0, 0, 0,
 		0, 2.0f / shadowBoxDepth, 0, 0,

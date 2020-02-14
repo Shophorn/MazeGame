@@ -127,9 +127,9 @@ namespace platform
 		void (*prepare_frame) 	(Graphics*);
 		void (*finish_frame) 	(Graphics*);
 		void (*update_camera) 	(Graphics*, Camera const *);
-		void (*update_lighting)	(Graphics*, Light const *, Camera const * camera, float3 ambient);
-		void (*draw_model) 		(Graphics*, ModelHandle model, Matrix44 transform, bool32 castShadow);
-		void (*draw_line) 		(Graphics*, vector3 start, vector3 end, float width, float4 color);
+		void (*update_lighting)	(Graphics*, Light const *, Camera const * camera, v3 ambient);
+		void (*draw_model) 		(Graphics*, ModelHandle model, m44 transform, bool32 castShadow, m44 * bones, u32 boneCount);
+		void (*draw_line) 		(Graphics*, v3 start, v3 end, float width, float4 color);
 		void (*draw_gui) 		(Graphics*, vector2 position, vector2 size, MaterialHandle material, float4 color);
 
 		// WINDOW FUNCTIONS	
@@ -254,7 +254,7 @@ namespace game
 	
 	struct NetworkPackage
 	{
-		vector3 characterPosition;
+		v3 characterPosition;
 		quaternion characterRotation;
 	};
 

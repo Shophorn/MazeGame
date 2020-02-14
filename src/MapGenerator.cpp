@@ -16,7 +16,7 @@ struct HexMap
  	u32 & 
  	Cell (int x, int y) { return cells[x + y * cellCountPerDirection]; }
 
-	vector3
+	v3
 	GetCellPosition(s32 x, s32 y)
 	{
 		// Note(Leo): math stolen from catlike coding hex tutorial
@@ -26,7 +26,7 @@ struct HexMap
 		real32 cellOffsetX = ((cellCountPerDirection * cellInnerRadius) * 2.0f) / 2.0f;
 		real32 cellOffsetY = ((cellCountPerDirection * cellOuterRadius) * 1.5f) / 2.0f;
 
-		vector3 cellPosition =
+		v3 cellPosition =
 		{
 			(x + y * 0.5f - (y / 2)) * cellInnerRadius * 2.0f - cellOffsetX,
 			y * cellOuterRadius * 1.5f - cellOffsetY,
@@ -55,13 +55,13 @@ namespace map
 
 
 void
-AddHexCell(vector3 cellPosition, HexMap * map, bool blocked, u16 * vertexIndex, Vertex * vertexArray, u16 * triangleIndex, u16 * triangleArray)
+AddHexCell(v3 cellPosition, HexMap * map, bool blocked, u16 * vertexIndex, Vertex * vertexArray, u16 * triangleIndex, u16 * triangleArray)
 {
 	Vertex * vertexLocation = vertexArray + *vertexIndex;
 	u16 * triangleLocation = triangleArray + *triangleIndex;
 
-	vector3 color = blocked ? vector3{0.1f, 0.1f, 0.1f} : vector3{1, 1, 1};
-	vector3 normal = {0, 0, 1};
+	v3 color = blocked ? v3{0.1f, 0.1f, 0.1f} : v3{1, 1, 1};
+	v3 normal = {0, 0, 1};
 
 	real32 padding = 0.02f;
 	
@@ -69,14 +69,14 @@ AddHexCell(vector3 cellPosition, HexMap * map, bool blocked, u16 * vertexIndex, 
 	real32 cellTileOuterRadius = map->cellSize - 2.0f * padding;
 	real32 cellTileInnerRadius = 0.866025404f * cellTileOuterRadius;
 
-	vector3 hexCellCorners [6] =
+	v3 hexCellCorners [6] =
 	{
-		vector3{0, cellTileOuterRadius, 0},
-		vector3{-cellTileInnerRadius, 0.5f * cellTileOuterRadius, 0},
-		vector3{-cellTileInnerRadius, -0.5f * cellTileOuterRadius, 0},
-		vector3{0, -cellTileOuterRadius, 0},
-		vector3{cellTileInnerRadius, -0.5f * cellTileOuterRadius, 0},
-		vector3{cellTileInnerRadius, 0.5f * cellTileOuterRadius, 0},
+		v3{0, cellTileOuterRadius, 0},
+		v3{-cellTileInnerRadius, 0.5f * cellTileOuterRadius, 0},
+		v3{-cellTileInnerRadius, -0.5f * cellTileOuterRadius, 0},
+		v3{0, -cellTileOuterRadius, 0},
+		v3{cellTileInnerRadius, -0.5f * cellTileOuterRadius, 0},
+		v3{cellTileInnerRadius, 0.5f * cellTileOuterRadius, 0},
 	};
 
 	vertexLocation[0].position = cellPosition;

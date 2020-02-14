@@ -81,8 +81,8 @@ scene_2d::update(	void * scenePtr,
     update_camera_system(&scene->worldCamera, input, graphics, window, functions);
 	update_render_system(scene->renderSystem, graphics, functions);
 
-	Light light = { vector::normalize(vector3{1, 1, -3}), {0.95, 0.95, 0.9}};
-	float3 ambient = {0.2, 0.25, 0.4};
+	Light light = { vector::normalize(v3{1, 1, -3}), {0.95, 0.95, 0.9}};
+	v3 ambient = {0.2, 0.25, 0.4};
 	functions->update_lighting(graphics, &light, &scene->worldCamera, ambient);
 
 
@@ -345,7 +345,7 @@ scene_2d::load(	void * scenePtr,
 
 		if (addPlatforms)
 		{
-			vector3 platformPositions [] =
+			v3 platformPositions [] =
 			{
 				{-6, 0, 6},
 				{-4, 0, 6},
@@ -383,13 +383,13 @@ scene_2d::load(	void * scenePtr,
 			auto keyholeMeshHandle 	= functions->push_mesh(graphics, &keyholeMeshAsset);
 
 			auto model 	= push_model(keyholeMeshHandle, materials.environment);
-			auto transform 	= allocate_transform(&scene->transformStorage, {vector3{5, 0, 0}});
+			auto transform 	= allocate_transform(&scene->transformStorage, {v3{5, 0, 0}});
 
 			push_one(scene->renderSystem, {transform, model});
 			push_collider(&scene->collisionManager, transform, {0.3f, 0.6f}, {0, 0.3f}, ColliderTag::Trigger);
 
 			model 	= push_model(keyholeMeshHandle, materials.environment);
-			transform 	= allocate_transform(&scene->transformStorage, {vector3{4, 0, 6}});
+			transform 	= allocate_transform(&scene->transformStorage, {v3{4, 0, 6}});
 
 			push_one(scene->renderSystem, {transform, model});
 			push_collider(&scene->collisionManager, transform, {0.3f, 0.6f}, {0, 0.3f}, ColliderTag::Trigger2);

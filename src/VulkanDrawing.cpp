@@ -35,9 +35,9 @@ vulkan::update_camera(VulkanContext * context, Camera const * camera)
     // Todo(Leo): alignment
 
     // Note (Leo): map vulkan memory directly to right type so we can easily avoid one (small) memcpy per frame
-    VulkanCameraUniformBufferObject * pUbo;
+    CameraUniformBuffer * pUbo;
     vkMapMemory(context->device, context->sceneUniformBuffer.memory,
-                context->cameraUniformOffset, sizeof(VulkanCameraUniformBufferObject), 0, (void**)&pUbo);
+                context->cameraUniformOffset, sizeof(CameraUniformBuffer), 0, (void**)&pUbo);
 
     pUbo->view          = get_view_transform(camera);
     pUbo->projection   = get_projection_transform(camera);
@@ -46,11 +46,11 @@ vulkan::update_camera(VulkanContext * context, Camera const * camera)
 }
 
 void
-vulkan::update_lighting(VulkanContext * context, Light const * light, Camera const * camera, float3 ambient)
+vulkan::update_lighting(VulkanContext * context, Light const * light, Camera const * camera, v3 ambient)
 {
-    LightingUniformBufferObject * lightPtr;
+    LightingUniformBuffer * lightPtr;
     vkMapMemory(context->device, context->sceneUniformBuffer.memory,
-                context->lightingUniformOffset, sizeof(vulkan::LightingUniformBufferObject), 0, (void**)&lightPtr);
+                context->lightingUniformOffset, sizeof(LightingUniformBuffer), 0, (void**)&lightPtr);
 
     lightPtr->direction    = vector::convert<vector4>(light->direction);
     lightPtr->color        = vector::convert<float4>(light->color);
@@ -60,11 +60,11 @@ vulkan::update_lighting(VulkanContext * context, Light const * light, Camera con
 
     // ------------------------------------------------------------------------------
 
-    Matrix44 lightViewProjection = get_light_view_projection (light, camera);
+    m44 lightViewProjection = get_light_view_projection (light, camera);
 
-    VulkanCameraUniformBufferObject * pUbo;
+    CameraUniformBuffer * pUbo;
     vkMapMemory(context->device, context->sceneUniformBuffer.memory,
-                context->cameraUniformOffset, sizeof(VulkanCameraUniformBufferObject), 0, (void**)&pUbo);
+                context->cameraUniformOffset, sizeof(CameraUniformBuffer), 0, (void**)&pUbo);
 
     pUbo->lightViewProjection = lightViewProjection;
 
@@ -255,27 +255,37 @@ vulkan::finish_drawing(VulkanContext * context)
 
 
 void
-vulkan::record_draw_command(VulkanContext * context, ModelHandle model, Matrix44 transform, bool32 castShadow)
+vulkan::record_draw_command(VulkanContext * context, ModelHandle model, m44 transform, bool32 castShadow, m44 * bones, u32 bonesCount)
 {
+    assert(context->canDraw);
+
     /* Todo(Leo): Get rid of these, we can just as well get them directly from user.
     That is more flexible and then we don't need to save that data in multiple places. */
     MeshHandle meshHandle           = context->loadedModels[model].mesh;
     MaterialHandle materialHandle   = context->loadedModels[model].material;
 
-    u32 modelUniformBufferOffset = context->currentUniformBufferOffset;
-    u32 modelMatrixSize          = get_aligned_uniform_buffer_size(context, sizeof(transform));
+    u32 uniformBufferOffset = context->currentUniformBufferOffset;
+    u32 uniformBufferSize   = get_aligned_uniform_buffer_size(context, sizeof(ModelUniformBuffer));
 
-    context->currentUniformBufferOffset += modelMatrixSize;
+    context->currentUniformBufferOffset += uniformBufferSize;
 
-    // Todo(Leo): Just map this once when rendering starts
-    Matrix44 * pModelMatrix;
-    vkMapMemory(context->device, context->modelUniformBuffer.memory, modelUniformBufferOffset, modelMatrixSize, 0, (void**)&pModelMatrix);
-    *pModelMatrix = transform;
+    assert(context->currentUniformBufferOffset <= context->modelUniformBuffer.size);
+
+    ModelUniformBuffer * pBuffer;
+
+    // Optimize(Leo): Just map this once when rendering starts
+    vkMapMemory(context->device, context->modelUniformBuffer.memory, uniformBufferOffset, uniformBufferSize, 0, (void**)&pBuffer);
+    
+    pBuffer->transform = transform;
+
+    assert(bonesCount <= get_array_count(pBuffer->bones));    
+    memcpy(pBuffer->bones, bones, sizeof(m44) * bonesCount);
+
     vkUnmapMemory(context->device, context->modelUniformBuffer.memory);
 
-    DEBUG_ASSERT(context->canDraw, "Invalid call to record_draw_command() when prepare_drawing() has not been called.")
+    // ---------------------------------------------------------------
 
-    VulkanVirtualFrame * frame      = get_current_virtual_frame(context);
+    VulkanVirtualFrame * frame = get_current_virtual_frame(context);
  
     auto * mesh = get_loaded_mesh(context, meshHandle);
     auto * material = get_loaded_material(context, materialHandle);
@@ -295,7 +305,7 @@ vulkan::record_draw_command(VulkanContext * context, ModelHandle model, Matrix44
     };
 
     // Note(Leo): this works, because models are only dynamic set
-    u32 dynamicOffsets [] = {modelUniformBufferOffset};
+    u32 dynamicOffsets [] = {uniformBufferOffset};
 
     vkCmdBindDescriptorSets(frame->commandBuffers.scene, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->layout,
                             0, get_array_count(sets), sets,
@@ -333,14 +343,14 @@ vulkan::record_draw_command(VulkanContext * context, ModelHandle model, Matrix44
                                 2,
                                 shadowSets,
                                 1,
-                                &modelUniformBufferOffset);
+                                &uniformBufferOffset);
 
         vkCmdDrawIndexed(frame->commandBuffers.offscreen, mesh->indexCount, 1, 0, 0, 0);
     }
 }
 
 void
-vulkan::record_line_draw_command(VulkanContext * context, vector3 start, vector3 end, float width, float4 color)
+vulkan::record_line_draw_command(VulkanContext * context, v3 start, v3 end, float width, float4 color)
 {
     /*
     vulkan bufferless drawing

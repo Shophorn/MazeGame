@@ -2,6 +2,9 @@
 Leo Tamminen
 
 Mesh Loader
+
+Todo(Leo):
+	- use reference variables for rapidjson things
 =============================================================================*/
 
 // Note(Leo): this also includes string and vector apparently
@@ -10,15 +13,50 @@ Mesh Loader
 // #include <string>
 // #include <vector>
 
-internal MeshAsset
-load_model_glb(MemoryArena * memoryArena, const char * filePath, const char * modelName)
+struct GenericIterator
 {
+	u32 stride;
+	u8 * pointer;
+};
+
+template <typename T>
+T get_and_advance(GenericIterator * iterator)
+{
+	T result = *reinterpret_cast<T*>(iterator->pointer);
+	iterator->pointer += iterator->stride;
+	return result;
+}
+
+template <typename T>
+T get_at(GenericIterator * iterator, u32 position)
+{
+	return *reinterpret_cast<T*>(iterator->pointer + (iterator->stride * position));
+}
+
+struct Bone
+{
+	Transform3D transform;
+	u32 parent;
+	bool32 isRoot;
+
+	u32 treeIndex;
+};
+
+struct Skeleton
+{
+	ArenaArray<Bone> bones;
+};
+
+
+internal Skeleton
+load_skeleton_glb(MemoryArena * memoryArena, char const * filePath, char const * modelName)
+{
+	using JsonValue = rapidjson::Value;
 	/*
 	Todo(Leo): 
 		- multiple objects in file
 		- other hierarchies
 		- world transforms
-		- stride
 		- sparse accessor
 	*/
 
@@ -27,44 +65,162 @@ load_model_glb(MemoryArena * memoryArena, const char * filePath, const char * mo
 	auto jsonString		= get_string(jsonBuffer);
 	auto jsonDocument	= parse_json(jsonString.c_str());
 	
-	auto meshArray = jsonDocument["meshes"].GetArray();
+	auto nodeArray = jsonDocument["nodes"].GetArray();
 	
 	s32 positionAccessorIndex 	= -1; 
-	s32 normalAccessorIndex 		= -1;
+	s32 normalAccessorIndex 	= -1;
 	s32 texcoordAccessorIndex 	= -1;
+
+	s32 bonesAccessorIndex 			= -1;
+	s32 boneWeightsAccessorIndex 	= -1;
+
+	JsonValue modelNode;
+
 	s32 indexAccessorIndex 		= -1;
 
-	for (auto & object : meshArray)
+	for (auto & object : nodeArray)
 	{
 		auto name = object["name"].GetString();
 		if (name == std::string(modelName))
 		{
+			assert(object.HasMember("skin"));
 
-			auto primitivesArray 	= object["primitives"].GetArray();
-
-			auto attribObject 		= primitivesArray[0].GetObject()["attributes"].GetObject();
-			positionAccessorIndex 	= attribObject["POSITION"].GetInt();
-			normalAccessorIndex 	= attribObject["NORMAL"].GetInt();
-			texcoordAccessorIndex 	= attribObject["TEXCOORD_0"].GetInt();
-
-			indexAccessorIndex 		= primitivesArray[0].GetObject()["indices"].GetInt();
-
+			modelNode = object;
 			break;
 		}
 	}
 
-	// std::cout 	<< "[GLTF]: Accessor indices\n"
-	// 			<< "\tPOSITION: " << positionAccessorIndex << "\n"	
-	// 			<< "\tNORMAL: " << normalAccessorIndex << "\n"	
-	// 			<< "\tTEXCOORD_0: " << texcoordAccessorIndex << "\n"	
-	// 			<< "\tindices: " << indexAccessorIndex << "\n";
+	u32 skinIndex 	= modelNode["skin"].GetInt();
+	auto skin 		= jsonDocument["skins"][skinIndex].GetObject();
+	auto jointArray = skin["joints"].GetArray();
+	u32 jointCount 	= jointArray.Size();
+
+	Skeleton result = { push_array<Bone>(memoryArena, jointCount) };
+	for (auto & bone : result.bones)
+	{
+		bone.transform = {};
+		bone.isRoot = true;
+	}
+
+	auto node_to_joint = [&](u32 nodeIndex) -> u32
+	{
+		/* Note(Leo): This is used so little it should not matter,
+		but we could  do some clever look up table */
+		for(u32 jointIndex = 0; jointIndex < jointCount; ++jointIndex)
+		{
+			if (jointArray[jointIndex].GetInt() == nodeIndex)
+			{
+				return jointIndex;
+			}
+		}
+		assert(false && "Joint should have been found");
+		return -1;
+	};
+
+
+	for (int i = 0; i < jointCount; ++i)
+	{
+		u32 nodeIndex 	= jointArray[i].GetInt();
+		auto node 		= nodeArray[nodeIndex].GetObject();
+		if (node.HasMember("children"))
+		{
+			auto childArray = node["children"].GetArray();
+			for(auto const & child : childArray)
+			{
+				u32 childIndex = node_to_joint(child.GetInt());
+ 				result.bones[childIndex].parent = i;
+ 				result.bones[childIndex].isRoot = false;
+			}
+		}
+	}
+
+	// result.bones[0].isRoot = true;			// Root
+	// result.bones[1].parent = 0;			// Hip
+	// result.bones[2].parent = 1;			// Back
+	// result.bones[11].parent = 1;			// Thigh L
+	// result.bones[14].parent = 1;			// Thigh R
+	// result.bones[3].parent = 2;			// Neck
+	// result.bones[8].parent = 2;			// Arm R
+	// result.bones[5].parent = 2;			// Arm L
+	// result.bones[4].parent = 3;			// Head
+	// result.bones[6].parent = 5;			// ForeArm L
+	// result.bones[7].parent = 6;			// Hand L
+	// result.bones[9].parent = 8;			// ForeArm R
+	// result.bones[10].parent = 9;			// Hand R
+	// result.bones[12].parent = 11;		// Shin L
+	// result.bones[13].parent = 12;		// Foot L
+	// result.bones[15].parent = 14;		// Shin R
+	// result.bones[16].parent = 15;		// Foot R
+
+	return result;
+}
+
+internal MeshAsset
+load_model_glb(MemoryArena * memoryArena, char const * filePath, char const * modelName)
+{
+	using JsonValue = rapidjson::Value;
+	/*
+	Todo(Leo): 
+		- multiple objects in file
+		- other hierarchies
+		- world transforms
+		- sparse accessor
+	*/
+
+	auto gltf 			= read_binary_file(memoryArena, filePath);
+	auto jsonBuffer 	= get_gltf_json_chunk(gltf, memoryArena);
+	auto jsonString		= get_string(jsonBuffer);
+	auto jsonDocument	= parse_json(jsonString.c_str());
+	
+	auto nodeArray = jsonDocument["nodes"].GetArray();
+	
+	s32 positionAccessorIndex 	= -1; 
+	s32 normalAccessorIndex 	= -1;
+	s32 texcoordAccessorIndex 	= -1;
+
+	s32 bonesAccessorIndex 			= -1;
+	s32 boneWeightsAccessorIndex 	= -1;
+
+	JsonValue modelNode;
+
+	s32 indexAccessorIndex 		= -1;
+
+	for (auto & object : nodeArray)
+	{
+		auto name = object["name"].GetString();
+		if (name == std::string(modelName))
+		{
+			assert(object.HasMember("mesh"));
+
+			modelNode = object;
+			break;
+		}
+	}
+
+	u32 meshIndex 			= modelNode["mesh"].GetInt();
+	auto meshObject			= jsonDocument["meshes"][0].GetObject();
+	auto primitivesArray 	= meshObject["primitives"].GetArray();
+
+	auto attribObject 		= primitivesArray[0].GetObject()["attributes"].GetObject();
+	positionAccessorIndex 	= attribObject["POSITION"].GetInt();
+	normalAccessorIndex 	= attribObject["NORMAL"].GetInt();
+	texcoordAccessorIndex 	= attribObject["TEXCOORD_0"].GetInt();
+
+	if (attribObject.HasMember("JOINTS_0"))
+		bonesAccessorIndex 		= attribObject["JOINTS_0"].GetInt();
+
+	if (attribObject.HasMember("WEIGHTS_0"))
+		boneWeightsAccessorIndex = attribObject["WEIGHTS_0"].GetInt();
+
+	indexAccessorIndex 		= primitivesArray[0].GetObject()["indices"].GetInt();
+
 
 	auto accessorArray 		= jsonDocument["accessors"].GetArray();
 	auto bufferViewArray 	= jsonDocument["bufferViews"].GetArray();
 	auto buffersArray 		= jsonDocument["buffers"].GetArray();
 	
 	// Todo(Leo): what if there are multiple buffers in file? Where is the index? In "buffers"?
-	auto buffer = get_gltf_binary_chunk(memoryArena, gltf, 0);
+	auto buffer 			= get_gltf_binary_chunk(memoryArena, gltf, 0);
 
 	auto get_buffer_view_index = [&accessorArray](s32 index) -> s32
 	{
@@ -78,96 +234,128 @@ load_model_glb(MemoryArena * memoryArena, const char * filePath, const char * mo
 		return result;
 	};
 
-	s32 positionBufferViewIndex 	= get_buffer_view_index(positionAccessorIndex);
-	s32 normalBufferViewIndex 	= get_buffer_view_index(normalAccessorIndex);
-	s32 texcoordBufferViewIndex 	= get_buffer_view_index(texcoordAccessorIndex);
-	s32 indexBufferViewIndex 		= get_buffer_view_index(indexAccessorIndex);
+	s32 indexBufferViewIndex 	= get_buffer_view_index(indexAccessorIndex);
 
-	u64 vertexCount 	= get_item_count(positionAccessorIndex);
-	bool32 isGood 		= 	(vertexCount == get_item_count(normalAccessorIndex))
-							&& (vertexCount == get_item_count(texcoordAccessorIndex));
+	u64 vertexCount 			= get_item_count(positionAccessorIndex);
+	bool32 isGood 				= 	(vertexCount == get_item_count(normalAccessorIndex))
+									&& (vertexCount == get_item_count(texcoordAccessorIndex));
 	DEBUG_ASSERT(isGood, "Did not read .glb properly: invalid vertex count among properties or invalid accessor indices.");
 
-	////// VERTICES ///////
-
-	auto positionAccessor 	= accessorArray[positionAccessorIndex].GetObject();
-	auto normalAccessor 	= accessorArray[normalAccessorIndex].GetObject();
-	auto texcoordAccessor 	= accessorArray[texcoordAccessorIndex].GetObject();
-
-	auto positionBufferView = bufferViewArray[positionBufferViewIndex].GetObject();
-	auto normalBufferView 	= bufferViewArray[normalBufferViewIndex].GetObject();
-	auto texcoordBufferView = bufferViewArray[texcoordBufferViewIndex].GetObject();
-
-	u64 positionOffset 		= positionBufferView["byteOffset"].GetInt();
-	u64 positionLength		= positionBufferView["byteLength"].GetInt(); 
-	auto positionComponentType 	= (glTF::ComponentType)positionAccessor["componentType"].GetInt();
-	u64 positionStride		= glTF::get_default_stride(positionComponentType);
-
-	u64 normalOffset 		= normalBufferView["byteOffset"].GetInt();
-	u64 normalLength			= normalBufferView["byteLength"].GetInt(); 
-	auto normalComponentType 	= (glTF::ComponentType)normalAccessor["componentType"].GetInt();
-	u64 normalStride			= glTF::get_default_stride(normalComponentType);
-
-	u64 texcoordOffset 		= texcoordBufferView["byteOffset"].GetInt();
-	u64 texcoordLength		= texcoordBufferView["byteLength"].GetInt(); 
-	auto texcoordComponentType 	= (glTF::ComponentType)texcoordAccessor["componentType"].GetInt();
-	u64 texcoordStride		= glTF::get_default_stride(texcoordComponentType);
-
-	auto vertices 				= reserve_array<Vertex>(memoryArena, vertexCount);
-
-	u64 positionStart 		= positionOffset;
-	u64 normalStart 			= normalOffset;
-	u64 texcoordStart 		= texcoordOffset;
-
-	vector3 * positionBuffer 	= reinterpret_cast<vector3*>(buffer.begin() + positionOffset);
-	vector3 * normalBuffer 		= reinterpret_cast<vector3*>(buffer.begin() + normalOffset);
-	vector2 * texcoordBuffer 	= reinterpret_cast<vector2*>(buffer.begin() + texcoordOffset);
-
-	for (int i = 0; i < vertexCount; ++i)
+	// -----------------------------------------------------------------------------
+	auto get_buffer_byte_offset = [&](u32 index)
 	{
-		vector3 position 	= positionBuffer[i];
-		vector3 normal 		= normalBuffer[i];
-		vector2 texCoord    = texcoordBuffer[i];
+		auto bufferView = bufferViewArray[index].GetObject();
+		assert(bufferView.HasMember("byteOffset"));
+		return bufferView["byteOffset"].GetInt();
+	};
 
-		push_one(vertices, Vertex{
-			.position 	= position,
-			.normal 	= normal,
-			.texCoord 	= texCoord});
+	auto vertices 			= push_array<Vertex>(memoryArena, vertexCount);
+
+	auto get_iterator = [&](u32 accessorIndex) -> GenericIterator
+	{
+		auto accessor = accessorArray[accessorIndex].GetObject();
+		auto componentType = (glTF::ComponentType)accessor["componentType"].GetInt();
+		
+		u32 size = glTF::get_component_size(componentType);
+		u32 componentCount = glTF::get_component_count(accessor["type"].GetString());
+
+		u32 viewIndex = get_buffer_view_index(accessorIndex);
+		u32 offset = get_buffer_byte_offset(viewIndex);
+
+		return {.stride = size * componentCount,
+				.pointer = buffer.begin() + offset};
+
+	};
+
+
+	auto posIt 			= get_iterator(positionAccessorIndex);
+	auto normalIt 		= get_iterator(normalAccessorIndex);
+	auto texcoordIt 	= get_iterator(texcoordAccessorIndex);
+
+	for (auto & vertex : vertices)
+	{
+		vertex.position = get_and_advance<v3>(&posIt);
+		vertex.normal 	= get_and_advance<v3>(&normalIt);
+		vertex.texCoord = get_and_advance<v2>(&texcoordIt);
+	}
+
+	bool32 hasSkin = bonesAccessorIndex >= 0 && boneWeightsAccessorIndex >= 0;
+	if (hasSkin)
+	{
+		auto bonesIterator = get_iterator(bonesAccessorIndex);
+		auto weightIterator = get_iterator(boneWeightsAccessorIndex);
+
+		for (auto & vertex : vertices)
+		{
+			vertex.boneIndices = get_and_advance<upoint4>(&bonesIterator);
+			vertex.boneWeights = get_and_advance<v4>(&weightIterator);
+			vector::normalize(vertex.boneWeights);
+		}
+
+		// u32 skinIndex = modelNode["skin"].GetInt();
+		// auto skin = jsonDocument["skins"][skinIndex].GetObject();
+		// auto jointArray = skin["joints"].GetArray();
+		// u32 jointCount = jointArray.Size();
+
+		// std::cout << "[load_model_glb()]: " << jointCount << "\n";
+
+		// struct Joint
+		// {
+		// 	u32 index;
+		// 	Joint * parent;
+		// 	Transform3D transform;
+		// 	m44 inverseBindTransform;
+		// };
+
+		// ArenaArray<Joint> joints = push_array<Joint>(memoryArena, jointCount);
+
+		// auto inverseBindTransformIterator = get_iterator(skin["inverseBindTransforms"].GetInt());
+
+		// for (int i = 0; i < jointCount; ++i)
+		// {
+		// 	u32 jointIndex = jointArray[i].GetInt();
+
+		// 	Transform3D transform = {};
+		// 	if (nodeArray[jointIndex].HasMember("translation"))
+		// 	{
+		// 		transform.position = { 	(float)nodeArray[jointIndex]["translation"][0].GetDouble(),
+		// 								(float)nodeArray[jointIndex]["translation"][1].GetDouble(),
+		// 								(float)nodeArray[jointIndex]["translation"][2].GetDouble()};
+		// 	}
+
+		// 	if (nodeArray[jointIndex].HasMember("rotation"))
+		// 	{
+		// 		transform.rotation = {	(float)nodeArray[jointIndex]["rotation"][0].GetDouble(),
+		// 								(float)nodeArray[jointIndex]["rotation"][1].GetDouble(),
+		// 								(float)nodeArray[jointIndex]["rotation"][2].GetDouble(),
+		// 								(float)nodeArray[jointIndex]["rotation"][3].GetDouble()};
+		// 	}
+
+		// 	joints[i] = {
+		// 		jointIndex,
+		// 		transform,
+		// 		get_at<m44>(&inverseBindTransformIterator, jointIndex)
+		// 	};
+		// }
 	}
 
 	///// INDICES //////
-	auto indexAccessor 		= accessorArray[indexAccessorIndex].GetObject();
-	auto indexBufferView 	= bufferViewArray[indexBufferViewIndex].GetObject();
-
-
+	auto indexAccessor 	= accessorArray[indexAccessorIndex].GetObject();
 	u64 indexCount 		= indexAccessor["count"].GetInt();
-	auto indices 			= reserve_array<u16>(memoryArena, indexCount);
+	auto indices 		= push_array<u16>(memoryArena, indexCount);
 
-	u64 indexByteOffset 	= indexBufferView["byteOffset"].GetInt();
-	u64 indexByteLength 	= indexBufferView["byteLength"].GetInt();
-
-	byte * indexStart 		= buffer.begin() + indexByteOffset;
-	byte * indexEnd 		= indexStart + indexByteLength;
-	auto componentType		= (glTF::ComponentType)indexAccessor["componentType"].GetInt();
-	u64 stride			= glTF::get_default_stride(componentType);
-
-	// std::cout << "[GLTF]: Index stride = " << stride << "\n";
-
-	for(byte * it = indexStart; it < indexEnd; it += stride)
+	auto indexIterator = get_iterator(indexAccessorIndex);
+	for (u16 & index : indices)
 	{
-		u16 index = *reinterpret_cast<u16*>(it);
-		push_one(indices, index);
+		index = get_and_advance<u16>(&indexIterator);
 	}
-
-	// std::cout << "[GLTF]: indices read properly\n";
-
 
 	MeshAsset result = make_mesh_asset(vertices, indices);
 	return result;
 }
 
 internal MeshAsset
-load_model_obj(MemoryArena * memoryArena, const char * modelPath)
+load_model_obj(MemoryArena * memoryArena, char const * modelPath)
 {
 	/*
 	TODO(Leo): There is now no checking if attributes exist.
@@ -228,7 +416,7 @@ load_model_obj(MemoryArena * memoryArena, const char * modelPath)
 namespace mesh_ops
 {
 	internal void
-	transform(MeshAsset * mesh, const Matrix44 & transform)
+	transform(MeshAsset * mesh, const m44 & transform)
 	{
 		int vertexCount = mesh->vertices.count();
 		for (int vertexIndex = 0; vertexIndex < vertexCount; ++vertexIndex)
@@ -238,7 +426,7 @@ namespace mesh_ops
 	}
 
 	internal void
-	transform_tex_coords(MeshAsset * mesh, const vector2 translation, const vector2 scale)
+	transform_tex_coords(MeshAsset * mesh, const v2 translation, const v2 scale)
 	{
 		int vertexCount = mesh->vertices.count();
 		for(int vertexIndex = 0; vertexIndex < vertexCount; ++vertexIndex)

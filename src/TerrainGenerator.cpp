@@ -153,7 +153,7 @@ generate_terrain(	MemoryArena * memory,
 			float heightBack 	= get_clamped_height(x, y - 1);			
 			float heightFront 	= get_clamped_height(x, y + 1);			
 
-			vector3 normal = {	heightLeft - heightRight,
+			v3 normal = {	heightLeft - heightRight,
 								heightBack - heightFront,
 								2 * gridTileSize};
 			normal = vector::normalize(normal);

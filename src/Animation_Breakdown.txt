@@ -1,0 +1,6 @@
+Animation Breakdown
+- skin info to shader
+- skin info to vertexbuffers
+- skin info to asset, from file
+- animation control from game layer
+- animation flow control

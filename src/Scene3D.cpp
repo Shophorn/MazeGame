@@ -10,25 +10,42 @@ Scene description for 3d development scene
 
 #include "DefaultSceneGui.cpp"
 
+void update_animated_renderer(Skeleton * skeleton, AnimatedRenderer * renderer)
+{
+	assert(skeleton->bones.count() == renderer->bones.count());
+
+	u32 count = skeleton->bones.count();
+
+	/* Todo(Leo): Skeleton needs to be ordered so that parent ALWAYS comes before
+	children, and therefore 0th is always automatically root*/
+
+	for (int i = 0; i < count; ++i)
+	{
+		m44 matrix = get_matrix(&skeleton->bones[i].transform);
+
+		if (skeleton->bones[i].isRoot == false)
+		{
+			m44 parentMatrix = renderer->bones[skeleton->bones[i].parent];
+			matrix = matrix::multiply(parentMatrix, matrix);
+		}
+
+		renderer->bones[i] = matrix;
+	}
+}
+
 struct Scene3d
 {
 	ArenaArray<Transform3D> transformStorage;
+	
 	ArenaArray<RenderSystemEntry> renderSystem = {};
+	ArenaArray<AnimatedRenderer> animatedRenderers = {};
 	CollisionSystem3D collisionSystem = {};
 
 	Camera worldCamera;
 	CameraController3rdPerson cameraController;
 	CharacterController3rdPerson characterController;
 
-	// Todo(Leo): make animation state controller or similar for these
-	AnimationClip 	laddersUpAnimation;
-	AnimationClip 	laddersDownAnimation;
-
-	// Todo(Leo): make controller for these
-	CharacterControllerSideScroller::LadderTriggerFunc ladderTrigger1;
-	CharacterControllerSideScroller::LadderTriggerFunc ladderTrigger2;
-	bool32 ladderOn = false;
-	bool32 ladder2On = false;
+	Skeleton skeleton;
 
 	ModelHandle skybox;
 
@@ -76,7 +93,7 @@ Scene3d::update(	void * 					scenePtr,
 
 	/* Sadly, we need to draw skybox before game logic, because otherwise
 	debug lines would be hidden. This can be fixed though, just make debug pipeline similar to shadows. */ 
-	functions->draw_model(graphics, scene->skybox, matrix::make_identity<Matrix44>(), false);
+	functions->draw_model(graphics, scene->skybox, matrix::make_identity<m44>(), false, nullptr, 0);
 
 	// Game Logic section
 	update_character(	&scene->characterController,
@@ -91,11 +108,19 @@ Scene3d::update(	void * 					scenePtr,
     update_camera_system(&scene->worldCamera, input, graphics, window, functions);
 	update_render_system(scene->renderSystem, graphics, functions);
 
+	u32 testBoneIndex = 3;
+	scene->skeleton.bones[testBoneIndex].transform.position.y += input->elapsedTime;
+	if (scene->skeleton.bones[testBoneIndex].transform.position.y > 1.0f)
+	{
+		scene->skeleton.bones[testBoneIndex].transform.position.y = -1.0f;
+	}
 
-	Light light = { vector::normalize(vector3{1, 1, -3}), {0.95, 0.95, 0.9}};
-	float3 ambient = {0.2, 0.25, 0.4};
+	update_animated_renderer(&scene->skeleton, &scene->animatedRenderers[0]);
+	render_animated_models(scene->animatedRenderers, graphics, functions);
+
+	Light light = { vector::normalize(v3{1, 1, -3}), {0.95, 0.95, 0.9}};
+	v3 ambient = {0.2, 0.25, 0.4};
 	functions->update_lighting(graphics, &light, &scene->worldCamera, ambient);
-
 
 	auto result = update_scene_gui(&scene->gui, input, graphics, functions);
 	return result;
@@ -111,13 +136,13 @@ Scene3d::load(	void * 						scenePtr,
 {
 	Scene3d * scene = reinterpret_cast<Scene3d*>(scenePtr);
 	
-
 	// Note(Leo): This is good, more this.
 	scene->gui = make_scene_gui(transientMemory, graphics, functions);
 
 	// Note(Leo): amounts are SWAG, rethink.
-	scene->transformStorage = reserve_array<Transform3D>(persistentMemory, 100);
-	scene->renderSystem = reserve_array<RenderSystemEntry>(persistentMemory, 100);
+	scene->transformStorage 	= reserve_array<Transform3D>(persistentMemory, 100);
+	scene->animatedRenderers 	= reserve_array<AnimatedRenderer>(persistentMemory, 10);
+	scene->renderSystem 		= reserve_array<RenderSystemEntry>(persistentMemory, 100);
 	allocate_collision_system(&scene->collisionSystem, persistentMemory, 100);
 
 
@@ -136,6 +161,7 @@ Scene3d::load(	void * 						scenePtr,
 
 	// Create MateriaLs
 	{
+		PipelineHandle characterPipeline = functions->push_pipeline(graphics, "assets/shaders/animated_vert.spv", "assets/shaders/frag.spv", { .textureCount = 3});
 		PipelineHandle normalPipeline 	= functions->push_pipeline(graphics, "assets/shaders/vert.spv", "assets/shaders/frag.spv", {.textureCount = 3});
 		PipelineHandle terrainPipeline 	= functions->push_pipeline(graphics, "assets/shaders/vert.spv", "assets/shaders/terrain_frag.spv", {.textureCount = 3});
 		PipelineHandle skyPipeline 		= functions->push_pipeline(graphics, "assets/shaders/vert_sky.spv", "assets/shaders/frag_sky.spv", {.enableDepth = false, .textureCount = 1});
@@ -167,11 +193,10 @@ Scene3d::load(	void * 						scenePtr,
 
 		materials =
 		{
-			.character 		= push_material(normalPipeline, lavaTexture, faceTexture, blackTexture),
+			.character 		= push_material(characterPipeline, lavaTexture, faceTexture, blackTexture),
 			.environment 	= push_material(normalPipeline, tilesTexture, blackTexture, blackTexture),
 			.ground 		= push_material(terrainPipeline, groundTexture, blackTexture, blackTexture),
 		};
-
 		
 		// internet: (+X,-X,+Y,-Y,+Z,-Z).
 		StaticArray<TextureAsset,6> skyboxTextureAssets =
@@ -202,26 +227,30 @@ Scene3d::load(	void * 						scenePtr,
     	scene->skybox 	= push_model(meshHandle, materials.sky);
     }
 
+
 	// Characters
 	Transform3D * characterTransform = {};
 	{
-		auto characterMesh 			= load_model_obj(transientMemory, "assets/models/character.obj");
-		auto characterMeshHandle 	= functions->push_mesh(graphics, &characterMesh);
+		scene->skeleton = load_skeleton_glb(persistentMemory, "assets/models/cube_head.glb", "cube_head");
+
+		auto girlMeshAsset = load_model_glb(transientMemory, "assets/models/cube_head.glb", "cube_head");
+		auto girlMesh = functions->push_mesh(graphics, &girlMeshAsset);
 
 		// Our dude
 		auto transform = allocate_transform(&scene->transformStorage, {0, 0, 5});
-		auto model = push_model(characterMeshHandle, materials.character);
+		auto model = push_model(girlMesh, materials.character);
 
 		characterTransform = transform;
 
-		push_one(scene->renderSystem, {transform, model});
+		auto bones = push_array<m44>(persistentMemory, 17);
+		push_one(scene->animatedRenderers, {transform, model, true, bones});
 
 		scene->characterController = make_character(transform);
 
-		// scene->characterController.OnTriggerLadder1 = &scene->ladderTrigger1;
-		// scene->characterController.OnTriggerLadder2 = &scene->ladderTrigger2;
-
 		// Other dude
+		auto characterMesh 			= load_model_obj(transientMemory, "assets/models/character.obj");
+		auto characterMeshHandle 	= functions->push_mesh(graphics, &characterMesh);
+
 		transform 	= allocate_transform(&scene->transformStorage, {2, 0.5f, 12.25f});
 		model 	= push_model(characterMeshHandle, materials.character);
 		push_one(scene->renderSystem, {transform, model});
@@ -229,6 +258,8 @@ Scene3d::load(	void * 						scenePtr,
 
 	scene->worldCamera = make_camera(50, 0.1f, 1000.0f);
 	scene->cameraController = make_camera_controller_3rd_person(&scene->worldCamera, characterTransform);
+	scene->cameraController.baseOffset = {0, 0, 1.5f};
+	scene->cameraController.distance = 5;
 
 	// Environment
 	{
@@ -280,7 +311,7 @@ Scene3d::load(	void * 						scenePtr,
 		}
 
 		{
-			vector3 platformPositions [] =
+			v3 platformPositions [] =
 			{
 				{-6, 0, 6},
 				{-4, 0, 6},
@@ -316,7 +347,7 @@ Scene3d::load(	void * 						scenePtr,
 			auto keyholeMeshHandle 	= functions->push_mesh(graphics, &keyholeMeshAsset);
 
 			auto model 	= push_model(keyholeMeshHandle, materials.environment);
-			auto transform 	= allocate_transform(&scene->transformStorage, {vector3{-3, 0, 0}});
+			auto transform 	= allocate_transform(&scene->transformStorage, {v3{-3, 0, 0}});
 			push_one(scene->renderSystem, {transform, model});
 
 			auto collider 	= BoxCollider3D {
@@ -326,7 +357,7 @@ Scene3d::load(	void * 						scenePtr,
 			push_collider_to_system(&scene->collisionSystem, collider, transform);
 
 			model 	= push_model(keyholeMeshHandle, materials.environment);
-			transform 	= allocate_transform(&scene->transformStorage, {vector3{4, 0, 6}});
+			transform 	= allocate_transform(&scene->transformStorage, {v3{4, 0, 6}});
 			push_one(scene->renderSystem, {transform, model});
 			
 			collider 	= BoxCollider3D {

@@ -30,7 +30,7 @@ namespace winapi
     StopPlaying(WinApiAudio * audio);
 
     internal void
-    GetAudioBuffer(WinApiAudio * audio, int * sampleCount, game::StereoSoundSample ** samples);
+    GetAudioBuffer(WinApiAudio * audio, int * sampleCount, platform::StereoSoundSample ** samples);
 
     internal void
     ReleaseAudioBuffer(WinApiAudio * audio, int sampleCount);
@@ -145,7 +145,7 @@ winapi::StopPlaying(WinApiAudio * audio)
 }
 
 internal void
-winapi::GetAudioBuffer(WinApiAudio * audio, int * frameCount, game::StereoSoundSample ** samples)
+winapi::GetAudioBuffer(WinApiAudio * audio, int * frameCount, platform::StereoSoundSample ** samples)
 {
     u32 currentPadding;
     WinApiLog("Get audio padding", audio->pClient->GetCurrentPadding(&currentPadding));

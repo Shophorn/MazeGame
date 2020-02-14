@@ -778,6 +778,8 @@ namespace winapi
 
 namespace winapi_vulkan_internal_
 {   
+    using namespace vulkan;
+
     internal void add_cleanup(VulkanContext*, VulkanContext::CleanupFunc * cleanupFunc);
 
     internal VkInstance             create_vk_instance();
@@ -1413,7 +1415,7 @@ winapi_vulkan_internal_::init_uniform_buffers(VulkanContext * context)
                                 context->device,
                                 VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
                                 context->modelUniformBuffer.buffer,
-                                0, sizeof(Matrix44));
+                                0, sizeof(m44));
 
     ///////////////////////////////
     ///         CAMERA          ///
@@ -1430,7 +1432,7 @@ winapi_vulkan_internal_::init_uniform_buffers(VulkanContext * context)
                                 VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
                                 context->sceneUniformBuffer.buffer,
                                 context->cameraUniformOffset,
-                                sizeof(VulkanCameraUniformBufferObject));
+                                sizeof(CameraUniformBuffer));
 
     ///////////////////////////////
     ///        LIGHTING         ///
@@ -1447,7 +1449,7 @@ winapi_vulkan_internal_::init_uniform_buffers(VulkanContext * context)
                                 VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
                                 context->sceneUniformBuffer.buffer,
                                 context->lightingUniformOffset,
-                                sizeof(vulkan::LightingUniformBufferObject));
+                                sizeof(LightingUniformBuffer));
 
     // Note(Leo): this is only bound to shadowmap rendering
     context->uniformDescriptorSets.lightCamera = allocate_vk_descriptor_set(context->device,
@@ -1459,7 +1461,7 @@ winapi_vulkan_internal_::init_uniform_buffers(VulkanContext * context)
                                 VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
                                 context->sceneUniformBuffer.buffer,
                                 context->lightCameraUniformOffset,
-                                sizeof(VulkanCameraUniformBufferObject));
+                                sizeof(CameraUniformBuffer));
 
 
 

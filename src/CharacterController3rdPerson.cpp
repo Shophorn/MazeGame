@@ -15,10 +15,10 @@ struct CharacterController3rdPerson
 
 	// State
 	float 	zSpeed;
-	vector3 forward;
+	v3 forward;
 
-	vector3 hitRayPosition;
-	vector3 hitRayNormal;
+	v3 hitRayPosition;
+	v3 hitRayNormal;
 };
 
 internal CharacterController3rdPerson
@@ -34,15 +34,15 @@ make_character(Transform3D * transform)
 	return result;
 }
 
-internal vector3
+internal v3
 process_player_input(game::Input * input, Camera * camera)
 {
-	vector3 viewForward = get_forward(camera);
+	v3 viewForward = get_forward(camera);
 	viewForward.z 		= 0;
 	viewForward 		= vector::normalize(viewForward);
-	vector3 viewRight 	= vector::cross(viewForward, world::up);
+	v3 viewRight 	= vector::cross(viewForward, world::up);
 
-	vector3 result = viewRight * input->move.x
+	v3 result = viewRight * input->move.x
 					+ viewForward * input->move.y;
 
 	return result;
@@ -57,18 +57,18 @@ update_character(
 		platform::Graphics * 	graphics,
 		platform::Functions * 	functions)
 {
-	vector3 movementVector = process_player_input(input, worldCamera) * controller->speed * input->elapsedTime;
+	v3 movementVector = process_player_input(input, worldCamera) * controller->speed * input->elapsedTime;
 
-	vector3 direction;
+	v3 direction;
 	float distance;
 	vector::dissect(movementVector, &direction, &distance);
 
 	if (distance > 0)
 	{
 		constexpr int rayCount = 5;
-		vector3 up 	= get_up(controller->transform);
+		v3 up 	= get_up(controller->transform);
 
-		vector3 rayStartPositions [rayCount];
+		v3 rayStartPositions [rayCount];
 		float sineStep 	= 2.0f / (rayCount - 1);
 
 		rayStartPositions[0] = vector::rotate(direction * controller->collisionRadius, up, pi / 2.0f);
@@ -84,7 +84,7 @@ update_character(
 		RaycastResult raycastResult;
 		for (int i  = 0; i < rayCount; ++i)
 		{
-			vector3 start = rayStartPositions[i] + up * 0.25f + controller->transform->position;
+			v3 start = rayStartPositions[i] + up * 0.25f + controller->transform->position;
 
 			bool32 hit = raycast_3d(collisionSystem, start, direction, distance, &raycastResult);
 			rayHit = rayHit || hit;

@@ -60,6 +60,7 @@ vulkan::push_mesh(VulkanContext * context, MeshAsset * mesh)
 {
     u64 indexBufferSize  = mesh->indices.count() * sizeof(mesh->indices[0]);
     u64 vertexBufferSize = mesh->vertices.count() * sizeof(mesh->vertices[0]);
+
     u64 totalBufferSize  = indexBufferSize + vertexBufferSize;
 
     u64 indexOffset = 0;
@@ -72,12 +73,12 @@ vulkan::push_mesh(VulkanContext * context, MeshAsset * mesh)
     memcpy(data, &mesh->vertices[0], vertexBufferSize);
     vkUnmapMemory(context->device, context->stagingBufferPool.memory);
 
-    VkCommandBuffer commandBuffer = vulkan::begin_command_buffer(context->device, context->commandPool);
+    VkCommandBuffer commandBuffer = begin_command_buffer(context->device, context->commandPool);
 
     VkBufferCopy copyRegion = { 0, context->staticMeshPool.used, totalBufferSize };
     vkCmdCopyBuffer(commandBuffer, context->stagingBufferPool.buffer, context->staticMeshPool.buffer, 1, &copyRegion);
 
-    vulkan::execute_command_buffer(commandBuffer,context->device, context->commandPool, context->queues.graphics);
+    execute_command_buffer(commandBuffer,context->device, context->commandPool, context->queues.graphics);
 
     VulkanMesh model = {};
 
@@ -90,7 +91,7 @@ vulkan::push_mesh(VulkanContext * context, MeshAsset * mesh)
     context->staticMeshPool.used += totalBufferSize;
 
     model.indexCount = mesh->indices.count();
-    model.indexType = vulkan::convert_index_type(mesh->indexType);
+    model.indexType = convert_index_type(mesh->indexType);
 
     u32 modelIndex = context->loadedMeshes.size();
 

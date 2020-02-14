@@ -20,6 +20,7 @@ struct Vector<S, 2>
 };
 
 using vector2 = Vector<float, 2>;
+using v2 = Vector<float, 2>;
 using point2 = Vector<u32, 2>;
 
 template<typename S>
@@ -28,9 +29,8 @@ struct Vector<S, 3>
 	S x, y, z; 
 };
 
-using vector3 	= Vector<float, 3>;
-using v3 		= Vector<float, 3>;
-using float3 	= Vector<float, 3>;
+using v3 	= Vector<float, 3>;
+using v3 	= Vector<float, 3>;
 
 struct world
 {
@@ -52,9 +52,11 @@ struct Vector<S, 4>
 	S x, y, z, w;
 };
 
-using vector4 = Vector<float, 4>;
-using float4 = Vector<float, 4>;
+using vector4 	= Vector<float, 4>;
+using v4 		= Vector<float,4>;
+using float4 	= Vector<float, 4>;
 
+using upoint4 = Vector<u32, 4>;
 
 namespace vector
 {
@@ -426,19 +428,20 @@ vector::rotate(Vector<S,3> vec, Vector<S,3> const & axis, S angleInRadians)
 
 #if MAZEGAME_INCLUDE_STD_IOSTREAM
 
-namespace std
-{	
-	template<typename T, u32 D> ostream &
-	operator << (ostream & os, Vector<T,D> vec)
+// namespace std
+// {	
+	template<typename S, u32 D> std::ostream &
+	operator << (std::ostream & os, Vector<S,D> const & vec)
 	{
-		os << "(" << vec[0];
+		S const * pVec = vector::const_begin(&vec);
+		os << "(" << pVec[0];
 		for (int i = 1; i < D; ++i)
 		{
-			os << "," << vec[i];
+			os << "," << pVec[i];
 		}
 		os << ")";
 		return os;
 	}
-}
+// }
 
 #endif

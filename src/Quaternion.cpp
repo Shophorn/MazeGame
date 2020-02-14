@@ -3,7 +3,7 @@ struct quaternion
 	union
 	{
 		struct {float x, y, z; };
-		vector3 vector;
+		v3 vector;
 	};
 	
 	float w;
@@ -16,7 +16,7 @@ struct quaternion
 	}
 
 	static quaternion
-	AxisAngle(vector3 axis, float angle)
+	AxisAngle(v3 axis, float angle)
 	{
 		angle *= -1;
 		float halfAngle = angle / 2.0f;

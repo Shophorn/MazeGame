@@ -54,17 +54,17 @@ namespace matrix
 	template<typename TLeft, typename TRight> ProductType<TLeft, TRight> 	multiply(TLeft const &, TRight const &);	
 }
 
-using Matrix44 = MatrixBase<float, 4, 4>;
+using m44 = MatrixBase<float, 4, 4>;
 
-Matrix44
-make_translation_matrix(vector3 translation)
+m44
+make_translation_matrix(v3 translation)
 {
-	Matrix44 result = matrix::make_identity<Matrix44>();
+	m44 result = matrix::make_identity<m44>();
 	result[3] = vector4{translation.x, translation.y, translation.z, 1.0f};
 	return result;
 }
 
-Matrix44
+m44
 make_rotation_matrix(quaternion rotation)
 {
 	float 	x = rotation.x,
@@ -72,7 +72,7 @@ make_rotation_matrix(quaternion rotation)
 			z = rotation.z,
 			w = rotation.w;
 
-	Matrix44 result =
+	m44 result =
 	{
 		1 - 2*y*y - 2*z*z, 	2*x*y-2*w*z, 		2*x*z + 2*w*y, 		0,
 		2*x*y + 2*w*z, 		1 - 2*x*x - 2*z*z,	2*y*z - 2*w*x,		0,
@@ -83,10 +83,10 @@ make_rotation_matrix(quaternion rotation)
 	return result;	
 }
 
-Matrix44
-make_scale_matrix(vector3 scale)
+m44
+make_scale_matrix(v3 scale)
 {
-	Matrix44 result = {};
+	m44 result = {};
 	result(0,0) = scale.x;
 	result(1,1) = scale.y;
 	result(2,2) = scale.z;
@@ -94,10 +94,10 @@ make_scale_matrix(vector3 scale)
 	return result;	
 }
 
-Matrix44
-make_transform_matrix(vector3 translation, float uniformScale = 1.0f)
+m44
+make_transform_matrix(v3 translation, float uniformScale = 1.0f)
 {
-	Matrix44 result = {};
+	m44 result = {};
 
 	result(0,0) = uniformScale;
 	result(1,1) = uniformScale;
@@ -108,8 +108,8 @@ make_transform_matrix(vector3 translation, float uniformScale = 1.0f)
 	return result;
 }
 
-Matrix44
-make_transform_matrix(vector3 translation, quaternion rotation, float uniformScale = 1.0f)
+m44
+make_transform_matrix(v3 translation, quaternion rotation, float uniformScale = 1.0f)
 {
 	float 	x = rotation.x,
 			y = rotation.y,
@@ -118,7 +118,7 @@ make_transform_matrix(vector3 translation, quaternion rotation, float uniformSca
 
 	float s = uniformScale;
 
-	Matrix44 result =
+	m44 result =
 	{
 		s * (1 - 2*y*y - 2*z*z), 	s * (2*x*y-2*w*z), 			s * (2*x*z + 2*w*y),		0,
 		s * (2*x*y + 2*w*z), 		s * (1 - 2*x*x - 2*z*z),	s * (2*y*z - 2*w*x),		0,
@@ -229,8 +229,8 @@ namespace std
 #endif
 
 // Todo (Leo): make template
-inline vector3 
-operator * (const Matrix44 & mat, vector3 vec)
+inline v3 
+operator * (const m44 & mat, v3 vec)
 {
 	MatrixBase<float,4,1> vecMatrix = { vec.x, vec.y, vec.z, 1.0	};
 	MatrixBase<float,4,1> product = matrix::multiply(mat, vecMatrix);

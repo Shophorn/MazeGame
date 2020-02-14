@@ -8,8 +8,8 @@ enum struct ColliderTag : s32
 
 struct Collision2D
 {
-	vector3 		position;
-	vector3 		normal;
+	v3 		position;
+	v3 		normal;
 	ColliderTag 	tag;
 };
 
@@ -57,7 +57,7 @@ struct CollisionManager2D
 						continue;
 			}
 
-			vector3 worldPosition = get_world_position(colliders[i].transform);
+			v3 worldPosition = get_world_position(colliders[i].transform);
 			vector2 position2D = {	worldPosition.x, worldPosition.z };
 
 			position2D += colliders[i].offset;

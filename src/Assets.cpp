@@ -47,10 +47,13 @@ bool32 operator==(BaseHandle<T> a, BaseHandle<T> b)
 
 struct Vertex
 {
-	vector3 position;
-	vector3 normal;
-	vector3 color;
-	vector2 texCoord;
+	v3 position;
+	v3 normal;
+	v3 color;
+	v2 texCoord;
+
+	upoint4 boneIndices;
+	v4 boneWeights;
 };
 
 enum struct IndexType : u32 { UInt16, UInt32 };
@@ -133,7 +136,7 @@ make_pixel(float4 color)
 }
 
 internal Pixel
-get_closest_pixel(TextureAsset * texture, vector2 texcoord)
+get_closest_pixel(TextureAsset * texture, v2 texcoord)
 {
 	u32 u = round_to<u32>(texture->width * texcoord.x) % texture->width;
 	u32 v = round_to<u32>(texture->height * texcoord.y) % texture->height;

@@ -280,7 +280,7 @@ Run(HINSTANCE hInstance)
         if (winapi::is_window_drawable(&window))
         {
 
-            game::SoundOutput gameSoundOutput = {};
+            platform::SoundOutput gameSoundOutput = {};
             winapi::GetAudioBuffer(&audio, &gameSoundOutput.sampleCount, &gameSoundOutput.samples);
             
             switch(platform::prepare_frame(&vulkanContext))

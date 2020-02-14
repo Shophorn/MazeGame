@@ -5,7 +5,7 @@ struct CameraControllerSideScroller
 	Transform3D *	target;
 
 	// State
-	vector3 baseOffset 	= {0, 0, 1};
+	v3 baseOffset 	= {0, 0, 1};
 	float distance 		= 20.0f;
 
 	// Properties
@@ -27,7 +27,7 @@ struct CameraControllerSideScroller
 			distance = math::min(distance, maxDistance);
 		}
 
-		vector3 direction = world::forward;
+		v3 direction = world::forward;
 		camera->direction = direction;
 		camera->position = 	baseOffset
 							+ target->position
@@ -55,7 +55,7 @@ struct CameraController3rdPerson
 	Transform3D * 	target;
 	
 	// This is also property but it is calculated when creating the camera
-	vector3 lastTrackedPosition;
+	v3 lastTrackedPosition;
 	
 	// State, these change from frame to frame
 	float distance 				= 20.0f;
@@ -64,12 +64,12 @@ struct CameraController3rdPerson
 
 
 	// Properties
-	vector3 baseOffset 			= {0, 0, 3.0f};
+	v3 baseOffset 			= {0, 0, 3.0f};
 	float rotateSpeed 			= 180.0f;
 	float minTumble 			= -85.0f;
 	float maxTumble 			= 85.0f;
 	float relativeZoomSpeed 	= 1.0f;
-	float minDistance 			= 5.0f;
+	float minDistance 			= 2.0f;
 	float maxDistance 			= 100.0f;
 };
 
@@ -83,7 +83,6 @@ make_camera_controller_3rd_person(Camera * camera, Transform3D * target)
 	};
 }
 
-// Todo(Leo): Do I want this really?
 internal void
 update_camera_controller(CameraController3rdPerson * controller, game::Input * input)
 {
@@ -105,7 +104,7 @@ update_camera_controller(CameraController3rdPerson * controller, game::Input * i
 
     float cameraDistance = controller->distance;
     float cameraHorizontalDistance = Cosine(DegToRad * controller->tumbleDegrees) * cameraDistance;
-    vector3 localPosition =
+    v3 localPosition =
     {
 		Sine(DegToRad * controller->orbitDegrees) * cameraHorizontalDistance,
 		Cosine(DegToRad * controller->orbitDegrees) * cameraHorizontalDistance,
@@ -117,18 +116,18 @@ update_camera_controller(CameraController3rdPerson * controller, game::Input * i
     make it good later when projections work
 
     float cameraAdvanceAmount = 5;
-    vector3 cameraAdvanceVector = characterMovementVector * cameraAdvanceAmount;
-    vector3 targetPosition = target.position + cameraAdvanceVector + cameraOffsetFromTarget;
+    v3 cameraAdvanceVector = characterMovementVector * cameraAdvanceAmount;
+    v3 targetPosition = target.position + cameraAdvanceVector + cameraOffsetFromTarget;
     */
 
     float trackSpeed = 10 * input->elapsedTime;
     float z = interpolate(controller->lastTrackedPosition.z, controller->target->position.z, trackSpeed);
 
 
-    // vector3 trackedPosition = vector::interpolate(	controller->lastTrackedPosition,
+    // v3 trackedPosition = vector::interpolate(	controller->lastTrackedPosition,
     // 												controller->target->position,
     // 												trackSpeed);
-    vector3 trackedPosition =
+    v3 trackedPosition =
     {
     	controller->target->position.x,
     	controller->target->position.y,
@@ -136,7 +135,7 @@ update_camera_controller(CameraController3rdPerson * controller, game::Input * i
     };
     controller->lastTrackedPosition = trackedPosition;
 
-    vector3 targetPosition = trackedPosition + controller->baseOffset;
+    v3 targetPosition = trackedPosition + controller->baseOffset;
     
     controller->camera->position = targetPosition + localPosition;
 	controller->camera->direction = vector::normalize(targetPosition - controller->camera->position);

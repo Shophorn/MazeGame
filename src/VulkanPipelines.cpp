@@ -9,7 +9,7 @@ Todo(Leo): These totally should be combined more/somehow
 namespace vulkan_pipelines_internal_
 {
     internal VkVertexInputBindingDescription get_vertex_binding_description ();;
-    internal StaticArray<VkVertexInputAttributeDescription, 4> get_vertex_attribute_description();
+    internal StaticArray<VkVertexInputAttributeDescription, 6> get_vertex_attribute_description();
 
     internal VkPipelineDynamicStateCreateInfo make_dynamic_state(   platform::RenderingOptions * options,
                                                                     VkDynamicState(&array)[10]);
@@ -81,7 +81,7 @@ vulkan::make_pipeline(
             .vertexBindingDescriptionCount      = 1,
             .pVertexBindingDescriptions         = &bindingDescription,
             .vertexAttributeDescriptionCount    = attributeDescriptions.count(),
-            .pVertexAttributeDescriptions       = &attributeDescriptions[0],
+            .pVertexAttributeDescriptions       = attributeDescriptions.begin(),
         };
     }
     else
@@ -330,12 +330,7 @@ vulkan::make_pipeline(
         .info           = info,
         .pipeline       = pipeline,
         .layout         = layout,
-        .materialLayout = materialLayout,
-
-        .sceneSetIndex      = sceneSetIndex,
-        .materialSetIndex   = materialSetIndex,
-        .modelSetIndex      = modelSetIndex,
-        .lightingSetIndex   = lightingSetIndex,
+        .materialLayout = materialLayout
     };
 }
 
@@ -349,10 +344,10 @@ vulkan_pipelines_internal_::get_vertex_binding_description ()
     };
 }
 
-internal StaticArray<VkVertexInputAttributeDescription, 4>
+internal StaticArray<VkVertexInputAttributeDescription, 6>
 vulkan_pipelines_internal_::get_vertex_attribute_description()
 {
-    StaticArray<VkVertexInputAttributeDescription, 4> value = {};
+    StaticArray<VkVertexInputAttributeDescription, 6> value = {};
 
     value[0].binding = 0;
     value[0].location = 0;
@@ -373,6 +368,17 @@ vulkan_pipelines_internal_::get_vertex_attribute_description()
     value[3].location = 3;
     value[3].format = VK_FORMAT_R32G32_SFLOAT;
     value[3].offset = offsetof(Vertex, texCoord);
+
+    value[4].binding = 0;
+    value[4].location = 4;
+    // Todo(Leo): This does not need to be 32 bit, but I do not yet want to mess around with it.
+    value[4].format = VK_FORMAT_R32G32B32A32_UINT;
+    value[4].offset = offsetof(Vertex, boneIndices);  
+
+    value[5].binding = 0;
+    value[5].location = 5;
+    value[5].format = VK_FORMAT_R32G32B32A32_SFLOAT;
+    value[5].offset = offsetof(Vertex, boneWeights);    
 
     return value;
 }   

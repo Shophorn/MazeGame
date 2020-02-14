@@ -32,32 +32,30 @@ constexpr s32 VULKAN_MAX_MATERIAL_COUNT = 100;
 constexpr VkSampleCountFlagBits VULKAN_MAX_MSAA_SAMPLE_COUNT = VK_SAMPLE_COUNT_1_BIT;
 
 // Note(Leo): these need to align properly
-struct VulkanCameraUniformBufferObject
-{
-	alignas(16) Matrix44 view;
-	alignas(16) Matrix44 projection;
-	Matrix44 lightViewProjection;
-};
 
 namespace vulkan
 {
-	struct LightingUniformBufferObject
+	struct CameraUniformBuffer
+	{
+		alignas(16) m44 view;
+		alignas(16) m44 projection;
+		m44 lightViewProjection;
+	};
+
+	struct LightingUniformBuffer
 	{
 		vector4 direction;
 		float4 color;
 		float4 ambient;
 	};
+	
+	struct ModelUniformBuffer
+	{
+		m44 transform;
+		m44 bones [20];
+	};
 }
 
-// Todo[rendering] (Leo): Use this VulkanModelUniformBufferObject
-// struct VulkanModelUniformBufferObject
-// {
-// 	alignas(16) Matrix44 modelMatrix;
-// };
-
-
-
-// Todo (Leo): important this is used like an memory arena somewhere, and like somthing else elsewhere.
 struct VulkanBufferResource
 {
     VkBuffer buffer;
@@ -145,12 +143,6 @@ struct VulkanLoadedPipeline
 	VkPipeline 				pipeline;
 	VkPipelineLayout 		layout;
 	VkDescriptorSetLayout	materialLayout;
-
-	// Todo(Leo): use these
-	u32 sceneSetIndex;
-	u32 modelSetIndex;
-	u32 materialSetIndex;
-	u32 lightingSetIndex;
 };
 
 struct VulkanVirtualFrame
@@ -463,9 +455,9 @@ namespace vulkan
 	internal void prepare_drawing			(VulkanContext*);
 	internal void finish_drawing 			(VulkanContext*);
     internal void update_camera				(VulkanContext*, Camera const *);
-    internal void update_lighting			(VulkanContext*, Light const *, Camera const *, float3 ambient);
-	internal void record_draw_command 		(VulkanContext*, ModelHandle handle, Matrix44 transform, bool32 castShadow);
-	internal void record_line_draw_command	(VulkanContext*, vector3 start, vector3 end, float width, float4 color);
+    internal void update_lighting			(VulkanContext*, Light const *, Camera const *, v3 ambient);
+	internal void record_draw_command 		(VulkanContext*, ModelHandle handle, m44 transform, bool32 castShadow, m44 * bones, u32 bonesCount);
+	internal void record_line_draw_command	(VulkanContext*, v3 start, v3 end, float width, float4 color);
 	internal void record_gui_draw_command	(VulkanContext*, vector2 position, vector2 size, MaterialHandle material, float4 color);
 
     internal TextureHandle  push_texture (VulkanContext * context, TextureAsset * texture);
