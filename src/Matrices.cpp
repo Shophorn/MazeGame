@@ -54,7 +54,35 @@ namespace matrix
 	template<typename TLeft, typename TRight> ProductType<TLeft, TRight> 	multiply(TLeft const &, TRight const &);	
 }
 
+using m33 = MatrixBase<float, 3, 3>;
 using m44 = MatrixBase<float, 4, 4>;
+
+v3 multiply_point(m44 const & mat, v3 point)
+{
+	MatrixBase<float,4,1> vecMatrix = { point.x, point.y, point.z, 1.0	};
+	MatrixBase<float,4,1> product = matrix::multiply(mat, vecMatrix);
+
+	point = {
+		product(0,0) / product(0,3),
+		product(0,1) / product(0,3),
+		product(0,2) / product(0,3)
+	};
+	return point;
+}
+
+v3 multiply_direction(const m44 & mat, v3 direction)
+{
+	using namespace vector;
+
+	auto lhs = matrix::transpose(mat);
+
+	direction = {
+		dot(convert<v3>(lhs[0]), direction),
+		dot(convert<v3>(lhs[1]), direction),
+		dot(convert<v3>(lhs[2]), direction)
+	};
+	return direction;	
+}
 
 m44
 make_translation_matrix(v3 translation)
@@ -127,6 +155,24 @@ make_transform_matrix(v3 translation, quaternion rotation, float uniformScale = 
 	};
 
 	return result;	
+}
+
+m44 invert_transform_matrix(m44 matrix)
+{
+	// using  m31 = MatrixBase<float, 3, 1>;
+	v3 translation = {matrix[3].x, matrix[3].y, matrix[3].z};
+
+
+	// v3 translation = matrix[3];
+	matrix[3] = {0,0,0,1};
+
+	matrix = matrix::transpose(matrix);
+
+	translation = -multiply_point(matrix, translation);
+
+	matrix[3] = { translation.x, translation.y, translation.z, 1 };
+	matrix(3,3) = 1;
+	return matrix;
 }
 
 template<typename TMatrix> TMatrix 
@@ -227,18 +273,3 @@ namespace std
 	}
 }
 #endif
-
-// Todo (Leo): make template
-inline v3 
-operator * (const m44 & mat, v3 vec)
-{
-	MatrixBase<float,4,1> vecMatrix = { vec.x, vec.y, vec.z, 1.0	};
-	MatrixBase<float,4,1> product = matrix::multiply(mat, vecMatrix);
-
-	vec = {
-		product(0,0) / product(0,3),
-		product(0,1) / product(0,3),
-		product(0,2) / product(0,3)
-	};
-	return vec;
-}

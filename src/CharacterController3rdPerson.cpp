@@ -75,7 +75,7 @@ update_character(
 		for (int i = 1; i < rayCount; ++i)
 		{
 			float sine 		= -1.0f + (i - 1) * sineStep;
-			float angle 	= -ArcCosine(sine);
+			float angle 	= -arc_cosine(sine);
 			rayStartPositions[i] = vector::rotate(rayStartPositions[0], up, angle);
 		}
 
@@ -109,7 +109,7 @@ update_character(
 		}
 
 		float angleToWorldForward 		= vector::get_signed_angle(world::forward, direction, world::up);
-		controller->transform->rotation = quaternion::AxisAngle(world::up, angleToWorldForward);
+		controller->transform->rotation = quaternion::axis_angle(world::up, angleToWorldForward);
 		
 	}
 

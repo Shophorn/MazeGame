@@ -40,10 +40,10 @@ using bool8 = s8;
 using bool32 = s32;
 
 using wchar = wchar_t;
-using byte = u8;
 
 /* Note(Leo): Not super sure about these, they are currently not used consitently
 around codebase, but I left them where they were due to inability to make a decision */
+using byte = u8;
 using real32 = float;
 using real64 = double;
 

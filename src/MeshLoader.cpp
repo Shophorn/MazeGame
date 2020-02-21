@@ -35,11 +35,10 @@ T get_at(GenericIterator * iterator, u32 position)
 
 struct Bone
 {
-	Transform3D transform;
-	u32 parent;
-	bool32 isRoot;
-
-	u32 treeIndex;
+	Transform3D boneSpaceTransform;
+	m44 		inverseBindMatrix;
+	u32 		parent;
+	bool32 		isRoot;
 };
 
 struct Skeleton
@@ -52,32 +51,15 @@ internal Skeleton
 load_skeleton_glb(MemoryArena * memoryArena, char const * filePath, char const * modelName)
 {
 	using JsonValue = rapidjson::Value;
-	/*
-	Todo(Leo): 
-		- multiple objects in file
-		- other hierarchies
-		- world transforms
-		- sparse accessor
-	*/
 
-	auto gltf 			= read_binary_file(memoryArena, filePath);
-	auto jsonBuffer 	= get_gltf_json_chunk(gltf, memoryArena);
+	auto rawBuffer 		= read_binary_file(memoryArena, filePath);
+	auto jsonBuffer 	= get_gltf_json_chunk(rawBuffer, memoryArena);
 	auto jsonString		= get_string(jsonBuffer);
 	auto jsonDocument	= parse_json(jsonString.c_str());
 	
 	auto nodeArray = jsonDocument["nodes"].GetArray();
 	
-	s32 positionAccessorIndex 	= -1; 
-	s32 normalAccessorIndex 	= -1;
-	s32 texcoordAccessorIndex 	= -1;
-
-	s32 bonesAccessorIndex 			= -1;
-	s32 boneWeightsAccessorIndex 	= -1;
-
 	JsonValue modelNode;
-
-	s32 indexAccessorIndex 		= -1;
-
 	for (auto & object : nodeArray)
 	{
 		auto name = object["name"].GetString();
@@ -98,7 +80,7 @@ load_skeleton_glb(MemoryArena * memoryArena, char const * filePath, char const *
 	Skeleton result = { push_array<Bone>(memoryArena, jointCount) };
 	for (auto & bone : result.bones)
 	{
-		bone.transform = {};
+		bone.boneSpaceTransform = {};
 		bone.isRoot = true;
 	}
 
@@ -117,11 +99,15 @@ load_skeleton_glb(MemoryArena * memoryArena, char const * filePath, char const *
 		return -1;
 	};
 
+	m44 gltf_to_mazegame = {1, 0, 0, 0,
+							0, 0, 1, 0,
+							0, -1, 0, 0,
+							0, 0, 0, 1};
 
 	for (int i = 0; i < jointCount; ++i)
 	{
-		u32 nodeIndex 	= jointArray[i].GetInt();
-		auto node 		= nodeArray[nodeIndex].GetObject();
+		u32 nodeIndex 		= jointArray[i].GetInt();
+		auto const & node 	= nodeArray[nodeIndex].GetObject();
 		if (node.HasMember("children"))
 		{
 			auto childArray = node["children"].GetArray();
@@ -132,7 +118,75 @@ load_skeleton_glb(MemoryArena * memoryArena, char const * filePath, char const *
  				result.bones[childIndex].isRoot = false;
 			}
 		}
+		
+		if (i > 0)
+		{
+			if(node.HasMember("translation"))
+			{
+				auto translationArray = node["translation"].GetArray();
+				result.bones[i].boneSpaceTransform.position.x = translationArray[0].GetFloat();
+				result.bones[i].boneSpaceTransform.position.y = translationArray[1].GetFloat();
+				result.bones[i].boneSpaceTransform.position.z = translationArray[2].GetFloat();
+
+				result.bones[i].boneSpaceTransform.position = multiply_point(gltf_to_mazegame, result.bones[i].boneSpaceTransform.position);
+			}
+
+			if (node.HasMember("rotation"))
+			{
+				auto rotationArray = node["rotation"].GetArray();
+				result.bones[i].boneSpaceTransform.rotation.vector.x = rotationArray[0].GetFloat();
+				result.bones[i].boneSpaceTransform.rotation.vector.y = rotationArray[1].GetFloat();
+				result.bones[i].boneSpaceTransform.rotation.vector.z = rotationArray[2].GetFloat();
+				
+				result.bones[i].boneSpaceTransform.rotation.vector = multiply_direction(gltf_to_mazegame, result.bones[i].boneSpaceTransform.rotation.vector);
+
+				result.bones[i].boneSpaceTransform.rotation.w = rotationArray[3].GetFloat();
+
+
+			}
+		}
 	}
+
+	auto binaryBuffer = get_gltf_binary_chunk(memoryArena, rawBuffer, 0);
+
+	auto get_iterator = [&](u32 accessorIndex) -> GenericIterator
+	{
+		auto accessor = jsonDocument["accessors"][accessorIndex].GetObject();
+		auto componentType = (glTF::ComponentType)accessor["componentType"].GetInt();
+		u32 size = glTF::get_component_size(componentType);
+		
+		u32 componentCount = glTF::get_component_count(accessor["type"].GetString());
+
+		u32 viewIndex = accessor["bufferView"].GetInt();
+		u32 offset = jsonDocument["bufferViews"][viewIndex]["byteOffset"].GetInt();
+
+		return {.stride = size * componentCount,
+				.pointer = binaryBuffer.begin() + offset};
+
+	};
+
+	auto bindMatrixIterator = get_iterator(skin["inverseBindMatrices"].GetInt());
+
+
+	m44 modelSpaceTransforms [20] = {};
+	result.bones[0].inverseBindMatrix = matrix::make_identity<m44>();
+	modelSpaceTransforms[0] = matrix::make_identity<m44>();
+	for (int i = 1; i < result.bones.count(); ++i)
+	{
+		m44 boneSpaceBindTransform = get_matrix(&result.bones[i].boneSpaceTransform);
+		u32 parentIndex = result.bones[i].parent;
+		m44 modelSpaceBindTransform = matrix::multiply(modelSpaceTransforms[parentIndex], boneSpaceBindTransform);
+		result.bones[i].inverseBindMatrix = invert_transform_matrix(modelSpaceBindTransform);
+		modelSpaceTransforms[i] = modelSpaceBindTransform;
+	}
+
+	// for(auto & bone : result.bones)
+	// {
+	// 	bone.inverseBindMatrix = get_and_advance<m44>(&bindMatrixIterator);
+	// 	bone.inverseBindMatrix = matrix::multiply(gltf_to_mazegame, bone.inverseBindMatrix);
+	// }
+
+	std::cout << "[load_skeleton_glb()]: root inverseBindMatrix = " << result.bones[0].inverseBindMatrix << "\n";
 
 	// result.bones[0].isRoot = true;			// Root
 	// result.bones[1].parent = 0;			// Hip
@@ -167,8 +221,8 @@ load_model_glb(MemoryArena * memoryArena, char const * filePath, char const * mo
 		- sparse accessor
 	*/
 
-	auto gltf 			= read_binary_file(memoryArena, filePath);
-	auto jsonBuffer 	= get_gltf_json_chunk(gltf, memoryArena);
+	auto rawBuffer 		= read_binary_file(memoryArena, filePath);
+	auto jsonBuffer 	= get_gltf_json_chunk(rawBuffer, memoryArena);
 	auto jsonString		= get_string(jsonBuffer);
 	auto jsonDocument	= parse_json(jsonString.c_str());
 	
@@ -220,17 +274,17 @@ load_model_glb(MemoryArena * memoryArena, char const * filePath, char const * mo
 	auto buffersArray 		= jsonDocument["buffers"].GetArray();
 	
 	// Todo(Leo): what if there are multiple buffers in file? Where is the index? In "buffers"?
-	auto buffer 			= get_gltf_binary_chunk(memoryArena, gltf, 0);
+	auto binaryBuffer 			= get_gltf_binary_chunk(memoryArena, rawBuffer, 0);
 
 	auto get_buffer_view_index = [&accessorArray](s32 index) -> s32
 	{
-		s32 result = accessorArray[index].GetObject()["bufferView"].GetInt();
+		s32 result = accessorArray[index]["bufferView"].GetInt();
 		return result;
 	};
 
 	auto get_item_count = [&accessorArray](s32 index) -> u64
 	{
-		u64 result = accessorArray[index].GetObject()["count"].GetInt();
+		u64 result = accessorArray[index]["count"].GetInt();
 		return result;
 	};
 
@@ -263,7 +317,7 @@ load_model_glb(MemoryArena * memoryArena, char const * filePath, char const * mo
 		u32 offset = get_buffer_byte_offset(viewIndex);
 
 		return {.stride = size * componentCount,
-				.pointer = buffer.begin() + offset};
+				.pointer = binaryBuffer.begin() + offset};
 
 	};
 
@@ -291,52 +345,6 @@ load_model_glb(MemoryArena * memoryArena, char const * filePath, char const * mo
 			vertex.boneWeights = get_and_advance<v4>(&weightIterator);
 			vector::normalize(vertex.boneWeights);
 		}
-
-		// u32 skinIndex = modelNode["skin"].GetInt();
-		// auto skin = jsonDocument["skins"][skinIndex].GetObject();
-		// auto jointArray = skin["joints"].GetArray();
-		// u32 jointCount = jointArray.Size();
-
-		// std::cout << "[load_model_glb()]: " << jointCount << "\n";
-
-		// struct Joint
-		// {
-		// 	u32 index;
-		// 	Joint * parent;
-		// 	Transform3D transform;
-		// 	m44 inverseBindTransform;
-		// };
-
-		// ArenaArray<Joint> joints = push_array<Joint>(memoryArena, jointCount);
-
-		// auto inverseBindTransformIterator = get_iterator(skin["inverseBindTransforms"].GetInt());
-
-		// for (int i = 0; i < jointCount; ++i)
-		// {
-		// 	u32 jointIndex = jointArray[i].GetInt();
-
-		// 	Transform3D transform = {};
-		// 	if (nodeArray[jointIndex].HasMember("translation"))
-		// 	{
-		// 		transform.position = { 	(float)nodeArray[jointIndex]["translation"][0].GetDouble(),
-		// 								(float)nodeArray[jointIndex]["translation"][1].GetDouble(),
-		// 								(float)nodeArray[jointIndex]["translation"][2].GetDouble()};
-		// 	}
-
-		// 	if (nodeArray[jointIndex].HasMember("rotation"))
-		// 	{
-		// 		transform.rotation = {	(float)nodeArray[jointIndex]["rotation"][0].GetDouble(),
-		// 								(float)nodeArray[jointIndex]["rotation"][1].GetDouble(),
-		// 								(float)nodeArray[jointIndex]["rotation"][2].GetDouble(),
-		// 								(float)nodeArray[jointIndex]["rotation"][3].GetDouble()};
-		// 	}
-
-		// 	joints[i] = {
-		// 		jointIndex,
-		// 		transform,
-		// 		get_at<m44>(&inverseBindTransformIterator, jointIndex)
-		// 	};
-		// }
 	}
 
 	///// INDICES //////
@@ -421,7 +429,7 @@ namespace mesh_ops
 		int vertexCount = mesh->vertices.count();
 		for (int vertexIndex = 0; vertexIndex < vertexCount; ++vertexIndex)
 		{
-			mesh->vertices[vertexIndex].position = transform * mesh->vertices[vertexIndex].position; 
+			mesh->vertices[vertexIndex].position = multiply_point(transform, mesh->vertices[vertexIndex].position); 
 		}
 	}
 

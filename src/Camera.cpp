@@ -32,7 +32,7 @@ get_projection_transform(Camera const * camera)
 	Study: https://www.scratchapixel.com/lessons/3d-basic-rendering/perspective-and-orthographic-projection-matrix/building-basic-perspective-projection-matrix
 	*/
 
-	float canvasSize = Tan(ToRadians(camera->verticalFieldOfView / 2.0f)) * camera->nearClipPlane;
+	float canvasSize = Tan(to_radians(camera->verticalFieldOfView / 2.0f)) * camera->nearClipPlane;
 
 	// Note(Leo): Vulkan NDC goes left-top = (-1, -1) to right-bottom = (1, 1)
 	float bottom = canvasSize;

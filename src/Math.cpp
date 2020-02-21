@@ -3,10 +3,10 @@
 #include <cmath>
 #include <type_traits>
 
-internal real32
-Root2(real32 value)
+internal float
+Root2(float value)
 {
-    real32 result = sqrt(value);
+    float result = sqrt(value);
     return result; 
 }
 
@@ -18,16 +18,6 @@ floor_to(TFrom value)
     if (value < 0)
         floorValue = floorValue -1;
     return static_cast<TTo>(floorValue);
-}
-
-template<typename IntegerType, typename FloatType>
-IntegerType
-CeilTo(FloatType value)
-{
-    s64 ceilValue = static_cast<s64>(value);
-    if (value > 0)
-        ceilValue = ceilValue + 1;
-    return static_cast<IntegerType>(ceilValue);
 }
 
 template <typename TTo, typename TFrom>
@@ -55,36 +45,36 @@ round_to<u32, float>(float value)
 namespace math
 {   
     /// NUMERIC LIMITS
-    template<typename TNumber> constexpr TNumber lowest_value = std::numeric_limits<TNumber>::lowest();
-    template<typename TNumber> constexpr TNumber highest_value = std::numeric_limits<TNumber>::max();
+    template<typename T> constexpr T lowest_value = std::numeric_limits<T>::lowest();
+    template<typename T> constexpr T highest_value = std::numeric_limits<T>::max();
 
-    template<typename Number>
-    constexpr internal Number 
-    min(Number a, Number b)
+    template<typename S>
+    constexpr internal S 
+    min(S a, S b)
     {
         return (a < b) ? a : b;
     }
 
-    template<typename Number>
-    constexpr internal Number 
-    max(Number a, Number b)
+    template<typename S>
+    constexpr internal S 
+    max(S a, S b)
     {
         return (a > b) ? a : b;
     }
 }
 
-template<typename Number>
-internal Number
-Abs(Number num)
+template<typename S>
+internal S
+Abs(S num)
 {
     if (num < 0)
         return -num;
     return num;
 }
 
-template<typename Number>
-internal Number
-clamp(Number value, Number min, Number max)
+template<typename S>
+internal S
+clamp(S value, S min, S max)
 {
     if (value < min)
         value = min;
@@ -93,93 +83,76 @@ clamp(Number value, Number min, Number max)
     return value;
 }
 
-template<typename Float> inline Float
-Modulo(Float dividend, Float divisor)
+inline float Modulo(float dividend, float divisor)
 {
-    Float result = fmod(dividend, divisor);
+    float result = fmodf(dividend, divisor);
     return result;
 }
 
 
 // Todo(Leo): Add namespace
-inline real32
-Sine (real32 value)
+inline float sine (float value)
 {
-    real32 result = sinf(value);
+    float result = sinf(value);
     return result;
 }
 
-inline real32
-Cosine(real32 value)
+inline float cosine(float value)
 {
-    real32 result = cosf(value);
+    float result = cosf(value);
     return result;
 }
 
-inline real32
-Tan(real32 value)
+inline float Tan(float value)
 {
-    real32 result = tanf(value);
+    float result = tanf(value);
     return result;
 }
 
-inline real32
-ArcSine(real32 value)
+inline float arc_sine(float value)
 {
-    real32 result = asinf(value);
+    float result = asinf(value);
     return result;
 }
 
-inline real32
-ArcCosine(real32 value)
+inline float arc_cosine(float value)
 {
-    real32 result = acosf(value);
+    float result = acosf(value);
     return result;
 }
 
-inline real32
-ArcTan2(real32 cosValue, real32 sinValue)
+inline float arc_tan_2(float cosValue, float sinValue)
 {
-    real32 result = atan2f(cosValue, sinValue);
+    float result = atan2f(cosValue, sinValue);
     return result;
 }
 
-template<typename Number>
-inline Number
-Sign(Number value)
+template<typename S>
+inline S
+Sign(S value)
 {
     if (value < 0) return -1;
     if (value > 0) return 1;
     return 0;
 }
 
-internal constexpr real32 pi = 3.141592653589793f;
+internal inline constexpr float pi = 3.141592653589793f;
 
-internal constexpr real32 degToRad = pi / 180.f;
-internal constexpr real32 radToDeg = 180.0f / pi;
-
-// Todo(Leo): remove or convert to functions
-internal constexpr real32 DegToRad = pi / 180.f;
-internal constexpr real32 RadToDeg = 180.0f / pi;
-
-template<typename Number>
-Number ToDegrees(Number radians)
+inline float to_degrees(float radians)
 {
-    Number result = 180.0f * radians / pi;
-    return result; 
+    constexpr float conversion = 180.0f / pi;
+    return conversion * radians;
 }
 
-template<typename Number>
-Number ToRadians(Number degrees)
+inline float to_radians(float degrees)
 {
-    Number result = pi * degrees / 180.0f;
-    return result;
+    constexpr float conversion = pi / 180.0f;
+    return conversion * degrees;
 }
 
-template<typename Number>
-Number interpolate(Number from, Number to, Number time)
+inline float interpolate(float from, float to, float t)
 {
-    Number result = (1 - time) * from + time * to;
+    float result = (1.0f - t) * from + t * to;
     return result;
 }
 

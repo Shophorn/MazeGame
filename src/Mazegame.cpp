@@ -34,7 +34,6 @@ and both are still missing some because they are listed above. */
 #include "Scene2D.cpp"
 #include "MenuScene.cpp"
 
-
 struct AudioClip
 {
 	AudioFile<float> file;

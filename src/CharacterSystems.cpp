@@ -99,7 +99,7 @@ struct CharacterControllerSideScroller
 		}
 
 		transform->position += {xMovement, 0, zMovement};
-		transform->rotation = quaternion::AxisAngle(world::up, currentRotationRadians);
+		transform->rotation = quaternion::axis_angle(world::up, currentRotationRadians);
 
 		if (collider->hasCollision && collider->collision->tag == ColliderTag::Trigger)
 		{

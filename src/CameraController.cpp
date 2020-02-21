@@ -103,12 +103,12 @@ update_camera_controller(CameraController3rdPerson * controller, game::Input * i
     controller->tumbleDegrees = clamp(controller->tumbleDegrees, controller->minTumble, controller->maxTumble);
 
     float cameraDistance = controller->distance;
-    float cameraHorizontalDistance = Cosine(DegToRad * controller->tumbleDegrees) * cameraDistance;
+    float cameraHorizontalDistance = cosine(to_radians(controller->tumbleDegrees)) * cameraDistance;
     v3 localPosition =
     {
-		Sine(DegToRad * controller->orbitDegrees) * cameraHorizontalDistance,
-		Cosine(DegToRad * controller->orbitDegrees) * cameraHorizontalDistance,
-		Sine(DegToRad * controller->tumbleDegrees) * cameraDistance
+		sine(to_radians(controller->orbitDegrees)) * cameraHorizontalDistance,
+		cosine(to_radians(controller->orbitDegrees)) * cameraHorizontalDistance,
+		sine(to_radians(controller->tumbleDegrees)) * cameraDistance
     };
 
     /*

@@ -14,22 +14,35 @@ void update_animated_renderer(Skeleton * skeleton, AnimatedRenderer * renderer)
 {
 	assert(skeleton->bones.count() == renderer->bones.count());
 
-	u32 count = skeleton->bones.count();
+	u32 boneCount = skeleton->bones.count();
 
 	/* Todo(Leo): Skeleton needs to be ordered so that parent ALWAYS comes before
 	children, and therefore 0th is always automatically root*/
 
-	for (int i = 0; i < count; ++i)
+	m44 modelSpaceTransforms [20];
+
+	for (int i = 0; i < boneCount; ++i)
 	{
-		m44 matrix = get_matrix(&skeleton->bones[i].transform);
+		/*
+		1. get bone space matrix from bone's bone space transform
+		2. transform bone space matrix to model space matrix
+		*/
+
+		// if (i == 8)
+		// {
+		// 	std::cout << skeleton->bones[8] 
+		// }
+
+		m44 matrix = get_matrix(&skeleton->bones[i].boneSpaceTransform);
+		// m44 matrix = matrix::multiply(get_matrix(&skeleton->bones[i].transform), skeleton->bones[i].inverseBindMatrix);
 
 		if (skeleton->bones[i].isRoot == false)
 		{
-			m44 parentMatrix = renderer->bones[skeleton->bones[i].parent];
+			m44 parentMatrix = modelSpaceTransforms[skeleton->bones[i].parent];
 			matrix = matrix::multiply(parentMatrix, matrix);
 		}
-
-		renderer->bones[i] = matrix;
+		modelSpaceTransforms[i] = matrix;
+		renderer->bones[i] = matrix::multiply(matrix, skeleton->bones[i].inverseBindMatrix);
 	}
 }
 
@@ -108,18 +121,36 @@ Scene3d::update(	void * 					scenePtr,
     update_camera_system(&scene->worldCamera, input, graphics, window, functions);
 	update_render_system(scene->renderSystem, graphics, functions);
 
-	u32 testBoneIndex = 3;
-	scene->skeleton.bones[testBoneIndex].transform.position.y += input->elapsedTime;
-	if (scene->skeleton.bones[testBoneIndex].transform.position.y > 1.0f)
+	local_persist float rotation = 0;
+	local_persist float direction = 1.0f;
+
+	local_persist quaternion pose0 = quaternion::axis_angle(world::right, 3.0f * pi / 4);
+	local_persist quaternion pose1 = quaternion::axis_angle(world::right, 5.0f * pi / 4);
+	local_persist float t = 0;
+	local_persist float tDirection = 1.0f;
+	t += 2 * tDirection * input->elapsedTime;
+	if (t > 1.0f || t < 0.0f)
 	{
-		scene->skeleton.bones[testBoneIndex].transform.position.y = -1.0f;
+		tDirection *= -1;
 	}
+
+	rotation += 2 * direction * input->elapsedTime;
+	if (rotation > 0.5f || rotation < -0.5f)
+		direction *= -1;
+
+	u32 testBoneIndex = 11;
+	scene->skeleton.bones[11].boneSpaceTransform.rotation 	= interpolate(pose0, pose1, t);//quaternion::axis_angle(world::right, pi + rotation);
+	scene->skeleton.bones[14].boneSpaceTransform.rotation 	= interpolate(pose1, pose0, t);//quaternion::axis_angle(world::right, pi - rotation);
+	scene->skeleton.bones[5].boneSpaceTransform.rotation 	= quaternion::axis_angle(world::right, rotation);// * quaternion::axis_angle(world::up, -pi / 2);
+	scene->skeleton.bones[8].boneSpaceTransform.rotation 	= quaternion::axis_angle(world::down, pi / 2 + rotation);
+	// 	scene->skeleton.bones[testBoneIndex].transform.position.y = -1.0f;
+	// }
 
 	update_animated_renderer(&scene->skeleton, &scene->animatedRenderers[0]);
 	render_animated_models(scene->animatedRenderers, graphics, functions);
 
 	Light light = { vector::normalize(v3{1, 1, -3}), {0.95, 0.95, 0.9}};
-	v3 ambient = {0.2, 0.25, 0.4};
+	v3 ambient 	= {0.2, 0.25, 0.4};
 	functions->update_lighting(graphics, &light, &scene->worldCamera, ambient);
 
 	auto result = update_scene_gui(&scene->gui, input, graphics, functions);
@@ -134,6 +165,17 @@ Scene3d::load(	void * 						scenePtr,
 				platform::Window * 			window,
 				platform::Functions *		functions)
 {
+	quaternion q0 = quaternion::axis_angle(world::up, to_radians(67));
+	quaternion q1 = inverse(q0);
+	quaternion q2 = q0 * q1;
+	quaternion q3 = q1 * q0;
+	std::cout 	<< q0 << ", "
+				<< q1 << ", "
+				<< q2 << ", "
+				<< q3 << "\n";
+
+
+
 	Scene3d * scene = reinterpret_cast<Scene3d*>(scenePtr);
 	
 	// Note(Leo): This is good, more this.

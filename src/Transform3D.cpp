@@ -6,7 +6,7 @@ struct Transform3D
 {
 	v3 position 		= {0, 0, 0};
 	real32 scale 		= 1.0f;
-	quaternion rotation = quaternion::Identity();
+	quaternion rotation = quaternion::identity();
 
 	// Todo(Leo): this won't work if we are to realloc any memory.
 	Transform3D * parent;
@@ -35,7 +35,7 @@ get_world_position(Transform3D * transform)
 {
 	if (transform->parent != nullptr)
 	{
-		return get_matrix(transform->parent) * transform->position;
+		return multiply_point(get_matrix(transform->parent), transform->position);
 	}	
 	return transform->position;
 }
@@ -44,17 +44,17 @@ get_world_position(Transform3D * transform)
 v3
 get_forward(Transform3D * transform)
 {
-	return make_rotation_matrix(transform->rotation) * world::forward;
+	return multiply_point(make_rotation_matrix(transform->rotation), world::forward);
 }
 
 v3
 get_right(Transform3D * transform)
 {
-	return make_rotation_matrix(transform->rotation) * world::right;
+	return multiply_point(make_rotation_matrix(transform->rotation), world::right);
 }
 
 v3
 get_up(Transform3D * transform)
 {
-	return make_rotation_matrix(transform->rotation) * world::up;
+	return multiply_point(make_rotation_matrix(transform->rotation), world::up);
 }

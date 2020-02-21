@@ -96,10 +96,11 @@ namespace platform
 
 	/* Note(Leo): these are defined in platform layer, and
 	can (and are supposed to) be used as opaque handles in
-	game layer*/
+	game layer. */
 	struct Graphics;
 
 	// Note(Leo): these are for platform layer only.
+	// Todo(Leo): probably something else.
 	FrameResult prepare_frame(Graphics*);
 	void set_functions(Graphics*, Functions*);
 

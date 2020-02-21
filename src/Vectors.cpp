@@ -67,6 +67,7 @@ namespace vector
 	template<typename S, u32 D>	Vector<S,D>			interpolate(Vector<S,D> a, Vector<S,D> b, S t);
 	template<typename S, u32 D> Vector<S,D>			normalize(Vector<S,D> vec);
 	template<typename S, u32 D> S					get_length(Vector<S,D> const & vec);
+	template<typename S, u32 D> S 					get_sqr_length(Vector<S, D> const &);
 	template<typename S, u32 D> Vector<S, D>		clamp_length(Vector<S,D> vec, S maxLength);
 	template<typename S, u32 D> Vector<S, D> 		scale(Vector<S,D> vec, Vector<S,D> const & scale);
 	template<typename S, u32 D> void 				dissect (Vector<S,D> const & vec, Vector<S,D> * outDirection, S * outLength);
@@ -92,6 +93,7 @@ namespace vector_operators_
 
 	VECTOR_OPERATOR &	operator *= (Vector<S,D> &, S);
 	VECTOR_OPERATOR 	operator * 	(Vector<S,D>, 	S);
+	VECTOR_OPERATOR 	operator *	(S, Vector<S, D>);
 	VECTOR_OPERATOR &	operator /= (Vector<S,D> &, S);
 	VECTOR_OPERATOR 	operator / 	(Vector<S,D>, 	S);
 
@@ -159,6 +161,13 @@ vector_operators_::operator *= (Vector<S,D> & vec, S value)
 
 template <typename S, u32 D> Vector<S,D>
 vector_operators_::operator * (Vector<S,D> vec, S value)
+{
+	vec *= value;
+	return vec;
+}
+
+template <typename S, u32 D> Vector<S,D>
+vector_operators_::operator * (S value, Vector<S,D> vec)
 {
 	vec *= value;
 	return vec;
@@ -264,6 +273,19 @@ vector::get_length(Vector<S,D> const & vec)
 	return result;
 }
 
+template<typename S, u32 D> S
+vector::get_sqr_length(Vector<S,D> const & vec)
+{
+	S result = 0;
+
+	S const * pVec = const_begin(&vec);
+	for (int i = 0; i < D; ++i)
+	{
+		result += pVec[i] * pVec[i];
+	}
+	return result;
+}
+
 template<typename S, u32 D> Vector<S,D>
 vector::clamp_length(Vector<S,D> vec, S maxLength)
 {
@@ -349,8 +371,8 @@ vector::scale(Vector<S,D> vec, Vector<S,D> const & scale)
 // 	VECTOR_3_TYPE w = cross(axis, rejection);
 	
 // 	Scalar rejectionLength = get_length(rejection);
-// 	Scalar x1 = Cosine(angleInRadians) / rejectionLength;
-// 	Scalar x2 = Sine(angleInRadians) / get_length(w);
+// 	Scalar x1 = cosine(angleInRadians) / rejectionLength;
+// 	Scalar x2 = sine(angleInRadians) / get_length(w);
 
 // 	VECTOR_3_TYPE rotatedRejection = (rejection * x1 + w * x2) * rejectionLength	;
 
@@ -390,7 +412,7 @@ vector::get_signed_angle(Vector<S,3> const & from, Vector<S,3> const & to, Vecto
 	S a = dot(cross(from, to), axis);
 	S b = dot(to, from);
 
-	S result = ArcTan2(a, b);
+	S result = arc_tan_2(a, b);
 	return result;
 }
 
@@ -412,15 +434,21 @@ vector::get_sqr_distance(Vector<S,D> const & a, Vector<S,D> const & b)
 template<typename S> Vector<S,3>
 vector::rotate(Vector<S,3> vec, Vector<S,3> const & axis, S angleInRadians)
 {
-	Vector<S,3> projection 	= project(vec, axis);
-	Vector<S,3> rejection 	= vec - projection;
+	auto projection = dot(axis, vec) * axis;
+	auto rejection = vec - projection;
 
-	Vector<S,3> w 			= cross(axis, rejection);
-	S rejectionLength 		= get_length(rejection);
-	S x1 					= Cosine(angleInRadians) / rejectionLength;
-	S x2 					= Sine(angleInRadians) / get_length(w);
+	auto rotatedRejection = cosine(angleInRadians) * rejection
+							+ sine(angleInRadians) * cross(axis, rejection);
 
-	Vector<S,3> rotatedRejection = (rejection * x1 + w * x2) * rejectionLength;
+	// Vector<S,3> projection 	= project(vec, axis);
+	// Vector<S,3> rejection 	= vec - projection;
+
+	// Vector<S,3> w 			= cross(axis, rejection);
+	// S rejectionLength 		= get_length(rejection);
+	// S x1 					= cosine(angleInRadians) / rejectionLength;
+	// S x2 					= sine(angleInRadians) / get_length(w);
+
+	// Vector<S,3> rotatedRejection = (rejection * x1 + w * x2) * rejectionLength;
 
 	vec = projection + rotatedRejection;
 	return vec;	
