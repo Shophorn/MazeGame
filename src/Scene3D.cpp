@@ -28,13 +28,7 @@ void update_animated_renderer(Skeleton * skeleton, AnimatedRenderer * renderer)
 		2. transform bone space matrix to model space matrix
 		*/
 
-		// if (i == 8)
-		// {
-		// 	std::cout << skeleton->bones[8] 
-		// }
-
-		m44 matrix = get_matrix(&skeleton->bones[i].boneSpaceTransform);
-		// m44 matrix = matrix::multiply(get_matrix(&skeleton->bones[i].transform), skeleton->bones[i].inverseBindMatrix);
+		m44 matrix = get_matrix(skeleton->bones[i].boneSpaceTransform);
 
 		if (skeleton->bones[i].isRoot == false)
 		{
@@ -59,6 +53,7 @@ struct Scene3d
 	CharacterController3rdPerson characterController;
 
 	Skeleton skeleton;
+	Pose poses [2];
 
 	ModelHandle skybox;
 
@@ -139,12 +134,17 @@ Scene3d::update(	void * 					scenePtr,
 		direction *= -1;
 
 	u32 testBoneIndex = 11;
-	scene->skeleton.bones[11].boneSpaceTransform.rotation 	= interpolate(pose0, pose1, t);//quaternion::axis_angle(world::right, pi + rotation);
-	scene->skeleton.bones[14].boneSpaceTransform.rotation 	= interpolate(pose1, pose0, t);//quaternion::axis_angle(world::right, pi - rotation);
-	scene->skeleton.bones[5].boneSpaceTransform.rotation 	= quaternion::axis_angle(world::right, rotation);// * quaternion::axis_angle(world::up, -pi / 2);
+	scene->skeleton.bones[11].boneSpaceTransform.rotation 	= interpolate(pose0, pose1, t);
+	scene->skeleton.bones[14].boneSpaceTransform.rotation 	= interpolate(pose1, pose0, t);
+	scene->skeleton.bones[5].boneSpaceTransform.rotation 	= quaternion::axis_angle(world::right, rotation);
 	scene->skeleton.bones[8].boneSpaceTransform.rotation 	= quaternion::axis_angle(world::down, pi / 2 + rotation);
 	// 	scene->skeleton.bones[testBoneIndex].transform.position.y = -1.0f;
 	// }
+
+	scene->skeleton.bones[4].boneSpaceTransform = interpolate(	scene->poses[0].boneSpaceTransforms[4],
+																scene->poses[1].boneSpaceTransforms[4],
+																t);
+
 
 	update_animated_renderer(&scene->skeleton, &scene->animatedRenderers[0]);
 	render_animated_models(scene->animatedRenderers, graphics, functions);
@@ -275,6 +275,18 @@ Scene3d::load(	void * 						scenePtr,
 	{
 		scene->skeleton = load_skeleton_glb(persistentMemory, "assets/models/cube_head.glb", "cube_head");
 
+		u32 boneCount = scene->skeleton.bones.count();
+		scene->poses[0].boneSpaceTransforms = push_array<Transform3D>(persistentMemory, boneCount);
+		scene->poses[1].boneSpaceTransforms = push_array<Transform3D>(persistentMemory, boneCount);
+		for (int i = 0; i < boneCount; ++i)
+		{
+			scene->poses[0].boneSpaceTransforms[i] = scene->skeleton.bones[i].boneSpaceTransform;
+			scene->poses[1].boneSpaceTransforms[i] = scene->skeleton.bones[i].boneSpaceTransform;
+		}
+
+		scene->poses[0].boneSpaceTransforms[4].rotation *= quaternion::axis_angle(v3::up, -pi / 4.0f);
+		scene->poses[1].boneSpaceTransforms[4].rotation *= quaternion::axis_angle(v3::up, pi / 4.0f);
+
 		auto girlMeshAsset = load_model_glb(transientMemory, "assets/models/cube_head.glb", "cube_head");
 		auto girlMesh = functions->push_mesh(graphics, &girlMeshAsset);
 
@@ -288,14 +300,6 @@ Scene3d::load(	void * 						scenePtr,
 		push_one(scene->animatedRenderers, {transform, model, true, bones});
 
 		scene->characterController = make_character(transform);
-
-		// Other dude
-		auto characterMesh 			= load_model_obj(transientMemory, "assets/models/character.obj");
-		auto characterMeshHandle 	= functions->push_mesh(graphics, &characterMesh);
-
-		transform 	= allocate_transform(&scene->transformStorage, {2, 0.5f, 12.25f});
-		model 	= push_model(characterMeshHandle, materials.character);
-		push_one(scene->renderSystem, {transform, model});
 	}
 
 	scene->worldCamera = make_camera(50, 0.1f, 1000.0f);
@@ -318,7 +322,7 @@ Scene3d::load(	void * 						scenePtr,
 			auto groundMeshAsset 	= generate_terrain(transientMemory, 32, &heightmap);
 
 			auto groundMesh 		= functions->push_mesh(graphics, &groundMeshAsset);
-			auto model 			= push_model(groundMesh, materials.ground);
+			auto model 				= push_model(groundMesh, materials.ground);
 			auto transform 			= allocate_transform(&scene->transformStorage, {{-50, -50, 0}});
 
 			push_one(scene->renderSystem, {transform, model});
@@ -332,7 +336,7 @@ Scene3d::load(	void * 						scenePtr,
 			auto pillarMeshHandle 	= functions->push_mesh(graphics, &pillarMesh);
 
 			auto model 	= push_model(pillarMeshHandle, materials.environment);
-			auto transform 	= allocate_transform(&scene->transformStorage, {-width / 4, 0, 0});
+			auto transform 	= allocate_transform(&scene->transformStorage, {-width / 4, 0, -5});
 			push_one(scene->renderSystem, {transform, model});
 			
 			auto collider 	= BoxCollider3D {
@@ -342,69 +346,12 @@ Scene3d::load(	void * 						scenePtr,
 			push_collider_to_system(&scene->collisionSystem, collider, transform);
 
 			model 	= push_model(pillarMeshHandle, materials.environment);
-			transform 	= allocate_transform(&scene->transformStorage, {width / 4, 0, 0});
+			transform 	= allocate_transform(&scene->transformStorage, {width / 4, 0, -6});
 			push_one(scene->renderSystem, {transform, model});
 
 			collider 	= BoxCollider3D {
 				.extents 	= {2, 2, 50},
 				.center 	= {0, 0, 25}
-			};
-			push_collider_to_system(&scene->collisionSystem, collider, transform);
-		}
-
-		{
-			v3 platformPositions [] =
-			{
-				{-6, 0, 6},
-				{-4, 0, 6},
-				{-2, 0, 6},
-	
-				{2, 0, 6},
-				{4, 0, 6},
-				{6, 0, 6},
-				{8, 0, 6},
-				{10, 0, 6},
-
-				{2, 0, 12},
-				{4, 0, 12},
-				{6, 0, 12},
-				{8, 0, 12},
-			};
-
-			auto platformMeshAsset 	= load_model_obj(transientMemory, "assets/models/platform.obj");
-			auto platformMeshHandle = functions->push_mesh(graphics, &platformMeshAsset);
-
-			int platformCount = 12;
-			for (int platformIndex = 0; platformIndex < platformCount; ++platformIndex)
-			{
-				auto model 	= push_model(platformMeshHandle, materials.environment);
-				auto transform 	= allocate_transform(&scene->transformStorage, {platformPositions[platformIndex]});
-
-				push_one(scene->renderSystem, {transform, model});
-			}
-		}
-
-		{
-			auto keyholeMeshAsset 	= load_model_obj(transientMemory, "assets/models/keyhole.obj");
-			auto keyholeMeshHandle 	= functions->push_mesh(graphics, &keyholeMeshAsset);
-
-			auto model 	= push_model(keyholeMeshHandle, materials.environment);
-			auto transform 	= allocate_transform(&scene->transformStorage, {v3{-3, 0, 0}});
-			push_one(scene->renderSystem, {transform, model});
-
-			auto collider 	= BoxCollider3D {
-				.extents 	= {0.3f, 0.3f, 0.6f},
-				.center 	= {0, 0, 0.3f}
-			};
-			push_collider_to_system(&scene->collisionSystem, collider, transform);
-
-			model 	= push_model(keyholeMeshHandle, materials.environment);
-			transform 	= allocate_transform(&scene->transformStorage, {v3{4, 0, 6}});
-			push_one(scene->renderSystem, {transform, model});
-			
-			collider 	= BoxCollider3D {
-				.extents 	= {0.3f, 0.3f, 0.6f},
-				.center 	= {0, 0, 0.3f}
 			};
 			push_collider_to_system(&scene->collisionSystem, collider, transform);
 		}

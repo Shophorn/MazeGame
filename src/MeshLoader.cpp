@@ -33,20 +33,6 @@ T get_at(GenericIterator * iterator, u32 position)
 	return *reinterpret_cast<T*>(iterator->pointer + (iterator->stride * position));
 }
 
-struct Bone
-{
-	Transform3D boneSpaceTransform;
-	m44 		inverseBindMatrix;
-	u32 		parent;
-	bool32 		isRoot;
-};
-
-struct Skeleton
-{
-	ArenaArray<Bone> bones;
-};
-
-
 internal Skeleton
 load_skeleton_glb(MemoryArena * memoryArena, char const * filePath, char const * modelName)
 {
@@ -173,7 +159,7 @@ load_skeleton_glb(MemoryArena * memoryArena, char const * filePath, char const *
 	modelSpaceTransforms[0] = matrix::make_identity<m44>();
 	for (int i = 1; i < result.bones.count(); ++i)
 	{
-		m44 boneSpaceBindTransform = get_matrix(&result.bones[i].boneSpaceTransform);
+		m44 boneSpaceBindTransform = get_matrix(result.bones[i].boneSpaceTransform);
 		u32 parentIndex = result.bones[i].parent;
 		m44 modelSpaceBindTransform = matrix::multiply(modelSpaceTransforms[parentIndex], boneSpaceBindTransform);
 		result.bones[i].inverseBindMatrix = invert_transform_matrix(modelSpaceBindTransform);

@@ -27,10 +27,13 @@ template<typename S>
 struct Vector<S, 3>
 { 
 	S x, y, z; 
-};
 
+	static Vector const up;
+};
 using v3 	= Vector<float, 3>;
-using v3 	= Vector<float, 3>;
+
+template<> v3 const v3::up = {0,0,1};
+
 
 struct world
 {
@@ -60,12 +63,16 @@ using upoint4 = Vector<u32, 4>;
 
 namespace vector
 {
+	template<typename S>
+	constexpr S epsilon = 0.000001f;
+
 	template <typename S, u32 D> S * 				begin(Vector<S, D> * vec);
 	template <typename S, u32 D> S const * 			const_begin(Vector<S, D> const * vec);
 
 	template<typename S, u32 D> S 					dot(Vector<S,D> const & a, Vector<S,D> const & b);
 	template<typename S, u32 D>	Vector<S,D>			interpolate(Vector<S,D> a, Vector<S,D> b, S t);
 	template<typename S, u32 D> Vector<S,D>			normalize(Vector<S,D> vec);
+	template<typename S, u32 D> Vector<S,D> 		normalize_or_zero(Vector<S,D> vec);
 	template<typename S, u32 D> S					get_length(Vector<S,D> const & vec);
 	template<typename S, u32 D> S 					get_sqr_length(Vector<S, D> const &);
 	template<typename S, u32 D> Vector<S, D>		clamp_length(Vector<S,D> vec, S maxLength);
@@ -81,6 +88,7 @@ namespace vector
 	template<typename S> Vector<S, 3> 				rotate(Vector<S,3> vec, Vector<S,3> const & axis, S angleInRadians);
 	template<typename S> S 							get_signed_angle(Vector<S,3> const & from, Vector<S,3> const & to, Vector<S,3> const & axis);
 }
+
 
 namespace vector_operators_
 {
@@ -255,7 +263,21 @@ vector::interpolate(Vector<S, D> a, Vector<S, D> b, S t)
 template<typename S, u32 D> Vector<S,D>
 vector::normalize(Vector<S,D> vec)
 {
+	/* Note(Leo): We deliberately do handle bad cases here, so that any code where there is risk
+	to  normalize 0 length vector should handle that themself. so that*/
 	vec /= get_length(vec);
+	return vec;
+}
+
+template<typename S, u32 D> Vector<S,D>
+vector::normalize_or_zero(Vector<S,D> vec)
+{
+	float sqrMagnitude = get_sqr_length(vec);
+	if (sqrMagnitude < epsilon<S>)
+	{
+		return vec;
+	}
+	vec /= Root2(sqrMagnitude);
 	return vec;
 }
 
@@ -385,8 +407,7 @@ vector::dissect(Vector<S,D> const & vec, Vector<S,D> * outDirection, S * outLeng
 {
 	*outLength = get_length(vec);
 
-	// Todo(Leo): use epsilon
-	if (Abs(*outLength) == 0.0f)
+	if (*outLength < epsilon<S>)
 	{
 		*outLength = 0;
 		*outDirection = {0, 0, 0};

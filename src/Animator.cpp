@@ -37,6 +37,24 @@ struct Animator
 	float time;
 };
 
+struct Bone
+{
+	Transform3D boneSpaceTransform;
+	m44 		inverseBindMatrix;
+	u32 		parent;
+	bool32 		isRoot;
+};
+
+struct Skeleton
+{
+	ArenaArray<Bone> bones;
+};
+
+struct Pose
+{
+	ArenaArray<Transform3D> boneSpaceTransforms;
+};
+
 internal AnimationRig
 make_animation_rig(Transform3D * root, ArenaArray<Transform3D*> bones, ArenaArray<u64> currentBoneKeyframes)
 {

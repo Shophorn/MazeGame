@@ -29,7 +29,7 @@ make_character(Transform3D * transform)
 		.transform 	= transform,
 
 		.zSpeed 	= 0.0f,
-		.forward 	= get_forward(transform),
+		.forward 	= get_forward(*transform),
 	};
 	return result;
 }
@@ -66,7 +66,7 @@ update_character(
 	if (distance > 0)
 	{
 		constexpr int rayCount = 5;
-		v3 up 	= get_up(controller->transform);
+		v3 up 	= get_up(*controller->transform);
 
 		v3 rayStartPositions [rayCount];
 		float sineStep 	= 2.0f / (rayCount - 1);

@@ -18,7 +18,7 @@ update_render_system(	ArenaArray<RenderSystemEntry> entries,
 	{
 		functions->draw_model(	graphics,
 								entry.model,
-								get_matrix(entry.transform),
+								get_matrix(*entry.transform),
 								entry.castShadows,
 								nullptr, 0);
 	}
@@ -41,7 +41,7 @@ render_animated_models(	ArenaArray<AnimatedRenderer> entries,
 	{
 		functions->draw_model( 	graphics,
 								entry.model,
-								get_matrix(entry.transform),
+								get_matrix(*entry.transform),
 								entry.castShadows,
 								entry.bones.begin(),
 								entry.bones.count());

@@ -87,6 +87,17 @@ quaternion operator * (quaternion lhs, quaternion rhs)
 	return result;
 }
 
+quaternion & operator *= (quaternion & lhs, quaternion const & rhs)
+{
+	using namespace vector;
+
+	lhs = {
+		.vector = lhs.w * rhs.vector + rhs.w * lhs.vector + cross(lhs.vector, rhs.vector),
+		.w 		= lhs.w * rhs.w - dot(lhs.vector, rhs.vector)
+	};
+	return lhs;
+}
+
 quaternion interpolate(quaternion from, quaternion to, float t)
 {
 	using namespace vector;
@@ -94,7 +105,7 @@ quaternion interpolate(quaternion from, quaternion to, float t)
 	quaternion difference = to * inverse(from);
 
 	// Convert to rodriques rotation
-	v3 axis 		= normalize(difference.vector);
+	v3 axis 		= normalize_or_zero(difference.vector);
 	float angle 	= arc_cosine(difference.w) * 2 * t;
 
 	quaternion result = {

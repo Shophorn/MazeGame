@@ -65,7 +65,7 @@ raycast_3d(	CollisionSystem3D * manager,
 		auto collider = entry.collider;
 		auto transform = entry.transform;
 
-		v3 position = 	get_world_position(transform) + collider->center;
+		v3 position = 	get_world_position(*transform) + collider->center;
 
 		v3 min = position - collider->extents;
 		v3 max = position + collider->extents;
