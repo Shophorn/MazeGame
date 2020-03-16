@@ -50,6 +50,31 @@ struct Skeleton
 	ArenaArray<Bone> bones;
 };
 
+v3 get_model_space_position(Skeleton const & skeleton, u32 boneIndex)
+{
+	v3 position = skeleton.bones[boneIndex].boneSpaceTransform.position;
+
+	if (skeleton.bones[boneIndex].isRoot == false)
+	{
+		position += get_model_space_position(skeleton, skeleton.bones[boneIndex].parent);
+	}
+
+	return position;
+}
+
+m44 get_model_space_transform(Skeleton const & skeleton, u32 boneIndex)
+{
+	Bone const & bone = skeleton.bones[boneIndex];
+
+	m44 transform = get_matrix(bone.boneSpaceTransform);
+
+	if (bone.isRoot == false)
+	{
+		transform = matrix::multiply(get_model_space_transform(skeleton, bone.parent), transform); 
+	}
+	return transform;
+}
+
 struct Pose
 {
 	ArenaArray<Transform3D> boneSpaceTransforms;

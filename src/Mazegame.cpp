@@ -6,6 +6,8 @@ Leo Tamminen
 #include "MazegamePlatform.hpp"
 #include "Mazegame.hpp"
 
+#include "Debug.cpp"
+
 // Note(Leo): Make unity build here.
 #include "Random.cpp"
 #include "MapGenerator.cpp"

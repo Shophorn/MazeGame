@@ -110,12 +110,15 @@ ARENA_ARRAY_TEMPLATE struct ArenaArray
 	And store pointer to arena instead? */
 	byte * data_;
 
-	u64 capacity () { return (get_header()->capacityInBytes) / sizeof(T); }
-	u64 count ()  	{ return (get_header()->countInBytes) / sizeof(T); }
+	u64 capacity () const { return ( get_header()->capacityInBytes) / sizeof(T); }
+	u64 count ()  	const { return ( get_header()->countInBytes) / sizeof(T); }
 
 	// Todo(Leo): Maybe make these free functions too.
 	T * begin() 	{ return reinterpret_cast<T*>(data_ + sizeof(ArrayHeader)); }
 	T * end() 		{ return begin() + count(); }
+
+	T const * begin() const	{ return reinterpret_cast<T const *>(data_ + sizeof(ArrayHeader)); }
+	T const * end() const	{ return begin() + count(); }
 
 	T & operator [] (TIndex index)
 	{
@@ -123,16 +126,22 @@ ARENA_ARRAY_TEMPLATE struct ArenaArray
 		return begin()[index];
 	}
 
+	T operator [] (TIndex index) const
+	{
+		assert_index_validity(index);
+		return begin()[index];
+	}
+
 private:
 	inline ArrayHeader * 
-	get_header ()
+	get_header () const
 	{ 
 		DEBUG_ASSERT(data_ != nullptr, "Invalid call to 'get_header()', ArenaArray is not initialized.");
 		return reinterpret_cast<ArrayHeader*>(data_);
 	}
 
 	inline void
-	assert_index_validity(TIndex index)
+	assert_index_validity(TIndex index) const
 	{
 		#if MAZEGAME_DEVELOPMENT
 			char message [200];

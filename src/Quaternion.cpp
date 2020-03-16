@@ -8,26 +8,11 @@ struct quaternion
 	
 	float w;
 
-	constexpr static quaternion
-	identity()
-	{
-		constexpr quaternion identity = {0, 0, 0, 1};
-		return identity;
-	}
+	constexpr static quaternion	identity();
+	static quaternion axis_angle(v3 axis, float angleInRadians);
 
-	static quaternion
-	axis_angle(v3 axis, float angleInRadians)
-	{
-		angleInRadians *= -1;
-		float halfAngle = angleInRadians / 2.0f;
-
-		quaternion result = {};
-
-		result.w = cosine(halfAngle);
-		result.vector = axis * sine(halfAngle);
-
-		return result;
-	}
+	static quaternion euler_angles(float x, float y, float z);
+	static quaternion euler_angles(v3 eulerRotation);
 };
 
 // quaternion normalize(quaternion q);
@@ -45,13 +30,64 @@ std::ostream & operator << (std::ostream & os, quaternion q)
 
 #endif
 
-// quaternion normalize(quaternion q)
-// {
-// 	float magnitude = Root2(vector::get_sqr_length(q.vector) + (q.w * q.w));
-// 	q.vector /= magnitude;
-// 	q.w /= magnitude;
-// 	return q;
-// }
+constexpr quaternion
+quaternion::identity()
+{
+	constexpr quaternion identity = {0, 0, 0, 1};
+	return identity;
+}
+
+
+quaternion
+quaternion::axis_angle(v3 axis, float angleInRadians)
+{
+	angleInRadians *= -1;
+	float halfAngle = angleInRadians / 2.0f;
+
+	quaternion result = {};
+
+	result.w = cosine(halfAngle);
+	result.vector = axis * sine(halfAngle);
+
+	return result;
+}
+
+quaternion
+quaternion::euler_angles(v3 eulerRotation)
+{
+	return euler_angles(eulerRotation.x, eulerRotation.y, eulerRotation.z);
+}
+
+quaternion
+quaternion::euler_angles(float eulerX, float eulerY, float eulerZ)
+{
+	/* Note(Leo): I found these somewhere in the web, but they seem to 
+	yield left-handed rotations, which is something we do not want.
+	Definetly better way to compute from euler angles though. */
+    
+    // Abbreviations for the various angular functions
+    // float cy = cosf(eulerRotation.z * 0.5);
+    // float sy = sinf(eulerRotation.z * 0.5);
+    // float cp = cosf(eulerRotation.y * 0.5);
+    // float sp = sinf(eulerRotation.y * 0.5);
+    // float cr = cosf(eulerRotation.x * 0.5);
+    // float sr = sinf(eulerRotation.x * 0.5);
+
+    // quaternion q;
+    // q.w = cy * cp * cr + sy * sp * sr;
+    // q.x = cy * cp * sr - sy * sp * cr;
+    // q.y = sy * cp * sr + cy * sp * cr;
+    // q.z = sy * cp * cr - cy * sp * sr;
+
+    // return q;
+
+
+	quaternion x = axis_angle({1,0,0}, eulerX);
+	quaternion y = axis_angle({0,1,0}, eulerY);
+	quaternion z = axis_angle({0,0,1}, eulerZ);
+
+	return z * y * x;	
+}
 
 quaternion inverse(quaternion q)
 {
@@ -102,7 +138,7 @@ quaternion interpolate(quaternion from, quaternion to, float t)
 {
 	using namespace vector;
 
-	quaternion difference = to * inverse(from);
+	quaternion difference = inverse(from) * to;
 
 	// Convert to rodriques rotation
 	v3 axis 		= normalize_or_zero(difference.vector);

@@ -43,8 +43,8 @@ float linearize_depth(float depth, float near, float far)
 	return (2.0 * n) / (f + n - z * (f - n));	
 }
 
-const vec3 foreground = vec3(0.9, 0.85, 0.85);
-const vec3 background = vec3(0.2, 0.1, 0.3);
+const vec3 foreground = vec3 (0.45, 0.4, 0.45); //vec3(0.9, 0.85, 0.85);
+const vec3 background = vec3 (0.8, 0.7, 0.9); //vec3(0.2, 0.1, 0.3);
 
 void main()
 {

@@ -7,11 +7,11 @@ Matrices are column major.
 template <typename Scalar, u32 Rows, u32 Columns>
 struct MatrixBase
 {
-	using scalar_type 					= Scalar;
 	constexpr static u32 rows_count 	= Rows;
 	constexpr static u32 columns_count 	= Columns;
 
-	using column_type = Vector<Scalar, Rows>;
+	using scalar_type 					= Scalar;
+	using column_type 					= Vector<Scalar, Rows>;
 
 	/// -------- CONTENTS -------------------
 	column_type columns [columns_count];
@@ -19,13 +19,14 @@ struct MatrixBase
 	/// ------- ACCESSORS ----------------------------
 	column_type & operator [] (s32 column) 				{ return columns[column]; }
 	column_type operator [] (s32 column) const 			{ return columns[column]; }
+	
 	scalar_type & operator()(u32 column, u32 row) 		{ return vector::begin(&columns[column])[row];}
 	scalar_type operator() (u32 column, u32 row) const 	{ return vector::const_begin(&columns[column])[row];	}
 };
 
 
 
-namespace matrix_meta
+namespace matrix_meta_
 {
 	template<typename TMatrix>
 	using ScalarType = typename TMatrix::scalar_type;
@@ -46,7 +47,7 @@ namespace matrix_meta
 
 namespace matrix
 {
-	using namespace matrix_meta;
+	using namespace matrix_meta_;
 
 	template<typename TMatrix> TMatrix 										make_identity();
 
@@ -77,9 +78,9 @@ v3 multiply_direction(const m44 & mat, v3 direction)
 	auto lhs = matrix::transpose(mat);
 
 	direction = {
-		dot(convert<v3>(lhs[0]), direction),
-		dot(convert<v3>(lhs[1]), direction),
-		dot(convert<v3>(lhs[2]), direction)
+		dot(convert_to<v3>(lhs[0]), direction),
+		dot(convert_to<v3>(lhs[1]), direction),
+		dot(convert_to<v3>(lhs[2]), direction)
 	};
 	return direction;	
 }
@@ -88,13 +89,14 @@ m44
 make_translation_matrix(v3 translation)
 {
 	m44 result = matrix::make_identity<m44>();
-	result[3] = vector4{translation.x, translation.y, translation.z, 1.0f};
+	result[3] = v4{translation.x, translation.y, translation.z, 1.0f};
 	return result;
 }
 
 m44
 make_rotation_matrix(quaternion rotation)
 {
+	// Todo(Leo): Study matrix multiplication order, and order of axes in here
 	float 	x = rotation.x,
 			y = rotation.y,
 			z = rotation.z,
@@ -159,13 +161,9 @@ make_transform_matrix(v3 translation, quaternion rotation, float uniformScale = 
 
 m44 invert_transform_matrix(m44 matrix)
 {
-	// using  m31 = MatrixBase<float, 3, 1>;
 	v3 translation = {matrix[3].x, matrix[3].y, matrix[3].z};
 
-
-	// v3 translation = matrix[3];
 	matrix[3] = {0,0,0,1};
-
 	matrix = matrix::transpose(matrix);
 
 	translation = -multiply_point(matrix, translation);
@@ -203,59 +201,29 @@ matrix::transpose(TMatrix const & matrix)
 	return result;
 }
 
-template<typename TLeft, typename TRight> matrix::ProductType<TLeft, TRight>
-matrix::multiply(TLeft const & lhs, TRight const & rhs)
+template<typename Scalar, u32 LeftRows, u32 InnerSize, u32 RightColumns>
+MatrixBase<Scalar, LeftRows, RightColumns>
+operator * (MatrixBase<Scalar, LeftRows, InnerSize> const & lhs,
+			MatrixBase<Scalar, InnerSize, RightColumns> const & rhs)
 {
-	static_assert(std::is_same<	typename TLeft::scalar_type,
-								typename TRight::scalar_type>::value, "Cannot multiply matrices of different scalar types");
-	static_assert(TLeft::columns_count == TRight::rows_count, "Cannot multiply matrices with incompatible inner size");
+	auto lhsTranspose = matrix::transpose(lhs);
 
-	using namespace vector;
+	MatrixBase<Scalar, LeftRows, RightColumns> product;
 
-	// Note(Leo): this is done to get easy access to rows
-	TransposeType<TLeft> lhsTranspose = transpose(lhs);
-
-	ProductType<TLeft, TRight> product;
-	constexpr u32 columns 	= decltype(product)::columns_count;
-	constexpr u32 rows 		= decltype(product)::rows_count;
-
-	for (u32 col = 0; col < columns; ++col)
-		for (u32 row = 0; row < rows; ++row)
+	for(u32 col = 0; col < RightColumns; ++col)
+		for (u32 row = 0; row < LeftRows; ++row)
 		{
-			product(col, row) = dot(lhsTranspose[row], rhs[col]);
+			product(col, row) = vector::dot(lhsTranspose[row], rhs[col]);
 		}
 
 	return product;
+}  
+
+template<typename TLeft, typename TRight> matrix::ProductType<TLeft, TRight>
+matrix::multiply(TLeft const & lhs, TRight const & rhs)
+{
+	return lhs * rhs;
 }
-
-// template<typename TLeft, typename TRight> std::enable_if_t<	matrix::isMatrixType<TLeft> && matrix::isMatrixType<TRight>,
-// 															matrix::ProductType<TLeft, TRight>>
-// operator * (TLeft const & lhs, TRight const & rhs)
-// {
-// 	static_assert(std::is_same<	typename TLeft::scalar_type,
-// 								typename TRight::scalar_type>::value, "Cannot multiply matrices of different scalar types");
-// 	static_assert(TLeft::columns_count == TRight::rows_count, "Cannot multiply matrices with incompatible inner size");
-
-// 	using namespace matrix;
-// 	using namespace vector;
-
-// 	// Note(Leo): this is done to get easy access to rows
-// 	TransposeType<TLeft> lhsTranspose = transpose(lhs);
-
-// 	ProductType<TLeft, TRight> product;
-// 	constexpr u32 columns 	= decltype(product)::columns_count;
-// 	constexpr u32 rows 		= decltype(product)::rows_count;
-
-// 	for (u32 col = 0; col < columns; ++col)
-// 		for (u32 row = 0; row < rows; ++row)
-// 		{
-// 			product(col, row) = dot(lhsTranspose[row], rhs[col]);
-// 		}
-
-// 	return product;
-// }
-
-
 
 #if MAZEGAME_INCLUDE_STD_IOSTREAM
 namespace std

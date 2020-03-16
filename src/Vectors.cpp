@@ -28,12 +28,17 @@ struct Vector<S, 3>
 { 
 	S x, y, z; 
 
+	static Vector const right;
+	static Vector const forward;
 	static Vector const up;
+
+	static u32 const test = 8;
 };
 using v3 	= Vector<float, 3>;
 
-template<> v3 const v3::up = {0,0,1};
-
+template<typename S> Vector<S,3> constexpr Vector<S,3>::right 	= {1,0,0};
+template<typename S> Vector<S,3> constexpr Vector<S,3>::forward = {0,1,0};
+template<typename S> Vector<S,3> constexpr Vector<S,3>::up 		= {0,0,1};
 
 struct world
 {
@@ -54,8 +59,6 @@ struct Vector<S, 4>
 {
 	S x, y, z, w;
 };
-
-using vector4 	= Vector<float, 4>;
 using v4 		= Vector<float,4>;
 using float4 	= Vector<float, 4>;
 
@@ -81,14 +84,13 @@ namespace vector
 	template<typename S, u32 D> Vector<S,D>			project (Vector<S,D> vec, Vector<S,D> const & projectionTarget);
 	template<typename S, u32 D> S 					get_sqr_distance(Vector<S,D> const & a, Vector<S,D> const & b);
 
-	template<typename TNew, typename Told> TNew		convert(Told const & old);
+	template<typename TNew, typename Told> TNew		convert_to(Told const & old);
 
 	// 3-dimensional vectors specific
 	template<typename S> Vector<S, 3>				cross(Vector<S,3> lhs, Vector<S,3> const & rhs);
 	template<typename S> Vector<S, 3> 				rotate(Vector<S,3> vec, Vector<S,3> const & axis, S angleInRadians);
 	template<typename S> S 							get_signed_angle(Vector<S,3> const & from, Vector<S,3> const & to, Vector<S,3> const & axis);
 }
-
 
 namespace vector_operators_
 {
@@ -339,7 +341,7 @@ namespace vector_meta_
 }
 
 template<typename TNew, typename TOld> TNew
-vector::convert(TOld const & old)
+vector::convert_to(TOld const & old)
 {	
 
 	using namespace vector_meta_;

@@ -104,14 +104,14 @@ AddHexCell(v3 cellPosition, HexMap * map, bool blocked, u16 * vertexIndex, Verte
 	vertexLocation[6].normal = normal;
 
 	real32 gridSize = map->WorldSize();
-	vector2 offset = {0.5f, 0.5f};
-	vertexLocation[0].texCoord = vector::convert<vector2>(vertexLocation[0].position) / gridSize + offset;
-	vertexLocation[1].texCoord = vector::convert<vector2>(vertexLocation[1].position) / gridSize + offset;
-	vertexLocation[2].texCoord = vector::convert<vector2>(vertexLocation[2].position) / gridSize + offset;
-	vertexLocation[3].texCoord = vector::convert<vector2>(vertexLocation[3].position) / gridSize + offset;
-	vertexLocation[4].texCoord = vector::convert<vector2>(vertexLocation[4].position) / gridSize + offset;
-	vertexLocation[5].texCoord = vector::convert<vector2>(vertexLocation[5].position) / gridSize + offset;
-	vertexLocation[6].texCoord = vector::convert<vector2>(vertexLocation[6].position) / gridSize + offset;
+	v2 offset = {0.5f, 0.5f};
+	vertexLocation[0].texCoord = vector::convert_to<v2>(vertexLocation[0].position) / gridSize + offset;
+	vertexLocation[1].texCoord = vector::convert_to<v2>(vertexLocation[1].position) / gridSize + offset;
+	vertexLocation[2].texCoord = vector::convert_to<v2>(vertexLocation[2].position) / gridSize + offset;
+	vertexLocation[3].texCoord = vector::convert_to<v2>(vertexLocation[3].position) / gridSize + offset;
+	vertexLocation[4].texCoord = vector::convert_to<v2>(vertexLocation[4].position) / gridSize + offset;
+	vertexLocation[5].texCoord = vector::convert_to<v2>(vertexLocation[5].position) / gridSize + offset;
+	vertexLocation[6].texCoord = vector::convert_to<v2>(vertexLocation[6].position) / gridSize + offset;
 
 	triangleLocation[0] = *vertexIndex;
 	triangleLocation[1] = *vertexIndex + 1; 

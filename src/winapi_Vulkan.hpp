@@ -44,7 +44,7 @@ namespace vulkan
 
 	struct LightingUniformBuffer
 	{
-		vector4 direction;
+		v4 direction;
 		float4 color;
 		float4 ambient;
 	};

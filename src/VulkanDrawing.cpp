@@ -52,9 +52,9 @@ vulkan::update_lighting(VulkanContext * context, Light const * light, Camera con
     vkMapMemory(context->device, context->sceneUniformBuffer.memory,
                 context->lightingUniformOffset, sizeof(LightingUniformBuffer), 0, (void**)&lightPtr);
 
-    lightPtr->direction    = vector::convert<vector4>(light->direction);
-    lightPtr->color        = vector::convert<float4>(light->color);
-    lightPtr->ambient      = vector::convert<float4>(ambient);
+    lightPtr->direction    = vector::convert_to<v4>(light->direction);
+    lightPtr->color        = vector::convert_to<float4>(light->color);
+    lightPtr->ambient      = vector::convert_to<float4>(ambient);
 
     vkUnmapMemory(context->device, context->sceneUniformBuffer.memory);
 
@@ -361,7 +361,7 @@ vulkan::record_line_draw_command(VulkanContext * context, v3 start, v3 end, floa
     VkCommandBuffer commandBuffer = get_current_virtual_frame(context)->commandBuffers.scene;
 
     // Todo(Leo): Define some struct etc. for this
-    vector4 pushConstants [] = 
+    v4 pushConstants [] = 
     {
         {start.x, start.y, start.z, 0},
         {end.x, end.y, end.z, 0},

@@ -12,6 +12,7 @@ Scene description for 3d development scene
 
 void update_animated_renderer(Skeleton * skeleton, AnimatedRenderer * renderer)
 {
+	// Todo(Leo): Make more sensible structure that keeps track of this
 	assert(skeleton->bones.count() == renderer->bones.count());
 
 	u32 boneCount = skeleton->bones.count();
@@ -122,10 +123,11 @@ Scene3d::update(	void * 					scenePtr,
 	local_persist quaternion pose0 = quaternion::axis_angle(world::right, 3.0f * pi / 4);
 	local_persist quaternion pose1 = quaternion::axis_angle(world::right, 5.0f * pi / 4);
 	local_persist float t = 0;
-	local_persist float tDirection = 1.0f;
-	t += 2 * tDirection * input->elapsedTime;
+	local_persist float tDirection = 0.5f;
+	t += tDirection * input->elapsedTime;
 	if (t > 1.0f || t < 0.0f)
 	{
+		// tDirection = 0;
 		tDirection *= -1;
 	}
 
@@ -133,18 +135,17 @@ Scene3d::update(	void * 					scenePtr,
 	if (rotation > 0.5f || rotation < -0.5f)
 		direction *= -1;
 
-	u32 testBoneIndex = 11;
-	scene->skeleton.bones[11].boneSpaceTransform.rotation 	= interpolate(pose0, pose1, t);
-	scene->skeleton.bones[14].boneSpaceTransform.rotation 	= interpolate(pose1, pose0, t);
-	scene->skeleton.bones[5].boneSpaceTransform.rotation 	= quaternion::axis_angle(world::right, rotation);
-	scene->skeleton.bones[8].boneSpaceTransform.rotation 	= quaternion::axis_angle(world::down, pi / 2 + rotation);
-	// 	scene->skeleton.bones[testBoneIndex].transform.position.y = -1.0f;
-	// }
+	int boneCount = scene->skeleton.bones.count();
+	for (int i = 0; i < boneCount; ++i)
+	{
+		scene->skeleton.bones[i].boneSpaceTransform = interpolate(	scene->poses[0].boneSpaceTransforms[i],
+																	scene->poses[1].boneSpaceTransforms[i],
+																	t);
+	}
 
-	scene->skeleton.bones[4].boneSpaceTransform = interpolate(	scene->poses[0].boneSpaceTransforms[4],
-																scene->poses[1].boneSpaceTransforms[4],
-																t);
-
+	debug::draw_axes(	graphics,
+						get_matrix(*scene->characterController.transform) * get_model_space_transform(scene->skeleton, 4),
+						functions);
 
 	update_animated_renderer(&scene->skeleton, &scene->animatedRenderers[0]);
 	render_animated_models(scene->animatedRenderers, graphics, functions);
@@ -284,8 +285,25 @@ Scene3d::load(	void * 						scenePtr,
 			scene->poses[1].boneSpaceTransforms[i] = scene->skeleton.bones[i].boneSpaceTransform;
 		}
 
-		scene->poses[0].boneSpaceTransforms[4].rotation *= quaternion::axis_angle(v3::up, -pi / 4.0f);
-		scene->poses[1].boneSpaceTransforms[4].rotation *= quaternion::axis_angle(v3::up, pi / 4.0f);
+		auto rotation0 = quaternion::euler_angles({to_radians(20), 0, to_radians(45)});
+		auto rotation1 = quaternion::euler_angles({to_radians(20), 0, -to_radians(45)});
+
+		// std::cout << rotation0 << ", " << rotation1 << "\n";
+
+		scene->poses[0].boneSpaceTransforms[4].rotation *= rotation0;
+		scene->poses[1].boneSpaceTransforms[4].rotation *= rotation1;
+
+		quaternion pose0 = quaternion::euler_angles(to_radians(135), 0, 0); //quaternion::axis_angle(world::right, 3.0f * pi / 4);
+		quaternion pose1 = quaternion::euler_angles(to_radians(225), 0, 0); //quaternion::axis_angle(world::right, 5.0f * pi / 4);
+		quaternion pose2 = quaternion::euler_angles(to_radians(-45), 0, 0); //quaternion::axis_angle(world::right, -1.0f * pi / 4);
+
+		scene->poses[0].boneSpaceTransforms[11].rotation = pose0;
+		scene->poses[0].boneSpaceTransforms[14].rotation = pose1;
+		scene->poses[0].boneSpaceTransforms[15].rotation = pose2;
+
+		scene->poses[1].boneSpaceTransforms[11].rotation = pose1;
+		scene->poses[1].boneSpaceTransforms[12].rotation = pose2;
+		scene->poses[1].boneSpaceTransforms[14].rotation = pose0;
 
 		auto girlMeshAsset = load_model_glb(transientMemory, "assets/models/cube_head.glb", "cube_head");
 		auto girlMesh = functions->push_mesh(graphics, &girlMeshAsset);
