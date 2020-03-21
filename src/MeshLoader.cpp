@@ -33,6 +33,8 @@ T get_at(GenericIterator * iterator, u32 position)
 	return *reinterpret_cast<T*>(iterator->pointer + (iterator->stride * position));
 }
 
+
+
 internal Skeleton
 load_skeleton_glb(MemoryArena * memoryArena, char const * filePath, char const * modelName)
 {
@@ -104,9 +106,18 @@ load_skeleton_glb(MemoryArena * memoryArena, char const * filePath, char const *
  				result.bones[childIndex].isRoot = false;
 			}
 		}
+
+		if (node.HasMember("name"))
+		{
+			result.bones[i].name = node["name"].GetString();
+
+			std::cout << "bone has a name " << result.bones[i].name << "\n";
+		}
 		
+		// Note(Leo): Do this only for non-root bones
 		if (i > 0)
 		{
+
 			if(node.HasMember("translation"))
 			{
 				auto translationArray = node["translation"].GetArray();
@@ -173,24 +184,6 @@ load_skeleton_glb(MemoryArena * memoryArena, char const * filePath, char const *
 	// }
 
 	std::cout << "[load_skeleton_glb()]: root inverseBindMatrix = " << result.bones[0].inverseBindMatrix << "\n";
-
-	// result.bones[0].isRoot = true;			// Root
-	// result.bones[1].parent = 0;			// Hip
-	// result.bones[2].parent = 1;			// Back
-	// result.bones[11].parent = 1;			// Thigh L
-	// result.bones[14].parent = 1;			// Thigh R
-	// result.bones[3].parent = 2;			// Neck
-	// result.bones[8].parent = 2;			// Arm R
-	// result.bones[5].parent = 2;			// Arm L
-	// result.bones[4].parent = 3;			// Head
-	// result.bones[6].parent = 5;			// ForeArm L
-	// result.bones[7].parent = 6;			// Hand L
-	// result.bones[9].parent = 8;			// ForeArm R
-	// result.bones[10].parent = 9;			// Hand R
-	// result.bones[12].parent = 11;		// Shin L
-	// result.bones[13].parent = 12;		// Foot L
-	// result.bones[15].parent = 14;		// Shin R
-	// result.bones[16].parent = 15;		// Foot R
 
 	return result;
 }

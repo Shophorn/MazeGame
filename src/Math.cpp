@@ -83,7 +83,7 @@ clamp(S value, S min, S max)
     return value;
 }
 
-inline float Modulo(float dividend, float divisor)
+inline float modulo(float dividend, float divisor)
 {
     float result = fmodf(dividend, divisor);
     return result;

@@ -94,5 +94,10 @@ u64 get_size_of()
     return sizeof(T);
 }
 
+/* Note(Leo): I am thinking of moving back to regular datatype names, int etc. These
+are here to make sure they behave as expected. */
+static_assert(sizeof(int) == 4, "Inconvenient size for int");
+
+
 #define MAZEGAME_ESSENTIALS_HPP
 #endif

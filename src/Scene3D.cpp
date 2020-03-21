@@ -54,17 +54,15 @@ struct Scene3d
 	CharacterController3rdPerson characterController;
 
 	Skeleton skeleton;
+	Animator animator;
+	Animation walkAnimation;
+	// BoneAnimation testAnimation;
+
 	Pose poses [2];
 
 	ModelHandle skybox;
 
 	SceneGui gui;
-
-	// using ComponentTypes = TypeList<Transform3D,
-	// 								BoxCollider3D,
-	// 								Renderer>;
-
-	// ComponentManager<ComponentTypes> componentManager;
 
  	// Todo(Leo): maybe make free functions
 	static MenuResult
@@ -117,31 +115,38 @@ Scene3d::update(	void * 					scenePtr,
     update_camera_system(&scene->worldCamera, input, graphics, window, functions);
 	update_render_system(scene->renderSystem, graphics, functions);
 
-	local_persist float rotation = 0;
-	local_persist float direction = 1.0f;
 
-	local_persist quaternion pose0 = quaternion::axis_angle(world::right, 3.0f * pi / 4);
-	local_persist quaternion pose1 = quaternion::axis_angle(world::right, 5.0f * pi / 4);
-	local_persist float t = 0;
-	local_persist float tDirection = 0.5f;
-	t += tDirection * input->elapsedTime;
-	if (t > 1.0f || t < 0.0f)
+	local_persist float animationTime = 0;
+	local_persist s32 animationKeyframeIndex [50] = {};
+
+	animationTime += input->elapsedTime;
+	for (auto & animation : scene->walkAnimation.boneAnimations)
 	{
-		// tDirection = 0;
-		tDirection *= -1;
-	}
+		u32 boneIndex = animation.boneIndex;
+		s32 & currentKeyframeIndex = animationKeyframeIndex[boneIndex];
+		if (animationTime > animation.rotations[currentKeyframeIndex].time)
+		{
+			currentKeyframeIndex += 1;
+			currentKeyframeIndex %= animation.rotations.count();
+		}
 
-	rotation += 2 * direction * input->elapsedTime;
-	if (rotation > 0.5f || rotation < -0.5f)
-		direction *= -1;
+		u32 previousKeyframeIndex 	= currentKeyframeIndex == 0 ? 2 : currentKeyframeIndex - 1;
+		auto previousKeyframe 		= animation.rotations[previousKeyframeIndex];
+		auto currentKeyframe 		= animation.rotations[currentKeyframeIndex];
+		
+		float previousKeyFrameTime 	= previousKeyframe.time;
+		float currentKeyFrameTime 	= currentKeyframe.time;
 
-	int boneCount = scene->skeleton.bones.count();
-	for (int i = 0; i < boneCount; ++i)
-	{
-		scene->skeleton.bones[i].boneSpaceTransform = interpolate(	scene->poses[0].boneSpaceTransforms[i],
-																	scene->poses[1].boneSpaceTransforms[i],
-																	t);
+		/* Note(Leo): We need to use modulated time here, so that interpolation works right, but also 
+		unmodulated above for checking keyframe changes for each boneanimation. */
+		float  moduloedAnimationTime = modulo(animationTime, scene->walkAnimation.duration);
+		float relativeTime 			= (moduloedAnimationTime - previousKeyFrameTime) / (currentKeyFrameTime - previousKeyFrameTime);
+
+		auto & target = scene->skeleton.bones[boneIndex].boneSpaceTransform;
+		target.rotation = interpolate(previousKeyframe.rotation, currentKeyframe.rotation, relativeTime); 
 	}
+	animationTime = modulo(animationTime, scene->walkAnimation.duration);
+
 
 	debug::draw_axes(	graphics,
 						get_matrix(*scene->characterController.transform) * get_model_space_transform(scene->skeleton, 4),
@@ -157,6 +162,7 @@ Scene3d::update(	void * 					scenePtr,
 	auto result = update_scene_gui(&scene->gui, input, graphics, functions);
 	return result;
 }
+
 
 void 
 Scene3d::load(	void * 						scenePtr, 
@@ -274,7 +280,9 @@ Scene3d::load(	void * 						scenePtr,
 	// Characters
 	Transform3D * characterTransform = {};
 	{
+		std::cout << "trying to load skeleton\n";
 		scene->skeleton = load_skeleton_glb(persistentMemory, "assets/models/cube_head.glb", "cube_head");
+		std::cout << "succeeded to load skeleton\n";
 
 		u32 boneCount = scene->skeleton.bones.count();
 		scene->poses[0].boneSpaceTransforms = push_array<Transform3D>(persistentMemory, boneCount);
@@ -285,25 +293,67 @@ Scene3d::load(	void * 						scenePtr,
 			scene->poses[1].boneSpaceTransforms[i] = scene->skeleton.bones[i].boneSpaceTransform;
 		}
 
-		auto rotation0 = quaternion::euler_angles({to_radians(20), 0, to_radians(45)});
-		auto rotation1 = quaternion::euler_angles({to_radians(20), 0, -to_radians(45)});
 
 		// std::cout << rotation0 << ", " << rotation1 << "\n";
 
-		scene->poses[0].boneSpaceTransforms[4].rotation *= rotation0;
-		scene->poses[1].boneSpaceTransforms[4].rotation *= rotation1;
+		auto find_bone_index = [](Skeleton const & skeleton, char const * name) -> s32
+		{
+			for (s32 i = 0; i < skeleton.bones.count(); ++i)
+			{
+				if (skeleton.bones[i].name == name)
+				{
+					return i;
+				}
+			}
+			return -1;
+		};
 
-		quaternion pose0 = quaternion::euler_angles(to_radians(135), 0, 0); //quaternion::axis_angle(world::right, 3.0f * pi / 4);
-		quaternion pose1 = quaternion::euler_angles(to_radians(225), 0, 0); //quaternion::axis_angle(world::right, 5.0f * pi / 4);
-		quaternion pose2 = quaternion::euler_angles(to_radians(-45), 0, 0); //quaternion::axis_angle(world::right, -1.0f * pi / 4);
+		scene->walkAnimation = {};
+		scene->walkAnimation.boneAnimations = reserve_array<BoneAnimation>(persistentMemory, 5);
+		scene->walkAnimation.duration = 2.0f;
 
-		scene->poses[0].boneSpaceTransforms[11].rotation = pose0;
-		scene->poses[0].boneSpaceTransforms[14].rotation = pose1;
-		scene->poses[0].boneSpaceTransforms[15].rotation = pose2;
+ 		u32 headIndex 	= find_bone_index(scene->skeleton, "Head");
+		auto rotation0 	= quaternion::euler_angles({to_radians(20), 0, to_radians(45)});
+		auto rotation1 	= quaternion::euler_angles({to_radians(20), 0, -to_radians(45)});
 
-		scene->poses[1].boneSpaceTransforms[11].rotation = pose1;
-		scene->poses[1].boneSpaceTransforms[12].rotation = pose2;
-		scene->poses[1].boneSpaceTransforms[14].rotation = pose0;
+		push_one(	scene->walkAnimation.boneAnimations,
+					{	.boneIndex = headIndex,
+						.rotations = push_array<RotationKeyframe>(persistentMemory, {{0.0f, rotation0}, {1.0f, rotation1}, {2.0f, rotation0}})
+					});
+
+
+		u32 leftThighIndex 	= find_bone_index(scene->skeleton, "Thigh.L");
+		u32 leftShinIndex 	= find_bone_index(scene->skeleton, "Shin.L");
+		u32 rightThighIndex = find_bone_index(scene->skeleton, "Thigh.R");
+		u32 rightShinIndex 	= find_bone_index(scene->skeleton, "Shin.R");
+
+		quaternion pose0 = quaternion::euler_angles(to_radians(135), 0, 0);
+		quaternion pose1 = quaternion::euler_angles(to_radians(225), 0, 0);
+		quaternion pose2 = quaternion::euler_angles(to_radians(-45), 0, 0);
+
+		push_one(	scene->walkAnimation.boneAnimations,
+					{	.boneIndex = leftThighIndex,
+						.rotations = push_array<RotationKeyframe>(persistentMemory, {{0.0f, pose0}, {1.0f, pose1}, {2.0f, pose0}})
+					});
+
+		quaternion leftShinRestpose = scene->skeleton.bones[leftShinIndex].boneSpaceTransform.rotation;
+		push_one(	scene->walkAnimation.boneAnimations,
+					{	.boneIndex = leftShinIndex,
+						.rotations = push_array<RotationKeyframe>(persistentMemory, {{0.0f, leftShinRestpose}, {1.0f, pose2}, {2.0f, leftShinRestpose}})
+					});
+
+		push_one(	scene->walkAnimation.boneAnimations,
+					{ 	.boneIndex = rightThighIndex,
+						.rotations = push_array<RotationKeyframe>(persistentMemory, {{0.0f, pose1}, {1.0f, pose0},{2.0f, pose1}})
+					});
+
+		quaternion rightShinRestpose = scene->skeleton.bones[rightShinIndex].boneSpaceTransform.rotation;
+		push_one(	scene->walkAnimation.boneAnimations,
+					{	.boneIndex = rightShinIndex,
+						.rotations = push_array<RotationKeyframe>(persistentMemory, {{0.0f, pose2}, {1.0f, rightShinRestpose}, {2.0f, pose2}})
+					});
+
+		// ------------------------------------------------------------------------------------------------------------
 
 		auto girlMeshAsset = load_model_glb(transientMemory, "assets/models/cube_head.glb", "cube_head");
 		auto girlMesh = functions->push_mesh(graphics, &girlMeshAsset);

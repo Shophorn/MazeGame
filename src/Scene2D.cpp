@@ -24,8 +24,8 @@ namespace scene_2d
 		CharacterControllerSideScroller characterController;
 
 		// Todo(Leo): make animation state controller or similar for these
-		AnimationClip 	laddersUpAnimation;
-		AnimationClip 	laddersDownAnimation;
+		Animation laddersUpAnimation;
+		Animation laddersDownAnimation;
 
 		// Todo(Leo): make controller for these
 		CharacterControllerSideScroller::LadderTriggerFunc ladderTrigger1;
@@ -269,14 +269,14 @@ scene_2d::load(	void * scenePtr,
 			auto bones2 = reserve_array<Transform3D*>(persistentMemory, 6);
 
 			int ladderRigBoneCount = 6;
-			auto animations = reserve_array<Animation>(persistentMemory, ladderRigBoneCount);
+			auto animations = reserve_array<BoneAnimation>(persistentMemory, ladderRigBoneCount);
 
 			auto parent1 = root1;
 			auto parent2 = root2;
 			
 			int ladder2StartIndex = 6;
 			int ladderCount = 12;
-			for (int ladderIndex = 0; ladderIndex < ladderCount; ++ladderIndex)
+			for (u32 ladderIndex = 0; ladderIndex < ladderCount; ++ladderIndex)
 			{
 				auto model 	= push_model(ladderMeshHandle, materials.environment);
 				auto transform 	= allocate_transform(&scene->transformStorage, {});
@@ -295,10 +295,10 @@ scene_2d::load(	void * scenePtr,
 	
 					// Todo(Leo): only one animation needed, move somewhere else				
 					auto keyframes = push_array(persistentMemory, {
-						Keyframe{(ladderIndex % ladder2StartIndex) * 0.12f, {0, 0, 0}},
-						Keyframe{((ladderIndex % ladder2StartIndex) + 1) * 0.15f, {0, 0, ladderHeight}}
+						PositionKeyframe{(ladderIndex % ladder2StartIndex) * 0.12f, {0, 0, 0}},
+						PositionKeyframe{((ladderIndex % ladder2StartIndex) + 1) * 0.15f, {0, 0, ladderHeight}}
 					});
-					push_one(animations, {keyframes});
+					push_one(animations, {ladderIndex, keyframes});
 				}
 				else
 				{
@@ -308,7 +308,7 @@ scene_2d::load(	void * scenePtr,
 				}
 			}	
 
-			scene->laddersUpAnimation 	= make_animation_clip(animations);
+			scene->laddersUpAnimation 	= make_animation(animations);
 			scene->laddersDownAnimation = duplicate_animation_clip(persistentMemory, &scene->laddersUpAnimation);
 			reverse_animation_clip(&scene->laddersDownAnimation);
 
