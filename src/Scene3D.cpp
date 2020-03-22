@@ -58,7 +58,7 @@ struct Scene3d
 	Animation walkAnimation;
 	// BoneAnimation testAnimation;
 
-	Pose poses [2];
+	// Pose poses [2];
 
 	ModelHandle skybox;
 
@@ -147,7 +147,6 @@ Scene3d::update(	void * 					scenePtr,
 	}
 	animationTime = modulo(animationTime, scene->walkAnimation.duration);
 
-
 	debug::draw_axes(	graphics,
 						get_matrix(*scene->characterController.transform) * get_model_space_transform(scene->skeleton, 4),
 						functions);
@@ -162,7 +161,6 @@ Scene3d::update(	void * 					scenePtr,
 	auto result = update_scene_gui(&scene->gui, input, graphics, functions);
 	return result;
 }
-
 
 void 
 Scene3d::load(	void * 						scenePtr, 
@@ -280,21 +278,7 @@ Scene3d::load(	void * 						scenePtr,
 	// Characters
 	Transform3D * characterTransform = {};
 	{
-		std::cout << "trying to load skeleton\n";
 		scene->skeleton = load_skeleton_glb(persistentMemory, "assets/models/cube_head.glb", "cube_head");
-		std::cout << "succeeded to load skeleton\n";
-
-		u32 boneCount = scene->skeleton.bones.count();
-		scene->poses[0].boneSpaceTransforms = push_array<Transform3D>(persistentMemory, boneCount);
-		scene->poses[1].boneSpaceTransforms = push_array<Transform3D>(persistentMemory, boneCount);
-		for (int i = 0; i < boneCount; ++i)
-		{
-			scene->poses[0].boneSpaceTransforms[i] = scene->skeleton.bones[i].boneSpaceTransform;
-			scene->poses[1].boneSpaceTransforms[i] = scene->skeleton.bones[i].boneSpaceTransform;
-		}
-
-
-		// std::cout << rotation0 << ", " << rotation1 << "\n";
 
 		auto find_bone_index = [](Skeleton const & skeleton, char const * name) -> s32
 		{

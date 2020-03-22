@@ -110,8 +110,10 @@ load_skeleton_glb(MemoryArena * memoryArena, char const * filePath, char const *
 		if (node.HasMember("name"))
 		{
 			result.bones[i].name = node["name"].GetString();
-
-			std::cout << "bone has a name " << result.bones[i].name << "\n";
+ 		}
+		else
+		{
+			result.bones[i].name = "nameless bone";
 		}
 		
 		// Note(Leo): Do this only for non-root bones

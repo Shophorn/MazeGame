@@ -44,24 +44,23 @@ struct MemoryArena
 	// Todo(Leo): Is this appropriate??
 	static constexpr u64 defaultAlignment = sizeof(u64);
 
-	byte * 	memory;
+	void * 	memory;
 	u64 	size;
 	u64 	used;
 
-	byte * next () { return memory + used; }
+	void * next () { return (u8*)memory + used; }
 	u64 available () { return size - used; }
 };
 
-internal byte *
-allocate_from_memory_arena(MemoryArena * arena, u64 size, bool clear = false)
+internal void *
+allocate(MemoryArena & arena, s64 size, bool clear = false)
 {
 	size = align_up_to(size, MemoryArena::defaultAlignment);
-	
-	// Todo(Leo): this seems like we would like to throw an actual exception, so we find who did what
-	DEBUG_ASSERT(size <= arena->available(), "Not enough memory available in MemoryArena");
 
-	byte * result = arena->next();
-	arena->used += size;
+	DEBUG_ASSERT(size <= arena.available(), "Not enough memory available in MemoryArena");
+
+	void * result = arena.next();
+	arena.used += size;
 
 	if (clear)
 	{
@@ -69,6 +68,7 @@ allocate_from_memory_arena(MemoryArena * arena, u64 size, bool clear = false)
 	}
 
 	return result;
+
 }
 
 internal MemoryArena
@@ -92,6 +92,88 @@ flush_memory_arena(MemoryArena * arena)
 ///////////////////////////////////////
 ///         ARENA ARRAY 			///
 ///////////////////////////////////////
+
+template<typename T>
+struct Array
+{
+	T & operator[](s64 index) { return data_[index]; }
+	T operator[](s64 index) const { return data_[index]; }
+
+	s64 push(T value)
+	{
+		assert(0 < capacity_);
+		assert(count_ < capacity_);
+
+		s64 index = count_++;
+		data_[index] = value;
+		return index;
+	}
+
+	s64 count() const { return count_; }
+	T * data() const { return data_; }
+
+	Array(s64 capacity, s64 count, T * data) : capacity_(capacity), count_(count), data_(data) {}
+	Array(Array const &) = delete;
+
+private:
+	s64 capacity_;
+	s64 count_;
+	T * data_;
+};
+
+template <typename T>
+T * begin(Array<T> & array) {return array.data();}
+
+template <typename T>
+T * end(Array<T> & array) {return array.data()+ array.count();}
+
+template<typename T>
+T const * begin(Array<T> const & array) {return array.data();}
+
+template<typename T>
+T const * end(Array<T> const & array) {return array.data() + array.count();}
+
+
+template<typename T>
+Array<T> allocate_array(MemoryArena & memoryArena, u64 capacity)
+{
+	u64 size = sizeof(T) * capacity;
+	T * memory = static_cast<T*>(allocate(memoryArena, size));
+	return Array(capacity, 0, memory);
+};
+
+void test_arena_array_2_2(Array<int> const & array)
+{
+
+}
+
+void test_arena_array_2()
+{
+	MemoryArena arena;
+
+	auto array = allocate_array<int>(arena, 20);
+
+	test_arena_array_2_2(array);
+
+	array.push(2);
+	array.push(3);
+
+	for(int i : array)
+	{
+		std::cout << i << "\n";
+	}
+
+
+	auto const & array2 = array;
+
+	for (int i : array2)
+	{
+		std::cout << i << "\n";
+	}
+}
+
+
+
 
 struct ArrayHeader
 {
@@ -126,11 +208,14 @@ ARENA_ARRAY_TEMPLATE struct ArenaArray
 		return begin()[index];
 	}
 
-	T operator [] (TIndex index) const
+	T const & operator [] (TIndex index) const
 	{
 		assert_index_validity(index);
 		return begin()[index];
 	}
+
+	T & last () { return begin()[count() - 1]; }
+	T const & last () const { return begin()[count() - 1]; }
 
 private:
 	inline ArrayHeader * 
@@ -188,7 +273,7 @@ reserve_array(MemoryArena * arena, u64 capacity)
 	/* Todo(Leo): make proper alignement between these two too, now it works fine,
 	since header aligns on 64 anyway */
 	u64 size = sizeof(ArrayHeader) + (sizeof(T) * capacity);
-	byte * memory = allocate_from_memory_arena(arena, size);
+	byte * memory = (byte*)allocate(*arena, size);
 
 	ArenaArray<T, TIndex> result =
 	{

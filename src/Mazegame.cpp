@@ -115,7 +115,7 @@ load_scene(	GameState * state,
 {
 	state->loadedSceneInfo = scene;
 
-	state->loadedScene = allocate_from_memory_arena(&state->persistentMemoryArena, scene.get_alloc_size(), true);
+	state->loadedScene = allocate(state->persistentMemoryArena, scene.get_alloc_size(), true);
 	scene.load(	state->loadedScene,
 				&state->persistentMemoryArena,
 				&state->transientMemoryArena,

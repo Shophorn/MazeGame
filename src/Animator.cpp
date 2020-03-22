@@ -198,16 +198,9 @@ compute_duration (ArenaArray<BoneAnimation> const & animations)
 
 	for (auto & animation : animations)
 	{
-		for (auto & keyframe : animation.positions)
-		{
-			duration = math::max(duration, keyframe.time);
-		}
+		duration = math::max(duration, animation.positions.last().time);
+		// duration = math::max(duration, animation.rotations.last().time);
 
-		// Todo(Leo): Lol, current arena array does not work if uninitialized
-		// for (auto & keyframe : animations[animationIndex].rotations)
-		// {
-		// 	duration = math::max(duration, keyframe.time);
-		// }	
 	}
 
 	return duration;
