@@ -255,7 +255,7 @@ vulkan::finish_drawing(VulkanContext * context)
 
 
 void
-vulkan::record_draw_command(VulkanContext * context, ModelHandle model, m44 transform, bool32 castShadow, m44 * bones, u32 bonesCount)
+vulkan::record_draw_command(VulkanContext * context, ModelHandle model, m44 transform, bool32 castShadow, m44 const * bones, u32 bonesCount)
 {
     assert(context->canDraw);
 

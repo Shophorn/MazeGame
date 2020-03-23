@@ -7,7 +7,7 @@ Terrain generator prototype
 
 struct HeightMap
 {
-	ArenaArray<float> 	values;
+	Array<float> 	values;
 	u32 				gridSize;
 	float				worldSize;
 	float 				minHeight;
@@ -54,10 +54,10 @@ get_height_at(HeightMap * map, vector2 relativePosition)
 internal HeightMap
 make_heightmap(MemoryArena * memory, TextureAsset * texture, u32 gridSize, float worldSize, float minHeight, float maxHeight)
 {
-	u64 pixelCount 				= gridSize * gridSize;
-	ArenaArray<float> heightValues 	= push_array<float>(memory, pixelCount);
+	u64 pixelCount 		= gridSize * gridSize;
+	auto heightValues 	= allocate_array<float>(*memory, pixelCount, ALLOC_FILL_UNINITIALIZED);
 
-	float textureScale = 1.0f / gridSize;
+	float textureScale 	= 1.0f / gridSize;
 
 	auto get_value = [texture](u32 u, u32 v) -> float
 	{
@@ -97,7 +97,7 @@ make_heightmap(MemoryArena * memory, TextureAsset * texture, u32 gridSize, float
 	}
 
 	return {
-		.values 	= heightValues,
+		.values 	= std::move(heightValues),
 		.gridSize 	= gridSize,
 		.worldSize 	= worldSize,
 
@@ -117,8 +117,8 @@ generate_terrain(	MemoryArena * memory,
 	s32 quadCountPerSide 		= heightMap->gridSize - 1;
 	s32 triangleIndexCount 	= 6 * quadCountPerSide * quadCountPerSide;
 
-	BETTERArray<Vertex> vertices	= allocate_BETTER_array<Vertex>(*memory, vertexCount);
-	BETTERArray<u16> indices	= allocate_BETTER_array<u16>(*memory, triangleIndexCount);
+	Array<Vertex> vertices	= allocate_array<Vertex>(*memory, vertexCount);
+	Array<u16> indices	= allocate_array<u16>(*memory, triangleIndexCount);
 
 	float scale = heightMap->worldSize / heightMap->gridSize;
 	texcoordScale = texcoordScale / heightMap->gridSize;

@@ -7,7 +7,7 @@ Description of menu scene.
 
 struct MenuScene
 {
-    ArenaArray<Rectangle> buttons;
+    Array<Rectangle> buttons;
     s32 selectedIndex;
     MaterialHandle material;
 
@@ -51,12 +51,9 @@ MenuScene::load(void * guiPtr,
     auto texture        = functions->push_texture(graphics, &textureAsset);
     gui->material       = functions->push_gui_material(graphics, texture);
 
-    gui->buttons = push_array(persistentMemory,{
-                                Rectangle {810, 380, 300, 100},
-                                Rectangle {810, 500, 300, 100},
-                                Rectangle {810, 620, 300, 100}
-                            });
-
+    gui->buttons = allocate_array(*persistentMemory,{    Rectangle {810, 380, 300, 100},
+                                                                Rectangle {810, 500, 300, 100},
+                                                                Rectangle {810, 620, 300, 100} });
     gui->selectedIndex = 0;
 }
 

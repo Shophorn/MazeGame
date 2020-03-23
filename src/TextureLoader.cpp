@@ -10,7 +10,7 @@ Todo(Leo):
 #include <stb_image.h>
 
 internal TextureAsset
-make_texture_asset(BETTERArray<u32> pixels, s32 width, s32 height, s32 channels = 4)
+make_texture_asset(Array<u32> pixels, s32 width, s32 height, s32 channels = 4)
 {
     TextureAsset result = 
     {
@@ -32,7 +32,7 @@ load_texture_asset(const char * assetPath, MemoryArena * memoryArena)
 
     auto begin  = reinterpret_cast<u32*>(stbi_pixels);
     auto end    = begin + (width * height);
-    auto pixels = allocate_BETTER_array<u32>(*memoryArena, begin, end);
+    auto pixels = allocate_array<u32>(*memoryArena, begin, end);
 
     auto result = make_texture_asset(std::move(pixels), width, height);
 

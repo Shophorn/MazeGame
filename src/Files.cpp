@@ -90,13 +90,13 @@ namespace glTF
 using JsonDocument 	= rapidjson::Document;
 using JsonValue 	= rapidjson::Value;
 
-using BinaryBuffer 	= BETTERArray<byte>;
-using TextBuffer 	= BETTERArray<char>;
+using BinaryBuffer 	= Array<byte>;
+using TextBuffer 	= Array<char>;
 
 template<typename T>
 struct ArrayView
 {
-	BETTERArray<T> * array;
+	Array<T> * array;
 	u64 offset;
 	u64 count;
 	T * data() { return array->data + offset; }
@@ -227,7 +227,7 @@ read_binary_file(MemoryArena * memoryArena, const char * path)
 	// 							std::ios::in|std::ios::binary);
 
 	u64 size 	= get_ifstream_length(file);
-	auto result 	= allocate_BETTER_array<byte>(*memoryArena, size);
+	auto result 	= allocate_array<byte>(*memoryArena, size);
 	auto bufferPtr 	= reinterpret_cast<char *>(result.begin());
 
 	file.read(bufferPtr, size);

@@ -12,9 +12,7 @@ but compulsory design choices, look at:
 #include <type_traits>
 #include <cstring>
 
-///////////////////////////////////
-/// 	STATIC ARRAY 			///
-///////////////////////////////////
+// ----------------------------------------------------------------------------
 
 template<typename T, u32 Count>
 struct StaticArray
@@ -35,10 +33,8 @@ struct StaticArray
 	}
 };
 
-///////////////////////////////////////
-///         MEMORY ARENA 			///
-///////////////////////////////////////
-/* Todo(Leo): maybe add per item deallocation for arrays eg.*/
+// ----------------------------------------------------------------------------
+
 struct MemoryArena
 {
 	// Todo(Leo): Is this appropriate??
@@ -89,21 +85,17 @@ flush_memory_arena(MemoryArena * arena)
 	arena->used = 0;
 }
 
-///////////////////////////////////////
-///         ARENA ARRAY 			///
-///////////////////////////////////////
+// ----------------------------------------------------------------------------
 
 template<typename T>
-struct BETTERArray
+struct Array
 {
-	BETTERArray() = default;
+	Array() = default;
 	
-	BETTERArray(BETTERArray const &) = delete;
-	void operator =(BETTERArray const &) = delete;
+	Array(Array const &) = delete;
+	void operator =(Array const &) = delete;
 
-
-
-	BETTERArray(BETTERArray && old)
+	Array(Array && old)
 	{
 		this->memory_ 	= old.memory_;
 		this->capacity_ = old.capacity_;
@@ -114,7 +106,7 @@ struct BETTERArray
 		old.count_ 		= 0;
 	};
 
-	BETTERArray & operator= (BETTERArray && old)
+	Array & operator= (Array && old)
 	{
 		this->memory_ 	= old.memory_;
 		this->capacity_ = old.capacity_;
@@ -127,8 +119,7 @@ struct BETTERArray
 		return *this;
 	};
 
-
-	BETTERArray(T * memory, u64 count, u64 capacity) :
+	Array(T * memory, u64 count, u64 capacity) :
 		memory_(memory),
 		count_(count),
 		capacity_(capacity) {}
@@ -144,7 +135,8 @@ struct BETTERArray
 		return memory_[index];
 	}
 
-	T const operator[] (u64 index) const
+	// Todo(Leo): use enable if to make a version of this to return value for simpler types
+	T const & operator[] (u64 index) const
 	{ 
 		assert(index < count_);
 		return memory_[index];
@@ -153,7 +145,7 @@ struct BETTERArray
 	void push(T value)
 	{
 		assert(count_ < capacity_);
-		memory_[count_] = value;
+		memory_[count_] = std::move(value);
 		++count_;
 	}
 
@@ -177,6 +169,8 @@ struct BETTERArray
 	T * end() {return data() + count();}
 	T const * end() const {return memory_ + count();}
 
+	T & last() { return memory_[count_ - 1]; }
+	T last() const { return memory_[count_ - 1]; }
 
 private:
 	T * memory_;
@@ -185,7 +179,7 @@ private:
 };
 
 template<typename T>
-BETTERArray<T> allocate_BETTER_array(MemoryArena & arena, T const * srcBegin, T const * srcEnd)
+Array<T> allocate_array(MemoryArena & arena, T const * srcBegin, T const * srcEnd)
 {
 	u64 capacity 	= srcEnd - srcBegin;
 	u64 size 		= sizeof(T) * capacity;
@@ -194,15 +188,17 @@ BETTERArray<T> allocate_BETTER_array(MemoryArena & arena, T const * srcBegin, T 
 
 	std::copy(srcBegin, srcEnd, memory);
 
-	return BETTERArray<T>(memory, capacity, capacity);
+	return Array<T>(memory, capacity, capacity);
 }
 
 template<typename T>
-BETTERArray<T> allocate_BETTER_array(MemoryArena & arena, std::initializer_list<T> values)
+Array<T> allocate_array(MemoryArena & arena, std::initializer_list<T> values)
 {
-	return allocate_BETTER_array(arena, values.begin(), values.end());
+	return allocate_array(arena, values.begin(), values.end());
 }
 
+
+// Todo(Leo): Extra stupid to use
 enum AllocOperation
 {
 	ALLOC_EMPTY,
@@ -211,7 +207,7 @@ enum AllocOperation
 };
 
 template<typename T>
-BETTERArray<T> allocate_BETTER_array(MemoryArena & arena, u64 capacity, AllocOperation allocOperation = ALLOC_EMPTY)
+Array<T> allocate_array(MemoryArena & arena, u64 capacity, AllocOperation allocOperation = ALLOC_EMPTY)
 {
 	u64 size = sizeof(T) * capacity;
 
@@ -235,12 +231,17 @@ BETTERArray<T> allocate_BETTER_array(MemoryArena & arena, u64 capacity, AllocOpe
 
 	}
 
-	return BETTERArray<T>(memory, count, capacity);
+	return Array<T>(memory, count, capacity);
 }
 
 template<typename T>
-BETTERArray<T> copy_BETTER_array(MemoryArena & arena, BETTERArray<T> const & other)
-{
+Array<T> copy_array(MemoryArena & arena, Array<T> const & other)
+{	
+	if(other.data() == nullptr)
+	{
+		return {};
+	}
+
 	u64 count = other.count();
 	u64 capacity = other.capacity();
 	u64 size = sizeof(T) * capacity;
@@ -249,183 +250,11 @@ BETTERArray<T> copy_BETTER_array(MemoryArena & arena, BETTERArray<T> const & oth
 
 	std::copy(other.begin(), other.end(), memory);
 
-	return BETTERArray<T>(memory, count, capacity);	
+	return Array<T>(memory, count, capacity);	
 }
 
-// template<typename TNew, typename TOld>
-// BETTERArray<TNew> cast_memory_type(BETTERArray<TOld> old)
-// {
-// 	u64 capacity = old.capacity_ * sizeof(TOld) / sizeof(TNew);
-// 	u64 count = old.count_ * sizeof(TOld) / sizeof (TNew);
-
-// 	TNew * memory = reinterpret_cast<TNew*>(old.memory_);
-
-// 	return BETTERArray<TNew>(memory, count, capacity);
-// }
-
-struct ArrayHeader
-{
-	u64 capacityInBytes;
-	u64 countInBytes;
-};
-
-#define ARENA_ARRAY_TEMPLATE template<typename T, typename TIndex = u64>
-
-ARENA_ARRAY_TEMPLATE struct ArenaArray
-{
-	// Todo(Leo): Do we need more constraints?
-	static_assert(std::is_trivially_destructible<T>::value, "Only simple types suppported");
-
-	/* Todo(Leo): Maybe make this also just an offset from start of arena.
-	And store pointer to arena instead? */
-	byte * data_;
-
-	u64 capacity () const { return ( get_header()->capacityInBytes) / sizeof(T); }
-	u64 count ()  	const { return ( get_header()->countInBytes) / sizeof(T); }
-
-	// Todo(Leo): Maybe make these free functions too.
-	T * begin() 	{ return reinterpret_cast<T*>(data_ + sizeof(ArrayHeader)); }
-	T * end() 		{ return begin() + count(); }
-
-	T const * begin() const	{ return reinterpret_cast<T const *>(data_ + sizeof(ArrayHeader)); }
-	T const * end() const	{ return begin() + count(); }
-
-	T & operator [] (TIndex index)
-	{
-		assert_index_validity(index);
-		return begin()[index];
-	}
-
-	T const & operator [] (TIndex index) const
-	{
-		assert_index_validity(index);
-		return begin()[index];
-	}
-
-	T & last () { return begin()[count() - 1]; }
-	T const & last () const { return begin()[count() - 1]; }
-
-private:
-	inline ArrayHeader * 
-	get_header () const
-	{ 
-		DEBUG_ASSERT(data_ != nullptr, "Invalid call to 'get_header()', ArenaArray is not initialized.");
-		return reinterpret_cast<ArrayHeader*>(data_);
-	}
-
-	inline void
-	assert_index_validity(TIndex index) const
-	{
-		#if MAZEGAME_DEVELOPMENT
-			char message [200];
-			sprintf(message,"Index (%d) is more than count (%d)", index, count());
-			DEBUG_ASSERT (index < count(), message);
-		#endif
-	}
-};
-
-namespace arena_array_internal_
-{
-	ARENA_ARRAY_TEMPLATE internal ArrayHeader *
-	get_header(ArenaArray<T, TIndex> array)
-	{
-		DEBUG_ASSERT(array.data_ != nullptr, "Invalid call to 'arena_array_internal_::get_header()', ArenaArray is not initialized.");
-		return reinterpret_cast<ArrayHeader *>(array.data_);
-	}
-
-	ARENA_ARRAY_TEMPLATE internal void 
-	set_capacity(ArenaArray<T, TIndex> array, u64 capacity)
-	{
-		u64 capacityInBytes = capacity * sizeof(T);
-		get_header(array)->capacityInBytes = capacityInBytes;
-	}
-
-	ARENA_ARRAY_TEMPLATE internal void 
-	set_count(ArenaArray<T, TIndex> array, u64 count)
-	{
-		u64 countInBytes = count * sizeof(T);
-		get_header(array)->countInBytes = countInBytes;
-	}
-
-	ARENA_ARRAY_TEMPLATE internal void
-	increment_count(ArenaArray<T, TIndex> array, u64 increment)
-	{
-		u64 newCount = array.count() + increment;
-		set_count(array, newCount);
-	}
-} // arena_array_internal_
-
-ARENA_ARRAY_TEMPLATE internal ArenaArray<T, TIndex>
-reserve_array(MemoryArena * arena, u64 capacity)
-{
-	/* Todo(Leo): make proper alignement between these two too, now it works fine,
-	since header aligns on 64 anyway */
-	u64 size = sizeof(ArrayHeader) + (sizeof(T) * capacity);
-	byte * memory = (byte*)allocate(*arena, size);
-
-	ArenaArray<T, TIndex> result =
-	{
-		.data_ = memory
-	};
-	arena_array_internal_::set_capacity (result, capacity);
-	arena_array_internal_::set_count(result, 0);
-
-	return result;
-}
-
-ARENA_ARRAY_TEMPLATE internal ArenaArray<T, TIndex>
-push_array(MemoryArena * arena, u64 capacity)
-{
-	auto result	= reserve_array<T, TIndex>(arena, capacity);
-	arena_array_internal_::set_count(result, capacity);
-
-	return result;
-}
-
-
-ARENA_ARRAY_TEMPLATE internal ArenaArray<T, TIndex>
-push_array(MemoryArena * arena, const T * begin, const T * end)
-{
-	u64 count 	= end - begin;
-	auto result 	= push_array<T, TIndex>(arena, count);
-	std::copy(begin, end, result.begin());
-
-	return result;
-}
-
-ARENA_ARRAY_TEMPLATE internal ArenaArray<T, TIndex>
-push_array(MemoryArena * arena, std::initializer_list<T> items)
-{
-	auto result = push_array<T, TIndex>(arena, items.begin(), items.end());
-	return result;
-}
-
-ARENA_ARRAY_TEMPLATE internal ArenaArray<T, TIndex>
-copy_array_slice(MemoryArena * arena, ArenaArray<T, TIndex> original, TIndex start, u64 count)
-{
-	DEBUG_ASSERT((start + count) <= original.capacity(), "Invalid copy slice region");
-
-	auto * begin 	= original.begin() + start;
-	auto * end 		= begin + count;
-	auto result 	= push_array<T, TIndex>(arena, begin, end);
-
-	return result;
-}
-
-ARENA_ARRAY_TEMPLATE internal ArenaArray<T, TIndex>
-duplicate_array(MemoryArena * arena, ArenaArray<T, TIndex> original)
-{
-	auto result = reserve_array<T, TIndex>(arena, original.capacity());
-	arena_array_internal_::set_count(result, original.count());
-
-	// Todo(Leo): Make own memory copies for the sake of education
-	std::copy(original.begin(), original.end(), result.begin());
-
-	return result;
-}
-
-ARENA_ARRAY_TEMPLATE internal void
-reverse_arena_array(ArenaArray<T, TIndex> array)
+template<typename T>
+void reverse_BETTER_array(Array<T> & array)
 {
 	T temp = array[0];
 	u64 halfCount = array.count() / 2;
@@ -436,56 +265,5 @@ reverse_arena_array(ArenaArray<T, TIndex> array)
 		temp = array[i];
 		array[i] = array[lastIndex -i];
 		array[lastIndex - i] = temp;
-	}
+	}	
 }
-
-ARENA_ARRAY_TEMPLATE internal TIndex
-push_one(ArenaArray<T, TIndex> array, T item)
-{
-	DEBUG_ASSERT(array.capacity() > 0, "Cannot push, ArenaArray is not initialized!");
-	DEBUG_ASSERT(array.count() < array.capacity(), "Cannot push, ArenaArray is full!");
-
-	TIndex index = {array.count()};
-	*array.end() = item;
-	arena_array_internal_::increment_count(array, 1);
-
-	return index;
-}
-
-ARENA_ARRAY_TEMPLATE internal void
-push_range(ArenaArray<T, TIndex> array, const T * begin, const T * end)
-{
-	u64 rangeLength = end - begin;
-
-	DEBUG_ASSERT(array.capacity() > 0, "Cannot push, ArenaArray is not initialized!");
-	DEBUG_ASSERT((rangeLength + array.count()) <= array.capacity(), "Cannot push, ArenaArray is full!");
-
-	std::copy(begin, end, array.end());
-	arena_array_internal_::increment_count(array, rangeLength);
-}
-
-ARENA_ARRAY_TEMPLATE internal void
-push_many(ArenaArray<T, TIndex> array, std::initializer_list<T> items)
-{
-	push_range(array, items.begin(), items.end());
-}
-
-ARENA_ARRAY_TEMPLATE internal void
-flush_arena_array(ArenaArray<T, TIndex> array)
-{
-	arena_array_internal_::set_count(array, 0);
-}
-
-#undef ARENA_ARRAY_TEMPLATE
-
-
-#if MAZEGAME_DEVELOPMENT
-internal float 
-get_arena_used_percent(MemoryArena * memoryArena)
-{
-	real64 used = memoryArena->used;
-	real64 total = memoryArena->size;
-	real32 result = static_cast<real32>(used / total * 100.0);
-	return result;
-}
-#endif

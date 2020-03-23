@@ -129,7 +129,7 @@ namespace platform
 		void (*finish_frame) 	(Graphics*);
 		void (*update_camera) 	(Graphics*, Camera const *);
 		void (*update_lighting)	(Graphics*, Light const *, Camera const * camera, v3 ambient);
-		void (*draw_model) 		(Graphics*, ModelHandle model, m44 transform, bool32 castShadow, m44 * bones, u32 boneCount);
+		void (*draw_model) 		(Graphics*, ModelHandle model, m44 transform, bool32 castShadow, m44 const * bones, u32 boneCount);
 		void (*draw_line) 		(Graphics*, v3 start, v3 end, float width, float4 color);
 		void (*draw_gui) 		(Graphics*, vector2 position, vector2 size, MaterialHandle material, float4 color);
 

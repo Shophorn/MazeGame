@@ -434,7 +434,7 @@ namespace vulkan
 	/// INTERNAL RESOURCES, VULKAN TYPES
     internal VkRenderPass 			make_vk_render_pass(VulkanContext*, VkFormat format, VkSampleCountFlagBits msaaSamples);
 	internal VkDescriptorSetLayout 	make_material_vk_descriptor_set_layout(VkDevice device, u32 textureCount);
-	internal VkDescriptorSet 		make_material_vk_descriptor_set(VulkanContext*, PipelineHandle pipeline, BETTERArray<TextureHandle> const & textures);
+	internal VkDescriptorSet 		make_material_vk_descriptor_set(VulkanContext*, PipelineHandle pipeline, Array<TextureHandle> const & textures);
 	internal VkDescriptorSet 		make_material_vk_descriptor_set(VulkanContext*, 
 																	VulkanLoadedPipeline * pipeline,
 																	VulkanTexture * texture,
@@ -456,7 +456,7 @@ namespace vulkan
 	internal void finish_drawing 			(VulkanContext*);
     internal void update_camera				(VulkanContext*, Camera const *);
     internal void update_lighting			(VulkanContext*, Light const *, Camera const *, v3 ambient);
-	internal void record_draw_command 		(VulkanContext*, ModelHandle handle, m44 transform, bool32 castShadow, m44 * bones, u32 bonesCount);
+	internal void record_draw_command 		(VulkanContext*, ModelHandle handle, m44 transform, bool32 castShadow, m44 const * bones, u32 bonesCount);
 	internal void record_line_draw_command	(VulkanContext*, v3 start, v3 end, float width, float4 color);
 	internal void record_gui_draw_command	(VulkanContext*, vector2 position, vector2 size, MaterialHandle material, float4 color);
 

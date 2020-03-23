@@ -27,8 +27,8 @@ struct Collider2D
 
 struct CollisionManager2D
 {
-	BETTERArray<Collider2D> colliders;
-	BETTERArray<Collision2D> collisions;
+	Array<Collider2D> colliders;
+	Array<Collision2D> collisions;
 
 	bool32
 	raycast(vector2 origin, vector2 ray, bool32 laddersBlock)

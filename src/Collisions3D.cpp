@@ -12,8 +12,8 @@ struct CollisionSystemEntry
 
 struct CollisionSystem3D
 {
-	BETTERArray<CollisionSystemEntry> entries_;
-	BETTERArray<BoxCollider3D> colliders_;
+	Array<CollisionSystemEntry> entries_;
+	Array<BoxCollider3D> colliders_;
 
 	// Todo(Leo): include these to above
 	HeightMap terrainCollider;
@@ -23,8 +23,8 @@ struct CollisionSystem3D
 internal void
 allocate_collision_system(CollisionSystem3D * system, MemoryArena * memoryArena, u32 count)
 {
-	system->entries_ = allocate_BETTER_array<CollisionSystemEntry>(*memoryArena, count); 
-	system->colliders_ = allocate_BETTER_array<BoxCollider3D>(*memoryArena, count);
+	system->entries_ = allocate_array<CollisionSystemEntry>(*memoryArena, count); 
+	system->colliders_ = allocate_array<BoxCollider3D>(*memoryArena, count);
 }
 
 internal void

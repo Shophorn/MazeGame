@@ -21,15 +21,15 @@ struct RotationKeyframe
 struct BoneAnimation
 {
 	u32 boneIndex;
-	ArenaArray<PositionKeyframe> positions;
-	ArenaArray<RotationKeyframe> rotations;
+	Array<PositionKeyframe> positions;
+	Array<RotationKeyframe> rotations;
 };
 
 // Data
 // Note(Leo): This is for complete animation, with different keyframes for different bones
 struct Animation
 {
-	BETTERArray<BoneAnimation> boneAnimations;
+	Array<BoneAnimation> boneAnimations;
 	float duration;
 
 	bool loop = false;
@@ -39,9 +39,9 @@ struct Animation
 struct AnimationRig
 {
 	Transform3D * 				root;
-	ArenaArray<Transform3D*> 	bones;
-	ArenaArray<u64> 			currentBonePositionKeyframes;
-	ArenaArray<u64> 			currentBoneRotationKeyframes;
+	Array<Transform3D*> 	bones;
+	Array<u64> 			currentBonePositionKeyframes;
+	Array<u64> 			currentBoneRotationKeyframes;
 };
 
 struct Animator
@@ -68,7 +68,7 @@ struct Bone
 
 struct Skeleton
 {
-	BETTERArray<Bone> bones;
+	Array<Bone> bones;
 };
 
 v3 get_model_space_position(Skeleton const & skeleton, u32 boneIndex)
@@ -98,15 +98,15 @@ m44 get_model_space_transform(Skeleton const & skeleton, u32 boneIndex)
 
 
 internal AnimationRig
-make_animation_rig(Transform3D * root, ArenaArray<Transform3D*> bones, ArenaArray<u64> currentBonePositionKeyframes)
+make_animation_rig(Transform3D * root, Array<Transform3D*> bones, Array<u64> currentBonePositionKeyframes)
 {
 	DEBUG_ASSERT(bones.count() == currentBonePositionKeyframes.count(), "Currently you must pass keyframe array with matching size to bones array. Sorry for inconvenience :)");
 
 	AnimationRig result 
 	{
-		.root 					= root,
-		.bones 					= bones,
-		.currentBonePositionKeyframes 	= currentBonePositionKeyframes
+		.root 							= root,
+		.bones 							= std::move(bones),
+		.currentBonePositionKeyframes 	= std::move(currentBonePositionKeyframes)
 	};
 	return result;
 }
@@ -152,20 +152,24 @@ update_animation_target(BoneAnimation * animation, Transform3D * target, u64 cur
 }
 
 internal Animation
-copy_animation(MemoryArena * memoryArena, Animation * original)
+copy_animation(MemoryArena & memoryArena, Animation const & original)
 {
 	Animation result = 
 	{
-		.boneAnimations = copy_BETTER_array(*memoryArena, original->boneAnimations),
-		.duration = original->duration
+		.boneAnimations = allocate_array<BoneAnimation>(memoryArena, original.boneAnimations.count(), ALLOC_EMPTY),
+		.duration = original.duration
 	};
 
-	for (int childIndex = 0; childIndex < original->boneAnimations.count(); ++childIndex)
+	for (int childIndex = 0; childIndex < original.boneAnimations.count(); ++childIndex)
 	{
-		result.boneAnimations[childIndex].positions = duplicate_array(memoryArena, original->boneAnimations[childIndex].positions);
+		result.boneAnimations.push({original.boneAnimations[childIndex].boneIndex, 
+									copy_array(memoryArena, original.boneAnimations[childIndex].positions),
+									copy_array(memoryArena, original.boneAnimations[childIndex].rotations) });
 	}
 	return result;
 }
+
+
 
 internal void
 reverse_animation_clip(Animation * clip)
@@ -175,7 +179,7 @@ reverse_animation_clip(Animation * clip)
 
 	for (int childIndex = 0; childIndex < childAnimationCount; ++childIndex)
 	{
-		reverse_arena_array(clip->boneAnimations[childIndex].positions);
+		reverse_BETTER_array(clip->boneAnimations[childIndex].positions);
 
 		s32 keyframeCount = clip->boneAnimations[childIndex].positions.count();
 		for (int keyframeIndex = 0; keyframeIndex < keyframeCount; ++keyframeIndex)
@@ -187,7 +191,7 @@ reverse_animation_clip(Animation * clip)
 }
 
 internal float
-compute_duration (BETTERArray<BoneAnimation> const & animations)
+compute_duration (Array<BoneAnimation> const & animations)
 {
 	// Note(Leo): We mitigate risks of copying in that we will just read these
 	float duration = 0;
@@ -203,7 +207,7 @@ compute_duration (BETTERArray<BoneAnimation> const & animations)
 }
 
 internal Animation
-make_animation (BETTERArray<BoneAnimation> animations)
+make_animation (Array<BoneAnimation> animations)
 {
 	float duration = compute_duration(animations);
 
@@ -216,7 +220,7 @@ make_animation (BETTERArray<BoneAnimation> animations)
 }
 
 internal void
-update_animator_system(game::Input * input, BETTERArray<Animator> & animators)
+update_animator_system(game::Input * input, Array<Animator> & animators)
 {
 	for (auto & animator : animators)
 	{
@@ -255,7 +259,7 @@ make_animator(AnimationRig rig)
 {
 	Animator result = 
 	{
-		.rig = rig
+		.rig = std::move(rig)
 	};
 	return result;
 }

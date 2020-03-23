@@ -11,9 +11,9 @@ namespace scene_2d
 {
 	struct Scene
 	{
-		BETTERArray<Transform3D> transformStorage;
-		BETTERArray<RenderSystemEntry> renderSystem;
-		BETTERArray<Animator> animatorSystem;
+		Array<Transform3D> transformStorage;
+		Array<RenderSystemEntry> renderSystem;
+		Array<Animator> animatorSystem;
 
 		// Todo(Leo): make this similar 'system' to others
 		CollisionManager2D collisionManager;
@@ -106,12 +106,12 @@ scene_2d::load(	void * scenePtr,
 	// auto * persistentMemory = &state->persistentMemoryArena;
 	// auto * transientMemory = &state->transientMemoryArena;
 
-	scene->transformStorage = allocate_BETTER_array<Transform3D>(*persistentMemory, 100);
-	scene->renderSystem 	= allocate_BETTER_array<RenderSystemEntry>(*persistentMemory, 100);
-	scene->animatorSystem 	= allocate_BETTER_array<Animator>(*persistentMemory, 100);
+	scene->transformStorage = allocate_array<Transform3D>(*persistentMemory, 100);
+	scene->renderSystem 	= allocate_array<RenderSystemEntry>(*persistentMemory, 100);
+	scene->animatorSystem 	= allocate_array<Animator>(*persistentMemory, 100);
 
 
-	auto allocate_transform = [](BETTERArray<Transform3D> & storage, Transform3D value) -> Transform3D *
+	auto allocate_transform = [](Array<Transform3D> & storage, Transform3D value) -> Transform3D *
 	{
 		u64 index = storage.count();
 		storage.push(value);
@@ -120,8 +120,8 @@ scene_2d::load(	void * scenePtr,
 
 	scene->collisionManager =
 	{
-		.colliders 	= allocate_BETTER_array<Collider2D>(*persistentMemory, 200),
-		.collisions = allocate_BETTER_array<Collision2D>(*persistentMemory, 300) // Todo(Leo): Not enough..
+		.colliders 	= allocate_array<Collider2D>(*persistentMemory, 200),
+		.collisions = allocate_array<Collision2D>(*persistentMemory, 300) // Todo(Leo): Not enough..
 	};
 
 	struct MaterialCollection {
@@ -133,8 +133,8 @@ scene_2d::load(	void * scenePtr,
 	{
 		PipelineHandle shader = functions->push_pipeline(graphics, "assets/shaders/vert.spv", "assets/shaders/frag.spv", {.textureCount = 3});
 
-		TextureAsset whiteTextureAsset = make_texture_asset(allocate_BETTER_array<u32>(*transientMemory, {0xffffffff}), 1, 1);
-		TextureAsset blackTextureAsset = make_texture_asset(allocate_BETTER_array<u32>(*transientMemory, {0xff000000}), 1, 1);
+		TextureAsset whiteTextureAsset = make_texture_asset(allocate_array<u32>(*transientMemory, {0xffffffff}), 1, 1);
+		TextureAsset blackTextureAsset = make_texture_asset(allocate_array<u32>(*transientMemory, {0xff000000}), 1, 1);
 
 		TextureHandle whiteTexture = functions->push_texture(graphics, &whiteTextureAsset);
 		TextureHandle blackTexture = functions->push_texture(graphics, &blackTextureAsset);
@@ -152,7 +152,7 @@ scene_2d::load(	void * scenePtr,
 
 		auto push_material = [shader, functions, transientMemory, graphics](MaterialType type, TextureHandle a, TextureHandle b, TextureHandle c) -> MaterialHandle
 		{
-			MaterialAsset asset = make_material_asset(shader, allocate_BETTER_array(*transientMemory, {a, b, c}));
+			MaterialAsset asset = make_material_asset(shader, allocate_array(*transientMemory, {a, b, c}));
 			MaterialHandle handle = functions->push_material(graphics, &asset);
 			return handle;
 		};
@@ -266,11 +266,11 @@ scene_2d::load(	void * scenePtr,
 
 			auto root1 	= allocate_transform(scene->transformStorage, {0, 0.5f, -ladderHeight});
 			auto root2 	= allocate_transform(scene->transformStorage, {10, 0.5f, 6 - ladderHeight});
-			auto bones1 = reserve_array<Transform3D*>(persistentMemory, 6);
-			auto bones2 = reserve_array<Transform3D*>(persistentMemory, 6);
+			auto bones1 = allocate_array<Transform3D*>(*persistentMemory, 6);
+			auto bones2 = allocate_array<Transform3D*>(*persistentMemory, 6);
 
 			int ladderRigBoneCount = 6;
-			auto animations = allocate_BETTER_array<BoneAnimation>(*persistentMemory, ladderRigBoneCount, ALLOC_EMPTY);
+			auto animations = allocate_array<BoneAnimation>(*persistentMemory, ladderRigBoneCount, ALLOC_EMPTY);
 
 			auto parent1 = root1;
 			auto parent2 = root2;
@@ -292,39 +292,38 @@ scene_2d::load(	void * scenePtr,
 				{
 					transform->parent = parent1;
 					parent1 = transform;
-					push_one(bones1, transform);
+					bones1.push(transform);
 	
 					// Todo(Leo): only one animation needed, move somewhere else				
-					auto keyframes = push_array(persistentMemory, {
+					auto keyframes = allocate_array(*persistentMemory, {
 						PositionKeyframe{(ladderIndex % ladder2StartIndex) * 0.12f, {0, 0, 0}},
 						PositionKeyframe{((ladderIndex % ladder2StartIndex) + 1) * 0.15f, {0, 0, ladderHeight}}
 					});
-					animations.push({ladderIndex, keyframes});
+					animations.push({ladderIndex, std::move(keyframes)});
 				}
 				else
 				{
 					transform->parent = parent2;
 					parent2 = transform;	
-					push_one(bones2, transform);
+					bones2.push(transform);
 				}
 			}	
 
 			scene->laddersUpAnimation 	= make_animation(std::move(animations));
 
-			scene->laddersDownAnimation = copy_animation(persistentMemory, &scene->laddersUpAnimation);
+			scene->laddersDownAnimation = copy_animation(*persistentMemory, scene->laddersUpAnimation);
 			reverse_animation_clip(&scene->laddersDownAnimation);
 
-			auto keyframeCounters1 = push_array<u64>(persistentMemory, bones1.count());
-			auto keyframeCounters2 = push_array<u64>(persistentMemory, bones2.count());
+			auto keyframeCounters1 = allocate_array<u64>(*persistentMemory, bones1.count(), ALLOC_FILL_UNINITIALIZED);
+			auto keyframeCounters2 = allocate_array<u64>(*persistentMemory, bones2.count(), ALLOC_FILL_UNINITIALIZED);
 
-			auto rig1 = make_animation_rig(root1, bones1, keyframeCounters1);
-			auto rig2 = make_animation_rig(root2, bones2, keyframeCounters2);
+			std::cout << "bones: " << bones1.count() << ", keyframes: " << keyframeCounters1.count() << "\n"; 
 
-			auto animator1 = make_animator(rig1);
-			auto animator2 = make_animator(rig2);
+			auto rig1 = make_animation_rig(root1, std::move(bones1), std::move(keyframeCounters1));
+			auto rig2 = make_animation_rig(root2, std::move(bones2), std::move(keyframeCounters2));
 
-			scene->animatorSystem.push(animator1);
-			scene->animatorSystem.push(animator2);
+			scene->animatorSystem.push(make_animator(std::move(rig1)));
+			scene->animatorSystem.push(make_animator(std::move(rig2)));
 
 			scene->ladderTrigger1 = [scene]() -> void
 			{

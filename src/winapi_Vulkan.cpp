@@ -407,7 +407,7 @@ internal VkDescriptorSet
 vulkan::make_material_vk_descriptor_set(
     VulkanContext * context,
     PipelineHandle pipelineHandle,
-    BETTERArray<TextureHandle> const & textures)
+    Array<TextureHandle> const & textures)
 {
     u32 textureCount = get_loaded_pipeline(context, pipelineHandle)->info.options.textureCount;
     constexpr u32 maxTextures = 10;

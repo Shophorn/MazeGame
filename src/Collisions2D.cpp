@@ -56,7 +56,7 @@ CircleRectangleCollisionAABB(Circle c, Rectangle r)
 // };
 
 // internal CollisionResult
-// GetCollisions(Circle collider, BETTERArray<Circle> const & otherColliders)
+// GetCollisions(Circle collider, Array<Circle> const & otherColliders)
 // {
 // 	for (int otherIndex = 0; otherIndex < otherColliders.count(); ++otherIndex)
 // 	{
@@ -69,7 +69,7 @@ CircleRectangleCollisionAABB(Circle c, Rectangle r)
 // }
 
 // internal CollisionResult
-// GetCollisions(Circle collider, BETTERArray<Rectangle> const & otherColliders)
+// GetCollisions(Circle collider, Array<Rectangle> const & otherColliders)
 // {
 // 	for (int otherIndex = 0; otherIndex < otherColliders.count(); ++otherIndex)
 // 	{

@@ -60,21 +60,21 @@ enum struct IndexType : u32 { UInt16, UInt32 };
 
 struct MeshAsset
 {
-	BETTERArray<Vertex> vertices;
-	BETTERArray<u16> indices;
+	Array<Vertex> vertices;
+	Array<u16> indices;
 
 	// TODO(Leo): would this be a good way to deal with different index types?
 	// union
 	// {
-	// 	BETTERArray<u16> indices16;
-	// 	BETTERArray<u32> indices32;
+	// 	Array<u16> indices16;
+	// 	Array<u32> indices32;
 	// };
 
 	IndexType indexType = IndexType::UInt16;
 };
 
 internal MeshAsset
-make_mesh_asset(BETTERArray<Vertex> vertices, BETTERArray<u16> indices)
+make_mesh_asset(Array<Vertex> vertices, Array<u16> indices)
 {
 	MeshAsset result =
 	{
@@ -89,7 +89,7 @@ using Pixel = u32;
 
 struct TextureAsset
 {
-	BETTERArray<Pixel> pixels;
+	Array<Pixel> pixels;
 
 	s32 	width;
 	s32 	height;
@@ -155,11 +155,11 @@ enum struct MaterialType : s32
 struct MaterialAsset
 {
     PipelineHandle pipeline;
-    BETTERArray<TextureHandle> textures;
+    Array<TextureHandle> textures;
 };
 
 MaterialAsset
-make_material_asset(PipelineHandle pipeline, BETTERArray<TextureHandle> textures)
+make_material_asset(PipelineHandle pipeline, Array<TextureHandle> textures)
 {
 	MaterialAsset result = 
 	{

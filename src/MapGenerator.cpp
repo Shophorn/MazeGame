@@ -8,7 +8,7 @@ struct HexMap
 {
 	int 				cellCountPerDirection;
 	real32 				cellSize;
-	ArenaArray<u32> 	cells;
+	Array<u32> 	cells;
 
 	real32 
 	WorldSize() { return cellCountPerDirection * cellSize; }
@@ -149,7 +149,7 @@ map::GenerateMap(MemoryArena & memoryArena, map::CreateInfo & info)
 	map.cellCountPerDirection = info.cellCountPerDirection;;
 	map.cellSize = info.cellSize;
 
-	map.cells = push_array<u32>(&memoryArena, map.cellCountPerDirection * map.cellCountPerDirection);
+	map.cells = allocate_array<u32>(memoryArena, map.cellCountPerDirection * map.cellCountPerDirection);
 
 	for (s32 y = 0; y < map.cellCountPerDirection; ++y)
 	{
@@ -170,8 +170,8 @@ map::GenerateMapMesh(MemoryArena & memoryArena, HexMap & map)
 	s32 vCount = map.cellCountPerDirection * map.cellCountPerDirection * 7;
 	s32 iCount = map.cellCountPerDirection * map.cellCountPerDirection * 6 * 3;
 
-	result.vertices = allocate_BETTER_array<Vertex>(memoryArena, vCount);
-	result.indices 	= allocate_BETTER_array<u16>(memoryArena, iCount);
+	result.vertices = allocate_array<Vertex>(memoryArena, vCount);
+	result.indices 	= allocate_array<u16>(memoryArena, iCount);
 
 	u16 vertexIndex = 0;
 	u16 triangleIndex = 0;
