@@ -27,8 +27,8 @@ struct Collider2D
 
 struct CollisionManager2D
 {
-	ArenaArray<Collider2D> colliders;
-	ArenaArray<Collision2D> collisions;
+	BETTERArray<Collider2D> colliders;
+	BETTERArray<Collision2D> collisions;
 
 	bool32
 	raycast(vector2 origin, vector2 ray, bool32 laddersBlock)
@@ -92,7 +92,8 @@ struct CollisionManager2D
 	do_collisions() 
 	{
 		// Reset previous collisions
-		flush_arena_array(collisions);
+		// flush_arena_array(collisions);
+		collisions.flush();
 
 		for (s32 i = 0; i < colliders.count(); ++i)
 		{
@@ -134,14 +135,16 @@ struct CollisionManager2D
 					float xNormalA = Sign(xDeltaAtoB);
 					float xNormalB = -xNormalA;
 
-					u64 collisionIndexForA = push_one(collisions, {
+					u64 collisionIndexForA = collisions.count();
+					collisions.push({
 						.position 	= positionB.x + xNormalB * xRadiusB,
 						.normal 	= {xNormalB, 0, 0},
 						.tag 		= colliders[b].tag
 					});
 					colliders[a].collision = &collisions[collisionIndexForA];
 
-					u64 collisionIndexForB = push_one(collisions, {
+					u64 collisionIndexForB = collisions.count();
+					collisions.push({
 						.position 	= positionA.x + xNormalA * xRadiusA, 
 						.normal 	= {xNormalA, 0, 0},
 						.tag 		= colliders[a].tag
@@ -161,7 +164,8 @@ push_collider(	CollisionManager2D * 	manager,
 				vector2 				offset = {0, 0},
 				ColliderTag 			tag = ColliderTag::Default)
 {
-	auto index = push_one(manager->colliders,
+	u64 index = manager->colliders.count();
+	manager->colliders.push(
 	{
 		.transform 	= transform,
 		.extents 	= extents,

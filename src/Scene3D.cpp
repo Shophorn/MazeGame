@@ -43,10 +43,10 @@ void update_animated_renderer(Skeleton * skeleton, AnimatedRenderer * renderer)
 
 struct Scene3d
 {
-	ArenaArray<Transform3D> transformStorage;
+	BETTERArray<Transform3D> transformStorage;
 	
-	ArenaArray<RenderSystemEntry> renderSystem = {};
-	ArenaArray<AnimatedRenderer> animatedRenderers = {};
+	BETTERArray<RenderSystemEntry> renderSystem = {};
+	BETTERArray<AnimatedRenderer> animatedRenderers = {};
 	CollisionSystem3D collisionSystem = {};
 
 	Camera worldCamera;
@@ -187,16 +187,18 @@ Scene3d::load(	void * 						scenePtr,
 	scene->gui = make_scene_gui(transientMemory, graphics, functions);
 
 	// Note(Leo): amounts are SWAG, rethink.
-	scene->transformStorage 	= reserve_array<Transform3D>(persistentMemory, 100);
-	scene->animatedRenderers 	= reserve_array<AnimatedRenderer>(persistentMemory, 10);
-	scene->renderSystem 		= reserve_array<RenderSystemEntry>(persistentMemory, 100);
+	scene->transformStorage 	= allocate_BETTER_array<Transform3D>(*persistentMemory, 100);
+	scene->animatedRenderers 	= allocate_BETTER_array<AnimatedRenderer>(*persistentMemory, 10);
+	scene->renderSystem 		= allocate_BETTER_array<RenderSystemEntry>(*persistentMemory, 100);
 	allocate_collision_system(&scene->collisionSystem, persistentMemory, 100);
 
 
-	auto allocate_transform = [](ArenaArray<Transform3D> * storage, Transform3D value) -> Transform3D *
+	auto allocate_transform = [](BETTERArray<Transform3D> & storage, Transform3D value) -> Transform3D *
 	{
-		auto index = push_one(*storage, value);
-		return &(*storage)[index];
+		u64 index = storage.count();
+		storage.push(value);
+
+		return &storage[index];
 	};
 
 	struct MaterialCollection {
@@ -213,8 +215,8 @@ Scene3d::load(	void * 						scenePtr,
 		PipelineHandle terrainPipeline 	= functions->push_pipeline(graphics, "assets/shaders/vert.spv", "assets/shaders/terrain_frag.spv", {.textureCount = 3});
 		PipelineHandle skyPipeline 		= functions->push_pipeline(graphics, "assets/shaders/vert_sky.spv", "assets/shaders/frag_sky.spv", {.enableDepth = false, .textureCount = 1});
 
-		TextureAsset whiteTextureAsset = make_texture_asset(push_array<u32>(transientMemory, {0xffffffff}), 1, 1);
-		TextureAsset blackTextureAsset = make_texture_asset(push_array<u32>(transientMemory, {0xff000000}), 1, 1);
+		TextureAsset whiteTextureAsset = make_texture_asset(allocate_BETTER_array<u32>(*transientMemory, {0xffffffff}), 1, 1);
+		TextureAsset blackTextureAsset = make_texture_asset(allocate_BETTER_array<u32>(*transientMemory, {0xff000000}), 1, 1);
 
 		TextureHandle whiteTexture = functions->push_texture(graphics, &whiteTextureAsset);
 		TextureHandle blackTexture = functions->push_texture(graphics, &blackTextureAsset);
@@ -233,7 +235,7 @@ Scene3d::load(	void * 						scenePtr,
 
 		auto push_material = [functions, transientMemory, graphics](PipelineHandle shader, TextureHandle a, TextureHandle b, TextureHandle c) -> MaterialHandle
 		{
-			MaterialAsset asset = make_material_asset(shader, push_array(transientMemory, {a, b, c}));
+			MaterialAsset asset = make_material_asset(shader, allocate_BETTER_array(*transientMemory, {a, b, c}));
 			MaterialHandle handle = functions->push_material(graphics, &asset);
 			return handle;
 		};
@@ -257,7 +259,7 @@ Scene3d::load(	void * 						scenePtr,
 		};
 		auto skyboxTexture = functions->push_cubemap(graphics, &skyboxTextureAssets);
 
-		auto skyMaterialAsset 	= make_material_asset(skyPipeline, push_array(transientMemory, {skyboxTexture}));	
+		auto skyMaterialAsset 	= make_material_asset(skyPipeline, allocate_BETTER_array(*transientMemory, {skyboxTexture}));	
 		materials.sky 			= functions->push_material(graphics, &skyMaterialAsset);
 	}
 
@@ -293,14 +295,14 @@ Scene3d::load(	void * 						scenePtr,
 		};
 
 		scene->walkAnimation = {};
-		scene->walkAnimation.boneAnimations = reserve_array<BoneAnimation>(persistentMemory, 5);
+		scene->walkAnimation.boneAnimations = allocate_BETTER_array<BoneAnimation>(*persistentMemory, 5);
 		scene->walkAnimation.duration = 2.0f;
 
  		u32 headIndex 	= find_bone_index(scene->skeleton, "Head");
 		auto rotation0 	= quaternion::euler_angles({to_radians(20), 0, to_radians(45)});
 		auto rotation1 	= quaternion::euler_angles({to_radians(20), 0, -to_radians(45)});
 
-		push_one(	scene->walkAnimation.boneAnimations,
+		scene->walkAnimation.boneAnimations.push(
 					{	.boneIndex = headIndex,
 						.rotations = push_array<RotationKeyframe>(persistentMemory, {{0.0f, rotation0}, {1.0f, rotation1}, {2.0f, rotation0}})
 					});
@@ -315,24 +317,24 @@ Scene3d::load(	void * 						scenePtr,
 		quaternion pose1 = quaternion::euler_angles(to_radians(225), 0, 0);
 		quaternion pose2 = quaternion::euler_angles(to_radians(-45), 0, 0);
 
-		push_one(	scene->walkAnimation.boneAnimations,
+		scene->walkAnimation.boneAnimations.push(
 					{	.boneIndex = leftThighIndex,
 						.rotations = push_array<RotationKeyframe>(persistentMemory, {{0.0f, pose0}, {1.0f, pose1}, {2.0f, pose0}})
 					});
 
 		quaternion leftShinRestpose = scene->skeleton.bones[leftShinIndex].boneSpaceTransform.rotation;
-		push_one(	scene->walkAnimation.boneAnimations,
+		scene->walkAnimation.boneAnimations.push(
 					{	.boneIndex = leftShinIndex,
 						.rotations = push_array<RotationKeyframe>(persistentMemory, {{0.0f, leftShinRestpose}, {1.0f, pose2}, {2.0f, leftShinRestpose}})
 					});
 
-		push_one(	scene->walkAnimation.boneAnimations,
+		scene->walkAnimation.boneAnimations.push(
 					{ 	.boneIndex = rightThighIndex,
 						.rotations = push_array<RotationKeyframe>(persistentMemory, {{0.0f, pose1}, {1.0f, pose0},{2.0f, pose1}})
 					});
 
 		quaternion rightShinRestpose = scene->skeleton.bones[rightShinIndex].boneSpaceTransform.rotation;
-		push_one(	scene->walkAnimation.boneAnimations,
+		scene->walkAnimation.boneAnimations.push(
 					{	.boneIndex = rightShinIndex,
 						.rotations = push_array<RotationKeyframe>(persistentMemory, {{0.0f, pose2}, {1.0f, rightShinRestpose}, {2.0f, pose2}})
 					});
@@ -340,16 +342,17 @@ Scene3d::load(	void * 						scenePtr,
 		// ------------------------------------------------------------------------------------------------------------
 
 		auto girlMeshAsset = load_model_glb(transientMemory, "assets/models/cube_head.glb", "cube_head");
+
 		auto girlMesh = functions->push_mesh(graphics, &girlMeshAsset);
 
 		// Our dude
-		auto transform = allocate_transform(&scene->transformStorage, {0, 0, 5});
+		auto transform = allocate_transform(scene->transformStorage, {0, 0, 5});
 		auto model = push_model(girlMesh, materials.character);
 
 		characterTransform = transform;
 
 		auto bones = push_array<m44>(persistentMemory, 17);
-		push_one(scene->animatedRenderers, {transform, model, true, bones});
+		scene->animatedRenderers.push({transform, model, true, bones});
 
 		scene->characterController = make_character(transform);
 	}
@@ -375,9 +378,9 @@ Scene3d::load(	void * 						scenePtr,
 
 			auto groundMesh 		= functions->push_mesh(graphics, &groundMeshAsset);
 			auto model 				= push_model(groundMesh, materials.ground);
-			auto transform 			= allocate_transform(&scene->transformStorage, {{-50, -50, 0}});
+			auto transform 			= allocate_transform(scene->transformStorage, {{-50, -50, 0}});
 
-			push_one(scene->renderSystem, {transform, model});
+			scene->renderSystem.push({transform, model});
 
 			scene->collisionSystem.terrainCollider = heightmap;
 			scene->collisionSystem.terrainTransform = transform;
@@ -388,8 +391,8 @@ Scene3d::load(	void * 						scenePtr,
 			auto pillarMeshHandle 	= functions->push_mesh(graphics, &pillarMesh);
 
 			auto model 	= push_model(pillarMeshHandle, materials.environment);
-			auto transform 	= allocate_transform(&scene->transformStorage, {-width / 4, 0, -5});
-			push_one(scene->renderSystem, {transform, model});
+			auto transform 	= allocate_transform(scene->transformStorage, {-width / 4, 0, -5});
+			scene->renderSystem.push({transform, model});
 			
 			auto collider 	= BoxCollider3D {
 				.extents 	= {2, 2, 50},
@@ -398,8 +401,8 @@ Scene3d::load(	void * 						scenePtr,
 			push_collider_to_system(&scene->collisionSystem, collider, transform);
 
 			model 	= push_model(pillarMeshHandle, materials.environment);
-			transform 	= allocate_transform(&scene->transformStorage, {width / 4, 0, -6});
-			push_one(scene->renderSystem, {transform, model});
+			transform 	= allocate_transform(scene->transformStorage, {width / 4, 0, -6});
+			scene->renderSystem.push({transform, model});
 
 			collider 	= BoxCollider3D {
 				.extents 	= {2, 2, 50},

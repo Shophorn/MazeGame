@@ -49,35 +49,35 @@ CircleRectangleCollisionAABB(Circle c, Rectangle r)
 	return isInsideAABB;
 }
 
-struct CollisionResult
-{
-	bool32 isCollision;
-	s32 otherColliderIndex;
-};
+// struct CollisionResult
+// {
+// 	bool32 isCollision;
+// 	s32 otherColliderIndex;
+// };
 
-internal CollisionResult
-GetCollisions(Circle collider, ArenaArray<Circle> * otherColliders)
-{
-	for (int otherIndex = 0; otherIndex < otherColliders->count(); ++otherIndex)
-	{
-		if (CircleCircleCollision(collider, (*otherColliders)[otherIndex]))
-		{
-			return {true, otherIndex};
-		}
-	}
-	return {false};
-}
+// internal CollisionResult
+// GetCollisions(Circle collider, BETTERArray<Circle> const & otherColliders)
+// {
+// 	for (int otherIndex = 0; otherIndex < otherColliders.count(); ++otherIndex)
+// 	{
+// 		if (CircleCircleCollision(collider, otherColliders[otherIndex]))
+// 		{
+// 			return {true, otherIndex};
+// 		}
+// 	}
+// 	return {false};
+// }
 
-internal CollisionResult
-GetCollisions(Circle collider, ArenaArray<Rectangle> * otherColliders)
-{
-	for (int otherIndex = 0; otherIndex < otherColliders->count(); ++otherIndex)
-	{
-		if (CircleRectangleCollisionAABB(collider, (*otherColliders)[otherIndex]))
-		{
-			return { true, otherIndex };
-		}
-	}
+// internal CollisionResult
+// GetCollisions(Circle collider, BETTERArray<Rectangle> const & otherColliders)
+// {
+// 	for (int otherIndex = 0; otherIndex < otherColliders.count(); ++otherIndex)
+// 	{
+// 		if (CircleRectangleCollisionAABB(collider, otherColliders[otherIndex]))
+// 		{
+// 			return { true, otherIndex };
+// 		}
+// 	}
 
-	return {false};
-}
+// 	return {false};
+// }

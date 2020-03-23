@@ -117,8 +117,8 @@ generate_terrain(	MemoryArena * memory,
 	s32 quadCountPerSide 		= heightMap->gridSize - 1;
 	s32 triangleIndexCount 	= 6 * quadCountPerSide * quadCountPerSide;
 
-	ArenaArray<Vertex> vertices	= reserve_array<Vertex>(memory, vertexCount);
-	ArenaArray<u16> indices	= reserve_array<u16>(memory, triangleIndexCount);
+	BETTERArray<Vertex> vertices	= allocate_BETTER_array<Vertex>(*memory, vertexCount);
+	BETTERArray<u16> indices	= allocate_BETTER_array<u16>(*memory, triangleIndexCount);
 
 	float scale = heightMap->worldSize / heightMap->gridSize;
 	texcoordScale = texcoordScale / heightMap->gridSize;
@@ -164,7 +164,7 @@ generate_terrain(	MemoryArena * memory,
 				.normal 	= normal,
 				.texCoord 	= {x * texcoordScale, y * texcoordScale},
 			};
-			push_one(vertices, vertex);
+			vertices.push(vertex);
 		}
 	}
 
@@ -178,8 +178,8 @@ generate_terrain(	MemoryArena * memory,
 			u16 c = a + vertexCountPerSide;
 			u16 d = a + 1 + vertexCountPerSide;
 
-			push_many(indices, {a, b, c, c, b, d});
+			indices.push_many({a, b, c, c, b, d});
 		}
 	}
-	return make_mesh_asset(vertices, indices);
+	return make_mesh_asset(std::move(vertices), std::move(indices));
 }

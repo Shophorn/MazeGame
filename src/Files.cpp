@@ -90,13 +90,13 @@ namespace glTF
 using JsonDocument 	= rapidjson::Document;
 using JsonValue 	= rapidjson::Value;
 
-using BinaryBuffer 	= ArenaArray<byte>;
-using TextBuffer 	= ArenaArray<char>;
+using BinaryBuffer 	= BETTERArray<byte>;
+using TextBuffer 	= BETTERArray<char>;
 
 template<typename T>
 struct ArrayView
 {
-	ArenaArray<T> * array;
+	BETTERArray<T> * array;
 	u64 offset;
 	u64 count;
 	T * data() { return array->data + offset; }
@@ -104,22 +104,22 @@ struct ArrayView
 
 
 template<typename TResult> TResult
-get(BinaryBuffer buffer, u64 position)
+get(BinaryBuffer const & buffer, u64 position)
 {
-	TResult result = *reinterpret_cast<TResult*>(buffer.begin() + position);
+	TResult result = *reinterpret_cast<TResult const *>(buffer.data() + position);
 	return result;
 }
 
 // Todo(Leo): This is allocated uncontrollably, so we must do something about it
 internal std::string
-get_string(TextBuffer buffer)
+get_string(TextBuffer const & buffer)
 {
 	auto result = std::string(buffer.begin(), buffer.end());
 	return result;	
 }
 
 internal TextBuffer
-get_gltf_json_chunk(BinaryBuffer gltf, MemoryArena * memoryArena)
+get_gltf_json_chunk(BinaryBuffer const & gltf, MemoryArena * memoryArena)
 {
 	using namespace glTF;
 
@@ -143,15 +143,28 @@ get_gltf_json_chunk(BinaryBuffer gltf, MemoryArena * memoryArena)
 		return {};
 	}
 
-	TextBuffer castResult 	= *reinterpret_cast<TextBuffer*>(&gltf);
-	TextBuffer result 		= copy_array_slice(memoryArena, castResult, start, chunkLength);
+
+	char * memory = reinterpret_cast<char *>(allocate(*memoryArena, chunkLength));
+	std::copy(gltf.data() + start, gltf.data() + start + chunkLength, memory);
+
+	return TextBuffer(memory, chunkLength, chunkLength);
 
 
-	return result;
+
+
+
+
+
+
+	// TextBuffer castResult 	= *reinterpret_cast<TextBuffer*>(&gltf);
+	// TextBuffer result 		= copy_array_slice(memoryArena, castResult, start, chunkLength);
+
+
+	// return result;
 }
 
 internal BinaryBuffer
-get_gltf_binary_chunk(MemoryArena * memoryArena, BinaryBuffer gltf, s32 binaryChunkIndex = 0)
+get_gltf_binary_chunk(MemoryArena * memoryArena, BinaryBuffer const & gltf, s32 binaryChunkIndex = 0)
 {
 	using namespace glTF;
 
@@ -171,9 +184,14 @@ get_gltf_binary_chunk(MemoryArena * memoryArena, BinaryBuffer gltf, s32 binaryCh
 
 	chunkLength  = get<u32>(gltf, offset + chunkLengthPosition);
 	u64 start = offset + chunkInfoLength;
-	auto result  = copy_array_slice(memoryArena, gltf, start, chunkLength);
+	// auto result  = copy_array_slice(memoryArena, gltf, start, chunkLength);
 
-	return result;
+	byte * memory = reinterpret_cast<byte*>(allocate(*memoryArena, chunkLength));
+	std::copy(gltf.data() + start, gltf.data() + start + chunkLength, memory);
+
+	return BinaryBuffer(memory, chunkLength, chunkLength);
+
+	// return result;
 }
 
 internal JsonDocument
@@ -209,7 +227,7 @@ read_binary_file(MemoryArena * memoryArena, const char * path)
 	// 							std::ios::in|std::ios::binary);
 
 	u64 size 	= get_ifstream_length(file);
-	auto result 	= push_array<byte>(memoryArena, size);
+	auto result 	= allocate_BETTER_array<byte>(*memoryArena, size);
 	auto bufferPtr 	= reinterpret_cast<char *>(result.begin());
 
 	file.read(bufferPtr, size);

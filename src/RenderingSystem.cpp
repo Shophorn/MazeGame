@@ -10,7 +10,7 @@ struct RenderSystemEntry
 };
 
 internal void
-update_render_system(	ArenaArray<RenderSystemEntry> entries,
+update_render_system(	BETTERArray<RenderSystemEntry> const & entries,
 						platform::Graphics * graphics,
 						platform::Functions * functions)
 {
@@ -33,7 +33,7 @@ struct AnimatedRenderer
 };
 
 internal void
-render_animated_models(	ArenaArray<AnimatedRenderer> entries,
+render_animated_models(	BETTERArray<AnimatedRenderer> const & entries,
 						platform::Graphics * graphics,
 						platform::Functions * functions)
 {

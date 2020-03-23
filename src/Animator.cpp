@@ -29,7 +29,7 @@ struct BoneAnimation
 // Note(Leo): This is for complete animation, with different keyframes for different bones
 struct Animation
 {
-	ArenaArray<BoneAnimation> boneAnimations;
+	BETTERArray<BoneAnimation> boneAnimations;
 	float duration;
 
 	bool loop = false;
@@ -68,7 +68,7 @@ struct Bone
 
 struct Skeleton
 {
-	ArenaArray<Bone> bones;
+	BETTERArray<Bone> bones;
 };
 
 v3 get_model_space_position(Skeleton const & skeleton, u32 boneIndex)
@@ -96,10 +96,6 @@ m44 get_model_space_transform(Skeleton const & skeleton, u32 boneIndex)
 	return transform;
 }
 
-struct Pose
-{
-	ArenaArray<Transform3D> boneSpaceTransforms;
-};
 
 internal AnimationRig
 make_animation_rig(Transform3D * root, ArenaArray<Transform3D*> bones, ArenaArray<u64> currentBonePositionKeyframes)
@@ -156,11 +152,11 @@ update_animation_target(BoneAnimation * animation, Transform3D * target, u64 cur
 }
 
 internal Animation
-duplicate_animation_clip(MemoryArena * memoryArena, Animation * original)
+copy_animation(MemoryArena * memoryArena, Animation * original)
 {
 	Animation result = 
 	{
-		.boneAnimations = duplicate_array(memoryArena, original->boneAnimations),
+		.boneAnimations = copy_BETTER_array(*memoryArena, original->boneAnimations),
 		.duration = original->duration
 	};
 
@@ -191,7 +187,7 @@ reverse_animation_clip(Animation * clip)
 }
 
 internal float
-compute_duration (ArenaArray<BoneAnimation> const & animations)
+compute_duration (BETTERArray<BoneAnimation> const & animations)
 {
 	// Note(Leo): We mitigate risks of copying in that we will just read these
 	float duration = 0;
@@ -207,18 +203,20 @@ compute_duration (ArenaArray<BoneAnimation> const & animations)
 }
 
 internal Animation
-make_animation (ArenaArray<BoneAnimation> animations)
+make_animation (BETTERArray<BoneAnimation> animations)
 {
+	float duration = compute_duration(animations);
+
 	Animation result = 
 	{
-		.boneAnimations = animations,
-		.duration = compute_duration(animations)
+		.boneAnimations = std::move(animations),
+		.duration = duration
 	};
 	return result;
 }
 
 internal void
-update_animator_system(game::Input * input, ArenaArray<Animator> animators)
+update_animator_system(game::Input * input, BETTERArray<Animator> & animators)
 {
 	for (auto & animator : animators)
 	{

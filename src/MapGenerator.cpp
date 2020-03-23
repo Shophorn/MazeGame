@@ -170,8 +170,8 @@ map::GenerateMapMesh(MemoryArena & memoryArena, HexMap & map)
 	s32 vCount = map.cellCountPerDirection * map.cellCountPerDirection * 7;
 	s32 iCount = map.cellCountPerDirection * map.cellCountPerDirection * 6 * 3;
 
-	result.vertices = push_array<Vertex>(&memoryArena, vCount);
-	result.indices 	= push_array<u16>(&memoryArena, iCount);
+	result.vertices = allocate_BETTER_array<Vertex>(memoryArena, vCount);
+	result.indices 	= allocate_BETTER_array<u16>(memoryArena, iCount);
 
 	u16 vertexIndex = 0;
 	u16 triangleIndex = 0;

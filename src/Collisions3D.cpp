@@ -12,8 +12,8 @@ struct CollisionSystemEntry
 
 struct CollisionSystem3D
 {
-	ArenaArray<CollisionSystemEntry> entries_;
-	ArenaArray<BoxCollider3D> colliders_;
+	BETTERArray<CollisionSystemEntry> entries_;
+	BETTERArray<BoxCollider3D> colliders_;
 
 	// Todo(Leo): include these to above
 	HeightMap terrainCollider;
@@ -23,8 +23,8 @@ struct CollisionSystem3D
 internal void
 allocate_collision_system(CollisionSystem3D * system, MemoryArena * memoryArena, u32 count)
 {
-	system->entries_ = reserve_array<CollisionSystemEntry>(memoryArena, count); 
-	system->colliders_ = reserve_array<BoxCollider3D>(memoryArena, count);
+	system->entries_ = allocate_BETTER_array<CollisionSystemEntry>(*memoryArena, count); 
+	system->colliders_ = allocate_BETTER_array<BoxCollider3D>(*memoryArena, count);
 }
 
 internal void
@@ -32,8 +32,9 @@ push_collider_to_system(CollisionSystem3D * system,
 						BoxCollider3D  		collider,
 						Transform3D *		transform)
 {
-	auto index = push_one(system->colliders_, collider);
-	push_one(system->entries_, {&system->colliders_[index], transform});
+	auto index = system->colliders_.count();
+	system->colliders_.push(collider);
+	system->entries_.push({&system->colliders_[index], transform});
 }
 
 internal float

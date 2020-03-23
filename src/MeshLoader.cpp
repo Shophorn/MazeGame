@@ -65,7 +65,7 @@ load_skeleton_glb(MemoryArena * memoryArena, char const * filePath, char const *
 	auto jointArray = skin["joints"].GetArray();
 	u32 jointCount 	= jointArray.Size();
 
-	Skeleton result = { push_array<Bone>(memoryArena, jointCount) };
+	Skeleton result = { allocate_BETTER_array<Bone>(*memoryArena, jointCount, ALLOC_FILL_UNINITIALIZED) };
 	for (auto & bone : result.bones)
 	{
 		bone.boneSpaceTransform = {};
@@ -284,7 +284,7 @@ load_model_glb(MemoryArena * memoryArena, char const * filePath, char const * mo
 		return bufferView["byteOffset"].GetInt();
 	};
 
-	auto vertices 			= push_array<Vertex>(memoryArena, vertexCount);
+	auto vertices = allocate_BETTER_array<Vertex>(*memoryArena, vertexCount, ALLOC_FILL_UNINITIALIZED);
 
 	auto get_iterator = [&](u32 accessorIndex) -> GenericIterator
 	{
@@ -331,7 +331,7 @@ load_model_glb(MemoryArena * memoryArena, char const * filePath, char const * mo
 	///// INDICES //////
 	auto indexAccessor 	= accessorArray[indexAccessorIndex].GetObject();
 	u64 indexCount 		= indexAccessor["count"].GetInt();
-	auto indices 		= push_array<u16>(memoryArena, indexCount);
+	auto indices 		= allocate_BETTER_array<u16>(*memoryArena, indexCount, ALLOC_FILL_UNINITIALIZED);
 
 	auto indexIterator = get_iterator(indexAccessorIndex);
 	for (u16 & index : indices)
@@ -339,7 +339,7 @@ load_model_glb(MemoryArena * memoryArena, char const * filePath, char const * mo
 		index = get_and_advance<u16>(&indexIterator);
 	}
 
-	MeshAsset result = make_mesh_asset(vertices, indices);
+	MeshAsset result = make_mesh_asset(std::move(vertices), std::move(indices));
 	return result;
 }
 
@@ -368,8 +368,8 @@ load_model_obj(MemoryArena * memoryArena, char const * modelPath)
 	//Note(Leo): there might be more than one shape, but we don't use that here
 	s32 indexCount = shapes[0].mesh.indices.size();
 
-	result.vertices = push_array<Vertex>(memoryArena, indexCount);
-	result.indices = push_array<u16>(memoryArena, indexCount);
+	result.vertices = allocate_BETTER_array<Vertex>(*memoryArena, indexCount, ALLOC_FILL_UNINITIALIZED);
+	result.indices = allocate_BETTER_array<u16>(*memoryArena, indexCount, ALLOC_FILL_UNINITIALIZED);
 
 	for (int i = 0; i < indexCount; ++i)
 	{
@@ -437,7 +437,7 @@ namespace mesh_primitives
 		result.indexType = IndexType::UInt16;
 
 		int vertexCount = 4;
-		result.vertices = push_array<Vertex>(memoryArena, vertexCount);
+		result.vertices = allocate_BETTER_array<Vertex>(*memoryArena, vertexCount, ALLOC_FILL_UNINITIALIZED);
 
 		// 					  position 		normal   	color    	uv
 		result.vertices[0] = {0, 0, 0, 		0, 0, 1, 	1, 1, 1, 	0, 0};
@@ -450,11 +450,11 @@ namespace mesh_primitives
 		if (flipIndices)
 		{
 			// Note(Leo): These seem to backwardsm but it because currently our gui is viewed from behind.
-			result.indices = push_array<u16>(memoryArena, {0, 2, 1, 1, 2, 3});
+			result.indices = allocate_BETTER_array<u16>(*memoryArena, {0, 2, 1, 1, 2, 3});
 		}
 		else
 		{
-			result.indices = push_array<u16>(memoryArena, {0, 1, 2, 2, 1, 3});
+			result.indices = allocate_BETTER_array<u16>(*memoryArena, {0, 1, 2, 2, 1, 3});
 		}
 
 		return result;

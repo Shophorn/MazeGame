@@ -94,86 +94,174 @@ flush_memory_arena(MemoryArena * arena)
 ///////////////////////////////////////
 
 template<typename T>
-struct Array
+struct BETTERArray
 {
-	T & operator[](s64 index) { return data_[index]; }
-	T operator[](s64 index) const { return data_[index]; }
+	BETTERArray() = default;
+	
+	BETTERArray(BETTERArray const &) = delete;
+	void operator =(BETTERArray const &) = delete;
 
-	s64 push(T value)
+
+
+	BETTERArray(BETTERArray && old)
 	{
-		assert(0 < capacity_);
-		assert(count_ < capacity_);
+		this->memory_ 	= old.memory_;
+		this->capacity_ = old.capacity_;
+		this->count_ 	= old.count_;
 
-		s64 index = count_++;
-		data_[index] = value;
-		return index;
+		old.memory_ 	= nullptr;
+		old.capacity_ 	= 0;
+		old.count_ 		= 0;
+	};
+
+	BETTERArray & operator= (BETTERArray && old)
+	{
+		this->memory_ 	= old.memory_;
+		this->capacity_ = old.capacity_;
+		this->count_ 	= old.count_;
+
+		old.memory_ 	= nullptr;
+		old.capacity_ 	= 0;
+		old.count_ 		= 0;
+
+		return *this;
+	};
+
+
+	BETTERArray(T * memory, u64 count, u64 capacity) :
+		memory_(memory),
+		count_(count),
+		capacity_(capacity) {}
+
+	T * data ()		{ return memory_; }
+	T const * data ()	const { return memory_; }
+	u64 count () const	{ return count_; }
+	u64 capacity () const { return capacity_; }
+
+	T & operator[] (u64 index)
+	{ 
+		assert(index < count_);
+		return memory_[index];
 	}
 
-	s64 count() const { return count_; }
-	T * data() const { return data_; }
+	T const operator[] (u64 index) const
+	{ 
+		assert(index < count_);
+		return memory_[index];
+	}
 
-	Array(s64 capacity, s64 count, T * data) : capacity_(capacity), count_(count), data_(data) {}
-	Array(Array const &) = delete;
+	void push(T value)
+	{
+		assert(count_ < capacity_);
+		memory_[count_] = value;
+		++count_;
+	}
+
+	void push_many(std::initializer_list<T> values)
+	{
+		for (auto item : values)
+		{
+			push(item);
+		}
+	}
+
+
+	void flush()
+	{
+		count_ = 0;
+	}
+
+	T * begin() {return data();}
+	T const * begin() const {return memory_;}
+
+	T * end() {return data() + count();}
+	T const * end() const {return memory_ + count();}
+
 
 private:
-	s64 capacity_;
-	s64 count_;
-	T * data_;
+	T * memory_;
+	u64 count_;
+	u64 capacity_;
 };
 
-template <typename T>
-T * begin(Array<T> & array) {return array.data();}
+template<typename T>
+BETTERArray<T> allocate_BETTER_array(MemoryArena & arena, T const * srcBegin, T const * srcEnd)
+{
+	u64 capacity 	= srcEnd - srcBegin;
+	u64 size 		= sizeof(T) * capacity;
 
-template <typename T>
-T * end(Array<T> & array) {return array.data()+ array.count();}
+	T * memory = reinterpret_cast<T*>(allocate(arena, size));
+
+	std::copy(srcBegin, srcEnd, memory);
+
+	return BETTERArray<T>(memory, capacity, capacity);
+}
 
 template<typename T>
-T const * begin(Array<T> const & array) {return array.data();}
+BETTERArray<T> allocate_BETTER_array(MemoryArena & arena, std::initializer_list<T> values)
+{
+	return allocate_BETTER_array(arena, values.begin(), values.end());
+}
+
+enum AllocOperation
+{
+	ALLOC_EMPTY,
+	ALLOC_FILL_UNINITIALIZED,
+	ALLOC_CLEAR
+};
 
 template<typename T>
-T const * end(Array<T> const & array) {return array.data() + array.count();}
-
-
-template<typename T>
-Array<T> allocate_array(MemoryArena & memoryArena, u64 capacity)
+BETTERArray<T> allocate_BETTER_array(MemoryArena & arena, u64 capacity, AllocOperation allocOperation = ALLOC_EMPTY)
 {
 	u64 size = sizeof(T) * capacity;
-	T * memory = static_cast<T*>(allocate(memoryArena, size));
-	return Array(capacity, 0, memory);
-};
 
-void test_arena_array_2_2(Array<int> const & array)
-{
+	T * memory = reinterpret_cast<T*>(allocate(arena, size));
 
-}
-
-void test_arena_array_2()
-{
-	MemoryArena arena;
-
-	auto array = allocate_array<int>(arena, 20);
-
-	test_arena_array_2_2(array);
-
-	array.push(2);
-	array.push(3);
-
-	for(int i : array)
+	u64 count = 0;
+	switch (allocOperation)
 	{
-		std::cout << i << "\n";
+		case ALLOC_EMPTY:
+			count = 0;
+			break;
+
+		case ALLOC_FILL_UNINITIALIZED:
+			count = capacity;
+			break;
+
+		case ALLOC_CLEAR:
+			count = capacity;
+			std::memset(memory, 0, size);
+			break;
+
 	}
 
-
-	auto const & array2 = array;
-
-	for (int i : array2)
-	{
-		std::cout << i << "\n";
-	}
+	return BETTERArray<T>(memory, count, capacity);
 }
 
+template<typename T>
+BETTERArray<T> copy_BETTER_array(MemoryArena & arena, BETTERArray<T> const & other)
+{
+	u64 count = other.count();
+	u64 capacity = other.capacity();
+	u64 size = sizeof(T) * capacity;
 
+	T * memory = reinterpret_cast<T*>(allocate(arena, size));
 
+	std::copy(other.begin(), other.end(), memory);
+
+	return BETTERArray<T>(memory, count, capacity);	
+}
+
+// template<typename TNew, typename TOld>
+// BETTERArray<TNew> cast_memory_type(BETTERArray<TOld> old)
+// {
+// 	u64 capacity = old.capacity_ * sizeof(TOld) / sizeof(TNew);
+// 	u64 count = old.count_ * sizeof(TOld) / sizeof (TNew);
+
+// 	TNew * memory = reinterpret_cast<TNew*>(old.memory_);
+
+// 	return BETTERArray<TNew>(memory, count, capacity);
+// }
 
 struct ArrayHeader
 {

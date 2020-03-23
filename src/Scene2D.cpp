@@ -11,9 +11,9 @@ namespace scene_2d
 {
 	struct Scene
 	{
-		ArenaArray<Transform3D> transformStorage;
-		ArenaArray<RenderSystemEntry> renderSystem;
-		ArenaArray<Animator> animatorSystem;
+		BETTERArray<Transform3D> transformStorage;
+		BETTERArray<RenderSystemEntry> renderSystem;
+		BETTERArray<Animator> animatorSystem;
 
 		// Todo(Leo): make this similar 'system' to others
 		CollisionManager2D collisionManager;
@@ -106,21 +106,22 @@ scene_2d::load(	void * scenePtr,
 	// auto * persistentMemory = &state->persistentMemoryArena;
 	// auto * transientMemory = &state->transientMemoryArena;
 
-	scene->transformStorage = reserve_array<Transform3D>(persistentMemory, 100);
-	scene->renderSystem 	= reserve_array<RenderSystemEntry>(persistentMemory, 100);
-	scene->animatorSystem 	= reserve_array<Animator>(persistentMemory, 100);
+	scene->transformStorage = allocate_BETTER_array<Transform3D>(*persistentMemory, 100);
+	scene->renderSystem 	= allocate_BETTER_array<RenderSystemEntry>(*persistentMemory, 100);
+	scene->animatorSystem 	= allocate_BETTER_array<Animator>(*persistentMemory, 100);
 
 
-	auto allocate_transform = [](ArenaArray<Transform3D> * storage, Transform3D value) -> Transform3D *
+	auto allocate_transform = [](BETTERArray<Transform3D> & storage, Transform3D value) -> Transform3D *
 	{
-		auto index = push_one(*storage, value);
-		return &(*storage)[index];
+		u64 index = storage.count();
+		storage.push(value);
+		return &storage[index];
 	};
 
 	scene->collisionManager =
 	{
-		.colliders 	= reserve_array<Collider2D>(persistentMemory, 200),
-		.collisions = reserve_array<Collision2D>(persistentMemory, 300) // Todo(Leo): Not enough..
+		.colliders 	= allocate_BETTER_array<Collider2D>(*persistentMemory, 200),
+		.collisions = allocate_BETTER_array<Collision2D>(*persistentMemory, 300) // Todo(Leo): Not enough..
 	};
 
 	struct MaterialCollection {
@@ -132,8 +133,8 @@ scene_2d::load(	void * scenePtr,
 	{
 		PipelineHandle shader = functions->push_pipeline(graphics, "assets/shaders/vert.spv", "assets/shaders/frag.spv", {.textureCount = 3});
 
-		TextureAsset whiteTextureAsset = make_texture_asset(push_array<u32>(transientMemory, {0xffffffff}), 1, 1);
-		TextureAsset blackTextureAsset = make_texture_asset(push_array<u32>(transientMemory, {0xff000000}), 1, 1);
+		TextureAsset whiteTextureAsset = make_texture_asset(allocate_BETTER_array<u32>(*transientMemory, {0xffffffff}), 1, 1);
+		TextureAsset blackTextureAsset = make_texture_asset(allocate_BETTER_array<u32>(*transientMemory, {0xff000000}), 1, 1);
 
 		TextureHandle whiteTexture = functions->push_texture(graphics, &whiteTextureAsset);
 		TextureHandle blackTexture = functions->push_texture(graphics, &blackTextureAsset);
@@ -151,7 +152,7 @@ scene_2d::load(	void * scenePtr,
 
 		auto push_material = [shader, functions, transientMemory, graphics](MaterialType type, TextureHandle a, TextureHandle b, TextureHandle c) -> MaterialHandle
 		{
-			MaterialAsset asset = make_material_asset(shader, push_array(transientMemory, {a, b, c}));
+			MaterialAsset asset = make_material_asset(shader, allocate_BETTER_array(*transientMemory, {a, b, c}));
 			MaterialHandle handle = functions->push_material(graphics, &asset);
 			return handle;
 		};
@@ -183,12 +184,12 @@ scene_2d::load(	void * scenePtr,
 		auto characterMeshHandle 	= functions->push_mesh(graphics, &characterMesh);
 
 		// Our dude
-		auto transform = allocate_transform(&scene->transformStorage, {});
+		auto transform = allocate_transform(scene->transformStorage, {});
 		auto model = push_model(characterMeshHandle, materials.character);
 
 		characterTransform = transform;
 
-		push_one(scene->renderSystem, {transform, model});
+		scene->renderSystem.push({transform, model});
 
 		scene->characterController 	= 
 		{
@@ -201,9 +202,9 @@ scene_2d::load(	void * scenePtr,
 		scene->characterController.OnTriggerLadder2 = &scene->ladderTrigger2;
 
 		// Other dude
-		transform 	= allocate_transform(&scene->transformStorage, {2, 0.5f, 12.25f});
+		transform 	= allocate_transform(scene->transformStorage, {2, 0.5f, 12.25f});
 		model 	= push_model(characterMeshHandle, materials.character);
-		push_one(scene->renderSystem, {transform, model});
+		scene->renderSystem.push({transform, model});
 	}
 
     scene->worldCamera = make_camera(45, 0.1f, 1000.0f);
@@ -234,9 +235,9 @@ scene_2d::load(	void * scenePtr,
 
 			auto groundQuadHandle 	= functions->push_mesh(graphics, &groundQuad);
 			auto model 			= push_model(groundQuadHandle, materials.environment);
-			auto transform 			= allocate_transform(&scene->transformStorage, {});
+			auto transform 			= allocate_transform(scene->transformStorage, {});
 
-			push_one(scene->renderSystem, {transform, model});
+			scene->renderSystem.push({transform, model});
 			push_collider(&scene->collisionManager, transform, {100, 1}, {0, -1.0f});
 		}
 
@@ -246,15 +247,15 @@ scene_2d::load(	void * scenePtr,
 			auto pillarMeshHandle 	= functions->push_mesh(graphics, &pillarMesh);
 
 			auto model 	= push_model(pillarMeshHandle, materials.environment);
-			auto transform 	= allocate_transform(&scene->transformStorage, {-width / 4, 0, 0});
+			auto transform 	= allocate_transform(scene->transformStorage, {-width / 4, 0, 0});
 
-			push_one(scene->renderSystem, {transform, model});
+			scene->renderSystem.push({transform, model});
 			push_collider(&scene->collisionManager, transform, {2, 25});
 
 			model = push_model(pillarMeshHandle, materials.environment);
-			transform = allocate_transform(&scene->transformStorage, {width / 4, 0, 0});
+			transform = allocate_transform(scene->transformStorage, {width / 4, 0, 0});
 
-			push_one(scene->renderSystem, {transform, model});
+			scene->renderSystem.push({transform, model});
 			push_collider(&scene->collisionManager, transform, {2, 25});
 		}
 
@@ -263,13 +264,13 @@ scene_2d::load(	void * scenePtr,
 			auto ladderMesh 		= load_model_glb(transientMemory, "assets/models/ladder.glb", "LadderSection");
 			auto ladderMeshHandle 	= functions->push_mesh(graphics, &ladderMesh);
 
-			auto root1 	= allocate_transform(&scene->transformStorage, {0, 0.5f, -ladderHeight});
-			auto root2 	= allocate_transform(&scene->transformStorage, {10, 0.5f, 6 - ladderHeight});
+			auto root1 	= allocate_transform(scene->transformStorage, {0, 0.5f, -ladderHeight});
+			auto root2 	= allocate_transform(scene->transformStorage, {10, 0.5f, 6 - ladderHeight});
 			auto bones1 = reserve_array<Transform3D*>(persistentMemory, 6);
 			auto bones2 = reserve_array<Transform3D*>(persistentMemory, 6);
 
 			int ladderRigBoneCount = 6;
-			auto animations = reserve_array<BoneAnimation>(persistentMemory, ladderRigBoneCount);
+			auto animations = allocate_BETTER_array<BoneAnimation>(*persistentMemory, ladderRigBoneCount, ALLOC_EMPTY);
 
 			auto parent1 = root1;
 			auto parent2 = root2;
@@ -279,9 +280,9 @@ scene_2d::load(	void * scenePtr,
 			for (u32 ladderIndex = 0; ladderIndex < ladderCount; ++ladderIndex)
 			{
 				auto model 	= push_model(ladderMeshHandle, materials.environment);
-				auto transform 	= allocate_transform(&scene->transformStorage, {});
+				auto transform 	= allocate_transform(scene->transformStorage, {});
 
-				push_one(scene->renderSystem, {transform, model});
+				scene->renderSystem.push({transform, model});
 				push_collider(&scene->collisionManager, transform,
 														{1.0f, 0.5f},
 														{0, 0.5f},
@@ -298,7 +299,7 @@ scene_2d::load(	void * scenePtr,
 						PositionKeyframe{(ladderIndex % ladder2StartIndex) * 0.12f, {0, 0, 0}},
 						PositionKeyframe{((ladderIndex % ladder2StartIndex) + 1) * 0.15f, {0, 0, ladderHeight}}
 					});
-					push_one(animations, {ladderIndex, keyframes});
+					animations.push({ladderIndex, keyframes});
 				}
 				else
 				{
@@ -308,8 +309,9 @@ scene_2d::load(	void * scenePtr,
 				}
 			}	
 
-			scene->laddersUpAnimation 	= make_animation(animations);
-			scene->laddersDownAnimation = duplicate_animation_clip(persistentMemory, &scene->laddersUpAnimation);
+			scene->laddersUpAnimation 	= make_animation(std::move(animations));
+
+			scene->laddersDownAnimation = copy_animation(persistentMemory, &scene->laddersUpAnimation);
 			reverse_animation_clip(&scene->laddersDownAnimation);
 
 			auto keyframeCounters1 = push_array<u64>(persistentMemory, bones1.count());
@@ -321,8 +323,8 @@ scene_2d::load(	void * scenePtr,
 			auto animator1 = make_animator(rig1);
 			auto animator2 = make_animator(rig2);
 
-			push_one(scene->animatorSystem, animator1);
-			push_one(scene->animatorSystem, animator2);
+			scene->animatorSystem.push(animator1);
+			scene->animatorSystem.push(animator2);
 
 			scene->ladderTrigger1 = [scene]() -> void
 			{
@@ -370,9 +372,9 @@ scene_2d::load(	void * scenePtr,
 			for (int platformIndex = 0; platformIndex < platformCount; ++platformIndex)
 			{
 				auto model 	= push_model(platformMeshHandle, materials.environment);
-				auto transform 	= allocate_transform(&scene->transformStorage, {platformPositions[platformIndex]});
+				auto transform 	= allocate_transform(scene->transformStorage, {platformPositions[platformIndex]});
 
-				push_one(scene->renderSystem, {transform, model});
+				scene->renderSystem.push({transform, model});
 				push_collider(&scene->collisionManager, transform, {1.0f, 0.25f});
 			}
 		}
@@ -383,15 +385,15 @@ scene_2d::load(	void * scenePtr,
 			auto keyholeMeshHandle 	= functions->push_mesh(graphics, &keyholeMeshAsset);
 
 			auto model 	= push_model(keyholeMeshHandle, materials.environment);
-			auto transform 	= allocate_transform(&scene->transformStorage, {v3{5, 0, 0}});
+			auto transform 	= allocate_transform(scene->transformStorage, {v3{5, 0, 0}});
 
-			push_one(scene->renderSystem, {transform, model});
+			scene->renderSystem.push({transform, model});
 			push_collider(&scene->collisionManager, transform, {0.3f, 0.6f}, {0, 0.3f}, ColliderTag::Trigger);
 
 			model 	= push_model(keyholeMeshHandle, materials.environment);
-			transform 	= allocate_transform(&scene->transformStorage, {v3{4, 0, 6}});
+			transform 	= allocate_transform(scene->transformStorage, {v3{4, 0, 6}});
 
-			push_one(scene->renderSystem, {transform, model});
+			scene->renderSystem.push({transform, model});
 			push_collider(&scene->collisionManager, transform, {0.3f, 0.6f}, {0, 0.3f}, ColliderTag::Trigger2);
 		}
 	}

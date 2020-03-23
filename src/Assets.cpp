@@ -60,26 +60,26 @@ enum struct IndexType : u32 { UInt16, UInt32 };
 
 struct MeshAsset
 {
-	ArenaArray<Vertex> vertices;
-	ArenaArray<u16> indices;
+	BETTERArray<Vertex> vertices;
+	BETTERArray<u16> indices;
 
 	// TODO(Leo): would this be a good way to deal with different index types?
 	// union
 	// {
-	// 	ArenaArray<u16> indices16;
-	// 	ArenaArray<u32> indices32;
+	// 	BETTERArray<u16> indices16;
+	// 	BETTERArray<u32> indices32;
 	// };
 
 	IndexType indexType = IndexType::UInt16;
 };
 
 internal MeshAsset
-make_mesh_asset(ArenaArray<Vertex> vertices, ArenaArray<u16> indices)
+make_mesh_asset(BETTERArray<Vertex> vertices, BETTERArray<u16> indices)
 {
 	MeshAsset result =
 	{
-		.vertices 	= vertices,
-		.indices 	= indices,
+		.vertices 	= std::move(vertices),
+		.indices 	= std::move(indices),
 		.indexType 	= IndexType::UInt16,
 	};
 	return result;
@@ -89,7 +89,7 @@ using Pixel = u32;
 
 struct TextureAsset
 {
-	ArenaArray<Pixel> pixels;
+	BETTERArray<Pixel> pixels;
 
 	s32 	width;
 	s32 	height;
@@ -146,9 +146,6 @@ get_closest_pixel(TextureAsset * texture, v2 texcoord)
 }
 
 
-
-
-
 enum struct MaterialType : s32
 {
 	Character,
@@ -158,33 +155,16 @@ enum struct MaterialType : s32
 struct MaterialAsset
 {
     PipelineHandle pipeline;
-    ArenaArray<TextureHandle> textures;
+    BETTERArray<TextureHandle> textures;
 };
 
 MaterialAsset
-make_material_asset(PipelineHandle pipeline, ArenaArray<TextureHandle> textures)
+make_material_asset(PipelineHandle pipeline, BETTERArray<TextureHandle> textures)
 {
 	MaterialAsset result = 
 	{
 		.pipeline = pipeline,
-		.textures = textures,
+		.textures = std::move(textures),
 	};
 	return result;
 }
-
-// template<int TextureCount>
-// struct MaterialAsset2
-// {
-// 	PipelineHandle shader;
-
-// 	s32 textureCount;
-
-// 	TextureHandle textures[TextureCount];
-// };
-
-// template<typename ... Ts>
-// MaterialAsset2<2> make_material_asset(Ts ... textures)
-// {
-// 	return {};
-// }
-

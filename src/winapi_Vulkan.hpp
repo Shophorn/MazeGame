@@ -434,7 +434,7 @@ namespace vulkan
 	/// INTERNAL RESOURCES, VULKAN TYPES
     internal VkRenderPass 			make_vk_render_pass(VulkanContext*, VkFormat format, VkSampleCountFlagBits msaaSamples);
 	internal VkDescriptorSetLayout 	make_material_vk_descriptor_set_layout(VkDevice device, u32 textureCount);
-	internal VkDescriptorSet 		make_material_vk_descriptor_set(VulkanContext*, PipelineHandle pipeline, ArenaArray<TextureHandle> textures);
+	internal VkDescriptorSet 		make_material_vk_descriptor_set(VulkanContext*, PipelineHandle pipeline, BETTERArray<TextureHandle> const & textures);
 	internal VkDescriptorSet 		make_material_vk_descriptor_set(VulkanContext*, 
 																	VulkanLoadedPipeline * pipeline,
 																	VulkanTexture * texture,

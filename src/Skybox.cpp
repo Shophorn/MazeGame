@@ -8,7 +8,7 @@ Skybox mesh creation and drawing.
 internal MeshAsset
 create_skybox_mesh(MemoryArena * arena)
 {
-	auto vertices = push_array<Vertex>(arena, 
+	auto vertices = allocate_BETTER_array<Vertex>(*arena, 
 	{
 		// Vertex { .position = {-1, -1, -1}, },
 		// Vertex { .position = { 1, -1, -1}, },
@@ -57,7 +57,7 @@ create_skybox_mesh(MemoryArena * arena)
 	});
 
 	// Face normals inside
-	auto indices = push_array<u16>(arena,
+	auto indices = allocate_BETTER_array<u16>(*arena,
 	{
 		0, 1, 2, 1, 3, 2,
 		4, 6, 5, 6, 7, 5,
@@ -68,6 +68,6 @@ create_skybox_mesh(MemoryArena * arena)
 		20, 22, 21, 22, 23, 21
 	});
 
-	auto result = make_mesh_asset(vertices, indices);
+	auto result = make_mesh_asset(std::move(vertices), std::move(indices));
 	return result;
 }
