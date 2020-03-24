@@ -38,8 +38,8 @@ struct Animation
 // Property/State
 struct AnimationRig
 {
-	Transform3D * 				root;
-	Array<Transform3D*> 	bones;
+	Transform3D * 		root;
+	Array<Transform3D*> bones;
 	Array<u64> 			currentBonePositionKeyframes;
 	Array<u64> 			currentBoneRotationKeyframes;
 };
@@ -48,11 +48,11 @@ struct Animator
 {
 	// Properties
 	AnimationRig rig;
-	float playbackSpeed			= 1.0f;
+	float playbackSpeed	= 1.0f;
 
 	// State
-	bool32 isPlaying 			= false;
-	Animation * clip		= nullptr;
+	bool32 isPlaying 	= false;
+	Animation * clip 	= nullptr;
 	float time;
 };
 
@@ -71,15 +71,37 @@ struct Skeleton
 	Array<Bone> bones;
 };
 
+struct BoneDescription
+{
+	m44 		inverseBindMatrix;
+	u32 		parent;
+	bool32 		isRoot;
+	SmallString name;
+};
+
+struct SkeletonDescription
+{
+	Array<BoneDescription> bones;	
+};
+
+struct SkeletonAnimator
+{
+	// Property
+	SkeletonDescription const * const skeleton = nullptr;
+
+	// State
+	Array<Transform3D> boneTransforms;
+
+	Animation * animation;
+};
+
 v3 get_model_space_position(Skeleton const & skeleton, u32 boneIndex)
 {
 	v3 position = skeleton.bones[boneIndex].boneSpaceTransform.position;
-
 	if (skeleton.bones[boneIndex].isRoot == false)
 	{
 		position += get_model_space_position(skeleton, skeleton.bones[boneIndex].parent);
 	}
-
 	return position;
 }
 
@@ -88,7 +110,6 @@ m44 get_model_space_transform(Skeleton const & skeleton, u32 boneIndex)
 	Bone const & bone = skeleton.bones[boneIndex];
 
 	m44 transform = get_matrix(bone.boneSpaceTransform);
-
 	if (bone.isRoot == false)
 	{
 		transform = matrix::multiply(get_model_space_transform(skeleton, bone.parent), transform); 
@@ -193,16 +214,16 @@ reverse_animation_clip(Animation * clip)
 internal float
 compute_duration (Array<BoneAnimation> const & animations)
 {
-	// Note(Leo): We mitigate risks of copying in that we will just read these
 	float duration = 0;
-
 	for (auto & animation : animations)
 	{
-		duration = math::max(duration, animation.positions.last().time);
-		// duration = math::max(duration, animation.rotations.last().time);
+		if (animation.positions.count() > 0)
+			duration = math::max(duration, animation.positions.last().time);
+
+		if (animation.rotations.count() > 0)
+			duration = math::max(duration, animation.rotations.last().time);
 
 	}
-
 	return duration;
 }
 
@@ -227,21 +248,15 @@ update_animator_system(game::Input * input, Array<Animator> & animators)
 		if (animator.isPlaying == false)
 			continue;
 
-
 		float timeStep = animator.playbackSpeed * input->elapsedTime;
 		animator.time += timeStep;
 
-
-		for (int i = 0; i < animator.clip->boneAnimations.count(); ++i)
+		for (auto & animation : animator.clip->boneAnimations)
 		{
-			update_animation_keyframes(	&animator.clip->boneAnimations[i],
-										&animator.rig.currentBonePositionKeyframes[i],
-										animator.time);
+			u32 boneIndex = animation.boneIndex;
 
-			update_animation_target(	&animator.clip->boneAnimations[i],
-										animator.rig.bones[i],
-										animator.rig.currentBonePositionKeyframes[i],
-										animator.time);
+			update_animation_keyframes( &animation, &animator.rig.currentBonePositionKeyframes[boneIndex], animator.time);
+			update_animation_target( &animation, animator.rig.bones[boneIndex], animator.rig.currentBonePositionKeyframes[boneIndex], animator.time);
 		}
 
 		bool framesLeft = animator.time < animator.clip->duration;
@@ -249,7 +264,6 @@ update_animator_system(game::Input * input, Array<Animator> & animators)
 		if (framesLeft == false)
 		{
 			animator.isPlaying = false;
-			// std::cout << "[Animator]: Animation complete\n";
 		}
 	}
 }
@@ -272,8 +286,13 @@ play_animation_clip(Animator * animator, Animation * clip)
 	animator->time = 0.0f;
 	animator->isPlaying = true;
 
-	for (int boneIndex = 0; boneIndex < clip->boneAnimations.count(); ++boneIndex)
+	for (auto & keyframe : animator->rig.currentBonePositionKeyframes)
 	{
-		animator->rig.currentBonePositionKeyframes[boneIndex] = 0;
+		keyframe = 0;
+	}
+
+	for(auto & keyframe : animator->rig.currentBoneRotationKeyframes)
+	{
+		keyframe = 0;
 	}
 }

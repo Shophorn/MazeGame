@@ -12,6 +12,8 @@ but compulsory design choices, look at:
 #include <type_traits>
 #include <cstring>
 
+#include "Array.hpp"
+
 // ----------------------------------------------------------------------------
 
 template<typename T, u32 Count>
@@ -86,97 +88,6 @@ flush_memory_arena(MemoryArena * arena)
 }
 
 // ----------------------------------------------------------------------------
-
-template<typename T>
-struct Array
-{
-	Array() = default;
-	
-	Array(Array const &) = delete;
-	void operator =(Array const &) = delete;
-
-	Array(Array && old)
-	{
-		this->memory_ 	= old.memory_;
-		this->capacity_ = old.capacity_;
-		this->count_ 	= old.count_;
-
-		old.memory_ 	= nullptr;
-		old.capacity_ 	= 0;
-		old.count_ 		= 0;
-	};
-
-	Array & operator= (Array && old)
-	{
-		this->memory_ 	= old.memory_;
-		this->capacity_ = old.capacity_;
-		this->count_ 	= old.count_;
-
-		old.memory_ 	= nullptr;
-		old.capacity_ 	= 0;
-		old.count_ 		= 0;
-
-		return *this;
-	};
-
-	Array(T * memory, u64 count, u64 capacity) :
-		memory_(memory),
-		count_(count),
-		capacity_(capacity) {}
-
-	T * data ()		{ return memory_; }
-	T const * data ()	const { return memory_; }
-	u64 count () const	{ return count_; }
-	u64 capacity () const { return capacity_; }
-
-	T & operator[] (u64 index)
-	{ 
-		assert(index < count_);
-		return memory_[index];
-	}
-
-	// Todo(Leo): use enable if to make a version of this to return value for simpler types
-	T const & operator[] (u64 index) const
-	{ 
-		assert(index < count_);
-		return memory_[index];
-	}
-
-	void push(T value)
-	{
-		assert(count_ < capacity_);
-		memory_[count_] = std::move(value);
-		++count_;
-	}
-
-	void push_many(std::initializer_list<T> values)
-	{
-		for (auto item : values)
-		{
-			push(item);
-		}
-	}
-
-
-	void flush()
-	{
-		count_ = 0;
-	}
-
-	T * begin() {return data();}
-	T const * begin() const {return memory_;}
-
-	T * end() {return data() + count();}
-	T const * end() const {return memory_ + count();}
-
-	T & last() { return memory_[count_ - 1]; }
-	T last() const { return memory_[count_ - 1]; }
-
-private:
-	T * memory_;
-	u64 count_;
-	u64 capacity_;
-};
 
 template<typename T>
 Array<T> allocate_array(MemoryArena & arena, T const * srcBegin, T const * srcEnd)

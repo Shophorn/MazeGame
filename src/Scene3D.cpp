@@ -10,15 +10,15 @@ Scene description for 3d development scene
 
 #include "DefaultSceneGui.cpp"
 
-void update_animated_renderer(Skeleton * skeleton, AnimatedRenderer * renderer)
+void update_animated_renderer(AnimatedRenderer & renderer, Skeleton const & skeleton)
 {
 	// Todo(Leo): Make more sensible structure that keeps track of this
-	assert(skeleton->bones.count() == renderer->bones.count());
+	assert(skeleton.bones.count() == renderer.bones.count());
 
-	u32 boneCount = skeleton->bones.count();
+	u32 boneCount = skeleton.bones.count();
 
 	/* Todo(Leo): Skeleton needs to be ordered so that parent ALWAYS comes before
-	children, and therefore 0th is always automatically root*/
+	children, and therefore 0th is always implicitly root */
 
 	m44 modelSpaceTransforms [20];
 
@@ -29,15 +29,15 @@ void update_animated_renderer(Skeleton * skeleton, AnimatedRenderer * renderer)
 		2. transform bone space matrix to model space matrix
 		*/
 
-		m44 matrix = get_matrix(skeleton->bones[i].boneSpaceTransform);
+		m44 matrix = get_matrix(skeleton.bones[i].boneSpaceTransform);
 
-		if (skeleton->bones[i].isRoot == false)
+		if (skeleton.bones[i].isRoot == false)
 		{
-			m44 parentMatrix = modelSpaceTransforms[skeleton->bones[i].parent];
+			m44 parentMatrix = modelSpaceTransforms[skeleton.bones[i].parent];
 			matrix = matrix::multiply(parentMatrix, matrix);
 		}
 		modelSpaceTransforms[i] = matrix;
-		renderer->bones[i] = matrix::multiply(matrix, skeleton->bones[i].inverseBindMatrix);
+		renderer.bones[i] = matrix::multiply(matrix, skeleton.bones[i].inverseBindMatrix);
 	}
 }
 
@@ -56,9 +56,6 @@ struct Scene3d
 	Skeleton skeleton;
 	Animator animator;
 	Animation walkAnimation;
-	// BoneAnimation testAnimation;
-
-	// Pose poses [2];
 
 	ModelHandle skybox;
 
@@ -151,8 +148,10 @@ Scene3d::update(	void * 					scenePtr,
 						get_matrix(*scene->characterController.transform) * get_model_space_transform(scene->skeleton, 4),
 						functions);
 
-	update_animated_renderer(&scene->skeleton, &scene->animatedRenderers[0]);
+	update_animated_renderer(scene->animatedRenderers[0], scene->skeleton);
 	render_animated_models(scene->animatedRenderers, graphics, functions);
+
+	// ------------------------------------------------------------------------
 
 	Light light = { vector::normalize(v3{1, 1, -3}), {0.95, 0.95, 0.9}};
 	v3 ambient 	= {0.2, 0.25, 0.4};

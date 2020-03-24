@@ -121,7 +121,7 @@ scene_2d::load(	void * scenePtr,
 	scene->collisionManager =
 	{
 		.colliders 	= allocate_array<Collider2D>(*persistentMemory, 200),
-		.collisions = allocate_array<Collision2D>(*persistentMemory, 300) // Todo(Leo): Not enough..
+		.collisions = allocate_array<Collision2D>(*persistentMemory, 300, ALLOC_FILL_UNINITIALIZED) // Todo(Leo): Not enough..
 	};
 
 	struct MaterialCollection {
