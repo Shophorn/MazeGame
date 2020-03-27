@@ -3,12 +3,6 @@
 #include <cmath>
 #include <type_traits>
 
-internal float
-Root2(float value)
-{
-    float result = sqrt(value);
-    return result; 
-}
 
 template<typename TTo, typename TFrom>
 internal TTo
@@ -44,6 +38,14 @@ round_to<u32, float>(float value)
 #include<limits>
 namespace math
 {   
+    internal float
+    square_root(float value)
+    {
+        float result = sqrtf(value);
+        return result; 
+    }
+
+
     /// NUMERIC LIMITS
     template<typename T> constexpr T lowest_value = std::numeric_limits<T>::lowest();
     template<typename T> constexpr T highest_value = std::numeric_limits<T>::max();

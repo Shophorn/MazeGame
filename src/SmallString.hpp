@@ -4,6 +4,8 @@ Leo Tamminen
 SmallString can hold short length strings in stack.
 =============================================================================*/
 
+#pragma once
+
 struct SmallString
 {
 	SmallString () = default;

@@ -90,7 +90,7 @@ get_view_transform(Camera const * camera)
 	/* Todo(Leo): Translation can be done inline with matrix initialization
 	instead of as separate function call */
 	m44 translation = make_translation_matrix(-camera->position);
-	m44 result = matrix::multiply(orientation, translation);
+	m44 result = orientation * translation;
 
 	return result;	
 }

@@ -18,33 +18,7 @@ namespace small_string_internal_
 		destination[dstIndex] = 0;
 		destination[SmallString::max_length() - 1] = dstIndex;
 	}
-
-	internal s32
-	compare_cstring(char const * lhs, char const * rhs)
-	{
-		while(*lhs != 0 and *rhs != 0 and *lhs == *rhs)
-		{
-			++lhs;
-			++rhs;
-		}
-
-		if (*lhs == *rhs)
-			return 0;
-
-		if (*lhs < *rhs)
-			return -1;
-
-		if (*lhs >  *rhs)
-			return 1;
-
-
-		assert(false);
-
-		return 0;
-	}
 }
-
-// ----------------------------------------------------------------------------
 
 char const * SmallString::data() const { return data_; }
 
@@ -79,17 +53,17 @@ void SmallString::append(char const * source)
 
 bool small_string_operators::operator == (SmallString const & s, char const * c)
 {
-	return small_string_internal_::compare_cstring(s.data(), c) == 0;
+	return compare_cstring(s.data(), c) == 0;
 }
 
 bool small_string_operators::operator == (char const * c, SmallString const & s)
 {
-	return small_string_internal_::compare_cstring(c, s.data()) == 0;
+	return compare_cstring(c, s.data()) == 0;
 }
 
 bool small_string_operators::operator == (SmallString const & lhs, SmallString const & rhs)
 {
-	return small_string_internal_::compare_cstring(lhs.data(), rhs.data()) == 0;
+	return compare_cstring(lhs.data(), rhs.data()) == 0;
 }
 
 std::ostream & small_string_operators::operator << (std::ostream & os, SmallString const & string)

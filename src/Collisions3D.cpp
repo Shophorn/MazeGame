@@ -38,7 +38,7 @@ push_collider_to_system(CollisionSystem3D * system,
 }
 
 internal float
-get_terrain_height(CollisionSystem3D * system, vector2 position)
+get_terrain_height(CollisionSystem3D * system, v2 position)
 {
 	position.x -= system->terrainTransform->position.x;
 	position.y -= system->terrainTransform->position.y;

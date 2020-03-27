@@ -104,5 +104,5 @@ get_light_view_projection(Light const * directionalLight, Camera const * camera)
 		0, 0, 0, 1
 	};
 
-	return matrix::multiply(lightProjection, lightView);
+	return lightProjection * lightView;
 }

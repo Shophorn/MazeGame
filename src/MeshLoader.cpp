@@ -13,59 +13,191 @@ Todo(Leo):
 // #include <string>
 // #include <vector>
 
-struct GenericIterator
+struct GltfIterator
 {
-	u32 stride;
-	u8 * pointer;
+	int const stride;
+	int const count;
+	void const * const start;
+
+	int position = 0;
 };
 
-template <typename T>
-T get_and_advance(GenericIterator * iterator)
+GltfIterator
+make_gltf_iterator (BinaryBuffer const & buffer, rapidjson::Document const & document, u32 accessorIndex)
 {
-	T result = *reinterpret_cast<T*>(iterator->pointer);
-	iterator->pointer += iterator->stride;
+	auto accessor = document["accessors"][accessorIndex].GetObject();
+	auto componentType = (glTF::ComponentType)accessor["componentType"].GetInt();
+	u32 size = glTF::get_component_size(componentType);
+	
+	u32 componentCount = glTF::get_component_count(accessor["type"].GetString());
+
+	u32 viewIndex = accessor["bufferView"].GetInt();
+	u32 offset = document["bufferViews"][viewIndex]["byteOffset"].GetInt();
+
+	u32 count = accessor["count"].GetInt();
+
+	return {.stride 	= (int)(size * componentCount),
+			.count 		= (int)count,
+			.start 		= buffer.data() + offset};
+
+};
+
+
+template <typename T>
+T get_and_advance(GltfIterator & iterator)
+{
+	T result = *reinterpret_cast<T const*>((u8*)iterator.start + iterator.position);
+	// iterator.start = (u8*)iterator.start + iterator.stride;
+	iterator.position += iterator.stride;
 	return result;
 }
 
 template <typename T>
-T get_at(GenericIterator * iterator, u32 position)
+T get_at(GltfIterator const & iterator, u32 position)
 {
-	return *reinterpret_cast<T*>(iterator->pointer + (iterator->stride * position));
+	return *reinterpret_cast<T const*>((u8*)iterator.start + (iterator.stride * position));
 }
 
-
-
-internal Skeleton
-load_skeleton_glb(MemoryArena * memoryArena, char const * filePath, char const * modelName)
+int find_bone_by_node(rapidjson::Document const & jsonDocument, int nodeIndex)
 {
-	using JsonValue = rapidjson::Value;
+	assert(jsonDocument.HasMember("skins"));
+	assert(jsonDocument["skins"].Size() == 1);
+	assert(jsonDocument["skins"][0].HasMember("joints"));
 
-	auto rawBuffer 		= read_binary_file(memoryArena, filePath);
-	auto jsonBuffer 	= get_gltf_json_chunk(rawBuffer, memoryArena);
-	auto jsonString		= get_string(jsonBuffer);
-	auto jsonDocument	= parse_json(jsonString.c_str());
-	
-	auto nodeArray = jsonDocument["nodes"].GetArray();
-	
-	JsonValue modelNode;
-	for (auto & object : nodeArray)
+	auto bonesArray = jsonDocument["skins"][0]["joints"].GetArray();
+
+
+	int boneCount = bonesArray.Size();
+
+	for (int boneIndex = 0; boneIndex < boneCount; ++boneIndex)
 	{
-		auto name = object["name"].GetString();
-		if (name == std::string(modelName))
-		{
-			assert(object.HasMember("skin"));
+		int nodeForBone = bonesArray[boneIndex].GetInt();
 
-			modelNode = object;
-			break;
+		if (nodeForBone == nodeIndex)
+			return boneIndex;
+	}
+
+	return -1;
+}
+
+using JsonValue = rapidjson::Value;
+using JsonArray = rapidjson::GenericArray<true, JsonValue>;
+
+auto find_by_name (JsonArray & nodeArray, char const * name)
+	-> JsonValue const *
+{
+	for (auto const & node : nodeArray)
+	{
+		if (cstring_equals(node["name"].GetString(), name))
+		{
+			return &node;
 		}
 	}
+	return nullptr;
+};
+
+internal Animation
+load_animation_glb(MemoryArena & memoryArena, GltfFile const & gltfFile, char const * animationName)
+{
+	auto const & jsonDocument = gltfFile.json;
+
+	DEBUG_ASSERT(jsonDocument.HasMember("animations"), "No Animations found");
+
+	auto animArray = jsonDocument["animations"].GetArray();
+
+	JsonValue const * ptrNamedAnimation = find_by_name(animArray, animationName);
+
+	DEBUG_ASSERT(ptrNamedAnimation != nullptr, "animation not found");
+
+	auto const & namedAnimation = *ptrNamedAnimation;
+
+	auto channels = namedAnimation["channels"].GetArray();
+	auto samplers = namedAnimation["samplers"].GetArray();
+
+	auto accessors 		= jsonDocument["accessors"].GetArray();
+	auto bufferViews 	= jsonDocument["bufferViews"].GetArray();
+	auto buffers 		= jsonDocument["buffers"].GetArray();
+
+	Animation result = {};
+	result.boneAnimations = allocate_array<BoneAnimation>(memoryArena, channels.Size());
+
+	float animationMinTime = math::highest_value<float>;
+	float animationMaxTime = math::lowest_value<float>;
+
+	for (auto const & channel : channels)
+	{
+		int samplerIndex = channel["sampler"].GetInt();
+		int inputAccessorIndex = samplers[samplerIndex]["input"].GetInt();
+		int outputAccessorIndex = samplers[samplerIndex]["output"].GetInt();
+
+		animationMinTime = math::min(animationMinTime, accessors[inputAccessorIndex]["min"][0].GetFloat());
+		animationMaxTime = math::max(animationMaxTime, accessors[inputAccessorIndex]["max"][0].GetFloat());
+
+		int inputBufferViewIndex = accessors[inputAccessorIndex]["bufferView"].GetInt();
+		int outputBufferViewIndex = accessors[outputAccessorIndex]["bufferView"].GetInt();
+
+		int keyframeCount = accessors[inputAccessorIndex]["count"].GetInt();
+		
+		auto inputIt 	= make_gltf_iterator(gltfFile.binaryBuffer, jsonDocument, inputAccessorIndex);
+		auto outputIt 	= make_gltf_iterator(gltfFile.binaryBuffer, jsonDocument, outputAccessorIndex);
+
+		auto targetNode 	= channel["target"]["node"].GetInt();
+		char const * path 	= channel["target"]["path"].GetString();
+
+		BoneAnimation boneAnimation = {};
+		boneAnimation.boneIndex = find_bone_by_node(jsonDocument, targetNode);
+
+		if (cstring_equals(path, "rotation"))
+		{
+			boneAnimation.rotations = allocate_array<RotationKeyframe>(memoryArena, keyframeCount);
+			for (int keyframeIndex = 0; keyframeIndex < keyframeCount; ++keyframeIndex)
+			{
+				float time 			= get_at<float>(inputIt, keyframeIndex);
+				quaternion rotation = get_at<quaternion>(outputIt, keyframeIndex);
+
+				// TODO(Leo): Why does this work?
+				rotation 			= rotation.inverse();
+
+				boneAnimation.rotations.push({time, rotation});
+			}
+		}
+
+		else if (cstring_equals(path, "translation"))
+		{
+			boneAnimation.positions = allocate_array<PositionKeyframe>(memoryArena, keyframeCount);
+			for (int keyframeIndex = 0; keyframeIndex < keyframeCount; ++keyframeIndex)
+			{
+				float time 	= get_at<float>(inputIt, keyframeIndex);
+				v3 position = get_at<v3>(outputIt, keyframeIndex);
+				boneAnimation.positions.push({time, position});
+			}
+		}
+		result.boneAnimations.push(std::move(boneAnimation));
+	}
+	result.duration = animationMaxTime - animationMinTime;
+
+	DEBUG_ASSERT(animationMinTime == 0, "Probably need to implement support animations that do not start at 0");
+
+	return result;
+}
+
+internal Skeleton
+load_skeleton_glb(MemoryArena & memoryArena, GltfFile const & gltfFile, char const * modelName)
+{
+	auto const & jsonDocument 	= gltfFile.json;
+	auto nodeArray = jsonDocument["nodes"].GetArray();
+	
+	JsonValue const * ptrModelNode = find_by_name(nodeArray, modelName);
+	assert(ptrModelNode != nullptr);
+
+	JsonValue const & modelNode = *ptrModelNode;
 
 	u32 skinIndex 	= modelNode["skin"].GetInt();
 	auto skin 		= jsonDocument["skins"][skinIndex].GetObject();
 	auto jointArray = skin["joints"].GetArray();
 	u32 jointCount 	= jointArray.Size();
 
-	Skeleton result = { allocate_array<Bone>(*memoryArena, jointCount, ALLOC_FILL_UNINITIALIZED) };
+	Skeleton result = { allocate_array<Bone>(memoryArena, jointCount, ALLOC_FILL_UNINITIALIZED) };
 	for (auto & bone : result.bones)
 	{
 		bone.boneSpaceTransform = {};
@@ -86,11 +218,6 @@ load_skeleton_glb(MemoryArena * memoryArena, char const * filePath, char const *
 		assert(false && "Joint should have been found");
 		return -1;
 	};
-
-	m44 gltf_to_mazegame = {1, 0, 0, 0,
-							0, 0, 1, 0,
-							0, -1, 0, 0,
-							0, 0, 0, 1};
 
 	for (int i = 0; i < jointCount; ++i)
 	{
@@ -116,97 +243,58 @@ load_skeleton_glb(MemoryArena * memoryArena, char const * filePath, char const *
 			result.bones[i].name = "nameless bone";
 		}
 		
-		// Note(Leo): Do this only for non-root bones
-		if (i > 0)
+
+		if(node.HasMember("translation"))
 		{
+			auto translationArray = node["translation"].GetArray();
+			result.bones[i].boneSpaceTransform.position.x = translationArray[0].GetFloat();
+			result.bones[i].boneSpaceTransform.position.y = translationArray[1].GetFloat();
+			result.bones[i].boneSpaceTransform.position.z = translationArray[2].GetFloat();
+		}
+		else
+		{
+			result.bones[i].boneSpaceTransform.position = {};
+		}
 
-			if(node.HasMember("translation"))
-			{
-				auto translationArray = node["translation"].GetArray();
-				result.bones[i].boneSpaceTransform.position.x = translationArray[0].GetFloat();
-				result.bones[i].boneSpaceTransform.position.y = translationArray[1].GetFloat();
-				result.bones[i].boneSpaceTransform.position.z = translationArray[2].GetFloat();
+		if (node.HasMember("rotation"))
+		{
+			auto rotationArray = node["rotation"].GetArray();
+			result.bones[i].boneSpaceTransform.rotation.x = rotationArray[0].GetFloat();
+			result.bones[i].boneSpaceTransform.rotation.y = rotationArray[1].GetFloat();
+			result.bones[i].boneSpaceTransform.rotation.z = rotationArray[2].GetFloat();
+			result.bones[i].boneSpaceTransform.rotation.w = rotationArray[3].GetFloat();
 
-				result.bones[i].boneSpaceTransform.position = multiply_point(gltf_to_mazegame, result.bones[i].boneSpaceTransform.position);
-			}
-
-			if (node.HasMember("rotation"))
-			{
-				auto rotationArray = node["rotation"].GetArray();
-				result.bones[i].boneSpaceTransform.rotation.vector.x = rotationArray[0].GetFloat();
-				result.bones[i].boneSpaceTransform.rotation.vector.y = rotationArray[1].GetFloat();
-				result.bones[i].boneSpaceTransform.rotation.vector.z = rotationArray[2].GetFloat();
-				
-				result.bones[i].boneSpaceTransform.rotation.vector = multiply_direction(gltf_to_mazegame, result.bones[i].boneSpaceTransform.rotation.vector);
-
-				result.bones[i].boneSpaceTransform.rotation.w = rotationArray[3].GetFloat();
-
-
-			}
+			std::cout << "loaded rotation from glb, before: " << result.bones[i].boneSpaceTransform.rotation;
+ 
+			result.bones[i].boneSpaceTransform.rotation = result.bones[i].boneSpaceTransform.rotation.inverse();
+			std::cout << ", after: " << result.bones[i].boneSpaceTransform.rotation << "\n";
+		}
+		else
+		{
+			result.bones[i].boneSpaceTransform.rotation = quaternion::identity();
 		}
 	}
 
-	auto binaryBuffer = get_gltf_binary_chunk(memoryArena, rawBuffer, 0);
-
-	auto get_iterator = [&](u32 accessorIndex) -> GenericIterator
+	int inverseBindMatrixAccessorIndex = skin["inverseBindMatrices"].GetInt();
+	auto bindMatrixIterator = make_gltf_iterator(gltfFile.binaryBuffer, jsonDocument, inverseBindMatrixAccessorIndex);
+	for(auto & bone : result.bones)
 	{
-		auto accessor = jsonDocument["accessors"][accessorIndex].GetObject();
-		auto componentType = (glTF::ComponentType)accessor["componentType"].GetInt();
-		u32 size = glTF::get_component_size(componentType);
-		
-		u32 componentCount = glTF::get_component_count(accessor["type"].GetString());
-
-		u32 viewIndex = accessor["bufferView"].GetInt();
-		u32 offset = jsonDocument["bufferViews"][viewIndex]["byteOffset"].GetInt();
-
-		return {.stride = size * componentCount,
-				.pointer = binaryBuffer.begin() + offset};
-
-	};
-
-	auto bindMatrixIterator = get_iterator(skin["inverseBindMatrices"].GetInt());
-
-
-	m44 modelSpaceTransforms [20] = {};
-	result.bones[0].inverseBindMatrix = matrix::make_identity<m44>();
-	modelSpaceTransforms[0] = matrix::make_identity<m44>();
-	for (int i = 1; i < result.bones.count(); ++i)
-	{
-		m44 boneSpaceBindTransform = get_matrix(result.bones[i].boneSpaceTransform);
-		u32 parentIndex = result.bones[i].parent;
-		m44 modelSpaceBindTransform = matrix::multiply(modelSpaceTransforms[parentIndex], boneSpaceBindTransform);
-		result.bones[i].inverseBindMatrix = invert_transform_matrix(modelSpaceBindTransform);
-		modelSpaceTransforms[i] = modelSpaceBindTransform;
+		bone.inverseBindMatrix = get_and_advance<m44>(bindMatrixIterator);
 	}
-
-	// for(auto & bone : result.bones)
-	// {
-	// 	bone.inverseBindMatrix = get_and_advance<m44>(&bindMatrixIterator);
-	// 	bone.inverseBindMatrix = matrix::multiply(gltf_to_mazegame, bone.inverseBindMatrix);
-	// }
-
-	std::cout << "[load_skeleton_glb()]: root inverseBindMatrix = " << result.bones[0].inverseBindMatrix << "\n";
 
 	return result;
 }
 
 internal MeshAsset
-load_model_glb(MemoryArena * memoryArena, char const * filePath, char const * modelName)
+load_model_glb(MemoryArena & memoryArena, GltfFile const & gltfFile, char const * modelName)
 {
-	using JsonValue = rapidjson::Value;
-	/*
-	Todo(Leo): 
-		- multiple objects in file
-		- other hierarchies
-		- world transforms
-		- sparse accessor
-	*/
+	// auto rawBuffer 		= read_binary_file(memoryArena, filePath);
+	// auto jsonBuffer 	= get_gltf_json_chunk(rawBuffer, memoryArena);
+	// auto jsonString		= get_string(jsonBuffer);
+	// auto jsonDocument	= parse_json(jsonString.c_str());
+		
+	auto & jsonDocument = gltfFile.json;
 
-	auto rawBuffer 		= read_binary_file(memoryArena, filePath);
-	auto jsonBuffer 	= get_gltf_json_chunk(rawBuffer, memoryArena);
-	auto jsonString		= get_string(jsonBuffer);
-	auto jsonDocument	= parse_json(jsonString.c_str());
-	
 	auto nodeArray = jsonDocument["nodes"].GetArray();
 	
 	s32 positionAccessorIndex 	= -1; 
@@ -216,21 +304,10 @@ load_model_glb(MemoryArena * memoryArena, char const * filePath, char const * mo
 	s32 bonesAccessorIndex 			= -1;
 	s32 boneWeightsAccessorIndex 	= -1;
 
-	JsonValue modelNode;
+	JsonValue const * ptrModelNode = find_by_name(nodeArray, modelName);
+	assert(ptrModelNode != nullptr);
+	JsonValue const & modelNode = *ptrModelNode;
 
-	s32 indexAccessorIndex 		= -1;
-
-	for (auto & object : nodeArray)
-	{
-		auto name = object["name"].GetString();
-		if (name == std::string(modelName))
-		{
-			assert(object.HasMember("mesh"));
-
-			modelNode = object;
-			break;
-		}
-	}
 
 	u32 meshIndex 			= modelNode["mesh"].GetInt();
 	auto meshObject			= jsonDocument["meshes"][0].GetObject();
@@ -247,15 +324,14 @@ load_model_glb(MemoryArena * memoryArena, char const * filePath, char const * mo
 	if (attribObject.HasMember("WEIGHTS_0"))
 		boneWeightsAccessorIndex = attribObject["WEIGHTS_0"].GetInt();
 
-	indexAccessorIndex 		= primitivesArray[0].GetObject()["indices"].GetInt();
 
 
 	auto accessorArray 		= jsonDocument["accessors"].GetArray();
 	auto bufferViewArray 	= jsonDocument["bufferViews"].GetArray();
 	auto buffersArray 		= jsonDocument["buffers"].GetArray();
 	
-	// Todo(Leo): what if there are multiple buffers in file? Where is the index? In "buffers"?
-	auto binaryBuffer 			= get_gltf_binary_chunk(memoryArena, rawBuffer, 0);
+	// // Todo(Leo): what if there are multiple buffers in file? Where is the index? In "buffers"?
+	// auto binaryBuffer 			= get_gltf_binary_chunk(memoryArena, rawBuffer, 0);
 
 	auto get_buffer_view_index = [&accessorArray](s32 index) -> s32
 	{
@@ -269,6 +345,8 @@ load_model_glb(MemoryArena * memoryArena, char const * filePath, char const * mo
 		return result;
 	};
 
+	s32 indexAccessorIndex 		= -1;
+	indexAccessorIndex 			= primitivesArray[0].GetObject()["indices"].GetInt();
 	s32 indexBufferViewIndex 	= get_buffer_view_index(indexAccessorIndex);
 
 	u64 vertexCount 			= get_item_count(positionAccessorIndex);
@@ -284,46 +362,30 @@ load_model_glb(MemoryArena * memoryArena, char const * filePath, char const * mo
 		return bufferView["byteOffset"].GetInt();
 	};
 
-	auto vertices = allocate_array<Vertex>(*memoryArena, vertexCount, ALLOC_FILL_UNINITIALIZED);
+	auto vertices = allocate_array<Vertex>(memoryArena, vertexCount, ALLOC_FILL_UNINITIALIZED);
 
-	auto get_iterator = [&](u32 accessorIndex) -> GenericIterator
-	{
-		auto accessor = accessorArray[accessorIndex].GetObject();
-		auto componentType = (glTF::ComponentType)accessor["componentType"].GetInt();
-		
-		u32 size = glTF::get_component_size(componentType);
-		u32 componentCount = glTF::get_component_count(accessor["type"].GetString());
-
-		u32 viewIndex = get_buffer_view_index(accessorIndex);
-		u32 offset = get_buffer_byte_offset(viewIndex);
-
-		return {.stride = size * componentCount,
-				.pointer = binaryBuffer.begin() + offset};
-
-	};
-
-
-	auto posIt 			= get_iterator(positionAccessorIndex);
-	auto normalIt 		= get_iterator(normalAccessorIndex);
-	auto texcoordIt 	= get_iterator(texcoordAccessorIndex);
+	auto normalIt 		= make_gltf_iterator(gltfFile.binaryBuffer, jsonDocument, normalAccessorIndex);
+	auto posIt 			= make_gltf_iterator(gltfFile.binaryBuffer, jsonDocument, positionAccessorIndex);
+	auto texcoordIt 	= make_gltf_iterator(gltfFile.binaryBuffer, jsonDocument, texcoordAccessorIndex);
 
 	for (auto & vertex : vertices)
 	{
-		vertex.position = get_and_advance<v3>(&posIt);
-		vertex.normal 	= get_and_advance<v3>(&normalIt);
-		vertex.texCoord = get_and_advance<v2>(&texcoordIt);
+		vertex.position = get_and_advance<v3>(posIt);
+		vertex.normal 	= get_and_advance<v3>(normalIt);
+		vertex.texCoord = get_and_advance<v2>(texcoordIt);
 	}
+
 
 	bool32 hasSkin = bonesAccessorIndex >= 0 && boneWeightsAccessorIndex >= 0;
 	if (hasSkin)
 	{
-		auto bonesIterator = get_iterator(bonesAccessorIndex);
-		auto weightIterator = get_iterator(boneWeightsAccessorIndex);
+		auto bonesIterator = make_gltf_iterator(gltfFile.binaryBuffer, jsonDocument, bonesAccessorIndex);
+		auto weightIterator = make_gltf_iterator(gltfFile.binaryBuffer, jsonDocument, boneWeightsAccessorIndex);
 
 		for (auto & vertex : vertices)
 		{
-			vertex.boneIndices = get_and_advance<upoint4>(&bonesIterator);
-			vertex.boneWeights = get_and_advance<v4>(&weightIterator);
+			vertex.boneIndices = get_and_advance<upoint4>(bonesIterator);
+			vertex.boneWeights = get_and_advance<v4>(weightIterator);
 			vector::normalize(vertex.boneWeights);
 		}
 	}
@@ -331,12 +393,12 @@ load_model_glb(MemoryArena * memoryArena, char const * filePath, char const * mo
 	///// INDICES //////
 	auto indexAccessor 	= accessorArray[indexAccessorIndex].GetObject();
 	u64 indexCount 		= indexAccessor["count"].GetInt();
-	auto indices 		= allocate_array<u16>(*memoryArena, indexCount, ALLOC_FILL_UNINITIALIZED);
+	auto indices 		= allocate_array<u16>(memoryArena, indexCount, ALLOC_FILL_UNINITIALIZED);
 
-	auto indexIterator = get_iterator(indexAccessorIndex);
+	auto indexIterator = make_gltf_iterator(gltfFile.binaryBuffer, jsonDocument, indexAccessorIndex);
 	for (u16 & index : indices)
 	{
-		index = get_and_advance<u16>(&indexIterator);
+		index = get_and_advance<u16>(indexIterator);
 	}
 
 	MeshAsset result = make_mesh_asset(std::move(vertices), std::move(indices));

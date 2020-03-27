@@ -5,7 +5,6 @@ struct quaternion
 		struct {float x, y, z; };
 		v3 vector;
 	};
-	
 	float w;
 
 	constexpr static quaternion	identity();
@@ -13,12 +12,21 @@ struct quaternion
 
 	static quaternion euler_angles(float x, float y, float z);
 	static quaternion euler_angles(v3 eulerRotation);
+
+	float magnitude() const;
+	quaternion inverse() const;
+	quaternion inverse_non_unit() const;
+
 };
 
+static_assert(std::is_standard_layout_v<quaternion>, "");
+static_assert(std::is_trivial_v<quaternion>, "");
+
 // quaternion normalize(quaternion q);
-quaternion inverse(quaternion q);
+// quaternion inverse(quaternion q);
 quaternion operator * (quaternion lhs, quaternion rhs);
 quaternion interpolate(quaternion from, quaternion to, float t);
+float dot_product(quaternion a, quaternion b);
 
 #if MAZEGAME_INCLUDE_STD_IOSTREAM
 
@@ -29,6 +37,11 @@ std::ostream & operator << (std::ostream & os, quaternion q)
 }
 
 #endif
+
+float quaternion::magnitude() const
+{
+	return math::square_root(x*x + y*y + z*z + w*w);
+}
 
 constexpr quaternion
 quaternion::identity()
@@ -89,17 +102,23 @@ quaternion::euler_angles(float eulerX, float eulerY, float eulerZ)
 	return z * y * x;	
 }
 
-quaternion inverse(quaternion q)
+quaternion quaternion::inverse() const
+{
+	quaternion result = { -x, -y, -z, w };
+	return result;
+}
+
+quaternion quaternion::inverse_non_unit() const
 {
 	using namespace vector;
-	float magnitude = get_length(q.vector);
+	float vectorMagnitude = get_length(vector);
 
-	float conjugate = q.w * q.w + magnitude * magnitude;
+	float conjugate = (w * w) + (vectorMagnitude * vectorMagnitude);
 
 	return {
-		.vector = (-q.vector) / conjugate,
-		.w 		= q.w / conjugate
-	};
+		.vector = (-vector) / conjugate,
+		.w 		= w / conjugate
+	};	
 }
 
 quaternion operator * (quaternion lhs, quaternion rhs)
@@ -138,7 +157,17 @@ quaternion interpolate(quaternion from, quaternion to, float t)
 {
 	using namespace vector;
 
-	quaternion difference = inverse(from) * to;
+	// Note(Leo): This ensures that rotation takes the shorter path
+	float dot = dot_product(from, to);
+	if (dot < 0)
+	{
+		to.vector = -to.vector;
+		to.w = -to.w;
+	}
+
+
+	quaternion difference = from.inverse() * to;
+
 
 	// Convert to rodriques rotation
 	v3 axis 		= normalize_or_zero(difference.vector);
@@ -150,4 +179,10 @@ quaternion interpolate(quaternion from, quaternion to, float t)
 	};
 
 	return from * result;
+}
+
+float dot_product(quaternion a, quaternion b)
+{
+	float result = a.x*b.x + a.y*b.y + a.z*b.z + a.w*b.w;
+	return result;
 }

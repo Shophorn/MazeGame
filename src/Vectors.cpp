@@ -19,7 +19,6 @@ struct Vector<S, 2>
 	S x, y;
 };
 
-using vector2 = Vector<float, 2>;
 using v2 = Vector<float, 2>;
 using point2 = Vector<u32, 2>;
 
@@ -279,7 +278,7 @@ vector::normalize_or_zero(Vector<S,D> vec)
 	{
 		return vec;
 	}
-	vec /= Root2(sqrMagnitude);
+	vec /= math::square_root(sqrMagnitude);
 	return vec;
 }
 
@@ -293,7 +292,7 @@ vector::get_length(Vector<S,D> const & vec)
 	{
 		result += pVec[i] * pVec[i];
 	}
-	result = Root2(result);
+	result = math::square_root(result);
 	return result;
 }
 

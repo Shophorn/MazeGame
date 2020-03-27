@@ -49,8 +49,10 @@ const vec3 background = vec3 (0.8, 0.7, 0.9); //vec3(0.2, 0.1, 0.3);
 void main()
 {
 	float ldotn = dot(-light.direction.xyz, fragNormal);
-	float lightIntensity = smoothstep(-0.05, 0.05, ldotn);
-	lightIntensity = mix(ldotn, lightIntensity, 0.85);
+	
+	float lightRange = 1;
+	float lightIntensity = smoothstep(-lightRange, lightRange, ldotn);
+	// lightIntensity = mix(ldotn, lightIntensity, 0.8	5);
 	// float lightIntensity = mix(ldotn, step(0, ldotn), 0.9);
 
 	float test = linearize_depth(gl_FragCoord.z, 0.1, 1000);
@@ -59,43 +61,20 @@ void main()
 	albedo *= texture(texSampler[ALBEDO_INDEX], fragTexCoord).rgb;
 
 
+	// ------------------------------------------------------------------------
+	// Shddows
 	float lightDepthFromTexture = texture(lightMap, lightCoords.xy).r;
-
 	const float epsilon = 0.0001;
 	float inLight = 1.0 - step(lightDepthFromTexture + epsilon, lightCoords.z);
-
 	if (inLight < 0.5)
 	{
 		lightIntensity *= (1.0 - lightCoords.w);
 	}
+	// ------------------------------------------------------------------------
 
+	vec3 light = light.ambient.rgb + (light.color.rgb * (2 - test) * lightIntensity);
 
-	// /float factor = inLight * lightCoords.w;
-
-
-
-
-
-
-
-
-
-
-
-	// lightIntensity *= inLight;
-
-	// lightIntensity = factor;
-
-	float metallic = texture(texSampler[METALLIC_INDEX], fragTexCoord).r;
-
-	vec3 light = light.ambient.rgb + (light.color.rgb * lightIntensity);
 
 	outColor.rgb = light * albedo;
-
-
-	// outColor.rg = mix(outColor.rg, lightCoords.xy, 0.5);
-	// outColor.b = lightCoords.z;
-
-
 	outColor.a = 1.0;
 }

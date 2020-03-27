@@ -12,29 +12,6 @@ struct Transform3D
 	Transform3D * parent;
 };
 
-/// Todo(Leo): Do something along these lines for hierarchy, instead of EVERY transform having parent
-
-
-// template<typename T>
-// struct Hierarchy
-// {
-// 	ArenaArray<T> array;
-
-// 	struct Node
-// 	{
-// 		T object;
-// 		u32 parent;
-// 	};
-// };
-
-// template <typename T>
-// struct HierarchyNode
-// {
-// 	T value;
-// 	HierarchyNode<T> * parent;
-// };
-// using TransformNode = HierarchyNode<Transform3D>;
-
 Transform3D interpolate(Transform3D const & lhs, Transform3D const & rhs, float t)
 {
 	// Note(Leo): Transforms should not store hierarchy themselves, interpolating does not support that
@@ -56,7 +33,7 @@ m44 get_matrix(Transform3D const & transform)
 	m44 result = make_transform_matrix(transform.position, transform.rotation, transform.scale);
 	if (transform.parent != nullptr)
 	{
-		result = matrix::multiply(result, get_matrix(*transform.parent));
+		result = result * get_matrix(*transform.parent);
 	}
 	return result;
 }

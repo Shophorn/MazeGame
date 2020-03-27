@@ -18,6 +18,17 @@ TODO(Leo): We probably should or this with all other external
 libraries.
 */
 
+template<typename T>
+struct MemoryView
+{
+	T * const start;
+	s32 const count;
+
+	T * begin() { return start; }
+	T * end() { return start + count; }
+};
+
+
 namespace glTF
 {
 	// https://github.com/KhronosGroup/glTF/tree/master/specification/2.0
@@ -94,21 +105,12 @@ using BinaryBuffer 	= Array<byte>;
 using TextBuffer 	= Array<char>;
 
 template<typename T>
-struct ArrayView
+T convert_bytes(Array<u8> const & memory, u64 position)
 {
-	Array<T> * array;
-	u64 offset;
-	u64 count;
-	T * data() { return array->data + offset; }
-};
-
-
-template<typename TResult> TResult
-get(BinaryBuffer const & buffer, u64 position)
-{
-	TResult result = *reinterpret_cast<TResult const *>(buffer.data() + position);
+	T result = *reinterpret_cast<T const *> (memory.data() + position);
 	return result;
 }
+
 
 // Todo(Leo): This is allocated uncontrollably, so we must do something about it
 internal std::string
@@ -119,19 +121,19 @@ get_string(TextBuffer const & buffer)
 }
 
 internal TextBuffer
-get_gltf_json_chunk(BinaryBuffer const & gltf, MemoryArena * memoryArena)
+get_gltf_json_chunk(BinaryBuffer const & gltf, MemoryArena & memoryArena)
 {
 	using namespace glTF;
 
 	u64 offset 		= headerLength;
-	u32 chunkLength 	= get<u32>(gltf, offset + chunkLengthPosition);
-	ChunkType chunkType = get<ChunkType>(gltf, offset + chunkTypePosition);
+	u32 chunkLength 	= convert_bytes<u32>(gltf, offset + chunkLengthPosition);
+	ChunkType chunkType = convert_bytes<ChunkType>(gltf, offset + chunkTypePosition);
 
 	while(chunkType != ChunkType::Json && offset < gltf.count())
 	{
 		offset 		+= chunkLength + chunkInfoLength;
-		chunkLength  = get<u32>(gltf, offset + chunkLengthPosition);
-		chunkType 	 = get<ChunkType>(gltf, offset + chunkTypePosition);
+		chunkLength  = convert_bytes<u32>(gltf, offset + chunkLengthPosition);
+		chunkType 	 = convert_bytes<ChunkType>(gltf, offset + chunkTypePosition);
 	}
 
 	/* Note(Leo): Add this so we get to start of actual data of chunk
@@ -144,27 +146,14 @@ get_gltf_json_chunk(BinaryBuffer const & gltf, MemoryArena * memoryArena)
 	}
 
 
-	char * memory = reinterpret_cast<char *>(allocate(*memoryArena, chunkLength));
+	char * memory = reinterpret_cast<char *>(allocate(memoryArena, chunkLength));
 	std::copy(gltf.data() + start, gltf.data() + start + chunkLength, memory);
 
 	return TextBuffer(memory, chunkLength, chunkLength);
-
-
-
-
-
-
-
-
-	// TextBuffer castResult 	= *reinterpret_cast<TextBuffer*>(&gltf);
-	// TextBuffer result 		= copy_array_slice(memoryArena, castResult, start, chunkLength);
-
-
-	// return result;
 }
 
 internal BinaryBuffer
-get_gltf_binary_chunk(MemoryArena * memoryArena, BinaryBuffer const & gltf, s32 binaryChunkIndex = 0)
+get_gltf_binary_chunk(MemoryArena & memoryArena, BinaryBuffer const & gltf, s32 binaryChunkIndex = 0)
 {
 	using namespace glTF;
 
@@ -173,20 +162,20 @@ get_gltf_binary_chunk(MemoryArena * memoryArena, BinaryBuffer const & gltf, s32 
 	binary chunk*/
 
 	u64 offset 		 = headerLength;
-	u32 chunkLength 	 = get<u32>(gltf, offset + chunkLengthPosition);
+	u32 chunkLength 	 = convert_bytes<u32>(gltf, offset + chunkLengthPosition);
 	offset 				+= chunkInfoLength + chunkLength;
 
 	for (int i = 0; i < binaryChunkIndex; ++i)
 	{
-		chunkLength  = get<u32>(gltf, offset + chunkLengthPosition);
+		chunkLength  = convert_bytes<u32>(gltf, offset + chunkLengthPosition);
 		offset 		+= chunkInfoLength + chunkLength;
 	}
 
-	chunkLength  = get<u32>(gltf, offset + chunkLengthPosition);
+	chunkLength  = convert_bytes<u32>(gltf, offset + chunkLengthPosition);
 	u64 start = offset + chunkInfoLength;
 	// auto result  = copy_array_slice(memoryArena, gltf, start, chunkLength);
 
-	byte * memory = reinterpret_cast<byte*>(allocate(*memoryArena, chunkLength));
+	byte * memory = reinterpret_cast<byte*>(allocate(memoryArena, chunkLength));
 	std::copy(gltf.data() + start, gltf.data() + start + chunkLength, memory);
 
 	return BinaryBuffer(memory, chunkLength, chunkLength);
@@ -220,14 +209,12 @@ get_ifstream_length(std::ifstream & stream)
 }
 
 internal BinaryBuffer
-read_binary_file(MemoryArena * memoryArena, const char * path)
+read_binary_file(MemoryArena & memoryArena, const char * filename)
 {
-	auto file = std::ifstream (path, std::ios::in|std::ios::binary);
-	// auto file = std::ifstream (	"w:/friendsimulator/models/ladder.glb",
-	// 							std::ios::in|std::ios::binary);
+	auto file = std::ifstream (filename, std::ios::in|std::ios::binary);
 
-	u64 size 	= get_ifstream_length(file);
-	auto result 	= allocate_array<byte>(*memoryArena, size);
+	u64 size 		= get_ifstream_length(file);
+	auto result 	= allocate_array<byte>(memoryArena, size);
 	auto bufferPtr 	= reinterpret_cast<char *>(result.begin());
 
 	file.read(bufferPtr, size);
@@ -235,3 +222,27 @@ read_binary_file(MemoryArena * memoryArena, const char * path)
 }
 
 
+struct GltfFile
+{
+	TextBuffer jsonChunk;
+	rapidjson::Document json;
+	BinaryBuffer binaryBuffer;
+};
+
+internal GltfFile
+parse_gltf_file(BinaryBuffer const & file, MemoryArena & memoryArena)
+{
+	GltfFile result 	= {};
+	result.jsonChunk 	= get_gltf_json_chunk(file, memoryArena);
+	result.json.Parse(result.jsonChunk.data());
+	result.binaryBuffer = get_gltf_binary_chunk(memoryArena, file);
+	return result;
+}
+
+internal GltfFile
+read_gltf_file(MemoryArena & memoryArena, char const * filename)
+{
+	auto rawBinary = read_binary_file(memoryArena, filename);
+	auto gltfFile = parse_gltf_file(rawBinary, memoryArena);
+	return gltfFile;
+}

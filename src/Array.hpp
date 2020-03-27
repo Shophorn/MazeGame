@@ -1,5 +1,8 @@
 #include <vector>
 
+global_variable int global_arrayEmptyDctorCounter 		= 0;
+global_variable int global_arrayHasContentDctorCounter = 0;
+
 template<typename T>
 struct Array
 {
@@ -20,18 +23,21 @@ struct Array
 		return *this;
 	};
 
-	~Array()
-	{ 
-		std::cout << "Hello from array dctor";
-		if (memory_ != nullptr)
-		{
-			std:: cout << " NOT EMPTY, type = " << typeid(T).name() << "\n";
-		}
-		else
-		{
-			std::cout << "\n";
-		}
-	}
+	// ~Array()
+	// { 
+
+	// 	std::cout << "Hello from array dctor";
+	// 	if (memory_ != nullptr)
+	// 	{
+	// 		global_arrayHasContentDctorCounter++;
+	// 		std:: cout << " NOT EMPTY, type = " << typeid(T).name() << ", counter: " << global_arrayHasContentDctorCounter <<"\n";
+	// 	}
+	// 	else
+	// 	{
+	// 		global_arrayEmptyDctorCounter++;
+	// 		std::cout << ", counter: " << global_arrayEmptyDctorCounter << "\n";
+	// 	}
+	// }
 
 	// NO COPYING MOFO
 	Array(Array const &) 			= delete;

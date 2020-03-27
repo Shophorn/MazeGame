@@ -8,6 +8,7 @@ Leo Tamminen
 
 #include "Debug.cpp"
 
+#include "CStringUtility.cpp"
 #include "SmallString.cpp"
 
 // Note(Leo): Make unity build here.

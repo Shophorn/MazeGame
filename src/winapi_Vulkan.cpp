@@ -902,7 +902,7 @@ winapi::create_vulkan_context(WinAPIWindow * window)
 
             .options.primitiveType          = platform::RenderingOptions::PRIMITIVE_TRIANGLE_STRIP,
             .options.cullMode               = platform::RenderingOptions::CULL_NONE,
-            .options.pushConstantSize       = sizeof(vector2) * 4 + sizeof(float4),
+            .options.pushConstantSize       = sizeof(v2) * 4 + sizeof(float4),
             .options.textureCount           = 1,
             .options.useVertexInput         = false,
 

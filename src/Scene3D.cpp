@@ -34,10 +34,172 @@ void update_animated_renderer(AnimatedRenderer & renderer, Skeleton const & skel
 		if (skeleton.bones[i].isRoot == false)
 		{
 			m44 parentMatrix = modelSpaceTransforms[skeleton.bones[i].parent];
-			matrix = matrix::multiply(parentMatrix, matrix);
+			matrix = parentMatrix * matrix;
 		}
 		modelSpaceTransforms[i] = matrix;
-		renderer.bones[i] = matrix::multiply(matrix, skeleton.bones[i].inverseBindMatrix);
+		renderer.bones[i] = matrix * skeleton.bones[i].inverseBindMatrix;
+	}
+}
+
+s32 previous_rotation_keyframe(BoneAnimation const & animation, float time)
+{
+	/* Note(Leo): In a looping animation, we have two possibilities to return 
+	the last keyframe. First, if actual time is before the first actual keyframe,
+	we then return last keyframe (from last loop round). The other is, if time is 
+	more than that keyframes time, so that it was actually the last. */
+
+	// Note(Leo): Last keyframe from previous loop round
+	if (time < animation.rotations[0].time)
+	{
+		return animation.rotations.count() - 1;
+	}
+
+	for (int i = 0; i < animation.rotations.count() - 1; ++i)
+	{
+		float thisTime = animation.rotations[i].time;
+		float nextTime = animation.rotations[i + 1].time;
+
+		if (thisTime <= time && time <= nextTime)
+		{
+			return i;
+		}
+	}
+	
+	// Note(Leo): this loop rounds last keyframe 
+	return animation.rotations.count() - 1;
+}
+
+s32 previous_position_keyframe(BoneAnimation const & animation, float time)
+{
+	/* Note(Leo): In a looping animation, we have two possibilities to return 
+	the last keyframe. First, if actual time is before the first actual keyframe,
+	we then return last keyframe (from last loop round). The other is, if time is 
+	more than that keyframes time, so that it was actually the last. */
+
+	// Note(Leo): Last keyframe from previous loop round
+	if (time < animation.positions[0].time)
+	{
+		return animation.positions.count() - 1;
+	}
+
+	for (int i = 0; i < animation.positions.count() - 1; ++i)
+	{
+		float thisTime = animation.positions[i].time;
+		float nextTime = animation.positions[i + 1].time;
+
+		if (thisTime <= time && time <= nextTime)
+		{
+			return i;
+		}
+	}
+	
+	// Note(Leo): this loop rounds last keyframe 
+	return animation.positions.count() - 1;
+}
+
+quaternion get_rotation(BoneAnimation const & animation, float duration, float time)
+{
+	u32 previousKeyframeIndex = previous_rotation_keyframe(animation, time);
+	u32 nextKeyframeIndex = (previousKeyframeIndex + 1) % animation.rotations.count();
+
+	// std::cout << "bone " << animation.boneIndex << ", " << previousKeyframeIndex << ", " << nextKeyframeIndex << "\n";
+
+	// Get keyframes
+	auto previousKeyframe 		= animation.rotations[previousKeyframeIndex];
+	auto nextKeyframe 			= animation.rotations[nextKeyframeIndex];
+	
+	float timeToCurrent = time - previousKeyframe.time;
+	if (timeToCurrent < 0.0f)
+	{
+		timeToCurrent = duration - timeToCurrent;
+	} 
+
+	float timeToNext = nextKeyframe.time - previousKeyframe.time;
+	if (timeToNext < 0.0f)
+	{
+		timeToNext = duration - timeToNext;
+	}
+
+	float relativeTime = timeToCurrent / timeToNext;
+	return interpolate(previousKeyframe.rotation, nextKeyframe.rotation, relativeTime); 
+}
+
+v3 get_position(BoneAnimation const & animation, float duration, float time)
+{
+	u32 previousKeyframeIndex = previous_position_keyframe(animation, time);
+	u32 nextKeyframeIndex = (previousKeyframeIndex + 1) % animation.positions.count();
+
+	// std::cout << "bone " << animation.boneIndex << ", " << previousKeyframeIndex << ", " << nextKeyframeIndex << "\n";
+
+	// Get keyframes
+	auto previousKeyframe 		= animation.positions[previousKeyframeIndex];
+	auto nextKeyframe 			= animation.positions[nextKeyframeIndex];
+	
+	float timeToCurrent = time - previousKeyframe.time;
+	if (timeToCurrent < 0.0f)
+	{
+		timeToCurrent = duration - timeToCurrent;
+	} 
+
+	float timeToNext = nextKeyframe.time - previousKeyframe.time;
+	if (timeToNext < 0.0f)
+	{
+		timeToNext = duration - timeToNext;
+	}
+
+	float relativeTime = timeToCurrent / timeToNext;
+	return vector::interpolate(previousKeyframe.position, nextKeyframe.position, relativeTime);
+}
+
+inline bool has_rotations(BoneAnimation const & boneAnimation)
+{
+	return boneAnimation.rotations.count() > 0;
+}
+
+inline bool has_positions(BoneAnimation const & boneAnimation)
+{
+	return boneAnimation.positions.count() > 0;
+}
+
+
+struct SkeletonAnimator
+{
+	Skeleton skeleton;
+
+	float animationTime;
+	Animation const * animation;
+};
+
+void update_skeleton_animator(SkeletonAnimator & animator, float elapsedTime)
+{
+	/*This procedure:
+		- advances animation time
+		- updates skeleton's bones
+	*/
+	if (animator.animation == nullptr)
+		return;
+
+	Animation const & animation = *animator.animation;
+	float & animationTime = animator.animationTime;
+
+	// ------------------------------------------------------------------------
+
+	animationTime += elapsedTime;
+	animationTime = modulo(animationTime, animator.animation->duration);
+
+	for (auto & boneAnimation : animation.boneAnimations)
+	{	
+		auto & target = animator.skeleton.bones[boneAnimation.boneIndex].boneSpaceTransform;
+
+		if (has_rotations(boneAnimation))
+		{
+			target.rotation = get_rotation(boneAnimation, animation.duration, animationTime);
+		}
+
+		if (has_positions(boneAnimation))
+		{
+			target.position = get_position(boneAnimation, animation.duration, animationTime);
+		}
 	}
 }
 
@@ -53,8 +215,7 @@ struct Scene3d
 	CameraController3rdPerson cameraController;
 	CharacterController3rdPerson characterController;
 
-	Skeleton skeleton;
-	Animator animator;
+	SkeletonAnimator animator;
 	Animation walkAnimation;
 
 	ModelHandle skybox;
@@ -97,7 +258,7 @@ Scene3d::update(	void * 					scenePtr,
 
 	/* Sadly, we need to draw skybox before game logic, because otherwise
 	debug lines would be hidden. This can be fixed though, just make debug pipeline similar to shadows. */ 
-	functions->draw_model(graphics, scene->skybox, matrix::make_identity<m44>(), false, nullptr, 0);
+	functions->draw_model(graphics, scene->skybox, m44::identity(), false, nullptr, 0);
 
 	// Game Logic section
 	update_character(	&scene->characterController,
@@ -112,43 +273,20 @@ Scene3d::update(	void * 					scenePtr,
     update_camera_system(&scene->worldCamera, input, graphics, window, functions);
 	update_render_system(scene->renderSystem, graphics, functions);
 
+	update_skeleton_animator(scene->animator, input->elapsedTime);
 
-	local_persist float animationTime = 0;
-	local_persist s32 animationKeyframeIndex [50] = {};
-
-	animationTime += input->elapsedTime;
-	for (auto & animation : scene->walkAnimation.boneAnimations)
 	{
-		u32 boneIndex = animation.boneIndex;
-		s32 & currentKeyframeIndex = animationKeyframeIndex[boneIndex];
-		if (animationTime > animation.rotations[currentKeyframeIndex].time)
+		m44 modelMatrix = get_matrix(*scene->characterController.transform);
+		for (int i = 0; i < scene->animator.skeleton.bones.count(); ++i)
 		{
-			currentKeyframeIndex += 1;
-			currentKeyframeIndex %= animation.rotations.count();
+			debug::draw_axes(	graphics,
+								modelMatrix * get_model_space_transform(scene->animator.skeleton, i),
+								0.2f,
+								functions);
 		}
-
-		u32 previousKeyframeIndex 	= currentKeyframeIndex == 0 ? 2 : currentKeyframeIndex - 1;
-		auto previousKeyframe 		= animation.rotations[previousKeyframeIndex];
-		auto currentKeyframe 		= animation.rotations[currentKeyframeIndex];
-		
-		float previousKeyFrameTime 	= previousKeyframe.time;
-		float currentKeyFrameTime 	= currentKeyframe.time;
-
-		/* Note(Leo): We need to use modulated time here, so that interpolation works right, but also 
-		unmodulated above for checking keyframe changes for each boneanimation. */
-		float  moduloedAnimationTime = modulo(animationTime, scene->walkAnimation.duration);
-		float relativeTime 			= (moduloedAnimationTime - previousKeyFrameTime) / (currentKeyFrameTime - previousKeyFrameTime);
-
-		auto & target = scene->skeleton.bones[boneIndex].boneSpaceTransform;
-		target.rotation = interpolate(previousKeyframe.rotation, currentKeyframe.rotation, relativeTime); 
 	}
-	animationTime = modulo(animationTime, scene->walkAnimation.duration);
 
-	debug::draw_axes(	graphics,
-						get_matrix(*scene->characterController.transform) * get_model_space_transform(scene->skeleton, 4),
-						functions);
-
-	update_animated_renderer(scene->animatedRenderers[0], scene->skeleton);
+	update_animated_renderer(scene->animatedRenderers[0], scene->animator.skeleton);
 	render_animated_models(scene->animatedRenderers, graphics, functions);
 
 	// ------------------------------------------------------------------------
@@ -169,17 +307,6 @@ Scene3d::load(	void * 						scenePtr,
 				platform::Window * 			window,
 				platform::Functions *		functions)
 {
-	quaternion q0 = quaternion::axis_angle(world::up, to_radians(67));
-	quaternion q1 = inverse(q0);
-	quaternion q2 = q0 * q1;
-	quaternion q3 = q1 * q0;
-	std::cout 	<< q0 << ", "
-				<< q1 << ", "
-				<< q2 << ", "
-				<< q3 << "\n";
-
-
-
 	Scene3d * scene = reinterpret_cast<Scene3d*>(scenePtr);
 	
 	// Note(Leo): This is good, more this.
@@ -189,8 +316,8 @@ Scene3d::load(	void * 						scenePtr,
 	scene->transformStorage 	= allocate_array<Transform3D>(*persistentMemory, 100);
 	scene->animatedRenderers 	= allocate_array<AnimatedRenderer>(*persistentMemory, 10);
 	scene->renderSystem 		= allocate_array<RenderSystemEntry>(*persistentMemory, 100);
-	allocate_collision_system(&scene->collisionSystem, persistentMemory, 100);
 
+	allocate_collision_system(&scene->collisionSystem, persistentMemory, 100);
 
 	auto allocate_transform = [](Array<Transform3D> & storage, Transform3D value) -> Transform3D *
 	{
@@ -247,6 +374,7 @@ Scene3d::load(	void * 						scenePtr,
 		};
 		
 		// internet: (+X,-X,+Y,-Y,+Z,-Z).
+		// Note(Leo): Another shitty comment, don't do this pretty please
 		StaticArray<TextureAsset,6> skyboxTextureAssets =
 		{
 			load_texture_asset("assets/textures/miramar_rt.png", transientMemory),
@@ -275,12 +403,21 @@ Scene3d::load(	void * 						scenePtr,
     	scene->skybox 	= push_model(meshHandle, materials.sky);
     }
 
-
 	// Characters
 	Transform3D * characterTransform = {};
 	{
-		scene->skeleton = load_skeleton_glb(persistentMemory, "assets/models/cube_head.glb", "cube_head");
+		char const * filename 	= "assets/models/cube_head.glb";
+		auto gltfFile 			= read_gltf_file(*transientMemory, filename);
 
+		scene->animator.skeleton = load_skeleton_glb(*persistentMemory, gltfFile, "cube_head");
+		for(int i = 0; i < scene->animator.skeleton.bones.count(); ++i)
+		{
+			std::cout << "Bone " << i << ": " << scene->animator.skeleton.bones[i].name << ", " << scene->animator.skeleton.bones[i].boneSpaceTransform.rotation << "\n";
+		}
+
+#if 1
+		scene->walkAnimation = load_animation_glb(*persistentMemory, gltfFile, "Walk");
+#else
 		auto find_bone_index = [](Skeleton const & skeleton, char const * name) -> s32
 		{
 			for (s32 i = 0; i < skeleton.bones.count(); ++i)
@@ -297,20 +434,21 @@ Scene3d::load(	void * 						scenePtr,
 		scene->walkAnimation.boneAnimations = allocate_array<BoneAnimation>(*persistentMemory, 5);
 		scene->walkAnimation.duration = 2.0f;
 
- 		u32 headIndex 	= find_bone_index(scene->skeleton, "Head");
+ 		u32 headIndex 	= find_bone_index(scene->animator.skeleton, "Head");
 		auto rotation0 	= quaternion::euler_angles({to_radians(20), 0, to_radians(45)});
 		auto rotation1 	= quaternion::euler_angles({to_radians(20), 0, -to_radians(45)});
+		quaternion rotation2 = quaternion::euler_angles({to_radians(-20), 0, 0});
 
 		scene->walkAnimation.boneAnimations.push(
 					{	.boneIndex = headIndex,
-						.rotations = allocate_array<RotationKeyframe>(*persistentMemory, {{0.0f, rotation0}, {1.0f, rotation1}, {2.0f, rotation0}})
+						.rotations = allocate_array<RotationKeyframe>(*persistentMemory, {{0.0f, rotation0}, {0.7f, rotation1}, {1.4f, rotation2}, {2.0f, rotation0}})
 					});
 
 
-		u32 leftThighIndex 	= find_bone_index(scene->skeleton, "Thigh.L");
-		u32 leftShinIndex 	= find_bone_index(scene->skeleton, "Shin.L");
-		u32 rightThighIndex = find_bone_index(scene->skeleton, "Thigh.R");
-		u32 rightShinIndex 	= find_bone_index(scene->skeleton, "Shin.R");
+		u32 leftThighIndex 	= find_bone_index(scene->animator.skeleton, "Thigh.L");
+		u32 leftShinIndex 	= find_bone_index(scene->animator.skeleton, "Shin.L");
+		u32 rightThighIndex = find_bone_index(scene->animator.skeleton, "Thigh.R");
+		u32 rightShinIndex 	= find_bone_index(scene->animator.skeleton, "Shin.R");
 
 		quaternion pose0 = quaternion::euler_angles(to_radians(135), 0, 0);
 		quaternion pose1 = quaternion::euler_angles(to_radians(225), 0, 0);
@@ -321,7 +459,7 @@ Scene3d::load(	void * 						scenePtr,
 						.rotations = allocate_array<RotationKeyframe>(*persistentMemory, {{0.0f, pose0}, {1.0f, pose1}, {2.0f, pose0}})
 					});
 
-		quaternion leftShinRestpose = scene->skeleton.bones[leftShinIndex].boneSpaceTransform.rotation;
+		quaternion leftShinRestpose = scene->animator.skeleton.bones[leftShinIndex].boneSpaceTransform.rotation;
 		scene->walkAnimation.boneAnimations.push(
 					{	.boneIndex = leftShinIndex,
 						.rotations = allocate_array<RotationKeyframe>(*persistentMemory, {{0.0f, leftShinRestpose}, {1.0f, pose2}, {2.0f, leftShinRestpose}})
@@ -332,25 +470,27 @@ Scene3d::load(	void * 						scenePtr,
 						.rotations = allocate_array<RotationKeyframe>(*persistentMemory, {{0.0f, pose1}, {1.0f, pose0},{2.0f, pose1}})
 					});
 
-		quaternion rightShinRestpose = scene->skeleton.bones[rightShinIndex].boneSpaceTransform.rotation;
+		quaternion rightShinRestpose = scene->animator.skeleton.bones[rightShinIndex].boneSpaceTransform.rotation;
 		scene->walkAnimation.boneAnimations.push(
 					{	.boneIndex = rightShinIndex,
 						.rotations = allocate_array<RotationKeyframe>(*persistentMemory, {{0.0f, pose2}, {1.0f, rightShinRestpose}, {2.0f, pose2}})
 					});
 
+#endif
+		scene->animator.animation = &scene->walkAnimation;
 		// ------------------------------------------------------------------------------------------------------------
 
-		auto girlMeshAsset = load_model_glb(transientMemory, "assets/models/cube_head.glb", "cube_head");
+		auto girlMeshAsset = load_model_glb(*transientMemory, gltfFile, "cube_head");
 
 		auto girlMesh = functions->push_mesh(graphics, &girlMeshAsset);
 
 		// Our dude
-		auto transform = allocate_transform(scene->transformStorage, {0, 0, 5});
+		auto transform = allocate_transform(scene->transformStorage, {10, 10, 5});
 		auto model = push_model(girlMesh, materials.character);
 
 		characterTransform = transform;
 
-		auto bones = allocate_array<m44>(*persistentMemory, scene->skeleton.bones.count(), ALLOC_FILL_UNINITIALIZED);
+		auto bones = allocate_array<m44>(*persistentMemory, scene->animator.skeleton.bones.count(), ALLOC_FILL_UNINITIALIZED);
 		scene->animatedRenderers.push({transform, model, true, std::move(bones)});
 
 		scene->characterController = make_character(transform);
@@ -358,7 +498,7 @@ Scene3d::load(	void * 						scenePtr,
 
 	scene->worldCamera = make_camera(50, 0.1f, 1000.0f);
 	scene->cameraController = make_camera_controller_3rd_person(&scene->worldCamera, characterTransform);
-	scene->cameraController.baseOffset = {0, 0, 1.5f};
+	scene->cameraController.baseOffset = {0, 0, 0.5f};
 	scene->cameraController.distance = 5;
 
 	// Environment
@@ -386,10 +526,23 @@ Scene3d::load(	void * 						scenePtr,
 		}
 
 		{
-			auto pillarMesh 		= load_model_glb(transientMemory, "assets/models/big_pillar.glb", "big_pillar");
+			auto totemMesh = load_model_glb(*transientMemory, read_gltf_file(*transientMemory, "assets/models/totem.glb"), "totem");
+			// auto totemMesh = load_model_obj(transientMemory, "assets/models/totem.obj");
+			auto totemMeshHandle = functions->push_mesh(graphics, &totemMesh);
+
+			auto model = push_model(totemMeshHandle, materials.environment);
+			auto transform = allocate_transform(scene->transformStorage, {0,0,-2});
+			scene->renderSystem.push({transform, model});
+
+			transform = allocate_transform(scene->transformStorage, {0, 5, -4, 0.5f});
+			scene->renderSystem.push({transform, model});
+		}
+
+		{
+			auto pillarMesh 		= load_model_glb(*transientMemory, read_gltf_file(*transientMemory, "assets/models/big_pillar.glb"), "big_pillar");
 			auto pillarMeshHandle 	= functions->push_mesh(graphics, &pillarMesh);
 
-			auto model 	= push_model(pillarMeshHandle, materials.environment);
+			auto model 		= push_model(pillarMeshHandle, materials.environment);
 			auto transform 	= allocate_transform(scene->transformStorage, {-width / 4, 0, -5});
 			scene->renderSystem.push({transform, model});
 			

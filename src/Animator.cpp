@@ -58,41 +58,19 @@ struct Animator
 
 struct Bone
 {
+	// State
 	Transform3D boneSpaceTransform;
+
+	// Properties
 	m44 		inverseBindMatrix;
 	u32 		parent;
 	bool32 		isRoot;
-
 	SmallString name;
 };
 
 struct Skeleton
 {
 	Array<Bone> bones;
-};
-
-struct BoneDescription
-{
-	m44 		inverseBindMatrix;
-	u32 		parent;
-	bool32 		isRoot;
-	SmallString name;
-};
-
-struct SkeletonDescription
-{
-	Array<BoneDescription> bones;	
-};
-
-struct SkeletonAnimator
-{
-	// Property
-	SkeletonDescription const * const skeleton = nullptr;
-
-	// State
-	Array<Transform3D> boneTransforms;
-
-	Animation * animation;
 };
 
 v3 get_model_space_position(Skeleton const & skeleton, u32 boneIndex)
@@ -112,11 +90,10 @@ m44 get_model_space_transform(Skeleton const & skeleton, u32 boneIndex)
 	m44 transform = get_matrix(bone.boneSpaceTransform);
 	if (bone.isRoot == false)
 	{
-		transform = matrix::multiply(get_model_space_transform(skeleton, bone.parent), transform); 
+		transform = get_model_space_transform(skeleton, bone.parent) * transform; 
 	}
 	return transform;
 }
-
 
 internal AnimationRig
 make_animation_rig(Transform3D * root, Array<Transform3D*> bones, Array<u64> currentBonePositionKeyframes)

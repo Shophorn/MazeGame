@@ -228,8 +228,8 @@ scene_2d::load(	void * scenePtr,
 
 		{
 			auto groundQuad 	= mesh_primitives::create_quad(transientMemory, false);
-			auto meshTransform	= matrix::multiply(	make_translation_matrix({-width / 2, -depth /2, 0}),
-													make_scale_matrix({width, depth, 0}));
+			auto meshTransform	= make_translation_matrix({-width / 2, -depth /2, 0}) * make_scale_matrix({width, depth, 0});
+
 			mesh_ops::transform(&groundQuad, meshTransform);
 			mesh_ops::transform_tex_coords(&groundQuad, {0,0}, {width / 2, depth / 2});
 
@@ -243,7 +243,7 @@ scene_2d::load(	void * scenePtr,
 
 		if (addPillars)
 		{
-			auto pillarMesh 		= load_model_glb(transientMemory, "assets/models/big_pillar.glb", "big_pillar");
+			auto pillarMesh 		= load_model_glb(*transientMemory, read_gltf_file(*transientMemory, "assets/models/big_pillar.glb"), "big_pillar");
 			auto pillarMeshHandle 	= functions->push_mesh(graphics, &pillarMesh);
 
 			auto model 	= push_model(pillarMeshHandle, materials.environment);
@@ -261,7 +261,7 @@ scene_2d::load(	void * scenePtr,
 
 		if (addLadders)
 		{
-			auto ladderMesh 		= load_model_glb(transientMemory, "assets/models/ladder.glb", "LadderSection");
+			auto ladderMesh 		= load_model_glb(*transientMemory, read_gltf_file(*transientMemory, "assets/models/ladder.glb"), "LadderSection");
 			auto ladderMeshHandle 	= functions->push_mesh(graphics, &ladderMesh);
 
 			auto root1 	= allocate_transform(scene->transformStorage, {0, 0.5f, -ladderHeight});

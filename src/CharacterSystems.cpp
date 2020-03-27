@@ -38,9 +38,9 @@ struct CharacterControllerSideScroller
 		// Going Left
 		if (xMovement < 0.0f)
 		{
-			vector2 leftRayOrigin 	= {	transform->position.x - collisionRadius, 
+			v2 leftRayOrigin 	= {	transform->position.x - collisionRadius, 
 										transform->position.z + 0.5f};
-			vector2 leftRay 		= {xMovement, 0};
+			v2 leftRay 		= {xMovement, 0};
 			bool32 leftRayHit 		= collisionManager->raycast(leftRayOrigin, leftRay, false);
 
 			if (leftRayHit)
@@ -52,9 +52,9 @@ struct CharacterControllerSideScroller
 		// Going Right
 		else if (xMovement > 0.0f)
 		{
-			vector2 rightRayOrigin 	= {	transform->position.x + collisionRadius,
+			v2 rightRayOrigin 	= {	transform->position.x + collisionRadius,
 										transform->position.z + 0.5f};
-			vector2 rightRay 		= {xMovement, 0};
+			v2 rightRay 		= {xMovement, 0};
 			bool32 rightRayHit		= collisionManager->raycast(rightRayOrigin, rightRay, false); 
 
 			if (rightRayHit)
@@ -75,9 +75,9 @@ struct CharacterControllerSideScroller
 							+ zSpeed * input->elapsedTime;
 
 		float skinWidth = 0.01f;
-		vector2 downRayOrigin 	= {	transform->position.x, 
+		v2 downRayOrigin 	= {	transform->position.x, 
 									transform->position.z + skinWidth};
-		vector2 downRay 		= {0, zMovement - skinWidth};
+		v2 downRay 		= {0, zMovement - skinWidth};
 
 		bool32 movingDown = input->move.y > -0.01f;
 		bool32 downRayHit = collisionManager->raycast(downRayOrigin, downRay, movingDown);

@@ -1,13 +1,13 @@
 struct Rectangle
 {
-	vector2 position;
-	vector2 size;
+	v2 position;
+	v2 size;
 };
 
 internal Rectangle
-scale_rectangle(Rectangle rect, vector2 scale)
+scale_rectangle(Rectangle rect, v2 scale)
 {
-	vector2 center = rect.position + rect.size / 2.0f;
+	v2 center = rect.position + rect.size / 2.0f;
 	rect.size.x *= scale.x;
 	rect.size.y *= scale.y;
 	rect.position = center - rect.size / 2.0f;
@@ -17,7 +17,7 @@ scale_rectangle(Rectangle rect, vector2 scale)
 
 struct Circle
 {
-	vector2 position;
+	v2 position;
 	float radius;
 };
 

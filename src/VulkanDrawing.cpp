@@ -381,21 +381,21 @@ vulkan::record_line_draw_command(VulkanContext * context, v3 start, v3 end, floa
 
 struct VulkanGuiPushConstants
 {
-    vector2 bottomLeft;
-    vector2 bottomRight;
-    vector2 topLeft;
-    vector2 topRight;
+    v2 bottomLeft;
+    v2 bottomRight;
+    v2 topLeft;
+    v2 topRight;
     float4 color;
 };
 
-void vulkan::record_gui_draw_command(VulkanContext * context, vector2 position, vector2 size, MaterialHandle materialHandle, float4 color)
+void vulkan::record_gui_draw_command(VulkanContext * context, v2 position, v2 size, MaterialHandle materialHandle, float4 color)
 {
     auto * frame = get_current_virtual_frame(context);
 
-    auto transform_point = [context](vector2 position) -> vector2
+    auto transform_point = [context](v2 position) -> v2
     {
         // Note(Leo): This is temporarily here only, aka scale to fit width.
-        const vector2 referenceResolution = {1920, 1080};
+        const v2 referenceResolution = {1920, 1080};
         float ratio = context->drawingResources.extent.width / referenceResolution.x;
 
         float x = (position.x / context->drawingResources.extent.width) * ratio * 2.0f - 1.0f;
@@ -407,8 +407,8 @@ void vulkan::record_gui_draw_command(VulkanContext * context, vector2 position, 
     VulkanGuiPushConstants pushConstants =
     {
         transform_point(position),
-        transform_point(position + vector2{size.x, 0}),
-        transform_point(position + vector2{0, size.y}),
+        transform_point(position + v2{size.x, 0}),
+        transform_point(position + v2{0, size.y}),
         transform_point(position + size),
         color,
     };

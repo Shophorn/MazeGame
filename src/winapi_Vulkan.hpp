@@ -458,7 +458,7 @@ namespace vulkan
     internal void update_lighting			(VulkanContext*, Light const *, Camera const *, v3 ambient);
 	internal void record_draw_command 		(VulkanContext*, ModelHandle handle, m44 transform, bool32 castShadow, m44 const * bones, u32 bonesCount);
 	internal void record_line_draw_command	(VulkanContext*, v3 start, v3 end, float width, float4 color);
-	internal void record_gui_draw_command	(VulkanContext*, vector2 position, vector2 size, MaterialHandle material, float4 color);
+	internal void record_gui_draw_command	(VulkanContext*, v2 position, v2 size, MaterialHandle material, float4 color);
 
     internal TextureHandle  push_texture (VulkanContext * context, TextureAsset * texture);
     internal MaterialHandle push_material (VulkanContext * context, MaterialAsset * asset);

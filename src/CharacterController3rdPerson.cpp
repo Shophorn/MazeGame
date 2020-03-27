@@ -15,7 +15,7 @@ struct CharacterController3rdPerson
 
 	// State
 	float 	zSpeed;
-	v3 forward;
+	v3 		forward;
 
 	v3 hitRayPosition;
 	v3 hitRayNormal;
@@ -103,7 +103,6 @@ update_character(
 			controller->hitRayPosition = controller->transform->position + up * 0.25f;
 			controller->hitRayNormal = raycastResult.hitNormal;
 
-
 			auto projectionOnNormal = vector::project(direction * distance, raycastResult.hitNormal);
 			// controller->transform->position += direction * distance - projectionOnNormal;
 		}
@@ -112,6 +111,10 @@ update_character(
 		controller->transform->rotation = quaternion::axis_angle(world::up, angleToWorldForward);
 		
 	}
+	debug::draw_axes(	graphics,
+						get_matrix(*controller->transform),
+						0.5f,
+						functions);
 
 	float groundHeight = get_terrain_height(collisionSystem, {controller->transform->position.x, controller->transform->position.y});
 	bool32 grounded = controller->transform->position.z < 0.1f + groundHeight;

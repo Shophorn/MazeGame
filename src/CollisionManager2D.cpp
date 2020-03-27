@@ -16,8 +16,8 @@ struct Collision2D
 struct Collider2D
 {
 	Transform3D *	transform;
-	vector2			extents;
-	vector2			offset;
+	v2			extents;
+	v2			offset;
 
 	ColliderTag	tag;
 
@@ -31,12 +31,12 @@ struct CollisionManager2D
 	Array<Collision2D> collisions;
 
 	bool32
-	raycast(vector2 origin, vector2 ray, bool32 laddersBlock)
+	raycast(v2 origin, v2 ray, bool32 laddersBlock)
 	{
-		vector2 corners [4];
+		v2 corners [4];
 		
-		vector2 start 	= origin;
-		vector2 end 	= origin + ray;
+		v2 start 	= origin;
+		v2 end 	= origin + ray;
 
 		for (s32 i = 0; i < colliders.count(); ++i)
 		{
@@ -58,16 +58,16 @@ struct CollisionManager2D
 			}
 
 			v3 worldPosition = get_world_position(*colliders[i].transform);
-			vector2 position2D = {	worldPosition.x, worldPosition.z };
+			v2 position2D = {	worldPosition.x, worldPosition.z };
 
 			position2D += colliders[i].offset;
-			vector2 extents = colliders[i].extents;
+			v2 extents = colliders[i].extents;
 
 			// Compute corners first
-			corners[0] = position2D + vector2 {-extents.x, -extents.y};
-			corners[1] = position2D + vector2 {extents.x, -extents.y};
-			corners[2] = position2D + vector2 {-extents.x, extents.y};
-			corners[3] = position2D + vector2 {extents.x, extents.y};
+			corners[0] = position2D + v2 {-extents.x, -extents.y};
+			corners[1] = position2D + v2 {extents.x, -extents.y};
+			corners[2] = position2D + v2 {-extents.x, extents.y};
+			corners[3] = position2D + v2 {extents.x, extents.y};
 
 			// (0<AM⋅AB<AB⋅AB)∧(0<AM⋅AD<AD⋅AD)
 			auto AMstart = start - corners[0];
@@ -106,8 +106,8 @@ struct CollisionManager2D
 		{
 			for (s32 b = a + 1; b < colliders.count(); ++b)
 			{
-				vector2 positionA = vector2{get_world_position(*colliders[a].transform).x, get_world_position(*colliders[a].transform).z} + colliders[a].offset;
-				vector2 positionB = vector2{get_world_position(*colliders[b].transform).x, get_world_position(*colliders[b].transform).z} + colliders[b].offset;
+				v2 positionA = v2{get_world_position(*colliders[a].transform).x, get_world_position(*colliders[a].transform).z} + colliders[a].offset;
+				v2 positionB = v2{get_world_position(*colliders[b].transform).x, get_world_position(*colliders[b].transform).z} + colliders[b].offset;
 
 				float xDeltaAtoB 	= positionB.x - positionA.x;
 				float xDistance		= Abs(xDeltaAtoB);
@@ -160,8 +160,8 @@ struct CollisionManager2D
 internal Collider2D *
 push_collider(	CollisionManager2D * 	manager,
 				Transform3D * 			transform,
-				vector2 				extents,
-				vector2 				offset = {0, 0},
+				v2 				extents,
+				v2 				offset = {0, 0},
 				ColliderTag 			tag = ColliderTag::Default)
 {
 	u64 index = manager->colliders.count();
