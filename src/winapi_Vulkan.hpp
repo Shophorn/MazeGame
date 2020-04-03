@@ -52,7 +52,7 @@ namespace vulkan
 	struct ModelUniformBuffer
 	{
 		m44 transform;
-		m44 bones [20];
+		m44 bones [50];
 	};
 }
 

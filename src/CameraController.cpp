@@ -138,5 +138,5 @@ update_camera_controller(CameraController3rdPerson * controller, game::Input * i
     v3 targetPosition = trackedPosition + controller->baseOffset;
     
     controller->camera->position = targetPosition + localPosition;
-	controller->camera->direction = vector::normalize(targetPosition - controller->camera->position);
+	controller->camera->direction = (targetPosition - controller->camera->position).normalized();
 }

@@ -81,7 +81,7 @@ scene_2d::update(	void * scenePtr,
     update_camera_system(&scene->worldCamera, input, graphics, window, functions);
 	update_render_system(scene->renderSystem, graphics, functions);
 
-	Light light = { vector::normalize(v3{1, 1, -3}), {0.95, 0.95, 0.9}};
+	Light light = { v3{1, 1, -3}.normalized(), {0.95, 0.95, 0.9}};
 	v3 ambient = {0.2, 0.25, 0.4};
 	functions->update_lighting(graphics, &light, &scene->worldCamera, ambient);
 

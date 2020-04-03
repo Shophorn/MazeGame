@@ -10,7 +10,7 @@ layout (set = 0) uniform CameraProjections
 layout(set = 2) uniform ModelData
 {
 	mat4 model;
-	mat4 boneTransforms [20];
+	mat4 boneTransforms [50];
 } model;
 
 layout (location = 0) in vec3 inPosition;

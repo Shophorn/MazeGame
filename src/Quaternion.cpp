@@ -13,17 +13,20 @@ struct quaternion
 	static quaternion euler_angles(float x, float y, float z);
 	static quaternion euler_angles(v3 eulerRotation);
 
+	bool is_unit_quaternion() const;
+
 	float magnitude() const;
+	float square_magnitude() const;
 	quaternion inverse() const;
 	quaternion inverse_non_unit() const;
 
+	quaternion normalized() const;
 };
 
+static_assert(std::is_aggregate_v<quaternion>, "");
 static_assert(std::is_standard_layout_v<quaternion>, "");
 static_assert(std::is_trivial_v<quaternion>, "");
 
-// quaternion normalize(quaternion q);
-// quaternion inverse(quaternion q);
 quaternion operator * (quaternion lhs, quaternion rhs);
 quaternion interpolate(quaternion from, quaternion to, float t);
 float dot_product(quaternion a, quaternion b);
@@ -41,6 +44,11 @@ std::ostream & operator << (std::ostream & os, quaternion q)
 float quaternion::magnitude() const
 {
 	return math::square_root(x*x + y*y + z*z + w*w);
+}
+
+float quaternion::square_magnitude() const
+{
+	return x*x + y*y + z*z + w*w;
 }
 
 constexpr quaternion
@@ -104,6 +112,8 @@ quaternion::euler_angles(float eulerX, float eulerY, float eulerZ)
 
 quaternion quaternion::inverse() const
 {
+	assert(this->is_unit_quaternion());
+
 	quaternion result = { -x, -y, -z, w };
 	return result;
 }
@@ -111,7 +121,7 @@ quaternion quaternion::inverse() const
 quaternion quaternion::inverse_non_unit() const
 {
 	using namespace vector;
-	float vectorMagnitude = get_length(vector);
+	float vectorMagnitude = vector.magnitude();
 
 	float conjugate = (w * w) + (vectorMagnitude * vectorMagnitude);
 
@@ -136,7 +146,7 @@ quaternion operator * (quaternion lhs, quaternion rhs)
 	// https://www.youtube.com/watch?v=BXajpAy5-UI
 	quaternion result = {
 		.vector = lhs.w * rhs.vector + rhs.w * lhs.vector + cross(lhs.vector, rhs.vector),
-		.w 		= lhs.w * rhs.w - dot(lhs.vector, rhs.vector)
+		.w 		= lhs.w * rhs.w - vector::dot(lhs.vector, rhs.vector)
 	};
 
 	return result;
@@ -148,7 +158,7 @@ quaternion & operator *= (quaternion & lhs, quaternion const & rhs)
 
 	lhs = {
 		.vector = lhs.w * rhs.vector + rhs.w * lhs.vector + cross(lhs.vector, rhs.vector),
-		.w 		= lhs.w * rhs.w - dot(lhs.vector, rhs.vector)
+		.w 		= lhs.w * rhs.w - vector::dot(lhs.vector, rhs.vector)
 	};
 	return lhs;
 }
@@ -165,9 +175,28 @@ quaternion interpolate(quaternion from, quaternion to, float t)
 		to.w = -to.w;
 	}
 
+	if (dot > 0.99)
+	{
+		// quaternion result = {	interpolate(from.x, to.x, t),
+		// 						interpolate(from.y, to.y, t),
+		// 						interpolate(from.z, to.z, t),
+		// 						interpolate(from.w, to.w, t)};
+
+		quaternion result;
+
+		float * resultPtr 	= &result.x;
+		float * fromPtr 	= &from.x;
+		float * toPtr 		= &to.x;
+
+		for (int i = 0; i < 4; ++i)
+		{
+			resultPtr[i] = interpolate(fromPtr[i], toPtr[i], t);
+		}
+
+		return result.normalized();
+	}
 
 	quaternion difference = from.inverse() * to;
-
 
 	// Convert to rodriques rotation
 	v3 axis 		= normalize_or_zero(difference.vector);
@@ -184,5 +213,23 @@ quaternion interpolate(quaternion from, quaternion to, float t)
 float dot_product(quaternion a, quaternion b)
 {
 	float result = a.x*b.x + a.y*b.y + a.z*b.z + a.w*b.w;
+	return result;
+}
+
+bool quaternion::is_unit_quaternion() const
+{
+	bool result = math::close_enough_small(square_magnitude(), 1.0f);
+	return result;
+}
+
+quaternion quaternion::normalized() const
+{
+	float magnitude_ = magnitude();
+
+	quaternion result = { 	x / magnitude_,
+							y / magnitude_,
+							z / magnitude_,
+							w / magnitude_};
+	assert(result.is_unit_quaternion());
 	return result;
 }

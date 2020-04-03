@@ -50,6 +50,9 @@ namespace math
     template<typename T> constexpr T lowest_value = std::numeric_limits<T>::lowest();
     template<typename T> constexpr T highest_value = std::numeric_limits<T>::max();
 
+    template<typename T> 
+    constexpr std::enable_if_t<std::is_floating_point_v<T>, T>closest_to_zero = std::numeric_limits<T>::min();
+
     template<typename S>
     constexpr internal S 
     min(S a, S b)
@@ -63,6 +66,18 @@ namespace math
     {
         return (a > b) ? a : b;
     }
+
+    bool close_enough_small (float a, float b)
+    {
+        return std::fabs(a - b) < 0.00001f;
+    }
+
+    s32 ceil_to_s32(float value)
+    {
+        s32 result = (s32)std::ceil(value);
+        return result;
+    }
+
 }
 
 template<typename S>

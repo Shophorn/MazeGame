@@ -73,7 +73,7 @@ get_view_transform(Camera const * camera)
 	// Study: https://www.3dgep.com/understanding-the-view-matrix/
 	// Todo(Leo): try to undeerstand why this is negative
 	v3 yAxis 	= -camera->direction;
-	v3 xAxis 	= normalize(cross(world::up, yAxis));
+	v3 xAxis 	= cross(world::up, yAxis).normalized();
 
 	/* Note(Leo): this is not normalized because both components are unit length,
 	AND they are orthogonal so they produce a unit length vector anyway.
@@ -108,5 +108,5 @@ v3 get_up(Camera const * camera)
 v3 get_right(Camera const * camera)
 {
 	using namespace vector;
-	return normalize(cross(camera->direction, world::up));
+	return cross(camera->direction, world::up).normalized();
 }

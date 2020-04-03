@@ -107,12 +107,20 @@ load_animation_glb(MemoryArena & memoryArena, GltfFile const & gltfFile, char co
 
 	JsonValue const * ptrNamedAnimation = find_by_name(animArray, animationName);
 
-	DEBUG_ASSERT(ptrNamedAnimation != nullptr, "animation not found");
+	if(ptrNamedAnimation == nullptr)
+	{
+		std::cout << "Animation not found. Requested: " << animationName << ", available:\n";
+		for (auto const & anim : animArray)
+		{
+			std::cout << "\t" << anim["name"].GetString() << "\n";
+		}
+		DEBUG_ASSERT(ptrNamedAnimation != nullptr, "animation not found");
+	}
 
 	auto const & namedAnimation = *ptrNamedAnimation;
 
-	auto channels = namedAnimation["channels"].GetArray();
-	auto samplers = namedAnimation["samplers"].GetArray();
+	auto channels 		= namedAnimation["channels"].GetArray();
+	auto samplers 		= namedAnimation["samplers"].GetArray();
 
 	auto accessors 		= jsonDocument["accessors"].GetArray();
 	auto bufferViews 	= jsonDocument["bufferViews"].GetArray();
@@ -126,6 +134,7 @@ load_animation_glb(MemoryArena & memoryArena, GltfFile const & gltfFile, char co
 
 	for (auto const & channel : channels)
 	{
+
 		int samplerIndex = channel["sampler"].GetInt();
 		int inputAccessorIndex = samplers[samplerIndex]["input"].GetInt();
 		int outputAccessorIndex = samplers[samplerIndex]["output"].GetInt();
@@ -146,35 +155,72 @@ load_animation_glb(MemoryArena & memoryArena, GltfFile const & gltfFile, char co
 
 		BoneAnimation boneAnimation = {};
 		boneAnimation.boneIndex = find_bone_by_node(jsonDocument, targetNode);
+		
+
+		char const * interpolationMode = samplers[samplerIndex]["interpolation"].GetString();
+		std::cout << "interpolation mode = " << interpolationMode << "\n";
+
+		if(cstring_equals(interpolationMode, "STEP"))
+		{
+			boneAnimation.interpolationMode = InterpolationMode::Step;
+		}
+		else if (cstring_equals(interpolationMode, "LINEAR"))
+		{
+			boneAnimation.interpolationMode = InterpolationMode::Linear;
+		}
+		else if (cstring_equals(interpolationMode,"CUBICSPLINE"))
+		{
+			boneAnimation.interpolationMode = InterpolationMode::CubicSpline;
+		}
+		else
+		{
+			assert(false);
+		}
 
 		if (cstring_equals(path, "rotation"))
 		{
+			std::cout << "rotation channel for bone " << boneAnimation.boneIndex;
+		
 			boneAnimation.rotations = allocate_array<RotationKeyframe>(memoryArena, keyframeCount);
 			for (int keyframeIndex = 0; keyframeIndex < keyframeCount; ++keyframeIndex)
 			{
+				int actualIndex = boneAnimation.interpolationMode == InterpolationMode::CubicSpline ? (keyframeIndex * 3 + 1) : keyframeIndex;
+
 				float time 			= get_at<float>(inputIt, keyframeIndex);
-				quaternion rotation = get_at<quaternion>(outputIt, keyframeIndex);
+				quaternion rotation = get_at<quaternion>(outputIt, actualIndex);
 
 				// TODO(Leo): Why does this work?
 				rotation 			= rotation.inverse();
 
 				boneAnimation.rotations.push({time, rotation});
 			}
+
+			std::cout << ", succeeded\n";
 		}
 
 		else if (cstring_equals(path, "translation"))
 		{
+
+			std::cout << "position channel for bone " << boneAnimation.boneIndex;
+
 			boneAnimation.positions = allocate_array<PositionKeyframe>(memoryArena, keyframeCount);
 			for (int keyframeIndex = 0; keyframeIndex < keyframeCount; ++keyframeIndex)
 			{
+				int actualIndex = boneAnimation.interpolationMode == InterpolationMode::CubicSpline ? (keyframeIndex * 3 + 1) : keyframeIndex;
+	
 				float time 	= get_at<float>(inputIt, keyframeIndex);
-				v3 position = get_at<v3>(outputIt, keyframeIndex);
+				v3 position = get_at<v3>(outputIt, actualIndex);
+
+
 				boneAnimation.positions.push({time, position});
 			}
+			std::cout << ", succeeded\n";
 		}
 		result.boneAnimations.push(std::move(boneAnimation));
 	}
 	result.duration = animationMaxTime - animationMinTime;
+
+	std::cout << "Animation loaded, duration: " << result.duration << "\n";
 
 	DEBUG_ASSERT(animationMinTime == 0, "Probably need to implement support animations that do not start at 0");
 
@@ -263,11 +309,8 @@ load_skeleton_glb(MemoryArena & memoryArena, GltfFile const & gltfFile, char con
 			result.bones[i].boneSpaceTransform.rotation.y = rotationArray[1].GetFloat();
 			result.bones[i].boneSpaceTransform.rotation.z = rotationArray[2].GetFloat();
 			result.bones[i].boneSpaceTransform.rotation.w = rotationArray[3].GetFloat();
-
-			std::cout << "loaded rotation from glb, before: " << result.bones[i].boneSpaceTransform.rotation;
  
 			result.bones[i].boneSpaceTransform.rotation = result.bones[i].boneSpaceTransform.rotation.inverse();
-			std::cout << ", after: " << result.bones[i].boneSpaceTransform.rotation << "\n";
 		}
 		else
 		{
@@ -386,7 +429,7 @@ load_model_glb(MemoryArena & memoryArena, GltfFile const & gltfFile, char const 
 		{
 			vertex.boneIndices = get_and_advance<upoint4>(bonesIterator);
 			vertex.boneWeights = get_and_advance<v4>(weightIterator);
-			vector::normalize(vertex.boneWeights);
+			vertex.boneWeights = vertex.boneWeights.normalized();
 		}
 	}
 

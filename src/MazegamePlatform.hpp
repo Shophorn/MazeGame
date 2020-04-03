@@ -50,6 +50,8 @@ needs to be specified for compiler. */
 #include "Camera.cpp"
 #include "Light.cpp"
 
+#include "Logging.cpp"
+
 namespace platform
 {
 	enum FrameResult
@@ -236,6 +238,9 @@ namespace game
 		ButtonState jump;
 		ButtonState confirm;
 		ButtonState interact;
+
+		// Note(Leo): Nintendo mapping
+		ButtonState X, Y, A, B;
 
 		// Note(Leo): Start and Select as in controller
 		ButtonState start;

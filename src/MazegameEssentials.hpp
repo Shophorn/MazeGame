@@ -98,6 +98,5 @@ u64 get_size_of()
 are here to make sure they behave as expected. */
 static_assert(sizeof(int) == 4, "Inconvenient size for int");
 
-
 #define MAZEGAME_ESSENTIALS_HPP
 #endif

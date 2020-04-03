@@ -79,6 +79,13 @@ xinput_is_used(winapi::State * winState, XINPUT_STATE * xinputState)
     return used;
 }
 
+enum {
+    NINTENDO_GAMEPAD_X = XINPUT_GAMEPAD_Y,
+    NINTENDO_GAMEPAD_Y = XINPUT_GAMEPAD_X,
+    NINTENDO_GAMEPAD_B = XINPUT_GAMEPAD_A,
+    NINTENDO_GAMEPAD_A = XINPUT_GAMEPAD_B,
+};
+
 internal void
 update_controller_input(game::Input * input, XINPUT_STATE * xinput)
 {
@@ -102,6 +109,12 @@ update_controller_input(game::Input * input, XINPUT_STATE * xinput)
     input->jump     = update_button_state(input->jump,      is_down(XINPUT_GAMEPAD_A));
     input->confirm  = update_button_state(input->confirm,   is_down(XINPUT_GAMEPAD_B));
     input->interact = input->confirm;
+
+    input->A = update_button_state(input->A, is_down(NINTENDO_GAMEPAD_A));
+    input->B = update_button_state(input->B, is_down(NINTENDO_GAMEPAD_B));
+    input->Y = update_button_state(input->Y, is_down(NINTENDO_GAMEPAD_Y));
+    input->X = update_button_state(input->X, is_down(NINTENDO_GAMEPAD_X));
+
 
     input->start    = update_button_state(input->start,     is_down(XINPUT_GAMEPAD_START));
     input->select   = update_button_state(input->select,    is_down(XINPUT_GAMEPAD_BACK));

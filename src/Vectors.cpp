@@ -7,17 +7,44 @@ TODO(Leo):
 	- Full testing
 	- SIMD / SSE / AVX
 =============================================================================*/
-
-
-// ------------------ DEFINITIONS ---------------------------------
 template<typename S, u32 D>
 struct Vector;
 
+namespace vector_impl_
+{
+	template<typename S, u32 D> S square_magnitude(void const * vec)
+	{
+		S result = 0;
+		for (int i = 0; i < D; ++i)
+		{
+			// Note(Leo): There is a 'hidden' subscript operator in the end of expression....
+			S element = reinterpret_cast<S const *>(vec)[i];
+			result += element * element;
+		}
+		return result;
+	}
+
+	template <typename S, u32 D> void divide(void * vec, S divisor)
+	{
+		for (int i = 0; i < D; ++i)
+		{
+			reinterpret_cast<S*>(vec)[i] /= divisor;
+		}
+	}
+}
+
+// ------------------ DEFINITIONS ---------------------------------
 template<typename S>
 struct Vector<S, 2>
 { 
 	S x, y;
+
+	S magnitude() const 		{ return math::square_root(vector_impl_::square_magnitude<S, 2>(this)); }
+	S square_magnitude() const 	{ return vector_impl_::square_magnitude<S, 2>(this); }
+
+	Vector normalized() const 	{ Vector result = *this; vector_impl_::divide<S, 2>(&result, magnitude()); return result; }
 };
+
 
 using v2 = Vector<float, 2>;
 using point2 = Vector<u32, 2>;
@@ -31,7 +58,10 @@ struct Vector<S, 3>
 	static Vector const forward;
 	static Vector const up;
 
-	static u32 const test = 8;
+	S magnitude() const 		{ return math::square_root(vector_impl_::square_magnitude<S, 3>(this)); }
+	S square_magnitude() const 	{ return vector_impl_::square_magnitude<S, 3>(this); }
+
+	Vector normalized() const 	{ Vector result = *this; vector_impl_::divide<S, 3>(&result, magnitude()); return result; }
 };
 using v3 	= Vector<float, 3>;
 
@@ -57,7 +87,13 @@ template<typename S>
 struct Vector<S, 4>
 {
 	S x, y, z, w;
+
+	S magnitude() const 		{ return math::square_root(vector_impl_::square_magnitude<S, 4>(this)); }
+	S square_magnitude() const 	{ return vector_impl_::square_magnitude<S, 4>(this); }
+
+	Vector normalized() const 	{ Vector result = *this; vector_impl_::divide<S, 4>(&result, magnitude()); return result; }
 };
+
 using v4 		= Vector<float,4>;
 using float4 	= Vector<float, 4>;
 
@@ -73,10 +109,7 @@ namespace vector
 
 	template<typename S, u32 D> S 					dot(Vector<S,D> const & a, Vector<S,D> const & b);
 	template<typename S, u32 D>	Vector<S,D>			interpolate(Vector<S,D> a, Vector<S,D> b, S t);
-	template<typename S, u32 D> Vector<S,D>			normalize(Vector<S,D> vec);
 	template<typename S, u32 D> Vector<S,D> 		normalize_or_zero(Vector<S,D> vec);
-	template<typename S, u32 D> S					get_length(Vector<S,D> const & vec);
-	template<typename S, u32 D> S 					get_sqr_length(Vector<S, D> const &);
 	template<typename S, u32 D> Vector<S, D>		clamp_length(Vector<S,D> vec, S maxLength);
 	template<typename S, u32 D> Vector<S, D> 		scale(Vector<S,D> vec, Vector<S,D> const & scale);
 	template<typename S, u32 D> void 				dissect (Vector<S,D> const & vec, Vector<S,D> * outDirection, S * outLength);
@@ -261,58 +294,36 @@ vector::interpolate(Vector<S, D> a, Vector<S, D> b, S t)
 	return a;	
 }
 
-template<typename S, u32 D> Vector<S,D>
-vector::normalize(Vector<S,D> vec)
-{
-	/* Note(Leo): We deliberately do handle bad cases here, so that any code where there is risk
-	to  normalize 0 length vector should handle that themself. so that*/
-	vec /= get_length(vec);
-	return vec;
-}
+// template<typename S, u32 D> Vector<S,D>
+// vector::normalize(Vector<S,D> vec)
+// {
+// 	return vec.normalized();
+
+// 	 Note(Leo): We deliberately do handle bad cases here, so that any code where there is risk
+// 	to  normalize 0 length vector should handle that themself. so that
+// 	// vec /= vec.magnitude();
+// 	// return vec;
+// }
 
 template<typename S, u32 D> Vector<S,D>
 vector::normalize_or_zero(Vector<S,D> vec)
 {
-	float sqrMagnitude = get_sqr_length(vec);
+	float sqrMagnitude = vec.square_magnitude();
 	if (sqrMagnitude < epsilon<S>)
 	{
 		return vec;
 	}
+
+	return vec.normalized();
+
 	vec /= math::square_root(sqrMagnitude);
 	return vec;
-}
-
-template<typename S, u32 D> S
-vector::get_length(Vector<S,D> const & vec)
-{
-	S result = 0;
-
-	S const * pVec = const_begin(&vec);
-	for (int i = 0; i < D; ++i)
-	{
-		result += pVec[i] * pVec[i];
-	}
-	result = math::square_root(result);
-	return result;
-}
-
-template<typename S, u32 D> S
-vector::get_sqr_length(Vector<S,D> const & vec)
-{
-	S result = 0;
-
-	S const * pVec = const_begin(&vec);
-	for (int i = 0; i < D; ++i)
-	{
-		result += pVec[i] * pVec[i];
-	}
-	return result;
 }
 
 template<typename S, u32 D> Vector<S,D>
 vector::clamp_length(Vector<S,D> vec, S maxLength)
 {
-	auto length = get_length(vec);
+	auto length = vec.magnitude();
 	if (length > maxLength)
 	{
 		vec *= (maxLength / length);
@@ -406,7 +417,7 @@ vector::scale(Vector<S,D> vec, Vector<S,D> const & scale)
 template<typename S, u32 D> void
 vector::dissect(Vector<S,D> const & vec, Vector<S,D> * outDirection, S * outLength)
 {
-	*outLength = get_length(vec);
+	*outLength = vec.magnitude();
 
 	if (*outLength < epsilon<S>)
 	{
