@@ -157,34 +157,46 @@ load_animation_glb(MemoryArena & memoryArena, GltfFile const & gltfFile, char co
 		boneAnimation.boneIndex = find_bone_by_node(jsonDocument, targetNode);
 		
 
-		char const * interpolationMode = samplers[samplerIndex]["interpolation"].GetString();
-		std::cout << "interpolation mode = " << interpolationMode << "\n";
+		{
+			char const * interpolationMode = samplers[samplerIndex]["interpolation"].GetString();
+			std::cout << "interpolation mode = " << interpolationMode << "\n";
 
-		if(cstring_equals(interpolationMode, "STEP"))
-		{
-			boneAnimation.interpolationMode = InterpolationMode::Step;
-		}
-		else if (cstring_equals(interpolationMode, "LINEAR"))
-		{
-			boneAnimation.interpolationMode = InterpolationMode::Linear;
-		}
-		else if (cstring_equals(interpolationMode,"CUBICSPLINE"))
-		{
-			boneAnimation.interpolationMode = InterpolationMode::CubicSpline;
-		}
-		else
-		{
-			assert(false);
+			if(cstring_equals(interpolationMode, "STEP"))
+				boneAnimation.interpolationMode = INTERPOLATION_MODE_STEP;
+
+			else if (cstring_equals(interpolationMode, "LINEAR"))
+				boneAnimation.interpolationMode = INTERPOLATION_MODE_LINEAR;
+
+			else if (cstring_equals(interpolationMode,"CUBICSPLINE"))
+				boneAnimation.interpolationMode = INTERPOLATION_MODE_CUBICSPLINE;
+
+			else
+				assert(false);
 		}
 
-		if (cstring_equals(path, "rotation"))
+		{
+			if (cstring_equals(path, "translation"))
+				boneAnimation.channelType = ANIMATION_CHANNEL_TRANSLATION;
+
+			else if(cstring_equals(path, "rotation"))
+				boneAnimation.channelType = ANIMATION_CHANNEL_ROTATION;
+
+			else if (cstring_equals(path, "scale"))
+				boneAnimation.channelType = ANIMATION_CHANNEL_SCALE;
+
+			else
+				assert(false);
+		}
+
+		if (boneAnimation.channelType == ANIMATION_CHANNEL_ROTATION)
 		{
 			std::cout << "rotation channel for bone " << boneAnimation.boneIndex;
 		
-			boneAnimation.rotations = allocate_array<RotationKeyframe>(memoryArena, keyframeCount);
+			boneAnimation.keyframeTimes = allocate_array<float>(memoryArena, keyframeCount);
+			boneAnimation.rotations = allocate_array<quaternion>(memoryArena, keyframeCount);
 			for (int keyframeIndex = 0; keyframeIndex < keyframeCount; ++keyframeIndex)
 			{
-				int actualIndex = boneAnimation.interpolationMode == InterpolationMode::CubicSpline ? (keyframeIndex * 3 + 1) : keyframeIndex;
+				int actualIndex = boneAnimation.interpolationMode == INTERPOLATION_MODE_CUBICSPLINE ? (keyframeIndex * 3 + 1) : keyframeIndex;
 
 				float time 			= get_at<float>(inputIt, keyframeIndex);
 				quaternion rotation = get_at<quaternion>(outputIt, actualIndex);
@@ -192,27 +204,29 @@ load_animation_glb(MemoryArena & memoryArena, GltfFile const & gltfFile, char co
 				// TODO(Leo): Why does this work?
 				rotation 			= rotation.inverse();
 
-				boneAnimation.rotations.push({time, rotation});
+				boneAnimation.keyframeTimes.push(time);
+				boneAnimation.rotations.push(rotation);
 			}
 
 			std::cout << ", succeeded\n";
 		}
 
-		else if (cstring_equals(path, "translation"))
+		else if (boneAnimation.channelType == ANIMATION_CHANNEL_TRANSLATION)
 		{
 
-			std::cout << "position channel for bone " << boneAnimation.boneIndex;
+			std::cout << "translation channel for bone " << boneAnimation.boneIndex;
 
-			boneAnimation.positions = allocate_array<PositionKeyframe>(memoryArena, keyframeCount);
+			boneAnimation.keyframeTimes = allocate_array<float>(memoryArena, keyframeCount);
+			boneAnimation.translations = allocate_array<v3>(memoryArena, keyframeCount);
 			for (int keyframeIndex = 0; keyframeIndex < keyframeCount; ++keyframeIndex)
 			{
-				int actualIndex = boneAnimation.interpolationMode == InterpolationMode::CubicSpline ? (keyframeIndex * 3 + 1) : keyframeIndex;
+				int actualIndex = boneAnimation.interpolationMode == INTERPOLATION_MODE_CUBICSPLINE ? (keyframeIndex * 3 + 1) : keyframeIndex;
 	
 				float time 	= get_at<float>(inputIt, keyframeIndex);
-				v3 position = get_at<v3>(outputIt, actualIndex);
+				v3 translation = get_at<v3>(outputIt, actualIndex);
 
-
-				boneAnimation.positions.push({time, position});
+				boneAnimation.keyframeTimes.push(time);
+				boneAnimation.translations.push(translation);
 			}
 			std::cout << ", succeeded\n";
 		}

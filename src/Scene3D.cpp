@@ -172,37 +172,40 @@ Scene3d::load(	void * 						scenePtr,
 		MaterialHandle sky;
 	} materials;
 
+	PipelineHandle characterPipeline = functions->push_pipeline(graphics, "assets/shaders/animated_vert.spv", "assets/shaders/frag.spv", { .textureCount = 3});
+	PipelineHandle normalPipeline 	= functions->push_pipeline(graphics, "assets/shaders/vert.spv", "assets/shaders/frag.spv", {.textureCount = 3});
+	PipelineHandle terrainPipeline 	= functions->push_pipeline(graphics, "assets/shaders/vert.spv", "assets/shaders/terrain_frag.spv", {.textureCount = 3});
+	PipelineHandle skyPipeline 		= functions->push_pipeline(graphics, "assets/shaders/vert_sky.spv", "assets/shaders/frag_sky.spv", {.enableDepth = false, .textureCount = 1});
+
+	auto load_and_push_texture = [transientMemory, functions, graphics](const char * path) -> TextureHandle
+	{
+		auto asset = load_texture_asset(path, transientMemory);
+		auto result = functions->push_texture(graphics, &asset);
+		return result;
+	};
+
+	TextureAsset whiteTextureAsset = make_texture_asset(allocate_array<u32>(*transientMemory, {0xffffffff}), 1, 1);
+	TextureAsset blackTextureAsset = make_texture_asset(allocate_array<u32>(*transientMemory, {0xff000000}), 1, 1);
+
+	TextureHandle whiteTexture = functions->push_texture(graphics, &whiteTextureAsset);
+	TextureHandle blackTexture = functions->push_texture(graphics, &blackTextureAsset);
+
+	auto push_material = [functions, transientMemory, graphics](PipelineHandle shader, TextureHandle a, TextureHandle b, TextureHandle c) -> MaterialHandle
+	{
+		MaterialAsset asset = make_material_asset(shader, allocate_array(*transientMemory, {a, b, c}));
+		MaterialHandle handle = functions->push_material(graphics, &asset);
+		return handle;
+	};
+
 	// Create MateriaLs
 	{
-		PipelineHandle characterPipeline = functions->push_pipeline(graphics, "assets/shaders/animated_vert.spv", "assets/shaders/frag.spv", { .textureCount = 3});
-		PipelineHandle normalPipeline 	= functions->push_pipeline(graphics, "assets/shaders/vert.spv", "assets/shaders/frag.spv", {.textureCount = 3});
-		PipelineHandle terrainPipeline 	= functions->push_pipeline(graphics, "assets/shaders/vert.spv", "assets/shaders/terrain_frag.spv", {.textureCount = 3});
-		PipelineHandle skyPipeline 		= functions->push_pipeline(graphics, "assets/shaders/vert_sky.spv", "assets/shaders/frag_sky.spv", {.enableDepth = false, .textureCount = 1});
 
-		TextureAsset whiteTextureAsset = make_texture_asset(allocate_array<u32>(*transientMemory, {0xffffffff}), 1, 1);
-		TextureAsset blackTextureAsset = make_texture_asset(allocate_array<u32>(*transientMemory, {0xff000000}), 1, 1);
-
-		TextureHandle whiteTexture = functions->push_texture(graphics, &whiteTextureAsset);
-		TextureHandle blackTexture = functions->push_texture(graphics, &blackTextureAsset);
-
-		auto load_and_push_texture = [transientMemory, functions, graphics](const char * path) -> TextureHandle
-		{
-			auto asset = load_texture_asset(path, transientMemory);
-			auto result = functions->push_texture(graphics, &asset);
-			return result;
-		};
 
 		auto tilesTexture 	= load_and_push_texture("assets/textures/tiles.jpg");
 		auto groundTexture 	= load_and_push_texture("assets/textures/ground.png");
 		auto lavaTexture 	= load_and_push_texture("assets/textures/lava.jpg");
 		auto faceTexture 	= load_and_push_texture("assets/textures/texture.jpg");
 
-		auto push_material = [functions, transientMemory, graphics](PipelineHandle shader, TextureHandle a, TextureHandle b, TextureHandle c) -> MaterialHandle
-		{
-			MaterialAsset asset = make_material_asset(shader, allocate_array(*transientMemory, {a, b, c}));
-			MaterialHandle handle = functions->push_material(graphics, &asset);
-			return handle;
-		};
 
 		materials =
 		{
@@ -265,9 +268,24 @@ Scene3d::load(	void * 						scenePtr,
 		scene->animatedRenderers.push({transform, model, true, std::move(bones)});
 	}
 
+	// Test robot
+	{
+		auto transform = allocate_transform(scene->transformStorage, {21, 10, 1.2});
+
+		char const * filename = "assets/models/Robot53.glb";
+		auto meshAsset = load_model_glb(*transientMemory, read_gltf_file(*transientMemory, filename), "model_rigged");	
+		auto mesh = functions->push_mesh(graphics, &meshAsset);
+
+		auto albedo = load_and_push_texture("assets/textures/Robot_53_albedo_4k.png");
+		auto material = push_material(normalPipeline, albedo, blackTexture, blackTexture);
+
+		auto model = push_model(mesh, material);
+		scene->renderSystem.push({transform, model});
+	}
+
 	scene->worldCamera = make_camera(50, 0.1f, 1000.0f);
 	scene->cameraController = make_camera_controller_3rd_person(&scene->worldCamera, scene->characterController.transform);
-	scene->cameraController.baseOffset = {0, 0, 0.5f};
+	scene->cameraController.baseOffset = {0, 0, 1.5f};
 	scene->cameraController.distance = 5;
 
 	// Environment

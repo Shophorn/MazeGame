@@ -294,12 +294,16 @@ scene_2d::load(	void * scenePtr,
 					parent1 = transform;
 					bones1.push(transform);
 	
+					// auto keyframes = allocate_array(*persistentMemory, {
+					// 	PositionKeyframe{(ladderIndex % ladder2StartIndex) * 0.12f, {0, 0, 0}},
+					// 	PositionKeyframe{((ladderIndex % ladder2StartIndex) + 1) * 0.15f, {0, 0, ladderHeight}}
+					// });
+
 					// Todo(Leo): only one animation needed, move somewhere else				
-					auto keyframes = allocate_array(*persistentMemory, {
-						PositionKeyframe{(ladderIndex % ladder2StartIndex) * 0.12f, {0, 0, 0}},
-						PositionKeyframe{((ladderIndex % ladder2StartIndex) + 1) * 0.15f, {0, 0, ladderHeight}}
-					});
-					animations.push({ladderIndex, std::move(keyframes)});
+					auto keyframeTimes = allocate_array<float>(*persistentMemory, {ladderIndex * 0.12f, (ladderIndex + 1) * 0.15f});
+					auto translations = allocate_array<v3>(*persistentMemory, {{0,0,0}, {0,0,ladderHeight}});
+
+					animations.push({ladderIndex, std::move(keyframeTimes),	std::move(translations)});
 				}
 				else
 				{

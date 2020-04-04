@@ -10,17 +10,28 @@ struct PositionKeyframe
 	v3 			position;
 };
 
-struct RotationKeyframe
+// struct RotationKeyframe
+// {
+// 	float time;
+// 	quaternion rotation;
+// };
+
+enum InterpolationMode
 {
-	float time;
-	quaternion rotation;
+	INTERPOLATION_MODE_STEP,
+	INTERPOLATION_MODE_LINEAR,
+	INTERPOLATION_MODE_CUBICSPLINE,
+
+	INTERPOLATION_MODE_COUNT
 };
 
-enum class InterpolationMode
+enum ChannelType
 {
-	Step,
-	Linear,
-	CubicSpline
+	ANIMATION_CHANNEL_TRANSLATION,
+	ANIMATION_CHANNEL_ROTATION,
+	ANIMATION_CHANNEL_SCALE,
+
+	ANIMATION_CHANNEL_COUNT
 };
 
 // Data
@@ -28,9 +39,13 @@ enum class InterpolationMode
 struct BoneAnimation
 {
 	u32 boneIndex;
-	Array<PositionKeyframe> positions;
-	Array<RotationKeyframe> rotations;
 
+	Array<float> 			keyframeTimes;
+	Array<v3> translations;
+
+	Array<quaternion> 		rotations;
+
+	ChannelType channelType;
 	InterpolationMode interpolationMode;
 };
 
@@ -121,11 +136,11 @@ make_animation_rig(Transform3D * root, Array<Transform3D*> bones, Array<u64> cur
 internal void
 update_animation_keyframes(BoneAnimation * animation, u64 * currentBoneKeyframe, float time)
 {
-	if (*currentBoneKeyframe < animation->positions.count()
-		&& time > animation->positions[*currentBoneKeyframe].time)
+	if (*currentBoneKeyframe < animation->keyframeTimes.count()
+		&& time > animation->keyframeTimes[*currentBoneKeyframe])
 	{
 		*currentBoneKeyframe += 1;
-		*currentBoneKeyframe = math::min(*currentBoneKeyframe, animation->positions.count());
+		*currentBoneKeyframe = math::min(*currentBoneKeyframe, animation->keyframeTimes.count());
 	}	
 }
 
@@ -133,28 +148,28 @@ internal void
 update_animation_target(BoneAnimation * animation, Transform3D * target, u64 currentBoneKeyframe, float time)
 {
 	bool32 isBeforeFirstKeyFrame 	= currentBoneKeyframe == 0; 
-	bool32 isAfterLastKeyFrame 		= currentBoneKeyframe >= animation->positions.count();
+	bool32 isAfterLastKeyFrame 		= currentBoneKeyframe >= animation->translations.count();
 
 	if (isBeforeFirstKeyFrame)
 	{
-		auto currentKeyframe = animation->positions[currentBoneKeyframe];
-		target->position = currentKeyframe.position;
+		auto currentPosition = animation->translations[currentBoneKeyframe];
+		target->position = currentPosition;
 	}
 	else if(isAfterLastKeyFrame)
 	{
-		auto previousKeyframe = animation->positions[currentBoneKeyframe - 1];
-		target->position = previousKeyframe.position;
+		auto previousPosition = animation->translations[currentBoneKeyframe - 1];
+		target->position = previousPosition;
 	}
 	else
 	{
-		auto previousKeyframe 		= animation->positions[currentBoneKeyframe - 1];
-		auto currentKeyframe 		= animation->positions[currentBoneKeyframe];
+		auto previousPosition 		= animation->translations[currentBoneKeyframe - 1];
+		auto currentPosition 		= animation->translations[currentBoneKeyframe];
 		
-		float previousKeyFrameTime 	= previousKeyframe.time;
-		float currentKeyFrameTime 	= currentKeyframe.time;
+		float previousKeyFrameTime 	= animation->keyframeTimes[currentBoneKeyframe - 1];
+		float currentKeyFrameTime 	= animation->keyframeTimes[currentBoneKeyframe];
 		float relativeTime 			= (time - previousKeyFrameTime) / (currentKeyFrameTime - previousKeyFrameTime);
 
-		target->position = vector::interpolate(previousKeyframe.position, currentKeyframe.position, relativeTime); 
+		target->position = vector::interpolate(previousPosition, currentPosition, relativeTime); 
 	}
 }
 
@@ -170,7 +185,8 @@ copy_animation(MemoryArena & memoryArena, Animation const & original)
 	for (int childIndex = 0; childIndex < original.boneAnimations.count(); ++childIndex)
 	{
 		result.boneAnimations.push({original.boneAnimations[childIndex].boneIndex, 
-									copy_array(memoryArena, original.boneAnimations[childIndex].positions),
+									copy_array(memoryArena, original.boneAnimations[childIndex].keyframeTimes),
+									copy_array(memoryArena, original.boneAnimations[childIndex].translations),
 									copy_array(memoryArena, original.boneAnimations[childIndex].rotations) });
 	}
 	return result;
@@ -186,13 +202,15 @@ reverse_animation_clip(Animation * clip)
 
 	for (int childIndex = 0; childIndex < childAnimationCount; ++childIndex)
 	{
-		reverse_BETTER_array(clip->boneAnimations[childIndex].positions);
+		reverse_BETTER_array(clip->boneAnimations[childIndex].keyframeTimes);
+		reverse_BETTER_array(clip->boneAnimations[childIndex].translations);
+		reverse_BETTER_array(clip->boneAnimations[childIndex].rotations);
 
-		s32 keyframeCount = clip->boneAnimations[childIndex].positions.count();
+		s32 keyframeCount = clip->boneAnimations[childIndex].translations.count();
 		for (int keyframeIndex = 0; keyframeIndex < keyframeCount; ++keyframeIndex)
 		{
-			float time = clip->boneAnimations[childIndex].positions[keyframeIndex].time; 
-			clip->boneAnimations[childIndex].positions[keyframeIndex].time = duration - time;
+			float time = clip->boneAnimations[childIndex].keyframeTimes[keyframeIndex]; 
+			clip->boneAnimations[childIndex].keyframeTimes[keyframeIndex] = duration - time;
 		}
 	}
 }
@@ -203,11 +221,11 @@ compute_duration (Array<BoneAnimation> const & animations)
 	float duration = 0;
 	for (auto & animation : animations)
 	{
-		if (animation.positions.count() > 0)
-			duration = math::max(duration, animation.positions.last().time);
+		duration = math::max(duration, animation.keyframeTimes.last());
+		// if (animation.translations.count() > 0)
+		// 	duration = math::max(duration, animation.translations.last().time);
 
-		if (animation.rotations.count() > 0)
-			duration = math::max(duration, animation.rotations.last().time);
+		// if (animation.rotations.count() > 0)
 
 	}
 	return duration;
@@ -291,15 +309,15 @@ s32 previous_rotation_keyframe(BoneAnimation const & animation, float time)
 	more than that keyframes time, so that it was actually the last. */
 
 	// Note(Leo): Last keyframe from previous loop round
-	if (time < animation.rotations[0].time)
+	if (time < animation.keyframeTimes[0])
 	{
-		return animation.rotations.count() - 1;
+		return animation.keyframeTimes.count() - 1;
 	}
 
-	for (int i = 0; i < animation.rotations.count() - 1; ++i)
+	for (int i = 0; i < animation.keyframeTimes.count() - 1; ++i)
 	{
-		float thisTime = animation.rotations[i].time;
-		float nextTime = animation.rotations[i + 1].time;
+		float thisTime = animation.keyframeTimes[i];
+		float nextTime = animation.keyframeTimes[i + 1];
 
 		if (thisTime <= time && time <= nextTime)
 		{
@@ -308,7 +326,7 @@ s32 previous_rotation_keyframe(BoneAnimation const & animation, float time)
 	}
 	
 	// Note(Leo): this loop rounds last keyframe 
-	return animation.rotations.count() - 1;
+	return animation.keyframeTimes.count() - 1;
 }
 
 s32 previous_position_keyframe(BoneAnimation const & animation, float time)
@@ -319,15 +337,15 @@ s32 previous_position_keyframe(BoneAnimation const & animation, float time)
 	more than that keyframes time, so that it was actually the last. */
 
 	// Note(Leo): Last keyframe from previous loop round
-	if (time < animation.positions[0].time)
+	if (time < animation.keyframeTimes[0])
 	{
-		return animation.positions.count() - 1;
+		return animation.keyframeTimes.count() - 1;
 	}
 
-	for (int i = 0; i < animation.positions.count() - 1; ++i)
+	for (int i = 0; i < animation.keyframeTimes.count() - 1; ++i)
 	{
-		float thisTime = animation.positions[i].time;
-		float nextTime = animation.positions[i + 1].time;
+		float thisTime = animation.keyframeTimes[i];
+		float nextTime = animation.keyframeTimes[i + 1];
 
 		if (thisTime <= time && time <= nextTime)
 		{
@@ -336,7 +354,7 @@ s32 previous_position_keyframe(BoneAnimation const & animation, float time)
 	}
 	
 	// Note(Leo): this loop rounds last keyframe 
-	return animation.positions.count() - 1;
+	return animation.keyframeTimes.count() - 1;
 }
 
 quaternion get_rotation(BoneAnimation const & animation, float duration, float time)
@@ -345,12 +363,15 @@ quaternion get_rotation(BoneAnimation const & animation, float duration, float t
 	u32 nextKeyframeIndex = (previousKeyframeIndex + 1) % animation.rotations.count();
 
 	// Get keyframes
-	auto previousKeyframe 		= animation.rotations[previousKeyframeIndex];
+	auto previousRotation 		= animation.rotations[previousKeyframeIndex];
 	auto nextKeyframe 			= animation.rotations[nextKeyframeIndex];
 
-	if (animation.interpolationMode == InterpolationMode::Step)
+	float previousTime = animation.keyframeTimes[previousKeyframeIndex];
+	float nextTime = animation.keyframeTimes[nextKeyframeIndex];
+
+	if (animation.interpolationMode == InterpolationMode::INTERPOLATION_MODE_STEP)
 	{
-		quaternion result = previousKeyframe.rotation;
+		quaternion result = previousRotation;
 		// logAnim(0) << result << "\n";
 
 		return result;
@@ -359,23 +380,23 @@ quaternion get_rotation(BoneAnimation const & animation, float duration, float t
 	float swagEpsilon = 0.000000001f; // Should this be in scale of frame time?
 
 	// Note(Leo): these are times from previous so that we get [0 ... 1] range for interpolation
-	float timeToNow = time - previousKeyframe.time;
+	float timeToNow = time - previousTime;
 	if (timeToNow < swagEpsilon)
 	{
 		timeToNow = duration - timeToNow;
 	} 
 
-	float timeToNext = nextKeyframe.time - previousKeyframe.time;
+	float timeToNext = nextTime - previousTime;
 	if (timeToNext < swagEpsilon)
 	{
 		timeToNext = duration - timeToNext;
 	}
 	float relativeTime = timeToNow / timeToNext;
 
-	assert(previousKeyframe.rotation.is_unit_quaternion());
-	assert(nextKeyframe.rotation.is_unit_quaternion());
+	assert(previousRotation.is_unit_quaternion());
+	assert(nextKeyframe.is_unit_quaternion());
 
-	quaternion result = interpolate(previousKeyframe.rotation, nextKeyframe.rotation, relativeTime); 
+	quaternion result = interpolate(previousRotation, nextKeyframe, relativeTime); 
 	assert (result.is_unit_quaternion());
 	return result;
 }
@@ -383,42 +404,34 @@ quaternion get_rotation(BoneAnimation const & animation, float duration, float t
 v3 get_position(BoneAnimation const & animation, float duration, float time)
 {
 	u32 previousKeyframeIndex = previous_position_keyframe(animation, time);
-	u32 nextKeyframeIndex = (previousKeyframeIndex + 1) % animation.positions.count();
+	u32 nextKeyframeIndex = (previousKeyframeIndex + 1) % animation.translations.count();
 
 
 	// Get keyframes
-	auto previousKeyframe 		= animation.positions[previousKeyframeIndex];
-	auto nextKeyframe 			= animation.positions[nextKeyframeIndex];
+	v3 previousPosition = animation.translations[previousKeyframeIndex];
+	v3 nextPosition 	= animation.translations[nextKeyframeIndex];
 	
+	float previousTime 	= animation.keyframeTimes[previousKeyframeIndex];
+	float nextTime 		= animation.keyframeTimes[nextKeyframeIndex];
+
 	float swagEpsilon = 0.000000001f; // Should this be in scale of frame time?
 
 	// Note(Leo): these are times from previous so that we get [0 ... 1] range for interpolation
-	float timeToNow = time - previousKeyframe.time;
+	float timeToNow = time - previousTime;
 	if (timeToNow < swagEpsilon)
 	{
 		timeToNow = duration - timeToNow;
 	} 
 
-	float timeToNext = nextKeyframe.time - previousKeyframe.time;
+	float timeToNext = nextTime - previousTime;
 	if (timeToNext < swagEpsilon)
 	{
 		timeToNext = duration - timeToNext;
 	}
 
 	float relativeTime = timeToNow / timeToNext;
-	return vector::interpolate(previousKeyframe.position, nextKeyframe.position, relativeTime);
+	return vector::interpolate(previousPosition, nextPosition, relativeTime);
 }
-
-inline bool has_rotations(BoneAnimation const & boneAnimation)
-{
-	return boneAnimation.rotations.count() > 0;
-}
-
-inline bool has_positions(BoneAnimation const & boneAnimation)
-{
-	return boneAnimation.positions.count() > 0;
-}
-
 
 struct SkeletonAnimator
 {
@@ -459,14 +472,23 @@ void update_skeleton_animator(SkeletonAnimator & animator, float elapsedTime)
 	{	
 		auto & target = animator.skeleton.bones[boneAnimation.boneIndex].boneSpaceTransform;
 
-		if (has_rotations(boneAnimation))
+		switch(boneAnimation.channelType)
 		{
-			target.rotation = get_rotation(boneAnimation, animation.duration, animationTime);
-		}
+			case ANIMATION_CHANNEL_TRANSLATION:
+				target.position = get_position(boneAnimation, animation.duration, animationTime);
+				break;
 
-		if (has_positions(boneAnimation))
-		{
-			target.position = get_position(boneAnimation, animation.duration, animationTime);
+			case ANIMATION_CHANNEL_ROTATION:
+				target.rotation = get_rotation(boneAnimation, animation.duration, animationTime);
+				break;
+
+			case ANIMATION_CHANNEL_SCALE:
+				logAnim(1) << FILE_ADDRESS << "Scale animation channel not implemented yet";
+				break;
+
+			default:
+				assert(false);
+				break;
 		}
 	}
 }
