@@ -270,7 +270,7 @@ scene_2d::load(	void * scenePtr,
 			auto bones2 = allocate_array<Transform3D*>(*persistentMemory, 6);
 
 			int ladderRigBoneCount = 6;
-			auto animations = allocate_array<BoneAnimation>(*persistentMemory, ladderRigBoneCount, ALLOC_EMPTY);
+			auto animations = allocate_array<AnimationChannel>(*persistentMemory, ladderRigBoneCount, ALLOC_EMPTY);
 
 			auto parent1 = root1;
 			auto parent2 = root2;

@@ -127,7 +127,7 @@ load_animation_glb(MemoryArena & memoryArena, GltfFile const & gltfFile, char co
 	auto buffers 		= jsonDocument["buffers"].GetArray();
 
 	Animation result = {};
-	result.boneAnimations = allocate_array<BoneAnimation>(memoryArena, channels.Size());
+	result.channels = allocate_array<AnimationChannel>(memoryArena, channels.Size());
 
 	float animationMinTime = math::highest_value<float>;
 	float animationMaxTime = math::lowest_value<float>;
@@ -153,7 +153,7 @@ load_animation_glb(MemoryArena & memoryArena, GltfFile const & gltfFile, char co
 		auto targetNode 	= channel["target"]["node"].GetInt();
 		char const * path 	= channel["target"]["path"].GetString();
 
-		BoneAnimation boneAnimation = {};
+		AnimationChannel boneAnimation = {};
 		boneAnimation.boneIndex = find_bone_by_node(jsonDocument, targetNode);
 		
 
@@ -190,7 +190,7 @@ load_animation_glb(MemoryArena & memoryArena, GltfFile const & gltfFile, char co
 
 		if (boneAnimation.channelType == ANIMATION_CHANNEL_ROTATION)
 		{
-			std::cout << "rotation channel for bone " << boneAnimation.boneIndex;
+			logConsole(1) << "rotation channel for bone " << boneAnimation.boneIndex;
 		
 			boneAnimation.keyframeTimes = allocate_array<float>(memoryArena, keyframeCount);
 			boneAnimation.rotations = allocate_array<quaternion>(memoryArena, keyframeCount);
@@ -208,13 +208,13 @@ load_animation_glb(MemoryArena & memoryArena, GltfFile const & gltfFile, char co
 				boneAnimation.rotations.push(rotation);
 			}
 
-			std::cout << ", succeeded\n";
+			result.channels.push(std::move(boneAnimation));
 		}
 
 		else if (boneAnimation.channelType == ANIMATION_CHANNEL_TRANSLATION)
 		{
 
-			std::cout << "translation channel for bone " << boneAnimation.boneIndex;
+			logConsole(1) << "translation channel for bone " << boneAnimation.boneIndex;
 
 			boneAnimation.keyframeTimes = allocate_array<float>(memoryArena, keyframeCount);
 			boneAnimation.translations = allocate_array<v3>(memoryArena, keyframeCount);
@@ -228,13 +228,13 @@ load_animation_glb(MemoryArena & memoryArena, GltfFile const & gltfFile, char co
 				boneAnimation.keyframeTimes.push(time);
 				boneAnimation.translations.push(translation);
 			}
-			std::cout << ", succeeded\n";
+
+			result.channels.push(std::move(boneAnimation));
 		}
-		result.boneAnimations.push(std::move(boneAnimation));
 	}
 	result.duration = animationMaxTime - animationMinTime;
 
-	std::cout << "Animation loaded, duration: " << result.duration << "\n";
+	logConsole(1) << "Animation loaded, duration: " << result.duration << "\n";
 
 	DEBUG_ASSERT(animationMinTime == 0, "Probably need to implement support animations that do not start at 0");
 

@@ -64,4 +64,4 @@ LogChannel logAnim = {"ANIMATION", 5, &std::cout};
 
 #define F_A_HELPER_1_(x) #x
 #define F_A_HELPER_2_(x) F_A_HELPER_1_(x)
-#define FILE_ADDRESS "[" __FILE__ ":" F_A_HELPER_2_(__LINE__) "]"
+#define FILE_ADDRESS "[" __FILE__ ":" F_A_HELPER_2_(__LINE__) "] "
