@@ -151,7 +151,7 @@ update_character(
 		case 2: character.animator.animation = &character.runAnimation; break;
 
 		default:
-			logConsole(1) 	<< FILE_ADDRESS 
+			logDebug(1) 	<< FILE_ADDRESS 
 							<< "Bad input value(" << inputVector.magnitude() 
 							<< ") resulted in bad move stage (" << moveStage << ")";
 			break;

@@ -59,7 +59,7 @@ struct LogChannel
 	}
 };
 
-LogChannel logConsole = {"LOG", 5, &std::cout};
+LogChannel logDebug = {"DEBUG", 5, &std::cout};
 LogChannel logAnim = {"ANIMATION", 5, &std::cout};
 
 #define F_A_HELPER_1_(x) #x

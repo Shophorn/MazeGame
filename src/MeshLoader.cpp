@@ -99,12 +99,11 @@ auto find_by_name (JsonArray & nodeArray, char const * name)
 internal Animation
 load_animation_glb(MemoryArena & memoryArena, GltfFile const & gltfFile, char const * animationName)
 {
-	auto const & jsonDocument = gltfFile.json;
+	auto const & jsonDocument 			= gltfFile.json;
 
 	DEBUG_ASSERT(jsonDocument.HasMember("animations"), "No Animations found");
 
-	auto animArray = jsonDocument["animations"].GetArray();
-
+	auto animArray 						= jsonDocument["animations"].GetArray();
 	JsonValue const * ptrNamedAnimation = find_by_name(animArray, animationName);
 
 	if(ptrNamedAnimation == nullptr)
@@ -117,126 +116,111 @@ load_animation_glb(MemoryArena & memoryArena, GltfFile const & gltfFile, char co
 		DEBUG_ASSERT(ptrNamedAnimation != nullptr, "animation not found");
 	}
 
-	auto const & namedAnimation = *ptrNamedAnimation;
-
-	auto channels 		= namedAnimation["channels"].GetArray();
-	auto samplers 		= namedAnimation["samplers"].GetArray();
+	auto channels 		= (*ptrNamedAnimation)["channels"].GetArray();
+	auto samplers 		= (*ptrNamedAnimation)["samplers"].GetArray();
 
 	auto accessors 		= jsonDocument["accessors"].GetArray();
-	auto bufferViews 	= jsonDocument["bufferViews"].GetArray();
-	auto buffers 		= jsonDocument["buffers"].GetArray();
+	// auto bufferViews 	= jsonDocument["bufferViews"].GetArray();
+	// auto buffers 		= jsonDocument["buffers"].GetArray();
 
 	Animation result = {};
 	result.channels = allocate_array<AnimationChannel>(memoryArena, channels.Size());
 
-	float animationMinTime = math::highest_value<float>;
-	float animationMaxTime = math::lowest_value<float>;
+	float minTime = math::highest_value<float>;
+	float maxTime = math::lowest_value<float>;
 
-	for (auto const & channel : channels)
+	for (auto const & jsonChannel : channels)
 	{
+		int samplerIndex 	= jsonChannel["sampler"].GetInt();
+		int inputAccessor 	= samplers[samplerIndex]["input"].GetInt();
+		int outputAccessor 	= samplers[samplerIndex]["output"].GetInt();
 
-		int samplerIndex = channel["sampler"].GetInt();
-		int inputAccessorIndex = samplers[samplerIndex]["input"].GetInt();
-		int outputAccessorIndex = samplers[samplerIndex]["output"].GetInt();
+		minTime = math::min(minTime, accessors[inputAccessor]["min"][0].GetFloat());
+		maxTime = math::max(maxTime, accessors[inputAccessor]["max"][0].GetFloat());
 
-		animationMinTime = math::min(animationMinTime, accessors[inputAccessorIndex]["min"][0].GetFloat());
-		animationMaxTime = math::max(animationMaxTime, accessors[inputAccessorIndex]["max"][0].GetFloat());
-
-		int inputBufferViewIndex = accessors[inputAccessorIndex]["bufferView"].GetInt();
-		int outputBufferViewIndex = accessors[outputAccessorIndex]["bufferView"].GetInt();
-
-		int keyframeCount = accessors[inputAccessorIndex]["count"].GetInt();
-		
-		auto inputIt 	= make_gltf_iterator(gltfFile.binaryBuffer, jsonDocument, inputAccessorIndex);
-		auto outputIt 	= make_gltf_iterator(gltfFile.binaryBuffer, jsonDocument, outputAccessorIndex);
-
-		auto targetNode 	= channel["target"]["node"].GetInt();
-		char const * path 	= channel["target"]["path"].GetString();
-
-		AnimationChannel boneAnimation = {};
-		boneAnimation.boneIndex = find_bone_by_node(jsonDocument, targetNode);
+		int keyframeCount = accessors[inputAccessor]["count"].GetInt();
 		
 
+		auto targetNode 	= jsonChannel["target"]["node"].GetInt();
+
+		AnimationChannel channel = {};
+		channel.targetIndex = find_bone_by_node(jsonDocument, targetNode);
+		
+		// interpolation mode
 		{
 			char const * interpolationMode = samplers[samplerIndex]["interpolation"].GetString();
-			std::cout << "interpolation mode = " << interpolationMode << "\n";
 
-			if(cstring_equals(interpolationMode, "STEP"))
-				boneAnimation.interpolationMode = INTERPOLATION_MODE_STEP;
-
-			else if (cstring_equals(interpolationMode, "LINEAR"))
-				boneAnimation.interpolationMode = INTERPOLATION_MODE_LINEAR;
-
-			else if (cstring_equals(interpolationMode,"CUBICSPLINE"))
-				boneAnimation.interpolationMode = INTERPOLATION_MODE_CUBICSPLINE;
+			if(cstring_equals(interpolationMode, "STEP"))				channel.interpolationMode = INTERPOLATION_MODE_STEP;
+			else if (cstring_equals(interpolationMode, "LINEAR"))		channel.interpolationMode = INTERPOLATION_MODE_LINEAR;
+			else if (cstring_equals(interpolationMode,"CUBICSPLINE"))	channel.interpolationMode = INTERPOLATION_MODE_CUBICSPLINE;
 
 			else
 				assert(false);
 		}
 
+		// channel type
 		{
-			if (cstring_equals(path, "translation"))
-				boneAnimation.channelType = ANIMATION_CHANNEL_TRANSLATION;
-
-			else if(cstring_equals(path, "rotation"))
-				boneAnimation.channelType = ANIMATION_CHANNEL_ROTATION;
-
-			else if (cstring_equals(path, "scale"))
-				boneAnimation.channelType = ANIMATION_CHANNEL_SCALE;
-
-			else
-				assert(false);
-		}
-
-		if (boneAnimation.channelType == ANIMATION_CHANNEL_ROTATION)
-		{
-			logConsole(1) << "rotation channel for bone " << boneAnimation.boneIndex;
-		
-			boneAnimation.keyframeTimes = allocate_array<float>(memoryArena, keyframeCount);
-			boneAnimation.rotations = allocate_array<quaternion>(memoryArena, keyframeCount);
-			for (int keyframeIndex = 0; keyframeIndex < keyframeCount; ++keyframeIndex)
-			{
-				int actualIndex = boneAnimation.interpolationMode == INTERPOLATION_MODE_CUBICSPLINE ? (keyframeIndex * 3 + 1) : keyframeIndex;
-
-				float time 			= get_at<float>(inputIt, keyframeIndex);
-				quaternion rotation = get_at<quaternion>(outputIt, actualIndex);
-
-				// TODO(Leo): Why does this work?
-				rotation 			= rotation.inverse();
-
-				boneAnimation.keyframeTimes.push(time);
-				boneAnimation.rotations.push(rotation);
-			}
-
-			result.channels.push(std::move(boneAnimation));
-		}
-
-		else if (boneAnimation.channelType == ANIMATION_CHANNEL_TRANSLATION)
-		{
-
-			logConsole(1) << "translation channel for bone " << boneAnimation.boneIndex;
-
-			boneAnimation.keyframeTimes = allocate_array<float>(memoryArena, keyframeCount);
-			boneAnimation.translations = allocate_array<v3>(memoryArena, keyframeCount);
-			for (int keyframeIndex = 0; keyframeIndex < keyframeCount; ++keyframeIndex)
-			{
-				int actualIndex = boneAnimation.interpolationMode == INTERPOLATION_MODE_CUBICSPLINE ? (keyframeIndex * 3 + 1) : keyframeIndex;
+			char const * path 	= jsonChannel["target"]["path"].GetString();
 	
-				float time 	= get_at<float>(inputIt, keyframeIndex);
-				v3 translation = get_at<v3>(outputIt, actualIndex);
+			if (cstring_equals(path, "translation"))	channel.type = ANIMATION_CHANNEL_TRANSLATION;
+			else if(cstring_equals(path, "rotation"))	channel.type = ANIMATION_CHANNEL_ROTATION;
+			else if (cstring_equals(path, "scale"))		channel.type = ANIMATION_CHANNEL_SCALE;
 
-				boneAnimation.keyframeTimes.push(time);
-				boneAnimation.translations.push(translation);
-			}
-
-			result.channels.push(std::move(boneAnimation));
+			else
+				assert(false);
 		}
+
+		auto inputIt 		= make_gltf_iterator(gltfFile.binaryBuffer, jsonDocument, inputAccessor);
+		float const * start = reinterpret_cast<float const *>(inputIt.start);
+		float const * end 	= start + keyframeCount;
+		channel.times 		= allocate_array<float>(memoryArena, start, end);
+
+		auto outputIt 		= make_gltf_iterator(gltfFile.binaryBuffer, jsonDocument, outputAccessor);
+
+		switch(channel.type)
+		{
+			case ANIMATION_CHANNEL_TRANSLATION:
+				logDebug(1) << "translation channel for bone " << channel.targetIndex;
+
+				channel.translations = allocate_array<v3>(memoryArena, keyframeCount);
+				for (int keyframeIndex = 0; keyframeIndex < keyframeCount; ++keyframeIndex)
+				{
+					int actualIndex = channel.interpolationMode == INTERPOLATION_MODE_CUBICSPLINE ? (keyframeIndex * 3 + 1) : keyframeIndex;
+		
+					v3 translation = get_at<v3>(outputIt, actualIndex);
+					channel.translations.push(translation);
+				}
+				break;
+
+			case ANIMATION_CHANNEL_ROTATION:
+				logDebug(1) << "rotation channel for bone " << channel.targetIndex;
+		
+				channel.rotations = allocate_array<quaternion>(memoryArena, keyframeCount);
+				for (int keyframeIndex = 0; keyframeIndex < keyframeCount; ++keyframeIndex)
+				{
+					int actualIndex = channel.interpolationMode == INTERPOLATION_MODE_CUBICSPLINE ? (keyframeIndex * 3 + 1) : keyframeIndex;
+
+					quaternion rotation = get_at<quaternion>(outputIt, actualIndex);
+
+					// TODO(Leo): Why does this work?
+					rotation 			= rotation.inverse();
+					channel.rotations.push(rotation);
+				}
+				break;
+
+			default:
+				logDebug(1) << FILE_ADDRESS << "Invalid or unimplemented animation channel: '" << channel.type << "' for bone " << channel.targetIndex;
+				continue;
+
+		}
+
+		result.channels.push(std::move(channel));
 	}
-	result.duration = animationMaxTime - animationMinTime;
+	result.duration = maxTime - minTime;
 
-	logConsole(1) << "Animation loaded, duration: " << result.duration << "\n";
+	logDebug(1) << "Animation loaded, duration: " << result.duration << "\n";
 
-	DEBUG_ASSERT(animationMinTime == 0, "Probably need to implement support animations that do not start at 0");
+	DEBUG_ASSERT(minTime == 0, "Probably need to implement support animations that do not start at 0");
 
 	return result;
 }
@@ -324,7 +308,7 @@ load_skeleton_glb(MemoryArena & memoryArena, GltfFile const & gltfFile, char con
 			result.bones[i].boneSpaceTransform.rotation.z = rotationArray[2].GetFloat();
 			result.bones[i].boneSpaceTransform.rotation.w = rotationArray[3].GetFloat();
  
-			result.bones[i].boneSpaceTransform.rotation = result.bones[i].boneSpaceTransform.rotation.inverse();
+			// result.bones[i].boneSpaceTransform.rotation = result.bones[i].boneSpaceTransform.rotation.inverse();
 		}
 		else
 		{

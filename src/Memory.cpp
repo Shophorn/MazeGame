@@ -165,8 +165,12 @@ Array<T> copy_array(MemoryArena & arena, Array<T> const & other)
 }
 
 template<typename T>
-void reverse_BETTER_array(Array<T> & array)
+void reverse_array(Array<T> & array)
 {
+	// Note(Leo): nothing to reverse
+	if (array.count() < 2)
+		return;
+
 	T temp = array[0];
 	u64 halfCount = array.count() / 2;
 	u64 lastIndex = array.count() - 1;

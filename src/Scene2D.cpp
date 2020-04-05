@@ -270,13 +270,14 @@ scene_2d::load(	void * scenePtr,
 			auto bones2 = allocate_array<Transform3D*>(*persistentMemory, 6);
 
 			int ladderRigBoneCount = 6;
-			auto animations = allocate_array<AnimationChannel>(*persistentMemory, ladderRigBoneCount, ALLOC_EMPTY);
+			auto channels = allocate_array<AnimationChannel>(*persistentMemory, ladderRigBoneCount, ALLOC_EMPTY);
 
 			auto parent1 = root1;
 			auto parent2 = root2;
 			
 			int ladder2StartIndex = 6;
 			int ladderCount = 12;
+
 			for (u32 ladderIndex = 0; ladderIndex < ladderCount; ++ladderIndex)
 			{
 				auto model 	= push_model(ladderMeshHandle, materials.environment);
@@ -294,16 +295,14 @@ scene_2d::load(	void * scenePtr,
 					parent1 = transform;
 					bones1.push(transform);
 	
-					// auto keyframes = allocate_array(*persistentMemory, {
-					// 	PositionKeyframe{(ladderIndex % ladder2StartIndex) * 0.12f, {0, 0, 0}},
-					// 	PositionKeyframe{((ladderIndex % ladder2StartIndex) + 1) * 0.15f, {0, 0, ladderHeight}}
-					// });
 
 					// Todo(Leo): only one animation needed, move somewhere else				
 					auto keyframeTimes = allocate_array<float>(*persistentMemory, {ladderIndex * 0.12f, (ladderIndex + 1) * 0.15f});
 					auto translations = allocate_array<v3>(*persistentMemory, {{0,0,0}, {0,0,ladderHeight}});
 
-					animations.push({ladderIndex, std::move(keyframeTimes),	std::move(translations)});
+					channels.push({ladderIndex, std::move(keyframeTimes),	std::move(translations)});
+					channels.last().interpolationMode = INTERPOLATION_MODE_LINEAR;
+					channels.last().type = ANIMATION_CHANNEL_TRANSLATION;
 				}
 				else
 				{
@@ -313,18 +312,13 @@ scene_2d::load(	void * scenePtr,
 				}
 			}	
 
-			scene->laddersUpAnimation 	= make_animation(std::move(animations));
+			scene->laddersUpAnimation 	= make_animation(std::move(channels));
 
 			scene->laddersDownAnimation = copy_animation(*persistentMemory, scene->laddersUpAnimation);
-			reverse_animation_clip(&scene->laddersDownAnimation);
+			reverse_animation_clip(scene->laddersDownAnimation);
 
-			auto keyframeCounters1 = allocate_array<u64>(*persistentMemory, bones1.count(), ALLOC_FILL_UNINITIALIZED);
-			auto keyframeCounters2 = allocate_array<u64>(*persistentMemory, bones2.count(), ALLOC_FILL_UNINITIALIZED);
-
-			std::cout << "bones: " << bones1.count() << ", keyframes: " << keyframeCounters1.count() << "\n"; 
-
-			auto rig1 = make_animation_rig(root1, std::move(bones1), std::move(keyframeCounters1));
-			auto rig2 = make_animation_rig(root2, std::move(bones2), std::move(keyframeCounters2));
+			auto rig1 = make_animation_rig(root1, std::move(bones1));
+			auto rig2 = make_animation_rig(root2, std::move(bones2));
 
 			scene->animatorSystem.push(make_animator(std::move(rig1)));
 			scene->animatorSystem.push(make_animator(std::move(rig2)));
@@ -347,6 +341,8 @@ scene_2d::load(	void * scenePtr,
 					play_animation_clip(&scene->animatorSystem[1], &scene->laddersDownAnimation);
 			};
 		}
+
+		logDebug(0) << "Ladders done";
 
 		if (addPlatforms)
 		{
@@ -400,4 +396,6 @@ scene_2d::load(	void * scenePtr,
 			push_collider(&scene->collisionManager, transform, {0.3f, 0.6f}, {0, 0.3f}, ColliderTag::Trigger2);
 		}
 	}
+
+	logDebug(0) << "Loaded 2D scene";
 }
