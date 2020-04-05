@@ -69,6 +69,8 @@ void main()
 	if (inLight < 0.5)
 	{
 		lightIntensity *= (1.0 - lightCoords.w);
+		outColor = vec4(0.8, 0, 0.8, 1);
+		return;
 	}
 	// ------------------------------------------------------------------------
 

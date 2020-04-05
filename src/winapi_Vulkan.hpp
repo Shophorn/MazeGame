@@ -51,8 +51,11 @@ namespace vulkan
 	
 	struct ModelUniformBuffer
 	{
-		m44 transform;
-		m44 bones [50];
+		// Note(Leo): matrices must be aligned on 16 byte boundaries
+		// Todo(Leo): Find the confirmation for this from Vulkan documentation
+		alignas(16) m44 	localToWorld;
+		alignas(16) float 	isAnimated;
+		alignas(16) m44 	bonesToLocal [32];
 	};
 }
 

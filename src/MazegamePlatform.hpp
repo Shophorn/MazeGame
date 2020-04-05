@@ -92,7 +92,7 @@ namespace platform
 	/* 
 	Note(Leo): this is honest forward declaration to couple lines downward
 	Note(Leo): this will not be needed in final game, where game is same
-	executable instead of separate dll like now.
+	executable instead of separate dll like during development.
 	*/
 	struct Functions;
 
@@ -102,7 +102,7 @@ namespace platform
 	struct Graphics;
 
 	// Note(Leo): these are for platform layer only.
-	// Todo(Leo): probably something else.
+	// Todo(Leo): probably do something else.
 	FrameResult prepare_frame(Graphics*);
 	void set_functions(Graphics*, Functions*);
 

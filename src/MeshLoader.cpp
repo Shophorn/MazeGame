@@ -427,8 +427,14 @@ load_model_glb(MemoryArena & memoryArena, GltfFile const & gltfFile, char const 
 		{
 			vertex.boneIndices = get_and_advance<upoint4>(bonesIterator);
 			vertex.boneWeights = get_and_advance<v4>(weightIterator);
-			vertex.boneWeights = vertex.boneWeights.normalized();
-		}
+			
+			float totalBoneWeights = vector::coeff_sum(vertex.boneWeights);
+			if(math::close_enough_small(totalBoneWeights, 1.0f) == false)
+			{
+				logDebug(2) << "load_model_glb(), weird bone weights detected: " << vertex.boneWeights;
+				vertex.boneWeights /= totalBoneWeights;
+			}
+		} 
 	}
 
 	///// INDICES //////

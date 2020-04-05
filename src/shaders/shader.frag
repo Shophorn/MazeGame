@@ -51,14 +51,13 @@ void main()
 	const float epsilon = 0.0001;
 	float inLight = 1.0 - step(lightDepthFromTexture + epsilon, lightCoords.z);
 
+
 	if (inLight < 0.5)
 	{
+		outColor = vec4(0,0,0.8,1);
 		lightIntensity *= (1.0 - lightCoords.w);
+		return;
 	}
-
-
-
-
 
 	vec3 light = light.ambient.rgb + (light.color.rgb * lightIntensity);
 	vec3 color = light * albedo;

@@ -9,8 +9,9 @@ layout (set = 0) uniform CameraProjections
 
 layout(set = 2) uniform ModelData
 {
-	mat4 model;
-	mat4 boneTransforms [50];
+	mat4 localToWorld;
+	float isAnimated;
+	mat4 bonesToLocal [32];
 } model;
 
 layout (location = 0) in vec3 inPosition;
@@ -31,78 +32,38 @@ const float transitionDistance = 10.0;
 
 void main ()
 {
-	// mat4 boneTransforms [20] = 
-	// {
-	// 	mat4 (1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1),
-	// 	mat4 (1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1),
-	// 	mat4 (1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1),
-	// 	mat4 (1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1),
-	// 	// mat4 (3,0,0,0, 0,3,0,0, 0,0,3,0, 0,0,0,1),
-	// 	mat4 (1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1),
-
-	// 	mat4 (1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1),
-	// 	mat4 (1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1),
-	// 	mat4 (1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1),
-	// 	mat4 (1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1),
-	// 	mat4 (1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1),
-		
-	// 	mat4 (1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1),
-	// 	mat4 (1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1),
-	// 	mat4 (1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1),
-	// 	mat4 (1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1),
-	// 	mat4 (1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1),
-		
-	// 	mat4 (1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1),
-	// 	mat4 (1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1),
-	// 	mat4 (1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1),
-	// 	mat4 (1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1),
-	// 	mat4 (1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1),
-	// };
-
-	vec4 boneWeights = (inBoneWeights);
-
 	mat4 skinMatrix = 
-		boneWeights.x * model.boneTransforms[inBoneIndices.x] +
-		boneWeights.y * model.boneTransforms[inBoneIndices.y] +
-		boneWeights.z * model.boneTransforms[inBoneIndices.z] +
-		boneWeights.w * model.boneTransforms[inBoneIndices.w];
+		inBoneWeights.x * model.bonesToLocal[inBoneIndices.x] +
+		inBoneWeights.y * model.bonesToLocal[inBoneIndices.y] +
+		inBoneWeights.z * model.bonesToLocal[inBoneIndices.z] +
+		inBoneWeights.w * model.bonesToLocal[inBoneIndices.w];
 
+	// Note(Leo): position coordinates must be divided with z-component after matrix multiplication
 	vec4 posePosition = skinMatrix * vec4(inPosition, 1);
-	// posePosition = vec4(inPosition, 1);
+	posePosition /= posePosition.w;
 
+	vec4 poseNormal = skinMatrix * vec4(inNormal, 0);
 
-	// const uint testIndex = 1;
-
-	// if (inBoneIndices.x == testIndex) {	posePosition.z += inBoneWeights.x; }
-	// if (inBoneIndices.y == testIndex) {	posePosition.z += inBoneWeights.y; }
-	// if (inBoneIndices.z == testIndex) {	posePosition.z += inBoneWeights.z; }
-	// if (inBoneIndices.w == testIndex) {	posePosition.z += inBoneWeights.w; }
-
-	// fragColor = vec3(0,0,0);
-	// if (inBoneIndices.x == testIndex) {	fragColor.r = inBoneWeights.x; }
-	// if (inBoneIndices.y == testIndex) {	fragColor.g = inBoneWeights.y; }
-	// if (inBoneIndices.z == testIndex) {	fragColor.b = inBoneWeights.z; }
-	// // if (inBoneIndices.w == testIndex) {	fragColor.r = inBoneWeights.w; }
-
-
-	gl_Position = camera.projection * camera.view * model.model * posePosition;
-
-	// Todo(Leo): Check correctness???
-	fragNormal = (transpose(inverse(model.model)) * vec4(inNormal, 0)).xyz;
+	gl_Position = camera.projection * camera.view * model.localToWorld * posePosition;
+	// vec4 poseNormal = vec4(inNormal, 0);
+	fragNormal 		= (transpose(inverse(model.localToWorld)) * poseNormal).xyz;
 	
-
-	lightCoords = camera.lightViewProjection * model.model * vec4(inPosition, 1.0);
+	lightCoords = camera.lightViewProjection * model.localToWorld * posePosition;//vec4(inPosition, 1.0);
 	lightCoords.xy *= 0.5;
 	lightCoords.xy -= 0.5;
 
-	vec4 worldPosition = model.model * vec4(inPosition, 1.0);
+	vec4 worldPosition = model.localToWorld * posePosition;//vec4(inPosition, 1.0);
 	float distance = length((camera.view * worldPosition).xyz);
 	distance = distance - (shadowDistance - transitionDistance);
 	distance = distance / transitionDistance;
 	lightCoords.w = clamp (1.0 - distance, 0, 1);
 
-
 	fragColor = inColor;
+	float red = posePosition.w;
+	// red = (red - 1) * 5;
+	fragColor = vec3(1, 1 - red, 1 - red);
+
+	fragColor = mod((model.localToWorld * posePosition).xyz / 10, 1.0);
 	fragTexCoord = inTexCoord;
 }
 

@@ -31,6 +31,16 @@ namespace vector_impl_
 			reinterpret_cast<S*>(vec)[i] /= divisor;
 		}
 	}
+
+	template <typename S, s32 D> S sum(void const * vec)
+	{
+		S sum = 0;
+		for(int i = 0; i < D; ++i)
+		{
+			sum += reinterpret_cast<S const *>(vec)[i];
+		}
+		return sum;
+	}
 }
 
 // ------------------ DEFINITIONS ---------------------------------
@@ -122,6 +132,11 @@ namespace vector
 	template<typename S> Vector<S, 3>				cross(Vector<S,3> lhs, Vector<S,3> const & rhs);
 	template<typename S> Vector<S, 3> 				rotate(Vector<S,3> vec, Vector<S,3> const & axis, S angleInRadians);
 	template<typename S> S 							get_signed_angle(Vector<S,3> const & from, Vector<S,3> const & to, Vector<S,3> const & axis);
+
+	template<typename S, u32 D> S coeff_sum(Vector<S,D> const &vec)
+	{
+		return vector_impl_::sum<S,D>(&vec);
+	}
 }
 
 namespace vector_operators_

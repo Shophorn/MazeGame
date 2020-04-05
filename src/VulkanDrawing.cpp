@@ -276,10 +276,11 @@ vulkan::record_draw_command(VulkanContext * context, ModelHandle model, m44 tran
     // Optimize(Leo): Just map this once when rendering starts
     vkMapMemory(context->device, context->modelUniformBuffer.memory, uniformBufferOffset, uniformBufferSize, 0, (void**)&pBuffer);
     
-    pBuffer->transform = transform;
+    pBuffer->localToWorld = transform;
+    pBuffer->isAnimated = bonesCount;
 
-    assert(bonesCount <= get_array_count(pBuffer->bones));    
-    memcpy(pBuffer->bones, bones, sizeof(m44) * bonesCount);
+    assert(bonesCount <= get_array_count(pBuffer->bonesToLocal));    
+    memcpy(pBuffer->bonesToLocal, bones, sizeof(m44) * bonesCount);
 
     vkUnmapMemory(context->device, context->modelUniformBuffer.memory);
 
@@ -287,7 +288,7 @@ vulkan::record_draw_command(VulkanContext * context, ModelHandle model, m44 tran
 
     VulkanVirtualFrame * frame = get_current_virtual_frame(context);
  
-    auto * mesh = get_loaded_mesh(context, meshHandle);
+    auto * mesh     = get_loaded_mesh(context, meshHandle);
     auto * material = get_loaded_material(context, materialHandle);
     auto * pipeline = get_loaded_pipeline(context, material->pipeline);
 
