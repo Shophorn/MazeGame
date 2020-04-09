@@ -107,7 +107,7 @@ struct Vector<S, 4>
 using v4 		= Vector<float,4>;
 using float4 	= Vector<float, 4>;
 
-using upoint4 = Vector<u32, 4>;
+using point4_u32 = Vector<u32, 4>;
 
 namespace vector
 {

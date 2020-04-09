@@ -420,14 +420,24 @@ load_model_glb(MemoryArena & memoryArena, GltfFile const & gltfFile, char const 
 	bool32 hasSkin = bonesAccessorIndex >= 0 && boneWeightsAccessorIndex >= 0;
 	if (hasSkin)
 	{
+
+
 		auto bonesIterator = make_gltf_iterator(gltfFile.binaryBuffer, jsonDocument, bonesAccessorIndex);
 		auto weightIterator = make_gltf_iterator(gltfFile.binaryBuffer, jsonDocument, boneWeightsAccessorIndex);
 
 		for (auto & vertex : vertices)
 		{
-			vertex.boneIndices = get_and_advance<upoint4>(bonesIterator);
-			vertex.boneWeights = get_and_advance<v4>(weightIterator);
-			
+			{
+				// Note(Leo): only UNSIGNED_SHORT supported currently
+				auto componentType = (glTF::ComponentType)accessorArray[bonesAccessorIndex]["componentType"].GetInt();
+				assert(componentType == glTF::ComponentType::UNSIGNED_SHORT);
+			}
+
+			Vector<u16, 4> jointsFromBuffer = get_and_advance<Vector<u16, 4>>(bonesIterator);
+			vertex.boneIndices 				= vector::convert_to<point4_u32>(jointsFromBuffer);
+	
+			vertex.boneWeights 				= get_and_advance<v4>(weightIterator);
+
 			float totalBoneWeights = vector::coeff_sum(vertex.boneWeights);
 			if(math::close_enough_small(totalBoneWeights, 1.0f) == false)
 			{

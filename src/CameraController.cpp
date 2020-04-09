@@ -131,7 +131,8 @@ update_camera_controller(CameraController3rdPerson * controller, game::Input * i
     {
     	controller->target->position.x,
     	controller->target->position.y,
-    	z
+    	controller->target->position.z
+    	// z
     };
     controller->lastTrackedPosition = trackedPosition;
 

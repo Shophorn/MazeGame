@@ -52,7 +52,7 @@ struct Vertex
 	v3 color;
 	v2 texCoord;
 
-	upoint4 boneIndices;
+	point4_u32 boneIndices;
 	v4 boneWeights;
 };
 

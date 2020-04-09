@@ -86,6 +86,10 @@ struct SkeletonAnimator
 	Skeleton 			skeleton;
  	float 				animationTime;
 	Animation const * 	animation;
+
+	Animation const * 	animations[2];
+	float 				animationTimes [2];
+	float 				animationWeights [2];
 };
 
 v3 get_model_space_position(Skeleton const & skeleton, u32 boneIndex)

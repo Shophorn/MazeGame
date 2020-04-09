@@ -334,6 +334,8 @@ Run(HINSTANCE hInstance)
             double elapsedSeconds = currentTimeSeconds - frameStartTime;
             double timeToSleepSeconds = targetFrameTime - elapsedSeconds;
 
+            // logDebug(0) << "Frametime " << elapsedSeconds;
+
             /* TODO[time](Leo): It seems okay to sleep 0 milliseconds in case the time to sleep ends up being
             less than 1 millisecond on floating point representation. Also we may want to do a busy loop over
             remainder time after sleep. This is due to windows scheduler granularity, that is at best on 

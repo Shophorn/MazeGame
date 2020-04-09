@@ -865,7 +865,7 @@ winapi::create_vulkan_context(WinAPIWindow * window)
             vulkan::destroy_drawing_resources(context);
         });
         
-        init_shadow_pass(&context, 1024 * 4, 1024 * 4);
+        init_shadow_pass(&context, 1024 * 16, 1024 * 16);
 
         context.debugTextures.white = vulkan::make_texture(&context, 512, 512, {1,1,1,1}, VK_FORMAT_R8G8B8A8_UNORM);
         add_cleanup(&context, [](VulkanContext * context)

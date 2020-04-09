@@ -52,9 +52,26 @@ void main()
 	float inLight = 1.0 - step(lightDepthFromTexture + epsilon, lightCoords.z);
 
 
+	// outColor.xyz = fragColor;
+	// outColor.a = 1;
+	// return;
+
+	// Luma, luminance:
+	// Y = 0.299 R + 0.587 G + 0.114 B
+	// https://stackoverflow.com/questions/596216/formula-to-determine-brightness-of-rgb-color
+
+	// This is maybe luminance
+	float luma = dot(albedo, vec3(0.299, 0.587, 0.114));
+
+	// outColor.xyz = luma.xxx;
+	// outColor.a = 1;
+	// return;
+
+
 	if (inLight < 0.5)
 	{
-		outColor = vec4(0,0,0.8,1);
+		outColor = vec4(0,0,0.6,1);
+		outColor.xyz *= luma;
 		lightIntensity *= (1.0 - lightCoords.w);
 		return;
 	}

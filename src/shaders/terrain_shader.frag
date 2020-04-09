@@ -68,8 +68,11 @@ void main()
 	float inLight = 1.0 - step(lightDepthFromTexture + epsilon, lightCoords.z);
 	if (inLight < 0.5)
 	{
+		float luma = dot(albedo, vec3(0.299, 0.587, 0.114));
+
 		lightIntensity *= (1.0 - lightCoords.w);
-		outColor = vec4(0.8, 0, 0.8, 1);
+		outColor = vec4(0.7, 0, 0.7, 1);
+		outColor.rgb *= luma;
 		return;
 	}
 	// ------------------------------------------------------------------------

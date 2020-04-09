@@ -32,17 +32,21 @@ const float transitionDistance = 10.0;
 
 void main ()
 {
-	mat4 skinMatrix = 
-		inBoneWeights.x * model.bonesToLocal[inBoneIndices.x] +
-		inBoneWeights.y * model.bonesToLocal[inBoneIndices.y] +
-		inBoneWeights.z * model.bonesToLocal[inBoneIndices.z] +
-		inBoneWeights.w * model.bonesToLocal[inBoneIndices.w];
+	// This does not work
+	mat4 skinMatrix =
+		inBoneWeights[0] * model.bonesToLocal[inBoneIndices[0]] +
+		inBoneWeights[1] * model.bonesToLocal[inBoneIndices[1]] +
+		inBoneWeights[2] * model.bonesToLocal[inBoneIndices[2]] +
+		inBoneWeights[3] * model.bonesToLocal[inBoneIndices[3]];
+
+	skinMatrix /= skinMatrix[3][3];
 
 	// Note(Leo): position coordinates must be divided with z-component after matrix multiplication
 	vec4 posePosition = skinMatrix * vec4(inPosition, 1);
-	posePosition /= posePosition.w;
+	// posePosition /= posePosition.w;
 
 	vec4 poseNormal = skinMatrix * vec4(inNormal, 0);
+	poseNormal = normalize(poseNormal); // Is this necessary?
 
 	gl_Position = camera.projection * camera.view * model.localToWorld * posePosition;
 	// vec4 poseNormal = vec4(inNormal, 0);
@@ -59,11 +63,6 @@ void main ()
 	lightCoords.w = clamp (1.0 - distance, 0, 1);
 
 	fragColor = inColor;
-	float red = posePosition.w;
-	// red = (red - 1) * 5;
-	fragColor = vec3(1, 1 - red, 1 - red);
-
-	fragColor = mod((model.localToWorld * posePosition).xyz / 10, 1.0);
 	fragTexCoord = inTexCoord;
 }
 
