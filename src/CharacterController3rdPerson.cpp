@@ -97,7 +97,7 @@ update_character(
 			rayHit = rayHit || hit;
 
 			float4 lineColor = hit ? float4{0,1,0,1} : float4{1,0,0,1};
-			functions->draw_line(graphics, start, start + direction, 5.0f, lineColor);
+			// functions->draw_line(graphics, start, start + direction, 5.0f, lineColor);
 
 		}
 
@@ -118,10 +118,10 @@ update_character(
 		character.transform->rotation = quaternion::axis_angle(world::up, angleToWorldForward);
 		
 	}
-	debug::draw_axes(	graphics,
-						get_matrix(*character.transform),
-						0.5f,
-						functions);
+	// debug::draw_axes(	graphics,
+	// 					get_matrix(*character.transform),
+	// 					0.5f,
+	// 					functions);
 
 	float groundHeight = get_terrain_height(collisionSystem, {character.transform->position.x, character.transform->position.y});
 	bool32 grounded = character.transform->position.z < 0.1f + groundHeight;
@@ -143,12 +143,56 @@ update_character(
 	}
 
 
-	s32 moveStage = math::ceil_to_s32(inputVector.magnitude() * 2);
+	s32 moveStage = math::ceil_to_s32(inputVector.magnitude() * 3);
+	v4 gizmoColor = {0,0,0,1};
 	switch(moveStage)
 	{
-		case 0: character.animator.animation = &character.idleAnimation; break;
-		case 1: character.animator.animation = &character.walkAnimation; break;
-		case 2: character.animator.animation = &character.runAnimation; break;
+		case 0: 
+			character.animator.animations[0] = &character.idleAnimation;
+			character.animator.animations[1] = nullptr;
+			character.animator.animationWeights[0] = 1;
+			character.animator.animationWeights[1] = 0;
+			
+			// character.animator.animationTimes[0] = character.animator.animationTimes[1];
+
+			gizmoColor = {1,1,1,1};
+			break;
+
+		case 1: 
+			character.animator.animations[0] = &character.walkAnimation;
+			character.animator.animations[1] = nullptr;
+			character.animator.animationWeights[0] = 1.0f;
+			character.animator.animationWeights[1] = 0.0f;
+
+			// character.animator.animationTimes[0] = character.animator.animationTimes[1];
+			
+			// yellow
+			gizmoColor = {1, 1, 0, 1};
+			break;
+
+		case 2:
+			character.animator.animations[0] = &character.runAnimation;
+			character.animator.animations[1] = &character.walkAnimation;
+			character.animator.animationWeights[0] = 0.5f;
+			character.animator.animationWeights[1] = 0.5f;
+			
+			character.animator.animationTimes[1] = character.animator.animationTimes[0];
+
+			// magenta
+			gizmoColor = {1, 0, 1, 1};
+			break;
+
+		case 3: 
+			character.animator.animations[0] = &character.runAnimation;
+			character.animator.animations[1] = nullptr;
+			character.animator.animationWeights[0] = 1.0f;
+			character.animator.animationWeights[1] = 0.0f;
+
+			// character.animator.animationTimes[0] = character.animator.animationTimes[1];
+			
+			// yellow
+			gizmoColor = {0, 1, 1, 1};
+			break;
 
 		default:
 			logDebug(1) 	<< FILE_ADDRESS 
@@ -156,5 +200,11 @@ update_character(
 							<< ") resulted in bad move stage (" << moveStage << ")";
 			break;
 	}
+
+	m44 gizmoTransform = make_transform_matrix(	character.transform->position + v3{0,0,2},
+												character.transform->rotation,
+												0.3f);
+
+	debug::draw_diamond(graphics, gizmoTransform, gizmoColor, functions);
 
 } // update_character()

@@ -287,6 +287,7 @@ load_skeleton_glb(MemoryArena & memoryArena, GltfFile const & gltfFile, char con
 			result.bones[i].name = "nameless bone";
 		}
 		
+		result.bones[i].boneSpaceTransform = {};
 
 		if(node.HasMember("translation"))
 		{
@@ -308,12 +309,15 @@ load_skeleton_glb(MemoryArena & memoryArena, GltfFile const & gltfFile, char con
 			result.bones[i].boneSpaceTransform.rotation.z = rotationArray[2].GetFloat();
 			result.bones[i].boneSpaceTransform.rotation.w = rotationArray[3].GetFloat();
  
-			// result.bones[i].boneSpaceTransform.rotation = result.bones[i].boneSpaceTransform.rotation.inverse();
+			result.bones[i].boneSpaceTransform.rotation = result.bones[i].boneSpaceTransform.rotation.inverse();
 		}
 		else
 		{
 			result.bones[i].boneSpaceTransform.rotation = quaternion::identity();
 		}
+
+		// result.bones[i].boneSpaceTransform = result.bones[i].defaultPose;
+		result.bones[i].defaultPose = result.bones[i].boneSpaceTransform;
 	}
 
 	int inverseBindMatrixAccessorIndex = skin["inverseBindMatrices"].GetInt();
@@ -416,12 +420,9 @@ load_model_glb(MemoryArena & memoryArena, GltfFile const & gltfFile, char const 
 		vertex.texCoord = get_and_advance<v2>(texcoordIt);
 	}
 
-
 	bool32 hasSkin = bonesAccessorIndex >= 0 && boneWeightsAccessorIndex >= 0;
 	if (hasSkin)
 	{
-
-
 		auto bonesIterator = make_gltf_iterator(gltfFile.binaryBuffer, jsonDocument, bonesAccessorIndex);
 		auto weightIterator = make_gltf_iterator(gltfFile.binaryBuffer, jsonDocument, boneWeightsAccessorIndex);
 

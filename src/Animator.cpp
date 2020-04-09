@@ -46,6 +46,20 @@ struct Animation
 	bool 					loop = false;
 };
 
+enum { NOT_FOUND = (u32)-1 };
+internal u32 find_channel(Animation const & animation, s32 targetIndex, ChannelType type)
+{
+	for (int channelIndex = 0; channelIndex < animation.channels.count(); ++channelIndex)
+	{
+		if (animation.channels[channelIndex].targetIndex == targetIndex
+			&& animation.channels[channelIndex].type == type)
+		{
+			return channelIndex;
+		}
+	}
+	return NOT_FOUND;
+}
+
 // Property/State
 struct AnimationRig
 {
@@ -70,6 +84,7 @@ struct Bone
 	Transform3D boneSpaceTransform;
 
 	// Properties
+	Transform3D defaultPose;
 	m44 		inverseBindMatrix;
 	u32 		parent;
 	bool32 		isRoot;
@@ -84,12 +99,12 @@ struct Skeleton
 struct SkeletonAnimator
 {
 	Skeleton 			skeleton;
- 	float 				animationTime;
-	Animation const * 	animation;
+ 	// float 				animationTime;
+	// Animation const * 	animation;
 
 	Animation const * 	animations[2];
 	float 				animationTimes [2];
-	float 				animationWeights [2];
+	float 				animationWeights [2] = {0.5f, 0.5f};
 };
 
 v3 get_model_space_position(Skeleton const & skeleton, u32 boneIndex)
@@ -306,90 +321,147 @@ float loop_time(float time, float duration)
 	return time;
 }
 
+
+float get_relative_time(AnimationChannel const & 	channel,
+						s32 						previousKeyframeIndex,
+						s32 						nextKeyframeIndex,
+						float 						animationTime,
+						float 						animationDuration)
+{
+	float previousTime 	= channel.times[previousKeyframeIndex];
+	float nextTime 		= channel.times[nextKeyframeIndex];
+
+	float swagEpsilon = 0.000000001f; // Should this be in scale of frame time?
+
+	// Note(Leo): these are times from previous so that we get [0 ... 1] range for interpolation
+	float timeToNow = animationTime - previousTime;
+	if (timeToNow < swagEpsilon)
+	{
+		timeToNow = animationDuration - timeToNow;
+	} 
+
+	float timeToNext = nextTime - previousTime;
+	if (timeToNext < swagEpsilon)
+	{
+		timeToNext = animationDuration - timeToNext;
+	}
+	float relativeTime = timeToNow / timeToNext;
+
+	return relativeTime;
+}
+
 void update_skeleton_animator(SkeletonAnimator & animator, float elapsedTime)
 {
+	// Reset
+	for (Bone & bone : animator.skeleton.bones)
+	{
+		bone.boneSpaceTransform = {};
+	}
+
+	// for bone in skeleton:	
+	// 	rotation1 = get_rotation(animation1, bone, time);
+	// 	rotation2 = get_rotation(animation2, bone, time);
+	// 	bone.rotation = interpolate(rotation1, rotation2, weight1 / (weight1 + weight2));
+	
 	/*This procedure:
 		- advances animation time
 		- updates skeleton's bones
 	*/
-	if (animator.animation == nullptr)
+	if (animator.animations[0] == nullptr)
 		return;
 
-	Animation const & animation = *animator.animation;
-	float & animationTime = animator.animationTime;
+	quaternion rotations_0 [50];
+	quaternion rotations_1 [50];
+	float weights_for_0 [50];
 
-	// ------------------------------------------------------------------------
-
-	animationTime += elapsedTime;
-	animationTime = loop_time(animationTime, animator.animation->duration);
-
-	for (auto & channel : animation.channels)
-	{	
-		auto & target = animator.skeleton.bones[channel.targetIndex].boneSpaceTransform;
-
-		u32 previousKeyframeIndex = previous_keyframe(channel.times, animationTime);
-
-		if (channel.interpolationMode == INTERPOLATION_MODE_STEP)
+	for (int i = 0; i < 2; ++i)
+	{
+		if (animator.animations[i] == nullptr)
 		{
-			switch(channel.type)
-			{
-				case ANIMATION_CHANNEL_TRANSLATION:
-					target.position = channel.translations[previousKeyframeIndex];
-					break;
-
-				case ANIMATION_CHANNEL_ROTATION: 
-					target.rotation = channel.rotations[previousKeyframeIndex]; 
-					break;
-
-				default:
-					logDebug(0) << FILE_ADDRESS << "Invalid or unimplemented animation channel: " << channel.type;
-			}
+			continue;
 		}
-		else
+
+		Animation const & animation = *animator.animations[i];
+		float & animationTime = animator.animationTimes[i];
+		float animationWeight = animator.animationWeights[i];
+
+		// ------------------------------------------------------------------------
+
+		animationTime += elapsedTime;
+		animationTime = loop_time(animationTime, animation.duration);
+
+		// for (auto & bone : animator.skeleton.bones)
+		for (int boneIndex = 0; boneIndex < animator.skeleton.bones.count(); ++boneIndex)
 		{
-			u32 nextKeyframeIndex = (previousKeyframeIndex + 1) % channel.times.count();
+			auto & bone = animator.skeleton.bones[boneIndex];
 
-			float previousTime 	= channel.times[previousKeyframeIndex];
-			float nextTime 		= channel.times[nextKeyframeIndex];
-
-			float swagEpsilon = 0.000000001f; // Should this be in scale of frame time?
-
-			// Note(Leo): these are times from previous so that we get [0 ... 1] range for interpolation
-			float timeToNow = animationTime - previousTime;
-			if (timeToNow < swagEpsilon)
+			quaternion rotation = bone.defaultPose.rotation;
+			u32 channelIndex = find_channel(animation, boneIndex, ANIMATION_CHANNEL_ROTATION);
+			if (channelIndex != NOT_FOUND)
 			{
-				timeToNow = animation.duration - timeToNow;
-			} 
+				auto const & channel = animation.channels[channelIndex];
+					
+				u32 previousKeyframeIndex = previous_keyframe(channel.times, animationTime);
 
-			float timeToNext = nextTime - previousTime;
-			if (timeToNext < swagEpsilon)
-			{
-				timeToNext = animation.duration - timeToNext;
-			}
-			float relativeTime = timeToNow / timeToNext;
+				if (channel.interpolationMode == INTERPOLATION_MODE_STEP)
+				{
+					rotation = channel.rotations[previousKeyframeIndex]; 
+				}
+				else
+				{
+					u32 nextKeyframeIndex = (previousKeyframeIndex + 1) % channel.times.count();
+					float relativeTime = get_relative_time(	channel, 
+															previousKeyframeIndex, nextKeyframeIndex,
+															animationTime, animation.duration);
 
-			switch(channel.type)
-			{
-				case ANIMATION_CHANNEL_TRANSLATION: {
-					target.position = vector::interpolate(	channel.translations[previousKeyframeIndex],
-															channel.translations[nextKeyframeIndex],
-															relativeTime);
-				} break;
-
-				case ANIMATION_CHANNEL_ROTATION: {
-					target.rotation = interpolate(	channel.rotations[previousKeyframeIndex],
+					rotation = interpolate(	channel.rotations[previousKeyframeIndex],
 													channel.rotations[nextKeyframeIndex],
 													relativeTime);
-				} break;
-
-				case ANIMATION_CHANNEL_SCALE:
-					logAnim(1) << FILE_ADDRESS << "Scale animation channel not implemented yet";
-					break;
-
-				default:
-					assert(false);
-					break;
+				}
 			}
+			// bone.boneSpaceTransform.rotation = interpolate(quaternion::identity(), rotation, animationWeight) * bone.boneSpaceTransform.rotation;
+			if (i == 0)
+			{
+				rotations_0[boneIndex] = rotation;
+				weights_for_0[boneIndex] = animationWeight;
+			}
+			else if (i == 1)
+			{
+				rotations_1[boneIndex] = rotation;
+			}
+
+			v3 translation = bone.defaultPose.position;
+			channelIndex = find_channel(animation, boneIndex, ANIMATION_CHANNEL_TRANSLATION);
+			if (channelIndex != NOT_FOUND)
+			{
+				auto const & channel = animation.channels[channelIndex];
+				u32 previousKeyframeIndex = previous_keyframe(channel.times, animationTime);
+
+				if (channel.interpolationMode == INTERPOLATION_MODE_STEP)
+				{
+					translation = channel.translations[previousKeyframeIndex]; 
+				}
+				else
+				{
+					u32 nextKeyframeIndex = (previousKeyframeIndex + 1) % channel.times.count();
+					float relativeTime = get_relative_time(	channel, 
+															previousKeyframeIndex, nextKeyframeIndex,
+															animationTime, animation.duration);
+
+					translation = vector::interpolate(	channel.translations[previousKeyframeIndex],
+													channel.translations[nextKeyframeIndex],
+													relativeTime);
+				}
+			}
+			bone.boneSpaceTransform.position += translation * animationWeight;
 		}
+	}
+
+	for (int i = 0; i < animator.skeleton.bones.count(); ++i)
+	{
+		if (weights_for_0[i] < 0.99999f)
+			animator.skeleton.bones[i].boneSpaceTransform.rotation = interpolate(rotations_0[i], rotations_1[i], weights_for_0[i]);
+		else
+			animator.skeleton.bones[i].boneSpaceTransform.rotation = rotations_0[i];
 	}
 }

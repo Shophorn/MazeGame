@@ -113,16 +113,16 @@ Scene3d::update(	void * 					scenePtr,
 	auto & character = scene->characterController;
 	update_skeleton_animator(character.animator, input->elapsedTime);
 
-	{
-		m44 modelMatrix = get_matrix(*scene->characterController.transform);
-		for (int i = 0; i < character.animator.skeleton.bones.count(); ++i)
-		{
-			debug::draw_axes(	graphics,
-								modelMatrix * get_model_space_transform(character.animator.skeleton, i),
-								0.2f,
-								functions);
-		}
-	}
+	// {
+	// 	m44 modelMatrix = get_matrix(*scene->characterController.transform);
+	// 	for (int i = 0; i < character.animator.skeleton.bones.count(); ++i)
+	// 	{
+	// 		debug::draw_axes(	graphics,
+	// 							modelMatrix * get_model_space_transform(character.animator.skeleton, i),
+	// 							0.2f,
+	// 							functions);
+	// 	}
+	// }
 
 	update_animated_renderer(scene->animatedRenderers[0], character.animator.skeleton);
 	render_animated_models(scene->animatedRenderers, graphics, functions);
@@ -258,7 +258,6 @@ Scene3d::load(	void * 						scenePtr,
 		character.walkAnimation 		= load_animation_glb(*persistentMemory, gltfFile, "Walk");
 		character.runAnimation 			= load_animation_glb(*persistentMemory, gltfFile, "Run");
 		character.idleAnimation 		= load_animation_glb(*persistentMemory, gltfFile, "T-Pose");
-		character.animator.animation 	= &character.runAnimation;
 
 		auto girlMeshAsset 			= load_model_glb(*transientMemory, gltfFile, "cube_head");
 		auto girlMesh 				= functions->push_mesh(graphics, &girlMeshAsset);
