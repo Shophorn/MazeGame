@@ -129,7 +129,7 @@ Scene3d::update(	void * 					scenePtr,
 
 	// ------------------------------------------------------------------------
 
-	Light light = { v3{1, 1, -3}.normalized(), {0.95, 0.95, 0.9}};
+	Light light = { v3{1, 1.2, -3}.normalized(), {0.95, 0.95, 0.9}};
 	v3 ambient 	= {0.2, 0.25, 0.4};
 	functions->update_lighting(graphics, &light, &scene->worldCamera, ambient);
 
@@ -255,6 +255,15 @@ Scene3d::load(	void * 						scenePtr,
 		auto gltfFile 				= read_gltf_file(*transientMemory, filename);
 
 		character.animator.skeleton 	= load_skeleton_glb(*persistentMemory, gltfFile, "cube_head");
+
+		auto log = logDebug(0);
+		log << "Bones in skeleton:\n";
+		for (auto & bone : character.animator.skeleton.bones)
+		{
+			log << "\t" << bone.name << "\n";
+		}
+
+
 		character.walkAnimation 		= load_animation_glb(*persistentMemory, gltfFile, "Walk");
 		character.runAnimation 			= load_animation_glb(*persistentMemory, gltfFile, "Run");
 		character.idleAnimation 		= load_animation_glb(*persistentMemory, gltfFile, "T-Pose");

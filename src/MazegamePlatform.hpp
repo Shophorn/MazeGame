@@ -34,6 +34,11 @@ Interface definition between Platform and Game.
 
 #include "MazegameEssentials.hpp"
 
+#include "CStringUtility.cpp"
+#include "SmallString.cpp"
+	
+#include "Logging.cpp"
+
 /* Note(Leo): This is called 'Unity-build'. Basically import all things in single
 translation unit(??) to reduce pressure on linker and enable more optimizations.
 Also makes actual build commands a lot cleaner and easier, since only this file
@@ -50,7 +55,6 @@ needs to be specified for compiler. */
 #include "Camera.cpp"
 #include "Light.cpp"
 
-#include "Logging.cpp"
 
 namespace platform
 {

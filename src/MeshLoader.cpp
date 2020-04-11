@@ -238,10 +238,10 @@ load_skeleton_glb(MemoryArena & memoryArena, GltfFile const & gltfFile, char con
 
 	u32 skinIndex 	= modelNode["skin"].GetInt();
 	auto skin 		= jsonDocument["skins"][skinIndex].GetObject();
-	auto jointArray = skin["joints"].GetArray();
-	u32 jointCount 	= jointArray.Size();
+	auto bonesArray = skin["joints"].GetArray();
+	u32 boneCount 	= bonesArray.Size();
 
-	Skeleton result = { allocate_array<Bone>(memoryArena, jointCount, ALLOC_FILL_UNINITIALIZED) };
+	Skeleton result = { allocate_array<Bone>(memoryArena, boneCount, ALLOC_FILL_UNINITIALIZED) };
 	for (auto & bone : result.bones)
 	{
 		bone.boneSpaceTransform = {};
@@ -252,9 +252,9 @@ load_skeleton_glb(MemoryArena & memoryArena, GltfFile const & gltfFile, char con
 	{
 		/* Note(Leo): This is used so little it should not matter,
 		but we could  do some clever look up table */
-		for(u32 jointIndex = 0; jointIndex < jointCount; ++jointIndex)
+		for(u32 jointIndex = 0; jointIndex < boneCount; ++jointIndex)
 		{
-			if (jointArray[jointIndex].GetInt() == nodeIndex)
+			if (bonesArray[jointIndex].GetInt() == nodeIndex)
 			{
 				return jointIndex;
 			}
@@ -263,68 +263,63 @@ load_skeleton_glb(MemoryArena & memoryArena, GltfFile const & gltfFile, char con
 		return -1;
 	};
 
-	for (int i = 0; i < jointCount; ++i)
+	int inverseBindMatrixAccessorIndex = skin["inverseBindMatrices"].GetInt();
+	auto inverseBindMatrixIterator = make_gltf_iterator(gltfFile.binaryBuffer, jsonDocument, inverseBindMatrixAccessorIndex);
+
+	for (int boneIndex = 0; boneIndex < boneCount; ++boneIndex)
 	{
-		u32 nodeIndex 		= jointArray[i].GetInt();
+		u32 nodeIndex 		= bonesArray[boneIndex].GetInt();
 		auto const & node 	= nodeArray[nodeIndex].GetObject();
-		if (node.HasMember("children"))
+
+		u32 parent = 0;
+		bool32 isRoot = true;
+
+
+		for (int parentBoneIndex = 0; parentBoneIndex < boneCount; ++parentBoneIndex)
 		{
-			auto childArray = node["children"].GetArray();
-			for(auto const & child : childArray)
+			u32 parentNodeIndex 	= bonesArray[parentBoneIndex].GetInt();
+			auto const & parentNode = nodeArray[parentNodeIndex].GetObject();
+
+			if (parentNode.HasMember("children"))
 			{
-				u32 childIndex = node_to_joint(child.GetInt());
- 				result.bones[childIndex].parent = i;
- 				result.bones[childIndex].isRoot = false;
+				auto childArray = parentNode["children"].GetArray();
+				for(auto const & childNodeIndex : childArray)
+				{
+					u32 childBoneIndex = node_to_joint(childNodeIndex.GetInt());
+					if (childBoneIndex == boneIndex)
+					{
+						parent = parentBoneIndex;
+						isRoot = false;
+					}
+				}
 			}
 		}
 
-		if (node.HasMember("name"))
-		{
-			result.bones[i].name = node["name"].GetString();
- 		}
-		else
-		{
-			result.bones[i].name = "nameless bone";
-		}
-		
-		result.bones[i].boneSpaceTransform = {};
-
+		auto boneSpaceTransform = Transform3D::identity();
 		if(node.HasMember("translation"))
 		{
 			auto translationArray = node["translation"].GetArray();
-			result.bones[i].boneSpaceTransform.position.x = translationArray[0].GetFloat();
-			result.bones[i].boneSpaceTransform.position.y = translationArray[1].GetFloat();
-			result.bones[i].boneSpaceTransform.position.z = translationArray[2].GetFloat();
-		}
-		else
-		{
-			result.bones[i].boneSpaceTransform.position = {};
+			boneSpaceTransform.position.x = translationArray[0].GetFloat();
+			boneSpaceTransform.position.y = translationArray[1].GetFloat();
+			boneSpaceTransform.position.z = translationArray[2].GetFloat();
 		}
 
 		if (node.HasMember("rotation"))
 		{
 			auto rotationArray = node["rotation"].GetArray();
-			result.bones[i].boneSpaceTransform.rotation.x = rotationArray[0].GetFloat();
-			result.bones[i].boneSpaceTransform.rotation.y = rotationArray[1].GetFloat();
-			result.bones[i].boneSpaceTransform.rotation.z = rotationArray[2].GetFloat();
-			result.bones[i].boneSpaceTransform.rotation.w = rotationArray[3].GetFloat();
+			boneSpaceTransform.rotation.x = rotationArray[0].GetFloat();
+			boneSpaceTransform.rotation.y = rotationArray[1].GetFloat();
+			boneSpaceTransform.rotation.z = rotationArray[2].GetFloat();
+			boneSpaceTransform.rotation.w = rotationArray[3].GetFloat();
  
-			result.bones[i].boneSpaceTransform.rotation = result.bones[i].boneSpaceTransform.rotation.inverse();
-		}
-		else
-		{
-			result.bones[i].boneSpaceTransform.rotation = quaternion::identity();
+			boneSpaceTransform.rotation = boneSpaceTransform.rotation.inverse();
 		}
 
-		// result.bones[i].boneSpaceTransform = result.bones[i].defaultPose;
-		result.bones[i].defaultPose = result.bones[i].boneSpaceTransform;
-	}
+		m44 inverseBindMatrix = get_and_advance<m44>(inverseBindMatrixIterator);
+		auto name = node.HasMember("name") ? node["name"].GetString() : "nameless bone";
 
-	int inverseBindMatrixAccessorIndex = skin["inverseBindMatrices"].GetInt();
-	auto bindMatrixIterator = make_gltf_iterator(gltfFile.binaryBuffer, jsonDocument, inverseBindMatrixAccessorIndex);
-	for(auto & bone : result.bones)
-	{
-		bone.inverseBindMatrix = get_and_advance<m44>(bindMatrixIterator);
+		result.bones[boneIndex] = make_bone(boneSpaceTransform, inverseBindMatrix, parent, isRoot, name);
+
 	}
 
 	return result;

@@ -10,7 +10,17 @@ struct Transform3D
 
 	// Todo(Leo): this won't work if we are to realloc any memory.
 	Transform3D * parent;
+
+	static Transform3D identity();
 };
+
+Transform3D Transform3D::identity()
+{
+	Transform3D transform = {	{0,0,0},
+								1.0f,
+								quaternion::identity()};
+	return transform;
+}
 
 Transform3D interpolate(Transform3D const & lhs, Transform3D const & rhs, float t)
 {

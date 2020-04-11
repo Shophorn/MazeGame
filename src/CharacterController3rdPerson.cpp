@@ -10,7 +10,9 @@ struct CharacterController3rdPerson
 	Transform3D * transform;
 
 	// Properties
-	float speed = 6;
+	float walkSpeed = 3;
+	float runSpeed = 6;
+
 	float collisionRadius = 0.25f;
 
 	// State
@@ -22,6 +24,7 @@ struct CharacterController3rdPerson
 
 	// Animations
 	SkeletonAnimator 	animator;
+
 	Animation 			idleAnimation;
 	Animation 			walkAnimation;
 	Animation 			runAnimation;
@@ -64,14 +67,68 @@ update_character(
 		platform::Functions * 	functions)
 {
 	v3 inputVector = process_player_input(input, worldCamera);
-	v3 movementVector = inputVector * character.speed * input->elapsedTime;
 
-	v3 direction;
-	float distance;
-	vector::dissect(movementVector, &direction, &distance);
+	float inputMagnitude = inputVector.magnitude();
 
-	if (distance > 0)
+	float speed = -1;
+
+	v4 gizmoColor = {0,0,0,1};
+
+	constexpr float walkMinInput 	= 0.05f;
+	constexpr float walkMaxInput 	= 0.5f;
+	constexpr float runMinInput 	= 0.6f;
+	constexpr float runMaxInput 	= 1.0001f; // account for epsilon
+
+	constexpr float idleToWalkRange = walkMaxInput - walkMinInput; 
+	constexpr float walkToRunRange 	= runMaxInput - runMinInput;
+
+	struct { float idle, walk, run; } weights = {0, 0, 0};
+
+	if (inputMagnitude < walkMinInput)
 	{
+		weights.idle 	= 1;
+		speed 			= 0;
+
+		gizmoColor 		= {0, 0, 1, 1};
+	}
+	else if (inputMagnitude < walkMaxInput)
+	{
+		float t = (inputMagnitude - walkMinInput) / idleToWalkRange;
+
+		weights.idle 	= 1 - t;
+		weights.walk 	= t;
+		speed 			= interpolate(0, character.walkSpeed, t);
+
+		gizmoColor 		= {1, 0, 0, 1};
+	}
+	else if (inputMagnitude < runMinInput)
+	{
+		weights.walk 	= 1;
+		speed 			= character.walkSpeed;
+
+		gizmoColor 		= {1, 1, 0, 1};
+	}
+	else
+	{
+		float t = (inputMagnitude - runMinInput) / walkToRunRange;
+
+		weights.walk 	= 1 - t;
+		weights.run 	= t;
+		speed 			= interpolate (character.walkSpeed, character.runSpeed, t);
+
+		gizmoColor = {0, 1, 0, 1};
+	}
+
+	Animation * animations[3] = {&character.idleAnimation, &character.walkAnimation, &character.runAnimation};
+	blend_animations(character.animator, animations, (float*)&weights, 3);
+
+	// ------------------------------------------------------------------------
+
+	if (speed > 0)
+	{
+		v3 direction = inputVector / inputMagnitude;
+		float distance = inputMagnitude * input->elapsedTime * speed;
+
 		constexpr int rayCount = 5;
 		v3 up 	= get_up(*character.transform);
 
@@ -118,10 +175,6 @@ update_character(
 		character.transform->rotation = quaternion::axis_angle(world::up, angleToWorldForward);
 		
 	}
-	// debug::draw_axes(	graphics,
-	// 					get_matrix(*character.transform),
-	// 					0.5f,
-	// 					functions);
 
 	float groundHeight = get_terrain_height(collisionSystem, {character.transform->position.x, character.transform->position.y});
 	bool32 grounded = character.transform->position.z < 0.1f + groundHeight;
@@ -142,69 +195,8 @@ update_character(
         character.transform->position.z = groundHeight;
 	}
 
-
-	s32 moveStage = math::ceil_to_s32(inputVector.magnitude() * 3);
-	v4 gizmoColor = {0,0,0,1};
-	switch(moveStage)
-	{
-		case 0: 
-			character.animator.animations[0] = &character.idleAnimation;
-			character.animator.animations[1] = nullptr;
-			character.animator.animationWeights[0] = 1;
-			character.animator.animationWeights[1] = 0;
-			
-			// character.animator.animationTimes[0] = character.animator.animationTimes[1];
-
-			gizmoColor = {1,1,1,1};
-			break;
-
-		case 1: 
-			character.animator.animations[0] = &character.walkAnimation;
-			character.animator.animations[1] = nullptr;
-			character.animator.animationWeights[0] = 1.0f;
-			character.animator.animationWeights[1] = 0.0f;
-
-			// character.animator.animationTimes[0] = character.animator.animationTimes[1];
-			
-			// yellow
-			gizmoColor = {1, 1, 0, 1};
-			break;
-
-		case 2:
-			character.animator.animations[0] = &character.runAnimation;
-			character.animator.animations[1] = &character.walkAnimation;
-			character.animator.animationWeights[0] = 0.5f;
-			character.animator.animationWeights[1] = 0.5f;
-			
-			character.animator.animationTimes[1] = character.animator.animationTimes[0];
-
-			// magenta
-			gizmoColor = {1, 0, 1, 1};
-			break;
-
-		case 3: 
-			character.animator.animations[0] = &character.runAnimation;
-			character.animator.animations[1] = nullptr;
-			character.animator.animationWeights[0] = 1.0f;
-			character.animator.animationWeights[1] = 0.0f;
-
-			// character.animator.animationTimes[0] = character.animator.animationTimes[1];
-			
-			// yellow
-			gizmoColor = {0, 1, 1, 1};
-			break;
-
-		default:
-			logDebug(1) 	<< FILE_ADDRESS 
-							<< "Bad input value(" << inputVector.magnitude() 
-							<< ") resulted in bad move stage (" << moveStage << ")";
-			break;
-	}
-
-	m44 gizmoTransform = make_transform_matrix(	character.transform->position + v3{0,0,2},
-												character.transform->rotation,
-												0.3f);
-
+	// Note(Leo): Draw move action gizmo after movement, so it does not lage one frame behind
+	m44 gizmoTransform = make_transform_matrix(	character.transform->position + v3{0,0,2}, 0.3f);
 	debug::draw_diamond(graphics, gizmoTransform, gizmoColor, functions);
 
 } // update_character()

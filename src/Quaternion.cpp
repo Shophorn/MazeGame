@@ -167,6 +167,10 @@ quaternion interpolate(quaternion from, quaternion to, float t)
 {
 	using namespace vector;
 
+	assert(from.x == from.x && from.y == from.y && from.z == from.z && from.w == from.w && "probably a nan");
+	assert(to.x == to.x && to.y == to.y && to.z == to.z && to.w == to.w && "probably a nan");
+
+
 	// Note(Leo): This ensures that rotation takes the shorter path
 	float dot = dot_product(from, to);
 	if (dot < 0)
@@ -184,6 +188,7 @@ quaternion interpolate(quaternion from, quaternion to, float t)
 
 		quaternion result;
 
+
 		float * resultPtr 	= &result.x;
 		float * fromPtr 	= &from.x;
 		float * toPtr 		= &to.x;
@@ -192,7 +197,17 @@ quaternion interpolate(quaternion from, quaternion to, float t)
 		{
 			resultPtr[i] = interpolate(fromPtr[i], toPtr[i], t);
 		}
+		
+		if(result.x == result.x && result.y == result.y && result.z == result.z && result.w == result.w)
+		{
 
+		}
+		else
+		{
+			logDebug(0) << "invalid interpolate quaternion, from: " << from << ", to: " << to << ", t: " << t;
+			assert(false);
+		}
+		// assert(result.x == result.x && result.y == result.y && result.z == result.z && result.w == result.w && "probably a nan");
 		return result.normalized();
 	}
 
@@ -230,6 +245,8 @@ quaternion quaternion::normalized() const
 							y / magnitude_,
 							z / magnitude_,
 							w / magnitude_};
+
+	assert(result.x == result.x && result.y == result.y && result.z == result.z && result.w == result.w && "probably a nan");
 	assert(result.is_unit_quaternion());
 	return result;
 }

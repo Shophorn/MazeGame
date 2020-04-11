@@ -84,12 +84,25 @@ struct Bone
 	Transform3D boneSpaceTransform;
 
 	// Properties
-	Transform3D defaultPose;
+	Transform3D boneSpaceDefaultTransform;
 	m44 		inverseBindMatrix;
 	u32 		parent;
 	bool32 		isRoot;
 	SmallString name;
 };
+
+internal Bone
+make_bone (Transform3D boneSpaceDefaultTransform, m44 inverseBindMatrix, u32 parent, bool32 isRoot, SmallString name)
+{
+	Bone bone = {	Transform3D::identity(),
+					boneSpaceDefaultTransform,
+					inverseBindMatrix,
+					parent,
+					isRoot,
+					name};
+	return bone;
+}
+
 
 struct Skeleton
 {
@@ -98,14 +111,33 @@ struct Skeleton
 
 struct SkeletonAnimator
 {
-	Skeleton 			skeleton;
- 	// float 				animationTime;
-	// Animation const * 	animation;
+	Skeleton 				skeleton;
 
-	Animation const * 	animations[2];
-	float 				animationTimes [2];
-	float 				animationWeights [2] = {0.5f, 0.5f};
+	float 					animationTime;
+
+	static constexpr s32 	maxAnimations = 10;
+	s32 					animationCount = 0;
+	Animation const * 		animations [maxAnimations];
+	float 					animationWeights [maxAnimations];
 };
+
+internal void
+blend_animations(SkeletonAnimator & animator, Animation ** animations, float * weights, s32 count)
+{
+	if(count > SkeletonAnimator::maxAnimations)
+	{
+		logAnim(1) << "Too many animations to blend (" << count << "/" << SkeletonAnimator::maxAnimations << "). Excess are ignored.";
+		count = SkeletonAnimator::maxAnimations;
+	}
+
+	for(int animationIndex = 0; animationIndex < count; ++animationIndex)
+	{
+		animator.animations[animationIndex] = animations[animationIndex];
+		animator.animationWeights[animationIndex] = weights[animationIndex];
+	}
+
+	animator.animationCount = count;
+}
 
 v3 get_model_space_position(Skeleton const & skeleton, u32 boneIndex)
 {
@@ -241,7 +273,6 @@ s32 previous_keyframe(Array<float> const & keyframes, float time)
 	return keyframes.count() - 1;
 }
 
-
 internal void
 update_animator_system(game::Input * input, Array<Animator> & animators)
 {
@@ -358,11 +389,6 @@ void update_skeleton_animator(SkeletonAnimator & animator, float elapsedTime)
 		bone.boneSpaceTransform = {};
 	}
 
-	// for bone in skeleton:	
-	// 	rotation1 = get_rotation(animation1, bone, time);
-	// 	rotation2 = get_rotation(animation2, bone, time);
-	// 	bone.rotation = interpolate(rotation1, rotation2, weight1 / (weight1 + weight2));
-	
 	/*This procedure:
 		- advances animation time
 		- updates skeleton's bones
@@ -370,98 +396,186 @@ void update_skeleton_animator(SkeletonAnimator & animator, float elapsedTime)
 	if (animator.animations[0] == nullptr)
 		return;
 
-	quaternion rotations_0 [50];
-	quaternion rotations_1 [50];
-	float weights_for_0 [50];
+	constexpr s32 maxBones_BAD_THING_USE_GLOBAL_WHEN_AVAILABLE = 32;
+	float totalAppliedWeights [maxBones_BAD_THING_USE_GLOBAL_WHEN_AVAILABLE] = {};
 
-	for (int i = 0; i < 2; ++i)
+	animator.animationTime += elapsedTime;
+	constexpr float resetInterval = 120; // Note(Leo): random amount to prevent us getting somewhere where floating point accuracy becomes problem
+	animator.animationTime = modulo(animator.animationTime, resetInterval);
+
+	for (int animationIndex = 0; animationIndex < animator.animationCount; ++animationIndex)
 	{
-		if (animator.animations[i] == nullptr)
+		if (animator.animations[animationIndex] == nullptr)
 		{
 			continue;
 		}
 
-		Animation const & animation = *animator.animations[i];
-		float & animationTime = animator.animationTimes[i];
-		float animationWeight = animator.animationWeights[i];
+		Animation const & animation = *animator.animations[animationIndex];
+
+		float animationWeight = animator.animationWeights[animationIndex];
+		float animationTime = loop_time(animator.animationTime, animation.duration);
+
+		if (math::close_enough_small(0, animationWeight))
+		{
+			continue;
+		}
 
 		// ------------------------------------------------------------------------
 
-		animationTime += elapsedTime;
-		animationTime = loop_time(animationTime, animation.duration);
-
-		// for (auto & bone : animator.skeleton.bones)
 		for (int boneIndex = 0; boneIndex < animator.skeleton.bones.count(); ++boneIndex)
 		{
 			auto & bone = animator.skeleton.bones[boneIndex];
 
-			quaternion rotation = bone.defaultPose.rotation;
+			quaternion rotation = bone.boneSpaceDefaultTransform.rotation;
 			u32 channelIndex = find_channel(animation, boneIndex, ANIMATION_CHANNEL_ROTATION);
 			if (channelIndex != NOT_FOUND)
 			{
 				auto const & channel = animation.channels[channelIndex];
-					
-				u32 previousKeyframeIndex = previous_keyframe(channel.times, animationTime);
 
-				if (channel.interpolationMode == INTERPOLATION_MODE_STEP)
+				switch(channel.interpolationMode)
 				{
-					rotation = channel.rotations[previousKeyframeIndex]; 
-				}
-				else
-				{
-					u32 nextKeyframeIndex = (previousKeyframeIndex + 1) % channel.times.count();
-					float relativeTime = get_relative_time(	channel, 
-															previousKeyframeIndex, nextKeyframeIndex,
-															animationTime, animation.duration);
+					case INTERPOLATION_MODE_STEP:
+					{
+						s32 previousKeyframeIndex = previous_keyframe(channel.times, animationTime);
+						rotation = channel.rotations[previousKeyframeIndex]; 
+					} break;
 
-					rotation = interpolate(	channel.rotations[previousKeyframeIndex],
-													channel.rotations[nextKeyframeIndex],
-													relativeTime);
+					case INTERPOLATION_MODE_LINEAR:
+					case INTERPOLATION_MODE_CUBICSPLINE:
+					{
+
+						s32 previousKeyframeIndex = previous_keyframe(channel.times, animationTime);
+						s32 nextKeyframeIndex = (previousKeyframeIndex + 1) % channel.keyframe_count();
+						float relativeTime = get_relative_time(channel, previousKeyframeIndex, nextKeyframeIndex, animationTime, animation.duration);
+						rotation = interpolate(	channel.rotations[previousKeyframeIndex],
+												channel.rotations[nextKeyframeIndex],
+												relativeTime);
+					} break;
+
+					default:
+						logDebug(1) << "Now thats a weird interpolation mode: " << channel.interpolationMode;
+						break;
 				}
 			}
-			// bone.boneSpaceTransform.rotation = interpolate(quaternion::identity(), rotation, animationWeight) * bone.boneSpaceTransform.rotation;
-			if (i == 0)
-			{
-				rotations_0[boneIndex] = rotation;
-				weights_for_0[boneIndex] = animationWeight;
-			}
-			else if (i == 1)
-			{
-				rotations_1[boneIndex] = rotation;
-			}
 
-			v3 translation = bone.defaultPose.position;
+			totalAppliedWeights[boneIndex] += animationWeight;
+			bone.boneSpaceTransform.rotation = interpolate(bone.boneSpaceTransform.rotation, rotation, animationWeight / totalAppliedWeights[boneIndex]);
+
+			// ----------------------------------------------------------------
+
+			v3 translation = bone.boneSpaceDefaultTransform.position;
 			channelIndex = find_channel(animation, boneIndex, ANIMATION_CHANNEL_TRANSLATION);
 			if (channelIndex != NOT_FOUND)
 			{
 				auto const & channel = animation.channels[channelIndex];
-				u32 previousKeyframeIndex = previous_keyframe(channel.times, animationTime);
 
-				if (channel.interpolationMode == INTERPOLATION_MODE_STEP)
+				switch(channel.interpolationMode)
 				{
-					translation = channel.translations[previousKeyframeIndex]; 
-				}
-				else
-				{
-					u32 nextKeyframeIndex = (previousKeyframeIndex + 1) % channel.times.count();
-					float relativeTime = get_relative_time(	channel, 
-															previousKeyframeIndex, nextKeyframeIndex,
-															animationTime, animation.duration);
+					case INTERPOLATION_MODE_STEP:
+					{
+						s32 previousKeyframeIndex = previous_keyframe(channel.times, animationTime);
+						translation = channel.translations[previousKeyframeIndex]; 
+					} break;
 
-					translation = vector::interpolate(	channel.translations[previousKeyframeIndex],
-													channel.translations[nextKeyframeIndex],
-													relativeTime);
+					case INTERPOLATION_MODE_LINEAR:
+					case INTERPOLATION_MODE_CUBICSPLINE:
+					{
+
+						s32 previousKeyframeIndex = previous_keyframe(channel.times, animationTime);
+						s32 nextKeyframeIndex = (previousKeyframeIndex + 1) % channel.keyframe_count();
+						float relativeTime = get_relative_time(channel, previousKeyframeIndex, nextKeyframeIndex, animationTime, animation.duration);
+						translation = vector::interpolate(	channel.translations[previousKeyframeIndex],
+															channel.translations[nextKeyframeIndex],
+															relativeTime);
+					} break;
+
+					default:
+						logDebug(1) << "Now thats a weird interpolation mode: " << channel.interpolationMode;
+						break;
 				}
 			}
 			bone.boneSpaceTransform.position += translation * animationWeight;
 		}
 	}
-
-	for (int i = 0; i < animator.skeleton.bones.count(); ++i)
-	{
-		if (weights_for_0[i] < 0.99999f)
-			animator.skeleton.bones[i].boneSpaceTransform.rotation = interpolate(rotations_0[i], rotations_1[i], weights_for_0[i]);
-		else
-			animator.skeleton.bones[i].boneSpaceTransform.rotation = rotations_0[i];
-	}
 }
+
+
+// Here lies some proof for way we add animations together
+// a, b, c, d
+// x, y, z, w
+
+// --> t = a * x / (x + y + z + w)
+// 		+ b * y / (x + y + z + w)
+// 		+ c * z / (x + y + z + w)
+// 		+ d * w / (x + y + z + w)
+
+// x + y + z + w = 1
+
+// --> t = a * x
+// 		+ b * y
+// 		+ c * z 
+// 		+ d * w
+
+// t = 0
+
+// x = 0.1
+// y = 0.4
+// z = 0.3
+// y = 0.2
+
+// t = lerp(t, a, 0.1/0.1)		-> a: 1
+// t = lerp(t, b, 0.4/0.5)		-> a: 0.2 b: 0.8
+// t = lerp(t, c, 0.3/0.8)		-> a: 0.125 b: 0.5 c: 0.375
+// t = lerp(t, d, 0.2/1.0)		-> a: 0.1 b: 0.4 c: 0.3 d: 0.2
+
+// t = 0
+
+// t = lerp(t, a, x / x)				-> a0: x / x
+// t = lerp(t, b, y / (x + y)) 		-> a1: a0 * x / (x + y)
+// t = lerp(t, c, z / (x + y + z))		-> a2: a1 * (x + y) / (x + y + z)
+// t = lerp(t, d, w / (x + y + z + w))	-> a3: a2 * (x + y + z) / (x + y + z + w)
+
+// a = (((x / x) * x / (x + y)) * (x + y) / (x + y + z)) * (x + y + z) / (x + y + z + w)
+
+// // n = previous_round_value * previous_round_total_weight / current_total_weight
+
+// t = lerp(t, b, y / (x + y)) 		-> b0: y / (x + y)
+// t = lerp(t, c, z / (x + y + z))		-> b1: b0 * (x + y) / (x + y + z)
+// t = lerp(t, d, w / (x + y + z + w))	-> b2: b1 * (x + y + z) / (x + y + z + w)
+
+// b = ((y / (x + y)) * (x + y) / (x + y + z)) * (x + y + z) / (x + y + z + w)
+
+
+
+// t = lerp(t, c, z / (x + y + z))		-> c0: z / (x + y + z)
+// t = lerp(t, d, w / (x + y + z + w))	-> c1: c0 * (x + y + z) / (x + y + w + z)
+
+// c = z / (x + y + z) * (x + y + z) / (x + y + w + z)
+
+// t = lerp(t, d, w /(x + y + z + w)) 	-> d0: w / (x + y + z + w) 
+
+// d = w / (x + y + z + w)
+
+// ------------
+
+// 	a = (((x / x) * x / (x + y)) * (x + y) / (x + y + z)) * (x + y + z) / (x + y + z + w)
+// 	b = ((y / (x + y)) * (x + y) / (x + y + z)) * (x + y + z) / (x + y + z + w)
+// 	c = z / (x + y + z) * (x + y + z) / (x + y + w + z)
+// 	d = w / (x + y + z + w)
+
+// (x + y + z + w) = 1
+
+// 	// Canceling pairs and substituting (x + y + z + w) = 1 leaves us back to correct values :)
+// 	a = x / /*x * x*/ / /*(x + y) * (x + y)*/ / /*(x + y + z) * (x + y + z)*/ / 1
+// 	b = y / /*(x + y) * (x + y)*/ / /*(x + y + z) * (x + y + z)*/ / 1
+// 	c = z / /*(x + y + z) * (x + y + z)*/ / 1
+// 	d = w / 1
+// 	// mot
+
+
+
+// t = 0
+// t = lerp(t, a, 1)			-> a: 1
+// t = lerp(t, b, 0.5)			-> a: 0.5, b: 0.5
+// t = lerp(t, c, 0.33)		-> a: 0.33, b: 0.33, c: 0.33
+// t = lerp(t, d, 0.25)		-> a: 0.25, b: 0.25, c: 0.25, d: 0.25
