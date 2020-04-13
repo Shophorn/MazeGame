@@ -86,75 +86,53 @@ struct Bone
 	// Properties
 	Transform3D boneSpaceDefaultTransform;
 	m44 		inverseBindMatrix;
-	u32 		parent;
-	bool32 		isRoot;
+	s32 		parent;
 	SmallString name;
+
+	bool is_root() const { return parent < 0; }
 };
 
 internal Bone
-make_bone (Transform3D boneSpaceDefaultTransform, m44 inverseBindMatrix, u32 parent, bool32 isRoot, SmallString name)
+make_bone (Transform3D boneSpaceDefaultTransform, m44 inverseBindMatrix, s32 parent, SmallString name)
 {
 	Bone bone = {	Transform3D::identity(),
 					boneSpaceDefaultTransform,
 					inverseBindMatrix,
 					parent,
-					isRoot,
 					name};
 	return bone;
 }
 
-
-struct Skeleton
+struct AnimatedSkeleton
 {
 	Array<Bone> bones;
+	float 		animationTime;
 };
 
-struct SkeletonAnimator
+// Todo(Leo): Maybe use this for AnimatedSkeleton, because we really do not need all the functionalities of Array.
+// struct Skelly
+// {
+// 	Bone * 	bones;
+// 	s32 	boneCount;
+// 	float 	animationTime;
+// };
+
+v3 get_model_space_position(Array<Bone> const & skeleton, u32 boneIndex)
 {
-	Skeleton 				skeleton;
-
-	float 					animationTime;
-
-	static constexpr s32 	maxAnimations = 10;
-	s32 					animationCount = 0;
-	Animation const * 		animations [maxAnimations];
-	float 					animationWeights [maxAnimations];
-};
-
-internal void
-blend_animations(SkeletonAnimator & animator, Animation ** animations, float * weights, s32 count)
-{
-	if(count > SkeletonAnimator::maxAnimations)
+	v3 position = skeleton[boneIndex].boneSpaceTransform.position;
+	if (skeleton[boneIndex].is_root() == false)
 	{
-		logAnim(1) << "Too many animations to blend (" << count << "/" << SkeletonAnimator::maxAnimations << "). Excess are ignored.";
-		count = SkeletonAnimator::maxAnimations;
-	}
-
-	for(int animationIndex = 0; animationIndex < count; ++animationIndex)
-	{
-		animator.animations[animationIndex] = animations[animationIndex];
-		animator.animationWeights[animationIndex] = weights[animationIndex];
-	}
-
-	animator.animationCount = count;
-}
-
-v3 get_model_space_position(Skeleton const & skeleton, u32 boneIndex)
-{
-	v3 position = skeleton.bones[boneIndex].boneSpaceTransform.position;
-	if (skeleton.bones[boneIndex].isRoot == false)
-	{
-		position += get_model_space_position(skeleton, skeleton.bones[boneIndex].parent);
+		position += get_model_space_position(skeleton, skeleton[boneIndex].parent);
 	}
 	return position;
 }
 
-m44 get_model_space_transform(Skeleton const & skeleton, u32 boneIndex)
+m44 get_model_space_transform(Array<Bone> const & skeleton, u32 boneIndex)
 {
-	Bone const & bone = skeleton.bones[boneIndex];
+	Bone const & bone = skeleton[boneIndex];
 
 	m44 transform = get_matrix(bone.boneSpaceTransform);
-	if (bone.isRoot == false)
+	if (bone.is_root() == false)
 	{
 		transform = get_model_space_transform(skeleton, bone.parent) * transform; 
 	}
@@ -381,51 +359,58 @@ float get_relative_time(AnimationChannel const & 	channel,
 	return relativeTime;
 }
 
-void update_skeleton_animator(SkeletonAnimator & animator, float elapsedTime)
+void update_skeleton_animator(AnimatedSkeleton & skeleton, Animation const ** animations, float * weights, s32 animationCount, float elapsedTime)
 {
-	// Reset
-	for (Bone & bone : animator.skeleton.bones)
+	/*
+	for bone in skeleton:
+		reset bone
+
+	for animation in animations:
+		for bone in skeleton:
+			if channel in animation for bone:
+				apply animation by animations weight
+			else
+				apply default pose by animations weight		
+	*/
+
+	auto & bones = skeleton.bones;
+	for (Bone & bone : bones)
 	{
 		bone.boneSpaceTransform = {};
 	}
 
-	/*This procedure:
-		- advances animation time
-		- updates skeleton's bones
-	*/
-	if (animator.animations[0] == nullptr)
-		return;
+	float totalAppliedWeight = 0;
 
-	constexpr s32 maxBones_BAD_THING_USE_GLOBAL_WHEN_AVAILABLE = 32;
-	float totalAppliedWeights [maxBones_BAD_THING_USE_GLOBAL_WHEN_AVAILABLE] = {};
-
-	animator.animationTime += elapsedTime;
+	skeleton.animationTime += elapsedTime;
 	constexpr float resetInterval = 120; // Note(Leo): random amount to prevent us getting somewhere where floating point accuracy becomes problem
-	animator.animationTime = modulo(animator.animationTime, resetInterval);
+	skeleton.animationTime = modulo(skeleton.animationTime, resetInterval);
 
-	for (int animationIndex = 0; animationIndex < animator.animationCount; ++animationIndex)
+	for (int animationIndex = 0; animationIndex < animationCount; ++animationIndex)
 	{
-		if (animator.animations[animationIndex] == nullptr)
-		{
-			continue;
-		}
 
-		Animation const & animation = *animator.animations[animationIndex];
+		Animation const & animation = *animations[animationIndex];
 
-		float animationWeight = animator.animationWeights[animationIndex];
-		float animationTime = loop_time(animator.animationTime, animation.duration);
+		float animationWeight = weights[animationIndex];
+		float animationTime = loop_time(skeleton.animationTime, animation.duration);
 
-		if (math::close_enough_small(0, animationWeight))
+
+		totalAppliedWeight += animationWeight;
+		float relativeWeight = animationWeight / totalAppliedWeight;
+
+		if (animationWeight < 0.00001f)
 		{
 			continue;
 		}
 
 		// ------------------------------------------------------------------------
 
-		for (int boneIndex = 0; boneIndex < animator.skeleton.bones.count(); ++boneIndex)
+		for (int boneIndex = 0; boneIndex < bones.count(); ++boneIndex)
 		{
-			auto & bone = animator.skeleton.bones[boneIndex];
+			auto & bone = bones[boneIndex];
 
+			///////////////////////////////////////////
+			/// 		ROTATION 					///
+			///////////////////////////////////////////
 			quaternion rotation = bone.boneSpaceDefaultTransform.rotation;
 			u32 channelIndex = find_channel(animation, boneIndex, ANIMATION_CHANNEL_ROTATION);
 			if (channelIndex != NOT_FOUND)
@@ -436,20 +421,32 @@ void update_skeleton_animator(SkeletonAnimator & animator, float elapsedTime)
 				{
 					case INTERPOLATION_MODE_STEP:
 					{
-						s32 previousKeyframeIndex = previous_keyframe(channel.times, animationTime);
-						rotation = channel.rotations[previousKeyframeIndex]; 
+						s32 previousKeyframeIndex 	= previous_keyframe(channel.times, animationTime);
+						rotation 					= channel.rotations[previousKeyframeIndex]; 
 					} break;
 
 					case INTERPOLATION_MODE_LINEAR:
+					{
+						s32 previousKeyframeIndex	= previous_keyframe(channel.times, animationTime);
+						s32 nextKeyframeIndex 		= (previousKeyframeIndex + 1) % channel.keyframe_count();
+						float relativeTime 			= get_relative_time(channel, previousKeyframeIndex, nextKeyframeIndex, animationTime, animation.duration);
+						rotation 					= interpolate(	channel.rotations[previousKeyframeIndex],
+																	channel.rotations[nextKeyframeIndex],
+																	relativeTime);
+					} break;
 					case INTERPOLATION_MODE_CUBICSPLINE:
 					{
+						s32 previousKeyframeIndex	= previous_keyframe(channel.times, animationTime);
+						s32 nextKeyframeIndex 		= (previousKeyframeIndex + 1) % channel.keyframe_count();
+						float relativeTime 			= get_relative_time(channel, previousKeyframeIndex, nextKeyframeIndex, animationTime, animation.duration);
 
-						s32 previousKeyframeIndex = previous_keyframe(channel.times, animationTime);
-						s32 nextKeyframeIndex = (previousKeyframeIndex + 1) % channel.keyframe_count();
-						float relativeTime = get_relative_time(channel, previousKeyframeIndex, nextKeyframeIndex, animationTime, animation.duration);
-						rotation = interpolate(	channel.rotations[previousKeyframeIndex],
-												channel.rotations[nextKeyframeIndex],
-												relativeTime);
+						// Note(Leo): We don't actually support cubicspline rotations yet; this way we skip tangent values;
+						previousKeyframeIndex 		= (previousKeyframeIndex * 3) + 1;
+						nextKeyframeIndex 			= (nextKeyframeIndex * 3) + 1;
+
+						rotation 					= interpolate(	channel.rotations[previousKeyframeIndex],
+																	channel.rotations[nextKeyframeIndex],
+																	relativeTime);
 					} break;
 
 					default:
@@ -457,12 +454,13 @@ void update_skeleton_animator(SkeletonAnimator & animator, float elapsedTime)
 						break;
 				}
 			}
-
-			totalAppliedWeights[boneIndex] += animationWeight;
-			bone.boneSpaceTransform.rotation = interpolate(bone.boneSpaceTransform.rotation, rotation, animationWeight / totalAppliedWeights[boneIndex]);
+			bone.boneSpaceTransform.rotation = interpolate(bone.boneSpaceTransform.rotation, rotation, relativeWeight);
 
 			// ----------------------------------------------------------------
 
+			///////////////////////////////////////
+			/// 		TRANSLATION 			///
+			///////////////////////////////////////
 			v3 translation = bone.boneSpaceDefaultTransform.position;
 			channelIndex = find_channel(animation, boneIndex, ANIMATION_CHANNEL_TRANSLATION);
 			if (channelIndex != NOT_FOUND)
@@ -473,20 +471,35 @@ void update_skeleton_animator(SkeletonAnimator & animator, float elapsedTime)
 				{
 					case INTERPOLATION_MODE_STEP:
 					{
-						s32 previousKeyframeIndex = previous_keyframe(channel.times, animationTime);
-						translation = channel.translations[previousKeyframeIndex]; 
+						s32 previousKeyframeIndex 	= previous_keyframe(channel.times, animationTime);
+						translation 				= channel.translations[previousKeyframeIndex]; 
 					} break;
 
 					case INTERPOLATION_MODE_LINEAR:
+					{
+						s32 previousKeyframeIndex 	= previous_keyframe(channel.times, animationTime);
+						s32 nextKeyframeIndex 		= (previousKeyframeIndex + 1) % channel.keyframe_count();
+						float relativeTime 			= get_relative_time(channel, previousKeyframeIndex, nextKeyframeIndex, animationTime, animation.duration);
+						translation 				= vector::interpolate(	channel.translations[previousKeyframeIndex],
+																			channel.translations[nextKeyframeIndex],
+																			relativeTime);
+					} break;
+
 					case INTERPOLATION_MODE_CUBICSPLINE:
 					{
 
-						s32 previousKeyframeIndex = previous_keyframe(channel.times, animationTime);
-						s32 nextKeyframeIndex = (previousKeyframeIndex + 1) % channel.keyframe_count();
-						float relativeTime = get_relative_time(channel, previousKeyframeIndex, nextKeyframeIndex, animationTime, animation.duration);
-						translation = vector::interpolate(	channel.translations[previousKeyframeIndex],
-															channel.translations[nextKeyframeIndex],
-															relativeTime);
+						s32 previousKeyframeIndex 	= previous_keyframe(channel.times, animationTime);
+						s32 nextKeyframeIndex 		= (previousKeyframeIndex + 1) % channel.keyframe_count();
+						float relativeTime 			= get_relative_time(channel, previousKeyframeIndex, nextKeyframeIndex, animationTime, animation.duration);
+
+
+						// Note(Leo): We don't actually support cubicspline rotations yet; this way we skip tangent values;
+						previousKeyframeIndex 		= (previousKeyframeIndex * 3) + 1;
+						nextKeyframeIndex 			= (nextKeyframeIndex * 3) + 1;
+
+						translation 				= vector::interpolate(	channel.translations[previousKeyframeIndex],
+																			channel.translations[nextKeyframeIndex],
+																			relativeTime);
 					} break;
 
 					default:
@@ -499,8 +512,7 @@ void update_skeleton_animator(SkeletonAnimator & animator, float elapsedTime)
 	}
 }
 
-
-// Here lies some proof for way we add animations together
+// Here lies some proof for way we add animations, particularly rotations, together
 // a, b, c, d
 // x, y, z, w
 

@@ -4,6 +4,30 @@ shophorn @ internet
 
 3rd person character controller, nothhng less, nothing more
 =============================================================================*/
+template<s32 BufferSize>
+struct BufferedValue
+{	
+	float buffer [BufferSize] 	= {};
+	s32 position 				= 0;
+	float value 				= 0;
+};
+
+template<s32 BufferSize>
+void put_value(BufferedValue<BufferSize> & input, float value)
+{
+	input.value -= input.buffer[input.position];
+	input.buffer[input.position] = value / BufferSize;
+	input.value += input.buffer[input.position];
+
+	input.position += 1;
+	input.position %= BufferSize;
+}
+
+namespace CharacterAnimations
+{
+	enum AnimationType { IDLE, CROUCH, WALK, RUN, JUMP, FALL, ANIMATION_COUNT };
+}
+
 struct CharacterController3rdPerson
 {
 	// References
@@ -12,6 +36,9 @@ struct CharacterController3rdPerson
 	// Properties
 	float walkSpeed = 3;
 	float runSpeed = 6;
+	float jumpSpeed = 6;
+
+	float gravity = -9.81;
 
 	float collisionRadius = 0.25f;
 
@@ -23,11 +50,14 @@ struct CharacterController3rdPerson
 	v3 hitRayNormal;
 
 	// Animations
-	SkeletonAnimator 	animator;
+	AnimatedSkeleton 	skeleton;
 
-	Animation 			idleAnimation;
-	Animation 			walkAnimation;
-	Animation 			runAnimation;
+	Animation animations[CharacterAnimations::ANIMATION_COUNT];
+
+	BufferedValue<10> fallPercent;
+	BufferedValue<10> jumpPercent;
+	BufferedValue<10> crouchPercent;
+	BufferedValue<30> grounded;
 };
 
 internal CharacterController3rdPerson
@@ -82,11 +112,39 @@ update_character(
 	constexpr float idleToWalkRange = walkMaxInput - walkMinInput; 
 	constexpr float walkToRunRange 	= runMaxInput - runMinInput;
 
-	struct { float idle, walk, run; } weights = {0, 0, 0};
+	using namespace CharacterAnimations;
+
+	float weights [ANIMATION_COUNT] = {};
+
+	auto override_weight = [&weights](AnimationType animation, float value)
+	{
+		for (int i = 0; i < ANIMATION_COUNT; ++i)
+		{
+			weights[i] *= 1 - value;
+
+			if (i == animation)
+			{
+				weights[i] += value;
+			}
+		}
+	};
+
+	Animation const * animations [ANIMATION_COUNT];
+	animations[IDLE] 	= &character.animations[IDLE];
+	animations[CROUCH] 	= &character.animations[CROUCH];
+	animations[WALK] 	= &character.animations[WALK];
+	animations[RUN] 	= &character.animations[RUN];
+	animations[JUMP] 	= &character.animations[JUMP];
+	animations[FALL] 	= &character.animations[FALL];
+
+	put_value(character.crouchPercent, is_pressed(input->B) ? 1 : 0);
+	float crouchPercent = character.crouchPercent.value;
+
 
 	if (inputMagnitude < walkMinInput)
 	{
-		weights.idle 	= 1;
+		weights[IDLE] 	= 1 * (1 - crouchPercent);
+		weights[CROUCH] = 1 * crouchPercent;
 		speed 			= 0;
 
 		gizmoColor 		= {0, 0, 1, 1};
@@ -95,15 +153,16 @@ update_character(
 	{
 		float t = (inputMagnitude - walkMinInput) / idleToWalkRange;
 
-		weights.idle 	= 1 - t;
-		weights.walk 	= t;
+		weights[IDLE] 	= (1 - t) * (1 - crouchPercent);
+		weights[CROUCH] = (1 - t) * crouchPercent;
+		weights[WALK] 	= t;
 		speed 			= interpolate(0, character.walkSpeed, t);
 
 		gizmoColor 		= {1, 0, 0, 1};
 	}
 	else if (inputMagnitude < runMinInput)
 	{
-		weights.walk 	= 1;
+		weights[WALK] 	= 1;
 		speed 			= character.walkSpeed;
 
 		gizmoColor 		= {1, 1, 0, 1};
@@ -112,15 +171,23 @@ update_character(
 	{
 		float t = (inputMagnitude - runMinInput) / walkToRunRange;
 
-		weights.walk 	= 1 - t;
-		weights.run 	= t;
+		weights[WALK] 	= 1 - t;
+		weights[RUN] 	= t;
 		speed 			= interpolate (character.walkSpeed, character.runSpeed, t);
 
 		gizmoColor = {0, 1, 0, 1};
 	}
 
-	Animation * animations[3] = {&character.idleAnimation, &character.walkAnimation, &character.runAnimation};
-	blend_animations(character.animator, animations, (float*)&weights, 3);
+	// ------------------------------------------------------------------------
+
+	put_value(character.fallPercent, character.zSpeed < - 1 ? (1 - character.grounded.value) : 0);
+	override_weight(FALL, character.fallPercent.value);
+
+	put_value(character.jumpPercent, character.zSpeed > 0.1 ? 1 : 0);
+	override_weight(JUMP, character.jumpPercent.value);
+
+	update_skeleton_animator(character.skeleton, animations, weights, ANIMATION_COUNT, input->elapsedTime);
+
 
 	// ------------------------------------------------------------------------
 
@@ -176,18 +243,22 @@ update_character(
 		
 	}
 
-	float groundHeight = get_terrain_height(collisionSystem, {character.transform->position.x, character.transform->position.y});
-	bool32 grounded = character.transform->position.z < 0.1f + groundHeight;
-	if (grounded && is_clicked(input->jump))
+	float groundHeight = get_terrain_height(collisionSystem, vector::convert_to<v2>(character.transform->position));
+	bool32 grounded = character.transform->position.z < (0.1f + groundHeight);
+	put_value(character.grounded, grounded ? 1 : 0);
+
+	grounded = character.grounded.value > 0.5f;
+
+	if (grounded && is_clicked(input->X))
 	{
-		character.zSpeed = 5;
+		character.zSpeed = character.jumpSpeed;
 	}
 
 	character.transform->position.z += character.zSpeed * input->elapsedTime;
 
 	if (character.transform->position.z > groundHeight)
 	{	
-		character.zSpeed -= 2 * 9.81 * input->elapsedTime;
+		character.zSpeed += character.gravity * input->elapsedTime;
 	}
 	else
 	{
@@ -198,5 +269,15 @@ update_character(
 	// Note(Leo): Draw move action gizmo after movement, so it does not lage one frame behind
 	m44 gizmoTransform = make_transform_matrix(	character.transform->position + v3{0,0,2}, 0.3f);
 	debug::draw_diamond(graphics, gizmoTransform, gizmoColor, functions);
+
+	if (grounded)
+	{
+		gizmoTransform = make_transform_matrix(character.transform->position + v3{0,0,2}, 0.1);
+		debug::draw_diamond(graphics, gizmoTransform, gizmoColor, functions);
+	}
+	else
+	{
+		logDebug(0) << "zSpeed: " << character.zSpeed;
+	}
 
 } // update_character()

@@ -5,6 +5,72 @@ File things.
 =============================================================================*/
 #include <fstream>
 
+namespace glTF
+{
+	// https://github.com/KhronosGroup/glTF/tree/master/specification/2.0
+	// https://raw.githubusercontent.com/KhronosGroup/glTF/master/specification/2.0/figures/gltfOverview-2.0.0b.png
+
+	inline constexpr u32 magicNumber = 0x46546C67;
+
+
+	inline constexpr s32 headerLength 			= 3 * sizeof(u32);
+	inline constexpr s32 chunkInfoLength 		= 2 * sizeof(u32);  
+	
+	inline constexpr s32 chunkLengthPosition 	= 0 * sizeof(u32);
+	inline constexpr s32 chunkTypePosition 		= 1 * sizeof(u32);
+
+	/* Note(Leo): These are as UINT32 values in raw binary file,
+	as they denote what type the next chunk is. */
+	enum ChunkType : u32
+	{ 
+		CHUNK_TYPE_JSON	 	= 0x4e4f534a,  	// ASCII: JSON
+		CHUNK_TYPE_BINARY 	= 0x004e4942	// ASCII: BIN 
+	};
+
+
+	/* Note(Leo): These are stored as Json number literals in text format,
+	so we can use s32 to represent these. */
+	enum ComponentType : s32
+	{
+    	COMPONENT_TYPE_BYTE 			= 5120,
+    	COMPONENT_TYPE_UNSIGNED_BYTE 	= 5121,
+    	COMPONENT_TYPE_SHORT 			= 5122,
+    	COMPONENT_TYPE_UNSIGNED_SHORT 	= 5123,
+    	COMPONENT_TYPE_UNSIGNED_INT 	= 5125,
+    	COMPONENT_TYPE_FLOAT 			= 5126,
+	};
+
+	u32 get_component_size (ComponentType type)
+	{
+		switch (type)
+		{
+			case COMPONENT_TYPE_BYTE:			return 1;
+			case COMPONENT_TYPE_UNSIGNED_BYTE: 	return 1;
+			case COMPONENT_TYPE_SHORT: 			return 2;
+			case COMPONENT_TYPE_UNSIGNED_SHORT: return 2;
+			case COMPONENT_TYPE_UNSIGNED_INT: 	return 4;
+			case COMPONENT_TYPE_FLOAT: 			return 4;
+
+			default:
+				DEBUG_ASSERT(false, "Hello from bad choices department: 'Invalid glTF component type'");
+		}
+	}
+
+	u32 get_component_count(char const * word)
+	{
+		if (cstring_equals(word, "SCALAR")) return 1;
+		if (cstring_equals(word, "VEC2")) 	return 2;
+		if (cstring_equals(word, "VEC3")) 	return 3;
+		if (cstring_equals(word, "VEC4")) 	return 4;
+		if (cstring_equals(word, "MAT2"))	return 4;
+		if (cstring_equals(word, "MAT3")) 	return 9;
+		if (cstring_equals(word, "MAT4")) 	return 16;
+
+		assert(false);
+		return -1;
+	}
+}
+
 /* Note(Leo): We have defined internal as static to denote
 internal linkage in namespace lavel. Rapidjson however uses 
 namespace internal in some places, so we undefine it for a
@@ -17,75 +83,6 @@ be defined here. Also we must re #define internal afterwards.
 TODO(Leo): We probably should or this with all other external
 libraries.
 */
-
-template<typename T>
-struct MemoryView
-{
-	T * const start;
-	s32 const count;
-
-	T * begin() { return start; }
-	T * end() { return start + count; }
-};
-
-
-namespace glTF
-{
-	// https://github.com/KhronosGroup/glTF/tree/master/specification/2.0
-	// https://raw.githubusercontent.com/KhronosGroup/glTF/master/specification/2.0/figures/gltfOverview-2.0.0b.png
-
-	inline constexpr u32 magicNumber = 0x46546C67;
-
-
-	inline constexpr s32 headerLength 			= 3 * sizeof(u32);
-	inline constexpr s32 chunkInfoLength 		= 2 * sizeof(u32);  
-	
-	inline constexpr s32 chunkLengthPosition 	= 0;
-	inline constexpr s32 chunkTypePosition 		= sizeof(u32);
-
-	enum struct ChunkType : u32 { Json = 0x4e4f534a, Binary = 0x004e4942 };
-
-	enum struct ComponentType : s32
-	{
-    	BYTE 			= 5120,
-    	UNSIGNED_BYTE 	= 5121,
-    	SHORT 			= 5122,
-    	UNSIGNED_SHORT 	= 5123,
-    	UNSIGNED_INT 	= 5125,
-    	FLOAT 			= 5126,
-	};
-
-	u32 get_component_size (ComponentType type)
-	{
-		switch (type)
-		{
-			case ComponentType::BYTE:			return 1;
-			case ComponentType::UNSIGNED_BYTE: 	return 1;
-			case ComponentType::SHORT: 			return 2;
-			case ComponentType::UNSIGNED_SHORT: return 2;
-			case ComponentType::UNSIGNED_INT: 	return 4;
-			case ComponentType::FLOAT: 			return 4;
-
-			default:
-				DEBUG_ASSERT(false, "Hello from bad choices department: 'Invalid glTF component type'");
-		}
-	}
-
-	u32 get_component_count(char const * word)
-	{
-		if (strcmp(word, "SCALAR") == 0) return 1;
-		if (strcmp(word, "VEC2") == 0) return 2;
-		if (strcmp(word, "VEC3") == 0) return 3;
-		if (strcmp(word, "VEC4") == 0) return 4;
-		if (strcmp(word, "MAT2") == 0) return 4;
-		if (strcmp(word, "MAT3") == 0) return 9;
-		if (strcmp(word, "MAT4") == 0) return 16;
-
-		assert(false);
-		return -1;
-	}
-}
-
 #if !defined internal
 	THIS IS ERROR
 #else
@@ -100,96 +97,6 @@ namespace glTF
 
 using JsonDocument 	= rapidjson::Document;
 using JsonValue 	= rapidjson::Value;
-
-using BinaryBuffer 	= Array<byte>;
-using TextBuffer 	= Array<char>;
-
-template<typename T>
-T convert_bytes(Array<u8> const & memory, u64 position)
-{
-	T result = *reinterpret_cast<T const *> (memory.data() + position);
-	return result;
-}
-
-
-// Todo(Leo): This is allocated uncontrollably, so we must do something about it
-internal std::string
-get_string(TextBuffer const & buffer)
-{
-	auto result = std::string(buffer.begin(), buffer.end());
-	return result;	
-}
-
-internal TextBuffer
-get_gltf_json_chunk(BinaryBuffer const & gltf, MemoryArena & memoryArena)
-{
-	using namespace glTF;
-
-	u64 offset 		= headerLength;
-	u32 chunkLength 	= convert_bytes<u32>(gltf, offset + chunkLengthPosition);
-	ChunkType chunkType = convert_bytes<ChunkType>(gltf, offset + chunkTypePosition);
-
-	while(chunkType != ChunkType::Json && offset < gltf.count())
-	{
-		offset 		+= chunkLength + chunkInfoLength;
-		chunkLength  = convert_bytes<u32>(gltf, offset + chunkLengthPosition);
-		chunkType 	 = convert_bytes<ChunkType>(gltf, offset + chunkTypePosition);
-	}
-
-	/* Note(Leo): Add this so we get to start of actual data of chunk
-	instead the start of chunk info */
-	u64 start = offset + chunkInfoLength;
-
-	if (chunkType != ChunkType::Json)
-	{
-		return {};
-	}
-
-
-	char * memory = reinterpret_cast<char *>(allocate(memoryArena, chunkLength));
-	std::copy(gltf.data() + start, gltf.data() + start + chunkLength, memory);
-
-	return TextBuffer(memory, chunkLength, chunkLength);
-}
-
-internal BinaryBuffer
-get_gltf_binary_chunk(MemoryArena & memoryArena, BinaryBuffer const & gltf, s32 binaryChunkIndex = 0)
-{
-	using namespace glTF;
-
-	/* Note(Leo): In glTF first chunk is json description, and following chunks
-	are binary data buffers. We want to move to beginning of [binaryChunkIndex]th
-	binary chunk*/
-
-	u64 offset 		 = headerLength;
-	u32 chunkLength 	 = convert_bytes<u32>(gltf, offset + chunkLengthPosition);
-	offset 				+= chunkInfoLength + chunkLength;
-
-	for (int i = 0; i < binaryChunkIndex; ++i)
-	{
-		chunkLength  = convert_bytes<u32>(gltf, offset + chunkLengthPosition);
-		offset 		+= chunkInfoLength + chunkLength;
-	}
-
-	chunkLength  = convert_bytes<u32>(gltf, offset + chunkLengthPosition);
-	u64 start = offset + chunkInfoLength;
-	// auto result  = copy_array_slice(memoryArena, gltf, start, chunkLength);
-
-	byte * memory = reinterpret_cast<byte*>(allocate(memoryArena, chunkLength));
-	std::copy(gltf.data() + start, gltf.data() + start + chunkLength, memory);
-
-	return BinaryBuffer(memory, chunkLength, chunkLength);
-
-	// return result;
-}
-
-internal JsonDocument
-parse_json(const char * jsonString)
-{
-	JsonDocument doc;
-	doc.Parse(jsonString);
-	return doc;
-}
 
 internal u64
 get_ifstream_length(std::ifstream & stream)
@@ -208,7 +115,7 @@ get_ifstream_length(std::ifstream & stream)
 	return size;
 }
 
-internal BinaryBuffer
+internal Array<byte>
 read_binary_file(MemoryArena & memoryArena, const char * filename)
 {
 	auto file = std::ifstream (filename, std::ios::in|std::ios::binary);
@@ -224,25 +131,60 @@ read_binary_file(MemoryArena & memoryArena, const char * filename)
 
 struct GltfFile
 {
-	TextBuffer jsonChunk;
+	Array<byte> 		memory;
 	rapidjson::Document json;
-	BinaryBuffer binaryBuffer;
+	u64 				binaryChunkOffset;
+
+	byte const * binary() const { return memory.data() + binaryChunkOffset; }
 };
 
-internal GltfFile
-parse_gltf_file(BinaryBuffer const & file, MemoryArena & memoryArena)
-{
-	GltfFile result 	= {};
-	result.jsonChunk 	= get_gltf_json_chunk(file, memoryArena);
-	result.json.Parse(result.jsonChunk.data());
-	result.binaryBuffer = get_gltf_binary_chunk(memoryArena, file);
-	return result;
-}
 
 internal GltfFile
 read_gltf_file(MemoryArena & memoryArena, char const * filename)
 {
-	auto rawBinary = read_binary_file(memoryArena, filename);
-	auto gltfFile = parse_gltf_file(rawBinary, memoryArena);
-	return gltfFile;
+	auto memory = read_binary_file(memoryArena, filename);
+
+	/* Note(Leo): We copy json textchunk out of buffer, because we need to append a null terminator
+	in the end for rapidjson. We do not need to care for it later, rapidjson seems to do its thing 
+	and then also not care. */
+	Array<char> jsonChunk = {};
+	
+	u64 jsonChunkOffset	= glTF::headerLength;
+	u32 jsonChunkLength = convert_bytes<u32>(memory.data(), jsonChunkOffset + glTF::chunkLengthPosition);
+	
+	{
+		auto chunkType = convert_bytes<glTF::ChunkType>(memory.data(), jsonChunkOffset + glTF::chunkTypePosition);
+		assert(chunkType == glTF::CHUNK_TYPE_JSON);
+	}
+
+	char const * start = reinterpret_cast<char const *>(memory.data()) + jsonChunkOffset + glTF::chunkInfoLength;
+	char const * end = start + jsonChunkLength + 1;
+
+	jsonChunk = allocate_array<char>(memoryArena, start, end);
+	jsonChunk.last() = 0;
+
+	// ----------------------------------------------------------------------------------------------------------------
+
+	u64 binaryChunkOffset = glTF::headerLength + glTF::chunkInfoLength + jsonChunkLength;
+	{
+		auto chunkType = convert_bytes<glTF::ChunkType>(memory.data(), binaryChunkOffset + glTF::chunkTypePosition);
+		assert(chunkType == glTF::CHUNK_TYPE_BINARY);
+	}
+
+	// ----------------------------------------------------------------------------------------------------------------
+
+	GltfFile file = {};
+	file.memory 			= std::move(memory);
+	file.binaryChunkOffset 	= binaryChunkOffset + glTF::chunkInfoLength;
+
+	file.json.Parse(jsonChunk.data());
+
+	{
+		/* Note(Leo): Clear this so we can be sute this is not used in meaningful way after this in rapidjson things, 
+		and therefore we can just forget about it. */
+		memset(jsonChunk.data(), 0, jsonChunk.count());
+	}
+
+
+	return file;
 }

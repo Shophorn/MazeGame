@@ -23,7 +23,7 @@ struct GltfIterator
 };
 
 GltfIterator
-make_gltf_iterator (BinaryBuffer const & buffer, rapidjson::Document const & document, u32 accessorIndex)
+make_gltf_iterator (byte const * buffer, rapidjson::Document const & document, u32 accessorIndex)
 {
 	auto accessor = document["accessors"][accessorIndex].GetObject();
 	auto componentType = (glTF::ComponentType)accessor["componentType"].GetInt();
@@ -38,7 +38,7 @@ make_gltf_iterator (BinaryBuffer const & buffer, rapidjson::Document const & doc
 
 	return {.stride 	= (int)(size * componentCount),
 			.count 		= (int)count,
-			.start 		= buffer.data() + offset};
+			.start 		= buffer + offset};
 
 };
 
@@ -57,6 +57,28 @@ T get_at(GltfIterator const & iterator, u32 position)
 {
 	return *reinterpret_cast<T const*>((u8*)iterator.start + (iterator.stride * position));
 }
+
+internal byte const *
+get_buffer_start (byte const * buffer, rapidjson::Document const & document, u32 accessorIndex)
+{
+	auto accessor 	= document["accessors"][accessorIndex].GetObject();
+	u32 viewIndex 	= accessor["bufferView"].GetInt();
+	u32 offset 		= document["bufferViews"][viewIndex]["byteOffset"].GetInt();
+
+	return buffer + offset;
+};
+
+
+internal u64
+get_buffer_offset (rapidjson::Document const & document, u32 accessorIndex)
+{
+	auto accessor 	= document["accessors"][accessorIndex].GetObject();
+	u32 viewIndex 	= accessor["bufferView"].GetInt();
+	u32 offset 		= document["bufferViews"][viewIndex]["byteOffset"].GetInt();
+	return offset;
+
+	// return (void*)(buffer.data() + offset);
+};
 
 int find_bone_by_node(rapidjson::Document const & jsonDocument, int nodeIndex)
 {
@@ -170,43 +192,49 @@ load_animation_glb(MemoryArena & memoryArena, GltfFile const & gltfFile, char co
 				assert(false);
 		}
 
-		auto inputIt 		= make_gltf_iterator(gltfFile.binaryBuffer, jsonDocument, inputAccessor);
+		byte * a;
+
+		auto inputIt 		= make_gltf_iterator(gltfFile.binary(), jsonDocument, inputAccessor);
 		float const * start = reinterpret_cast<float const *>(inputIt.start);
 		float const * end 	= start + keyframeCount;
 		channel.times 		= allocate_array<float>(memoryArena, start, end);
 
-		auto outputIt 		= make_gltf_iterator(gltfFile.binaryBuffer, jsonDocument, outputAccessor);
+		byte const * outputBufferStart = get_buffer_start(gltfFile.binary(), jsonDocument, outputAccessor);
+
+		if (channel.interpolationMode == INTERPOLATION_MODE_CUBICSPLINE)
+			keyframeCount *= 3;
 
 		switch(channel.type)
 		{
 			case ANIMATION_CHANNEL_TRANSLATION:
+			{
 				logDebug(1) << "translation channel for bone " << channel.targetIndex;
 
-				channel.translations = allocate_array<v3>(memoryArena, keyframeCount);
-				for (int keyframeIndex = 0; keyframeIndex < keyframeCount; ++keyframeIndex)
-				{
-					int actualIndex = channel.interpolationMode == INTERPOLATION_MODE_CUBICSPLINE ? (keyframeIndex * 3 + 1) : keyframeIndex;
-		
-					v3 translation = get_at<v3>(outputIt, actualIndex);
-					channel.translations.push(translation);
-				}
-				break;
+				v3 const * start 		= reinterpret_cast<v3 const *> (outputBufferStart);
+				v3 const * end 			= start + keyframeCount;
+				channel.translations	= allocate_array<v3>(memoryArena, start, end);
+			} break;
 
 			case ANIMATION_CHANNEL_ROTATION:
+			{
 				logDebug(1) << "rotation channel for bone " << channel.targetIndex;
 		
-				channel.rotations = allocate_array<quaternion>(memoryArena, keyframeCount);
-				for (int keyframeIndex = 0; keyframeIndex < keyframeCount; ++keyframeIndex)
+				quaternion const * start 	= reinterpret_cast<quaternion const *>(outputBufferStart);
+				quaternion const * end 		= start + keyframeCount;
+				channel.rotations 			= allocate_array<quaternion>(memoryArena, start, end);
+
+
+				/* Note(Leo): For some reason, we get inverted rotations from blender produced gltf-files,
+				so we need to invert them here. I have not tested glTF files from other sources.
+
+				If interpolation mode is CUBICSPLINE, we also have tangent quaternions, that are not
+				unit length, so we must use proper inversion method. */
+				for (auto & rotation : channel.rotations)
 				{
-					int actualIndex = channel.interpolationMode == INTERPOLATION_MODE_CUBICSPLINE ? (keyframeIndex * 3 + 1) : keyframeIndex;
-
-					quaternion rotation = get_at<quaternion>(outputIt, actualIndex);
-
-					// TODO(Leo): Why does this work?
-					rotation 			= rotation.inverse();
-					channel.rotations.push(rotation);
+					rotation = rotation.inverse_non_unit();
 				}
-				break;
+
+			} break;
 
 			default:
 				logDebug(1) << FILE_ADDRESS << "Invalid or unimplemented animation channel: '" << channel.type << "' for bone " << channel.targetIndex;
@@ -225,7 +253,7 @@ load_animation_glb(MemoryArena & memoryArena, GltfFile const & gltfFile, char co
 	return result;
 }
 
-internal Skeleton
+internal Array<Bone>
 load_skeleton_glb(MemoryArena & memoryArena, GltfFile const & gltfFile, char const * modelName)
 {
 	auto const & jsonDocument 	= gltfFile.json;
@@ -241,12 +269,6 @@ load_skeleton_glb(MemoryArena & memoryArena, GltfFile const & gltfFile, char con
 	auto bonesArray = skin["joints"].GetArray();
 	u32 boneCount 	= bonesArray.Size();
 
-	Skeleton result = { allocate_array<Bone>(memoryArena, boneCount, ALLOC_FILL_UNINITIALIZED) };
-	for (auto & bone : result.bones)
-	{
-		bone.boneSpaceTransform = {};
-		bone.isRoot = true;
-	}
 
 	auto node_to_joint = [&](u32 nodeIndex) -> u32
 	{
@@ -264,16 +286,16 @@ load_skeleton_glb(MemoryArena & memoryArena, GltfFile const & gltfFile, char con
 	};
 
 	int inverseBindMatrixAccessorIndex = skin["inverseBindMatrices"].GetInt();
-	auto inverseBindMatrixIterator = make_gltf_iterator(gltfFile.binaryBuffer, jsonDocument, inverseBindMatrixAccessorIndex);
+	auto inverseBindMatrixIterator = make_gltf_iterator(gltfFile.binary(), jsonDocument, inverseBindMatrixAccessorIndex);
 
+	Array<Bone> result = allocate_array<Bone>(memoryArena, boneCount, ALLOC_FILL_UNINITIALIZED);
+	
 	for (int boneIndex = 0; boneIndex < boneCount; ++boneIndex)
 	{
 		u32 nodeIndex 		= bonesArray[boneIndex].GetInt();
 		auto const & node 	= nodeArray[nodeIndex].GetObject();
 
-		u32 parent = 0;
-		bool32 isRoot = true;
-
+		u32 parent = -1;
 
 		for (int parentBoneIndex = 0; parentBoneIndex < boneCount; ++parentBoneIndex)
 		{
@@ -289,7 +311,6 @@ load_skeleton_glb(MemoryArena & memoryArena, GltfFile const & gltfFile, char con
 					if (childBoneIndex == boneIndex)
 					{
 						parent = parentBoneIndex;
-						isRoot = false;
 					}
 				}
 			}
@@ -318,8 +339,7 @@ load_skeleton_glb(MemoryArena & memoryArena, GltfFile const & gltfFile, char con
 		m44 inverseBindMatrix = get_and_advance<m44>(inverseBindMatrixIterator);
 		auto name = node.HasMember("name") ? node["name"].GetString() : "nameless bone";
 
-		result.bones[boneIndex] = make_bone(boneSpaceTransform, inverseBindMatrix, parent, isRoot, name);
-
+		result[boneIndex] = make_bone(boneSpaceTransform, inverseBindMatrix, parent, name);
 	}
 
 	return result;
@@ -404,9 +424,9 @@ load_model_glb(MemoryArena & memoryArena, GltfFile const & gltfFile, char const 
 
 	auto vertices = allocate_array<Vertex>(memoryArena, vertexCount, ALLOC_FILL_UNINITIALIZED);
 
-	auto normalIt 		= make_gltf_iterator(gltfFile.binaryBuffer, jsonDocument, normalAccessorIndex);
-	auto posIt 			= make_gltf_iterator(gltfFile.binaryBuffer, jsonDocument, positionAccessorIndex);
-	auto texcoordIt 	= make_gltf_iterator(gltfFile.binaryBuffer, jsonDocument, texcoordAccessorIndex);
+	auto normalIt 		= make_gltf_iterator(gltfFile.binary(), jsonDocument, normalAccessorIndex);
+	auto posIt 			= make_gltf_iterator(gltfFile.binary(), jsonDocument, positionAccessorIndex);
+	auto texcoordIt 	= make_gltf_iterator(gltfFile.binary(), jsonDocument, texcoordAccessorIndex);
 
 	for (auto & vertex : vertices)
 	{
@@ -418,27 +438,32 @@ load_model_glb(MemoryArena & memoryArena, GltfFile const & gltfFile, char const 
 	bool32 hasSkin = bonesAccessorIndex >= 0 && boneWeightsAccessorIndex >= 0;
 	if (hasSkin)
 	{
-		auto bonesIterator = make_gltf_iterator(gltfFile.binaryBuffer, jsonDocument, bonesAccessorIndex);
-		auto weightIterator = make_gltf_iterator(gltfFile.binaryBuffer, jsonDocument, boneWeightsAccessorIndex);
+		auto bonesIterator = make_gltf_iterator(gltfFile.binary(), jsonDocument, bonesAccessorIndex);
+		auto weightIterator = make_gltf_iterator(gltfFile.binary(), jsonDocument, boneWeightsAccessorIndex);
 
 		for (auto & vertex : vertices)
 		{
 			{
 				// Note(Leo): only UNSIGNED_SHORT supported currently
 				auto componentType = (glTF::ComponentType)accessorArray[bonesAccessorIndex]["componentType"].GetInt();
-				assert(componentType == glTF::ComponentType::UNSIGNED_SHORT);
+				assert(componentType == glTF::COMPONENT_TYPE_UNSIGNED_SHORT);
 			}
 
-			Vector<u16, 4> jointsFromBuffer = get_and_advance<Vector<u16, 4>>(bonesIterator);
-			vertex.boneIndices 				= vector::convert_to<point4_u32>(jointsFromBuffer);
-	
-			vertex.boneWeights 				= get_and_advance<v4>(weightIterator);
+			// Note(Leo): joints are stored as UINT16 in file, but we use UINT32
+			Vector<u16, 4> u16_jointsFromBuffer = get_and_advance<Vector<u16, 4>>(bonesIterator);
+			point4_u32 jointsFromBuffer 		= vector::convert_to<point4_u32>(u16_jointsFromBuffer);
+			v4 weightsFromBuffer 				= get_and_advance<v4>(weightIterator);
 
-			float totalBoneWeights = vector::coeff_sum(vertex.boneWeights);
+			copy_memory(&vertex.boneIndices, &jointsFromBuffer, sizeof(vertex.boneIndices));
+			copy_memory(&vertex.boneWeights, &weightsFromBuffer, sizeof(vertex.boneWeights));
+
+			float totalBoneWeights = vector_impl_::sum<float, 4>(vertex.boneWeights); //vector::coeff_sum(vertex.boneWeights);
 			if(math::close_enough_small(totalBoneWeights, 1.0f) == false)
 			{
-				logDebug(2) << "load_model_glb(), weird bone weights detected: " << vertex.boneWeights;
-				vertex.boneWeights /= totalBoneWeights;
+				logDebug(2) << "load_model_glb(), weird bone weights detected: " << *(v4*)(&vertex.boneWeights);
+				// vertex.boneWeights /= totalBoneWeights;
+				vector_impl_::divide<float, 4>(vertex.boneWeights, totalBoneWeights);
+
 			}
 		} 
 	}
@@ -448,7 +473,7 @@ load_model_glb(MemoryArena & memoryArena, GltfFile const & gltfFile, char const 
 	u64 indexCount 		= indexAccessor["count"].GetInt();
 	auto indices 		= allocate_array<u16>(memoryArena, indexCount, ALLOC_FILL_UNINITIALIZED);
 
-	auto indexIterator = make_gltf_iterator(gltfFile.binaryBuffer, jsonDocument, indexAccessorIndex);
+	auto indexIterator = make_gltf_iterator(gltfFile.binary(), jsonDocument, indexAccessorIndex);
 	for (u16 & index : indices)
 	{
 		index = get_and_advance<u16>(indexIterator);
@@ -544,7 +569,7 @@ namespace mesh_ops
 
 namespace mesh_primitives
 {
-	constexpr real32 radius = 0.5f;
+	constexpr f32 radius = 0.5f;
 
 	MeshAsset create_quad(MemoryArena * memoryArena, bool32 flipIndices)
 	{

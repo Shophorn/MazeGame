@@ -10,12 +10,12 @@ Scene description for 3d development scene
 
 #include "DefaultSceneGui.cpp"
 
-void update_animated_renderer(AnimatedRenderer & renderer, Skeleton const & skeleton)
+void update_animated_renderer(AnimatedRenderer & renderer, Array<Bone> const & skeleton)
 {
 	// Todo(Leo): Make more sensible structure that keeps track of this
-	assert(skeleton.bones.count() == renderer.bones.count());
+	assert(skeleton.count() == renderer.bones.count());
 
-	u32 boneCount = skeleton.bones.count();
+	u32 boneCount = skeleton.count();
 
 	/* Todo(Leo): Skeleton needs to be ordered so that parent ALWAYS comes before
 	children, and therefore 0th is always implicitly root */
@@ -29,15 +29,15 @@ void update_animated_renderer(AnimatedRenderer & renderer, Skeleton const & skel
 		2. transform bone space matrix to model space matrix
 		*/
 
-		m44 matrix = get_matrix(skeleton.bones[i].boneSpaceTransform);
+		m44 matrix = get_matrix(skeleton[i].boneSpaceTransform);
 
-		if (skeleton.bones[i].isRoot == false)
+		if (skeleton[i].is_root() == false)
 		{
-			m44 parentMatrix = modelSpaceTransforms[skeleton.bones[i].parent];
+			m44 parentMatrix = modelSpaceTransforms[skeleton[i].parent];
 			matrix = parentMatrix * matrix;
 		}
 		modelSpaceTransforms[i] = matrix;
-		renderer.bones[i] = matrix * skeleton.bones[i].inverseBindMatrix;
+		renderer.bones[i] = matrix * skeleton[i].inverseBindMatrix;
 	}
 }
 
@@ -111,7 +111,7 @@ Scene3d::update(	void * 					scenePtr,
 
 
 	auto & character = scene->characterController;
-	update_skeleton_animator(character.animator, input->elapsedTime);
+	// update_skeleton_animator(character.animator, input->elapsedTime);
 
 	// {
 	// 	m44 modelMatrix = get_matrix(*scene->characterController.transform);
@@ -124,7 +124,7 @@ Scene3d::update(	void * 					scenePtr,
 	// 	}
 	// }
 
-	update_animated_renderer(scene->animatedRenderers[0], character.animator.skeleton);
+	update_animated_renderer(scene->animatedRenderers[0], character.skeleton.bones);
 	render_animated_models(scene->animatedRenderers, graphics, functions);
 
 	// ------------------------------------------------------------------------
@@ -254,25 +254,30 @@ Scene3d::load(	void * 						scenePtr,
 		char const * filename 		= "assets/models/cube_head.glb";
 		auto gltfFile 				= read_gltf_file(*transientMemory, filename);
 
-		character.animator.skeleton 	= load_skeleton_glb(*persistentMemory, gltfFile, "cube_head");
+		character.skeleton.bones 	= load_skeleton_glb(*persistentMemory, gltfFile, "cube_head");
 
 		auto log = logDebug(0);
 		log << "Bones in skeleton:\n";
-		for (auto & bone : character.animator.skeleton.bones)
+		for (auto & bone : character.skeleton.bones)
 		{
 			log << "\t" << bone.name << "\n";
 		}
+		{
+			using namespace CharacterAnimations;			
 
-
-		character.walkAnimation 		= load_animation_glb(*persistentMemory, gltfFile, "Walk");
-		character.runAnimation 			= load_animation_glb(*persistentMemory, gltfFile, "Run");
-		character.idleAnimation 		= load_animation_glb(*persistentMemory, gltfFile, "T-Pose");
+			character.animations[WALK] 		= load_animation_glb(*persistentMemory, gltfFile, "Walk");
+			character.animations[RUN] 		= load_animation_glb(*persistentMemory, gltfFile, "Run");
+			character.animations[IDLE] 		= load_animation_glb(*persistentMemory, gltfFile, "Idle");
+			character.animations[JUMP]		= load_animation_glb(*persistentMemory, gltfFile, "JumpUp");
+			character.animations[FALL]		= load_animation_glb(*persistentMemory, gltfFile, "JumpDown");
+			character.animations[CROUCH] 	= load_animation_glb(*persistentMemory, gltfFile, "Crouch");
+		}
 
 		auto girlMeshAsset 			= load_model_glb(*transientMemory, gltfFile, "cube_head");
 		auto girlMesh 				= functions->push_mesh(graphics, &girlMeshAsset);
 		auto model 					= push_model(girlMesh, materials.character);
 
-		auto bones = allocate_array<m44>(*persistentMemory, character.animator.skeleton.bones.count(), ALLOC_FILL_UNINITIALIZED);
+		auto bones = allocate_array<m44>(*persistentMemory, character.skeleton.bones.count(), ALLOC_FILL_UNINITIALIZED);
 		scene->animatedRenderers.push({transform, model, true, std::move(bones)});
 	}
 

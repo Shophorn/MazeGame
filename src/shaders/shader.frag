@@ -71,7 +71,7 @@ void main()
 	if (inLight < 0.5)
 	{
 
-		outColor = vec4(0,0,0.6,1);
+		outColor = vec4(0,0.1,0.5,1);
 		// outColor.xyz *= luma;
 		// lightIntensity *= (1.0 - lightCoords.w);
 		return;

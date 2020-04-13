@@ -8,11 +8,22 @@ but compulsory design choices, look at:
 	- https://en.cppreference.com/w/cpp/named_req/Container
 =============================================================================*/
 #include <initializer_list>
-#include <algorithm>
 #include <type_traits>
 #include <cstring>
 
 #include "Array.hpp"
+
+void copy_memory (void * dst, void * src, u64 count)
+{
+	memcpy(dst, src, count);
+};
+
+template<typename T>
+T convert_bytes(byte const * bytes, u64 offset)
+{
+	T result = *reinterpret_cast<T const *>(bytes + offset);
+	return result;
+}
 
 // ----------------------------------------------------------------------------
 

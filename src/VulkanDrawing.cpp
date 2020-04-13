@@ -97,7 +97,7 @@ vulkan::prepare_drawing(VulkanContext * context)
 
     frame->framebuffer = make_vk_framebuffer(   context->device,
                                                 context->drawingResources.renderPass,
-                                                get_array_count(attachments),
+                                                array_count(attachments),
                                                 attachments,
                                                 context->drawingResources.extent.width,
                                                 context->drawingResources.extent.height);    
@@ -221,7 +221,7 @@ vulkan::finish_drawing(VulkanContext * context)
     VkSubmitInfo submitInfo =
     {
         .sType                  = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-        .waitSemaphoreCount     = get_array_count(waitStages),
+        .waitSemaphoreCount     = array_count(waitStages),
         .pWaitSemaphores        = &frame->imageAvailableSemaphore,
         .pWaitDstStageMask      = waitStages,
         .commandBufferCount     = (u32)(skipFrame ? 0 : 1),
@@ -279,7 +279,7 @@ vulkan::record_draw_command(VulkanContext * context, ModelHandle model, m44 tran
     pBuffer->localToWorld = transform;
     pBuffer->isAnimated = bonesCount;
 
-    assert(bonesCount <= get_array_count(pBuffer->bonesToLocal));    
+    assert(bonesCount <= array_count(pBuffer->bonesToLocal));    
     memcpy(pBuffer->bonesToLocal, bones, sizeof(m44) * bonesCount);
 
     vkUnmapMemory(context->device, context->modelUniformBuffer.memory);
@@ -309,8 +309,8 @@ vulkan::record_draw_command(VulkanContext * context, ModelHandle model, m44 tran
     u32 dynamicOffsets [] = {uniformBufferOffset};
 
     vkCmdBindDescriptorSets(frame->commandBuffers.scene, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->layout,
-                            0, get_array_count(sets), sets,
-                            get_array_count(dynamicOffsets), dynamicOffsets);
+                            0, array_count(sets), sets,
+                            array_count(dynamicOffsets), dynamicOffsets);
 
 
     vkCmdBindVertexBuffers(frame->commandBuffers.scene, 0, 1, &mesh->buffer, &mesh->vertexOffset);

@@ -12,6 +12,9 @@ struct Array
 	Array(Array &&);	
 	Array & operator= (Array && old)
 	{
+		// TODO(Leo): IMPORTANT we must do this, but first we need a debugger to find out where it fails
+		// assert(this->memory_ == nullptr);
+
 		this->memory_ 	= old.memory_;
 		this->capacity_ = old.capacity_;
 		this->count_ 	= old.count_;

@@ -52,8 +52,11 @@ struct Vertex
 	v3 color;
 	v2 texCoord;
 
-	point4_u32 boneIndices;
-	v4 boneWeights;
+	u32 boneIndices[4];
+	f32 boneWeights[4];
+
+	// point4_u32 boneIndices;
+	// v4 boneWeights;
 };
 
 enum struct IndexType : u32 { UInt16, UInt32 };

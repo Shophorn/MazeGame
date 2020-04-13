@@ -44,12 +44,12 @@ using wchar = wchar_t;
 /* Note(Leo): Not super sure about these, they are currently not used consitently
 around codebase, but I left them where they were due to inability to make a decision */
 using byte = u8;
-using real32 = float;
-using real64 = double;
+using f32 = float;
+using f64 = double;
 
 // Todo(Leo): Study Are there any other possibilities than these always being fixed
-static_assert(sizeof(real32) == 4, "Invalid type alias for 'real32'");
-static_assert(sizeof(real64) == 8, "Invalid type alias for 'real64'");
+static_assert(sizeof(f32) == 4, "Invalid type alias for 'f32'");
+static_assert(sizeof(f64) == 8, "Invalid type alias for 'f64'");
 
 /// SIZE MODIFIERS
 /* Todo(Leo): Study memory sizes around, maybe these should be actual multiples of 1000
@@ -60,7 +60,7 @@ constexpr u64 gigabytes 	(u64 amount) { return 1024 * megabytes(amount); }
 constexpr u64 terabytes 	(u64 amount) { return 1024 * gigabytes(amount); }
 
 template<typename _, u32 Count>
-constexpr u32 get_array_count(const _ (&array)[Count])
+constexpr u32 array_count(const _ (&array)[Count])
 {
     return Count;
 }

@@ -7,10 +7,10 @@ Map Generator
 struct HexMap
 {
 	int 				cellCountPerDirection;
-	real32 				cellSize;
+	f32 				cellSize;
 	Array<u32> 	cells;
 
-	real32 
+	f32 
 	WorldSize() { return cellCountPerDirection * cellSize; }
  	
  	u32 & 
@@ -20,11 +20,11 @@ struct HexMap
 	GetCellPosition(s32 x, s32 y)
 	{
 		// Note(Leo): math stolen from catlike coding hex tutorial
-		real32 cellOuterRadius = cellSize;
-		real32 cellInnerRadius = 0.866025404f * cellOuterRadius;
+		f32 cellOuterRadius = cellSize;
+		f32 cellInnerRadius = 0.866025404f * cellOuterRadius;
 	
-		real32 cellOffsetX = ((cellCountPerDirection * cellInnerRadius) * 2.0f) / 2.0f;
-		real32 cellOffsetY = ((cellCountPerDirection * cellOuterRadius) * 1.5f) / 2.0f;
+		f32 cellOffsetX = ((cellCountPerDirection * cellInnerRadius) * 2.0f) / 2.0f;
+		f32 cellOffsetY = ((cellCountPerDirection * cellOuterRadius) * 1.5f) / 2.0f;
 
 		v3 cellPosition =
 		{
@@ -42,7 +42,7 @@ namespace map
 	struct CreateInfo
 	{
 		s32 cellCountPerDirection;
-		real32 cellSize;
+		f32 cellSize;
 	};
 
 	internal HexMap
@@ -63,11 +63,11 @@ AddHexCell(v3 cellPosition, HexMap * map, bool blocked, u16 * vertexIndex, Verte
 	v3 color = blocked ? v3{0.1f, 0.1f, 0.1f} : v3{1, 1, 1};
 	v3 normal = {0, 0, 1};
 
-	real32 padding = 0.02f;
+	f32 padding = 0.02f;
 	
 	// Note(Leo): math stolen from catlike coding hex tutorial
-	real32 cellTileOuterRadius = map->cellSize - 2.0f * padding;
-	real32 cellTileInnerRadius = 0.866025404f * cellTileOuterRadius;
+	f32 cellTileOuterRadius = map->cellSize - 2.0f * padding;
+	f32 cellTileInnerRadius = 0.866025404f * cellTileOuterRadius;
 
 	v3 hexCellCorners [6] =
 	{
@@ -103,7 +103,7 @@ AddHexCell(v3 cellPosition, HexMap * map, bool blocked, u16 * vertexIndex, Verte
 	vertexLocation[5].normal = normal;
 	vertexLocation[6].normal = normal;
 
-	real32 gridSize = map->WorldSize();
+	f32 gridSize = map->WorldSize();
 	v2 offset = {0.5f, 0.5f};
 	vertexLocation[0].texCoord = vector::convert_to<v2>(vertexLocation[0].position) / gridSize + offset;
 	vertexLocation[1].texCoord = vector::convert_to<v2>(vertexLocation[1].position) / gridSize + offset;

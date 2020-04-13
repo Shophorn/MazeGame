@@ -18,24 +18,24 @@ u32 xor128()
   	return w = w ^ (w >> 19) ^ (t ^ (t >> 8));
 }
 
-internal real32
+internal f32
 RandomValue()
 {
-  	real32 value 	= static_cast<real32>(xor128());
-  	real32 max 		= static_cast<real32>(math::highest_value<u32>);
-  	real32 result 	= value / max;
+  	f32 value 	= static_cast<f32>(xor128());
+  	f32 max 		= static_cast<f32>(math::highest_value<u32>);
+  	f32 result 	= value / max;
 
   	return result;
 }
 
-internal real32
-RandomRange(real32 min, real32 max)
+internal f32
+RandomRange(f32 min, f32 max)
 {
     DEBUG_ASSERT (min <= max, "'min' must be smaller than 'max'");
 
-    real32 value = static_cast<real32>(xor128()) / static_cast<real32>(math::highest_value<u32>);
-    real32 range = max - min;
-    real32 result = min + (value * range);
+    f32 value = static_cast<f32>(xor128()) / static_cast<f32>(math::highest_value<u32>);
+    f32 range = max - min;
+    f32 result = min + (value * range);
 
     return result;    
 }

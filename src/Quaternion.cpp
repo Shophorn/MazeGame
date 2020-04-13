@@ -177,26 +177,27 @@ quaternion interpolate(quaternion from, quaternion to, float t)
 	{
 		to.vector = -to.vector;
 		to.w = -to.w;
+		dot = -dot;
 	}
+// /
 
 	if (dot > 0.99)
 	{
-		// quaternion result = {	interpolate(from.x, to.x, t),
-		// 						interpolate(from.y, to.y, t),
-		// 						interpolate(from.z, to.z, t),
-		// 						interpolate(from.w, to.w, t)};
+		quaternion result = {	interpolate(from.x, to.x, t),
+								interpolate(from.y, to.y, t),
+								interpolate(from.z, to.z, t),
+								interpolate(from.w, to.w, t)};
 
-		quaternion result;
+		// quaternion result;
 
+		// float * resultPtr 	= &result.x;
+		// float * fromPtr 	= &from.x;
+		// float * toPtr 		= &to.x;
 
-		float * resultPtr 	= &result.x;
-		float * fromPtr 	= &from.x;
-		float * toPtr 		= &to.x;
-
-		for (int i = 0; i < 4; ++i)
-		{
-			resultPtr[i] = interpolate(fromPtr[i], toPtr[i], t);
-		}
+		// for (int i = 0; i < 4; ++i)
+		// {
+		// 	resultPtr[i] = interpolate(fromPtr[i], toPtr[i], t);
+		// }
 		
 		if(result.x == result.x && result.y == result.y && result.z == result.z && result.w == result.w)
 		{
@@ -211,7 +212,7 @@ quaternion interpolate(quaternion from, quaternion to, float t)
 		return result.normalized();
 	}
 
-	quaternion difference = from.inverse() * to;
+	quaternion difference = from.inverse_non_unit() * to;
 
 	// Convert to rodriques rotation
 	v3 axis 		= normalize_or_zero(difference.vector);

@@ -23,7 +23,7 @@ constexpr s32 VIRTUAL_FRAME_COUNT = 3;
 
 
 constexpr u64 VULKAN_NO_TIME_OUT	= math::highest_value<u64>;
-constexpr real32 VULKAN_MAX_LOD_FLOAT = 100.0f;
+constexpr f32 VULKAN_MAX_LOD_FLOAT = 100.0f;
 
 constexpr s32 VULKAN_MAX_MODEL_COUNT = 2000;
 constexpr s32 VULKAN_MAX_MATERIAL_COUNT = 100;
@@ -365,12 +365,12 @@ namespace vulkan
 	constexpr char const * validationLayers[] = {
 	    "VK_LAYER_KHRONOS_validation"
 	};
-	constexpr int VALIDATION_LAYERS_COUNT = get_array_count(validationLayers);
+	constexpr int VALIDATION_LAYERS_COUNT = array_count(validationLayers);
 
 	constexpr char const * deviceExtensions [] = {
 	    VK_KHR_SWAPCHAIN_EXTENSION_NAME
 	};
-	constexpr int DEVICE_EXTENSION_COUNT = get_array_count(deviceExtensions);
+	constexpr int DEVICE_EXTENSION_COUNT = array_count(deviceExtensions);
 
     constexpr s32 MAX_LOADED_TEXTURES = 100;
 

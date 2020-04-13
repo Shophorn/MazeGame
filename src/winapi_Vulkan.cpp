@@ -205,7 +205,7 @@ vulkan::find_queue_families (VkPhysicalDevice device, VkSurfaceKHR surface)
 {
     // Note: A card must also have a graphics queue family available; We do want to draw after all
     VkQueueFamilyProperties queueFamilyProps [50];
-    u32 queueFamilyCount = get_array_count(queueFamilyProps);
+    u32 queueFamilyCount = array_count(queueFamilyProps);
     vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilyProps);
 
     // std::cout << "queueFamilyCount: " << queueFamilyCount << "\n";
@@ -362,9 +362,9 @@ vulkan::make_vk_render_pass(VulkanContext * context, VkFormat format, VkSampleCo
     VkRenderPassCreateInfo renderPassInfo   = { VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO };
     renderPassInfo.attachmentCount          = ATTACHMENT_COUNT;
     renderPassInfo.pAttachments             = &attachments[0];
-    renderPassInfo.subpassCount             = get_array_count(subpasses);
+    renderPassInfo.subpassCount             = array_count(subpasses);
     renderPassInfo.pSubpasses               = &subpasses[0];
-    renderPassInfo.dependencyCount          = get_array_count(dependencies);
+    renderPassInfo.dependencyCount          = array_count(dependencies);
     renderPassInfo.pDependencies            = &dependencies[0];
 
     VkRenderPass resultRenderPass;
@@ -980,7 +980,7 @@ winapi_vulkan_internal_::create_vk_instance()
     auto CheckValidationLayerSupport = [] () -> bool32
     {
         VkLayerProperties availableLayers [50];
-        u32 availableLayersCount = get_array_count(availableLayers);
+        u32 availableLayersCount = array_count(availableLayers);
 
         bool32 result = true;
         if (vkEnumerateInstanceLayerProperties (&availableLayersCount, availableLayers) == VK_SUCCESS)
@@ -1068,7 +1068,7 @@ winapi_vulkan_internal_::create_vk_physical_device(VkInstance vulkanInstance, Vk
     auto CheckDeviceExtensionSupport = [] (VkPhysicalDevice testDevice) -> bool32
     {
         VkExtensionProperties availableExtensions [100];
-        u32 availableExtensionsCount = get_array_count(availableExtensions);
+        u32 availableExtensionsCount = array_count(availableExtensions);
         vkEnumerateDeviceExtensionProperties (testDevice, nullptr, &availableExtensionsCount, availableExtensions);
 
         bool32 result = true;
@@ -1130,7 +1130,7 @@ winapi_vulkan_internal_::create_vk_physical_device(VkInstance vulkanInstance, Vk
 
 
     VkPhysicalDevice devices [10];
-    u32 deviceCount = get_array_count(devices);
+    u32 deviceCount = array_count(devices);
     vkEnumeratePhysicalDevices(vulkanInstance, &deviceCount, devices);
 
     // Note(Leo): No gpu found at all, or no vulkan supporting gpu
@@ -1395,7 +1395,7 @@ winapi_vulkan_internal_::init_uniform_buffers(VulkanContext * context)
     };
 
     VkDescriptorPoolCreateInfo poolInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO };
-    poolInfo.poolSizeCount  = get_array_count(poolSizes);
+    poolInfo.poolSizeCount  = array_count(poolSizes);
     poolInfo.pPoolSizes     = poolSizes;
     poolInfo.maxSets        = 20;
 
@@ -1643,7 +1643,7 @@ winapi_vulkan_internal_::init_shadow_pass(VulkanContext * context, u32 width, u3
     renderPassInfo.pAttachments             = &attachment;
     renderPassInfo.subpassCount             = 1;
     renderPassInfo.pSubpasses               = subpasses;
-    renderPassInfo.dependencyCount          = get_array_count(dependencies);
+    renderPassInfo.dependencyCount          = array_count(dependencies);
     renderPassInfo.pDependencies            = &dependencies[0];
 
     VULKAN_CHECK (vkCreateRenderPass(context->device, &renderPassInfo, nullptr, &context->shadowPass.renderPass));
