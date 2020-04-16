@@ -93,13 +93,12 @@ struct Bone
 };
 
 internal Bone
-make_bone (Transform3D boneSpaceDefaultTransform, m44 inverseBindMatrix, s32 parent, SmallString name)
+make_bone (Transform3D boneSpaceDefaultTransform, m44 inverseBindMatrix, s32 parent)
 {
 	Bone bone = {	Transform3D::identity(),
 					boneSpaceDefaultTransform,
 					inverseBindMatrix,
-					parent,
-					name};
+					parent};
 	return bone;
 }
 

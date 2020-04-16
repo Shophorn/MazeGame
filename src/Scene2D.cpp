@@ -243,7 +243,7 @@ scene_2d::load(	void * scenePtr,
 
 		if (addPillars)
 		{
-			auto pillarMesh 		= load_model_glb(*transientMemory, read_gltf_file(*transientMemory, "assets/models/big_pillar.glb"), "big_pillar");
+			auto pillarMesh 		= load_mesh_glb(*transientMemory, read_gltf_file(*transientMemory, "assets/models/big_pillar.glb"), "big_pillar");
 			auto pillarMeshHandle 	= functions->push_mesh(graphics, &pillarMesh);
 
 			auto model 	= push_model(pillarMeshHandle, materials.environment);
@@ -261,7 +261,7 @@ scene_2d::load(	void * scenePtr,
 
 		if (addLadders)
 		{
-			auto ladderMesh 		= load_model_glb(*transientMemory, read_gltf_file(*transientMemory, "assets/models/ladder.glb"), "LadderSection");
+			auto ladderMesh 		= load_mesh_glb(*transientMemory, read_gltf_file(*transientMemory, "assets/models/ladder.glb"), "LadderSection");
 			auto ladderMeshHandle 	= functions->push_mesh(graphics, &ladderMesh);
 
 			auto root1 	= allocate_transform(scene->transformStorage, {0, 0.5f, -ladderHeight});

@@ -27,7 +27,6 @@ namespace glTF
 		CHUNK_TYPE_BINARY 	= 0x004e4942	// ASCII: BIN 
 	};
 
-
 	/* Note(Leo): These are stored as Json number literals in text format,
 	so we can use s32 to represent these. */
 	enum ComponentType : s32
@@ -56,6 +55,11 @@ namespace glTF
 		}
 	}
 
+	/* Note(Leo): These are stored as string literals in gltf json chunk, 
+	so we can just use those instead of separate enum. 
+
+	Todo(Leo): We maybe could compare these as integers, since first 4 bytes
+	are distinguishable.*/
 	u32 get_component_count(char const * word)
 	{
 		if (cstring_equals(word, "SCALAR")) return 1;
@@ -69,6 +73,17 @@ namespace glTF
 		assert(false);
 		return -1;
 	}
+
+	enum PrimitiveType : s32
+	{
+    	PRIMITIVE_TYPE_POINTS			= 0,
+    	PRIMITIVE_TYPE_LINES 			= 1,
+    	PRIMITIVE_TYPE_LINE_LOOP 		= 2,
+    	PRIMITIVE_TYPE_LINE_STRIP 		= 3,
+    	PRIMITIVE_TYPE_TRIANGLES 		= 4,
+    	PRIMITIVE_TYPE_TRIANGLE_STRIP	= 5,
+    	PRIMITIVE_TYPE_TRIANGLE_FAN 	= 6,
+	};
 }
 
 /* Note(Leo): We have defined internal as static to denote
@@ -84,7 +99,9 @@ TODO(Leo): We probably should or this with all other external
 libraries.
 */
 #if !defined internal
-	THIS IS ERROR
+	/* Note(Leo): We do not have internal defined, so something has changed,
+	and our assumptions are not correct anymore */
+	static_assert(false);
 #else
 #undef internal
 
@@ -97,6 +114,7 @@ libraries.
 
 using JsonDocument 	= rapidjson::Document;
 using JsonValue 	= rapidjson::Value;
+using JsonArray 	= rapidjson::GenericArray<true, JsonValue>;
 
 internal u64
 get_ifstream_length(std::ifstream & stream)
@@ -131,9 +149,9 @@ read_binary_file(MemoryArena & memoryArena, const char * filename)
 
 struct GltfFile
 {
-	Array<byte> 		memory;
-	rapidjson::Document json;
-	u64 				binaryChunkOffset;
+	Array<byte> 	memory;
+	JsonDocument 	json;
+	u64 			binaryChunkOffset;
 
 	byte const * binary() const { return memory.data() + binaryChunkOffset; }
 };
@@ -180,11 +198,16 @@ read_gltf_file(MemoryArena & memoryArena, char const * filename)
 	file.json.Parse(jsonChunk.data());
 
 	{
-		/* Note(Leo): Clear this so we can be sute this is not used in meaningful way after this in rapidjson things, 
+		/* Note(Leo): Clear this so we can be sure this is not used in meaningful way after this in rapidjson things, 
 		and therefore we can just forget about it. */
 		memset(jsonChunk.data(), 0, jsonChunk.count());
 	}
 
+	// Note(Leo): Assert these once here, so we don't have to do that in every call hereafter.
+	assert(file.json.HasMember("nodes"));
+	assert(file.json.HasMember("accessors"));
+	assert(file.json.HasMember("bufferViews"));
+	assert(file.json.HasMember("buffers"));
 
 	return file;
 }

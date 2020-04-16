@@ -13,7 +13,7 @@ but compulsory design choices, look at:
 
 #include "Array.hpp"
 
-void copy_memory (void * dst, void * src, u64 count)
+void copy_memory (void * dst, void const * src, u64 count)
 {
 	memcpy(dst, src, count);
 };

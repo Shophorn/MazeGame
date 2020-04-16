@@ -140,6 +140,8 @@ update_character(
 	put_value(character.crouchPercent, is_pressed(input->B) ? 1 : 0);
 	float crouchPercent = character.crouchPercent.value;
 
+	constexpr float crouchOverridePowerForAnimation = 0.6f;
+	constexpr float crouchOverridePowerForSpeed = 0.8f;
 
 	if (inputMagnitude < walkMinInput)
 	{
@@ -158,12 +160,20 @@ update_character(
 		weights[WALK] 	= t;
 		speed 			= interpolate(0, character.walkSpeed, t);
 
+		float crouchValue = character.crouchPercent.value;
+		speed *= (1 - crouchValue * crouchOverridePowerForSpeed);
+		override_weight(CROUCH, crouchValue * crouchOverridePowerForAnimation);
+
 		gizmoColor 		= {1, 0, 0, 1};
 	}
 	else if (inputMagnitude < runMinInput)
 	{
 		weights[WALK] 	= 1;
 		speed 			= character.walkSpeed;
+
+		float crouchValue = character.crouchPercent.value;
+		speed *= (1 - crouchValue * crouchOverridePowerForSpeed);
+		override_weight(CROUCH, crouchValue * crouchOverridePowerForAnimation);
 
 		gizmoColor 		= {1, 1, 0, 1};
 	}
@@ -174,6 +184,10 @@ update_character(
 		weights[WALK] 	= 1 - t;
 		weights[RUN] 	= t;
 		speed 			= interpolate (character.walkSpeed, character.runSpeed, t);
+
+		float crouchValue = character.crouchPercent.value;
+		speed *= (1 - crouchValue * crouchOverridePowerForSpeed);
+		override_weight(CROUCH, crouchValue * crouchOverridePowerForAnimation);
 
 		gizmoColor = {0, 1, 0, 1};
 	}

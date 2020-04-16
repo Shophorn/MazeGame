@@ -252,9 +252,12 @@ Scene3d::load(	void * 						scenePtr,
 		character 					= make_character(transform);
 
 		char const * filename 		= "assets/models/cube_head.glb";
-		auto gltfFile 				= read_gltf_file(*transientMemory, filename);
+		auto const gltfFile 		= read_gltf_file(*transientMemory, filename);
+
+		logDebug(0) << "Hello from succesful file";
 
 		character.skeleton.bones 	= load_skeleton_glb(*persistentMemory, gltfFile, "cube_head");
+		logDebug(0) << "Hello from succesful file 2";
 
 		auto log = logDebug(0);
 		log << "Bones in skeleton:\n";
@@ -273,7 +276,7 @@ Scene3d::load(	void * 						scenePtr,
 			character.animations[CROUCH] 	= load_animation_glb(*persistentMemory, gltfFile, "Crouch");
 		}
 
-		auto girlMeshAsset 			= load_model_glb(*transientMemory, gltfFile, "cube_head");
+		auto girlMeshAsset 			= load_mesh_glb(*transientMemory, gltfFile, "cube_head");
 		auto girlMesh 				= functions->push_mesh(graphics, &girlMeshAsset);
 		auto model 					= push_model(girlMesh, materials.character);
 
@@ -286,7 +289,7 @@ Scene3d::load(	void * 						scenePtr,
 		auto transform = allocate_transform(scene->transformStorage, {21, 10, 1.2});
 
 		char const * filename = "assets/models/Robot53.glb";
-		auto meshAsset = load_model_glb(*transientMemory, read_gltf_file(*transientMemory, filename), "model_rigged");	
+		auto meshAsset = load_mesh_glb(*transientMemory, read_gltf_file(*transientMemory, filename), "model_rigged");	
 		auto mesh = functions->push_mesh(graphics, &meshAsset);
 
 		auto albedo = load_and_push_texture("assets/textures/Robot_53_albedo_4k.png");
@@ -326,7 +329,7 @@ Scene3d::load(	void * 						scenePtr,
 		}
 
 		{
-			auto totemMesh 			= load_model_glb(*transientMemory, read_gltf_file(*transientMemory, "assets/models/totem.glb"), "totem");
+			auto totemMesh 			= load_mesh_glb(*transientMemory, read_gltf_file(*transientMemory, "assets/models/totem.glb"), "totem");
 			auto totemMeshHandle 	= functions->push_mesh(graphics, &totemMesh);
 
 			auto model = push_model(totemMeshHandle, materials.environment);
@@ -338,7 +341,7 @@ Scene3d::load(	void * 						scenePtr,
 		}
 
 		{
-			auto pillarMesh 		= load_model_glb(*transientMemory, read_gltf_file(*transientMemory, "assets/models/big_pillar.glb"), "big_pillar");
+			auto pillarMesh 		= load_mesh_glb(*transientMemory, read_gltf_file(*transientMemory, "assets/models/big_pillar.glb"), "big_pillar");
 			auto pillarMeshHandle 	= functions->push_mesh(graphics, &pillarMesh);
 
 			auto model 		= push_model(pillarMeshHandle, materials.environment);
