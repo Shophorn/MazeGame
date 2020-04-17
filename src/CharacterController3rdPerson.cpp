@@ -77,8 +77,8 @@ struct CharacterController3rdPerson
 	f32 currentSpeed;
 	/* Note(Leo): As in change of velocity per time unit. These probably
 	should be kept at values relative to max speed */ 
-	f32 acceleration = 1.0f * runSpeed;
-	f32 deceleration = -2.0f * runSpeed;
+	f32 acceleration = 2.0f * runSpeed;
+	f32 deceleration = -4.0f * runSpeed;
 };
 
 internal CharacterController3rdPerson
@@ -247,54 +247,55 @@ update_character(
 
 	speed *= 1 - landingValue;
 
-	f32 currentSpeed;
+	// f32 currentSpeed;
 
-	if (speed > character.currentSpeed)
-	{
-		currentSpeed = character.currentSpeed + character.acceleration * input->elapsedTime;
-		currentSpeed = math::min(currentSpeed, speed);
-
-		// character.currentSpeed += character.acceleration * input->elapsedTime;
-		// character.currentSpeed = math::min(character.currentSpeed, speed);
-	}
-	else if (speed < character.currentSpeed)
-	{
-		currentSpeed = character.currentSpeed + character.deceleration * input->elapsedTime;
-		currentSpeed = math::max(currentSpeed, speed);
-
-
-		// character.currentSpeed = speed;
-
-		// float a = character.currentSpeed + character.deceleration * input->elapsedTime;
-		// a = math::max(a, speed);
-		// logDebug(0) << "a: " << a;
-
-
-		// character.currentSpeed += character.deceleration * input->elapsedTime;
-		// character.currentSpeed = math::max(character.currentSpeed, speed);
-	}
-
-	// if (speed != speed)
+	// if (speed > character.currentSpeed)
 	// {
-	// 	logDebug(0) << "speed is nan!!";
-	// 	speed = 0;
+	// 	currentSpeed = character.currentSpeed + character.acceleration * input->elapsedTime;
+	// 	currentSpeed = math::min(currentSpeed, speed);
+
+	// 	// character.currentSpeed += character.acceleration * input->elapsedTime;
+	// 	// character.currentSpeed = math::min(character.currentSpeed, speed);
+	// }
+	// else if (speed < character.currentSpeed)
+	// {
+	// 	currentSpeed = character.currentSpeed + character.deceleration * input->elapsedTime;
+	// 	currentSpeed = math::max(currentSpeed, speed);
+
+	// 	currentSpeed = speed;
+	// 	// character.currentSpeed = speed;
+
+	// 	// float a = character.currentSpeed + character.deceleration * input->elapsedTime;
+	// 	// a = math::max(a, speed);
+	// 	// logDebug(0) << "a: " << a;
+
+
+	// 	// character.currentSpeed += character.deceleration * input->elapsedTime;
+	// 	// character.currentSpeed = math::max(character.currentSpeed, speed);
 	// }
 
-	// if (character.currentSpeed != character.currentSpeed)
-	// {
-	// 	logDebug(0) << "currentSpeed is nan!!";
-	// }
+	// // if (speed != speed)
+	// // {
+	// // 	logDebug(0) << "speed is nan!!";
+	// // 	speed = 0;
+	// // }
 
-	// logDebug(0) << "speeds: " << character.currentSpeed << "/" << speed;
+	// // if (character.currentSpeed != character.currentSpeed)
+	// // {
+	// // 	logDebug(0) << "currentSpeed is nan!!";
+	// // }
 
-	// speed = character.currentSpeed;
+	// // logDebug(0) << "speeds: " << character.currentSpeed << "/" << speed;
 
-	character.currentSpeed = currentSpeed;
+	// // speed = character.currentSpeed;
+	// currentSpeed = speed;
 
-	if (currentSpeed > 0)
+	// character.currentSpeed = currentSpeed;
+
+	if (speed > 0)
 	{
 		v3 direction = inputVector / inputMagnitude;
-		f32 distance = inputMagnitude * input->elapsedTime * currentSpeed;
+		f32 distance = inputMagnitude * input->elapsedTime * speed;
 
 		constexpr int rayCount = 5;
 		v3 up 	= get_up(*character.transform);
@@ -375,7 +376,7 @@ update_character(
 		else
 		{
 			character.goingToJump = false;
-			character.zSpeed = character.jumpSpeed;
+			character.zSpeed = character.jumpSpeed * 5;
 		}
 	}
 

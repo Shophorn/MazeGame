@@ -7,12 +7,21 @@ using clang++.
 import subprocess
 import os
 import sys
+import psutil
 
 silent = '--silent' in sys.argv
 compiler = 'clang++'
 
-compile_platform = True
-compile_game = True
+compile_platform = 1
+compile_game = 1
+
+for proc in psutil.process_iter():
+	try:
+		if 'mazegame' in proc.name().lower():
+			print("Mazegame running, not building platform layer.")
+			compile_platform = 0;
+	except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+		pass
 
 def compile(call):
 	if not silent:
@@ -36,7 +45,7 @@ if compiler == 'clang++':
 	definitions = "-DMAZEGAME_DEVELOPMENT=1"
 	includePath	= "-Iinclude -IC:/VulkanSDK/1.1.108.0/Include"
 	libPath 	= "-LC:/VulkanSDK/1.1.108.0/Lib"
-	libLinks	= "-lvulkan-1 -lgdi32 -lws2_32 -lole32 -lwinmm"
+	libLinks	= "-lvulkan-1 -luser32 -lgdi32 -lws2_32 -lole32 -lwinmm"
 
 	# compiler_path = "C:/Programs/LLVM/bin/clang++"
 	compiler_path = "clang++"

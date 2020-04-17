@@ -150,20 +150,20 @@ vulkan::make_pipeline(
         .depthClampEnable           = VK_FALSE,
         .rasterizerDiscardEnable    = VK_FALSE,
         .polygonMode                = VK_POLYGON_MODE_FILL,
-        .lineWidth                  = options.lineWidth,
         .cullMode                   = cullMode,
         .frontFace                  = VK_FRONT_FACE_COUNTER_CLOCKWISE,
         .depthBiasEnable            = VK_FALSE,
         .depthBiasConstantFactor    = 0.0f,
         .depthBiasClamp             = 0.0f,
         .depthBiasSlopeFactor       = 0.0f,
+        .lineWidth                  = options.lineWidth,
     };
 
     VkPipelineMultisampleStateCreateInfo multisampling =
     {
         .sType                  = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
-        .sampleShadingEnable    = VK_FALSE,
         .rasterizationSamples   = context->msaaSamples,
+        .sampleShadingEnable    = VK_FALSE,
         .minSampleShading       = 1.0f,
         .pSampleMask            = nullptr,
         .alphaToCoverageEnable  = VK_FALSE,
@@ -173,10 +173,6 @@ vulkan::make_pipeline(
     // Note: This attachment is per framebuffer
     VkPipelineColorBlendAttachmentState colorBlendAttachment =
     {
-        .colorWriteMask         = VK_COLOR_COMPONENT_R_BIT 
-                                    | VK_COLOR_COMPONENT_G_BIT 
-                                    | VK_COLOR_COMPONENT_B_BIT 
-                                    | VK_COLOR_COMPONENT_A_BIT,
         .blendEnable            = VK_FALSE,
         .srcColorBlendFactor    = VK_BLEND_FACTOR_ONE,
         .dstColorBlendFactor    = VK_BLEND_FACTOR_ZERO,
@@ -184,6 +180,10 @@ vulkan::make_pipeline(
         .srcAlphaBlendFactor    = VK_BLEND_FACTOR_ONE,
         .dstAlphaBlendFactor    = VK_BLEND_FACTOR_ZERO,
         .alphaBlendOp           = VK_BLEND_OP_ADD, 
+        .colorWriteMask         = VK_COLOR_COMPONENT_R_BIT 
+                                    | VK_COLOR_COMPONENT_G_BIT 
+                                    | VK_COLOR_COMPONENT_B_BIT 
+                                    | VK_COLOR_COMPONENT_A_BIT,
     };
 
     // Note: this is global
@@ -194,10 +194,7 @@ vulkan::make_pipeline(
         .logicOp            = VK_LOGIC_OP_COPY,
         .attachmentCount    = 1,
         .pAttachments       = &colorBlendAttachment,
-        .blendConstants[0]  = 0.0f,
-        .blendConstants[1]  = 0.0f,
-        .blendConstants[2]  = 0.0f,
-        .blendConstants[3]  = 0.0f,
+        .blendConstants     = {0, 0, 0, 0}
     };
 
     VkPipelineDepthStencilStateCreateInfo depthStencil =
@@ -210,13 +207,14 @@ vulkan::make_pipeline(
 
         // Note(Leo): These further limit depth range for this render pass
         .depthBoundsTestEnable  = VK_FALSE,
-        .minDepthBounds         = 0.0f,
-        .maxDepthBounds         = 1.0f,
 
         // Note(Leo): Configure stencil tests
         .stencilTestEnable  = VK_FALSE,
         .front              = {},
         .back               = {},
+       
+        .minDepthBounds         = 0.0f,
+        .maxDepthBounds         = 1.0f,
     };
 
 

@@ -13,7 +13,7 @@ STUDY: https://devblogs.nvidia.com/vulkan-dos-donts/
 internal void 
 print_vulkan_assert(char const * file, s32 line, VkResult result)
 {
-    std::cout << "Vulkan check failed [" << file << ":" << line << "]: " << vulkan::to_str(result) << "(" << result << ")\n";
+    logVulkan() << "Vulkan check failed [" << file << ":" << line << "]: " << vulkan::to_str(result) << "(" << result << ")\n";
 }
 
 #define VULKAN_CHECK(result) if (result != VK_SUCCESS) { print_vulkan_assert(__FILE__, __LINE__, result); abort();}

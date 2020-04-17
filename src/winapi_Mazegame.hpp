@@ -51,12 +51,14 @@ namespace winapi
     	HMODULE dllHandle;
         FILETIME dllWriteTime;
 
-    	decltype(update_game) * Update;	
+    	GameUpdateFunc * Update;	
     };
 
     bool32 is_loaded(Game * game)
     {
-        return game->dllHandle != nullptr;
+        bool32 loaded   = game->dllHandle != nullptr
+                        && game->Update != nullptr;
+        return loaded;
     }
 
     void
@@ -69,7 +71,7 @@ namespace winapi
         if(game->dllHandle != nullptr)
         {
             FARPROC procAddress = GetProcAddress(game->dllHandle, GAMECODE_UPDATE_FUNC_NAME);
-            game->Update        = reinterpret_cast<decltype(update_game)*>(procAddress);
+            game->Update        = reinterpret_cast<GameUpdateFunc*>(procAddress);
             game->dllWriteTime  = get_file_write_time(GAMECODE_DLL_FILE_NAME);
         }
 

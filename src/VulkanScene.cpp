@@ -179,7 +179,7 @@ vulkan::unload_scene(VulkanContext * context)
 internal u32
 vulkan_scene_internal_::compute_mip_levels(u32 texWidth, u32 texHeight)
 {
-   u32 result = std::floor(std::log2(std::max(texWidth, texHeight))) + 1;
+   u32 result = std::floor(std::log2(math::max(texWidth, texHeight))) + 1;
    return result;
 }
 
@@ -290,18 +290,18 @@ vulkan::make_texture(VulkanContext * context, TextureAsset * asset)
     VkImageCreateInfo imageInfo =
     {
         .sType          = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+        .flags          = 0,
         .imageType      = VK_IMAGE_TYPE_2D,
+        .format         = VK_FORMAT_R8G8B8A8_UNORM,
         .extent         = { width, height, 1 },
         .mipLevels      = mipLevels,
         .arrayLayers    = 1,
-        .format         = VK_FORMAT_R8G8B8A8_UNORM,
 
+        .samples        = VK_SAMPLE_COUNT_1_BIT,
         .tiling         = VK_IMAGE_TILING_OPTIMAL,
-        .initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED,
         .usage          = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
         .sharingMode    = VK_SHARING_MODE_EXCLUSIVE, // Note(Leo): this concerns queue families,
-        .samples        = VK_SAMPLE_COUNT_1_BIT,
-        .flags          = 0,
+        .initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED,
     };
 
     VkImage resultImage = {};
@@ -349,10 +349,17 @@ vulkan::make_texture(VulkanContext * context, TextureAsset * asset)
         .bufferRowLength    = 0,
         .bufferImageHeight  = 0,
 
-        .imageSubresource.aspectMask        = VK_IMAGE_ASPECT_COLOR_BIT,
-        .imageSubresource.mipLevel          = 0,
-        .imageSubresource.baseArrayLayer    = 0,
-        .imageSubresource.layerCount        = 1,
+        .imageSubresource = {
+            .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
+            .mipLevel       = 0,
+            .baseArrayLayer = 0,
+            .layerCount     = 1,
+        },
+
+        // .imageSubresource.aspectMask        = VK_IMAGE_ASPECT_COLOR_BIT,
+        // .imageSubresource.mipLevel          = 0,
+        // .imageSubresource.baseArrayLayer    = 0,
+        // .imageSubresource.layerCount        = 1,
 
         .imageOffset = { 0, 0, 0 },
         .imageExtent = { width, height, 1 },
@@ -372,16 +379,21 @@ vulkan::make_texture(VulkanContext * context, TextureAsset * asset)
         .viewType   = VK_IMAGE_VIEW_TYPE_2D,
         .format     = VK_FORMAT_R8G8B8A8_UNORM,
 
-        .subresourceRange.aspectMask        = VK_IMAGE_ASPECT_COLOR_BIT,
-        .subresourceRange.baseMipLevel      = 0,
-        .subresourceRange.levelCount        = mipLevels,
-        .subresourceRange.baseArrayLayer    = 0,
-        .subresourceRange.layerCount        = 1,
+        .components = {
+            .r = VK_COMPONENT_SWIZZLE_IDENTITY,
+            .g = VK_COMPONENT_SWIZZLE_IDENTITY,
+            .b = VK_COMPONENT_SWIZZLE_IDENTITY,
+            .a = VK_COMPONENT_SWIZZLE_IDENTITY,
+        },
 
-        .components.r = VK_COMPONENT_SWIZZLE_IDENTITY,
-        .components.g = VK_COMPONENT_SWIZZLE_IDENTITY,
-        .components.b = VK_COMPONENT_SWIZZLE_IDENTITY,
-        .components.a = VK_COMPONENT_SWIZZLE_IDENTITY,
+        .subresourceRange = {
+            .aspectMask        = VK_IMAGE_ASPECT_COLOR_BIT,
+            .baseMipLevel      = 0,
+            .levelCount        = mipLevels,
+            .baseArrayLayer    = 0,
+            .layerCount        = 1,
+        },
+
     };
 
     VkImageView resultView = {};
@@ -390,8 +402,8 @@ vulkan::make_texture(VulkanContext * context, TextureAsset * asset)
     VulkanTexture resultTexture =
     {
         .image      = resultImage,
-        .memory     = resultImageMemory,
         .view       = resultView,
+        .memory     = resultImageMemory,
     };
     return resultTexture;
 }
@@ -423,18 +435,18 @@ vulkan::make_texture(VulkanContext * context, u32 width, u32 height, float4 colo
     VkImageCreateInfo imageInfo =
     {
         .sType          = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+        .flags          = 0,
         .imageType      = VK_IMAGE_TYPE_2D,
+        .format         = format,
         .extent         = { width, height, 1 },
         .mipLevels      = mipLevels,
         .arrayLayers    = 1,
-        .format         = format,
 
+        .samples        = VK_SAMPLE_COUNT_1_BIT,
         .tiling         = VK_IMAGE_TILING_OPTIMAL,
-        .initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED,
         .usage          = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
         .sharingMode    = VK_SHARING_MODE_EXCLUSIVE, // Note(Leo): this concerns queue families,
-        .samples        = VK_SAMPLE_COUNT_1_BIT,
-        .flags          = 0,
+        .initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED,
     };
 
     VkImage resultImage = {};
@@ -482,10 +494,12 @@ vulkan::make_texture(VulkanContext * context, u32 width, u32 height, float4 colo
         .bufferRowLength    = 0,
         .bufferImageHeight  = 0,
 
-        .imageSubresource.aspectMask        = VK_IMAGE_ASPECT_COLOR_BIT,
-        .imageSubresource.mipLevel          = 0,
-        .imageSubresource.baseArrayLayer    = 0,
-        .imageSubresource.layerCount        = 1,
+        .imageSubresource = {
+            .aspectMask        = VK_IMAGE_ASPECT_COLOR_BIT,
+            .mipLevel          = 0,
+            .baseArrayLayer    = 0,
+            .layerCount        = 1,
+        },
 
         .imageOffset = { 0, 0, 0 },
         .imageExtent = { width, height, 1 },
@@ -508,16 +522,20 @@ vulkan::make_texture(VulkanContext * context, u32 width, u32 height, float4 colo
         .viewType   = VK_IMAGE_VIEW_TYPE_2D,
         .format     = format,
 
-        .subresourceRange.aspectMask        = VK_IMAGE_ASPECT_COLOR_BIT,
-        .subresourceRange.baseMipLevel      = 0,
-        .subresourceRange.levelCount        = mipLevels,
-        .subresourceRange.baseArrayLayer    = 0,
-        .subresourceRange.layerCount        = 1,
+        .components = {
+            .r = VK_COMPONENT_SWIZZLE_IDENTITY,
+            .g = VK_COMPONENT_SWIZZLE_IDENTITY,
+            .b = VK_COMPONENT_SWIZZLE_IDENTITY,
+            .a = VK_COMPONENT_SWIZZLE_IDENTITY,
+        },
 
-        .components.r = VK_COMPONENT_SWIZZLE_IDENTITY,
-        .components.g = VK_COMPONENT_SWIZZLE_IDENTITY,
-        .components.b = VK_COMPONENT_SWIZZLE_IDENTITY,
-        .components.a = VK_COMPONENT_SWIZZLE_IDENTITY,
+        .subresourceRange = {
+            .aspectMask        = VK_IMAGE_ASPECT_COLOR_BIT,
+            .baseMipLevel      = 0,
+            .levelCount        = mipLevels,
+            .baseArrayLayer    = 0,
+            .layerCount        = 1,
+        },
     };
 
     VkImageView resultView = {};
@@ -526,8 +544,8 @@ vulkan::make_texture(VulkanContext * context, u32 width, u32 height, float4 colo
     VulkanTexture resultTexture =
     {
         .image      = resultImage,
-        .memory     = resultImageMemory,
         .view       = resultView,
+        .memory     = resultImageMemory,
     };
     return resultTexture;
 }
@@ -543,18 +561,18 @@ make_shadow_texture(VulkanContext * context, u32 width, u32 height, VkFormat for
     VkImageCreateInfo imageInfo =
     {
         .sType          = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+        .flags          = 0,
         .imageType      = VK_IMAGE_TYPE_2D,
+        .format         = format,
         .extent         = { width, height, 1 },
         .mipLevels      = mipLevels,
         .arrayLayers    = 1,
-        .format         = format,
 
+        .samples        = VK_SAMPLE_COUNT_1_BIT,
         .tiling         = VK_IMAGE_TILING_OPTIMAL,
-        .initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED,
         .usage          = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
         .sharingMode    = VK_SHARING_MODE_EXCLUSIVE, // Note(Leo): this concerns queue families,
-        .samples        = VK_SAMPLE_COUNT_1_BIT,
-        .flags          = 0,
+        .initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED,
     };
     VkImage resultImage = {};
     VULKAN_CHECK(vkCreateImage(context->device, &imageInfo, nullptr, &resultImage));
@@ -589,11 +607,13 @@ make_shadow_texture(VulkanContext * context, u32 width, u32 height, VkFormat for
 
         .image                  = resultImage,
 
-        .subresourceRange.aspectMask        = VK_IMAGE_ASPECT_DEPTH_BIT, // ||  VK_IMAGE_ASPECT_STENCIL_BIT,
-        .subresourceRange.baseMipLevel      = 0,
-        .subresourceRange.levelCount        = mipLevels,
-        .subresourceRange.baseArrayLayer    = 0,
-        .subresourceRange.layerCount        = 1,
+        .subresourceRange = {
+            .aspectMask        = VK_IMAGE_ASPECT_DEPTH_BIT, // ||  VK_IMAGE_ASPECT_STENCIL_BIT,
+            .baseMipLevel      = 0,
+            .levelCount        = mipLevels,
+            .baseArrayLayer    = 0,
+            .layerCount        = 1,
+        }
     };
 
     VkCommandBuffer cmd = begin_command_buffer(context->device, context->commandPool);
@@ -611,11 +631,13 @@ make_shadow_texture(VulkanContext * context, u32 width, u32 height, VkFormat for
         .viewType   = VK_IMAGE_VIEW_TYPE_2D,
         .format     = format,
 
-        .subresourceRange.aspectMask        = VK_IMAGE_ASPECT_DEPTH_BIT,
-        .subresourceRange.baseMipLevel      = 0,
-        .subresourceRange.levelCount        = mipLevels,
-        .subresourceRange.baseArrayLayer    = 0,
-        .subresourceRange.layerCount        = 1,
+        .subresourceRange = {
+            .aspectMask        = VK_IMAGE_ASPECT_DEPTH_BIT,
+            .baseMipLevel      = 0,
+            .levelCount        = mipLevels,
+            .baseArrayLayer    = 0,
+            .layerCount        = 1,
+        },
 
         // .components.r = VK_COMPONENT_SWIZZLE_IDENTITY,
         // .components.g = VK_COMPONENT_SWIZZLE_IDENTITY,
@@ -629,8 +651,8 @@ make_shadow_texture(VulkanContext * context, u32 width, u32 height, VkFormat for
     VulkanTexture resultTexture =
     {
         .image      = resultImage,
-        .memory     = resultImageMemory,
         .view       = resultView,
+        .memory     = resultImageMemory,
     };
     return resultTexture;
 }
@@ -667,18 +689,18 @@ vulkan::make_cubemap(VulkanContext * context, StaticArray<TextureAsset, 6> * ass
     VkImageCreateInfo imageInfo =
     {
         .sType          = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+        .flags          = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT,
         .imageType      = VK_IMAGE_TYPE_2D,
+        .format         = VK_FORMAT_R8G8B8A8_UNORM,
         .extent         = extent,
         .mipLevels      = mipLevels,
         .arrayLayers    = CUBEMAP_LAYERS,
-        .format         = VK_FORMAT_R8G8B8A8_UNORM,
 
+        .samples        = VK_SAMPLE_COUNT_1_BIT,
         .tiling         = VK_IMAGE_TILING_OPTIMAL,
-        .initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED,
         .usage          = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
         .sharingMode    = VK_SHARING_MODE_EXCLUSIVE, // Note(Leo): this concerns queue families,
-        .samples        = VK_SAMPLE_COUNT_1_BIT,
-        .flags          = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT,
+        .initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED,
     };
 
     VkImage resultImage = {};
@@ -732,10 +754,12 @@ vulkan::make_cubemap(VulkanContext * context, StaticArray<TextureAsset, 6> * ass
         .bufferRowLength    = 0,
         .bufferImageHeight  = 0,
 
-        .imageSubresource.aspectMask        = VK_IMAGE_ASPECT_COLOR_BIT,
-        .imageSubresource.mipLevel          = 0,
-        .imageSubresource.baseArrayLayer    = 0,
-        .imageSubresource.layerCount        = CUBEMAP_LAYERS,
+        .imageSubresource = {
+            .aspectMask        = VK_IMAGE_ASPECT_COLOR_BIT,
+            .mipLevel          = 0,
+            .baseArrayLayer    = 0,
+            .layerCount        = CUBEMAP_LAYERS,
+        },
 
         .imageOffset = { 0, 0, 0 },
         .imageExtent = extent,
@@ -758,16 +782,21 @@ vulkan::make_cubemap(VulkanContext * context, StaticArray<TextureAsset, 6> * ass
         .viewType   = VK_IMAGE_VIEW_TYPE_CUBE,
         .format     = VK_FORMAT_R8G8B8A8_UNORM,
 
-        .subresourceRange.aspectMask        = VK_IMAGE_ASPECT_COLOR_BIT,
-        .subresourceRange.baseMipLevel      = 0,
-        .subresourceRange.levelCount        = mipLevels,
-        .subresourceRange.baseArrayLayer    = 0,
-        .subresourceRange.layerCount        = CUBEMAP_LAYERS,
+        .components = {
+            .r = VK_COMPONENT_SWIZZLE_IDENTITY,
+            .g = VK_COMPONENT_SWIZZLE_IDENTITY,
+            .b = VK_COMPONENT_SWIZZLE_IDENTITY,
+            .a = VK_COMPONENT_SWIZZLE_IDENTITY,
+        },
 
-        .components.r = VK_COMPONENT_SWIZZLE_IDENTITY,
-        .components.g = VK_COMPONENT_SWIZZLE_IDENTITY,
-        .components.b = VK_COMPONENT_SWIZZLE_IDENTITY,
-        .components.a = VK_COMPONENT_SWIZZLE_IDENTITY,
+        .subresourceRange = {
+            .aspectMask        = VK_IMAGE_ASPECT_COLOR_BIT,
+            .baseMipLevel      = 0,
+            .levelCount        = mipLevels,
+            .baseArrayLayer    = 0,
+            .layerCount        = CUBEMAP_LAYERS,
+        },
+
     };
 
     VkImageView resultView = {};
@@ -779,8 +808,8 @@ vulkan::make_cubemap(VulkanContext * context, StaticArray<TextureAsset, 6> * ass
     VulkanTexture resultTexture =
     {
         .image      = resultImage,
-        .memory     = resultImageMemory,
         .view       = resultView,
+        .memory     = resultImageMemory,
     };
     return resultTexture;
 }

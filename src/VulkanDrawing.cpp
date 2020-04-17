@@ -171,8 +171,10 @@ vulkan::finish_drawing(VulkanContext * context)
         .renderPass         = context->shadowPass.renderPass,
         .framebuffer        = context->shadowPass.framebuffer,
         
-        .renderArea.offset  = {0, 0},
-        .renderArea.extent  = {context->shadowPass.width, context->shadowPass.height},
+        .renderArea = {
+            .offset = {0,0},
+            .extent  = {context->shadowPass.width, context->shadowPass.height},
+        },
 
         .clearValueCount    = 1,
         .pClearValues       = &shadowClearValue,
@@ -198,9 +200,11 @@ vulkan::finish_drawing(VulkanContext * context)
         .renderPass         = context->drawingResources.renderPass,
         .framebuffer        = frame->framebuffer,
         
-        .renderArea.offset  = {0, 0},
-        .renderArea.extent  = context->drawingResources.extent,
-
+        .renderArea = {
+            .offset  = {0, 0},
+            .extent  = context->drawingResources.extent,
+        },
+        
         .clearValueCount    = 2,
         .pClearValues       = clearValues,
     };

@@ -78,10 +78,10 @@ vulkan::make_buffer_resource(
     VkBufferCreateInfo bufferInfo =
     { 
         .sType          = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+        .flags          = 0,
         .size           = size,
         .usage          = usage,
         .sharingMode    = VK_SHARING_MODE_EXCLUSIVE,
-        .flags          = 0,
     };
 
     VkBuffer buffer;
@@ -152,8 +152,6 @@ vulkan::query_swap_chain_support(VkPhysicalDevice physicalDevice, VkSurfaceKHR s
         vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surface, &formatCount, result.formats.data());
     }
 
-    // std::cout << "physicalDevice surface formats count: " << formatCount << "\n";
-
     u32 presentModeCount = 0;
     vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, surface, &presentModeCount, nullptr);
 
@@ -207,8 +205,6 @@ vulkan::find_queue_families (VkPhysicalDevice device, VkSurfaceKHR surface)
     VkQueueFamilyProperties queueFamilyProps [50];
     u32 queueFamilyCount = array_count(queueFamilyProps);
     vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilyProps);
-
-    // std::cout << "queueFamilyCount: " << queueFamilyCount << "\n";
 
     bool32 properQueueFamilyFound = false;
     VulkanQueueFamilyIndices result = {};
@@ -383,8 +379,8 @@ vulkan::make_material_vk_descriptor_set_layout(VkDevice device, u32 textureCount
     VkDescriptorSetLayoutBinding binding = 
     {
         .binding             = 0,
-        .descriptorCount     = textureCount,
         .descriptorType      = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+        .descriptorCount     = textureCount,
         .stageFlags          = VK_SHADER_STAGE_FRAGMENT_BIT,
         .pImmutableSamplers  = nullptr,
     };
@@ -443,8 +439,8 @@ vulkan::make_material_vk_descriptor_set(
         .dstSet             = resultSet,
         .dstBinding         = 0,
         .dstArrayElement    = 0,
-        .descriptorType     = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
         .descriptorCount    = textureCount,
+        .descriptorType     = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
         .pImageInfo         = samplerInfos,
     };
 
@@ -485,8 +481,8 @@ vulkan::make_material_vk_descriptor_set(
         .dstSet             = resultSet,
         .dstBinding         = 0,
         .dstArrayElement    = 0,
-        .descriptorType     = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
         .descriptorCount    = 1,
+        .descriptorType     = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
         .pImageInfo         = &samplerInfo,
     };
 
@@ -529,8 +525,8 @@ make_material_vk_descriptor_set_2(
         .dstSet             = resultSet,
         .dstBinding         = 0,
         .dstArrayElement    = 0,
-        .descriptorType     = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
         .descriptorCount    = 1,
+        .descriptorType     = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
         .pImageInfo         = &samplerInfo,
     };
 
@@ -587,20 +583,21 @@ vulkan::make_vk_image( VulkanContext * context,
 {
     VkImageCreateInfo imageInfo = {
         .sType          = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+        .flags          = 0,
 
         .imageType      = VK_IMAGE_TYPE_2D,
-        .initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED,
-        .sharingMode    = VK_SHARING_MODE_EXCLUSIVE, // note(leo): concerning queue families
-        .arrayLayers    = 1,
-
+        .format         = format,
         .extent         = { texWidth, texHeight, 1 },
         .mipLevels      = mipLevels,
-        .format         = format,
+        .arrayLayers    = 1,
+        
+        .samples        = msaaSamples,
         .tiling         = tiling,
         .usage          = usage,
-        .samples        = msaaSamples,
 
-        .flags          = 0,
+        .sharingMode    = VK_SHARING_MODE_EXCLUSIVE, // note(leo): concerning queue families
+        .initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED,
+
     };
 
     VkImage resultImage;
@@ -745,23 +742,25 @@ vulkan::make_vk_sampler(VkDevice device, VkSamplerAddressMode addressMode)
         .sType              = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
         .magFilter          = VK_FILTER_LINEAR,
         .minFilter          = VK_FILTER_LINEAR,
+        .mipmapMode         = VK_SAMPLER_MIPMAP_MODE_LINEAR,
 
         .addressModeU       = addressMode,
         .addressModeV       = addressMode,
         .addressModeW       = addressMode,
 
+        .mipLodBias         = 0.0f,
         .anisotropyEnable   = VK_TRUE,
         .maxAnisotropy      = 16,
 
-        .borderColor                 = VK_BORDER_COLOR_INT_OPAQUE_WHITE,
-        .unnormalizedCoordinates     = VK_FALSE,
-        .compareEnable               = VK_FALSE,
-        .compareOp                   = VK_COMPARE_OP_ALWAYS,
-
-        .mipmapMode         = VK_SAMPLER_MIPMAP_MODE_LINEAR,
+        .compareEnable      = VK_FALSE,
+        .compareOp          = VK_COMPARE_OP_ALWAYS,
+        
         .minLod             = 0.0f,
         .maxLod             = VULKAN_MAX_LOD_FLOAT,
-        .mipLodBias         = 0.0f,
+        
+        .borderColor                 = VK_BORDER_COLOR_INT_OPAQUE_WHITE,
+        .unnormalizedCoordinates     = VK_FALSE,
+
     };
     VkSampler result;
     VULKAN_CHECK(vkCreateSampler(device, &samplerInfo, nullptr, &result));
@@ -834,8 +833,8 @@ winapi::create_vulkan_context(WinAPIWindow * window)
         VkCommandPoolCreateInfo poolInfo =
         {
             .sType              = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-            .queueFamilyIndex   = queueFamilyIndices.graphics,
             .flags              = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
+            .queueFamilyIndex   = queueFamilyIndices.graphics,
         };
         RELEASE_ASSERT(vkCreateCommandPool(context.device, &poolInfo, nullptr, &context.commandPool) == VK_SUCCESS, "");
 
@@ -879,17 +878,20 @@ winapi::create_vulkan_context(WinAPIWindow * window)
     {
         VulkanPipelineLoadInfo linePipelineInfo = 
         {
-            .vertexShaderPath               = "assets/shaders/line_vert.spv",
-            .fragmentShaderPath             = "assets/shaders/line_frag.spv",
+            .vertexShaderPath           = "assets/shaders/line_vert.spv",
+            .fragmentShaderPath         = "assets/shaders/line_frag.spv",
 
-            .options.primitiveType          = platform::RenderingOptions::PRIMITIVE_LINE,
-            .options.lineWidth              = 2.0f,
-            .options.pushConstantSize       = sizeof(float4) * 3,
+            .options = {
+                .pushConstantSize       = sizeof(float4) * 3,
+                .lineWidth              = 2.0f,
 
-            .options.useVertexInput         = false,
-            .options.useSceneLayoutSet      = true,
-            .options.useMaterialLayoutSet   = false,
-            .options.useModelLayoutSet      = false,
+                .primitiveType          = platform::RenderingOptions::PRIMITIVE_LINE,
+
+                .useVertexInput         = false,
+                .useSceneLayoutSet      = true,
+                .useMaterialLayoutSet   = false,
+                .useModelLayoutSet      = false,
+            }
         };
         context.lineDrawPipeline = vulkan::make_pipeline(&context, linePipelineInfo);
 
@@ -897,18 +899,21 @@ winapi::create_vulkan_context(WinAPIWindow * window)
 
         VulkanPipelineLoadInfo guiPipelineInfo =
         {
-            .vertexShaderPath               = "assets/shaders/gui_vert2.spv",
-            .fragmentShaderPath             = "assets/shaders/gui_frag2.spv",
+            .vertexShaderPath           = "assets/shaders/gui_vert2.spv",
+            .fragmentShaderPath         = "assets/shaders/gui_frag2.spv",
 
-            .options.primitiveType          = platform::RenderingOptions::PRIMITIVE_TRIANGLE_STRIP,
-            .options.cullMode               = platform::RenderingOptions::CULL_NONE,
-            .options.pushConstantSize       = sizeof(v2) * 4 + sizeof(float4),
-            .options.textureCount           = 1,
-            .options.useVertexInput         = false,
+            .options = {
+                .textureCount           = 1,
+                .pushConstantSize       = sizeof(v2) * 4 + sizeof(float4),
 
-            .options.useSceneLayoutSet      = false,
-            .options.useMaterialLayoutSet   = true,
-            .options.useModelLayoutSet      = false,
+                .primitiveType          = platform::RenderingOptions::PRIMITIVE_TRIANGLE_STRIP,
+                .cullMode               = platform::RenderingOptions::CULL_NONE,
+
+                .useVertexInput         = false,
+                .useSceneLayoutSet      = false,
+                .useMaterialLayoutSet   = true,
+                .useModelLayoutSet      = false,
+            }
         };
         context.guiDrawPipeline = vulkan::make_pipeline(&context, guiPipelineInfo);
 
@@ -941,7 +946,7 @@ winapi::create_vulkan_context(WinAPIWindow * window)
 
     }
 
-    std::cout << "\n[VULKAN]: Initialized succesfully\n\n";
+    logVulkan() << "Initialized succesfully";
 
     return context;
 }
@@ -964,7 +969,7 @@ winapi::destroy_vulkan_context(VulkanContext * context)
     vkDestroySurfaceKHR (context->instance, context->surface, nullptr);
     vkDestroyInstance   (context->instance, nullptr);
     
-    std::cout << "[VULKAN]: shut down\n";
+    logVulkan() << "Shut down\n";
 }
 
 internal void 
@@ -1206,7 +1211,7 @@ winapi_vulkan_internal_::get_max_usable_msaa_samplecount(VkPhysicalDevice physic
     VkPhysicalDeviceProperties physicalDeviceProperties;
     vkGetPhysicalDeviceProperties(physicalDevice, &physicalDeviceProperties);
 
-    VkSampleCountFlags counts = std::min(
+    VkSampleCountFlags counts = math::min(
             physicalDeviceProperties.limits.framebufferColorSampleCounts,
             physicalDeviceProperties.limits.framebufferDepthSampleCounts
         );
@@ -1272,7 +1277,7 @@ winapi_vulkan_internal_::init_memory(VulkanContext * context)
 internal void
 winapi_vulkan_internal_::init_persistent_descriptor_pool(VulkanContext * context, u32 descriptorCount, u32 maxSets)
 {
-    // Note(Leo): this posr sheds soma light on max set vs descriptorCount confusion.
+    // Note(Leo): this post sheds some light on max set vs descriptorCount confusion.
     // https://www.reddit.com/r/vulkan/comments/8u9zqr/having_trouble_understanding_descriptor_pool/
     VkDescriptorPoolSize poolSize =
     {
@@ -1283,9 +1288,9 @@ winapi_vulkan_internal_::init_persistent_descriptor_pool(VulkanContext * context
     VkDescriptorPoolCreateInfo poolCreateInfo =
     {
         .sType          = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+        .maxSets        = maxSets,
         .poolSizeCount  = 1,
         .pPoolSizes     = &poolSize,
-        .maxSets        = maxSets,
     };
 
     VULKAN_CHECK(vkCreateDescriptorPool(context->device, &poolCreateInfo, nullptr, &context->descriptorPools.persistent));
@@ -1358,8 +1363,8 @@ update_vk_descriptor_buffer(VkDescriptorSet set, VkDevice device, VkDescriptorTy
         .dstSet             = set,
         .dstBinding         = 0,
         .dstArrayElement    = 0,
-        .descriptorType     = type,
         .descriptorCount    = 1,
+        .descriptorType     = type,
         .pBufferInfo        = &bufferInfo,
     };
     vkUpdateDescriptorSets(device, 1, &descriptorWrite, 0, nullptr);
@@ -1377,8 +1382,8 @@ update_vk_descriptor_image( VkDescriptorSet set, VkDevice device, VkDescriptorTy
         .dstSet = set,
         .dstBinding = 0,
         .dstArrayElement = 0,
-        .descriptorType = type,
         .descriptorCount = 1,
+        .descriptorType = type,
         .pImageInfo = &info,
     };
     vkUpdateDescriptorSets(device, 1, &write, 0, nullptr);
@@ -1493,9 +1498,9 @@ winapi_vulkan_internal_::init_material_descriptor_pool(VulkanContext * context)
     VkDescriptorPoolCreateInfo poolCreateInfo = 
     {
         .sType          = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+        .maxSets        = vulkan::MAX_LOADED_TEXTURES,
         .poolSizeCount  = 1,
         .pPoolSizes     = &poolSize,
-        .maxSets        = vulkan::MAX_LOADED_TEXTURES,
     };
 
     VULKAN_CHECK(vkCreateDescriptorPool(context->device, &poolCreateInfo, nullptr, &context->descriptorPools.material));
@@ -1721,20 +1726,20 @@ winapi_vulkan_internal_::init_shadow_pass(VulkanContext * context, u32 width, u3
             .depthClampEnable           = VK_FALSE,
             .rasterizerDiscardEnable    = VK_FALSE,
             .polygonMode                = VK_POLYGON_MODE_FILL,
-            .lineWidth                  = 1.0f,
             .cullMode                   = cullMode,
             .frontFace                  = VK_FRONT_FACE_COUNTER_CLOCKWISE,
             .depthBiasEnable            = VK_FALSE,
             .depthBiasConstantFactor    = 0.0f,
             .depthBiasClamp             = 0.0f,
             .depthBiasSlopeFactor       = 0.0f,
+            .lineWidth                  = 1.0f,
         };
 
         VkPipelineMultisampleStateCreateInfo multisampling =
         {
             .sType                  = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
-            .sampleShadingEnable    = VK_FALSE,
             .rasterizationSamples   = VK_SAMPLE_COUNT_1_BIT,
+            .sampleShadingEnable    = VK_FALSE,
             .minSampleShading       = 1.0f,
             .pSampleMask            = nullptr,
             .alphaToCoverageEnable  = VK_FALSE,
@@ -1749,10 +1754,7 @@ winapi_vulkan_internal_::init_shadow_pass(VulkanContext * context, u32 width, u3
             .logicOp            = VK_LOGIC_OP_COPY,
             .attachmentCount    = 0,
             .pAttachments       = nullptr,
-            .blendConstants[0]  = 0.0f,
-            .blendConstants[1]  = 0.0f,
-            .blendConstants[2]  = 0.0f,
-            .blendConstants[3]  = 0.0f,
+            .blendConstants     = {0, 0, 0, 0},
         };
 
         VkPipelineDepthStencilStateCreateInfo depthStencil =
@@ -1764,12 +1766,13 @@ winapi_vulkan_internal_::init_shadow_pass(VulkanContext * context, u32 width, u3
             .depthCompareOp     = VK_COMPARE_OP_LESS_OR_EQUAL,
 
             .depthBoundsTestEnable  = VK_FALSE,
-            .minDepthBounds         = 0.0f,
-            .maxDepthBounds         = 1.0f,
 
             .stencilTestEnable  = VK_FALSE,
             .front              = {},
             .back               = {},
+          
+            .minDepthBounds     = 0.0f,
+            .maxDepthBounds     = 1.0f,
         };
 
 

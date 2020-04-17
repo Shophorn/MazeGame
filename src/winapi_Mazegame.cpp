@@ -105,11 +105,11 @@ Run(HINSTANCE hInstance)
 
         if (powerStatus.ACLineStatus == AC_ONLINE)
         {
-            std::cout << "Power detected\n";
+            logSystem() << "Power detected";
         }
         else
         {
-            std::cout << "No power detected\n";
+            logSystem() << "No power detected";
         }
 
         s32 gameUpdateRate = targetFrameTimeThreshold;
@@ -130,7 +130,7 @@ Run(HINSTANCE hInstance)
         }
         targetFrameTime = 1.0f / gameUpdateRate;
         
-        std::cout << "Target frame time = " << targetFrameTime << ", (fps = " << 1.0 / targetFrameTime << ")\n";
+        logSystem() << "Target frame time = " << targetFrameTime << ", (fps = " << 1.0 / targetFrameTime << ")";
     }
     
     VulkanContext vulkanContext = winapi::create_vulkan_context(&window);
@@ -188,6 +188,8 @@ Run(HINSTANCE hInstance)
     // Note(Leo): Only load game dynamically in development.
     winapi::Game game = {};
     winapi::load_game(&game);
+    logSystem() << "Game dll loaded";
+
 
     ////////////////////////////////////////////////////
     ///             MAIN LOOP                        ///
@@ -199,6 +201,7 @@ Run(HINSTANCE hInstance)
     while(gameIsRunning)
     {
 
+
         /// ----- START TIME -----
         auto currentTimeMark = std::chrono::high_resolution_clock::now();
         double frameStartTime = std::chrono::duration<double, std::chrono::seconds::period>(currentTimeMark - startTimeMark).count();
@@ -207,13 +210,14 @@ Run(HINSTANCE hInstance)
         FILETIME dllLatestWriteTime = get_file_write_time(GAMECODE_DLL_FILE_NAME);
         if (CompareFileTime(&dllLatestWriteTime, &game.dllWriteTime) > 0)
         {
-            std::cout << "Attempting to reload game\n";
+            logSystem() << "Attempting to reload game";
 
             winapi::unload_game(&game);
             winapi::load_game(&game);
 
-            std::cout << "Reloaded game\n";
+            logSystem() << "Reloaded game";
         }
+
 
         /// ----- HANDLE INPUT -----
         {
@@ -254,13 +258,14 @@ Run(HINSTANCE hInstance)
             gameInput.elapsedTime = targetFrameTime;
         }
 
+
         /// ----- PRE-UPDATE NETWORK PASS -----
         {
             // Todo(Leo): just quit now if some unhandled network error occured
             if (networkIsRuined)
             {
                 auto error = WSAGetLastError();
-                std::cout << "NETWORK failed: " << WinSocketErrorString(error) << " (" << error << ")\n"; 
+                logNetwork() << "failed: " << WinSocketErrorString(error) << " (" << error << ")"; 
                 break;
             }
 
@@ -275,14 +280,17 @@ Run(HINSTANCE hInstance)
             gameNetwork.isConnected = network.isConnected;
         }
 
+
         /// --------- UPDATE GAME -------------
         // Note(Leo): Game is not updated when window is not drawable.
         if (winapi::is_window_drawable(&window))
         {
 
+
             platform::SoundOutput gameSoundOutput = {};
             winapi::GetAudioBuffer(&audio, &gameSoundOutput.sampleCount, &gameSoundOutput.samples);
             
+
             switch(platform::prepare_frame(&vulkanContext))
             {
                 case platform::FRAME_OK:
@@ -308,14 +316,15 @@ Run(HINSTANCE hInstance)
 
             }
 
+
             winapi::ReleaseAudioBuffer(&audio, gameSoundOutput.sampleCount);
             // Note(Leo): It doesn't so much matter where this is checked.
             if (window.shouldClose)
             {
                 gameIsRunning = false;
             }
-        }
 
+        }
 
 
         // ----- POST-UPDATE NETWORK PASS ------
@@ -325,6 +334,7 @@ Run(HINSTANCE hInstance)
             networkNextSendTime = frameStartTime + networkSendDelay;
             winapi::NetworkSend(&network, &gameNetwork.outPackage);
         }
+
 
         /// ----- WAIT FOR TARGET FRAMETIME -----
         {
@@ -368,7 +378,7 @@ Run(HINSTANCE hInstance)
         /* TODO(Leo): If there are multiple of these it means we had crash previously
         and want to reset this. This should be handled betterly though.... :( */
         timeEndPeriod(deviceMinSchedulerGranularity);
-        std::cout << "[WINDOWS]: shut down\n";
+        logWindow() << "shut down\n";
     }
 }
 
@@ -392,19 +402,48 @@ f32 difference(TimePoint first, TimePoint second)
     return t;
 }
 */
-int CALLBACK
-WinMain(
-    HINSTANCE   hInstance,
-    HINSTANCE   previousWinInstance,
-    LPSTR       cmdLine,
-    int         showCommand)
+// int CALLBACK
+// WinMain(
+//     HINSTANCE   hInstance,
+//     HINSTANCE   previousWinInstance,
+//     LPSTR       cmdLine,
+//     int         showCommand)
+// {
+
+int main()
 {
+
+
+    // // logDebug(0) << "Hello from start";
+    std::cout << "Hello from start";
+
+    // auto file = std::ofstream("log.txt");
+    // file << "hello file";
+    // return 0;
+
     /* Todo(Leo): we should make a decision about how we handle errors etc.
     Currently there are exceptions (which lead here) and asserts mixed ;)
 
     Maybe, put a goto on asserts, so they would come here too? */
+        auto debugFile = std::ofstream("logs/debug.txt");
+        logDebug.output     = &debugFile;
+        logDebug.output     = &debugFile;
+        logAnim.output      = &debugFile;
+        logVulkan.output    = &debugFile;
+        logWindow.output    = &debugFile;
+        logSystem.output    = &debugFile;
+        logNetwork.output   = &debugFile;
+
+        // system("pause");
+
+        // logDebug(0) << "Hello again debug file";
+        // // return EXIT_SUCCESS;
+
+
     try {
-        Run(hInstance);
+
+        HMODULE module = GetModuleHandle(nullptr);
+        Run(module);
     } catch (const std::exception& e) {
         std::cerr << e.what() << std::endl;
         return EXIT_FAILURE;

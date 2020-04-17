@@ -138,8 +138,8 @@ unload_scene(	GameState * state,
 /* Note(Leo): return whether or not game still continues
 Todo(Leo): indicate meaning of return value betterly somewhere, I almost forgot it.
 */
-extern "C" bool32
-update_game(
+extern "C" __declspec(dllexport)  
+bool32 update_game(
 	game::Input * 			input,
 	platform::Memory * 		memory,
 	game::Network *			network,
@@ -233,3 +233,6 @@ update_game(
 	return gameIsAlive;
 }
 
+
+// Note(Leo): This makes sure we have actually defined this correctly.
+static_assert(std::is_same_v<GameUpdateFunc, decltype(update_game)>);

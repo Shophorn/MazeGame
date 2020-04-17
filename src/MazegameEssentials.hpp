@@ -6,6 +6,9 @@ Common essentials used all around in :MAZEGAME: project
 
 #if !defined MAZEGAME_ESSENTIALS_HPP
 
+#undef min
+#undef max
+
 // SEARCHABILITY BOOST
 #define local_persist static
 #define global_variable static

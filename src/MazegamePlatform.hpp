@@ -67,13 +67,9 @@ namespace platform
 
 	struct RenderingOptions
 	{
-	    bool32 	enableDepth 		= true;
-	    bool32 	clampDepth 			= false;
-	    s32 	textureCount 		= 0;
-	    u32		pushConstantSize 	= 0;
-
-	    float 	lineWidth 			= 1.0f;
-	    bool32	useVertexInput		= true;
+	    s32 textureCount 		= 0;
+	    u32	pushConstantSize 	= 0;
+	    f32 lineWidth 			= 1.0f;
 
 	    enum {
 	    	PRIMITIVE_LINE,
@@ -87,10 +83,14 @@ namespace platform
 	    	CULL_NONE
 	    } cullMode = CULL_BACK;
 
-	    bool32 useSceneLayoutSet 	= true;
-	    bool32 useMaterialLayoutSet = true;
-	    bool32 useModelLayoutSet 	= true;
-	    bool32 useLighting			= true;
+
+	    bool8 enableDepth 			= true;
+	    bool8 clampDepth 			= false;
+	    bool8 useVertexInput		= true;
+	    bool8 useSceneLayoutSet 	= true;
+	    bool8 useMaterialLayoutSet  = true;
+	    bool8 useModelLayoutSet 	= true;
+	    bool8 useLighting			= true;
 	};
 
 	/* 
@@ -301,18 +301,16 @@ namespace std
 
 #endif
 
-// TODO(Leo): can we put this into namespace? Should we?
-extern "C" bool32
-update_game(
-	game::Input * 			input,
-	platform::Memory * 		memory,
-	game::Network *			network,
-	platform::SoundOutput *	soundOutput,
+using GameUpdateFunc = bool32(	game::Input*,
+								platform::Memory*,
+								game::Network*,
+								platform::SoundOutput*,
 
-	// Are these understandable enough?
-	platform::Graphics*,
-	platform::Window*,
-	platform::Functions*);
+								platform::Graphics*,
+								platform::Window*,
+								platform::Functions*);
+
+
 
 #define MAZEGAME_PLATFORM_HPP
 #endif
