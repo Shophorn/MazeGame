@@ -13,7 +13,7 @@ struct Array
 	Array & operator= (Array && old)
 	{
 		// TODO(Leo): IMPORTANT we must do this, but first we need a debugger to find out where it fails
-		// assert(this->memory_ == nullptr);
+		Assert(this->memory_ == nullptr);
 
 		this->memory_ 	= old.memory_;
 		this->capacity_ = old.capacity_;
@@ -54,14 +54,14 @@ struct Array
 
 	T & operator[] (u64 index)
 	{ 
-		assert(index < count_);
+		Assert(index < count_);
 		return memory_[index];
 	}
 
 	// Todo(Leo): use enable if to make a version of this to return value for simpler types
 	T const & operator[] (u64 index) const
 	{ 
-		assert(index < count_);
+		Assert(index < count_);
 		return memory_[index];
 	}
 
@@ -106,7 +106,7 @@ Array<T>::Array(Array<T> && old) : 	memory_(old.memory_),
 template<typename T>
 void Array<T>::push(T value)
 {
-	assert(count_ < capacity_);
+	Assert(count_ < capacity_);
 	memory_[count_] = std::move(value);
 	++count_;
 }

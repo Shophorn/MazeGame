@@ -11,12 +11,11 @@ struct RenderSystemEntry
 
 internal void
 update_render_system(	Array<RenderSystemEntry> const & entries,
-						platform::Graphics * graphics,
-						platform::Functions * functions)
+						platform::Graphics * graphics)
 {
 	for (auto entry : entries)
 	{
-		functions->draw_model(	graphics,
+		platformApi->draw_model(	graphics,
 								entry.model,
 								get_matrix(*entry.transform),
 								entry.castShadows,
@@ -34,12 +33,11 @@ struct AnimatedRenderer
 
 internal void
 render_animated_models(	Array<AnimatedRenderer> const & entries,
-						platform::Graphics * graphics,
-						platform::Functions * functions)
+						platform::Graphics * graphics)
 {
 	for (auto const & entry : entries)
 	{
-		functions->draw_model( 	graphics,
+		platformApi->draw_model( 	graphics,
 								entry.model,
 								get_matrix(*entry.transform),
 								entry.castShadows,

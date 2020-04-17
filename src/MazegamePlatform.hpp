@@ -9,35 +9,22 @@ Interface definition between Platform and Game.
 #define MAZEGAME_INCLUDE_STD_IOSTREAM 1
 #include <iostream>
 
+#include "MazegameEssentials.hpp"
+#include "Logging.cpp"
+
+
+
 #if MAZEGAME_DEVELOPMENT
-	#include <cassert>
-
-	#if MAZEGAME_INCLUDE_STD_IOSTREAM
-	void PrintAssert(const char * file, int line, const char * message, const char * expression = nullptr)
-	{
-		std::cout << "Assertion failed [" << file << ":" << line << "]: \"" << message << "\"";
-			
-		if (expression)
-			std::cout << ", expression (" << expression << ")";
-
-		std::cout << "\n" << std::flush;
-	}
-	#endif
-
-	#define DEBUG_ASSERT(expr, msg) if (!(expr)) { PrintAssert(__FILE__, __LINE__, msg, #expr); abort(); }
+	#define Assert(expr) if (!(expr)) { logDebug(0) << FILE_ADDRESS << "Assertion failed: " << #expr; abort(); }
+	#define DEBUG_ASSERT(expr, msg) if (!(expr)) { logDebug(0) << FILE_ADDRESS << "Assertion failed: " << msg << "(" << #expr << ")"; abort(); }
 
 	// Note(Leo): Some things need to asserted in production too, this is a reminder for those only.
 	#define RELEASE_ASSERT DEBUG_ASSERT
-
-
 #endif
-
-#include "MazegameEssentials.hpp"
 
 #include "CStringUtility.cpp"
 #include "SmallString.cpp"
 	
-#include "Logging.cpp"
 
 /* Note(Leo): This is called 'Unity-build'. Basically import all things in single
 translation unit(??) to reduce pressure on linker and enable more optimizations.
@@ -51,10 +38,8 @@ needs to be specified for compiler. */
 #include "Memory.cpp"
 #include "Assets.cpp"
 
-
 #include "Camera.cpp"
 #include "Light.cpp"
-
 
 namespace platform
 {
@@ -308,7 +293,9 @@ using GameUpdateFunc = bool32(	game::Input*,
 
 								platform::Graphics*,
 								platform::Window*,
-								platform::Functions*);
+								platform::Functions*,
+
+								std::ofstream * logFile);
 
 
 

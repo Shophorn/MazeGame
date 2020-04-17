@@ -47,7 +47,6 @@ if compiler == 'clang++':
 	libPath 	= "-LC:/VulkanSDK/1.1.108.0/Lib"
 	libLinks	= "-lvulkan-1 -luser32 -lgdi32 -lws2_32 -lole32 -lwinmm"
 
-	# compiler_path = "C:/Programs/LLVM/bin/clang++"
 	compiler_path = "clang++"
 
 	### COMPILE PLATFORM LAYER

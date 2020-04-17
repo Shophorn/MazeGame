@@ -407,6 +407,8 @@ void update_skeleton_animator(AnimatedSkeleton & skeleton, Animation const ** an
 			continue;
 		}
 
+		logDebug() << relativeWeight << ", " << totalAppliedWeight << ", " << animationWeight;
+
 		// ------------------------------------------------------------------------
 
 		for (s32 boneIndex = 0; boneIndex < bones.count(); ++boneIndex)

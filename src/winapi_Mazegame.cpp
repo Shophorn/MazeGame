@@ -19,6 +19,8 @@ Windows platform layer for mazegame
 #include <fstream>
 #include <chrono>
 
+
+
 // TODO(Leo): Make sure that arrays for getting extensions ana layers are large enough
 // TOdo(Leo): Combine to fewer functions and remove throws, instead returning specific enum value
 
@@ -71,6 +73,23 @@ read_binary_file (const char * fileName)
 internal void
 Run(HINSTANCE hInstance)
 {
+    SYSTEMTIME time_;
+    GetLocalTime(&time_);
+
+    SmallString timestamp   = make_timestamp(time_.wHour, time_.wMinute, time_.wSecond);
+    auto logFileName        = SmallString("logs/log_").append(timestamp).append(".txt");
+
+    auto logFile = std::ofstream(logFileName.data());
+    logFile << "Testing A\n";
+
+    logDebug.output     = &logFile;
+    logAnim.output      = &logFile;
+    logVulkan.output    = &logFile;
+    logWindow.output    = &logFile;
+    logSystem.output    = &logFile;
+    logNetwork.output   = &logFile;
+
+
     winapi::State state = {};
     load_xinput();
 
@@ -153,7 +172,7 @@ Run(HINSTANCE hInstance)
         };
         platform::set_functions(&vulkanContext, &state.platformFunctions);
 
-        assert(all_functions_set(&state.platformFunctions));
+        Assert(all_functions_set(&state.platformFunctions));
     }
 
     // ------- MEMORY ---------------------------
@@ -170,7 +189,7 @@ Run(HINSTANCE hInstance)
     #else
         gameMemory.memory = VirtualAlloc(nullptr, gameMemory.size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
     #endif
-        assert(gameMemory.memory != nullptr);
+        Assert(gameMemory.memory != nullptr);
     }
 
     // -------- INITIALIZE NETWORK ---------
@@ -299,7 +318,8 @@ Run(HINSTANCE hInstance)
                                                 
                                                 &vulkanContext,
                                                 &window,
-                                                &state.platformFunctions);
+                                                &state.platformFunctions,
+                                                &logFile);
 
                     // vulkan::draw_frame(&vulkanContext);
                     break;
@@ -412,34 +432,10 @@ f32 difference(TimePoint first, TimePoint second)
 
 int main()
 {
-
-
-    // // logDebug(0) << "Hello from start";
-    std::cout << "Hello from start";
-
-    // auto file = std::ofstream("log.txt");
-    // file << "hello file";
-    // return 0;
-
     /* Todo(Leo): we should make a decision about how we handle errors etc.
     Currently there are exceptions (which lead here) and asserts mixed ;)
 
     Maybe, put a goto on asserts, so they would come here too? */
-        auto debugFile = std::ofstream("logs/debug.txt");
-        logDebug.output     = &debugFile;
-        logDebug.output     = &debugFile;
-        logAnim.output      = &debugFile;
-        logVulkan.output    = &debugFile;
-        logWindow.output    = &debugFile;
-        logSystem.output    = &debugFile;
-        logNetwork.output   = &debugFile;
-
-        // system("pause");
-
-        // logDebug(0) << "Hello again debug file";
-        // // return EXIT_SUCCESS;
-
-
     try {
 
         HMODULE module = GetModuleHandle(nullptr);

@@ -72,12 +72,12 @@ update_scene_gui(	SceneGui * gui,
 			switch (gui->selectedIndex)
 			{
 				case 0: 
-					std::cout << "Continue Game\n";
+					logDebug() << "Continue Game\n";
 					gameMenuResult = SCENE_CONTINUE;
 					break;
 				
 				case 1:
-					std::cout << "Quit to menu\n";
+					logDebug() << "Quit to menu\n";
 					gameMenuResult = SCENE_EXIT;
 					break;
 			}

@@ -1021,7 +1021,7 @@ winapi_vulkan_internal_::create_vk_instance()
     };
 
     // Note(Leo): If validation is enable, check support
-    assert (!vulkan::enableValidationLayers || CheckValidationLayerSupport());
+    Assert (!vulkan::enableValidationLayers || CheckValidationLayerSupport());
 
     VkApplicationInfo appInfo = {};
     appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;

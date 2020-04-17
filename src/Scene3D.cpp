@@ -13,7 +13,7 @@ Scene description for 3d development scene
 void update_animated_renderer(AnimatedRenderer & renderer, Array<Bone> const & skeleton)
 {
 	// Todo(Leo): Make more sensible structure that keeps track of this
-	assert(skeleton.count() == renderer.bones.count());
+	Assert(skeleton.count() == renderer.bones.count());
 
 	u32 boneCount = skeleton.count();
 
@@ -101,13 +101,12 @@ Scene3d::update(	void * 					scenePtr,
 						input,
 						&scene->worldCamera,
 						&scene->collisionSystem,
-						graphics,
-						functions);
+						graphics);
 	update_camera_controller(&scene->cameraController, input);
 
 	// Rendering section
-    update_camera_system(&scene->worldCamera, input, graphics, window, functions);
-	update_render_system(scene->renderSystem, graphics, functions);
+    update_camera_system(&scene->worldCamera, input, graphics, window);
+	update_render_system(scene->renderSystem, graphics);
 
 
 	auto & character = scene->characterController;
@@ -125,7 +124,7 @@ Scene3d::update(	void * 					scenePtr,
 	// }
 
 	update_animated_renderer(scene->animatedRenderers[0], character.skeleton.bones);
-	render_animated_models(scene->animatedRenderers, graphics, functions);
+	render_animated_models(scene->animatedRenderers, graphics);
 
 	// ------------------------------------------------------------------------
 

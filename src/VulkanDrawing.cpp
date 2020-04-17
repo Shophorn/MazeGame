@@ -156,7 +156,7 @@ vulkan::prepare_drawing(VulkanContext * context)
 void
 vulkan::finish_drawing(VulkanContext * context)
 {
-    assert(context->canDraw);
+    Assert(context->canDraw);
     context->canDraw = false;
 
     VulkanVirtualFrame * frame = get_current_virtual_frame(context);
@@ -261,7 +261,7 @@ vulkan::finish_drawing(VulkanContext * context)
 void
 vulkan::record_draw_command(VulkanContext * context, ModelHandle model, m44 transform, bool32 castShadow, m44 const * bones, u32 bonesCount)
 {
-    assert(context->canDraw);
+    Assert(context->canDraw);
 
     /* Todo(Leo): Get rid of these, we can just as well get them directly from user.
     That is more flexible and then we don't need to save that data in multiple places. */
@@ -273,7 +273,7 @@ vulkan::record_draw_command(VulkanContext * context, ModelHandle model, m44 tran
 
     context->currentUniformBufferOffset += uniformBufferSize;
 
-    assert(context->currentUniformBufferOffset <= context->modelUniformBuffer.size);
+    Assert(context->currentUniformBufferOffset <= context->modelUniformBuffer.size);
 
     ModelUniformBuffer * pBuffer;
 
@@ -283,7 +283,7 @@ vulkan::record_draw_command(VulkanContext * context, ModelHandle model, m44 tran
     pBuffer->localToWorld = transform;
     pBuffer->isAnimated = bonesCount;
 
-    assert(bonesCount <= array_count(pBuffer->bonesToLocal));    
+    Assert(bonesCount <= array_count(pBuffer->bonesToLocal));    
     memcpy(pBuffer->bonesToLocal, bones, sizeof(m44) * bonesCount);
 
     vkUnmapMemory(context->device, context->modelUniformBuffer.memory);

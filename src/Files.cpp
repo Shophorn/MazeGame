@@ -5,6 +5,8 @@ File things.
 =============================================================================*/
 #include <fstream>
 
+
+
 namespace glTF
 {
 	// https://github.com/KhronosGroup/glTF/tree/master/specification/2.0
@@ -70,7 +72,7 @@ namespace glTF
 		if (cstring_equals(word, "MAT3")) 	return 9;
 		if (cstring_equals(word, "MAT4")) 	return 16;
 
-		assert(false);
+		Assert(false);
 		return -1;
 	}
 
@@ -106,8 +108,8 @@ libraries.
 #undef internal
 
 // Todo(Leo): Move this to platform side, so we do not need to link against anything in game code
+#define RAPIDJSON_ASSERT(expr) Assert(expr)
 #include <rapidjson/document.h>
-#include <string>
 
 #define internal static
 #endif
@@ -172,7 +174,7 @@ read_gltf_file(MemoryArena & memoryArena, char const * filename)
 	
 	{
 		auto chunkType = convert_bytes<glTF::ChunkType>(memory.data(), jsonChunkOffset + glTF::chunkTypePosition);
-		assert(chunkType == glTF::CHUNK_TYPE_JSON);
+		Assert(chunkType == glTF::CHUNK_TYPE_JSON);
 	}
 
 	char const * start = reinterpret_cast<char const *>(memory.data()) + jsonChunkOffset + glTF::chunkInfoLength;
@@ -186,7 +188,7 @@ read_gltf_file(MemoryArena & memoryArena, char const * filename)
 	u64 binaryChunkOffset = glTF::headerLength + glTF::chunkInfoLength + jsonChunkLength;
 	{
 		auto chunkType = convert_bytes<glTF::ChunkType>(memory.data(), binaryChunkOffset + glTF::chunkTypePosition);
-		assert(chunkType == glTF::CHUNK_TYPE_BINARY);
+		Assert(chunkType == glTF::CHUNK_TYPE_BINARY);
 	}
 
 	// ----------------------------------------------------------------------------------------------------------------
@@ -204,10 +206,10 @@ read_gltf_file(MemoryArena & memoryArena, char const * filename)
 	}
 
 	// Note(Leo): Assert these once here, so we don't have to do that in every call hereafter.
-	assert(file.json.HasMember("nodes"));
-	assert(file.json.HasMember("accessors"));
-	assert(file.json.HasMember("bufferViews"));
-	assert(file.json.HasMember("buffers"));
+	Assert(file.json.HasMember("nodes"));
+	Assert(file.json.HasMember("accessors"));
+	Assert(file.json.HasMember("bufferViews"));
+	Assert(file.json.HasMember("buffers"));
 
 	return file;
 }

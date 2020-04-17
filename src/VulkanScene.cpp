@@ -197,7 +197,7 @@ vulkan_scene_internal_::cmd_generate_mip_maps(  VkCommandBuffer commandBuffer,
     vkGetPhysicalDeviceFormatProperties(physicalDevice, imageFormat, &formatProperties);
 
     // Note(Leo): Texture image format does not support blitting
-    assert(formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT);
+    Assert(formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT);
 
     VkImageMemoryBarrier barrier = { VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER };
     barrier.image = image;

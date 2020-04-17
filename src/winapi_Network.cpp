@@ -75,14 +75,14 @@ winapi::CreateNetwork()
     network.connectedSocket = socket(AF_INET, SOCK_STREAM, 0);
 
     SOCKADDR_IN ownAddress;
-    assert(inet_pton(AF_INET, networkOwnIpAddress, &ownAddress.sin_addr.s_addr));
+    Assert(inet_pton(AF_INET, networkOwnIpAddress, &ownAddress.sin_addr.s_addr));
     // ownAddress.sin_addr.s_addr = inet_addr(networkOwnIpAddress); 
     ownAddress.sin_family = AF_INET;
     ownAddress.sin_port = htons(444);
     s32 ownAddressLength = sizeof(ownAddress);
 
     SOCKADDR_IN otherAddress;
-    assert(inet_pton(AF_INET, networkOtherIpAddress, &otherAddress.sin_addr.s_addr));
+    Assert(inet_pton(AF_INET, networkOtherIpAddress, &otherAddress.sin_addr.s_addr));
     // otherAddress.sin_addr.s_addr = inet_addr(networkOtherIpAddress); 
     otherAddress.sin_family = AF_INET;
     otherAddress.sin_port = htons(444);

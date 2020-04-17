@@ -112,7 +112,7 @@ quaternion::euler_angles(float eulerX, float eulerY, float eulerZ)
 
 quaternion quaternion::inverse() const
 {
-	assert(this->is_unit_quaternion());
+	Assert(this->is_unit_quaternion());
 
 	quaternion result = { -x, -y, -z, w };
 	return result;
@@ -167,8 +167,15 @@ quaternion interpolate(quaternion from, quaternion to, float t)
 {
 	using namespace vector;
 
-	assert(from.x == from.x && from.y == from.y && from.z == from.z && from.w == from.w && "probably a nan");
-	assert(to.x == to.x && to.y == to.y && to.z == to.z && to.w == to.w && "probably a nan");
+	// Assert(t == t && "probably a nan");
+	if (t < 0 || t > 1)
+	{
+		logDebug(0) << "häx";
+		Assert(false);
+
+	}
+	Assert(from.x == from.x && from.y == from.y && from.z == from.z && from.w == from.w && "probably a nan");
+	Assert(to.x == to.x && to.y == to.y && to.z == to.z && to.w == to.w && "probably a nan");
 
 
 	// Note(Leo): This ensures that rotation takes the shorter path
@@ -206,9 +213,9 @@ quaternion interpolate(quaternion from, quaternion to, float t)
 		else
 		{
 			logDebug(0) << "invalid interpolate quaternion, from: " << from << ", to: " << to << ", t: " << t;
-			assert(false);
+			Assert(false);
 		}
-		// assert(result.x == result.x && result.y == result.y && result.z == result.z && result.w == result.w && "probably a nan");
+		// Assert(result.x == result.x && result.y == result.y && result.z == result.z && result.w == result.w && "probably a nan");
 		return result.normalized();
 	}
 
@@ -247,7 +254,7 @@ quaternion quaternion::normalized() const
 							z / magnitude_,
 							w / magnitude_};
 
-	assert(result.x == result.x && result.y == result.y && result.z == result.z && result.w == result.w && "probably a nan");
-	assert(result.is_unit_quaternion());
+	Assert(result.x == result.x && result.y == result.y && result.z == result.z && result.w == result.w && "probably a nan");
+	Assert(result.is_unit_quaternion());
 	return result;
 }

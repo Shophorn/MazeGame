@@ -97,6 +97,7 @@ get_view_transform(Camera const * camera)
 
 v3 get_forward(Camera const * camera)
 {
+	Assert(math::distance(camera->direction.square_magnitude(), 1.0f) < 0.00001f);
 	return camera->direction;
 }
 

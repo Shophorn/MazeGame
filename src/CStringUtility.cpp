@@ -17,7 +17,7 @@ compare_cstring(char const * lhs, char const * rhs)
 		return 1;
 
 
-	assert(false);
+	Assert(false);
 
 	return 0;
 }

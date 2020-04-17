@@ -25,7 +25,7 @@ Transform3D Transform3D::identity()
 Transform3D interpolate(Transform3D const & lhs, Transform3D const & rhs, float t)
 {
 	// Note(Leo): Transforms should not store hierarchy themselves, interpolating does not support that
-	assert(lhs.parent == nullptr && rhs.parent == nullptr);
+	Assert(lhs.parent == nullptr && rhs.parent == nullptr);
 
 	Transform3D result = {};
 	result.position = vector::interpolate(lhs.position, rhs.position, t);

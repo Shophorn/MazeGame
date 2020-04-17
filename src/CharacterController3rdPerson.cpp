@@ -74,11 +74,11 @@ struct CharacterController3rdPerson
 	f32 minLandingDepthZSpeed = 2.0f;
 	f32 maxLandingDepthZSpeed = 8.0f;
 
-	f32 currentSpeed;
+	f32 currentSpeed = 0;
 	/* Note(Leo): As in change of velocity per time unit. These probably
 	should be kept at values relative to max speed */ 
-	f32 acceleration = 2.0f * runSpeed;
-	f32 deceleration = -4.0f * runSpeed;
+	f32 acceleration = 1.0f * runSpeed;
+	f32 deceleration = -2.0f * runSpeed;
 };
 
 internal CharacterController3rdPerson
@@ -94,30 +94,29 @@ make_character(Transform3D * transform)
 internal v3
 process_player_input(game::Input const * input, Camera const * camera)
 {
-	v3 viewForward = get_forward(camera);
-	viewForward.z 		= 0;
-	viewForward 		= viewForward.normalized();
+	v3 viewForward 	= get_forward(camera);
+	viewForward.z 	= 0;
+	viewForward 	= viewForward.normalized();
 	v3 viewRight 	= vector::cross(viewForward, world::up);
+	v3 result 		= viewRight * input->move.x + viewForward * input->move.y;
 
-	v3 result = viewRight * input->move.x
-					+ viewForward * input->move.y;
+	logDebug(0) << "input move: " <<  input->move;
 
 	return result;
 }
 
 void
-update_character(	
-		CharacterController3rdPerson & 	character,
-		game::Input * 					input,
-		Camera * 						worldCamera,
-		CollisionSystem3D *				collisionSystem,
-		platform::Graphics * 	graphics,
-		platform::Functions * 	functions)
+update_character( 	CharacterController3rdPerson & 	character,
+					game::Input * 					input,
+					Camera * 						worldCamera,
+					CollisionSystem3D *				collisionSystem,
+					platform::Graphics * 			graphics)
 {
 	v3 inputVector = process_player_input(input, worldCamera);
 
 	f32 inputMagnitude = inputVector.magnitude();
-
+	logDebug() << inputVector << ", " << inputMagnitude;
+	Assert(inputMagnitude == inputMagnitude);
 
 	v4 gizmoColor = {0,0,0,1};
 
@@ -135,10 +134,13 @@ update_character(
 
 	auto override_weight = [&weights](AnimationType animation, f32 value)
 	{
+		Assert(-0.00001f <= value && value <= 1.00001f);
 		for (int i = 0; i < ANIMATION_COUNT; ++i)
 		{
+			f32 weightBefore = weights[i];
 			weights[i] *= 1 - value;
 
+			Assert(-0.00001f <= weights[i] && weights[i] <= 1.00001f);
 			if (i == animation)
 			{
 				weights[i] += value;
@@ -162,53 +164,82 @@ update_character(
 
 	f32 speed = 0;
 
+	// -------------------------------------------------
+	// Update speeds
+	// -------------------------------------------------
+
 	if (inputMagnitude < walkMinInput)
 	{
-		weights[IDLE] 	= 1 * (1 - crouchPercent);
-		weights[CROUCH] = 1 * crouchPercent;
 		speed 			= 0;
-
 		gizmoColor 		= {0, 0, 1, 1};
 	}
 	else if (inputMagnitude < walkMaxInput)
 	{
 		f32 t = (inputMagnitude - walkMinInput) / idleToWalkRange;
-
-		weights[IDLE] 	= (1 - t) * (1 - crouchPercent);
-		weights[CROUCH] = (1 - t) * crouchPercent;
-		weights[WALK] 	= t;
 		speed 			= interpolate(0, character.walkSpeed, t);
-
 		f32 crouchValue = character.crouchPercent.value;
 		speed *= (1 - crouchValue * crouchOverridePowerForSpeed);
-		override_weight(CROUCH, crouchValue * crouchOverridePowerForAnimation);
-
 		gizmoColor 		= {1, 0, 0, 1};
 	}
 	else if (inputMagnitude < runMinInput)
 	{
-		weights[WALK] 	= 1;
 		speed 			= character.walkSpeed;
-
 		f32 crouchValue = character.crouchPercent.value;
 		speed *= (1 - crouchValue * crouchOverridePowerForSpeed);
-		override_weight(CROUCH, crouchValue * crouchOverridePowerForAnimation);
-
 		gizmoColor 		= {1, 1, 0, 1};
 	}
 	else
 	{
 		f32 t = (inputMagnitude - runMinInput) / walkToRunRange;
+		speed 			= interpolate (character.walkSpeed, character.runSpeed, t);
+		f32 crouchValue = character.crouchPercent.value;
+		speed *= (1 - crouchValue * crouchOverridePowerForSpeed);
+		gizmoColor = {0, 1, 0, 1};
+	}
+
+	if (speed > character.currentSpeed)
+	{
+		character.currentSpeed += character.acceleration * input->elapsedTime;
+		character.currentSpeed = math::min(character.currentSpeed, speed);
+	}
+	else if (speed < character.currentSpeed)
+	{
+		character.currentSpeed += character.deceleration * input->elapsedTime;
+		character.currentSpeed = math::max(character.currentSpeed, speed);
+	}
+
+	speed = character.currentSpeed;
+
+
+	// ----------------------------------------------
+	// Update animation weigthes
+	// ----------------------------------------------
+
+	if (speed < 0.00001f)
+	{
+		weights[IDLE] 	= 1 * (1 - crouchPercent);
+		weights[CROUCH] = 1 * crouchPercent;
+	}
+	else if (speed < character.walkSpeed)
+	{
+		f32 t = speed / character.walkSpeed;
+
+		weights[IDLE] 	= (1 - t) * (1 - crouchPercent);
+		weights[CROUCH] = (1 - t) * crouchPercent;
+		weights[WALK] 	= t;
+
+		f32 crouchValue = character.crouchPercent.value;
+		override_weight(CROUCH, crouchValue * crouchOverridePowerForAnimation);
+	}
+	else
+	{
+		f32 t = (speed - character.walkSpeed) / (character.runSpeed - character.walkSpeed);
 
 		weights[WALK] 	= 1 - t;
 		weights[RUN] 	= t;
-		speed 			= interpolate (character.walkSpeed, character.runSpeed, t);
 
 		f32 crouchValue = character.crouchPercent.value;
-		speed *= (1 - crouchValue * crouchOverridePowerForSpeed);
 		override_weight(CROUCH, crouchValue * crouchOverridePowerForAnimation);
-
-		gizmoColor = {0, 1, 0, 1};
 	}
 
 	// ------------------------------------------------------------------------
@@ -245,57 +276,14 @@ update_character(
 		}
 	}
 
-	speed *= 1 - landingValue;
-
-	// f32 currentSpeed;
-
-	// if (speed > character.currentSpeed)
-	// {
-	// 	currentSpeed = character.currentSpeed + character.acceleration * input->elapsedTime;
-	// 	currentSpeed = math::min(currentSpeed, speed);
-
-	// 	// character.currentSpeed += character.acceleration * input->elapsedTime;
-	// 	// character.currentSpeed = math::min(character.currentSpeed, speed);
-	// }
-	// else if (speed < character.currentSpeed)
-	// {
-	// 	currentSpeed = character.currentSpeed + character.deceleration * input->elapsedTime;
-	// 	currentSpeed = math::max(currentSpeed, speed);
-
-	// 	currentSpeed = speed;
-	// 	// character.currentSpeed = speed;
-
-	// 	// float a = character.currentSpeed + character.deceleration * input->elapsedTime;
-	// 	// a = math::max(a, speed);
-	// 	// logDebug(0) << "a: " << a;
+	// speed *= 1 - landingValue;
 
 
-	// 	// character.currentSpeed += character.deceleration * input->elapsedTime;
-	// 	// character.currentSpeed = math::max(character.currentSpeed, speed);
-	// }
-
-	// // if (speed != speed)
-	// // {
-	// // 	logDebug(0) << "speed is nan!!";
-	// // 	speed = 0;
-	// // }
-
-	// // if (character.currentSpeed != character.currentSpeed)
-	// // {
-	// // 	logDebug(0) << "currentSpeed is nan!!";
-	// // }
-
-	// // logDebug(0) << "speeds: " << character.currentSpeed << "/" << speed;
-
-	// // speed = character.currentSpeed;
-	// currentSpeed = speed;
-
-	// character.currentSpeed = currentSpeed;
 
 	if (speed > 0)
 	{
-		v3 direction = inputVector / inputMagnitude;
-		f32 distance = inputMagnitude * input->elapsedTime * speed;
+		v3 direction = inputMagnitude > 0.00001f ? inputVector.normalized() : get_forward(*character.transform);
+		f32 distance = input->elapsedTime * speed;
 
 		constexpr int rayCount = 5;
 		v3 up 	= get_up(*character.transform);
@@ -322,7 +310,7 @@ update_character(
 			rayHit = rayHit || hit;
 
 			float4 lineColor = hit ? float4{0,1,0,1} : float4{1,0,0,1};
-			// functions->draw_line(graphics, start, start + direction, 5.0f, lineColor);
+			// platformApi->draw_line(graphics, start, start + direction, 5.0f, lineColor);
 
 		}
 
@@ -376,7 +364,7 @@ update_character(
 		else
 		{
 			character.goingToJump = false;
-			character.zSpeed = character.jumpSpeed * 5;
+			character.zSpeed = character.jumpSpeed;
 		}
 	}
 
@@ -412,12 +400,12 @@ update_character(
 
 	// Note(Leo): Draw move action gizmo after movement, so it does not lage one frame behind
 	m44 gizmoTransform = make_transform_matrix(	character.transform->position + v3{0,0,2}, 0.3f);
-	debug::draw_diamond(graphics, gizmoTransform, gizmoColor, functions);
+	debug::draw_diamond(graphics, gizmoTransform, gizmoColor, platformApi);
 
 	if (grounded)
 	{
 		gizmoTransform = make_transform_matrix(character.transform->position + v3{0,0,2}, 0.1);
-		debug::draw_diamond(graphics, gizmoTransform, gizmoColor, functions);
+		debug::draw_diamond(graphics, gizmoTransform, gizmoColor, platformApi);
 	}
 	else
 	{

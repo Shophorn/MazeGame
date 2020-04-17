@@ -15,16 +15,22 @@ struct SmallString
 	char const * data() const;
 	s32 length() const;
 
-	void append(SmallString const &);
-	void append(char const *);
+	SmallString & append(SmallString const &);
+	SmallString & append(char const *);
 
-	static constexpr s32 max_length();
+	/* Note(Leo): SmallString uses fixed array to store a short string.
+	Second last character is reserved for null terminator to work well
+	with cstrings, and the last is used to store length. */
+	static constexpr s32 arraySize = 24;
+	static constexpr s32 maxLength = arraySize - 2;
+	static constexpr s32 lengthPosition = arraySize - 1;
+
+	char & operator [](s32 index);
 
 private:
 	/* Note(Leo): Array can hold maxLength characters, 1 null terminator
 	and 1 char for length of string */
-	static constexpr u32 maxLength = 22;
-	char data_ [maxLength + 2];
+	char data_ [arraySize];
 };
 
 namespace small_string_operators
@@ -41,3 +47,4 @@ using namespace small_string_operators;
 static_assert(std::is_trivial_v<SmallString>, "SmallString is not trivial");
 static_assert(std::is_standard_layout_v<SmallString>, "SmallString is not standard layout");
 
+SmallString make_time_stamp(int hours, int minutes, int seconds);

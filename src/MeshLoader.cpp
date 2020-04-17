@@ -8,8 +8,8 @@ Todo(Leo):
 =============================================================================*/
 
 // Note(Leo): this also includes string and vector apparently
-#define TINYOBJLOADER_IMPLEMENTATION
-#include <tiny_obj_loader.h>
+// #define TINYOBJLOADER_IMPLEMENTATION
+// #include <tiny_obj_loader.h>
 // #include <string>
 // #include <vector>
 
@@ -63,7 +63,7 @@ load_animation_glb(MemoryArena & allocator, GltfFile const & file, char const * 
 			log << "\t" << anim["name"].GetString() << "\n";
 		}
 	}
-	assert(animationIndex >= 0);
+	Assert(animationIndex >= 0);
 	JsonValue const & namedAnimation = animArray[animationIndex];
 
 	auto jsonChannels 	= animArray[animationIndex]["channels"].GetArray();
@@ -94,13 +94,13 @@ load_animation_glb(MemoryArena & allocator, GltfFile const & file, char const * 
 		{
 			/* Note(Leo): Bones (or joints) are somewhat cumbersomely behind different list, so we need to remap those.
 			Probably the best idea would be to have skeleton reference here too. */
-			assert(file.json.HasMember("skins") && file.json["skins"].Size() == 1 && file.json["skins"][0].HasMember("joints"));
+			Assert(file.json.HasMember("skins") && file.json["skins"].Size() == 1 && file.json["skins"][0].HasMember("joints"));
 
 			auto bonesArray 	= file.json["skins"][0]["joints"].GetArray();
 			s32 targetNode 		= jsonChannel["target"]["node"].GetInt();
 			channel.targetIndex = find_bone_by_node(bonesArray, targetNode);
 		
-			assert(channel.targetIndex >= 0);
+			Assert(channel.targetIndex >= 0);
 		}
 		
 		// ------------------------------------------------------------------------------
@@ -111,7 +111,7 @@ load_animation_glb(MemoryArena & allocator, GltfFile const & file, char const * 
 		else if (cstring_equals(interpolationMode, "LINEAR"))		channel.interpolationMode = INTERPOLATION_MODE_LINEAR;
 		else if (cstring_equals(interpolationMode,"CUBICSPLINE"))	channel.interpolationMode = INTERPOLATION_MODE_CUBICSPLINE;
 		else
-			assert(false);
+			Assert(false);
 	
 		char const * path 	= jsonChannel["target"]["path"].GetString();
 
@@ -119,7 +119,7 @@ load_animation_glb(MemoryArena & allocator, GltfFile const & file, char const * 
 		else if(cstring_equals(path, "rotation"))	channel.type = ANIMATION_CHANNEL_ROTATION;
 		else if (cstring_equals(path, "scale"))		channel.type = ANIMATION_CHANNEL_SCALE;
 		else
-			assert(false);
+			Assert(false);
 
 		// ------------------------------------------------------------------------------
 
@@ -187,14 +187,14 @@ load_skeleton_glb(MemoryArena & allocator, GltfFile const & file, char const * m
 	auto nodes = file.json["nodes"].GetArray();
 
 	s32 nodeIndex = index_by_name(nodes, modelName);
-	assert(nodeIndex >= 0);
+	Assert(nodeIndex >= 0);
 
-	assert(nodes[nodeIndex].HasMember("skin"));
-	assert(file.json.HasMember("skins"));
+	Assert(nodes[nodeIndex].HasMember("skin"));
+	Assert(file.json.HasMember("skins"));
 
 	// Note(Leo): We currently support only 1 skin per file, so that we can easily load correct animation.
-	assert(file.json["skins"].Size() == 1);
-	assert(file.json["skins"][0].HasMember("joints"));
+	Assert(file.json["skins"].Size() == 1);
+	Assert(file.json["skins"][0].HasMember("joints"));
 
 	auto skin 		= file.json["skins"][0].GetObject();
 	auto jsonBones 	= skin["joints"].GetArray();
@@ -265,10 +265,10 @@ load_mesh_glb(MemoryArena & allocator, GltfFile const & file, char const * model
 	auto nodes = file.json["nodes"].GetArray();
 	
 	s32 nodeIndex = index_by_name(nodes, modelName);
-	assert(nodeIndex >= 0);
+	Assert(nodeIndex >= 0);
 
-	assert(file.json.HasMember("meshes"));
-	assert(nodes[nodeIndex].HasMember("mesh"));
+	Assert(file.json.HasMember("meshes"));
+	Assert(nodes[nodeIndex].HasMember("mesh"));
 
 	u32 meshIndex 	= nodes[nodeIndex]["mesh"].GetInt();
 	auto meshObject	= file.json["meshes"][meshIndex].GetObject();
@@ -286,13 +286,13 @@ load_mesh_glb(MemoryArena & allocator, GltfFile const & file, char const * model
 		Currently we support only single primitive, since we do not have any submesh systems.
 	*/
 
-	assert (meshObject["primitives"].Size() == 1);
+	Assert (meshObject["primitives"].Size() == 1);
 
 	auto meshPrimitive = meshObject["primitives"][0].GetObject();
 
-	assert (meshPrimitive.HasMember("attributes"));
-	assert (meshPrimitive.HasMember("indices"));
-	assert (meshPrimitive.HasMember("mode") == false || meshPrimitive["mode"].GetInt() == glTF::PRIMITIVE_TYPE_TRIANGLES);
+	Assert (meshPrimitive.HasMember("attributes"));
+	Assert (meshPrimitive.HasMember("indices"));
+	Assert (meshPrimitive.HasMember("mode") == false || meshPrimitive["mode"].GetInt() == glTF::PRIMITIVE_TYPE_TRIANGLES);
 
 
 	auto attribObject	= meshPrimitive["attributes"].GetObject();
@@ -308,7 +308,7 @@ load_mesh_glb(MemoryArena & allocator, GltfFile const & file, char const * model
 	u32 normalCount 	= accessors[normalAccessor]["count"].GetInt();
 	u32 texcoordCount 	= accessors[texcoordAccessor]["count"].GetInt();
 
-	assert(positionCount == normalCount && positionCount == texcoordCount);
+	Assert(positionCount == normalCount && positionCount == texcoordCount);
 
 	u32 vertexCount = positionCount;
 
@@ -319,7 +319,7 @@ load_mesh_glb(MemoryArena & allocator, GltfFile const & file, char const * model
 	v3 const * normals 		= get_buffer_start<v3>(file, normalAccessor);
 	v2 const * texcoords 	= get_buffer_start<v2>(file, texcoordAccessor);
 
-	assert(vertexCount < math::highest_value<u16> && "We need more indices!");
+	Assert(vertexCount < math::highest_value<u16> && "We need more indices!");
 
 	for (u16 vertexIndex = 0; vertexIndex < vertexCount; ++vertexIndex)
 	{
@@ -337,7 +337,7 @@ load_mesh_glb(MemoryArena & allocator, GltfFile const & file, char const * model
 
 		// Note(Leo): only UNSIGNED_SHORT supported currently
 		auto componentType = (glTF::ComponentType)accessors[bonesAccessorIndex]["componentType"].GetInt();
-		assert(componentType == glTF::COMPONENT_TYPE_UNSIGNED_SHORT);
+		Assert(componentType == glTF::COMPONENT_TYPE_UNSIGNED_SHORT);
 
 		u16 const * bones = get_buffer_start<u16>(file, bonesAccessorIndex);
 		f32 const * weights = get_buffer_start<f32>(file, boneWeightsAccessorIndex);
@@ -374,60 +374,8 @@ load_mesh_glb(MemoryArena & allocator, GltfFile const & file, char const * model
 internal MeshAsset
 load_model_obj(MemoryArena * allocator, char const * modelPath)
 {
-	/*
-	TODO(Leo): There is now no checking if attributes exist.
-	This means all below attributes must exist in file.
-	Of course in final game we know beforehand what there is.
-	*/
-
-	MeshAsset result = {};
-	result.indexType = IndexType::UInt16;
-
-	tinyobj::attrib_t attrib;
-	std::vector<tinyobj::shape_t> shapes;
-	std::vector<tinyobj::material_t> materials;
-	std::string warning, error;
-
-	if (tinyobj::LoadObj(&attrib, &shapes, &materials, &warning, &error, modelPath) == false)
-	{
-		throw std::runtime_error(warning + error);
-	}
-
-	//Note(Leo): there might be more than one shape, but we don't use that here
-	s32 indexCount = shapes[0].mesh.indices.size();
-
-	result.vertices = allocate_array<Vertex>(*allocator, indexCount, ALLOC_FILL_UNINITIALIZED);
-	result.indices = allocate_array<u16>(*allocator, indexCount, ALLOC_FILL_UNINITIALIZED);
-
-	for (int i = 0; i < indexCount; ++i)
-	{
-		Vertex vertex = {};
-
-		vertex.position = {
-			attrib.vertices[3 * shapes[0].mesh.indices[i].vertex_index + 0],
-			attrib.vertices[3 * shapes[0].mesh.indices[i].vertex_index + 1],
-			attrib.vertices[3 * shapes[0].mesh.indices[i].vertex_index + 2]
-		};
-
-		vertex.texCoord = {
-			attrib.texcoords[2 * shapes[0].mesh.indices[i].texcoord_index + 0],
-			1.0f - attrib.texcoords[2 * shapes[0].mesh.indices[i].texcoord_index + 1]
-		};
-
-		vertex.color = {0.8f, 1.0f, 1.0f};
-
-		vertex.normal = {
-			attrib.normals[3 * shapes[0].mesh.indices[i].normal_index + 0],
-			attrib.normals[3 * shapes[0].mesh.indices[i].normal_index + 1],
-			attrib.normals[3 * shapes[0].mesh.indices[i].normal_index + 2]
-		};
-
-		result.vertices[i] = vertex;
-		result.indices[i] = i;
-
-	}
-
-	return result;
+	logDebug(0) << FILE_ADDRESS << "Obj loader not implemented, use glb loader instead";
+	return {};
 }
 
 namespace mesh_ops

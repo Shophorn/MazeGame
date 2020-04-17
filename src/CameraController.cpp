@@ -39,13 +39,12 @@ internal void
 update_camera_system(	Camera * camera,
 						game::Input * input,
 						platform::Graphics * graphics,
-						platform::Window * window,
-						platform::Functions * functions)
+						platform::Window * window)
 {
 	/* Note(Leo): Update aspect ratio each frame, in case screen size has changed.
 	This probably costs us less than checking if it has :D */
-    camera->aspectRatio = (float)functions->get_window_width(window) / (float)functions->get_window_height(window);
-    functions->update_camera(graphics, camera);
+    camera->aspectRatio = (float)platformApi->get_window_width(window) / (float)platformApi->get_window_height(window);
+    platformApi->update_camera(graphics, camera);
 }
 
 struct CameraController3rdPerson
@@ -124,6 +123,7 @@ update_camera_controller(CameraController3rdPerson * controller, game::Input * i
     float z = interpolate(controller->lastTrackedPosition.z, controller->target->position.z, trackSpeed);
 
 
+    // Todo(Leo): Maybe track faster on xy plane, instead of teleporting
     // v3 trackedPosition = vector::interpolate(	controller->lastTrackedPosition,
     // 												controller->target->position,
     // 												trackSpeed);
@@ -134,10 +134,14 @@ update_camera_controller(CameraController3rdPerson * controller, game::Input * i
     	// controller->target->position.z
     	z
     };
+
+
     controller->lastTrackedPosition = trackedPosition;
 
     v3 targetPosition = trackedPosition + controller->baseOffset;
     
     controller->camera->position = targetPosition + localPosition;
-	controller->camera->direction = (targetPosition - controller->camera->position).normalized();
+	controller->camera->direction = -1.0f * localPosition.normalized();
+
+	Assert(math::distance(controller->camera->direction.square_magnitude(), 1.0f) < 0.00001f);
 }

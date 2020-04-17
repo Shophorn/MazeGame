@@ -6,6 +6,8 @@ Leo Tamminen
 #include "MazegamePlatform.hpp"
 #include "Mazegame.hpp"
 
+platform::Functions * platformApi;
+
 #include "Debug.cpp"
 
 // Note(Leo): Make unity build here.
@@ -27,6 +29,7 @@ Leo Tamminen
 #include "MeshLoader.cpp"
 #include "TextureLoader.cpp"
 
+
 #include "Scene.cpp"
 
 /* Todo(Leo): Haxor: these should be in different translation units, and only include
@@ -35,6 +38,8 @@ and both are still missing some because they are listed above. */
 #include "Scene3D.cpp"
 #include "Scene2D.cpp"
 #include "MenuScene.cpp"
+
+
 
 struct AudioClip
 {
@@ -147,7 +152,9 @@ bool32 update_game(
 
 	platform::Graphics * 	graphics,
 	platform::Window * 		window,
-	platform::Functions * 	functions)
+	platform::Functions * 	functions,
+
+	std::ofstream * logFile)
 {
 	/* Note(Leo): This is reinterpreted each frame, we don't know and don't care
 	if it has been moved or whatever in platform layer*/
@@ -157,7 +164,17 @@ bool32 update_game(
 	{
 		initialize_game_state (state, memory);
 		load_scene(state, get_menu_scene_info(), graphics, window, functions);
+
+        logDebug.output     = logFile;
+        logAnim.output      = logFile;
+        logVulkan.output    = logFile;
+        logWindow.output    = logFile;
+        logSystem.output    = logFile;
+        logNetwork.output   = logFile;
+
 	}
+
+	platformApi = functions;
 
 	// Note(Leo): Free space for current frame.
 	flush_memory_arena(&state->transientMemoryArena);

@@ -9,6 +9,11 @@ Todo(Leo):
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
+#undef assert
+
+// void test____() { assert(false); }
+
+
 internal TextureAsset
 make_texture_asset(Array<u32> pixels, s32 width, s32 height, s32 channels = 4)
 {

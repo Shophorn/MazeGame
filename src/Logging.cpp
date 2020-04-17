@@ -30,8 +30,8 @@ struct LogInput
 			buffer << "\n";
 			*output << buffer.str();
 
-			// Note(Leo): We flush so we get immediate output to file.
-			// Todo(Leo): Heard this is unnecessay though, so find out more.
+			// // Note(Leo): We flush so we get immediate output to file.
+			// // Todo(Leo): Heard this is unnecessay though, so find out more.
 			*output << std::flush;
 		}
 	}

@@ -99,6 +99,18 @@ namespace math
     {
         return value < min ? min : value > max ? max : value;
     }
+
+    template<typename T>
+    internal bool is_nan(T value)
+    { 
+        return value != value;
+    }
+
+    template<typename T>
+    internal T distance(T a, T b)
+    {
+        return absolute(a - b);
+    }
 }
 
 

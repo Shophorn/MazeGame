@@ -78,8 +78,8 @@ scene_2d::update(	void * scenePtr,
 	update_animator_system(input, scene->animatorSystem);
 
 	scene->cameraController.update(input);
-    update_camera_system(&scene->worldCamera, input, graphics, window, functions);
-	update_render_system(scene->renderSystem, graphics, functions);
+    update_camera_system(&scene->worldCamera, input, graphics, window);
+	update_render_system(scene->renderSystem, graphics);
 
 	Light light = { v3{1, 1, -3}.normalized(), {0.95, 0.95, 0.9}};
 	v3 ambient = {0.2, 0.25, 0.4};

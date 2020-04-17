@@ -1,8 +1,0 @@
-[SYSTEM:1]: Power detected
-[SYSTEM:1]: Target frame time = 0.0138889, (fps = 72)
-[VULKAN:1]: Initialized succesfully
-[SYSTEM:1]: Game dll loaded
-[VULKAN:1]: Shut down
-
-[WINDOW:1]: shut down
-
