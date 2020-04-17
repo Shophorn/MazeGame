@@ -87,13 +87,13 @@ struct CharacterControllerSideScroller
 			zSpeed = math::max(0.0f, zSpeed);
 		}
 
-		if ((Abs(zMovement) > Abs(xMovement)) && (Abs(xMovement / input->elapsedTime) < (0.1f * speed)))
+		if ((math::absolute(zMovement) > math::absolute(xMovement)) && (math::absolute(xMovement / input->elapsedTime) < (0.1f * speed)))
 		{
 			targetRotationRadians = 0;
 		}
 
 		currentRotationRadians = interpolate(currentRotationRadians, targetRotationRadians, 0.4f);
-		if (Abs(currentRotationRadians - targetRotationRadians) > (0.1 * pi))
+		if (math::absolute(currentRotationRadians - targetRotationRadians) > (0.1 * pi))
 		{
 			xMovement = 0;
 		}

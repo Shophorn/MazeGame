@@ -372,6 +372,26 @@ Run(HINSTANCE hInstance)
     }
 }
 
+/*
+using TimePoint = LARGE_INTEGER;
+
+TimePoint now () 
+{
+    LARGE_INTEGER t;
+    QueryPerformanceCounter(&t);
+    return t;
+}
+
+f32 difference(TimePoint first, TimePoint second)
+{
+    LARGE_INTEGER frequency;
+    QueryPerformanceFrequency(&frequency);
+
+    f32 t = (f32)(second.QuadPart - first.QuadPart);
+    t /= frequency.QuadPart;
+    return t;
+}
+*/
 int CALLBACK
 WinMain(
     HINSTANCE   hInstance,
@@ -379,9 +399,10 @@ WinMain(
     LPSTR       cmdLine,
     int         showCommand)
 {
-
     /* Todo(Leo): we should make a decision about how we handle errors etc.
-    Currently there are exceptions (which lead here) and asserts mixed ;) */
+    Currently there are exceptions (which lead here) and asserts mixed ;)
+
+    Maybe, put a goto on asserts, so they would come here too? */
     try {
         Run(hInstance);
     } catch (const std::exception& e) {

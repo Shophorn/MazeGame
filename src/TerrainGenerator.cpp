@@ -125,8 +125,8 @@ generate_terrain(	MemoryArena * memory,
 
 	auto get_clamped_height = [heightMap](u32 x, u32 y) -> float
 	{
-		x = clamp(x, 0u, heightMap->gridSize - 1);
-		y = clamp(y, 0u, heightMap->gridSize - 1);
+		x = math::clamp(x, 0u, heightMap->gridSize - 1);
+		y = math::clamp(y, 0u, heightMap->gridSize - 1);
 
 		u32 valueIndex = x + y * heightMap->gridSize;
 		float result = interpolate(	heightMap->minHeight,

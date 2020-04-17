@@ -25,8 +25,8 @@ vulkan::create_drawing_resources(VulkanContext * context, u32 width, u32 height)
         VkExtent2D min = swapchainSupport.capabilities.minImageExtent;
         VkExtent2D max = swapchainSupport.capabilities.maxImageExtent;
 
-        resources->extent.width = clamp(width, min.width, max.width);
-        resources->extent.height = clamp(height, min.height, max.height);
+        resources->extent.width = math::clamp(width, min.width, max.width);
+        resources->extent.height = math::clamp(height, min.height, max.height);
     }
 
     u32 imageCount = swapchainSupport.capabilities.minImageCount + 1;

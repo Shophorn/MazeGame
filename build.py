@@ -32,27 +32,29 @@ def compile(call):
 ### CLANG++
 if compiler == 'clang++':
 	# Build settings
-	flags 		= "-static -std=c++17"
+	flags 		= "-static -std=c++17 -g -gcodeview -O0"
 	definitions = "-DMAZEGAME_DEVELOPMENT=1"
 	includePath	= "-Iinclude -IC:/VulkanSDK/1.1.108.0/Include"
 	libPath 	= "-LC:/VulkanSDK/1.1.108.0/Lib"
 	libLinks	= "-lvulkan-1 -lgdi32 -lws2_32 -lole32 -lwinmm"
 
+	# compiler_path = "C:/Programs/LLVM/bin/clang++"
+	compiler_path = "clang++"
 
 	### COMPILE PLATFORM LAYER
 	platform_result = 0
 	if compile_platform:
 		# Specify '-mwindows' to get .exe to launch without console
-		platform_call = "clang++ {} {} {} -o winapi_Mazegame.exe src/winapi_Mazegame.cpp {} {}".format(
-					flags, definitions, includePath, libPath, libLinks)
+		platform_call = "{} {} {} {} -o winapi_Mazegame.exe src/winapi_Mazegame.cpp {} {}".format(
+					compiler_path, flags, definitions, includePath, libPath, libLinks)
 		
 		platform_result = compile(platform_call)
 
 	### COMPILE GAME CODE DLL
 	game_result = 0
 	if compile_game:
-		game_call = "clang++ -shared {} {} {} -o Mazegame.dll src/Mazegame.cpp -DLL".format(
-					flags, definitions, includePath)
+		game_call = "{} -shared {} {} {} -o Mazegame.dll src/Mazegame.cpp -DLL".format(
+					compiler_path, flags, definitions, includePath)
 
 		game_result = compile(game_call)
 

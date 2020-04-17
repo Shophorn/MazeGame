@@ -100,7 +100,7 @@ update_camera_controller(CameraController3rdPerson * controller, game::Input * i
     controller->orbitDegrees += input->look.x * controller->rotateSpeed * input->elapsedTime;
     
     controller->tumbleDegrees += input->look.y * controller->rotateSpeed * input->elapsedTime;
-    controller->tumbleDegrees = clamp(controller->tumbleDegrees, controller->minTumble, controller->maxTumble);
+    controller->tumbleDegrees = math::clamp(controller->tumbleDegrees, controller->minTumble, controller->maxTumble);
 
     float cameraDistance = controller->distance;
     float cameraHorizontalDistance = cosine(to_radians(controller->tumbleDegrees)) * cameraDistance;
@@ -131,8 +131,8 @@ update_camera_controller(CameraController3rdPerson * controller, game::Input * i
     {
     	controller->target->position.x,
     	controller->target->position.y,
-    	controller->target->position.z
-    	// z
+    	// controller->target->position.z
+    	z
     };
     controller->lastTrackedPosition = trackedPosition;
 

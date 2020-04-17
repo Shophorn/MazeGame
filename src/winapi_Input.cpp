@@ -68,10 +68,10 @@ xinput_is_used(winapi::State * winState, XINPUT_STATE * xinputState)
     bool32 used = (xinputState->Gamepad.wButtons != 0)
                 || (xinputState->Gamepad.bLeftTrigger != 0)
                 || (xinputState->Gamepad.bRightTrigger != 0)
-                || (Abs(xinput_convert_joystick_value(xinputState->Gamepad.sThumbLX)) > 0.0f)
-                || (Abs(xinput_convert_joystick_value(xinputState->Gamepad.sThumbLY)) > 0.0f)
-                || (Abs(xinput_convert_joystick_value(xinputState->Gamepad.sThumbRX)) > 0.0f)
-                || (Abs(xinput_convert_joystick_value(xinputState->Gamepad.sThumbRY)) > 0.0f);
+                || (math::absolute(xinput_convert_joystick_value(xinputState->Gamepad.sThumbLX)) > 0.0f)
+                || (math::absolute(xinput_convert_joystick_value(xinputState->Gamepad.sThumbLY)) > 0.0f)
+                || (math::absolute(xinput_convert_joystick_value(xinputState->Gamepad.sThumbRX)) > 0.0f)
+                || (math::absolute(xinput_convert_joystick_value(xinputState->Gamepad.sThumbRY)) > 0.0f);
 
     used = used || winState->xinputLastPacketNumber != xinputState->dwPacketNumber;
     winState->xinputLastPacketNumber = xinputState->dwPacketNumber;

@@ -24,16 +24,16 @@ enum ChannelType
 
 struct AnimationChannel
 {
-	u32 				targetIndex;
+	s32 				targetIndex;
 
-	Array<float> 		times;
+	Array<f32> 			times;
 	Array<v3> 			translations;
 	Array<quaternion> 	rotations;
 
 	ChannelType 		type;
 	InterpolationMode 	interpolationMode;
 
-	int keyframe_count() const { return times.count(); }
+	s32 keyframe_count() const { return times.count(); }
 };
 
 // Data
@@ -41,7 +41,7 @@ struct AnimationChannel
 struct Animation
 {
 	Array<AnimationChannel> channels;
-	float 					duration;
+	f32 					duration;
 
 	bool 					loop = false;
 };
@@ -49,7 +49,7 @@ struct Animation
 enum { NOT_FOUND = (u32)-1 };
 internal u32 find_channel(Animation const & animation, s32 targetIndex, ChannelType type)
 {
-	for (int channelIndex = 0; channelIndex < animation.channels.count(); ++channelIndex)
+	for (s32 channelIndex = 0; channelIndex < animation.channels.count(); ++channelIndex)
 	{
 		if (animation.channels[channelIndex].targetIndex == targetIndex
 			&& animation.channels[channelIndex].type == type)
@@ -71,10 +71,10 @@ struct Animator
 {
 	// Properties
 	AnimationRig rig;
-	float playbackSpeed	= 1.0f;
+	f32 playbackSpeed	= 1.0f;
 
 	// State
-	float 				time;
+	f32 				time;
 	Animation const * 	animation;
 };
 
@@ -105,7 +105,10 @@ make_bone (Transform3D boneSpaceDefaultTransform, m44 inverseBindMatrix, s32 par
 struct AnimatedSkeleton
 {
 	Array<Bone> bones;
-	float 		animationTime;
+	f32 		animationTime;
+
+
+
 };
 
 // Todo(Leo): Maybe use this for AnimatedSkeleton, because we really do not need all the functionalities of Array.
@@ -113,8 +116,9 @@ struct AnimatedSkeleton
 // {
 // 	Bone * 	bones;
 // 	s32 	boneCount;
-// 	float 	animationTime;
+// 	f32 	animationTime;
 // };
+
 
 v3 get_model_space_position(Array<Bone> const & skeleton, u32 boneIndex)
 {
@@ -158,7 +162,7 @@ copy_animation(MemoryArena & memoryArena, Animation const & original)
 		.duration = original.duration
 	};
 
-	for (int childIndex = 0; childIndex < original.channels.count(); ++childIndex)
+	for (s32 childIndex = 0; childIndex < original.channels.count(); ++childIndex)
 	{
 		result.channels.push({original.channels[childIndex].targetIndex, 
 									copy_array(memoryArena, original.channels[childIndex].times),
@@ -191,17 +195,17 @@ reverse_animation_clip(Animation & animation)
 
 		reverse_array(channel.times);
 
-		for(float & time : channel.times)
+		for(f32 & time : channel.times)
 		{
 			time = animation.duration - time;
 		}
 	}
 }
 
-internal float
+internal f32
 compute_duration (Array<AnimationChannel> const & channels)
 {
-	float duration = 0;
+	f32 duration = 0;
 	for (auto & channel : channels)
 	{
 		duration = math::max(duration, channel.times.last());
@@ -212,7 +216,7 @@ compute_duration (Array<AnimationChannel> const & channels)
 internal Animation
 make_animation (Array<AnimationChannel> channels)
 {
-	float duration = compute_duration(channels);
+	f32 duration = compute_duration(channels);
 
 	Animation result = 
 	{
@@ -222,23 +226,25 @@ make_animation (Array<AnimationChannel> channels)
 	return result;
 }
 
-s32 previous_keyframe(Array<float> const & keyframes, float time)
+s32 previous_keyframe(Array<f32> const & keyframeTimes, f32 time)
 {
 	/* Note(Leo): In a looping animation, we have two possibilities to return 
 	the last keyframe. First, if actual time is before the first actual keyframe,
 	we then return last keyframe (from last loop round). The other is, if time is 
-	more than that keyframes time, so that it was actually the last. */
+	more than that keyframe's time, so that it was actually the last. */
+
+	// Todo(Leo): Reduce branching maybe.
 
 	// Note(Leo): Last keyframe from previous loop round
-	if (time < keyframes[0])
+	if (time < keyframeTimes[0])
 	{
-		return keyframes.count() - 1;
+		return keyframeTimes.count() - 1;
 	}
 
-	for (int i = 0; i < keyframes.count() - 1; ++i)
+	for (s32 i = 0; i < keyframeTimes.count() - 1; ++i)
 	{
-		float previousTime = keyframes[i];
-		float nextTime = keyframes[i + 1];
+		f32 previousTime = keyframeTimes[i];
+		f32 nextTime = keyframeTimes[i + 1];
 
 		if (previousTime <= time && time <= nextTime)
 		{
@@ -247,7 +253,7 @@ s32 previous_keyframe(Array<float> const & keyframes, float time)
 	}
 	
 	// Note(Leo): this loop rounds last keyframe 
-	return keyframes.count() - 1;
+	return keyframeTimes.count() - 1;
 }
 
 internal void
@@ -258,7 +264,7 @@ update_animator_system(game::Input * input, Array<Animator> & animators)
 		if (animator.animation == nullptr)
 			continue;
 
-		float timeStep = animator.playbackSpeed * input->elapsedTime;
+		f32 timeStep = animator.playbackSpeed * input->elapsedTime;
 		animator.time += timeStep;
 
 		for (auto const & channel : animator.animation->channels)
@@ -280,9 +286,9 @@ update_animator_system(game::Input * input, Array<Animator> & animators)
 				s32 previousKeyframe 		= previous_keyframe(channel.times, animator.time);
 				s32 nextKeyframe 			= previousKeyframe + 1;
 
-				float previousKeyFrameTime 	= channel.times[previousKeyframe];
-				float currentKeyFrameTime 	= channel.times[nextKeyframe];
-				float relativeTime 			= (animator.time - previousKeyFrameTime) / (currentKeyFrameTime - previousKeyFrameTime);
+				f32 previousKeyFrameTime 	= channel.times[previousKeyframe];
+				f32 currentKeyFrameTime 	= channel.times[nextKeyframe];
+				f32 relativeTime 			= (animator.time - previousKeyFrameTime) / (currentKeyFrameTime - previousKeyFrameTime);
 
 				target.position = vector::interpolate(	channel.translations[previousKeyframe],
 														channel.translations[nextKeyframe],
@@ -319,7 +325,7 @@ play_animation_clip(Animator * animator, Animation const * animation)
 
 
 
-float loop_time(float time, float duration)
+f32 loop_time(f32 time, f32 duration)
 {
 	if (duration == 0)
 		time = 0;
@@ -330,35 +336,35 @@ float loop_time(float time, float duration)
 }
 
 
-float get_relative_time(AnimationChannel const & 	channel,
+f32 get_relative_time(AnimationChannel const & 	channel,
 						s32 						previousKeyframeIndex,
 						s32 						nextKeyframeIndex,
-						float 						animationTime,
-						float 						animationDuration)
+						f32 						animationTime,
+						f32 						animationDuration)
 {
-	float previousTime 	= channel.times[previousKeyframeIndex];
-	float nextTime 		= channel.times[nextKeyframeIndex];
+	f32 previousTime 	= channel.times[previousKeyframeIndex];
+	f32 nextTime 		= channel.times[nextKeyframeIndex];
 
-	float swagEpsilon = 0.000000001f; // Should this be in scale of frame time?
+	f32 swagEpsilon = 0.000000001f; // Should this be in scale of frame time?
 
 	// Note(Leo): these are times from previous so that we get [0 ... 1] range for interpolation
-	float timeToNow = animationTime - previousTime;
+	f32 timeToNow = animationTime - previousTime;
 	if (timeToNow < swagEpsilon)
 	{
 		timeToNow = animationDuration - timeToNow;
 	} 
 
-	float timeToNext = nextTime - previousTime;
+	f32 timeToNext = nextTime - previousTime;
 	if (timeToNext < swagEpsilon)
 	{
 		timeToNext = animationDuration - timeToNext;
 	}
-	float relativeTime = timeToNow / timeToNext;
+	f32 relativeTime = timeToNow / timeToNext;
 
 	return relativeTime;
 }
 
-void update_skeleton_animator(AnimatedSkeleton & skeleton, Animation const ** animations, float * weights, s32 animationCount, float elapsedTime)
+void update_skeleton_animator(AnimatedSkeleton & skeleton, Animation const ** animations, f32 * weights, s32 animationCount, f32 elapsedTime)
 {
 	/*
 	for bone in skeleton:
@@ -373,28 +379,28 @@ void update_skeleton_animator(AnimatedSkeleton & skeleton, Animation const ** an
 	*/
 
 	auto & bones = skeleton.bones;
-	for (Bone & bone : bones)
+	for (s32 boneIndex = 0; boneIndex < bones.count(); ++boneIndex)
 	{
-		bone.boneSpaceTransform = {};
+		bones[boneIndex].boneSpaceTransform = {};
 	}
 
-	float totalAppliedWeight = 0;
+	f32 totalAppliedWeight = 0;
 
 	skeleton.animationTime += elapsedTime;
-	constexpr float resetInterval = 120; // Note(Leo): random amount to prevent us getting somewhere where floating point accuracy becomes problem
+	constexpr f32 resetInterval = 120; // Note(Leo): random amount to prevent us getting somewhere where floating point accuracy becomes problem
 	skeleton.animationTime = modulo(skeleton.animationTime, resetInterval);
 
-	for (int animationIndex = 0; animationIndex < animationCount; ++animationIndex)
+	for (s32 animationIndex = 0; animationIndex < animationCount; ++animationIndex)
 	{
 
 		Animation const & animation = *animations[animationIndex];
 
-		float animationWeight = weights[animationIndex];
-		float animationTime = loop_time(skeleton.animationTime, animation.duration);
+		f32 animationWeight = weights[animationIndex];
+		f32 animationTime = loop_time(skeleton.animationTime, animation.duration);
 
 
 		totalAppliedWeight += animationWeight;
-		float relativeWeight = animationWeight / totalAppliedWeight;
+		f32 relativeWeight = animationWeight / totalAppliedWeight;
 
 		if (animationWeight < 0.00001f)
 		{
@@ -403,7 +409,7 @@ void update_skeleton_animator(AnimatedSkeleton & skeleton, Animation const ** an
 
 		// ------------------------------------------------------------------------
 
-		for (int boneIndex = 0; boneIndex < bones.count(); ++boneIndex)
+		for (s32 boneIndex = 0; boneIndex < bones.count(); ++boneIndex)
 		{
 			auto & bone = bones[boneIndex];
 
@@ -428,7 +434,7 @@ void update_skeleton_animator(AnimatedSkeleton & skeleton, Animation const ** an
 					{
 						s32 previousKeyframeIndex	= previous_keyframe(channel.times, animationTime);
 						s32 nextKeyframeIndex 		= (previousKeyframeIndex + 1) % channel.keyframe_count();
-						float relativeTime 			= get_relative_time(channel, previousKeyframeIndex, nextKeyframeIndex, animationTime, animation.duration);
+						f32 relativeTime 			= get_relative_time(channel, previousKeyframeIndex, nextKeyframeIndex, animationTime, animation.duration);
 						rotation 					= interpolate(	channel.rotations[previousKeyframeIndex],
 																	channel.rotations[nextKeyframeIndex],
 																	relativeTime);
@@ -437,7 +443,7 @@ void update_skeleton_animator(AnimatedSkeleton & skeleton, Animation const ** an
 					{
 						s32 previousKeyframeIndex	= previous_keyframe(channel.times, animationTime);
 						s32 nextKeyframeIndex 		= (previousKeyframeIndex + 1) % channel.keyframe_count();
-						float relativeTime 			= get_relative_time(channel, previousKeyframeIndex, nextKeyframeIndex, animationTime, animation.duration);
+						f32 relativeTime 			= get_relative_time(channel, previousKeyframeIndex, nextKeyframeIndex, animationTime, animation.duration);
 
 						// Note(Leo): We don't actually support cubicspline rotations yet; this way we skip tangent values;
 						previousKeyframeIndex 		= (previousKeyframeIndex * 3) + 1;
@@ -478,7 +484,7 @@ void update_skeleton_animator(AnimatedSkeleton & skeleton, Animation const ** an
 					{
 						s32 previousKeyframeIndex 	= previous_keyframe(channel.times, animationTime);
 						s32 nextKeyframeIndex 		= (previousKeyframeIndex + 1) % channel.keyframe_count();
-						float relativeTime 			= get_relative_time(channel, previousKeyframeIndex, nextKeyframeIndex, animationTime, animation.duration);
+						f32 relativeTime 			= get_relative_time(channel, previousKeyframeIndex, nextKeyframeIndex, animationTime, animation.duration);
 						translation 				= vector::interpolate(	channel.translations[previousKeyframeIndex],
 																			channel.translations[nextKeyframeIndex],
 																			relativeTime);
@@ -489,7 +495,7 @@ void update_skeleton_animator(AnimatedSkeleton & skeleton, Animation const ** an
 
 						s32 previousKeyframeIndex 	= previous_keyframe(channel.times, animationTime);
 						s32 nextKeyframeIndex 		= (previousKeyframeIndex + 1) % channel.keyframe_count();
-						float relativeTime 			= get_relative_time(channel, previousKeyframeIndex, nextKeyframeIndex, animationTime, animation.duration);
+						f32 relativeTime 			= get_relative_time(channel, previousKeyframeIndex, nextKeyframeIndex, animationTime, animation.duration);
 
 
 						// Note(Leo): We don't actually support cubicspline rotations yet; this way we skip tangent values;

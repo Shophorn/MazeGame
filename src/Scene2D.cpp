@@ -278,7 +278,7 @@ scene_2d::load(	void * scenePtr,
 			int ladder2StartIndex = 6;
 			int ladderCount = 12;
 
-			for (u32 ladderIndex = 0; ladderIndex < ladderCount; ++ladderIndex)
+			for (s32 ladderIndex = 0; ladderIndex < ladderCount; ++ladderIndex)
 			{
 				auto model 	= push_model(ladderMeshHandle, materials.environment);
 				auto transform 	= allocate_transform(scene->transformStorage, {});

@@ -53,24 +53,18 @@ namespace math
     template<typename T> 
     constexpr std::enable_if_t<std::is_floating_point_v<T>, T>closest_to_zero = std::numeric_limits<T>::min();
 
-    template<typename S>
-    constexpr internal S 
-    min(S a, S b)
+    template<typename T>
+    constexpr internal T min(T a, T b)
     {
         return (a < b) ? a : b;
     }
 
-    template<typename S>
-    constexpr internal S 
-    max(S a, S b)
+    template<typename T>
+    constexpr internal T max(T a, T b)
     {
         return (a > b) ? a : b;
     }
 
-    bool close_enough_small (float a, float b)
-    {
-        return std::fabs(a - b) < 0.00001f;
-    }
 
     s32 ceil_to_s32(float value)
     {
@@ -78,27 +72,35 @@ namespace math
         return result;
     }
 
+    template<typename T>
+    internal constexpr T absolute(T value)
+    {
+        /* Story(Leo): I tested optimizing this using both pointer casting and type punning
+        and manually setting the sign bit, and it was significantly faster on some types.
+        That was, until I tried setting compiler optimization level up, and then this was
+        fastest at least as significantly.
+
+        Always optimize with proper compiler options :) */
+        return value < 0 ? -value : value;
+    }
+
+    bool close_enough_small (float a, float b)
+    {
+        return absolute(a - b) < 0.00001f;
+    }
+
+    f32 smooth (f32 v)
+    {
+        return (3 - 2 * v) * v * v;
+    }
+
+    template <typename T>
+    internal T clamp(T value, T min, T max)
+    {
+        return value < min ? min : value > max ? max : value;
+    }
 }
 
-template<typename S>
-internal S
-Abs(S num)
-{
-    if (num < 0)
-        return -num;
-    return num;
-}
-
-template<typename S>
-internal S
-clamp(S value, S min, S max)
-{
-    if (value < min)
-        value = min;
-    if (value > max)
-        value = max;
-    return value;
-}
 
 inline float modulo(float dividend, float divisor)
 {

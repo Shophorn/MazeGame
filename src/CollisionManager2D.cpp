@@ -110,7 +110,7 @@ struct CollisionManager2D
 				v2 positionB = v2{get_world_position(*colliders[b].transform).x, get_world_position(*colliders[b].transform).z} + colliders[b].offset;
 
 				float xDeltaAtoB 	= positionB.x - positionA.x;
-				float xDistance		= Abs(xDeltaAtoB);
+				float xDistance		= math::absolute(xDeltaAtoB);
 
 				float xRadiusA = colliders[a].extents.x;
 				float xRadiusB = colliders[b].extents.x;
@@ -119,7 +119,7 @@ struct CollisionManager2D
 				bool32 xCollision = xDistance < xLimit; 
 
 				float zDeltaAtoB 	= positionB.y - positionA.y;
-				float zDistance		= Abs(zDeltaAtoB);
+				float zDistance		= math::absolute(zDeltaAtoB);
 
 				float zRadiusA = colliders[a].extents.y;
 				float zRadiusB = colliders[b].extents.y;
