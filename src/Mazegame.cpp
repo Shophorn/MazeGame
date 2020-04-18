@@ -9,6 +9,19 @@ Leo Tamminen
 platform::Functions * platformApi;
 platform::Graphics * platformGraphics;
 
+namespace physics
+{
+	constexpr f32 gravityAcceleration = -9.81;
+}
+
+namespace colors
+{
+	constexpr v4 mutedRed 	= {0.8, 0.2, 0.3};
+	constexpr v4 mutedGreen = {0.2, 0.8, 0.3};
+	constexpr v4 mutedBlue = {0.2, 0.3, 0.8};
+}
+
+
 #include "Debug.cpp"
 
 // Note(Leo): Make unity build here.
@@ -95,7 +108,7 @@ initialize_game_state(GameState * state, platform::Memory * memory)
 	*state = {};
 
 	// // Note(Leo): Create persistent arena in the same memoryblock as game state, right after it.
-	u64 gameStateSize 				= align_up_to(sizeof(GameState), MemoryArena::defaultAlignment);
+	u64 gameStateSize 				= align_up(sizeof(GameState), MemoryArena::defaultAlignment);
 	byte * persistentMemory 		= reinterpret_cast<byte *>(memory->memory) + gameStateSize;
 	u64 persistentMemorySize 		= (memory->size / 2) - gameStateSize;
 	state->persistentMemoryArena 	= make_memory_arena(persistentMemory, persistentMemorySize); 

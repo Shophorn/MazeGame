@@ -106,9 +106,6 @@ struct AnimatedSkeleton
 {
 	Array<Bone> bones;
 	f32 		animationTime;
-
-
-
 };
 
 // Todo(Leo): Maybe use this for AnimatedSkeleton, because we really do not need all the functionalities of Array.
@@ -119,6 +116,13 @@ struct AnimatedSkeleton
 // 	f32 	animationTime;
 // };
 
+struct SkeletonAnimator
+{
+	AnimatedSkeleton * 	skeleton;
+	Animation const ** 	animations;
+	f32 *				weights;
+	s32					animationCount;
+};
 
 v3 get_model_space_position(Array<Bone> const & skeleton, u32 boneIndex)
 {
@@ -364,7 +368,8 @@ f32 get_relative_time(AnimationChannel const & 	channel,
 	return relativeTime;
 }
 
-void update_skeleton_animator(AnimatedSkeleton & skeleton, Animation const ** animations, f32 * weights, s32 animationCount, f32 elapsedTime)
+// void update_skeleton_animator(AnimatedSkeleton & skeleton, Animation const ** animations, f32 * weights, s32 animationCount, f32 elapsedTime)
+void update_skeleton_animator(SkeletonAnimator & animator, f32 elapsedTime)
 {
 	/*
 	for bone in skeleton:
@@ -377,6 +382,11 @@ void update_skeleton_animator(AnimatedSkeleton & skeleton, Animation const ** an
 			else
 				apply default pose by animations weight		
 	*/
+
+	auto & skeleton 	= *animator.skeleton;
+	auto ** animations 	= animator.animations;
+	f32 * weights 		= animator.weights;
+	s32 animationCount 	= animator.animationCount;
 
 	auto & bones = skeleton.bones;
 	for (s32 boneIndex = 0; boneIndex < bones.count(); ++boneIndex)
@@ -406,8 +416,6 @@ void update_skeleton_animator(AnimatedSkeleton & skeleton, Animation const ** an
 		{
 			continue;
 		}
-
-		logDebug() << relativeWeight << ", " << totalAppliedWeight << ", " << animationWeight;
 
 		// ------------------------------------------------------------------------
 

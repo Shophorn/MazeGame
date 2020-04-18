@@ -42,21 +42,16 @@ struct CharacterController3rdPerson
 	f32 runSpeed = 6;
 	f32 jumpSpeed = 6;
 
-	f32 gravity = -9.81;
-
-	f32 collisionRadius = 0.25f;
 
 	// State
 	f32 	zSpeed;
 	v3 		forward;
 
+	f32 collisionRadius = 0.25f;
 	v3 hitRayPosition;
 	v3 hitRayNormal;
 
 	// Animations
-	AnimatedSkeleton 	skeleton;
-
-	Animation animations[CharacterAnimations::ANIMATION_COUNT];
 
 	BufferedPercent fallPercent = { .duration = 0.2f };
 	BufferedPercent jumpPercent = { .duration = 0.2f };
@@ -83,6 +78,11 @@ struct CharacterController3rdPerson
 	f32 deceleration = -2.0f * runSpeed;
 
 	f32 rotationSpeed = to_radians(360);
+
+	AnimatedSkeleton 	skeleton;
+	Animation const * 	animations[CharacterAnimations::ANIMATION_COUNT];
+	f32 				animationWeights [CharacterAnimations::ANIMATION_COUNT];
+
 };
 
 internal CharacterController3rdPerson
@@ -95,20 +95,6 @@ make_character(Transform3D * transform)
 	return result;
 }
 
-internal v3
-process_player_input(game::Input const * input, Camera const * camera)
-{
-	v3 viewForward 	= get_forward(camera);
-	viewForward.z 	= 0;
-	viewForward 	= viewForward.normalized();
-	v3 viewRight 	= vector::cross(viewForward, world::up);
-	v3 result 		= viewRight * input->move.x + viewForward * input->move.y;
-
-	logDebug(0) << "input move: " <<  input->move;
-
-	return result;
-}
-
 void
 update_character( 	CharacterController3rdPerson & 	character,
 					game::Input * 					input,
@@ -116,11 +102,13 @@ update_character( 	CharacterController3rdPerson & 	character,
 					CollisionSystem3D *				collisionSystem,
 					platform::Graphics * 			graphics)
 {
-	v3 inputVector = process_player_input(input, worldCamera);
+	// v3 inputVector = process_player_input(input, worldCamera);
+	v3 viewForward 	= get_forward(worldCamera);
+	viewForward.z 	= 0;
+	viewForward 	= viewForward.normalized();
+	v3 viewRight 	= vector::cross(viewForward, world::up);
+	v3 inputVector 	= viewRight * input->move.x + viewForward * input->move.y;
 
-	// f32 inputMagnitude = inputVector.magnitude();
-	// logDebug() << inputVector << ", " << inputMagnitude;
-	// Assert(inputMagnitude == inputMagnitude);
 
 
 	v3 forward = get_forward(*character.transform);
@@ -129,6 +117,8 @@ update_character( 	CharacterController3rdPerson & 	character,
 	// Note(Leo): these are in character space
 	f32 forwardInput = vector::dot(inputVector, forward);
 	f32 rightInput = vector::dot(inputVector, right);
+
+	// -------------------------------------------------
 
 	v4 gizmoColor = {0,0,0,1};
 
@@ -142,7 +132,11 @@ update_character( 	CharacterController3rdPerson & 	character,
 
 	using namespace CharacterAnimations;
 
-	f32 weights [ANIMATION_COUNT] = {};
+	f32 * weights = character.animationWeights;
+	for (f32 & weight : character.animationWeights)
+	{
+		weight = 0;
+	}
 
 	auto override_weight = [&weights](AnimationType animation, f32 value)
 	{
@@ -159,14 +153,6 @@ update_character( 	CharacterController3rdPerson & 	character,
 			}
 		}
 	};
-
-	Animation const * animations [ANIMATION_COUNT];
-	animations[IDLE] 	= &character.animations[IDLE];
-	animations[CROUCH] 	= &character.animations[CROUCH];
-	animations[WALK] 	= &character.animations[WALK];
-	animations[RUN] 	= &character.animations[RUN];
-	animations[JUMP] 	= &character.animations[JUMP];
-	animations[FALL] 	= &character.animations[FALL];
 
 	f32 crouchPercent = move_towards(is_pressed(input->B), input->elapsedTime, character.crouchPercent);
 
@@ -402,7 +388,7 @@ update_character( 	CharacterController3rdPerson & 	character,
 
 	if (character.transform->position.z > groundHeight)
 	{	
-		character.zSpeed += character.gravity * input->elapsedTime;
+		character.zSpeed += physics::gravityAcceleration * input->elapsedTime;
 	}
 	else
 	{
@@ -412,27 +398,25 @@ update_character( 	CharacterController3rdPerson & 	character,
 
 	// ----------------------------------------------------------------------------------
 
-	// Note(Leo): We do this late here because we update animation weights later too.
-	update_skeleton_animator(character.skeleton, animations, weights, ANIMATION_COUNT, input->elapsedTime);
 
 	// ----------------------------------------------------------------------------------
 
 	// Note(Leo): Draw move action gizmo after movement, so it does not lage one frame behind
 	v3 gizmoPosition = character.transform->position + v3{0,0,2};
-	m44 gizmoTransform = make_transform_matrix(	gizmoPosition, 0.3f);
-	debug::draw_diamond(graphics, gizmoTransform, gizmoColor, platformApi);
+	// m44 gizmoTransform = make_transform_matrix(	gizmoPosition, 0.3f);
+	// debug::draw_diamond(graphics, gizmoTransform, gizmoColor, platformApi);
 
 	debug::draw_line(gizmoPosition, gizmoPosition + rightInput * right, {0.8, 0.2, 0.3, 1.0});
 	debug::draw_line(gizmoPosition, gizmoPosition + forwardInput * forward, {0.2, 0.8, 0.3, 1.0});
 
 	debug::draw_line(gizmoPosition, gizmoPosition + input->move.x * get_right(worldCamera), {0.8, 0.8, 0.2});
-	debug::draw_line(gizmoPosition, gizmoPosition + input->move.y * get_forward(worldCamera), {0.2, 0.3, 0.8});
+	debug::draw_line(gizmoPosition, gizmoPosition + input->move.y * get_up(worldCamera), {0.2, 0.3, 0.8});
 
 
-	if (grounded)
-	{
-		gizmoTransform = make_transform_matrix(character.transform->position + v3{0,0,2}, 0.1);
-		debug::draw_diamond(graphics, gizmoTransform, gizmoColor, platformApi);
-	}
+	// if (grounded)
+	// {
+	// 	gizmoTransform = make_transform_matrix(character.transform->position + v3{0,0,2}, 0.1);
+	// 	// debug::draw_diamond(graphics, gizmoTransform, gizmoColor, platformApi);
+	// }
 
 } // update_character()

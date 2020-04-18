@@ -7,6 +7,16 @@ struct LogInput
 	std::stringstream 	buffer;
 	std::ostream * 		output;
 
+	struct FileAddress
+	{
+		const char * 	file;
+		s32 			line;
+	} address;
+	bool32 hasFileAddress = false;
+
+	char const * title;
+	s32 verbosity;
+
 	bool doPrint = true;
 
 	LogInput () 				= default;
@@ -23,12 +33,31 @@ struct LogInput
 		return *this;
 	}
 
+
+	template<>
+	LogInput & operator << <FileAddress>(FileAddress const & value)
+	{
+		address 		= value;
+		hasFileAddress 	= true;
+
+		return *this;
+	} 
+
 	~LogInput()
 	{
 		if (doPrint)
 		{
+			std::stringstream header;
+			header << "[" << title << ":" << verbosity;
+			if (hasFileAddress)
+			{
+				header << ":" << address.file << ":" << address.line;
+			}
+			header << "]: ";	
+
 			buffer << "\n";
-			*output << buffer.str();
+
+			*output << header.str() << buffer.str();
 
 			// // Note(Leo): We flush so we get immediate output to file.
 			// // Todo(Leo): Heard this is unnecessay though, so find out more.
@@ -39,10 +68,9 @@ struct LogInput
 
 struct LogChannel
 {
-	char const * title;
-	int verbosity;
-
-	std::ostream * output = &std::cout;
+	char const * 	title;
+	s32 			verbosity;
+	std::ostream * 	output = &std::cout;
 
 	LogInput operator()(int verbosity = 1)
 	{
@@ -50,9 +78,9 @@ struct LogChannel
 
 		if (verbosity <= this->verbosity)
 		{
-			// Prebuild header
-			result.buffer << "[" << title << ":" << verbosity << "]: ";
-			result.output = output;
+			result.title 		= title;
+			result.verbosity 	= verbosity;
+			result.output 		= output;
 		}
 		else
 		{
@@ -72,6 +100,4 @@ LogChannel logWindow	= {"WINDOW", 5};
 LogChannel logSystem	= {"SYSTEM", 5};
 LogChannel logNetwork	= {"NETWORK", 5};
 
-#define F_A_HELPER_1_(x) #x
-#define F_A_HELPER_2_(x) F_A_HELPER_1_(x)
-#define FILE_ADDRESS "[" __FILE__ ":" F_A_HELPER_2_(__LINE__) "] "
+#define FILE_ADDRESS LogInput::FileAddress{__FILE__, __LINE__}

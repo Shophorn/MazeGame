@@ -26,6 +26,8 @@ namespace vector_impl_
 
 	template <typename S, u32 D> void divide(void * vec, S divisor)
 	{
+		Assert(divisor != 0);
+		
 		for (int i = 0; i < D; ++i)
 		{
 			reinterpret_cast<S*>(vec)[i] /= divisor;
@@ -63,6 +65,8 @@ template<typename S>
 struct Vector<S, 3>
 { 
 	S x, y, z; 
+
+	Vector<S, 2> & xy () { return *reinterpret_cast<Vector<S,2>*>(this); }
 
 	static Vector const right;
 	static Vector const forward;

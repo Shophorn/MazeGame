@@ -67,21 +67,8 @@ constexpr u32 array_count(const _ (&array)[Count])
 {
     return Count;
 }
+    
 
-inline u64
-align_up_to(u64 alignment, u64 size)
-{
-    /*
-    Divide to get number of full multiples of alignment
-    Add one so we end up bigger
-    Multiply to get actual size, that is both bigger AND a multiple of alignment
-    */
-
-    size /= alignment;
-    size += 1;
-    size *= alignment;
-    return size;
-}
 
 const char * 
 bool_str(bool value)

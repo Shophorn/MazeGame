@@ -400,7 +400,7 @@ namespace vulkan
     get_aligned_uniform_buffer_size(VulkanContext * context, VkDeviceSize size)
     {
     	auto alignment = context->physicalDeviceProperties.limits.minUniformBufferOffsetAlignment;
-    	return align_up_to(alignment, size);
+    	return align_up(size, alignment);
     } 
 
     internal VkCommandBuffer begin_command_buffer(VkDevice, VkCommandPool);

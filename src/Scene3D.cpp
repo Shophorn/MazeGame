@@ -7,17 +7,16 @@ Scene description for 3d development scene
 #include "TerrainGenerator.cpp"
 #include "Collisions3D.cpp"
 #include "CharacterController3rdPerson.cpp"
+#include "OtherGirlController.cpp"
 
 #include "DefaultSceneGui.cpp"
 
-void update_animated_renderer(AnimatedRenderer & renderer, Array<Bone> const & skeleton)
+void update_animated_renderer(AnimatedRenderer & renderer)
 {
-	// Todo(Leo): Make more sensible structure that keeps track of this
-	Assert(skeleton.count() == renderer.bones.count());
+	AnimatedSkeleton const & skeleton = *renderer.skeleton; 
+	u32 boneCount = skeleton.bones.count();
 
-	u32 boneCount = skeleton.count();
-
-	/* Todo(Leo): Skeleton needs to be ordered so that parent ALWAYS comes before
+	/* Todo(Leo): Skeleton.bones needs to be ordered so that parent ALWAYS comes before
 	children, and therefore 0th is always implicitly root */
 
 	m44 modelSpaceTransforms [50];
@@ -29,22 +28,23 @@ void update_animated_renderer(AnimatedRenderer & renderer, Array<Bone> const & s
 		2. transform bone space matrix to model space matrix
 		*/
 
-		m44 matrix = get_matrix(skeleton[i].boneSpaceTransform);
+		m44 matrix = get_matrix(skeleton.bones[i].boneSpaceTransform);
 
-		if (skeleton[i].is_root() == false)
+		if (skeleton.bones[i].is_root() == false)
 		{
-			m44 parentMatrix = modelSpaceTransforms[skeleton[i].parent];
+			m44 parentMatrix = modelSpaceTransforms[skeleton.bones[i].parent];
 			matrix = parentMatrix * matrix;
 		}
 		modelSpaceTransforms[i] = matrix;
-		renderer.bones[i] = matrix * skeleton[i].inverseBindMatrix;
+		renderer.bones[i] = matrix * skeleton.bones[i].inverseBindMatrix;
 	}
 }
 
 
 struct Scene3d
 {
-	Array<Transform3D> transformStorage;
+	Array<Transform3D> 		transformStorage;
+	Array<SkeletonAnimator> skeletonAnimators;	
 	
 	Array<RenderSystemEntry> renderSystem = {};
 	Array<AnimatedRenderer> animatedRenderers = {};
@@ -53,6 +53,10 @@ struct Scene3d
 	Camera worldCamera;
 	CameraController3rdPerson cameraController;
 	CharacterController3rdPerson characterController;
+
+	OtherGirlController otherGirlController;
+
+	Animation characterAnimations [CharacterAnimations::ANIMATION_COUNT];
 
 	ModelHandle skybox;
 
@@ -97,19 +101,26 @@ Scene3d::update(	void * 					scenePtr,
 	functions->draw_model(graphics, scene->skybox, m44::identity(), false, nullptr, 0);
 
 	// Game Logic section
-	update_character(	scene->characterController,
+	auto & character = scene->characterController;
+	update_character(	character,
 						input,
 						&scene->worldCamera,
 						&scene->collisionSystem,
 						graphics);
+	
 	update_camera_controller(&scene->cameraController, input);
+	update_other_girl(scene->otherGirlController, scene->collisionSystem, input->elapsedTime);
+
+	for (auto & animator : scene->skeletonAnimators)
+	{
+		update_skeleton_animator(animator, input->elapsedTime);
+	}
 
 	// Rendering section
     update_camera_system(&scene->worldCamera, input, graphics, window);
 	update_render_system(scene->renderSystem, graphics);
 
 
-	auto & character = scene->characterController;
 	// update_skeleton_animator(character.animator, input->elapsedTime);
 
 	// {
@@ -123,7 +134,10 @@ Scene3d::update(	void * 					scenePtr,
 	// 	}
 	// }
 
-	update_animated_renderer(scene->animatedRenderers[0], character.skeleton.bones);
+	for (auto & renderer : scene->animatedRenderers)
+	{
+		update_animated_renderer(renderer);
+	}
 	render_animated_models(scene->animatedRenderers, graphics);
 
 	// ------------------------------------------------------------------------
@@ -245,42 +259,107 @@ Scene3d::load(	void * 						scenePtr,
 
 	// Characters
 	{
+		scene->skeletonAnimators = allocate_array<SkeletonAnimator>(*persistentMemory, 10);
 		auto & character = scene->characterController;
 
-		auto transform 				= allocate_transform(scene->transformStorage, {10, 10, 5});
-		character 					= make_character(transform);
+		Transform3D * transform = allocate_transform(scene->transformStorage, {10, 10, 5});
+		character 				= make_character(transform);
 
-		char const * filename 		= "assets/models/cube_head.glb";
-		auto const gltfFile 		= read_gltf_file(*transientMemory, filename);
-
-		logDebug(0) << "Hello from succesful file";
+		char const * filename 	= "assets/models/cube_head.glb";
+		auto const gltfFile 	= read_gltf_file(*transientMemory, filename);
 
 		character.skeleton.bones 	= load_skeleton_glb(*persistentMemory, gltfFile, "cube_head");
-		logDebug(0) << "Hello from succesful file 2";
 
-		auto log = logDebug(0);
-		log << "Bones in skeleton:\n";
-		for (auto & bone : character.skeleton.bones)
 		{
-			log << "\t" << bone.name << "\n";
+			auto log = logDebug(0);
+			log << "Bones in skeleton:\n";
+			for (auto & bone : character.skeleton.bones)
+			{
+				log << "\t" << bone.name << "\n";
+			}
 		}
+
 		{
 			using namespace CharacterAnimations;			
 
-			character.animations[WALK] 		= load_animation_glb(*persistentMemory, gltfFile, "Walk");
-			character.animations[RUN] 		= load_animation_glb(*persistentMemory, gltfFile, "Run");
-			character.animations[IDLE] 		= load_animation_glb(*persistentMemory, gltfFile, "Idle");
-			character.animations[JUMP]		= load_animation_glb(*persistentMemory, gltfFile, "JumpUp");
-			character.animations[FALL]		= load_animation_glb(*persistentMemory, gltfFile, "JumpDown");
-			character.animations[CROUCH] 	= load_animation_glb(*persistentMemory, gltfFile, "Crouch");
+			scene->characterAnimations[WALK] 	= load_animation_glb(*persistentMemory, gltfFile, "Walk");
+			scene->characterAnimations[RUN] 	= load_animation_glb(*persistentMemory, gltfFile, "Run");
+			scene->characterAnimations[IDLE] 	= load_animation_glb(*persistentMemory, gltfFile, "Idle");
+			scene->characterAnimations[JUMP]	= load_animation_glb(*persistentMemory, gltfFile, "JumpUp");
+			scene->characterAnimations[FALL]	= load_animation_glb(*persistentMemory, gltfFile, "JumpDown");
+			scene->characterAnimations[CROUCH] 	= load_animation_glb(*persistentMemory, gltfFile, "Crouch");
+
+			scene->characterController.animations[WALK] 	= &scene->characterAnimations[WALK];
+			scene->characterController.animations[RUN] 		= &scene->characterAnimations[RUN];
+			scene->characterController.animations[IDLE] 	= &scene->characterAnimations[IDLE];
+			scene->characterController.animations[JUMP]		= &scene->characterAnimations[JUMP];
+			scene->characterController.animations[FALL]		= &scene->characterAnimations[FALL];
+			scene->characterController.animations[CROUCH] 	= &scene->characterAnimations[CROUCH];
 		}
 
 		auto girlMeshAsset 			= load_mesh_glb(*transientMemory, gltfFile, "cube_head");
-		auto girlMesh 				= functions->push_mesh(graphics, &girlMeshAsset);
+		auto girlMesh 				= platformApi->push_mesh(platformGraphics, &girlMeshAsset);
 		auto model 					= push_model(girlMesh, materials.character);
 
-		auto bones = allocate_array<m44>(*persistentMemory, character.skeleton.bones.count(), ALLOC_FILL_UNINITIALIZED);
-		scene->animatedRenderers.push({transform, model, true, std::move(bones)});
+
+		scene->animatedRenderers.push(make_animated_renderer(
+				transform,
+				&character.skeleton,
+				model,
+				*persistentMemory
+			));
+
+		SkeletonAnimator a =
+		{
+			.skeleton 		= &scene->characterController.skeleton,
+			.animations 	= scene->characterController.animations,
+			.weights 		= scene->characterController.animationWeights,
+			.animationCount = CharacterAnimations::ANIMATION_COUNT
+		};
+
+		scene->skeletonAnimators.push(a);
+
+		// --------------------------------------------------------------------
+
+		transform 	= allocate_transform(scene->transformStorage, {10, 20, 0});
+		model 		= push_model(girlMesh, materials.character); 
+
+
+		scene->otherGirlController =
+		{
+			.transform 			= transform,
+			.targetTransform 	= scene->characterController.transform
+		};
+
+		{
+			using namespace CharacterAnimations;			
+
+			scene->otherGirlController.animations[WALK] 	= &scene->characterAnimations[WALK];
+			scene->otherGirlController.animations[RUN] 		= &scene->characterAnimations[RUN];
+			scene->otherGirlController.animations[IDLE] 	= &scene->characterAnimations[IDLE];
+			scene->otherGirlController.animations[JUMP]		= &scene->characterAnimations[JUMP];
+			scene->otherGirlController.animations[FALL]		= &scene->characterAnimations[FALL];
+			scene->otherGirlController.animations[CROUCH] 	= &scene->characterAnimations[CROUCH];
+		}
+
+		scene->otherGirlController.skeleton = {};
+		scene->otherGirlController.skeleton.bones = copy_array(*persistentMemory, scene->characterController.skeleton.bones);
+
+		scene->animatedRenderers.push(make_animated_renderer(
+				transform,
+				&scene->otherGirlController.skeleton,
+				model,
+				*persistentMemory
+			));
+
+		SkeletonAnimator b =
+		{
+			.skeleton 		= &scene->otherGirlController.skeleton,
+			.animations 	= scene->otherGirlController.animations,
+			.weights 		= scene->otherGirlController.animationWeights,
+			.animationCount = CharacterAnimations::ANIMATION_COUNT
+		};
+		scene->skeletonAnimators.push(b);
 	}
 
 	// Test robot

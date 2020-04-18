@@ -13,6 +13,24 @@ but compulsory design choices, look at:
 
 #include "Array.hpp"
 
+// Note(Leo): We kinda hav expected to always use 64 bit systems.
+static_assert(sizeof(void*) == sizeof(u64));
+
+internal u64
+align_up(u64 size, u64 alignment)
+{
+    /*
+    Divide to get number of full multiples of alignment
+    Add one so we end up bigger
+    Multiply to get actual size, that is both bigger AND a multiple of alignment
+    */
+
+    size /= alignment;
+    size += 1;
+    size *= alignment;
+    return size;
+}
+
 void copy_memory (void * dst, void const * src, u64 count)
 {
 	memcpy(dst, src, count);
@@ -64,7 +82,7 @@ struct MemoryArena
 internal void *
 allocate(MemoryArena & arena, s64 size, bool clear = false)
 {
-	size = align_up_to(size, MemoryArena::defaultAlignment);
+	size = align_up(size, MemoryArena::defaultAlignment);
 
 	DEBUG_ASSERT(size <= arena.available(), "Not enough memory available in MemoryArena");
 

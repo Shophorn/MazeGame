@@ -184,7 +184,7 @@ vulkan::finish_drawing(VulkanContext * context)
     vkCmdEndRenderPass(frame->commandBuffers.primary);
 
     // Note(Leo): Debug quad, MaterialHandle::Null directs to debug material where shadow image is bound
-    record_gui_draw_command(context, {1500, 20}, {400, 400}, MaterialHandle::Null, {0,1,1,1});
+    // record_gui_draw_command(context, {1500, 20}, {400, 400}, MaterialHandle::Null, {0,1,1,1});
 
     // MAIN SCENE RENDER PASS -------------------------------------------------
     VULKAN_CHECK(vkEndCommandBuffer(frame->commandBuffers.scene));
