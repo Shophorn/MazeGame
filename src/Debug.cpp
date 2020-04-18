@@ -67,4 +67,9 @@ namespace debug
 		functions->draw_line(graphics, yPos, zPos, 1.0f, color);
 		functions->draw_line(graphics, zPos, yNeg, 1.0f, color);
 	}
+
+	void draw_line(v3 start, v3 end, v4 color)
+	{
+		platformApi->draw_line(platformGraphics, start, end, 1.0f, color);
+	}
 }

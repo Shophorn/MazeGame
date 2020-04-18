@@ -7,6 +7,7 @@ Leo Tamminen
 #include "Mazegame.hpp"
 
 platform::Functions * platformApi;
+platform::Graphics * platformGraphics;
 
 #include "Debug.cpp"
 
@@ -174,7 +175,11 @@ bool32 update_game(
 
 	}
 
-	platformApi = functions;
+	/* Note(Leo): Im not 100% sure we need to set these each frame,
+	they could be just set on initialize if statement, but I have
+	not yet had time to think about it, so here we are */
+	platformApi 		= functions;
+	platformGraphics 	= graphics;
 
 	// Note(Leo): Free space for current frame.
 	flush_memory_arena(&state->transientMemoryArena);

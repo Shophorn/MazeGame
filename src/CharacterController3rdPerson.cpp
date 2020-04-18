@@ -4,24 +4,28 @@ shophorn @ internet
 
 3rd person character controller, nothhng less, nothing more
 =============================================================================*/
-template<s32 BufferSize>
-struct BufferedValue
-{	
-	f32 buffer [BufferSize] 	= {};
-	s32 position 				= 0;
-	f32 value 				= 0;
+struct BufferedPercent
+{
+	f32 duration;
+	f32 current;
 };
 
-template<s32 BufferSize>
-void put_value(BufferedValue<BufferSize> & input, f32 value)
+f32 move_towards(f32 target, f32 elapsedTime, BufferedPercent & buffer)
 {
-	input.value -= input.buffer[input.position];
-	input.buffer[input.position] = value / BufferSize;
-	input.value += input.buffer[input.position];
+	if (target < buffer.current)
+	{
+		buffer.current -= elapsedTime / buffer.duration;
+		buffer.current = math::max(target, buffer.current);
+	}
+	else if (target > buffer.current)
+	{
+		buffer.current += elapsedTime / buffer.duration;
+		buffer.current = math::min(target, buffer.current);
+	}
 
-	input.position += 1;
-	input.position %= BufferSize;
+	return buffer.current;
 }
+
 
 namespace CharacterAnimations
 {
@@ -54,12 +58,10 @@ struct CharacterController3rdPerson
 
 	Animation animations[CharacterAnimations::ANIMATION_COUNT];
 
-	// These numbers are frames to average in buffer. It is bad since it does not consider frame rate at all
-	// Todo(Leo): Fix
-	BufferedValue<15> fallPercent;
-	BufferedValue<10> jumpPercent;
-	BufferedValue<10> crouchPercent;
-	BufferedValue<30> grounded;
+	BufferedPercent fallPercent = { .duration = 0.2f };
+	BufferedPercent jumpPercent = { .duration = 0.2f };
+	BufferedPercent crouchPercent = { .duration = 0.2f };
+	BufferedPercent grounded = { .duration = 0.5f };
 
 	f32 	jumpTimer;
 	f32 	jumpDuration = 0.2f;
@@ -79,6 +81,8 @@ struct CharacterController3rdPerson
 	should be kept at values relative to max speed */ 
 	f32 acceleration = 1.0f * runSpeed;
 	f32 deceleration = -2.0f * runSpeed;
+
+	f32 rotationSpeed = to_radians(360);
 };
 
 internal CharacterController3rdPerson
@@ -114,9 +118,17 @@ update_character( 	CharacterController3rdPerson & 	character,
 {
 	v3 inputVector = process_player_input(input, worldCamera);
 
-	f32 inputMagnitude = inputVector.magnitude();
-	logDebug() << inputVector << ", " << inputMagnitude;
-	Assert(inputMagnitude == inputMagnitude);
+	// f32 inputMagnitude = inputVector.magnitude();
+	// logDebug() << inputVector << ", " << inputMagnitude;
+	// Assert(inputMagnitude == inputMagnitude);
+
+
+	v3 forward = get_forward(*character.transform);
+	v3 right = get_right(*character.transform);
+
+	// Note(Leo): these are in character space
+	f32 forwardInput = vector::dot(inputVector, forward);
+	f32 rightInput = vector::dot(inputVector, right);
 
 	v4 gizmoColor = {0,0,0,1};
 
@@ -156,8 +168,7 @@ update_character( 	CharacterController3rdPerson & 	character,
 	animations[JUMP] 	= &character.animations[JUMP];
 	animations[FALL] 	= &character.animations[FALL];
 
-	put_value(character.crouchPercent, is_pressed(input->B) ? 1 : 0);
-	f32 crouchPercent = character.crouchPercent.value;
+	f32 crouchPercent = move_towards(is_pressed(input->B), input->elapsedTime, character.crouchPercent);
 
 	constexpr f32 crouchOverridePowerForAnimation = 0.6f;
 	constexpr f32 crouchOverridePowerForSpeed = 0.8f;
@@ -168,31 +179,31 @@ update_character( 	CharacterController3rdPerson & 	character,
 	// Update speeds
 	// -------------------------------------------------
 
-	if (inputMagnitude < walkMinInput)
+	if (forwardInput < walkMinInput)
 	{
 		speed 			= 0;
 		gizmoColor 		= {0, 0, 1, 1};
 	}
-	else if (inputMagnitude < walkMaxInput)
+	else if (forwardInput < walkMaxInput)
 	{
-		f32 t = (inputMagnitude - walkMinInput) / idleToWalkRange;
+		f32 t = (forwardInput - walkMinInput) / idleToWalkRange;
 		speed 			= interpolate(0, character.walkSpeed, t);
-		f32 crouchValue = character.crouchPercent.value;
+		f32 crouchValue = crouchPercent;
 		speed *= (1 - crouchValue * crouchOverridePowerForSpeed);
 		gizmoColor 		= {1, 0, 0, 1};
 	}
-	else if (inputMagnitude < runMinInput)
+	else if (forwardInput < runMinInput)
 	{
 		speed 			= character.walkSpeed;
-		f32 crouchValue = character.crouchPercent.value;
+		f32 crouchValue = crouchPercent;
 		speed *= (1 - crouchValue * crouchOverridePowerForSpeed);
 		gizmoColor 		= {1, 1, 0, 1};
 	}
 	else
 	{
-		f32 t = (inputMagnitude - runMinInput) / walkToRunRange;
+		f32 t = (forwardInput - runMinInput) / walkToRunRange;
 		speed 			= interpolate (character.walkSpeed, character.runSpeed, t);
-		f32 crouchValue = character.crouchPercent.value;
+		f32 crouchValue = crouchPercent;
 		speed *= (1 - crouchValue * crouchOverridePowerForSpeed);
 		gizmoColor = {0, 1, 0, 1};
 	}
@@ -228,7 +239,7 @@ update_character( 	CharacterController3rdPerson & 	character,
 		weights[CROUCH] = (1 - t) * crouchPercent;
 		weights[WALK] 	= t;
 
-		f32 crouchValue = character.crouchPercent.value;
+		f32 crouchValue = crouchPercent;
 		override_weight(CROUCH, crouchValue * crouchOverridePowerForAnimation);
 	}
 	else
@@ -238,17 +249,19 @@ update_character( 	CharacterController3rdPerson & 	character,
 		weights[WALK] 	= 1 - t;
 		weights[RUN] 	= t;
 
-		f32 crouchValue = character.crouchPercent.value;
+		f32 crouchValue = crouchPercent;
 		override_weight(CROUCH, crouchValue * crouchOverridePowerForAnimation);
 	}
 
 	// ------------------------------------------------------------------------
 
-	put_value(character.fallPercent, character.zSpeed < - 1 ? (1 - character.grounded.value) : 0);
-	override_weight(FALL, math::smooth(character.fallPercent.value));
+	bool32 falling = character.zSpeed < - 1;
+	move_towards(falling ? (1 - character.grounded.current) : 0, input->elapsedTime, character.fallPercent);
+	override_weight(FALL, math::smooth(character.fallPercent.current));
 
-	put_value(character.jumpPercent, character.zSpeed > 0.1 ? 1 : 0);
-	override_weight(JUMP, math::smooth(character.jumpPercent.value));
+	s32 goingUp = character.zSpeed > 0.1;
+	move_towards(goingUp, input->elapsedTime, character.jumpPercent);
+	override_weight(JUMP, math::smooth(character.jumpPercent.current));
 
 	// ------------------------------------------------------------------------
 
@@ -282,7 +295,7 @@ update_character( 	CharacterController3rdPerson & 	character,
 
 	if (speed > 0)
 	{
-		v3 direction = inputMagnitude > 0.00001f ? inputVector.normalized() : get_forward(*character.transform);
+		v3 direction = forward;//inputMagnitude > 0.00001f ? inputVector.normalized() : get_forward(*character.transform);
 		f32 distance = input->elapsedTime * speed;
 
 		constexpr int rayCount = 5;
@@ -323,12 +336,19 @@ update_character( 	CharacterController3rdPerson & 	character,
 			character.hitRayPosition = character.transform->position + up * 0.25f;
 			character.hitRayNormal = raycastResult.hitNormal;
 
-			auto projectionOnNormal = vector::project(direction * distance, raycastResult.hitNormal);
+			// TOdo(Leo): Make so that we only reduce the amount of normal's part
+			// auto projectionOnNormal = vector::project(direction * distance, raycastResult.hitNormal);
 			// character.transform->position += direction * distance - projectionOnNormal;
 		}
+	}
 
-		f32 angleToWorldForward 		= vector::get_signed_angle(world::forward, direction, world::up);
-		character.transform->rotation = quaternion::axis_angle(world::up, angleToWorldForward);		
+	// Note(Leo): This if is not super important but maybe we dodge a few weird cases. 
+	if (rightInput != 0)
+	{
+		/* Note(Leo): input is inverted, because negative input means left,
+		but in our right handed coordinate system, negative rotation means right */
+		quaternion rotation = quaternion::axis_angle(v3::up, -1 * rightInput * character.rotationSpeed * input->elapsedTime);
+		character.transform->rotation = character.transform->rotation * rotation;
 	}
 
 	f32 groundHeight = get_terrain_height(collisionSystem, vector::convert_to<v2>(character.transform->position));
@@ -337,10 +357,9 @@ update_character( 	CharacterController3rdPerson & 	character,
 	bool32 startLanding = character.wasGroundedLastFrame == false && grounded == true;
 	character.wasGroundedLastFrame = grounded;
 
+	move_towards(grounded, input->elapsedTime, character.grounded);
 
-	put_value(character.grounded, grounded ? 1 : 0);
-
-	grounded = character.grounded.value > 0.5f;
+	grounded = character.grounded.current > 0.5f;
 
 	// This is jump
 	if (grounded && is_clicked(input->X))
@@ -399,17 +418,21 @@ update_character( 	CharacterController3rdPerson & 	character,
 	// ----------------------------------------------------------------------------------
 
 	// Note(Leo): Draw move action gizmo after movement, so it does not lage one frame behind
-	m44 gizmoTransform = make_transform_matrix(	character.transform->position + v3{0,0,2}, 0.3f);
+	v3 gizmoPosition = character.transform->position + v3{0,0,2};
+	m44 gizmoTransform = make_transform_matrix(	gizmoPosition, 0.3f);
 	debug::draw_diamond(graphics, gizmoTransform, gizmoColor, platformApi);
+
+	debug::draw_line(gizmoPosition, gizmoPosition + rightInput * right, {0.8, 0.2, 0.3, 1.0});
+	debug::draw_line(gizmoPosition, gizmoPosition + forwardInput * forward, {0.2, 0.8, 0.3, 1.0});
+
+	debug::draw_line(gizmoPosition, gizmoPosition + input->move.x * get_right(worldCamera), {0.8, 0.8, 0.2});
+	debug::draw_line(gizmoPosition, gizmoPosition + input->move.y * get_forward(worldCamera), {0.2, 0.3, 0.8});
+
 
 	if (grounded)
 	{
 		gizmoTransform = make_transform_matrix(character.transform->position + v3{0,0,2}, 0.1);
 		debug::draw_diamond(graphics, gizmoTransform, gizmoColor, platformApi);
-	}
-	else
-	{
-		// logDebug(0) << "zSpeed: " << character.zSpeed;
 	}
 
 } // update_character()
