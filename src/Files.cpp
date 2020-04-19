@@ -140,6 +140,8 @@ read_binary_file(MemoryArena & memoryArena, const char * filename)
 {
 	auto file = std::ifstream (filename, std::ios::in|std::ios::binary);
 
+	DEBUG_ASSERT(file.good(), CStringBuilder("Could not load file: ") + filename);
+
 	u64 size 		= get_ifstream_length(file);
 	auto result 	= allocate_array<byte>(memoryArena, size);
 	auto bufferPtr 	= reinterpret_cast<char *>(result.begin());
@@ -147,7 +149,6 @@ read_binary_file(MemoryArena & memoryArena, const char * filename)
 	file.read(bufferPtr, size);
 	return result;
 }
-
 
 struct GltfFile
 {

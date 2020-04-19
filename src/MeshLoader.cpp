@@ -7,12 +7,6 @@ Todo(Leo):
 	- use reference variables for rapidjson things
 =============================================================================*/
 
-// Note(Leo): this also includes string and vector apparently
-// #define TINYOBJLOADER_IMPLEMENTATION
-// #include <tiny_obj_loader.h>
-// #include <string>
-// #include <vector>
-
 template <typename T> internal T const * 
 get_buffer_start(GltfFile const & file, u32 accessor)
 {
@@ -56,7 +50,7 @@ load_animation_glb(MemoryArena & allocator, GltfFile const & file, char const * 
 
 	if(animationIndex < 0)
 	{
-		auto log = logDebug(0);
+		auto log = logDebug();
 		log << "Animation not found. Requested: " << animationName << ", available:\n";
 		for (auto const & anim : animArray)
 		{
@@ -72,7 +66,7 @@ load_animation_glb(MemoryArena & allocator, GltfFile const & file, char const * 
 	auto accessors 		= file.json["accessors"].GetArray();
 
 	Animation result = {};
-	result.channels = allocate_array<AnimationChannel>(allocator, jsonChannels.Size());
+	result.channels = allocate_array<AnimationChannel>(allocator, jsonChannels.Size(), ALLOC_EMPTY_CLEARED);
 
 	float minTime = math::highest_value<float>;
 	float maxTime = math::lowest_value<float>;
@@ -181,7 +175,7 @@ load_animation_glb(MemoryArena & allocator, GltfFile const & file, char const * 
 	return result;
 }
 
-internal Array<Bone>
+internal AnimatedSkeleton
 load_skeleton_glb(MemoryArena & allocator, GltfFile const & file, char const * modelName)
 {
 	auto nodes = file.json["nodes"].GetArray();
@@ -201,7 +195,8 @@ load_skeleton_glb(MemoryArena & allocator, GltfFile const & file, char const * m
 	u32 boneCount 	= jsonBones.Size();
 	m44 const * inverseBindMatrices = get_buffer_start<m44>(file, skin["inverseBindMatrices"].GetInt());
 
-	Array<Bone> skeleton = allocate_array<Bone>(allocator, boneCount, ALLOC_FILL_UNINITIALIZED);
+	AnimatedSkeleton skeleton = {};
+	skeleton.bones = allocate_array<AnimatedBone>(allocator, boneCount, ALLOC_FILL_UNINITIALIZED);
 	
 	for (int boneIndex = 0; boneIndex < boneCount; ++boneIndex)
 	{
@@ -250,10 +245,10 @@ load_skeleton_glb(MemoryArena & allocator, GltfFile const & file, char const * m
 		}
 
 		m44 inverseBindMatrix = inverseBindMatrices[boneIndex];
-		skeleton[boneIndex] = make_bone(boneSpaceTransform, inverseBindMatrix, parent);
+		skeleton.bones[boneIndex] = make_bone(boneSpaceTransform, inverseBindMatrix, parent);
 
 		// Note(Leo): Name is not essential...
-		skeleton[boneIndex].name = node.HasMember("name") ? node["name"].GetString() : "nameless bone";
+		skeleton.bones[boneIndex].name = node.HasMember("name") ? node["name"].GetString() : "nameless bone";
 	}
 
 	return skeleton;
@@ -262,10 +257,13 @@ load_skeleton_glb(MemoryArena & allocator, GltfFile const & file, char const * m
 internal MeshAsset
 load_mesh_glb(MemoryArena & allocator, GltfFile const & file, char const * modelName)
 {
+	logDebug() << "modelName = " << modelName; 
+
 	auto nodes = file.json["nodes"].GetArray();
 	
 	s32 nodeIndex = index_by_name(nodes, modelName);
-	Assert(nodeIndex >= 0);
+	// Assert(nodeIndex >= 0);
+	DEBUG_ASSERT(nodeIndex >= 0, CStringBuilder("modelName = ") + modelName);
 
 	Assert(file.json.HasMember("meshes"));
 	Assert(nodes[nodeIndex].HasMember("mesh"));
@@ -369,13 +367,6 @@ load_mesh_glb(MemoryArena & allocator, GltfFile const & file, char const * model
 
 	MeshAsset result = make_mesh_asset(std::move(vertices), std::move(indices));
 	return result;
-}
-
-internal MeshAsset
-load_model_obj(MemoryArena * allocator, char const * modelPath)
-{
-	logDebug(0) << FILE_ADDRESS << "Obj loader not implemented, use glb loader instead";
-	return {};
 }
 
 namespace mesh_ops

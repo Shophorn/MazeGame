@@ -10,37 +10,7 @@ struct Array
 	Array(T * memory, u64 count, u64 capacity);
 
 	Array(Array &&);	
-	Array & operator= (Array && old)
-	{
-		// TODO(Leo): IMPORTANT we must do this, but first we need a debugger to find out where it fails
-		Assert(this->memory_ == nullptr);
-
-		this->memory_ 	= old.memory_;
-		this->capacity_ = old.capacity_;
-		this->count_ 	= old.count_;
-
-		old.memory_ 	= nullptr;
-		old.capacity_ 	= 0;
-		old.count_ 		= 0;
-
-		return *this;
-	};
-
-	// ~Array()
-	// { 
-
-	// 	std::cout << "Hello from array dctor";
-	// 	if (memory_ != nullptr)
-	// 	{
-	// 		global_arrayHasContentDctorCounter++;
-	// 		std:: cout << " NOT EMPTY, type = " << typeid(T).name() << ", counter: " << global_arrayHasContentDctorCounter <<"\n";
-	// 	}
-	// 	else
-	// 	{
-	// 		global_arrayEmptyDctorCounter++;
-	// 		std::cout << ", counter: " << global_arrayEmptyDctorCounter << "\n";
-	// 	}
-	// }
+	Array & operator= (Array &&);
 
 	// NO COPYING MOFO
 	Array(Array const &) 			= delete;
@@ -104,10 +74,39 @@ Array<T>::Array(Array<T> && old) : 	memory_(old.memory_),
 };
 
 template<typename T>
+Array<T> & Array<T>::operator= (Array<T> && old)
+{
+	/* Note(Leo): Prevent assigning to an already used array. User code must
+	be responsible for clearing memory in case of array of arrays, because
+	by default allocating array does not initialize to zero. */
+	Assert(this->memory_ == nullptr);
+
+	this->memory_ 	= old.memory_;
+	this->capacity_ = old.capacity_;
+	this->count_ 	= old.count_;
+
+	old.memory_ 	= nullptr;
+	old.capacity_ 	= 0;
+	old.count_ 		= 0;
+
+	return *this;
+};
+
+
+
+template<typename T>
 void Array<T>::push(T value)
 {
 	Assert(count_ < capacity_);
+#if 0
+	/* Note(Leo): We could use this, but when we have an array of arrays, 
+	it bypasses the assertion in move assignment operator, so we might end
+	up assigning to an array that is already in use */
+	T * address = memory_ + count_;
+	new(address) T(std::move(value));
+#else
 	memory_[count_] = std::move(value);
+#endif
 	++count_;
 }
 

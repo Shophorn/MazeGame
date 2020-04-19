@@ -106,9 +106,9 @@ scene_2d::load(	void * scenePtr,
 	// auto * persistentMemory = &state->persistentMemoryArena;
 	// auto * transientMemory = &state->transientMemoryArena;
 
-	scene->transformStorage = allocate_array<Transform3D>(*persistentMemory, 100);
-	scene->renderSystem 	= allocate_array<RenderSystemEntry>(*persistentMemory, 100);
-	scene->animatorSystem 	= allocate_array<Animator>(*persistentMemory, 100);
+	scene->transformStorage = allocate_array<Transform3D>(*persistentMemory, 100, ALLOC_EMPTY_CLEARED);
+	scene->renderSystem 	= allocate_array<RenderSystemEntry>(*persistentMemory, 100, ALLOC_EMPTY_CLEARED);
+	scene->animatorSystem 	= allocate_array<Animator>(*persistentMemory, 100, ALLOC_EMPTY_CLEARED);
 
 
 	auto allocate_transform = [](Array<Transform3D> & storage, Transform3D value) -> Transform3D *
@@ -180,7 +180,7 @@ scene_2d::load(	void * scenePtr,
 	// Characters
 	Transform3D* characterTransform = {};
 	{
-		auto characterMesh 			= load_model_obj(transientMemory, "assets/models/character.obj");
+		auto characterMesh 			= load_mesh_glb(*transientMemory, read_gltf_file(*transientMemory, "assets/models/cube_head.glb"), "cube_head");
 		auto characterMeshHandle 	= functions->push_mesh(graphics, &characterMesh);
 
 		// Our dude
@@ -270,7 +270,7 @@ scene_2d::load(	void * scenePtr,
 			auto bones2 = allocate_array<Transform3D*>(*persistentMemory, 6);
 
 			int ladderRigBoneCount = 6;
-			auto channels = allocate_array<AnimationChannel>(*persistentMemory, ladderRigBoneCount, ALLOC_EMPTY);
+			auto channels = allocate_array<AnimationChannel>(*persistentMemory, ladderRigBoneCount);
 
 			auto parent1 = root1;
 			auto parent2 = root2;
@@ -364,7 +364,7 @@ scene_2d::load(	void * scenePtr,
 				{8, 0, 12},
 			};
 
-			auto platformMeshAsset 	= load_model_obj(transientMemory, "assets/models/platform.obj");
+			auto platformMeshAsset 	= load_mesh_glb(*transientMemory, read_gltf_file(*transientMemory, "assets/models/platform.glb"), "platform");
 			auto platformMeshHandle = functions->push_mesh(graphics, &platformMeshAsset);
 
 			int platformCount = 12;
@@ -380,17 +380,17 @@ scene_2d::load(	void * scenePtr,
 
 		if(addButtons)
 		{
-			auto keyholeMeshAsset 	= load_model_obj(transientMemory, "assets/models/keyhole.obj");
+			auto keyholeMeshAsset 	= load_mesh_glb(*transientMemory, read_gltf_file(*transientMemory, "assets/models/keyhole.glb"), "keyhole");
 			auto keyholeMeshHandle 	= functions->push_mesh(graphics, &keyholeMeshAsset);
 
 			auto model 	= push_model(keyholeMeshHandle, materials.environment);
-			auto transform 	= allocate_transform(scene->transformStorage, {v3{5, 0, 0}});
+			auto transform 	= allocate_transform(scene->transformStorage, {.position = v3{5, 0, 0}, .rotation = quaternion::axis_angle(v3::up, to_radians(180))});
 
 			scene->renderSystem.push({transform, model});
 			push_collider(&scene->collisionManager, transform, {0.3f, 0.6f}, {0, 0.3f}, ColliderTag::Trigger);
 
 			model 	= push_model(keyholeMeshHandle, materials.environment);
-			transform 	= allocate_transform(scene->transformStorage, {v3{4, 0, 6}});
+			transform 	= allocate_transform(scene->transformStorage, {.position = v3{4, 0, 6}, .rotation = quaternion::axis_angle(v3::up, to_radians(180))});
 
 			scene->renderSystem.push({transform, model});
 			push_collider(&scene->collisionManager, transform, {0.3f, 0.6f}, {0, 0.3f}, ColliderTag::Trigger2);

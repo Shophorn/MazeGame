@@ -41,7 +41,7 @@ struct OtherGirlController
 
 	AnimatedSkeleton 	skeleton;
 	Animation const * 	animations [CharacterAnimations::ANIMATION_COUNT];
-	f32 				animationWeights[CharacterAnimations::ANIMATION_COUNT];
+	f32 				animationWeights [CharacterAnimations::ANIMATION_COUNT];
 };
 
 void update_other_girl(	OtherGirlController & controller,
@@ -54,15 +54,17 @@ void update_other_girl(	OtherGirlController & controller,
 
 	distanceToTarget = math::clamp(distanceToTarget - controller.targetDistanceThreshold, 0.0f, 1.0f);
 
+	v3 inputVector = distanceToTarget < 0.00001f
+					? v3 {0, 0, 0}
+					: toTarget.normalized() * math::min(distanceToTarget, 1.0f);
 
-	v3 inputVector = toTarget.normalized() * math::min(distanceToTarget, 1.0f);//{};//process_player_input(input, worldCamera);
 
-	v3 forward = get_forward(*controller.transform);
-	v3 right = get_right(*controller.transform);
+	v3 forward 	= get_forward(*controller.transform);
+	v3 right 	= get_right(*controller.transform);
 
 	// Note(Leo): these are in character space
-	f32 forwardInput = vector::dot(inputVector, forward);
-	f32 rightInput = vector::dot(inputVector, right);
+	f32 forwardInput 	= vector::dot(inputVector, forward);
+	f32 rightInput 		= vector::dot(inputVector, right);
 
 	v3 gizmoPosition = controller.transform->position + v3{0,0,2};
 	debug::draw_line(gizmoPosition, gizmoPosition + right * rightInput, colors::mutedRed);
@@ -70,14 +72,12 @@ void update_other_girl(	OtherGirlController & controller,
 
 	// -------------------------------------------------
 
-	v4 gizmoColor = {0,0,0,1};
-
 	constexpr f32 walkMinInput 	= 0.05f;
 	constexpr f32 walkMaxInput 	= 0.5f;
 	constexpr f32 runMinInput 	= 0.6f;
 	constexpr f32 runMaxInput 	= 1.0001f; // account for epsilon
 
-	constexpr f32 idleToWalkRange = walkMaxInput - walkMinInput; 
+	constexpr f32 idleToWalkRange 	= walkMaxInput - walkMinInput; 
 	constexpr f32 walkToRunRange 	= runMaxInput - runMinInput;
 
 	using namespace CharacterAnimations;
@@ -111,9 +111,8 @@ void update_other_girl(	OtherGirlController & controller,
 
 	f32 speed = 0;
 	f32 crouchPercent = 0;
-	constexpr f32 crouchOverridePowerForAnimation = 0.6f;
+	constexpr f32 crouchOverridePowerForAnimation = 0.5f;
 	constexpr f32 crouchOverridePowerForSpeed = 0.8f;
-
 
 	// -------------------------------------------------
 	// Update speeds
@@ -121,31 +120,24 @@ void update_other_girl(	OtherGirlController & controller,
 
 	if (forwardInput < walkMinInput)
 	{
-		speed 			= 0;
-		gizmoColor 		= {0, 0, 1, 1};
+		speed 		= 0;
 	}
 	else if (forwardInput < walkMaxInput)
 	{
-		f32 t = (forwardInput - walkMinInput) / idleToWalkRange;
-		speed 			= interpolate(0, controller.walkSpeed, t);
-		f32 crouchValue = crouchPercent;
-		speed *= (1 - crouchValue * crouchOverridePowerForSpeed);
-		gizmoColor 		= {1, 0, 0, 1};
+		f32 t 		= (forwardInput - walkMinInput) / idleToWalkRange;
+		speed 		= interpolate(0, controller.walkSpeed, t);
+		speed 		*= (1 - crouchPercent * crouchOverridePowerForSpeed);
 	}
 	else if (forwardInput < runMinInput)
 	{
-		speed 			= controller.walkSpeed;
-		f32 crouchValue = crouchPercent;
-		speed *= (1 - crouchValue * crouchOverridePowerForSpeed);
-		gizmoColor 		= {1, 1, 0, 1};
+		speed 		= controller.walkSpeed;
+		speed 		*= (1 - crouchPercent * crouchOverridePowerForSpeed);
 	}
 	else
 	{
-		f32 t = (forwardInput - runMinInput) / walkToRunRange;
-		speed 			= interpolate (controller.walkSpeed, controller.runSpeed, t);
-		f32 crouchValue = crouchPercent;
-		speed *= (1 - crouchValue * crouchOverridePowerForSpeed);
-		gizmoColor = {0, 1, 0, 1};
+		f32 t 		= (forwardInput - runMinInput) / walkToRunRange;
+		speed 		= interpolate (controller.walkSpeed, controller.runSpeed, t);
+		speed 		*= (1 - crouchPercent * crouchOverridePowerForSpeed);
 	}
 
 	if (speed > controller.currentSpeed)
@@ -161,51 +153,8 @@ void update_other_girl(	OtherGirlController & controller,
 
 	speed = controller.currentSpeed;
 
-	// ----------------------------------------------
-	// Update animation weigthes
-	// ----------------------------------------------
-
-	if (speed < 0.00001f)
-	{
-		weights[IDLE] 	= 1 * (1 - crouchPercent);
-		weights[CROUCH] = 1 * crouchPercent;
-	}
-	else if (speed < controller.walkSpeed)
-	{
-		f32 t = speed / controller.walkSpeed;
-
-		weights[IDLE] 	= (1 - t) * (1 - crouchPercent);
-		weights[CROUCH] = (1 - t) * crouchPercent;
-		weights[WALK] 	= t;
-
-		f32 crouchValue = crouchPercent;
-		override_weight(CROUCH, crouchValue * crouchOverridePowerForAnimation);
-	}
-	else
-	{
-		f32 t = (speed - controller.walkSpeed) / (controller.runSpeed - controller.walkSpeed);
-
-		weights[WALK] 	= 1 - t;
-		weights[RUN] 	= t;
-
-		f32 crouchValue = crouchPercent;
-		override_weight(CROUCH, crouchValue * crouchOverridePowerForAnimation);
-	}
-
-	// ------------------------------------------------------------------------
-
-	bool32 falling = controller.zSpeed < - 1;
-	move_towards(falling ? (1 - controller.grounded.current) : 0, elapsedTime, controller.fallPercent);
-	override_weight(FALL, math::smooth(controller.fallPercent.current));
-
-	s32 goingUp = controller.zSpeed > 0.1;
-	move_towards(goingUp, elapsedTime, controller.jumpPercent);
-	override_weight(JUMP, math::smooth(controller.jumpPercent.current));
-
-	// ------------------------------------------------------------------------
-
 	// Note(Leo): 0 when landing does not affect, 1 when it affects at max;
-	f32 landingValue = 0;
+	f32 crouchWeightFromLanding = 0;
 
 	if (controller.isLanding)
 	{
@@ -216,21 +165,17 @@ void update_other_girl(	OtherGirlController & controller,
 			controller.landingTimer -= elapsedTime;
 
 			// Note(Leo): this is basically a relative time passed
-			landingValue = controller.landingDepth * (1 - smooth((controller.landingDuration - controller.landingTimer) / controller.landingDuration));
+			f32 landingValue = controller.landingDepth * (1 - smooth((controller.landingDuration - controller.landingTimer) / controller.landingDuration));
 
-			f32 crouchWeight = smooth(1.0f - absolute((controller.landingDuration - (2 * controller.landingTimer)) / controller.landingDuration));
-			crouchWeight *= controller.landingDepth;
-			override_weight(CROUCH, crouchWeight);
+			// f32 crouchWeight 
+			crouchWeightFromLanding = smooth(1.0f - absolute((controller.landingDuration - (2 * controller.landingTimer)) / controller.landingDuration));
+			crouchWeightFromLanding *= controller.landingDepth;
 		}
 		else
 		{
 			controller.isLanding = false;
 		}
 	}
-
-	// speed *= 1 - landingValue;
-
-
 
 	if (speed > 0)
 	{
@@ -286,19 +231,9 @@ void update_other_girl(	OtherGirlController & controller,
 	{
 		/* Note(Leo): input is inverted, because negative input means left,
 		but in our right handed coordinate system, negative rotation means right */
-		quaternion rotation = quaternion::axis_angle(v3::up, -1 * rightInput * controller.rotationSpeed * elapsedTime);
-		controller.transform->rotation = controller.transform->rotation * rotation;
+		quaternion rotation 			= quaternion::axis_angle(v3::up, -1 * rightInput * controller.rotationSpeed * elapsedTime);
+		controller.transform->rotation 	= controller.transform->rotation * rotation;
 	}
-
-	f32 groundHeight = get_terrain_height(&collisionSystem, vector::convert_to<v2>(controller.transform->position));
-	bool32 grounded = controller.transform->position.z < (0.1f + groundHeight);
-
-	bool32 startLanding = controller.wasGroundedLastFrame == false && grounded == true;
-	controller.wasGroundedLastFrame = grounded;
-
-	move_towards(grounded, elapsedTime, controller.grounded);
-
-	grounded = controller.grounded.current > 0.5f;
 
 	// This is jump
 	// if (grounded && is_clicked(input->X))
@@ -306,6 +241,8 @@ void update_other_girl(	OtherGirlController & controller,
 	// 	controller.jumpTimer = controller.jumpDuration;
 	// 	controller.goingToJump = true;
 	// }
+
+	float crouchWeightFromJumping = 0;
 
 	if (controller.goingToJump)
 	{
@@ -316,8 +253,7 @@ void update_other_girl(	OtherGirlController & controller,
 			controller.jumpTimer -= elapsedTime;
 
 			// Note(Leo): Sorry future me, math is fun :D If this is confusing try plotting it in desmos.com
-			f32 crouchWeight = smooth(1.0f - absolute((-2 * controller.jumpTimer + controller.jumpDuration) / controller.jumpDuration));
-			override_weight(CROUCH, crouchWeight);
+			crouchWeightFromJumping = smooth(1.0f - absolute((-2 * controller.jumpTimer + controller.jumpDuration) / controller.jumpDuration));
 		}
 		else
 		{
@@ -325,6 +261,18 @@ void update_other_girl(	OtherGirlController & controller,
 			controller.zSpeed = controller.jumpSpeed;
 		}
 	}
+
+	// --------------------------------------------------------------------
+
+	f32 groundHeight = get_terrain_height(&collisionSystem, vector::convert_to<v2>(controller.transform->position));
+	bool32 grounded = controller.transform->position.z < (0.1f + groundHeight);
+
+	bool32 startLanding = controller.wasGroundedLastFrame == false && grounded == true;
+	controller.wasGroundedLastFrame = grounded;
+
+	move_towards(grounded, elapsedTime, controller.grounded);
+
+	grounded = controller.grounded.current > 0.5f;
 
 	if (startLanding)
 	{
@@ -349,6 +297,45 @@ void update_other_girl(	OtherGirlController & controller,
         controller.transform->position.z = groundHeight;
 	}
 
-	// ----------------------------------------------------------------------------------
+	bool32 falling = controller.zSpeed < - 1;
+	move_towards(falling ? (1 - controller.grounded.current) : 0, elapsedTime, controller.fallPercent);
+
+	s32 goingUp = controller.zSpeed > 0.1;
+	move_towards(goingUp, elapsedTime, controller.jumpPercent);
+
+	// ----------------------------------------------
+	// Update animation weigthes
+	// ----------------------------------------------
+
+	if (speed < 0.00001f)
+	{
+		weights[IDLE] 	= 1 * (1 - crouchPercent);
+		weights[CROUCH] = 1 * crouchPercent;
+	}
+	else if (speed < controller.walkSpeed)
+	{
+		f32 t = speed / controller.walkSpeed;
+
+		weights[IDLE] 	= (1 - t) * (1 - crouchPercent);
+		weights[CROUCH] = (1 - t) * crouchPercent;
+		weights[WALK] 	= t;
+
+		f32 crouchValue = crouchPercent;
+		override_weight(CROUCH, crouchValue * crouchOverridePowerForAnimation);
+	}
+	else
+	{
+		f32 t = (speed - controller.walkSpeed) / (controller.runSpeed - controller.walkSpeed);
+
+		weights[WALK] 	= 1 - t;
+		weights[RUN] 	= t;
+
+		f32 crouchValue = crouchPercent;
+		override_weight(CROUCH, crouchValue * crouchOverridePowerForAnimation);
+	}
+
+	override_weight(FALL, math::smooth(controller.fallPercent.current));
+	override_weight(JUMP, math::smooth(controller.jumpPercent.current));
+	override_weight(CROUCH, math::max(crouchWeightFromLanding, crouchWeightFromJumping));
 
 }

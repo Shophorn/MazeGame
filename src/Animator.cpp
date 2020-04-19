@@ -78,7 +78,7 @@ struct Animator
 	Animation const * 	animation;
 };
 
-struct Bone
+struct AnimatedBone
 {
 	// State
 	Transform3D boneSpaceTransform;
@@ -92,10 +92,10 @@ struct Bone
 	bool is_root() const { return parent < 0; }
 };
 
-internal Bone
+internal AnimatedBone
 make_bone (Transform3D boneSpaceDefaultTransform, m44 inverseBindMatrix, s32 parent)
 {
-	Bone bone = {	Transform3D::identity(),
+	AnimatedBone bone = {	Transform3D::identity(),
 					boneSpaceDefaultTransform,
 					inverseBindMatrix,
 					parent};
@@ -104,14 +104,13 @@ make_bone (Transform3D boneSpaceDefaultTransform, m44 inverseBindMatrix, s32 par
 
 struct AnimatedSkeleton
 {
-	Array<Bone> bones;
-	f32 		animationTime;
+	Array<AnimatedBone> bones;
 };
 
 // Todo(Leo): Maybe use this for AnimatedSkeleton, because we really do not need all the functionalities of Array.
 // struct Skelly
 // {
-// 	Bone * 	bones;
+// 	AnimatedBone * 	bones;
 // 	s32 	boneCount;
 // 	f32 	animationTime;
 // };
@@ -122,9 +121,10 @@ struct SkeletonAnimator
 	Animation const ** 	animations;
 	f32 *				weights;
 	s32					animationCount;
+	f32 				animationTime;
 };
 
-v3 get_model_space_position(Array<Bone> const & skeleton, u32 boneIndex)
+v3 get_model_space_position(Array<AnimatedBone> const & skeleton, u32 boneIndex)
 {
 	v3 position = skeleton[boneIndex].boneSpaceTransform.position;
 	if (skeleton[boneIndex].is_root() == false)
@@ -134,9 +134,9 @@ v3 get_model_space_position(Array<Bone> const & skeleton, u32 boneIndex)
 	return position;
 }
 
-m44 get_model_space_transform(Array<Bone> const & skeleton, u32 boneIndex)
+m44 get_model_space_transform(Array<AnimatedBone> const & skeleton, u32 boneIndex)
 {
-	Bone const & bone = skeleton[boneIndex];
+	AnimatedBone const & bone = skeleton[boneIndex];
 
 	m44 transform = get_matrix(bone.boneSpaceTransform);
 	if (bone.is_root() == false)
@@ -162,16 +162,16 @@ copy_animation(MemoryArena & memoryArena, Animation const & original)
 {
 	Animation result = 
 	{
-		.channels = allocate_array<AnimationChannel>(memoryArena, original.channels.count(), ALLOC_EMPTY),
+		.channels = allocate_array<AnimationChannel>(memoryArena, original.channels.count()),
 		.duration = original.duration
 	};
 
 	for (s32 childIndex = 0; childIndex < original.channels.count(); ++childIndex)
 	{
 		result.channels.push({original.channels[childIndex].targetIndex, 
-									copy_array(memoryArena, original.channels[childIndex].times),
-									copy_array(memoryArena, original.channels[childIndex].translations),
-									copy_array(memoryArena, original.channels[childIndex].rotations) });
+								copy_array(memoryArena, original.channels[childIndex].times),
+								copy_array(memoryArena, original.channels[childIndex].translations),
+								copy_array(memoryArena, original.channels[childIndex].rotations) });
 	}
 	return result;
 }
@@ -396,9 +396,9 @@ void update_skeleton_animator(SkeletonAnimator & animator, f32 elapsedTime)
 
 	f32 totalAppliedWeight = 0;
 
-	skeleton.animationTime += elapsedTime;
+	animator.animationTime += elapsedTime;
 	constexpr f32 resetInterval = 120; // Note(Leo): random amount to prevent us getting somewhere where floating point accuracy becomes problem
-	skeleton.animationTime = modulo(skeleton.animationTime, resetInterval);
+	animator.animationTime = modulo(animator.animationTime, resetInterval);
 
 	for (s32 animationIndex = 0; animationIndex < animationCount; ++animationIndex)
 	{
@@ -406,7 +406,7 @@ void update_skeleton_animator(SkeletonAnimator & animator, f32 elapsedTime)
 		Animation const & animation = *animations[animationIndex];
 
 		f32 animationWeight = weights[animationIndex];
-		f32 animationTime = loop_time(skeleton.animationTime, animation.duration);
+		f32 animationTime = loop_time(animator.animationTime, animation.duration);
 
 
 		totalAppliedWeight += animationWeight;

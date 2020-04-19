@@ -62,6 +62,12 @@ struct LogInput
 			// // Note(Leo): We flush so we get immediate output to file.
 			// // Todo(Leo): Heard this is unnecessay though, so find out more.
 			*output << std::flush;
+
+
+			if (verbosity == 0 && output != & std::cout)
+			{
+				std::cout << header.str() << buffer.str();
+			}
 		}
 	}
 };

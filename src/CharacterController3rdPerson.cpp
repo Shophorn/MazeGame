@@ -26,7 +26,6 @@ f32 move_towards(f32 target, f32 elapsedTime, BufferedPercent & buffer)
 	return buffer.current;
 }
 
-
 namespace CharacterAnimations
 {
 	enum AnimationType { IDLE, CROUCH, WALK, RUN, JUMP, FALL, ANIMATION_COUNT };
@@ -156,7 +155,7 @@ update_character( 	CharacterController3rdPerson & 	character,
 
 	f32 crouchPercent = move_towards(is_pressed(input->B), input->elapsedTime, character.crouchPercent);
 
-	constexpr f32 crouchOverridePowerForAnimation = 0.6f;
+	constexpr f32 crouchOverridePowerForAnimation = 0.5f;
 	constexpr f32 crouchOverridePowerForSpeed = 0.8f;
 
 	f32 speed = 0;
@@ -172,25 +171,22 @@ update_character( 	CharacterController3rdPerson & 	character,
 	}
 	else if (forwardInput < walkMaxInput)
 	{
-		f32 t = (forwardInput - walkMinInput) / idleToWalkRange;
+		f32 t 			= (forwardInput - walkMinInput) / idleToWalkRange;
 		speed 			= interpolate(0, character.walkSpeed, t);
-		f32 crouchValue = crouchPercent;
-		speed *= (1 - crouchValue * crouchOverridePowerForSpeed);
+		speed 			*= (1 - crouchPercent * crouchOverridePowerForSpeed);
 		gizmoColor 		= {1, 0, 0, 1};
 	}
 	else if (forwardInput < runMinInput)
 	{
 		speed 			= character.walkSpeed;
-		f32 crouchValue = crouchPercent;
-		speed *= (1 - crouchValue * crouchOverridePowerForSpeed);
+		speed 			*= (1 - crouchPercent * crouchOverridePowerForSpeed);
 		gizmoColor 		= {1, 1, 0, 1};
 	}
 	else
 	{
-		f32 t = (forwardInput - runMinInput) / walkToRunRange;
+		f32 t 			= (forwardInput - runMinInput) / walkToRunRange;
 		speed 			= interpolate (character.walkSpeed, character.runSpeed, t);
-		f32 crouchValue = crouchPercent;
-		speed *= (1 - crouchValue * crouchOverridePowerForSpeed);
+		speed 			*= (1 - crouchPercent * crouchOverridePowerForSpeed);
 		gizmoColor = {0, 1, 0, 1};
 	}
 
@@ -207,52 +203,8 @@ update_character( 	CharacterController3rdPerson & 	character,
 
 	speed = character.currentSpeed;
 
-
-	// ----------------------------------------------
-	// Update animation weigthes
-	// ----------------------------------------------
-
-	if (speed < 0.00001f)
-	{
-		weights[IDLE] 	= 1 * (1 - crouchPercent);
-		weights[CROUCH] = 1 * crouchPercent;
-	}
-	else if (speed < character.walkSpeed)
-	{
-		f32 t = speed / character.walkSpeed;
-
-		weights[IDLE] 	= (1 - t) * (1 - crouchPercent);
-		weights[CROUCH] = (1 - t) * crouchPercent;
-		weights[WALK] 	= t;
-
-		f32 crouchValue = crouchPercent;
-		override_weight(CROUCH, crouchValue * crouchOverridePowerForAnimation);
-	}
-	else
-	{
-		f32 t = (speed - character.walkSpeed) / (character.runSpeed - character.walkSpeed);
-
-		weights[WALK] 	= 1 - t;
-		weights[RUN] 	= t;
-
-		f32 crouchValue = crouchPercent;
-		override_weight(CROUCH, crouchValue * crouchOverridePowerForAnimation);
-	}
-
-	// ------------------------------------------------------------------------
-
-	bool32 falling = character.zSpeed < - 1;
-	move_towards(falling ? (1 - character.grounded.current) : 0, input->elapsedTime, character.fallPercent);
-	override_weight(FALL, math::smooth(character.fallPercent.current));
-
-	s32 goingUp = character.zSpeed > 0.1;
-	move_towards(goingUp, input->elapsedTime, character.jumpPercent);
-	override_weight(JUMP, math::smooth(character.jumpPercent.current));
-
-	// ------------------------------------------------------------------------
-
 	// Note(Leo): 0 when landing does not affect, 1 when it affects at max;
-	f32 landingValue = 0;
+	f32 crouchWeightFromLanding = 0;
 
 	if (character.isLanding)
 	{
@@ -263,21 +215,16 @@ update_character( 	CharacterController3rdPerson & 	character,
 			character.landingTimer -= input->elapsedTime;
 
 			// Note(Leo): this is basically a relative time passed
-			landingValue = character.landingDepth * (1 - smooth((character.landingDuration - character.landingTimer) / character.landingDuration));
+			// landingValue = character.landingDepth * (1 - smooth((character.landingDuration - character.landingTimer) / character.landingDuration));
 
-			f32 crouchWeight = smooth(1.0f - absolute((character.landingDuration - (2 * character.landingTimer)) / character.landingDuration));
-			crouchWeight *= character.landingDepth;
-			override_weight(CROUCH, crouchWeight);
+			crouchWeightFromLanding = smooth(1.0f - absolute((character.landingDuration - (2 * character.landingTimer)) / character.landingDuration));
+			crouchWeightFromLanding *= character.landingDepth;
 		}
 		else
 		{
 			character.isLanding = false;
 		}
 	}
-
-	// speed *= 1 - landingValue;
-
-
 
 	if (speed > 0)
 	{
@@ -337,6 +284,28 @@ update_character( 	CharacterController3rdPerson & 	character,
 		character.transform->rotation = character.transform->rotation * rotation;
 	}
 
+	f32 crouchWeightFromJumping = 0;
+
+	if (character.goingToJump)
+	{
+		if(character.jumpTimer > 0)
+		{
+			using namespace math;
+
+			character.jumpTimer -= input->elapsedTime;
+
+			// Note(Leo): Sorry future me, math is fun :D If this is confusing try plotting it in desmos.com
+			crouchWeightFromJumping = smooth(1.0f - absolute((-2 * character.jumpTimer + character.jumpDuration) / character.jumpDuration));
+		}
+		else
+		{
+			character.goingToJump = false;
+			character.zSpeed = character.jumpSpeed;
+		}
+	}
+
+	// ----------------------------------------------------------------------------------
+
 	f32 groundHeight = get_terrain_height(collisionSystem, vector::convert_to<v2>(character.transform->position));
 	bool32 grounded = character.transform->position.z < (0.1f + groundHeight);
 
@@ -352,25 +321,6 @@ update_character( 	CharacterController3rdPerson & 	character,
 	{
 		character.jumpTimer = character.jumpDuration;
 		character.goingToJump = true;
-	}
-
-	if (character.goingToJump)
-	{
-		if(character.jumpTimer > 0)
-		{
-			using namespace math;
-
-			character.jumpTimer -= input->elapsedTime;
-
-			// Note(Leo): Sorry future me, math is fun :D If this is confusing try plotting it in desmos.com
-			f32 crouchWeight = smooth(1.0f - absolute((-2 * character.jumpTimer + character.jumpDuration) / character.jumpDuration));
-			override_weight(CROUCH, crouchWeight);
-		}
-		else
-		{
-			character.goingToJump = false;
-			character.zSpeed = character.jumpSpeed;
-		}
 	}
 
 	if (startLanding)
@@ -396,9 +346,47 @@ update_character( 	CharacterController3rdPerson & 	character,
         character.transform->position.z = groundHeight;
 	}
 
-	// ----------------------------------------------------------------------------------
+	bool32 falling = character.zSpeed < - 1;
+	move_towards(falling ? (1 - character.grounded.current) : 0, input->elapsedTime, character.fallPercent);
 
+	s32 goingUp = character.zSpeed > 0.1;
+	move_towards(goingUp, input->elapsedTime, character.jumpPercent);
 
+	// ----------------------------------------------
+	// Update animation weigthes
+	// ----------------------------------------------
+
+	if (speed < 0.00001f)
+	{
+		weights[IDLE] 	= 1 * (1 - crouchPercent);
+		weights[CROUCH] = 1 * crouchPercent;
+	}
+	else if (speed < character.walkSpeed)
+	{
+		f32 t = speed / character.walkSpeed;
+
+		weights[IDLE] 	= (1 - t) * (1 - crouchPercent);
+		weights[CROUCH] = (1 - t) * crouchPercent;
+		weights[WALK] 	= t;
+
+		f32 crouchValue = crouchPercent;
+		override_weight(CROUCH, crouchValue * crouchOverridePowerForAnimation);
+	}
+	else
+	{
+		f32 t = (speed - character.walkSpeed) / (character.runSpeed - character.walkSpeed);
+
+		weights[WALK] 	= 1 - t;
+		weights[RUN] 	= t;
+
+		f32 crouchValue = crouchPercent;
+		override_weight(CROUCH, crouchValue * crouchOverridePowerForAnimation);
+	}
+
+	override_weight(FALL, math::smooth(character.fallPercent.current));
+	override_weight(JUMP, math::smooth(character.jumpPercent.current));
+	override_weight(CROUCH, math::max(crouchWeightFromJumping, crouchWeightFromLanding));
+	
 	// ----------------------------------------------------------------------------------
 
 	// Note(Leo): Draw move action gizmo after movement, so it does not lage one frame behind

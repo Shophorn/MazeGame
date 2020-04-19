@@ -116,6 +116,12 @@ flush_memory_arena(MemoryArena * arena)
 	arena->used = 0;
 }
 
+internal f32 used_percent(MemoryArena & arena)
+{
+	f32 percent = (f32)arena.used / arena.size;
+	return percent;
+}
+
 // ----------------------------------------------------------------------------
 
 template<typename T>
@@ -141,34 +147,67 @@ Array<T> allocate_array(MemoryArena & arena, std::initializer_list<T> values)
 // Todo(Leo): Extra stupid to use
 enum AllocOperation
 {
-	ALLOC_EMPTY,
-	ALLOC_FILL_UNINITIALIZED,
-	ALLOC_CLEAR
+	ALLOC_EMPTY_CLEARED,		// = 0
+	ALLOC_EMPTY_UNITIALIZED,	// = ALLOC_NO_CLEAR
+
+	ALLOC_FILL_CLEARED,			// = ALLOC_FILL
+	ALLOC_FILL_UNINITIALIZED,	// = ALLOC_FILL | ALLOC_NO_CLEAR
+};
+/*
+enum AllocFlags
+{
+	ALLOC_FLAGS_NONE 	= 0,
+	ALLOC_FILL 			= 1,
+	ALLOC_NO_CLEAR  	= 2,
 };
 
-template<typename T>
-Array<T> allocate_array(MemoryArena & arena, u64 capacity, AllocOperation allocOperation = ALLOC_EMPTY)
+template <typename T>
+Array<T> allocate_array(MemoryArena & allocator, u64 capacity, AllocFlags flags = ALLOC_FLAGS_NONE)
 {
 	u64 size = sizeof(T) * capacity;
+	T * memory = reinterpret_cast<T*>(allocate(arena, size));
 
+	u64 count = 0;
+	if (flags & ALLOC_FILL != 0)
+	{
+		count = capacity;
+	}
+
+	if (flags & ALLOC_NO_CLEAR == 0)
+	{
+		std::memset(memory, 0, size);
+	}
+
+	return Array<T>(memory, count, capacity);
+}
+*/
+template<typename T>
+Array<T> allocate_array(MemoryArena & arena, u64 capacity, AllocOperation allocOperation = ALLOC_EMPTY_CLEARED)
+{
+	u64 size = sizeof(T) * capacity;
 	T * memory = reinterpret_cast<T*>(allocate(arena, size));
 
 	u64 count = 0;
 	switch (allocOperation)
 	{
-		case ALLOC_EMPTY:
+		case ALLOC_EMPTY_CLEARED:
 			count = 0;
+			std::memset(memory, 0, size);
+			break;
+
+		case ALLOC_EMPTY_UNITIALIZED:
+			count = 0;
+			break;
+
+
+		case ALLOC_FILL_CLEARED:
+			count = capacity;
+			std::memset(memory, 0, size);
 			break;
 
 		case ALLOC_FILL_UNINITIALIZED:
 			count = capacity;
 			break;
-
-		case ALLOC_CLEAR:
-			count = capacity;
-			std::memset(memory, 0, size);
-			break;
-
 	}
 
 	return Array<T>(memory, count, capacity);

@@ -46,15 +46,15 @@ struct Scene3d
 	Array<Transform3D> 		transformStorage;
 	Array<SkeletonAnimator> skeletonAnimators;	
 	
-	Array<RenderSystemEntry> renderSystem = {};
-	Array<AnimatedRenderer> animatedRenderers = {};
-	CollisionSystem3D collisionSystem = {};
+	Array<RenderSystemEntry> 	renderSystem = {};
+	Array<AnimatedRenderer> 	animatedRenderers = {};
+	CollisionSystem3D 			collisionSystem = {};
 
 	Camera worldCamera;
 	CameraController3rdPerson cameraController;
 	CharacterController3rdPerson characterController;
 
-	OtherGirlController otherGirlController;
+	OtherGirlController otherGirls[20];
 
 	Animation characterAnimations [CharacterAnimations::ANIMATION_COUNT];
 
@@ -109,7 +109,11 @@ Scene3d::update(	void * 					scenePtr,
 						graphics);
 	
 	update_camera_controller(&scene->cameraController, input);
-	update_other_girl(scene->otherGirlController, scene->collisionSystem, input->elapsedTime);
+
+	for (auto & girl : scene->otherGirls)
+	{
+		update_other_girl(girl, scene->collisionSystem, input->elapsedTime);
+	}
 
 	for (auto & animator : scene->skeletonAnimators)
 	{
@@ -164,18 +168,17 @@ Scene3d::load(	void * 						scenePtr,
 	scene->gui = make_scene_gui(transientMemory, graphics, functions);
 
 	// Note(Leo): amounts are SWAG, rethink.
-	scene->transformStorage 	= allocate_array<Transform3D>(*persistentMemory, 100);
-	scene->animatedRenderers 	= allocate_array<AnimatedRenderer>(*persistentMemory, 10);
-	scene->renderSystem 		= allocate_array<RenderSystemEntry>(*persistentMemory, 100);
+	scene->transformStorage 	= allocate_array<Transform3D>(*persistentMemory, 600, ALLOC_EMPTY_CLEARED);
+	scene->skeletonAnimators 	= allocate_array<SkeletonAnimator>(*persistentMemory, 600, ALLOC_EMPTY_CLEARED);
+	scene->animatedRenderers 	= allocate_array<AnimatedRenderer>(*persistentMemory, 600, ALLOC_EMPTY_CLEARED);
+	scene->renderSystem 		= allocate_array<RenderSystemEntry>(*persistentMemory, 600, ALLOC_EMPTY_CLEARED);
 
-	allocate_collision_system(&scene->collisionSystem, persistentMemory, 100);
+	allocate_collision_system(&scene->collisionSystem, persistentMemory, 600);
 
 	auto allocate_transform = [](Array<Transform3D> & storage, Transform3D value) -> Transform3D *
 	{
-		u64 index = storage.count();
 		storage.push(value);
-
-		return &storage[index];
+		return &storage.last();
 	};
 
 	struct MaterialCollection {
@@ -259,7 +262,6 @@ Scene3d::load(	void * 						scenePtr,
 
 	// Characters
 	{
-		scene->skeletonAnimators = allocate_array<SkeletonAnimator>(*persistentMemory, 10);
 		auto & character = scene->characterController;
 
 		Transform3D * transform = allocate_transform(scene->transformStorage, {10, 10, 5});
@@ -268,7 +270,7 @@ Scene3d::load(	void * 						scenePtr,
 		char const * filename 	= "assets/models/cube_head.glb";
 		auto const gltfFile 	= read_gltf_file(*transientMemory, filename);
 
-		character.skeleton.bones 	= load_skeleton_glb(*persistentMemory, gltfFile, "cube_head");
+		character.skeleton 		= load_skeleton_glb(*persistentMemory, gltfFile, "cube_head");
 
 		{
 			auto log = logDebug(0);
@@ -301,7 +303,6 @@ Scene3d::load(	void * 						scenePtr,
 		auto girlMesh 				= platformApi->push_mesh(platformGraphics, &girlMeshAsset);
 		auto model 					= push_model(girlMesh, materials.character);
 
-
 		scene->animatedRenderers.push(make_animated_renderer(
 				transform,
 				&character.skeleton,
@@ -309,57 +310,60 @@ Scene3d::load(	void * 						scenePtr,
 				*persistentMemory
 			));
 
-		SkeletonAnimator a =
-		{
+		scene->skeletonAnimators.push({
 			.skeleton 		= &scene->characterController.skeleton,
 			.animations 	= scene->characterController.animations,
 			.weights 		= scene->characterController.animationWeights,
 			.animationCount = CharacterAnimations::ANIMATION_COUNT
-		};
-
-		scene->skeletonAnimators.push(a);
+		});
 
 		// --------------------------------------------------------------------
+		auto * targetTransform = scene->characterController.transform;
+		s32 girlCount = array_count(scene->otherGirls);
 
-		transform 	= allocate_transform(scene->transformStorage, {10, 20, 0});
-		model 		= push_model(girlMesh, materials.character); 
-
-
-		scene->otherGirlController =
+		for (s32 girlIndex = 0; girlIndex < girlCount; ++girlIndex)
 		{
-			.transform 			= transform,
-			.targetTransform 	= scene->characterController.transform
-		};
+			transform 	= allocate_transform(scene->transformStorage, {10, 20.0f + girlIndex * 5, 0});
+			model 		= push_model(girlMesh, materials.character); 
 
-		{
-			using namespace CharacterAnimations;			
+			scene->otherGirls[girlIndex] =
+			{
+				.transform 			= transform,
+				.targetTransform 	= targetTransform
+			};
+			targetTransform = transform;
 
-			scene->otherGirlController.animations[WALK] 	= &scene->characterAnimations[WALK];
-			scene->otherGirlController.animations[RUN] 		= &scene->characterAnimations[RUN];
-			scene->otherGirlController.animations[IDLE] 	= &scene->characterAnimations[IDLE];
-			scene->otherGirlController.animations[JUMP]		= &scene->characterAnimations[JUMP];
-			scene->otherGirlController.animations[FALL]		= &scene->characterAnimations[FALL];
-			scene->otherGirlController.animations[CROUCH] 	= &scene->characterAnimations[CROUCH];
+			transform->scale = RandomRange(0.9f, 1.5f);
+
+			{
+				using namespace CharacterAnimations;			
+
+				scene->otherGirls[girlIndex].animations[WALK] 	= &scene->characterAnimations[WALK];
+				scene->otherGirls[girlIndex].animations[RUN] 		= &scene->characterAnimations[RUN];
+				scene->otherGirls[girlIndex].animations[IDLE] 	= &scene->characterAnimations[IDLE];
+				scene->otherGirls[girlIndex].animations[JUMP]		= &scene->characterAnimations[JUMP];
+				scene->otherGirls[girlIndex].animations[FALL]		= &scene->characterAnimations[FALL];
+				scene->otherGirls[girlIndex].animations[CROUCH] 	= &scene->characterAnimations[CROUCH];
+			}
+
+			scene->otherGirls[girlIndex].skeleton = {};
+			scene->otherGirls[girlIndex].skeleton.bones = copy_array(*persistentMemory, scene->characterController.skeleton.bones);
+
+			scene->animatedRenderers.push(make_animated_renderer(
+					transform,
+					&scene->otherGirls[girlIndex].skeleton,
+					model,
+					*persistentMemory
+				));
+
+			scene->skeletonAnimators.push({
+					.skeleton 		= &scene->otherGirls[girlIndex].skeleton,
+					.animations 	= scene->otherGirls[girlIndex].animations,
+					.weights 		= scene->otherGirls[girlIndex].animationWeights,
+					.animationCount = CharacterAnimations::ANIMATION_COUNT
+				});
 		}
 
-		scene->otherGirlController.skeleton = {};
-		scene->otherGirlController.skeleton.bones = copy_array(*persistentMemory, scene->characterController.skeleton.bones);
-
-		scene->animatedRenderers.push(make_animated_renderer(
-				transform,
-				&scene->otherGirlController.skeleton,
-				model,
-				*persistentMemory
-			));
-
-		SkeletonAnimator b =
-		{
-			.skeleton 		= &scene->otherGirlController.skeleton,
-			.animations 	= scene->otherGirlController.animations,
-			.weights 		= scene->otherGirlController.animationWeights,
-			.animationCount = CharacterAnimations::ANIMATION_COUNT
-		};
-		scene->skeletonAnimators.push(b);
 	}
 
 	// Test robot
@@ -442,5 +446,8 @@ Scene3d::load(	void * 						scenePtr,
 			};
 			push_collider_to_system(&scene->collisionSystem, collider, transform);
 		}
+
+		logConsole() << FILE_ADDRESS << used_percent(*persistentMemory) * 100 <<  "% of persistent memory used.";
+		logSystem() << "Scene3d loaded, " << used_percent(*persistentMemory) * 100 << "% of persistent memory used.";
 	}
 }

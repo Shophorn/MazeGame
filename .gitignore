@@ -13,6 +13,9 @@ lib/
 misc/
 *.exe
 *.dll
+*.lib
+*.pdb
+*.ilk
 *.sublime-*
 *.build_output
 *.bat
