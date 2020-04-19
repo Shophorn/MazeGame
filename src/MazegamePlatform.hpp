@@ -147,7 +147,7 @@ namespace platform
 		{
 			if (funcArray[i] == nullptr)
 			{
-				std::cout << "[all_functions_set()]: Unset function at '" << i << "'\n";
+				logSystem() << FILE_ADDRESS << "Unset function at '" << i << "'\n";
 				return false;
 			}
 		}

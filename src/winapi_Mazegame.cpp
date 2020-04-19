@@ -80,7 +80,6 @@ Run(HINSTANCE hInstance)
     auto logFileName        = SmallString("logs/log_").append(timestamp).append(".txt");
 
     auto logFile = std::ofstream(logFileName.data());
-    logFile << "Testing A\n";
 
     logDebug.output     = &logFile;
     logAnim.output      = &logFile;
@@ -88,7 +87,11 @@ Run(HINSTANCE hInstance)
     logWindow.output    = &logFile;
     logSystem.output    = &logFile;
     logNetwork.output   = &logFile;
+    logAudio.output     = &logFile;
 
+#if defined BUILD_DATE_TIME
+    logSystem(0) << "Launching FriendSimulator, build time: " << BUILD_DATE_TIME;
+#endif
 
     winapi::State state = {};
     load_xinput();
@@ -429,6 +432,8 @@ f32 difference(TimePoint first, TimePoint second)
 //     LPSTR       cmdLine,
 //     int         showCommand)
 // {
+
+
 
 int main()
 {

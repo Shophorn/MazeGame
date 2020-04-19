@@ -106,7 +106,7 @@ winapi::CreateNetwork()
         u_long mode = NON_BLOCKING_MODE;
         ioctlsocket(network.connectedSocket, FIONBIO, &mode);
 
-        std::cout << "NETWORK connected on startup\n";
+        logNetwork() << "Connected on startup\n";
     }
     else
     {
@@ -129,7 +129,7 @@ winapi::CreateNetwork()
         u_long mode = NON_BLOCKING_MODE;
         ioctlsocket(network.listeningSocket, FIONBIO, &mode);
 
-        std::cout << "NETWORK listening for incoming connections\n";
+        logNetwork() << "Listening for incoming connections\n";
     }
 
     return network;
@@ -140,7 +140,7 @@ winapi::NetworkSend(WinApiNetwork * network, game::NetworkPackage * packageToSen
 {
 	if (network->isConnected == false)
 	{
-		std::cout << "[NETWORK]: Network tries to SEND but is not connected.";
+		logNetwork() << "Trying to send but we are not connected.";
 		return;
 	}
 
@@ -156,7 +156,7 @@ winapi::NetworkReceive(WinApiNetwork * network, game::NetworkPackage * resultAdd
 {
 	if (network->isConnected == false)
 	{
-		std::cout << "[NETWORK]: Network tries to RECEIVE but is not connected.";
+		logNetwork() << "We are trying to receive but are not connected.";
 		return;
 	}
 
@@ -171,7 +171,7 @@ winapi::NetworkReceive(WinApiNetwork * network, game::NetworkPackage * resultAdd
     {
         if (RESULT == 0)
         {
-            std::cout << "[NETWORK]: other side disconnected\n";
+            logNetwork() << "Other side disconnected\n";
             closesocket(network->connectedSocket);
             network->isConnected = false;
         }
@@ -187,7 +187,7 @@ winapi::NetworkReceive(WinApiNetwork * network, game::NetworkPackage * resultAdd
 
                 case WSAECONNABORTED:
                     // Todo(Leo): This shouldn't occur when we exit other side
-                    std::cout << "NETWORK RECEIVE error (handled): " << WinSocketErrorString(error) << " (" << error <<")\n";
+                    logNetwork(0) << "RECEIVE error (handled): " << WinSocketErrorString(error) << " (" << error <<")\n";
                     RESULT = shutdown(network->connectedSocket, SD_BOTH);
                     RESULT = closesocket(network->connectedSocket);
                         
@@ -197,7 +197,7 @@ winapi::NetworkReceive(WinApiNetwork * network, game::NetworkPackage * resultAdd
 
                 case WSAECONNRESET:
                     // Todo(Leo): This shouldn't occur when we exit other side
-                    std::cout << "NETWORK RECEIVE error (handled): " << WinSocketErrorString(error) << " (" << error <<")\n";
+                    logNetwork(0) << "RECEIVE error (handled): " << WinSocketErrorString(error) << " (" << error <<")\n";
                     RESULT = shutdown(network->connectedSocket, SD_BOTH);
                     RESULT = closesocket(network->connectedSocket);
                         
@@ -207,7 +207,7 @@ winapi::NetworkReceive(WinApiNetwork * network, game::NetworkPackage * resultAdd
 
 
                 default:
-                    std::cout << "NETWORK RECEIVE error: " << WinSocketErrorString(error) << " (" << error <<")\n";
+                    logNetwork(0) << "RECEIVE error: " << WinSocketErrorString(error) << " (" << error <<")\n";
                     networkIsRuined = true;
                     break;
             }
@@ -220,7 +220,7 @@ winapi::NetworkListen(WinApiNetwork * network)
 {
     if (network->isListening == false)
     {
-    	std::cout << "[NETWORK]: Network tries to LISTEN but is not listening";
+    	logNetwork() << "We are trying to listen but we are not listening.";
     	return;
     }
 
@@ -240,7 +240,7 @@ winapi::NetworkListen(WinApiNetwork * network)
         RESULT = WSAGetLastError();
         if (RESULT != WSAEWOULDBLOCK)
         {
-            std::cout << "NETWORK: Listening socket accept error: " << WinSocketErrorString(RESULT) << "(" << RESULT << ")\n";
+            logNetwork() << "Listening socket accept error: " << WinSocketErrorString(RESULT) << "(" << RESULT << ")\n";
             networkIsRuined = true;
         }
     }
@@ -264,5 +264,5 @@ winapi::CloseNetwork(WinApiNetwork * network)
 
     *network = {};
 
-    std::cout << "[NETWORK]: shut down\n";
+    logNetwork(0) << "Shut down\n";
 }

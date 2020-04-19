@@ -50,7 +50,7 @@ struct AnimatedRenderer
 // 		.skeleton = skeleton,
 // 		.model = model,
 // 		.bones = std::move(bones)
-// 		// .bones = allocate_array<m44>(allocator, skeleton->bones.count(), ALLOC_FILL_UNINITIALIZED)
+// 		// .bones = allocate_array<m44>(allocator, skeleton->bones.count(), ALLOC_FILL | ALLOC_NO_CLEAR)
 // 	};
 // 	return result;
 // }
@@ -62,7 +62,7 @@ AnimatedRenderer make_animated_renderer (Transform3D * transform, AnimatedSkelet
 			.transform 	= transform,
 			.skeleton 	= skeleton,
 			.model 		= model,
-			.bones 		= allocate_array<m44>(allocator, skeleton->bones.count(), ALLOC_FILL_UNINITIALIZED)
+			.bones 		= allocate_array<m44>(allocator, skeleton->bones.count(), ALLOC_FILL | ALLOC_NO_CLEAR)
 		};	
 	return result;		
 }

@@ -104,17 +104,17 @@ MenuScene::update(  void *                      guiPtr,
         switch (gui->selectedIndex)
         {
             case 0: 
-                std::cout << "Load 3d Scene\n";
+                logDebug() << "Load 3d Scene";
                 result = MENU_LOADLEVEL_3D;
                 break;
 
             case 1: 
-                std::cout << "Load 2d Scene\n";
+                logDebug() << "Load 2d Scene";
                 result = MENU_LOADLEVEL_2D;
                 break;
 
             case 2:
-                std::cout << "Exit\n";
+                logDebug() << "Exit";
                 result = MENU_EXIT;
                 break;
         }

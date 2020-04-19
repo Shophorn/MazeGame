@@ -55,7 +55,7 @@ internal HeightMap
 make_heightmap(MemoryArena * memory, TextureAsset * texture, u32 gridSize, float worldSize, float minHeight, float maxHeight)
 {
 	u64 pixelCount 		= gridSize * gridSize;
-	auto heightValues 	= allocate_array<float>(*memory, pixelCount, ALLOC_FILL_UNINITIALIZED);
+	auto heightValues 	= allocate_array<float>(*memory, pixelCount, ALLOC_FILL | ALLOC_NO_CLEAR);
 
 	float textureScale 	= 1.0f / gridSize;
 

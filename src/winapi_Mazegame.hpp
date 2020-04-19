@@ -15,7 +15,7 @@ WinApiLog(const char * message, HRESULT result)
     #if MAZEGAME_DEVELOPMENT
     if (result != S_OK)
     {
-    	std::cout << message << "(" << WinApiErrorString(result) << ")\n";
+    	logDebug() << message << "(" << WinApiErrorString(result) << ")\n";
     }
     #endif
 }

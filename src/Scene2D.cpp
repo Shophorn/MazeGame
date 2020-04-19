@@ -106,9 +106,9 @@ scene_2d::load(	void * scenePtr,
 	// auto * persistentMemory = &state->persistentMemoryArena;
 	// auto * transientMemory = &state->transientMemoryArena;
 
-	scene->transformStorage = allocate_array<Transform3D>(*persistentMemory, 100, ALLOC_EMPTY_CLEARED);
-	scene->renderSystem 	= allocate_array<RenderSystemEntry>(*persistentMemory, 100, ALLOC_EMPTY_CLEARED);
-	scene->animatorSystem 	= allocate_array<Animator>(*persistentMemory, 100, ALLOC_EMPTY_CLEARED);
+	scene->transformStorage = allocate_array<Transform3D>(*persistentMemory, 100);
+	scene->renderSystem 	= allocate_array<RenderSystemEntry>(*persistentMemory, 100);
+	scene->animatorSystem 	= allocate_array<Animator>(*persistentMemory, 100);
 
 
 	auto allocate_transform = [](Array<Transform3D> & storage, Transform3D value) -> Transform3D *
@@ -121,7 +121,7 @@ scene_2d::load(	void * scenePtr,
 	scene->collisionManager =
 	{
 		.colliders 	= allocate_array<Collider2D>(*persistentMemory, 200),
-		.collisions = allocate_array<Collision2D>(*persistentMemory, 300, ALLOC_FILL_UNINITIALIZED) // Todo(Leo): Not enough..
+		.collisions = allocate_array<Collision2D>(*persistentMemory, 300, ALLOC_FILL | ALLOC_NO_CLEAR) // Todo(Leo): Not enough..
 	};
 
 	struct MaterialCollection {

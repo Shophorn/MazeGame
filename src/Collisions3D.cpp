@@ -43,7 +43,6 @@ get_terrain_height(CollisionSystem3D * system, v2 position)
 	position.x -= system->terrainTransform->position.x;
 	position.y -= system->terrainTransform->position.y;
 	float value = get_height_at(&system->terrainCollider, position);
-	// std::cout << "[get_terrain_height()]: value = " << value << "\n";
 	return value;
 }
 

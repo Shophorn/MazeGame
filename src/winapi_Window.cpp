@@ -108,8 +108,6 @@ namespace winapi
         LRESULT result = 0;
         using namespace winapi;
 
-        // std::cout << "Got message: " << WindowMessageString(message) << "(" << message << ")" << "\n";
-
         switch (message)
         {
             case WM_KEYDOWN:
@@ -133,7 +131,7 @@ namespace winapi
                 auto * userPointer = get_user_pointer(hwnd);
                 if (userPointer == nullptr)
                 {
-                    std::cout << "Skipping first WM_SIZE message due to no user pointer set. Yet.";
+                    logSystem() << "Skipping first WM_SIZE message due to no user pointer set. Yet.";
                     result = DefWindowProcW(hwnd, message, wParam, lParam);
                     break;
                 }

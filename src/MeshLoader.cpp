@@ -66,7 +66,7 @@ load_animation_glb(MemoryArena & allocator, GltfFile const & file, char const * 
 	auto accessors 		= file.json["accessors"].GetArray();
 
 	Animation result = {};
-	result.channels = allocate_array<AnimationChannel>(allocator, jsonChannels.Size(), ALLOC_EMPTY_CLEARED);
+	result.channels = allocate_array<AnimationChannel>(allocator, jsonChannels.Size());
 
 	float minTime = math::highest_value<float>;
 	float maxTime = math::lowest_value<float>;
@@ -196,7 +196,7 @@ load_skeleton_glb(MemoryArena & allocator, GltfFile const & file, char const * m
 	m44 const * inverseBindMatrices = get_buffer_start<m44>(file, skin["inverseBindMatrices"].GetInt());
 
 	AnimatedSkeleton skeleton = {};
-	skeleton.bones = allocate_array<AnimatedBone>(allocator, boneCount, ALLOC_FILL_UNINITIALIZED);
+	skeleton.bones = allocate_array<AnimatedBone>(allocator, boneCount, ALLOC_FILL | ALLOC_NO_CLEAR);
 	
 	for (int boneIndex = 0; boneIndex < boneCount; ++boneIndex)
 	{
@@ -311,7 +311,7 @@ load_mesh_glb(MemoryArena & allocator, GltfFile const & file, char const * model
 	u32 vertexCount = positionCount;
 
 	// -----------------------------------------------------------------------------
-	auto vertices = allocate_array<Vertex>(allocator, vertexCount, ALLOC_FILL_UNINITIALIZED);
+	auto vertices = allocate_array<Vertex>(allocator, vertexCount, ALLOC_FILL | ALLOC_NO_CLEAR);
 
 	v3 const * positions 	= get_buffer_start<v3>(file, positionAccessor);
 	v3 const * normals 		= get_buffer_start<v3>(file, normalAccessor);
@@ -404,7 +404,7 @@ namespace mesh_primitives
 		result.indexType = IndexType::UInt16;
 
 		int vertexCount = 4;
-		result.vertices = allocate_array<Vertex>(*allocator, vertexCount, ALLOC_FILL_UNINITIALIZED);
+		result.vertices = allocate_array<Vertex>(*allocator, vertexCount, ALLOC_FILL | ALLOC_NO_CLEAR);
 
 		// 					  position 		normal   	color    	uv
 		result.vertices[0] = {0, 0, 0, 		0, 0, 1, 	1, 1, 1, 	0, 0};

@@ -251,7 +251,7 @@ vulkan::finish_drawing(VulkanContext * context)
     VkResult result = vkQueuePresentKHR(context->queues.present, &presentInfo);
     if (result != VK_SUCCESS)
     {
-        std::cout << "[finish_drawing()]: present result = " << result << "\n";
+        logVulkan() << FILE_ADDRESS << "Present result = " << to_str(result);
     }
 
     advance_virtual_frame(context);

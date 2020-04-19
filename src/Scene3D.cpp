@@ -168,10 +168,10 @@ Scene3d::load(	void * 						scenePtr,
 	scene->gui = make_scene_gui(transientMemory, graphics, functions);
 
 	// Note(Leo): amounts are SWAG, rethink.
-	scene->transformStorage 	= allocate_array<Transform3D>(*persistentMemory, 600, ALLOC_EMPTY_CLEARED);
-	scene->skeletonAnimators 	= allocate_array<SkeletonAnimator>(*persistentMemory, 600, ALLOC_EMPTY_CLEARED);
-	scene->animatedRenderers 	= allocate_array<AnimatedRenderer>(*persistentMemory, 600, ALLOC_EMPTY_CLEARED);
-	scene->renderSystem 		= allocate_array<RenderSystemEntry>(*persistentMemory, 600, ALLOC_EMPTY_CLEARED);
+	scene->transformStorage 	= allocate_array<Transform3D>(*persistentMemory, 600);
+	scene->skeletonAnimators 	= allocate_array<SkeletonAnimator>(*persistentMemory, 600);
+	scene->animatedRenderers 	= allocate_array<AnimatedRenderer>(*persistentMemory, 600);
+	scene->renderSystem 		= allocate_array<RenderSystemEntry>(*persistentMemory, 600);
 
 	allocate_collision_system(&scene->collisionSystem, persistentMemory, 600);
 

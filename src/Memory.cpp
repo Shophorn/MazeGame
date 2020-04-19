@@ -144,17 +144,7 @@ Array<T> allocate_array(MemoryArena & arena, std::initializer_list<T> values)
 }
 
 
-// Todo(Leo): Extra stupid to use
-enum AllocOperation
-{
-	ALLOC_EMPTY_CLEARED,		// = 0
-	ALLOC_EMPTY_UNITIALIZED,	// = ALLOC_NO_CLEAR
-
-	ALLOC_FILL_CLEARED,			// = ALLOC_FILL
-	ALLOC_FILL_UNINITIALIZED,	// = ALLOC_FILL | ALLOC_NO_CLEAR
-};
-/*
-enum AllocFlags
+enum AllocFlags : s32
 {
 	ALLOC_FLAGS_NONE 	= 0,
 	ALLOC_FILL 			= 1,
@@ -162,52 +152,21 @@ enum AllocFlags
 };
 
 template <typename T>
-Array<T> allocate_array(MemoryArena & allocator, u64 capacity, AllocFlags flags = ALLOC_FLAGS_NONE)
+Array<T> allocate_array(MemoryArena & allocator, u64 capacity, s32 flags = ALLOC_FLAGS_NONE)
 {
 	u64 size = sizeof(T) * capacity;
-	T * memory = reinterpret_cast<T*>(allocate(arena, size));
+	T * memory = reinterpret_cast<T*>(allocate(allocator, size));
 
 	u64 count = 0;
-	if (flags & ALLOC_FILL != 0)
+	if ((flags & ALLOC_FILL) != 0)
 	{
 		count = capacity;
 	}
 
-	if (flags & ALLOC_NO_CLEAR == 0)
+	// Notice: Logic is inverted here
+	if ((flags & ALLOC_NO_CLEAR) == 0)
 	{
 		std::memset(memory, 0, size);
-	}
-
-	return Array<T>(memory, count, capacity);
-}
-*/
-template<typename T>
-Array<T> allocate_array(MemoryArena & arena, u64 capacity, AllocOperation allocOperation = ALLOC_EMPTY_CLEARED)
-{
-	u64 size = sizeof(T) * capacity;
-	T * memory = reinterpret_cast<T*>(allocate(arena, size));
-
-	u64 count = 0;
-	switch (allocOperation)
-	{
-		case ALLOC_EMPTY_CLEARED:
-			count = 0;
-			std::memset(memory, 0, size);
-			break;
-
-		case ALLOC_EMPTY_UNITIALIZED:
-			count = 0;
-			break;
-
-
-		case ALLOC_FILL_CLEARED:
-			count = capacity;
-			std::memset(memory, 0, size);
-			break;
-
-		case ALLOC_FILL_UNINITIALIZED:
-			count = capacity;
-			break;
 	}
 
 	return Array<T>(memory, count, capacity);

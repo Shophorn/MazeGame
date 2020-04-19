@@ -105,5 +105,6 @@ LogChannel logVulkan 	= {"VULKAN", 5};
 LogChannel logWindow	= {"WINDOW", 5};
 LogChannel logSystem	= {"SYSTEM", 5};
 LogChannel logNetwork	= {"NETWORK", 5};
+LogChannel logAudio		= {"AUDIO", 5};
 
 #define FILE_ADDRESS LogInput::FileAddress{__FILE__, __LINE__}

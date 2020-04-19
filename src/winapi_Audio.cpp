@@ -89,7 +89,7 @@ winapi::CreateAudio ()
     WinApiLog("Get audio format", audio.pClient->GetMixFormat(&audio.pFormat));
 
     #if 1
-    std::cout
+    logAudio()
         << "|======================================|\n"
         << "Selected device format:\n"
         << "\tformat: "             << WinApiWaveFormatTagString(UNKNOWN_GetFormatTag(audio.pFormat)) << "\n"

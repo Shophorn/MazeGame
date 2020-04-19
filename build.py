@@ -8,6 +8,11 @@ import subprocess
 import os
 import sys
 import psutil
+from datetime import datetime
+
+buildTime = datetime.now().strftime("%B %d, %Y, %H:%M:%S")
+buildTime = '\\""{}\\""'.format(buildTime)
+
 
 silent = '--silent' in sys.argv
 compiler = 'clang++'
@@ -42,7 +47,9 @@ def compile(call):
 if compiler == 'clang++':
 	# Build settings
 	flags 		= "-static -std=c++17 -g -gcodeview -O0"
-	definitions = "-DMAZEGAME_DEVELOPMENT=1"
+	definitions = "-DMAZEGAME_DEVELOPMENT=1 -DBUILD_DATE_TIME=" + buildTime
+	print (definitions)
+
 	includePath	= "-Iinclude -IC:/VulkanSDK/1.1.108.0/Include"
 	libPath 	= "-LC:/VulkanSDK/1.1.108.0/Lib"
 	libLinks	= "-lvulkan-1 -luser32 -lgdi32 -lws2_32 -lole32 -lwinmm"
