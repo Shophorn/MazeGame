@@ -168,11 +168,10 @@ quaternion interpolate(quaternion from, quaternion to, float t)
 	using namespace vector;
 
 	// Assert(t == t && "probably a nan");
-	if (t < 0 || t > 1)
+	if (t < -0.00001f || t > 1.00001f)
 	{
-		logDebug(0) << "häx";
+		logDebug(0) << "häx: " << t;
 		Assert(false);
-
 	}
 	Assert(from.x == from.x && from.y == from.y && from.z == from.z && from.w == from.w && "probably a nan");
 	Assert(to.x == to.x && to.y == to.y && to.z == to.z && to.w == to.w && "probably a nan");

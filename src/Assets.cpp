@@ -55,8 +55,8 @@ struct Vertex
 	u32 boneIndices[4];
 	f32 boneWeights[4];
 
-	// point4_u32 boneIndices;
-	// v4 boneWeights;
+	v3 tangent;
+	v3 biTangent;
 };
 
 enum struct IndexType : u32 { UInt16, UInt32 };

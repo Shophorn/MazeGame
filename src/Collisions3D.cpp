@@ -48,6 +48,7 @@ get_terrain_height(CollisionSystem3D * system, v2 position)
 
 struct RaycastResult
 {
+	v3 hitPosition;
 	v3 hitNormal;
 };
 
@@ -120,16 +121,18 @@ raycast_3d(	CollisionSystem3D * manager,
 		distanceToMin = math::max(distanceToMin, zDistanceToMin);
 		distanceToMax = math::min(distanceToMax, zDistanceToMax);
 
-		// Todo(Leo): make and use global epsilon
-		if (distanceToMin > 0.0f && distanceToMin < rayLength)
+		if (0.00001f < distanceToMin && distanceToMin < rayLength)
 		{
+
+			// Note(Leo): This is only supporting axis-aligned colliders
 			if (outResult != nullptr)
 			{
-				if (xDistanceToMin < yDistanceToMin && xDistanceToMin < zDistanceToMin)
+				// Note(Leo): Find maximum since biggest af smallest is the distance of hit
+				if (xDistanceToMin > yDistanceToMin && xDistanceToMin > zDistanceToMin)
 				{
 					outResult->hitNormal = {-Sign(normalizedRayDirection.x), 0, 0};
 				}
-				else if (yDistanceToMin < zDistanceToMin)
+				else if (yDistanceToMin > zDistanceToMin)
 				{
 					outResult->hitNormal = {0, -Sign(normalizedRayDirection.y), 0};
 				}
@@ -137,6 +140,8 @@ raycast_3d(	CollisionSystem3D * manager,
 				{
 					outResult->hitNormal = {0, 0, -Sign(normalizedRayDirection.z)};
 				}
+
+				outResult->hitPosition = rayStart + normalizedRayDirection * distanceToMin;
 			}
 
 

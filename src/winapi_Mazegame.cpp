@@ -376,7 +376,7 @@ Run(HINSTANCE hInstance)
             if (timeToSleepSeconds > 0)
             {
                 DWORD timeToSleepMilliSeconds = static_cast<DWORD>(1000 * timeToSleepSeconds);
-                // std::cout << "Sleep for " << timeToSleepMilliSeconds << " ms\n";
+                // logDebug() << "Sleep for " << timeToSleepMilliSeconds << " ms\n";
                 Sleep(timeToSleepMilliSeconds);
 
             }

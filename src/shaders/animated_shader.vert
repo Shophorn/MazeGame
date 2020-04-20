@@ -24,7 +24,8 @@ layout (location = 5) in vec4 inBoneWeights;
 layout (location = 0) out vec3 fragColor;
 layout (location = 1) out vec2 fragTexCoord;
 layout (location = 2) out vec3 fragNormal;
-layout (location = 3) out vec4 lightCoords;
+layout (location = 3) out vec3 fragPosition;
+layout (location = 4) out vec4 lightCoords;
 
 // Todo(Leo): Move to uniform lighting section
 const float shadowDistance = 90.0;

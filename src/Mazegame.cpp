@@ -16,9 +16,10 @@ namespace physics
 
 namespace colors
 {
-	constexpr v4 mutedRed 	= {0.8, 0.2, 0.3};
-	constexpr v4 mutedGreen = {0.2, 0.8, 0.3};
-	constexpr v4 mutedBlue = {0.2, 0.3, 0.8};
+	constexpr v4 mutedRed 		= {0.8, 0.2, 0.3, 1.0};
+	constexpr v4 mutedGreen 	= {0.2, 0.8, 0.3, 1.0};
+	constexpr v4 mutedBlue 		= {0.2, 0.3, 0.8, 1.0};
+	constexpr v4 mutedYellow 	= {0.8, 0.8, 0.2, 1.0};
 }
 
 

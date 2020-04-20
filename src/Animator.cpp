@@ -107,17 +107,10 @@ struct AnimatedSkeleton
 	Array<AnimatedBone> bones;
 };
 
-// Todo(Leo): Maybe use this for AnimatedSkeleton, because we really do not need all the functionalities of Array.
-// struct Skelly
-// {
-// 	AnimatedBone * 	bones;
-// 	s32 	boneCount;
-// 	f32 	animationTime;
-// };
-
 struct SkeletonAnimator
 {
-	AnimatedSkeleton * 	skeleton;
+	AnimatedSkeleton 	skeleton;
+
 	Animation const ** 	animations;
 	f32 *				weights;
 	s32					animationCount;
@@ -383,7 +376,7 @@ void update_skeleton_animator(SkeletonAnimator & animator, f32 elapsedTime)
 				apply default pose by animations weight		
 	*/
 
-	auto & skeleton 	= *animator.skeleton;
+	auto & skeleton 	= animator.skeleton;
 	auto ** animations 	= animator.animations;
 	f32 * weights 		= animator.weights;
 	s32 animationCount 	= animator.animationCount;

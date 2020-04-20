@@ -9,7 +9,7 @@ Todo(Leo): These totally should be combined more/somehow
 namespace vulkan_pipelines_internal_
 {
     internal VkVertexInputBindingDescription get_vertex_binding_description ();;
-    internal StaticArray<VkVertexInputAttributeDescription, 6> get_vertex_attribute_description();
+    internal StaticArray<VkVertexInputAttributeDescription, 8> get_vertex_attribute_description();
 
     internal VkPipelineDynamicStateCreateInfo make_dynamic_state(   platform::RenderingOptions * options,
                                                                     VkDynamicState(&array)[10]);
@@ -342,10 +342,10 @@ vulkan_pipelines_internal_::get_vertex_binding_description ()
     };
 }
 
-internal StaticArray<VkVertexInputAttributeDescription, 6>
+internal StaticArray<VkVertexInputAttributeDescription, 8>
 vulkan_pipelines_internal_::get_vertex_attribute_description()
 {
-    StaticArray<VkVertexInputAttributeDescription, 6> value = {};
+    StaticArray<VkVertexInputAttributeDescription, 8> value = {};
 
     value[0].binding = 0;
     value[0].location = 0;
@@ -377,6 +377,22 @@ vulkan_pipelines_internal_::get_vertex_attribute_description()
     value[5].location = 5;
     value[5].format = VK_FORMAT_R32G32B32A32_SFLOAT;
     value[5].offset = offsetof(Vertex, boneWeights);    
+
+    value[6] =
+    {
+        .location = 6,
+        .binding = 0,
+        .format = VK_FORMAT_R32G32B32_SFLOAT,
+        .offset = offsetof(Vertex, tangent),
+    };
+
+    value[7] =
+    {
+        .location = 7,
+        .binding = 0,
+        .format = VK_FORMAT_R32G32B32_SFLOAT,
+        .offset = offsetof(Vertex, biTangent),
+    };
 
     return value;
 }   

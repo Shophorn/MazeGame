@@ -35,8 +35,10 @@ struct Array
 		return memory_[index];
 	}
 
-	void push(T value);
+	T & push(T value);
 	void push_many(std::initializer_list<T> values);
+	T * push_return_pointer();
+	T * push_return_pointer(T value);
 
 	void flush()
 	{
@@ -95,7 +97,7 @@ Array<T> & Array<T>::operator= (Array<T> && old)
 
 
 template<typename T>
-void Array<T>::push(T value)
+T & Array<T>::push(T value)
 {
 	Assert(count_ < capacity_);
 #if 0
@@ -108,7 +110,36 @@ void Array<T>::push(T value)
 	memory_[count_] = std::move(value);
 #endif
 	++count_;
+
+	return memory_[count_ - 1];
 }
+
+template<typename T>
+T * Array<T>::push_return_pointer()
+{
+	Assert(count_ < capacity_);
+
+	memory_[count_] = {};
+	T * result = &memory_[count_];
+
+	++count_;
+
+	return result;
+}
+
+template<typename T>
+T * Array<T>::push_return_pointer(T value)
+{
+	Assert(count_ < capacity_);
+
+	memory_[count_] = std::move(value);
+	T * result = &memory_[count_];
+
+	++count_;
+
+	return result;
+}
+
 
 template<typename T>
 void Array<T>::push_many(std::initializer_list<T> values)

@@ -45,6 +45,16 @@ struct CStringBuilder
 		return *this;
 	}
 
+	CStringBuilder & operator + (f32 value)
+	{
+		std::stringstream ss;
+		ss << value;
+		std::string s = ss.str();
+		char const * cstring = s.c_str();
+		copy_cstring(cstring);
+		return *this;
+	}
+
 	void copy_cstring(char const * source)
 	{
 		while(*source != 0 && length < Capacity)
@@ -56,6 +66,15 @@ struct CStringBuilder
 		cstring[length] = 0;
 	}
 };
+
+// template <s32 C>
+// CStringBuilder<C> & operator + (CStringBuilder<C> & builder, f32 value)
+// {
+// 	std::strinstream ss (value);
+// 	builder + ss.str().c_str();
+// 	return builder;
+// }
+
 
 template<s32 Capacity>
 std::ostream & operator << (std::ostream & os, CStringBuilder<Capacity> builder)

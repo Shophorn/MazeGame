@@ -6,8 +6,10 @@ Scene description for 3d development scene
 =============================================================================*/
 #include "TerrainGenerator.cpp"
 #include "Collisions3D.cpp"
-#include "CharacterController3rdPerson.cpp"
-#include "OtherGirlController.cpp"
+
+#include "CharacterMotor.cpp"
+#include "PlayerController3rdPerson.cpp"
+#include "FollowerController.cpp"
 
 #include "DefaultSceneGui.cpp"
 
@@ -19,7 +21,8 @@ void update_animated_renderer(AnimatedRenderer & renderer)
 	/* Todo(Leo): Skeleton.bones needs to be ordered so that parent ALWAYS comes before
 	children, and therefore 0th is always implicitly root */
 
-	m44 modelSpaceTransforms [50];
+	// Todo(Leo): Use global value from vulkan layer. There must be room for maximum number of bones here. Currently it is 32, but to make sure we put 64. 
+	m44 modelSpaceTransforms [64];
 
 	for (int i = 0; i < boneCount; ++i)
 	{
@@ -43,23 +46,30 @@ void update_animated_renderer(AnimatedRenderer & renderer)
 
 struct Scene3d
 {
-	Array<Transform3D> 		transformStorage;
-	Array<SkeletonAnimator> skeletonAnimators;	
-	
-	Array<RenderSystemEntry> 	renderSystem = {};
-	Array<AnimatedRenderer> 	animatedRenderers = {};
-	CollisionSystem3D 			collisionSystem = {};
+	// Components
+	Array<Transform3D> 			transformStorage;
+	Array<SkeletonAnimator> 	skeletonAnimators;	
+	Array<CharacterMotor>		characterMotors;
+	Array<CharacterInput>	characterMotorInputs;
 
-	Camera worldCamera;
-	CameraController3rdPerson cameraController;
-	CharacterController3rdPerson characterController;
+	Array<RenderSystemEntry> 	renderSystem;
+	Array<AnimatedRenderer> 	animatedRenderers;
+	CollisionSystem3D 			collisionSystem;
 
-	OtherGirlController otherGirls[20];
+	// Player
+	Camera 						worldCamera;
+	CameraController3rdPerson 	cameraController;
+	s32 						playerMotorIndex;
+	Transform3D * 				playerCharacterTransform;
 
+	// Other actors
+	FollowerController followers[200];
+
+	// Data
 	Animation characterAnimations [CharacterAnimations::ANIMATION_COUNT];
 
+	// Random
 	ModelHandle skybox;
-
 	SceneGui gui;
 
  	// Todo(Leo): maybe make free functions
@@ -101,19 +111,22 @@ Scene3d::update(	void * 					scenePtr,
 	functions->draw_model(graphics, scene->skybox, m44::identity(), false, nullptr, 0);
 
 	// Game Logic section
-	auto & character = scene->characterController;
-	update_character(	character,
-						input,
-						&scene->worldCamera,
-						&scene->collisionSystem,
-						graphics);
+	update_player_input(scene->playerMotorIndex, scene->characterMotorInputs, scene->worldCamera, *input);
 	
+	for (auto & follower : scene->followers)
+	{
+		update_follower_input(follower, scene->characterMotorInputs, input->elapsedTime);
+	}
 	update_camera_controller(&scene->cameraController, input);
 
-	for (auto & girl : scene->otherGirls)
+	for (int i = 0; i < scene->characterMotors.count(); ++i)
 	{
-		update_other_girl(girl, scene->collisionSystem, input->elapsedTime);
+		update_character_motor(	scene->characterMotors[i],
+								scene->characterMotorInputs[i],
+								scene->collisionSystem,
+								input->elapsedTime);
 	}
+
 
 	for (auto & animator : scene->skeletonAnimators)
 	{
@@ -138,11 +151,19 @@ Scene3d::update(	void * 					scenePtr,
 	// 	}
 	// }
 
+	// for (auto & renderer : scene->animatedRenderers)
+	// {
+	// }
+	// // render_animated_models(scene->animatedRenderers, graphics);
 	for (auto & renderer : scene->animatedRenderers)
 	{
 		update_animated_renderer(renderer);
+
+		platformApi->draw_model(graphics, renderer.model, get_matrix(*renderer.transform),
+								renderer.castShadows, renderer.bones.data(),
+								renderer.bones.count());
+	
 	}
-	render_animated_models(scene->animatedRenderers, graphics);
 
 	// ------------------------------------------------------------------------
 
@@ -168,18 +189,15 @@ Scene3d::load(	void * 						scenePtr,
 	scene->gui = make_scene_gui(transientMemory, graphics, functions);
 
 	// Note(Leo): amounts are SWAG, rethink.
-	scene->transformStorage 	= allocate_array<Transform3D>(*persistentMemory, 600);
+	scene->transformStorage 	= allocate_array<Transform3D>(*persistentMemory, 1200);
 	scene->skeletonAnimators 	= allocate_array<SkeletonAnimator>(*persistentMemory, 600);
 	scene->animatedRenderers 	= allocate_array<AnimatedRenderer>(*persistentMemory, 600);
 	scene->renderSystem 		= allocate_array<RenderSystemEntry>(*persistentMemory, 600);
+	scene->characterMotors		= allocate_array<CharacterMotor>(*persistentMemory, 600);
+	scene->characterMotorInputs	= allocate_array<CharacterInput>(*persistentMemory, scene->characterMotors.capacity(), ALLOC_FILL | ALLOC_NO_CLEAR);
 
 	allocate_collision_system(&scene->collisionSystem, persistentMemory, 600);
 
-	auto allocate_transform = [](Array<Transform3D> & storage, Transform3D value) -> Transform3D *
-	{
-		storage.push(value);
-		return &storage.last();
-	};
 
 	struct MaterialCollection {
 		MaterialHandle character;
@@ -202,9 +220,11 @@ Scene3d::load(	void * 						scenePtr,
 
 	TextureAsset whiteTextureAsset = make_texture_asset(allocate_array<u32>(*transientMemory, {0xffffffff}), 1, 1);
 	TextureAsset blackTextureAsset = make_texture_asset(allocate_array<u32>(*transientMemory, {0xff000000}), 1, 1);
+	TextureAsset neutralBumpTextureAsset = make_texture_asset(allocate_array<u32>(*transientMemory, {0xff8080ff}), 1, 1);
 
-	TextureHandle whiteTexture = functions->push_texture(graphics, &whiteTextureAsset);
-	TextureHandle blackTexture = functions->push_texture(graphics, &blackTextureAsset);
+	TextureHandle whiteTexture 			= functions->push_texture(graphics, &whiteTextureAsset);
+	TextureHandle blackTexture 			= functions->push_texture(graphics, &blackTextureAsset);
+	TextureHandle neutralBumpTexture 	= functions->push_texture(graphics, &neutralBumpTextureAsset);
 
 	auto push_material = [functions, transientMemory, graphics](PipelineHandle shader, TextureHandle a, TextureHandle b, TextureHandle c) -> MaterialHandle
 	{
@@ -225,9 +245,9 @@ Scene3d::load(	void * 						scenePtr,
 
 		materials =
 		{
-			.character 		= push_material(characterPipeline, lavaTexture, faceTexture, blackTexture),
-			.environment 	= push_material(normalPipeline, tilesTexture, blackTexture, blackTexture),
-			.ground 		= push_material(terrainPipeline, groundTexture, blackTexture, blackTexture),
+			.character 		= push_material(characterPipeline, lavaTexture, neutralBumpTexture, blackTexture),
+			.environment 	= push_material(normalPipeline, tilesTexture, neutralBumpTexture, blackTexture),
+			.ground 		= push_material(terrainPipeline, groundTexture, neutralBumpTexture, blackTexture),
 		};
 		
 		// Note(Leo): internet told us vulkan(or glsl) cubemap face order is as follows:
@@ -262,24 +282,20 @@ Scene3d::load(	void * 						scenePtr,
 
 	// Characters
 	{
-		auto & character = scene->characterController;
-
-		Transform3D * transform = allocate_transform(scene->transformStorage, {10, 10, 5});
-		character 				= make_character(transform);
-
 		char const * filename 	= "assets/models/cube_head.glb";
 		auto const gltfFile 	= read_gltf_file(*transientMemory, filename);
 
-		character.skeleton 		= load_skeleton_glb(*persistentMemory, gltfFile, "cube_head");
+		auto girlMeshAsset 	= load_mesh_glb(*transientMemory, gltfFile, "cube_head");
+		auto girlMesh 		= platformApi->push_mesh(platformGraphics, &girlMeshAsset);
 
-		{
-			auto log = logDebug(0);
-			log << "Bones in skeleton:\n";
-			for (auto & bone : character.skeleton.bones)
-			{
-				log << "\t" << bone.name << "\n";
-			}
-		}
+		// --------------------------------------------------------------------
+
+		Transform3D * playerTransform = scene->transformStorage.push_return_pointer({10, 10, 5});
+		scene->playerCharacterTransform = playerTransform;
+
+		scene->playerMotorIndex = scene->characterMotors.count();
+		auto * motor = scene->characterMotors.push_return_pointer();
+		motor->transform = playerTransform;
 
 		{
 			using namespace CharacterAnimations;			
@@ -291,118 +307,116 @@ Scene3d::load(	void * 						scenePtr,
 			scene->characterAnimations[FALL]	= load_animation_glb(*persistentMemory, gltfFile, "JumpDown");
 			scene->characterAnimations[CROUCH] 	= load_animation_glb(*persistentMemory, gltfFile, "Crouch");
 
-			scene->characterController.animations[WALK] 	= &scene->characterAnimations[WALK];
-			scene->characterController.animations[RUN] 		= &scene->characterAnimations[RUN];
-			scene->characterController.animations[IDLE] 	= &scene->characterAnimations[IDLE];
-			scene->characterController.animations[JUMP]		= &scene->characterAnimations[JUMP];
-			scene->characterController.animations[FALL]		= &scene->characterAnimations[FALL];
-			scene->characterController.animations[CROUCH] 	= &scene->characterAnimations[CROUCH];
+			motor->animations[WALK] 	= &scene->characterAnimations[WALK];
+			motor->animations[RUN] 		= &scene->characterAnimations[RUN];
+			motor->animations[IDLE] 	= &scene->characterAnimations[IDLE];
+			motor->animations[JUMP]		= &scene->characterAnimations[JUMP];
+			motor->animations[FALL]		= &scene->characterAnimations[FALL];
+			motor->animations[CROUCH] 	= &scene->characterAnimations[CROUCH];
 		}
 
-		auto girlMeshAsset 			= load_mesh_glb(*transientMemory, gltfFile, "cube_head");
-		auto girlMesh 				= platformApi->push_mesh(platformGraphics, &girlMeshAsset);
-		auto model 					= push_model(girlMesh, materials.character);
 
+		scene->skeletonAnimators.push({
+			.skeleton 		= load_skeleton_glb(*persistentMemory, gltfFile, "cube_head"),
+			.animations 	= motor->animations,
+			.weights 		= motor->animationWeights,
+			.animationCount = CharacterAnimations::ANIMATION_COUNT
+		});
+
+		// Note(Leo): take the reference here, so we can easily copy this down below.
+		auto & cubeHeadSkeleton = scene->skeletonAnimators.last().skeleton;
+
+		auto model = push_model(girlMesh, materials.character);
 		scene->animatedRenderers.push(make_animated_renderer(
-				transform,
-				&character.skeleton,
+				playerTransform,
+				&scene->skeletonAnimators.last().skeleton,
 				model,
 				*persistentMemory
 			));
 
-		scene->skeletonAnimators.push({
-			.skeleton 		= &scene->characterController.skeleton,
-			.animations 	= scene->characterController.animations,
-			.weights 		= scene->characterController.animationWeights,
-			.animationCount = CharacterAnimations::ANIMATION_COUNT
-		});
-
 		// --------------------------------------------------------------------
-		auto * targetTransform = scene->characterController.transform;
-		s32 girlCount = array_count(scene->otherGirls);
 
-		for (s32 girlIndex = 0; girlIndex < girlCount; ++girlIndex)
+		Transform3D * targetTransform = playerTransform;
+
+		for (s32 followerIndex = 0; followerIndex < array_count(scene->followers); ++followerIndex)
 		{
-			transform 	= allocate_transform(scene->transformStorage, {10, 20.0f + girlIndex * 5, 0});
-			model 		= push_model(girlMesh, materials.character); 
+			v3 position 		= {RandomRange(-99, 99), RandomRange(-99, 99), 0};
+			f32 scale 			= RandomRange(0.8f, 1.5f);
+			auto * transform 	= scene->transformStorage.push_return_pointer({.position = position, .scale = scale});
 
-			scene->otherGirls[girlIndex] =
-			{
-				.transform 			= transform,
-				.targetTransform 	= targetTransform
-			};
+			s32 motorIndex 		= scene->characterMotors.count();
+			auto * motor 		= scene->characterMotors.push_return_pointer();
+			motor->transform 	= transform;
+
+			scene->followers[followerIndex] = make_follower_controller(transform, targetTransform, motorIndex);
 			targetTransform = transform;
-
-			transform->scale = RandomRange(0.9f, 1.5f);
 
 			{
 				using namespace CharacterAnimations;			
 
-				scene->otherGirls[girlIndex].animations[WALK] 	= &scene->characterAnimations[WALK];
-				scene->otherGirls[girlIndex].animations[RUN] 		= &scene->characterAnimations[RUN];
-				scene->otherGirls[girlIndex].animations[IDLE] 	= &scene->characterAnimations[IDLE];
-				scene->otherGirls[girlIndex].animations[JUMP]		= &scene->characterAnimations[JUMP];
-				scene->otherGirls[girlIndex].animations[FALL]		= &scene->characterAnimations[FALL];
-				scene->otherGirls[girlIndex].animations[CROUCH] 	= &scene->characterAnimations[CROUCH];
+				motor->animations[WALK] 	= &scene->characterAnimations[WALK];
+				motor->animations[RUN] 		= &scene->characterAnimations[RUN];
+				motor->animations[IDLE] 	= &scene->characterAnimations[IDLE];
+				motor->animations[JUMP]		= &scene->characterAnimations[JUMP];
+				motor->animations[FALL]		= &scene->characterAnimations[FALL];
+				motor->animations[CROUCH] 	= &scene->characterAnimations[CROUCH];
 			}
 
-			scene->otherGirls[girlIndex].skeleton = {};
-			scene->otherGirls[girlIndex].skeleton.bones = copy_array(*persistentMemory, scene->characterController.skeleton.bones);
+			scene->skeletonAnimators.push({
+					.skeleton 		= { .bones = copy_array(*persistentMemory, cubeHeadSkeleton.bones) },
+					.animations 	= motor->animations,
+					.weights 		= motor->animationWeights,
+					.animationCount = CharacterAnimations::ANIMATION_COUNT
+				});
 
+			auto model = push_model(girlMesh, materials.character); 
 			scene->animatedRenderers.push(make_animated_renderer(
 					transform,
-					&scene->otherGirls[girlIndex].skeleton,
+					&scene->skeletonAnimators.last().skeleton,
 					model,
 					*persistentMemory
 				));
-
-			scene->skeletonAnimators.push({
-					.skeleton 		= &scene->otherGirls[girlIndex].skeleton,
-					.animations 	= scene->otherGirls[girlIndex].animations,
-					.weights 		= scene->otherGirls[girlIndex].animationWeights,
-					.animationCount = CharacterAnimations::ANIMATION_COUNT
-				});
 		}
 
 	}
 
 	// Test robot
 	{
-		auto transform = allocate_transform(scene->transformStorage, {21, 10, 1.2});
+		auto transform = scene->transformStorage.push_return_pointer({21, 10, 1.2});
 
 		char const * filename = "assets/models/Robot53.glb";
 		auto meshAsset = load_mesh_glb(*transientMemory, read_gltf_file(*transientMemory, filename), "model_rigged");	
 		auto mesh = functions->push_mesh(graphics, &meshAsset);
 
 		auto albedo = load_and_push_texture("assets/textures/Robot_53_albedo_4k.png");
-		auto material = push_material(normalPipeline, albedo, blackTexture, blackTexture);
+		auto material = push_material(normalPipeline, albedo, neutralBumpTexture, blackTexture);
 
 		auto model = push_model(mesh, material);
 		scene->renderSystem.push({transform, model});
 	}
 
 	scene->worldCamera = make_camera(50, 0.1f, 1000.0f);
-	scene->cameraController = make_camera_controller_3rd_person(&scene->worldCamera, scene->characterController.transform);
+	scene->cameraController = make_camera_controller_3rd_person(&scene->worldCamera, scene->playerCharacterTransform);
 	scene->cameraController.baseOffset = {0, 0, 1.5f};
 	scene->cameraController.distance = 5;
 
 	// Environment
 	{
-		constexpr float depth = 100;
-		constexpr float width = 100;
-
+		constexpr f32 depth = 100;
+		constexpr f32 width = 100;
+		f32 mapSize = 200;
+		f32 terrainHeight = 20;
 		{
 			// Note(Leo): this is maximum size we support with u16 mesh vertex indices
 			s32 gridSize = 256;
-			float mapSize = 400;
 
 			auto heightmapTexture 	= load_texture_asset("assets/textures/heightmap6.jpg", transientMemory);
-			auto heightmap 			= make_heightmap(transientMemory, &heightmapTexture, gridSize, mapSize, -20, 20);
+			auto heightmap 			= make_heightmap(transientMemory, &heightmapTexture, gridSize, mapSize, -terrainHeight / 2, terrainHeight / 2);
 			auto groundMeshAsset 	= generate_terrain(transientMemory, 32, &heightmap);
 
 			auto groundMesh 		= functions->push_mesh(graphics, &groundMeshAsset);
 			auto model 				= push_model(groundMesh, materials.ground);
-			auto transform 			= allocate_transform(scene->transformStorage, {{-50, -50, 0}});
+			auto transform 			= scene->transformStorage.push_return_pointer({{-mapSize / 2, -mapSize / 2, 0}});
 
 			scene->renderSystem.push({transform, model});
 
@@ -415,36 +429,82 @@ Scene3d::load(	void * 						scenePtr,
 			auto totemMeshHandle 	= functions->push_mesh(graphics, &totemMesh);
 
 			auto model = push_model(totemMeshHandle, materials.environment);
-			auto transform = allocate_transform(scene->transformStorage, {0,0,-2});
+			auto transform = scene->transformStorage.push_return_pointer({0,0,-2});
 			scene->renderSystem.push({transform, model});
 
-			transform = allocate_transform(scene->transformStorage, {0, 5, -4, 0.5f});
+			transform = scene->transformStorage.push_return_pointer({0, 5, -4, 0.5f});
 			scene->renderSystem.push({transform, model});
 		}
 
 		{
+			s32 pillarCountPerDirection = mapSize / 10;
+			s32 pillarCount = pillarCountPerDirection * pillarCountPerDirection;
+
 			auto pillarMesh 		= load_mesh_glb(*transientMemory, read_gltf_file(*transientMemory, "assets/models/big_pillar.glb"), "big_pillar");
 			auto pillarMeshHandle 	= functions->push_mesh(graphics, &pillarMesh);
 
-			auto model 		= push_model(pillarMeshHandle, materials.environment);
-			auto transform 	= allocate_transform(scene->transformStorage, {-width / 4, 0, -5});
-			scene->renderSystem.push({transform, model});
+			// pillarCount = 1;
+
+			for (s32 pillarIndex = 0; pillarIndex < pillarCount; ++pillarIndex)
+			{
+				// mapSize = 30;
+				s32 gridX = (pillarIndex % pillarCountPerDirection);
+				s32 gridY = (pillarIndex / pillarCountPerDirection);
+
+				if ((gridY % 4) > 0)
+				{
+					continue;
+				}
+
+				if ((gridX % 7) < 2)
+				{
+					continue;
+				}
+
+
+				f32 x = ((pillarIndex % pillarCountPerDirection) / (f32)pillarCountPerDirection) * mapSize - mapSize / 2;
+				f32 y = ((pillarIndex / pillarCountPerDirection) / (f32)pillarCountPerDirection) * mapSize - mapSize / 2;
+
+				// if ((y % 4) != 0)
+				// {
+				// 	continue;
+				// }
+
+				// s32 
+
+				// x = 5;
+				// y = 5;
+				f32 z = get_terrain_height(&scene->collisionSystem, v2{x, y});
+
+				v3 position = {x, y, z - 1};
+				auto transform = scene->transformStorage.push_return_pointer({position});
+				
+				auto model = push_model(pillarMeshHandle, materials.environment);
+				scene->renderSystem.push({transform, model});
+
+				auto collider  = BoxCollider3D{ .extents = {2, 2, 50}, .center = {0, 0, 25}};
+				push_collider_to_system(&scene->collisionSystem, collider, transform);
+			}
+
+			// auto model 		= push_model(pillarMeshHandle, materials.environment);
+			// auto transform 	= scene->transformStorage.push_return_pointer({-width / 4, 0, -5});
+			// scene->renderSystem.push({transform, model});
 			
-			auto collider 	= BoxCollider3D {
-				.extents 	= {2, 2, 50},
-				.center 	= {0, 0, 25}
-			};
-			push_collider_to_system(&scene->collisionSystem, collider, transform);
+			// auto collider 	= BoxCollider3D {
+			// 	.extents 	= {2, 2, 50},
+			// 	.center 	= {0, 0, 25}
+			// };
+			// push_collider_to_system(&scene->collisionSystem, collider, transform);
 
-			model 	= push_model(pillarMeshHandle, materials.environment);
-			transform 	= allocate_transform(scene->transformStorage, {width / 4, 0, -6});
-			scene->renderSystem.push({transform, model});
+			// model 	= push_model(pillarMeshHandle, materials.environment);
+			// transform 	= scene->transformStorage.push_return_pointer({width / 4, 0, -6});
+			// scene->renderSystem.push({transform, model});
 
-			collider 	= BoxCollider3D {
-				.extents 	= {2, 2, 50},
-				.center 	= {0, 0, 25}
-			};
-			push_collider_to_system(&scene->collisionSystem, collider, transform);
+			// collider 	= BoxCollider3D {
+			// 	.extents 	= {2, 2, 50},
+			// 	.center 	= {0, 0, 25}
+			// };
+			// push_collider_to_system(&scene->collisionSystem, collider, transform);
 		}
 
 		logConsole() << FILE_ADDRESS << used_percent(*persistentMemory) * 100 <<  "% of persistent memory used.";

@@ -72,4 +72,23 @@ namespace debug
 	{
 		platformApi->draw_line(platformGraphics, start, end, 1.0f, color);
 	}
+
+	void draw_vector(v3 position, v3 vector, v4 color, f32 size = 0.1f)
+	{
+		f32 length 		= vector.magnitude();
+		size 			= math::min(size, length / 2);
+
+		v3 binormal 	= vector::cross(vector, v3::up);
+		v3 up 			= vector::cross(vector, binormal).normalized();
+
+		v3 direction 	= vector.normalized();
+		v3 cornerA 		= position + direction * (length - size) + up * size;
+		v3 cornerB 		= position + direction * (length - size) - up * size;
+
+		platformApi->draw_line(platformGraphics, position, position + vector, 1.0f, color);
+		platformApi->draw_line(platformGraphics, position + vector, cornerA, 1.0f, color);
+		platformApi->draw_line(platformGraphics, position + vector, cornerB, 1.0f, color);
+		platformApi->draw_line(platformGraphics, cornerA, cornerB, 1.0f, color);
+
+	}
 }

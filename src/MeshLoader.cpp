@@ -406,6 +406,10 @@ namespace mesh_primitives
 		int vertexCount = 4;
 		result.vertices = allocate_array<Vertex>(*allocator, vertexCount, ALLOC_FILL | ALLOC_NO_CLEAR);
 
+		// result.vertices[0] = Vertex{.position = {0,0,0}, .normal = {0,0,1}, .color = {1,1,1}, .texCoord = {0,0}};
+		// result.vertices[0] = Vertex{.position = {1,0,0}, .normal = {0,0,1}, .color = {1,1,1}, .texCoord = {1,0}};
+		// result.vertices[0] = Vertex{.position = {0,1,0}, .normal = {0,0,1}, .color = {1,1,1}, .texCoord = {0,1}};
+		// result.vertices[0] = Vertex{.position = {1,1,0}, .normal = {0,0,1}, .color = {1,1,1}, .texCoord = {1,1}};
 		// 					  position 		normal   	color    	uv
 		result.vertices[0] = {0, 0, 0, 		0, 0, 1, 	1, 1, 1, 	0, 0};
 		result.vertices[1] = {1, 0, 0, 		0, 0, 1, 	1, 1, 1, 	1, 0};

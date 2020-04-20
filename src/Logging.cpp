@@ -60,7 +60,7 @@ struct LogInput
 			*output << header.str() << buffer.str();
 
 			// // Note(Leo): We flush so we get immediate output to file.
-			// // Todo(Leo): Heard this is unnecessay though, so find out more.
+			// // Todo(Leo): Heard this is unnecessay though, so find out more. Probably has to do with dctor not called when aborting or crashing..
 			*output << std::flush;
 
 

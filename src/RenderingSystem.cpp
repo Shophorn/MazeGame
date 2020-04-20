@@ -37,24 +37,6 @@ struct AnimatedRenderer
 	bool32 castShadows = true;
 };
 
-// AnimatedRenderer make_animated_renderer(Transform3D * 		transform,
-// 										AnimatedSkeleton * 	skeleton,
-// 										ModelHandle			model,
-
-// 										Array<m44> 			bones)
-// 										// MemoryArena & allocator)
-// {
-// 	AnimatedRenderer result =
-// 	{
-// 		.transform = transform,
-// 		.skeleton = skeleton,
-// 		.model = model,
-// 		.bones = std::move(bones)
-// 		// .bones = allocate_array<m44>(allocator, skeleton->bones.count(), ALLOC_FILL | ALLOC_NO_CLEAR)
-// 	};
-// 	return result;
-// }
-
 
 AnimatedRenderer make_animated_renderer (Transform3D * transform, AnimatedSkeleton * skeleton, ModelHandle model, MemoryArena & allocator) //Array<m44> boneMemory)
 {
@@ -71,13 +53,5 @@ internal void
 render_animated_models(	Array<AnimatedRenderer> const & entries,
 						platform::Graphics * graphics)
 {
-	for (auto const & entry : entries)
-	{
-		platformApi->draw_model( 	graphics,
-								entry.model,
-								get_matrix(*entry.transform),
-								entry.castShadows,
-								entry.bones.data(),
-								entry.bones.count());
-	}
+
 }
