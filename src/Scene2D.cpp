@@ -12,7 +12,7 @@ namespace scene_2d
 	struct Scene
 	{
 		Array<Transform3D> transformStorage;
-		Array<RenderSystemEntry> renderSystem;
+		Array<Renderer> renderSystem;
 		Array<Animator> animatorSystem;
 
 		// Todo(Leo): make this similar 'system' to others
@@ -77,9 +77,35 @@ scene_2d::update(	void * scenePtr,
 	scene->characterController.update(input, &scene->collisionManager);
 	update_animator_system(input, scene->animatorSystem);
 
+	  //////////////////////////////
+	 /// 	RENDERING 			///
+	//////////////////////////////
+	/*
+		1. Update camera
+		2. Render normal models
+		3. Render animated models
+	*/
+
 	scene->cameraController.update(input);
     update_camera_system(&scene->worldCamera, input, graphics, window);
-	update_render_system(scene->renderSystem, graphics);
+
+	for (auto & renderer : scene->renderSystem)
+	{
+		platformApi->draw_model(platformGraphics, renderer.model,
+								get_matrix(*renderer.transform),
+								renderer.castShadows,
+								nullptr, 0);
+	}
+
+	// for (auto & renderer : scene->animatedRenderers)
+	// {
+	// 	update_animated_renderer(renderer);
+
+	// 	platformApi->draw_model(graphics, renderer.model, get_matrix(*renderer.transform),
+	// 							renderer.castShadows, renderer.bones.data(),
+	// 							renderer.bones.count());
+	// }
+
 
 	Light light = { v3{1, 1, -3}.normalized(), {0.95, 0.95, 0.9}};
 	v3 ambient = {0.2, 0.25, 0.4};
@@ -107,7 +133,7 @@ scene_2d::load(	void * scenePtr,
 	// auto * transientMemory = &state->transientMemoryArena;
 
 	scene->transformStorage = allocate_array<Transform3D>(*persistentMemory, 100);
-	scene->renderSystem 	= allocate_array<RenderSystemEntry>(*persistentMemory, 100);
+	scene->renderSystem 	= allocate_array<Renderer>(*persistentMemory, 100);
 	scene->animatorSystem 	= allocate_array<Animator>(*persistentMemory, 100);
 
 

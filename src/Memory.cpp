@@ -31,10 +31,21 @@ align_up(u64 size, u64 alignment)
     return size;
 }
 
-void copy_memory (void * dst, void const * src, u64 count)
+void copy_memory (void * dst, void const * src, u64 byteCount)
 {
-	memcpy(dst, src, count);
+	memcpy(dst, src, byteCount);
 };
+
+template<typename T>
+void fill_array(T * memory, u64 count, T value)
+{
+	T * end = memory + count;
+	while(memory < end)
+	{
+		*memory = value;
+		++memory;
+	}
+}
 
 template<typename T>
 T convert_bytes(byte const * bytes, u64 offset)
@@ -170,6 +181,51 @@ Array<T> allocate_array(MemoryArena & allocator, u64 capacity, s32 flags = ALLOC
 	}
 
 	return Array<T>(memory, count, capacity);
+}
+
+
+template<typename T>
+Array<Array<T>> allocate_nested_arrays(MemoryArena & allocator, s64 outerCapacity, s64 innerCapacity, s32 innerFlags = ALLOC_FLAGS_NONE)
+{
+	/* Note(leo): Outer array is implicitly ALLOC_NO_CLEAR because we init all values,
+	and ALLOC_FILL, because otherwise you eould just call normal allocate_array. */
+
+
+
+	u64 innerArraySize = sizeof(T) * innerCapacity;
+	u64 totalSize = outerCapacity * (innerArraySize + sizeof(Array<T>));
+
+	void * memory = allocate(allocator, totalSize);
+
+
+
+	Array<Array<T>> result = {reinterpret_cast<Array<T>*>(memory), (u64)outerCapacity, (u64)outerCapacity};
+
+	T * innerArrayMemory = reinterpret_cast<T*>((byte*)memory + outerCapacity * sizeof(Array<T>));
+
+	u64 innerCount = 0;
+	if ((innerFlags & ALLOC_FILL) != 0)
+	{
+		innerCount = innerCapacity;
+	}
+
+	if ((innerCapacity & ALLOC_NO_CLEAR) == 0)
+	{
+		std::memset(innerArrayMemory, 0, sizeof(T) * innerCapacity * outerCapacity);
+	}
+
+
+
+	for(int i = 0; i < outerCapacity; ++i)
+	{
+		/* Note(Leo): placement new allows us to use move constuctor instead of move assignement, 
+		so we can construct this array on unitialized memory. Look at Array constructors and 
+		assignment operators for more info. */
+		new (&result[i]) Array<T> (innerArrayMemory + i * innerCapacity, innerCount, (u64)innerCapacity);
+	}
+
+
+	return result;
 }
 
 template<typename T>

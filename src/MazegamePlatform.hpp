@@ -15,8 +15,20 @@ Interface definition between Platform and Game.
 
 
 #if MAZEGAME_DEVELOPMENT
-	#define Assert(expr) if (!(expr)) { logDebug(0) << FILE_ADDRESS << "Assertion failed: " << #expr; abort(); }
-	#define DEBUG_ASSERT(expr, msg) if (!(expr)) { logDebug(0) << FILE_ADDRESS << "Assertion failed: " << msg << "(" << #expr << ")"; abort(); }
+	void log_assert(LogInput::FileAddress fileAddress, char const * message, char const * expression)
+	{
+		auto log = logDebug(0);
+		log << fileAddress << "Assertion failed: ";
+
+		if (message)
+			log << message;
+
+		if (expression)
+			log << " (" << expression << ")";
+	}
+
+	#define Assert(expr) if(!(expr)) { log_assert(FILE_ADDRESS, nullptr, #expr); 			abort(); }
+	#define DEBUG_ASSERT(expr, msg) if(!(expr)) { log_assert(FILE_ADDRESS, msg, #expr); 	abort(); }
 
 	// Note(Leo): Some things need to asserted in production too, this is a reminder for those only.
 	#define RELEASE_ASSERT DEBUG_ASSERT
@@ -43,6 +55,8 @@ needs to be specified for compiler. */
 
 namespace platform
 {
+	constexpr s32 maxBonesInSkeleton = 32;
+
 	enum FrameResult
 	{
 		FRAME_OK,

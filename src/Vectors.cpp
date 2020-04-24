@@ -66,7 +66,7 @@ struct Vector<S, 3>
 { 
 	S x, y, z; 
 
-	Vector<S, 2> & xy () { return *reinterpret_cast<Vector<S,2>*>(this); }
+	Vector<S, 2> * xy () { return reinterpret_cast<Vector<S,2>*>(this); }
 
 	static Vector const right;
 	static Vector const forward;

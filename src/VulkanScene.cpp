@@ -82,8 +82,8 @@ vulkan::push_mesh(VulkanContext * context, MeshAsset * mesh)
 
     VulkanMesh model = {};
 
-    model.buffer = context->staticMeshPool.buffer;
-    model.memory = context->staticMeshPool.memory;
+    model.bufferReference = context->staticMeshPool.buffer;
+    // model.memoryReference = context->staticMeshPool.memory;
 
     model.vertexOffset = context->staticMeshPool.used + vertexOffset;
     model.indexOffset = context->staticMeshPool.used + indexOffset;

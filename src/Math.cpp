@@ -97,7 +97,9 @@ namespace math
     template <typename T>
     internal T clamp(T value, T min, T max)
     {
-        return value < min ? min : value > max ? max : value;
+        value = value < min ? min : value;
+        value = value > max ? max : value;
+        return value;
     }
 
     template<typename T>

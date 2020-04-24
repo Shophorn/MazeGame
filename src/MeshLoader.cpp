@@ -82,8 +82,44 @@ load_animation_glb(MemoryArena & allocator, GltfFile const & file, char const * 
 		minTime = math::min(minTime, accessors[inputAccessor]["min"][0].GetFloat());
 		maxTime = math::max(maxTime, accessors[inputAccessor]["max"][0].GetFloat());
 
-		result.channels.push({});
-		AnimationChannel & channel = result.channels.last();
+
+		// ------------------------------------------------------------------------------
+
+		InterpolationMode 	interpolationMode;
+		ChannelType 		channelType;
+		{
+			char const * interpolationModeStr = samplers[samplerIndex]["interpolation"].GetString();
+
+			if(cstring_equals(interpolationModeStr, "STEP"))				interpolationMode = INTERPOLATION_MODE_STEP;
+			else if (cstring_equals(interpolationModeStr, "LINEAR"))		interpolationMode = INTERPOLATION_MODE_LINEAR;
+			else if (cstring_equals(interpolationModeStr,"CUBICSPLINE"))	interpolationMode = INTERPOLATION_MODE_CUBICSPLINE;
+			else
+				Assert(false);
+		
+			char const * path 	= jsonChannel["target"]["path"].GetString();
+
+			if (cstring_equals(path, "translation"))	channelType = ANIMATION_CHANNEL_TRANSLATION;
+			else if(cstring_equals(path, "rotation"))	channelType = ANIMATION_CHANNEL_ROTATION;
+			else if (cstring_equals(path, "scale"))		channelType = ANIMATION_CHANNEL_SCALE;
+			else
+				Assert(false);
+		}
+
+		// ------------------------------------------------------------------------------
+
+		bool32 supportedChannel = 	(channelType == ANIMATION_CHANNEL_TRANSLATION)
+									|| (channelType == ANIMATION_CHANNEL_ROTATION);
+
+
+		if (supportedChannel == false)
+		{
+			continue;
+		}
+
+		AnimationChannel & channel 	= *result.channels.push_return_pointer({});
+		channel.type 				= channelType;
+		channel.interpolationMode 	= interpolationMode;
+
 
 		{
 			/* Note(Leo): Bones (or joints) are somewhat cumbersomely behind different list, so we need to remap those.
@@ -97,24 +133,6 @@ load_animation_glb(MemoryArena & allocator, GltfFile const & file, char const * 
 			Assert(channel.targetIndex >= 0);
 		}
 		
-		// ------------------------------------------------------------------------------
-
-		char const * interpolationMode = samplers[samplerIndex]["interpolation"].GetString();
-
-		if(cstring_equals(interpolationMode, "STEP"))				channel.interpolationMode = INTERPOLATION_MODE_STEP;
-		else if (cstring_equals(interpolationMode, "LINEAR"))		channel.interpolationMode = INTERPOLATION_MODE_LINEAR;
-		else if (cstring_equals(interpolationMode,"CUBICSPLINE"))	channel.interpolationMode = INTERPOLATION_MODE_CUBICSPLINE;
-		else
-			Assert(false);
-	
-		char const * path 	= jsonChannel["target"]["path"].GetString();
-
-		if (cstring_equals(path, "translation"))	channel.type = ANIMATION_CHANNEL_TRANSLATION;
-		else if(cstring_equals(path, "rotation"))	channel.type = ANIMATION_CHANNEL_ROTATION;
-		else if (cstring_equals(path, "scale"))		channel.type = ANIMATION_CHANNEL_SCALE;
-		else
-			Assert(false);
-
 		// ------------------------------------------------------------------------------
 
 		int keyframeCount = accessors[inputAccessor]["count"].GetInt();

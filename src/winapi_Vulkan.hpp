@@ -109,8 +109,8 @@ struct VulkanTexture
 
 struct VulkanMesh
 {
-    VkBuffer        buffer;
-    VkDeviceMemory  memory;
+    VkBuffer        bufferReference;
+    // VkDeviceMemory  memoryReference;
 
     VkDeviceSize    vertexOffset;
     VkDeviceSize    indexOffset;

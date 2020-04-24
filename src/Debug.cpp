@@ -1,3 +1,6 @@
+// Note(Leo): Using this we don't need to bother to make new rotation each time
+enum : s32 { ORIENT_2D_XY, ORIENT_2D_XZ, ORIENT_2D_YZ };
+
 namespace debug
 {
 	void draw_axes(	platform::Graphics * graphics,
@@ -35,10 +38,7 @@ namespace debug
 		functions->draw_line(graphics, points[3], points[0], 1.0f, color);
 	}
 
-	void draw_diamond(	platform::Graphics * graphics,
-							m44 transform,
-							v4 color,
-							platform::Functions * functions)
+	void draw_diamond(m44 transform, v4 color)
 	{
 		v3 xNeg = multiply_point(transform, v3{-1, 0, 0});
 		v3 xPos = multiply_point(transform, v3{1, 0, 0});
@@ -50,22 +50,56 @@ namespace debug
 		v3 zPos = multiply_point(transform, v3{0, 0, 1});
 
 		// xy plane
-		functions->draw_line(graphics, xNeg, yNeg, 1.0f, color);
-		functions->draw_line(graphics, yNeg, xPos, 1.0f, color);
-		functions->draw_line(graphics, xPos, yPos, 1.0f, color);
-		functions->draw_line(graphics, yPos, xNeg, 1.0f, color);
+		platformApi->draw_line(platformGraphics, xNeg, yNeg, 1.0f, color);
+		platformApi->draw_line(platformGraphics, yNeg, xPos, 1.0f, color);
+		platformApi->draw_line(platformGraphics, xPos, yPos, 1.0f, color);
+		platformApi->draw_line(platformGraphics, yPos, xNeg, 1.0f, color);
 
 		// xz plane
-		functions->draw_line(graphics, xNeg, zNeg, 1.0f, color);
-		functions->draw_line(graphics, zNeg, xPos, 1.0f, color);
-		functions->draw_line(graphics, xPos, zPos, 1.0f, color);
-		functions->draw_line(graphics, zPos, xNeg, 1.0f, color);
+		platformApi->draw_line(platformGraphics, xNeg, zNeg, 1.0f, color);
+		platformApi->draw_line(platformGraphics, zNeg, xPos, 1.0f, color);
+		platformApi->draw_line(platformGraphics, xPos, zPos, 1.0f, color);
+		platformApi->draw_line(platformGraphics, zPos, xNeg, 1.0f, color);
 
 		// yz plane
-		functions->draw_line(graphics, yNeg, zNeg, 1.0f, color);
-		functions->draw_line(graphics, zNeg, yPos, 1.0f, color);
-		functions->draw_line(graphics, yPos, zPos, 1.0f, color);
-		functions->draw_line(graphics, zPos, yNeg, 1.0f, color);
+		platformApi->draw_line(platformGraphics, yNeg, zNeg, 1.0f, color);
+		platformApi->draw_line(platformGraphics, zNeg, yPos, 1.0f, color);
+		platformApi->draw_line(platformGraphics, yPos, zPos, 1.0f, color);
+		platformApi->draw_line(platformGraphics, zPos, yNeg, 1.0f, color);
+	}
+
+	void draw_diamond_2d(m44 transform, v4 color, s32 orientation)
+	{
+		v3 corners [4];
+
+		switch (orientation)
+		{
+			case ORIENT_2D_XY:
+				corners[0] = multiply_point(transform, v3{1,0,0});
+				corners[1] = multiply_point(transform, v3{0,1,0});
+				corners[2] = multiply_point(transform, v3{-1,0,0});
+				corners[3] = multiply_point(transform, v3{0,-1,0});
+				break;
+
+			case ORIENT_2D_XZ:
+				corners[0] = multiply_point(transform, v3{1,0,0});
+				corners[1] = multiply_point(transform, v3{0,0,1});
+				corners[2] = multiply_point(transform, v3{-1,0,0});
+				corners[3] = multiply_point(transform, v3{0,0,-1});
+				break;
+
+			case ORIENT_2D_YZ: 
+				corners[0] = multiply_point(transform, v3{0,1,0});
+				corners[1] = multiply_point(transform, v3{0,0,1});
+				corners[2] = multiply_point(transform, v3{0,-1,0});
+				corners[3] = multiply_point(transform, v3{0,0,-1});
+				break;
+		}
+
+		for (s32 i = 0; i < 4; ++i)
+		{
+			platformApi->draw_line(platformGraphics, corners[i], corners[(i + 1) % 4], 1.0f, color);
+		}
 	}
 
 	void draw_line(v3 start, v3 end, v4 color)

@@ -43,15 +43,20 @@ def compile(call):
 
 	return result.returncode
 
+vulkan_sdk = os.environ['VULKAN_SDK']
+print (vulkan_sdk)
+
 ### CLANG++
 if compiler == 'clang++':
 	# Build settings
 	flags 		= "-static -std=c++17 -g -gcodeview -O0"
-	definitions = "-DMAZEGAME_DEVELOPMENT=1 -DBUILD_DATE_TIME=" + buildTime
-	print (definitions)
 
-	includePath	= "-Iinclude -IC:/VulkanSDK/1.1.108.0/Include"
-	libPath 	= "-LC:/VulkanSDK/1.1.108.0/Lib"
+	definitions = [ "-DMAZEGAME_DEVELOPMENT=1",
+					"-DBUILD_DATE_TIME=" + buildTime]
+	definitions = " ".join(definitions)
+
+	includePath	= "-Iinclude -I{}/Include".format(vulkan_sdk)
+	libPath 	= "-L{}/Lib".format(vulkan_sdk)
 	libLinks	= "-lvulkan-1 -luser32 -lgdi32 -lws2_32 -lole32 -lwinmm"
 
 	compiler_path = "clang++"

@@ -46,20 +46,6 @@ struct Animation
 	bool 					loop = false;
 };
 
-enum { NOT_FOUND = (u32)-1 };
-internal u32 find_channel(Animation const & animation, s32 targetIndex, ChannelType type)
-{
-	for (s32 channelIndex = 0; channelIndex < animation.channels.count(); ++channelIndex)
-	{
-		if (animation.channels[channelIndex].targetIndex == targetIndex
-			&& animation.channels[channelIndex].type == type)
-		{
-			return channelIndex;
-		}
-	}
-	return NOT_FOUND;
-}
-
 // Property/State
 struct AnimationRig
 {
@@ -312,7 +298,6 @@ make_animator(AnimationRig rig)
 	return result;
 }
 
-
 internal void
 play_animation_clip(Animator * animator, Animation const * animation)
 {
@@ -361,7 +346,6 @@ f32 get_relative_time(AnimationChannel const & 	channel,
 	return relativeTime;
 }
 
-// void update_skeleton_animator(AnimatedSkeleton & skeleton, Animation const ** animations, f32 * weights, s32 animationCount, f32 elapsedTime)
 void update_skeleton_animator(SkeletonAnimator & animator, f32 elapsedTime)
 {
 	/*
@@ -369,11 +353,54 @@ void update_skeleton_animator(SkeletonAnimator & animator, f32 elapsedTime)
 		reset bone
 
 	for animation in animations:
+
 		for bone in skeleton:
 			if channel in animation for bone:
 				apply animation by animations weight
 			else
 				apply default pose by animations weight		
+
+
+
+	update animation time
+
+	for bone in skeleton:
+		reset bone
+
+		totalAppliedWeight = 0
+		for animation in animations:
+			if channel in animation for bone
+				apply animation by animations weight
+				totalAppliedWeight += animations weight
+
+		defaultPoseWeight = 1 - totalAppliedWeight
+		apply default pose by default pose weight
+
+
+
+
+
+	for animation in animations:
+		for channel in animation:
+			channelForBones[channel.targetIndex].push(channel)
+
+	struct ChannelForBone
+	{
+		AnimationChannel * 	channel;
+		f32 				weight;
+	};
+
+	for bone in bones:
+		reset bone
+
+		totalAppliedWeight = 0
+
+		for channel in channelForBones:
+			apply channel current pose by weight
+			totalAppliedWeight += weight
+
+		defaultPoseWeight = 1 - totalAppliedWeight
+		apply default pose by defaultPoseWeight
 	*/
 
 	auto & skeleton 	= animator.skeleton;
@@ -387,136 +414,202 @@ void update_skeleton_animator(SkeletonAnimator & animator, f32 elapsedTime)
 		bones[boneIndex].boneSpaceTransform = {};
 	}
 
+	animator.animationTime 		+= elapsedTime;
+	constexpr f32 resetInterval = 120; // Note(Leo): random amount to prevent us getting somewhere where floating point accuracy becomes problem
+	animator.animationTime 		= modulo(animator.animationTime, resetInterval);
+
+	// Note(Leo): This is saved and used in interpolating rotations
 	f32 totalAppliedWeight = 0;
 
-	animator.animationTime += elapsedTime;
-	constexpr f32 resetInterval = 120; // Note(Leo): random amount to prevent us getting somewhere where floating point accuracy becomes problem
-	animator.animationTime = modulo(animator.animationTime, resetInterval);
+	struct ChannelInfo
+	{
+		AnimationChannel const * channel;
+		f32 weight;
+		f32 duration;
+		f32 time;
+	};
+
+	auto translationChannelInfos 	= allocate_nested_arrays<ChannelInfo>(*global_transientMemory, skeleton.bones.count(), animationCount);
+	auto rotationChannelInfos 		= allocate_nested_arrays<ChannelInfo>(*global_transientMemory, skeleton.bones.count(), animationCount);
+
+	// auto translationChannelInfos = allocate_array<Array<ChannelInfo>>(*global_transientMemory,
+	// 																	skeleton.bones.count(),
+	// 																	ALLOC_FILL);
+	// for (Array<ChannelInfo> & array : translationChannelInfos)
+	// {
+	// 	array = allocate_array<ChannelInfo>(*global_transientMemory, animationCount);
+	// }
+
+	// auto rotationChannelInfos = allocate_array<Array<ChannelInfo>>(*global_transientMemory,
+	// 																skeleton.bones.count(),
+	// 																ALLOC_FILL);
+	// for (Array<ChannelInfo> & array : rotationChannelInfos)
+	// {
+	// 	array = allocate_array<ChannelInfo>(*global_transientMemory, animationCount);
+	// }
 
 	for (s32 animationIndex = 0; animationIndex < animationCount; ++animationIndex)
 	{
+		f32 weight 		= weights[animationIndex];
 
-		Animation const & animation = *animations[animationIndex];
-
-		f32 animationWeight = weights[animationIndex];
-		f32 animationTime = loop_time(animator.animationTime, animation.duration);
-
-
-		totalAppliedWeight += animationWeight;
-		f32 relativeWeight = animationWeight / totalAppliedWeight;
-
-		if (animationWeight < 0.00001f)
+		// Note(Leo): Only add animations that have impact
+		if (weight < 0.00001f)
 		{
 			continue;
 		}
 
-		// ------------------------------------------------------------------------
+		f32 duration 	= animations[animationIndex]->duration;
+		f32 time 		= loop_time(animator.animationTime, duration);
 
-		for (s32 boneIndex = 0; boneIndex < bones.count(); ++boneIndex)
+		Array<AnimationChannel> const & channels = animations[animationIndex]->channels;
+
+		for (s32 channelIndex = 0; channelIndex < channels.count(); ++channelIndex)
 		{
-			auto & bone = bones[boneIndex];
+			s32 boneIndex = channels[channelIndex].targetIndex;
 
-			///////////////////////////////////////////
-			/// 		ROTATION 					///
-			///////////////////////////////////////////
-			quaternion rotation = bone.boneSpaceDefaultTransform.rotation;
-			u32 channelIndex = find_channel(animation, boneIndex, ANIMATION_CHANNEL_ROTATION);
-			if (channelIndex != NOT_FOUND)
+			switch (channels[channelIndex].type)
 			{
-				auto const & channel = animation.channels[channelIndex];
+				case ANIMATION_CHANNEL_TRANSLATION:
+					translationChannelInfos[boneIndex].push({&channels[channelIndex], weight, duration, time});
+					break;
 
-				switch(channel.interpolationMode)
-				{
-					case INTERPOLATION_MODE_STEP:
-					{
-						s32 previousKeyframeIndex 	= previous_keyframe(channel.times, animationTime);
-						rotation 					= channel.rotations[previousKeyframeIndex]; 
-					} break;
+				case ANIMATION_CHANNEL_ROTATION:
+					rotationChannelInfos[boneIndex].push({&channels[channelIndex], weight, duration, time});
+					break;
 
-					case INTERPOLATION_MODE_LINEAR:
-					{
-						s32 previousKeyframeIndex	= previous_keyframe(channel.times, animationTime);
-						s32 nextKeyframeIndex 		= (previousKeyframeIndex + 1) % channel.keyframe_count();
-						f32 relativeTime 			= get_relative_time(channel, previousKeyframeIndex, nextKeyframeIndex, animationTime, animation.duration);
-						rotation 					= interpolate(	channel.rotations[previousKeyframeIndex],
-																	channel.rotations[nextKeyframeIndex],
-																	relativeTime);
-					} break;
-					case INTERPOLATION_MODE_CUBICSPLINE:
-					{
-						s32 previousKeyframeIndex	= previous_keyframe(channel.times, animationTime);
-						s32 nextKeyframeIndex 		= (previousKeyframeIndex + 1) % channel.keyframe_count();
-						f32 relativeTime 			= get_relative_time(channel, previousKeyframeIndex, nextKeyframeIndex, animationTime, animation.duration);
-
-						// Note(Leo): We don't actually support cubicspline rotations yet; this way we skip tangent values;
-						previousKeyframeIndex 		= (previousKeyframeIndex * 3) + 1;
-						nextKeyframeIndex 			= (nextKeyframeIndex * 3) + 1;
-
-						rotation 					= interpolate(	channel.rotations[previousKeyframeIndex],
-																	channel.rotations[nextKeyframeIndex],
-																	relativeTime);
-					} break;
-
-					default:
-						logDebug(1) << "Now thats a weird interpolation mode: " << channel.interpolationMode;
-						break;
-				}
+				default:
+					logAnim(0) << FILE_ADDRESS << "Animation channel type " << channels[channelIndex].type << " not supported";
+					break;
 			}
-			bone.boneSpaceTransform.rotation = interpolate(bone.boneSpaceTransform.rotation, rotation, relativeWeight);
-
-			// ----------------------------------------------------------------
-
-			///////////////////////////////////////
-			/// 		TRANSLATION 			///
-			///////////////////////////////////////
-			v3 translation = bone.boneSpaceDefaultTransform.position;
-			channelIndex = find_channel(animation, boneIndex, ANIMATION_CHANNEL_TRANSLATION);
-			if (channelIndex != NOT_FOUND)
-			{
-				auto const & channel = animation.channels[channelIndex];
-
-				switch(channel.interpolationMode)
-				{
-					case INTERPOLATION_MODE_STEP:
-					{
-						s32 previousKeyframeIndex 	= previous_keyframe(channel.times, animationTime);
-						translation 				= channel.translations[previousKeyframeIndex]; 
-					} break;
-
-					case INTERPOLATION_MODE_LINEAR:
-					{
-						s32 previousKeyframeIndex 	= previous_keyframe(channel.times, animationTime);
-						s32 nextKeyframeIndex 		= (previousKeyframeIndex + 1) % channel.keyframe_count();
-						f32 relativeTime 			= get_relative_time(channel, previousKeyframeIndex, nextKeyframeIndex, animationTime, animation.duration);
-						translation 				= vector::interpolate(	channel.translations[previousKeyframeIndex],
-																			channel.translations[nextKeyframeIndex],
-																			relativeTime);
-					} break;
-
-					case INTERPOLATION_MODE_CUBICSPLINE:
-					{
-
-						s32 previousKeyframeIndex 	= previous_keyframe(channel.times, animationTime);
-						s32 nextKeyframeIndex 		= (previousKeyframeIndex + 1) % channel.keyframe_count();
-						f32 relativeTime 			= get_relative_time(channel, previousKeyframeIndex, nextKeyframeIndex, animationTime, animation.duration);
-
-
-						// Note(Leo): We don't actually support cubicspline rotations yet; this way we skip tangent values;
-						previousKeyframeIndex 		= (previousKeyframeIndex * 3) + 1;
-						nextKeyframeIndex 			= (nextKeyframeIndex * 3) + 1;
-
-						translation 				= vector::interpolate(	channel.translations[previousKeyframeIndex],
-																			channel.translations[nextKeyframeIndex],
-																			relativeTime);
-					} break;
-
-					default:
-						logDebug(1) << "Now thats a weird interpolation mode: " << channel.interpolationMode;
-						break;
-				}
-			}
-			bone.boneSpaceTransform.position += translation * animationWeight;
 		}
+	}
+
+
+	for (s32 boneIndex = 0; boneIndex < skeleton.bones.count(); ++boneIndex)
+	{
+		v3 totalTranslation = {};
+		f32 totalAppliedTranslationWeight = 0;
+
+		for(ChannelInfo const & channelInfo : translationChannelInfos[boneIndex])
+		{
+			v3 translation;
+
+			AnimationChannel const & channel 	= *channelInfo.channel;
+			f32 animationWeight 				= channelInfo.weight;
+			f32 animationDuration 				= channelInfo.duration;
+			f32 animationTime 					= channelInfo.time;
+
+			switch(channel.interpolationMode)
+			{
+				case INTERPOLATION_MODE_STEP:
+				{
+					s32 previousKeyframeIndex 	= previous_keyframe(channel.times, animationTime);
+					translation 				= channel.translations[previousKeyframeIndex]; 
+				} break;
+
+				case INTERPOLATION_MODE_LINEAR:
+				{
+					s32 previousKeyframeIndex 	= previous_keyframe(channel.times, animationTime);
+					s32 nextKeyframeIndex 		= (previousKeyframeIndex + 1) % channel.keyframe_count();
+					f32 relativeTime 			= get_relative_time(channel, previousKeyframeIndex, nextKeyframeIndex, animationTime, animationDuration);
+					translation 				= vector::interpolate(	channel.translations[previousKeyframeIndex],
+																		channel.translations[nextKeyframeIndex],
+																		relativeTime);
+				} break;
+
+				case INTERPOLATION_MODE_CUBICSPLINE:
+				{
+					s32 previousKeyframeIndex 	= previous_keyframe(channel.times, animationTime);
+					s32 nextKeyframeIndex 		= (previousKeyframeIndex + 1) % channel.keyframe_count();
+					f32 relativeTime 			= get_relative_time(channel, previousKeyframeIndex, nextKeyframeIndex, animationTime, animationDuration);
+
+					// Note(Leo): We don't actually support cubicspline translations yet; this way we skip tangent values;
+					previousKeyframeIndex 		= (previousKeyframeIndex * 3) + 1;
+					nextKeyframeIndex 			= (nextKeyframeIndex * 3) + 1;
+
+					translation 				= vector::interpolate(	channel.translations[previousKeyframeIndex],
+																		channel.translations[nextKeyframeIndex],
+																		relativeTime);
+				} break;
+
+				default:
+					logDebug(1) << "Now thats a weird interpolation mode: " << channel.interpolationMode;
+					translation = {0,0,0};
+					break;
+			}
+
+			totalAppliedTranslationWeight += animationWeight;
+			totalTranslation += translation * animationWeight;
+		}
+
+		f32 defaultPoseWeight = 1 - totalAppliedTranslationWeight;
+		totalTranslation += defaultPoseWeight * skeleton.bones[boneIndex].boneSpaceDefaultTransform.position;
+		skeleton.bones[boneIndex].boneSpaceTransform.position = totalTranslation;
+	}
+
+	for (s32 boneIndex2 = 0; boneIndex2 < skeleton.bones.count(); ++boneIndex2)
+	{
+		quaternion totalRotation 		= quaternion::identity();
+		f32 totalAppliedRotationWeight 	= 0;
+
+		Array<ChannelInfo> const & channelsForBone = rotationChannelInfos[boneIndex2];
+
+		for (ChannelInfo const & channelInfo : channelsForBone)
+		{
+			AnimationChannel const & channel 	= *channelInfo.channel;
+			f32 rotationAnimWeight 				= channelInfo.weight;
+			f32 animationDuration 				= channelInfo.duration;
+			f32 animationTime 					= channelInfo.time;
+
+			quaternion rotation;
+
+			switch(channel.interpolationMode)
+			{
+				case INTERPOLATION_MODE_STEP:
+				{
+					s32 previousKeyframeIndex 	= previous_keyframe(channel.times, animationTime);
+					rotation 					= channel.rotations[previousKeyframeIndex]; 
+				} break;
+
+				case INTERPOLATION_MODE_LINEAR:
+				{
+					s32 previousKeyframeIndex	= previous_keyframe(channel.times, animationTime);
+					s32 nextKeyframeIndex 		= (previousKeyframeIndex + 1) % channel.keyframe_count();
+					f32 relativeTime 			= get_relative_time(channel, previousKeyframeIndex, nextKeyframeIndex, animationTime, animationDuration);
+					rotation 					= interpolate(	channel.rotations[previousKeyframeIndex],
+																channel.rotations[nextKeyframeIndex],
+																relativeTime);
+				} break;
+				case INTERPOLATION_MODE_CUBICSPLINE:
+				{
+					s32 previousKeyframeIndex	= previous_keyframe(channel.times, animationTime);
+					s32 nextKeyframeIndex 		= (previousKeyframeIndex + 1) % channel.keyframe_count();
+					f32 relativeTime 			= get_relative_time(channel, previousKeyframeIndex, nextKeyframeIndex, animationTime, animationDuration);
+
+					// Note(Leo): We don't actually support cubicspline rotations yet; this way we skip tangent values;
+					previousKeyframeIndex 		= (previousKeyframeIndex * 3) + 1;
+					nextKeyframeIndex 			= (nextKeyframeIndex * 3) + 1;
+
+					rotation 					= interpolate(	channel.rotations[previousKeyframeIndex],
+																channel.rotations[nextKeyframeIndex],
+																relativeTime);
+				} break;
+
+				default:
+				{
+					logDebug(1) << "Now thats a weird interpolation mode: " << channel.interpolationMode;
+					rotation = quaternion::identity();
+				} break;
+			}
+
+			totalAppliedRotationWeight 	+= rotationAnimWeight;
+			f32 relativeWeight 			= rotationAnimWeight / totalAppliedRotationWeight;
+			totalRotation				= interpolate(totalRotation, rotation, relativeWeight);
+		}
+		f32 defaultPoseWeight = 1.0f - totalAppliedRotationWeight;
+		totalRotation = interpolate(totalRotation, skeleton.bones[boneIndex2].boneSpaceDefaultTransform.rotation, defaultPoseWeight);
+
+		skeleton.bones[boneIndex2].boneSpaceTransform.rotation = totalRotation;
 	}
 }
 

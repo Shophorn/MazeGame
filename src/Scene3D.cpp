@@ -13,47 +13,18 @@ Scene description for 3d development scene
 
 #include "DefaultSceneGui.cpp"
 
-void update_animated_renderer(AnimatedRenderer & renderer)
-{
-	AnimatedSkeleton const & skeleton = *renderer.skeleton; 
-	u32 boneCount = skeleton.bones.count();
-
-	/* Todo(Leo): Skeleton.bones needs to be ordered so that parent ALWAYS comes before
-	children, and therefore 0th is always implicitly root */
-
-	// Todo(Leo): Use global value from vulkan layer. There must be room for maximum number of bones here. Currently it is 32, but to make sure we put 64. 
-	m44 modelSpaceTransforms [64];
-
-	for (int i = 0; i < boneCount; ++i)
-	{
-		/*
-		1. get bone space matrix from bone's bone space transform
-		2. transform bone space matrix to model space matrix
-		*/
-
-		m44 matrix = get_matrix(skeleton.bones[i].boneSpaceTransform);
-
-		if (skeleton.bones[i].is_root() == false)
-		{
-			m44 parentMatrix = modelSpaceTransforms[skeleton.bones[i].parent];
-			matrix = parentMatrix * matrix;
-		}
-		modelSpaceTransforms[i] = matrix;
-		renderer.bones[i] = matrix * skeleton.bones[i].inverseBindMatrix;
-	}
-}
-
-
 struct Scene3d
 {
 	// Components
-	Array<Transform3D> 			transformStorage;
+	Array<Transform3D> 			transforms;
 	Array<SkeletonAnimator> 	skeletonAnimators;	
 	Array<CharacterMotor>		characterMotors;
-	Array<CharacterInput>	characterMotorInputs;
-
-	Array<RenderSystemEntry> 	renderSystem;
+	Array<CharacterInput>		characterInputs;
+	Array<Renderer> 			renderers;
 	Array<AnimatedRenderer> 	animatedRenderers;
+
+	// Systems
+	// Todo(Leo): Make components?
 	CollisionSystem3D 			collisionSystem;
 
 	// Player
@@ -63,7 +34,7 @@ struct Scene3d
 	Transform3D * 				playerCharacterTransform;
 
 	// Other actors
-	FollowerController followers[200];
+	FollowerController followers[50];
 
 	// Data
 	Animation characterAnimations [CharacterAnimations::ANIMATION_COUNT];
@@ -110,19 +81,30 @@ Scene3d::update(	void * 					scenePtr,
 	debug lines would be hidden. This can be fixed though, just make debug pipeline similar to shadows. */ 
 	functions->draw_model(graphics, scene->skybox, m44::identity(), false, nullptr, 0);
 
+	/*
+	1. update input
+	2. update animation controller
+	3. update animator
+	4. update animated renderer
+	5. draw
+	
+	*/
+
+
+
 	// Game Logic section
-	update_player_input(scene->playerMotorIndex, scene->characterMotorInputs, scene->worldCamera, *input);
+	update_player_input(scene->playerMotorIndex, scene->characterInputs, scene->worldCamera, *input);
 	
 	for (auto & follower : scene->followers)
 	{
-		update_follower_input(follower, scene->characterMotorInputs, input->elapsedTime);
+		update_follower_input(follower, scene->characterInputs, input->elapsedTime);
 	}
 	update_camera_controller(&scene->cameraController, input);
 
 	for (int i = 0; i < scene->characterMotors.count(); ++i)
 	{
 		update_character_motor(	scene->characterMotors[i],
-								scene->characterMotorInputs[i],
+								scene->characterInputs[i],
 								scene->collisionSystem,
 								input->elapsedTime);
 	}
@@ -133,28 +115,31 @@ Scene3d::update(	void * 					scenePtr,
 		update_skeleton_animator(animator, input->elapsedTime);
 	}
 
-	// Rendering section
+	  //////////////////////////////
+	 /// 	RENDERING 			///
+	//////////////////////////////
+	/*
+		1. Update camera and lights
+		2. Render normal models
+		3. Render animated models
+	*/
+
     update_camera_system(&scene->worldCamera, input, graphics, window);
-	update_render_system(scene->renderSystem, graphics);
 
+	Light light = { .direction 	= v3{1, 1.2, -3}.normalized(), 
+					.color 		= v3{0.95, 0.95, 0.9}};
+	v3 ambient 	= {0.1, 0.1, 0.5};
+	platformApi->update_lighting(platformGraphics, &light, &scene->worldCamera, ambient);
 
-	// update_skeleton_animator(character.animator, input->elapsedTime);
+	for (auto & renderer : scene->renderers)
+	{
+		platformApi->draw_model(platformGraphics, renderer.model,
+								get_matrix(*renderer.transform),
+								renderer.castShadows,
+								nullptr, 0);
+	}
 
-	// {
-	// 	m44 modelMatrix = get_matrix(*scene->characterController.transform);
-	// 	for (int i = 0; i < character.animator.skeleton.bones.count(); ++i)
-	// 	{
-	// 		debug::draw_axes(	graphics,
-	// 							modelMatrix * get_model_space_transform(character.animator.skeleton, i),
-	// 							0.2f,
-	// 							functions);
-	// 	}
-	// }
-
-	// for (auto & renderer : scene->animatedRenderers)
-	// {
-	// }
-	// // render_animated_models(scene->animatedRenderers, graphics);
+	
 	for (auto & renderer : scene->animatedRenderers)
 	{
 		update_animated_renderer(renderer);
@@ -162,26 +147,22 @@ Scene3d::update(	void * 					scenePtr,
 		platformApi->draw_model(graphics, renderer.model, get_matrix(*renderer.transform),
 								renderer.castShadows, renderer.bones.data(),
 								renderer.bones.count());
-	
 	}
+
 
 	// ------------------------------------------------------------------------
 
-	Light light = { v3{1, 1.2, -3}.normalized(), {0.95, 0.95, 0.9}};
-	v3 ambient 	= {0.2, 0.25, 0.4};
-	functions->update_lighting(graphics, &light, &scene->worldCamera, ambient);
 
-	auto result = update_scene_gui(&scene->gui, input, graphics, functions);
+	auto result = update_scene_gui(&scene->gui, input, platformGraphics, platformApi);
 	return result;
 }
 
-void 
-Scene3d::load(	void * 						scenePtr, 
-				MemoryArena * 				persistentMemory,
-				MemoryArena * 				transientMemory,
-				platform::Graphics *		graphics,
-				platform::Window * 			window,
-				platform::Functions *		functions)
+void Scene3d::load(	void * 						scenePtr, 
+					MemoryArena * 				persistentMemory,
+					MemoryArena * 				transientMemory,
+					platform::Graphics *		graphics,
+					platform::Window * 			window,
+					platform::Functions *		functions)
 {
 	Scene3d * scene = reinterpret_cast<Scene3d*>(scenePtr);
 	
@@ -189,15 +170,14 @@ Scene3d::load(	void * 						scenePtr,
 	scene->gui = make_scene_gui(transientMemory, graphics, functions);
 
 	// Note(Leo): amounts are SWAG, rethink.
-	scene->transformStorage 	= allocate_array<Transform3D>(*persistentMemory, 1200);
+	scene->transforms 	= allocate_array<Transform3D>(*persistentMemory, 1200);
 	scene->skeletonAnimators 	= allocate_array<SkeletonAnimator>(*persistentMemory, 600);
 	scene->animatedRenderers 	= allocate_array<AnimatedRenderer>(*persistentMemory, 600);
-	scene->renderSystem 		= allocate_array<RenderSystemEntry>(*persistentMemory, 600);
+	scene->renderers 		= allocate_array<Renderer>(*persistentMemory, 600);
 	scene->characterMotors		= allocate_array<CharacterMotor>(*persistentMemory, 600);
-	scene->characterMotorInputs	= allocate_array<CharacterInput>(*persistentMemory, scene->characterMotors.capacity(), ALLOC_FILL | ALLOC_NO_CLEAR);
+	scene->characterInputs	= allocate_array<CharacterInput>(*persistentMemory, scene->characterMotors.capacity(), ALLOC_FILL | ALLOC_NO_CLEAR);
 
 	allocate_collision_system(&scene->collisionSystem, persistentMemory, 600);
-
 
 	struct MaterialCollection {
 		MaterialHandle character;
@@ -290,7 +270,7 @@ Scene3d::load(	void * 						scenePtr,
 
 		// --------------------------------------------------------------------
 
-		Transform3D * playerTransform = scene->transformStorage.push_return_pointer({10, 10, 5});
+		Transform3D * playerTransform = scene->transforms.push_return_pointer({10, 10, 5});
 		scene->playerCharacterTransform = playerTransform;
 
 		scene->playerMotorIndex = scene->characterMotors.count();
@@ -342,7 +322,7 @@ Scene3d::load(	void * 						scenePtr,
 		{
 			v3 position 		= {RandomRange(-99, 99), RandomRange(-99, 99), 0};
 			f32 scale 			= RandomRange(0.8f, 1.5f);
-			auto * transform 	= scene->transformStorage.push_return_pointer({.position = position, .scale = scale});
+			auto * transform 	= scene->transforms.push_return_pointer({.position = position, .scale = scale});
 
 			s32 motorIndex 		= scene->characterMotors.count();
 			auto * motor 		= scene->characterMotors.push_return_pointer();
@@ -380,21 +360,6 @@ Scene3d::load(	void * 						scenePtr,
 
 	}
 
-	// Test robot
-	{
-		auto transform = scene->transformStorage.push_return_pointer({21, 10, 1.2});
-
-		char const * filename = "assets/models/Robot53.glb";
-		auto meshAsset = load_mesh_glb(*transientMemory, read_gltf_file(*transientMemory, filename), "model_rigged");	
-		auto mesh = functions->push_mesh(graphics, &meshAsset);
-
-		auto albedo = load_and_push_texture("assets/textures/Robot_53_albedo_4k.png");
-		auto material = push_material(normalPipeline, albedo, neutralBumpTexture, blackTexture);
-
-		auto model = push_model(mesh, material);
-		scene->renderSystem.push({transform, model});
-	}
-
 	scene->worldCamera = make_camera(50, 0.1f, 1000.0f);
 	scene->cameraController = make_camera_controller_3rd_person(&scene->worldCamera, scene->playerCharacterTransform);
 	scene->cameraController.baseOffset = {0, 0, 1.5f};
@@ -416,9 +381,9 @@ Scene3d::load(	void * 						scenePtr,
 
 			auto groundMesh 		= functions->push_mesh(graphics, &groundMeshAsset);
 			auto model 				= push_model(groundMesh, materials.ground);
-			auto transform 			= scene->transformStorage.push_return_pointer({{-mapSize / 2, -mapSize / 2, 0}});
+			auto transform 			= scene->transforms.push_return_pointer({{-mapSize / 2, -mapSize / 2, 0}});
 
-			scene->renderSystem.push({transform, model});
+			scene->renderers.push({transform, model});
 
 			scene->collisionSystem.terrainCollider = std::move(heightmap);
 			scene->collisionSystem.terrainTransform = transform;
@@ -427,13 +392,21 @@ Scene3d::load(	void * 						scenePtr,
 		{
 			auto totemMesh 			= load_mesh_glb(*transientMemory, read_gltf_file(*transientMemory, "assets/models/totem.glb"), "totem");
 			auto totemMeshHandle 	= functions->push_mesh(graphics, &totemMesh);
-
 			auto model = push_model(totemMeshHandle, materials.environment);
-			auto transform = scene->transformStorage.push_return_pointer({0,0,-2});
-			scene->renderSystem.push({transform, model});
 
-			transform = scene->transformStorage.push_return_pointer({0, 5, -4, 0.5f});
-			scene->renderSystem.push({transform, model});
+			auto transform = scene->transforms.push_return_pointer({});
+			transform->position.z = get_terrain_height(&scene->collisionSystem, *transform->position.xy()) - 0.5f;
+			scene->renderers.push({transform, model});
+			push_collider_to_system(&scene->collisionSystem,
+									BoxCollider3D{ .extents = {1.0, 1.0, 5.0}, .center = {0,0,2} },
+									transform);
+
+			transform = scene->transforms.push_return_pointer({.position = {0, 5, 0} , .scale = 0.5});
+			transform->position.z = get_terrain_height(&scene->collisionSystem, *transform->position.xy()) - 0.25f;
+			scene->renderers.push({transform, model});
+			push_collider_to_system(&scene->collisionSystem,
+									BoxCollider3D{ .extents = {0.5, 0.5, 2.5}, .center = {0,0,1} },
+									transform);
 		}
 
 		{
@@ -465,46 +438,34 @@ Scene3d::load(	void * 						scenePtr,
 				f32 x = ((pillarIndex % pillarCountPerDirection) / (f32)pillarCountPerDirection) * mapSize - mapSize / 2;
 				f32 y = ((pillarIndex / pillarCountPerDirection) / (f32)pillarCountPerDirection) * mapSize - mapSize / 2;
 
-				// if ((y % 4) != 0)
-				// {
-				// 	continue;
-				// }
-
-				// s32 
-
-				// x = 5;
-				// y = 5;
 				f32 z = get_terrain_height(&scene->collisionSystem, v2{x, y});
 
 				v3 position = {x, y, z - 1};
-				auto transform = scene->transformStorage.push_return_pointer({position});
+				auto transform = scene->transforms.push_return_pointer({position});
 				
 				auto model = push_model(pillarMeshHandle, materials.environment);
-				scene->renderSystem.push({transform, model});
+				scene->renderers.push({transform, model});
 
 				auto collider  = BoxCollider3D{ .extents = {2, 2, 50}, .center = {0, 0, 25}};
 				push_collider_to_system(&scene->collisionSystem, collider, transform);
 			}
+		}
 
-			// auto model 		= push_model(pillarMeshHandle, materials.environment);
-			// auto transform 	= scene->transformStorage.push_return_pointer({-width / 4, 0, -5});
-			// scene->renderSystem.push({transform, model});
-			
-			// auto collider 	= BoxCollider3D {
-			// 	.extents 	= {2, 2, 50},
-			// 	.center 	= {0, 0, 25}
-			// };
-			// push_collider_to_system(&scene->collisionSystem, collider, transform);
+		// Test robot
+		{
+			v3 position 			= {21, 10, 0};
+			position.z 				= get_terrain_height(&scene->collisionSystem, *position.xy());
+			auto * transform = scene->transforms.push_return_pointer({.position = position});
 
-			// model 	= push_model(pillarMeshHandle, materials.environment);
-			// transform 	= scene->transformStorage.push_return_pointer({width / 4, 0, -6});
-			// scene->renderSystem.push({transform, model});
+			char const * filename 	= "assets/models/Robot53.glb";
+			auto meshAsset 			= load_mesh_glb(*transientMemory, read_gltf_file(*transientMemory, filename), "model_rigged");	
+			auto mesh 				= functions->push_mesh(graphics, &meshAsset);
 
-			// collider 	= BoxCollider3D {
-			// 	.extents 	= {2, 2, 50},
-			// 	.center 	= {0, 0, 25}
-			// };
-			// push_collider_to_system(&scene->collisionSystem, collider, transform);
+			auto albedo 			= load_and_push_texture("assets/textures/Robot_53_albedo_4k.png");
+			auto material 			= push_material(normalPipeline, albedo, neutralBumpTexture, blackTexture);
+
+			auto model 				= push_model(mesh, material);
+			scene->renderers.push({transform, model});
 		}
 
 		logConsole() << FILE_ADDRESS << used_percent(*persistentMemory) * 100 <<  "% of persistent memory used.";

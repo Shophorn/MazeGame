@@ -19,8 +19,6 @@ Windows platform layer for mazegame
 #include <fstream>
 #include <chrono>
 
-
-
 // TODO(Leo): Make sure that arrays for getting extensions ana layers are large enough
 // TOdo(Leo): Combine to fewer functions and remove throws, instead returning specific enum value
 
@@ -32,6 +30,35 @@ staging buffer and actual vertex buffer. https://vulkan-tutorial.com/en/Vertex_b
 */
 
 #include "MazegamePlatform.hpp"
+
+using TimePoint = LARGE_INTEGER;
+
+LARGE_INTEGER get_performance_frequency()
+{
+    LARGE_INTEGER frequency;
+    QueryPerformanceFrequency(&frequency);
+    
+    logConsole(0) << "performance frequency = " << frequency.QuadPart;
+
+    return frequency;
+}
+
+TimePoint current_time () 
+{
+    LARGE_INTEGER t;
+    QueryPerformanceCounter(&t);
+    return t;
+}
+
+f64 elapsed_seconds(TimePoint start, TimePoint end)
+{
+    local_persist s64 frequency = get_performance_frequency().QuadPart;
+
+    f64 seconds = (f64)(end.QuadPart - start.QuadPart);
+    seconds /= frequency;
+    return seconds;
+}
+
 
 // Todo(Leo): hack to get two controller on single pc and use only 1st controller when online
 global_variable int globalXinputControllerIndex;
@@ -77,7 +104,7 @@ Run(HINSTANCE hInstance)
     GetLocalTime(&time_);
 
     SmallString timestamp   = make_timestamp(time_.wHour, time_.wMinute, time_.wSecond);
-    auto logFileName        = SmallString("logs/log_").append(timestamp).append(".txt");
+    auto logFileName        = SmallString("logs/log_").append(timestamp).append(".log");
 
     auto logFile = std::ofstream(logFileName.data());
 
@@ -89,9 +116,12 @@ Run(HINSTANCE hInstance)
     logNetwork.output   = &logFile;
     logAudio.output     = &logFile;
 
-#if defined BUILD_DATE_TIME
-    logSystem(0) << "Launching FriendSimulator, build time: " << BUILD_DATE_TIME;
-#endif
+
+    logSystem(0) << "\n"
+                << "\t----- FriendSimulator -----\n"
+                << "\tBuild time: " << BUILD_DATE_TIME << "\n";
+
+    // ----------------------------------------------------------------------------------
 
     winapi::State state = {};
     load_xinput();
@@ -102,9 +132,9 @@ Run(HINSTANCE hInstance)
 
     /// --------- TIMING ---------------------------
     auto startTimeMark          = std::chrono::high_resolution_clock::now();
-    double lastFrameStartTime   = 0;
+    f64 lastFrameStartTime   = 0;
 
-    double targetFrameTime;
+    f64 targetFrameTime;
     u32 deviceMinSchedulerGranularity;
     {
         TIMECAPS timeCaps;
@@ -119,11 +149,11 @@ Run(HINSTANCE hInstance)
         SYSTEM_POWER_STATUS powerStatus;
         GetSystemPowerStatus (&powerStatus);
 
-        double targetFrameTimeYesPower = 60;
-        double targetFrameTimeNoPower = 30;
+        f64 targetFrameTimeYesPower = 60;
+        f64 targetFrameTimeNoPower = 30;
 
         constexpr BYTE AC_ONLINE = 1;
-        double targetFrameTimeThreshold = (powerStatus.ACLineStatus == AC_ONLINE) ? targetFrameTimeYesPower : targetFrameTimeNoPower;
+        f64 targetFrameTimeThreshold = (powerStatus.ACLineStatus == AC_ONLINE) ? targetFrameTimeYesPower : targetFrameTimeNoPower;
 
         if (powerStatus.ACLineStatus == AC_ONLINE)
         {
@@ -199,8 +229,8 @@ Run(HINSTANCE hInstance)
     bool32 networkIsRuined = false;
     WinApiNetwork network = winapi::CreateNetwork();
     game::Network gameNetwork = {};
-    double networkSendDelay     = 1.0 / 20;
-    double networkNextSendTime  = 0;
+    f64 networkSendDelay     = 1.0 / 20;
+    f64 networkNextSendTime  = 0;
     
     /// --------- INITIALIZE AUDIO ----------------
     WinApiAudio audio = winapi::CreateAudio();
@@ -220,13 +250,12 @@ Run(HINSTANCE hInstance)
     bool gameIsRunning = true;
     game::Input gameInput = {};
 
-    while(gameIsRunning)
+    TimePoint   frameFlipTime;
+    f64         lastFrameElapsedSeconds;    while(gameIsRunning)
     {
-
-
         /// ----- START TIME -----
         auto currentTimeMark = std::chrono::high_resolution_clock::now();
-        double frameStartTime = std::chrono::duration<double, std::chrono::seconds::period>(currentTimeMark - startTimeMark).count();
+        f64 frameStartTime = std::chrono::duration<f64, std::chrono::seconds::period>(currentTimeMark - startTimeMark).count();
 
         /// ----- RELOAD GAME CODE -----
         FILETIME dllLatestWriteTime = get_file_write_time(GAMECODE_DLL_FILE_NAME);
@@ -277,7 +306,7 @@ Run(HINSTANCE hInstance)
                 update_unused_input(&gameInput);
             }
 
-            gameInput.elapsedTime = targetFrameTime;
+            gameInput.elapsedTime = lastFrameElapsedSeconds;
         }
 
 
@@ -307,12 +336,9 @@ Run(HINSTANCE hInstance)
         // Note(Leo): Game is not updated when window is not drawable.
         if (winapi::is_window_drawable(&window))
         {
-
-
             platform::SoundOutput gameSoundOutput = {};
             winapi::GetAudioBuffer(&audio, &gameSoundOutput.sampleCount, &gameSoundOutput.samples);
-            
-
+    
             switch(platform::prepare_frame(&vulkanContext))
             {
                 case platform::FRAME_OK:
@@ -360,26 +386,32 @@ Run(HINSTANCE hInstance)
 
 
         /// ----- WAIT FOR TARGET FRAMETIME -----
+        // {
+        //     auto currentTimeMark = std::chrono::high_resolution_clock::now();
+        //     f64 currentTimeSeconds = std::chrono::duration<f64, std::chrono::seconds::period>(currentTimeMark - startTimeMark).count();
+
+        //     f64 elapsedSeconds = currentTimeSeconds - frameStartTime;
+        //     f64 timeToSleepSeconds = targetFrameTime - elapsedSeconds;
+
+        //     // logConsole(0) << "Frametime " << elapsedSeconds;
+
+        //      TODO[time](Leo): It seems okay to sleep 0 milliseconds in case the time to sleep ends up being
+        //     less than 1 millisecond on floating point representation. Also we may want to do a busy loop over
+        //     remainder time after sleep. This is due to windows scheduler granularity, that is at best on 
+        //     one millisecond scale. 
+        //     if (timeToSleepSeconds > 0)
+        //     {
+        //         DWORD timeToSleepMilliSeconds = static_cast<DWORD>(1000 * timeToSleepSeconds);
+        //         logDebug() << "Sleep for " << timeToSleepMilliSeconds << " ms\n";
+        //         Sleep(timeToSleepMilliSeconds);
+
+        //     }
+        // }
+        // ----- MEASURE ELAPSED TIME ----- 
         {
-            auto currentTimeMark = std::chrono::high_resolution_clock::now();
-            double currentTimeSeconds = std::chrono::duration<double, std::chrono::seconds::period>(currentTimeMark - startTimeMark).count();
-
-            double elapsedSeconds = currentTimeSeconds - frameStartTime;
-            double timeToSleepSeconds = targetFrameTime - elapsedSeconds;
-
-            // logDebug(0) << "Frametime " << elapsedSeconds;
-
-            /* TODO[time](Leo): It seems okay to sleep 0 milliseconds in case the time to sleep ends up being
-            less than 1 millisecond on floating point representation. Also we may want to do a busy loop over
-            remainder time after sleep. This is due to windows scheduler granularity, that is at best on 
-            one millisecond scale. */
-            if (timeToSleepSeconds > 0)
-            {
-                DWORD timeToSleepMilliSeconds = static_cast<DWORD>(1000 * timeToSleepSeconds);
-                // logDebug() << "Sleep for " << timeToSleepMilliSeconds << " ms\n";
-                Sleep(timeToSleepMilliSeconds);
-
-            }
+            TimePoint now           = current_time();
+            lastFrameElapsedSeconds = elapsed_seconds(frameFlipTime, now);
+            frameFlipTime           = now;
         }
     }
     ///////////////////////////////////////
@@ -405,26 +437,7 @@ Run(HINSTANCE hInstance)
     }
 }
 
-/*
-using TimePoint = LARGE_INTEGER;
 
-TimePoint now () 
-{
-    LARGE_INTEGER t;
-    QueryPerformanceCounter(&t);
-    return t;
-}
-
-f32 difference(TimePoint first, TimePoint second)
-{
-    LARGE_INTEGER frequency;
-    QueryPerformanceFrequency(&frequency);
-
-    f32 t = (f32)(second.QuadPart - first.QuadPart);
-    t /= frequency.QuadPart;
-    return t;
-}
-*/
 // int CALLBACK
 // WinMain(
 //     HINSTANCE   hInstance,

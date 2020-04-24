@@ -2,26 +2,12 @@
 Leo Tamminen
 shophorn @ internet
 =============================================================================*/
-struct RenderSystemEntry
+struct Renderer
 {
 	Transform3D * 	transform;
 	ModelHandle 	model;
 	bool32 			castShadows = true;
 };
-
-internal void
-update_render_system(	Array<RenderSystemEntry> const & entries,
-						platform::Graphics * graphics)
-{
-	for (auto entry : entries)
-	{
-		platformApi->draw_model(	graphics,
-								entry.model,
-								get_matrix(*entry.transform),
-								entry.castShadows,
-								nullptr, 0);
-	}
-}
 
 struct AnimatedRenderer
 {
@@ -37,8 +23,10 @@ struct AnimatedRenderer
 	bool32 castShadows = true;
 };
 
-
-AnimatedRenderer make_animated_renderer (Transform3D * transform, AnimatedSkeleton * skeleton, ModelHandle model, MemoryArena & allocator) //Array<m44> boneMemory)
+AnimatedRenderer make_animated_renderer (	Transform3D * transform,
+											AnimatedSkeleton * skeleton,
+											ModelHandle model,
+											MemoryArena & allocator)
 {
 	auto result = AnimatedRenderer {
 			.transform 	= transform,
@@ -49,9 +37,39 @@ AnimatedRenderer make_animated_renderer (Transform3D * transform, AnimatedSkelet
 	return result;		
 }
 
-internal void
-render_animated_models(	Array<AnimatedRenderer> const & entries,
-						platform::Graphics * graphics)
+void update_animated_renderer(AnimatedRenderer & renderer)
 {
+	/* Note(Leo): Vertex shader where actual deforming happens, needs to know
+	transform from bind position aka default position (i.e. the original position
+	of vertex or bone in model space) to final deformed position in model space.
 
+	We compute the deformed matrix by applying the whole hierarchy of matrices,
+	and adding it to the inverse bind matrix which is the inverse transform from origin
+	to the bind pose. */
+	
+	AnimatedSkeleton const & skeleton 	= *renderer.skeleton; 
+	u32 boneCount 						= skeleton.bones.count();
+
+	// Compute current pose in model space
+	for (int i = 0; i < boneCount; ++i)
+	{
+		m44 matrix = get_matrix(skeleton.bones[i].boneSpaceTransform);
+
+		if (skeleton.bones[i].is_root() == false)
+		{
+			// Note(Leo): this is sanity check for future, we don't currently check this elsewhere
+			s32 parentIndex = skeleton.bones[i].parent;
+			Assert(parentIndex < i);
+
+			m44 parentMatrix = renderer.bones[parentIndex];
+			matrix = parentMatrix * matrix;
+		}
+		renderer.bones[i] = matrix;
+	}
+
+	// Compute deform transformation (from bind position to pose position) in model space
+	for (int i = 0; i < boneCount; ++i)
+	{
+		renderer.bones[i] = renderer.bones[i] * skeleton.bones[i].inverseBindMatrix;
+	}
 }

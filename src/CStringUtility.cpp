@@ -34,6 +34,8 @@ struct CStringBuilder
 	char cstring [Capacity];
 	s32 length = 0;
 
+	CStringBuilder() = default;
+
 	CStringBuilder(char const * string)
 	{
 		copy_cstring(string);
@@ -53,6 +55,12 @@ struct CStringBuilder
 		char const * cstring = s.c_str();
 		copy_cstring(cstring);
 		return *this;
+	}
+
+
+	operator const char * ()
+	{
+		return cstring;
 	}
 
 	void copy_cstring(char const * source)

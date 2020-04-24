@@ -99,7 +99,7 @@ update_character_motor( CharacterMotor & 	motor,
 
 	// -------------------------------------------------
 
-	constexpr f32 walkMinInput 	= 0.05f;
+	constexpr f32 walkMinInput 	= 0.00f;
 	constexpr f32 walkMaxInput 	= 0.5f;
 	constexpr f32 runMinInput 	= 0.6f;
 	constexpr f32 runMaxInput 	= 1.0001f; // account for epsilon
@@ -117,10 +117,14 @@ update_character_motor( CharacterMotor & 	motor,
 
 	auto override_weight = [&weights](AnimationType animation, f32 value)
 	{
+		if (-0.00001f > value || value > 1.00001f)
+		{
+			logDebug() << "Bad value";
+		}
+
 		DEBUG_ASSERT(-0.00001f <= value && value <= 1.00001f, CStringBuilder("Input weight is: ") + value);
 		for (int i = 0; i < ANIMATION_COUNT; ++i)
 		{
-			f32 weightBefore = weights[i];
 			weights[i] *= 1 - value;
 
 			DEBUG_ASSERT(-0.00001f <= weights[i] && weights[i] <= 1.00001f, CStringBuilder("Weight is: ") + weights[i]);
@@ -142,22 +146,13 @@ update_character_motor( CharacterMotor & 	motor,
 	// Update speeds
 	// -------------------------------------------------
 
-	if (forwardInput < walkMinInput)
-	{
-		speed 			= 0;
-	}
-	else if (forwardInput < walkMaxInput)
+	if (forwardInput < walkMaxInput)
 	{
 		f32 t 			= (forwardInput - walkMinInput) / idleToWalkRange;
 		speed 			= interpolate(0, motor.walkSpeed, t);
 		speed 			*= (1 - crouchPercent * crouchOverridePowerForSpeed);
 	}
-	else if (forwardInput < runMinInput)
-	{
-		speed 			= motor.walkSpeed;
-		speed 			*= (1 - crouchPercent * crouchOverridePowerForSpeed);
-	}
-	else
+	else if (forwardInput < runMaxInput)
 	{
 		f32 t 			= (forwardInput - runMinInput) / walkToRunRange;
 		speed 			= interpolate (motor.walkSpeed, motor.runSpeed, t);
@@ -186,9 +181,9 @@ update_character_motor( CharacterMotor & 	motor,
 		{
 			using namespace math;
 
-			motor.landingTimer -= elapsedTime;
+			motor.landingTimer = math::max(motor.landingTimer -elapsedTime, 0.0f);
 
-			// Note(Leo): this is basically a relative time passed
+			// Note(Leo): this is basically a relative time passed, to be used in other evaluations too
 			// landingValue = motor.landingDepth * (1 - smooth((motor.landingDuration - motor.landingTimer) / motor.landingDuration));
 
 			crouchWeightFromLanding = smooth(1.0f - absolute((motor.landingDuration - (2 * motor.landingTimer)) / motor.landingDuration));
@@ -279,6 +274,7 @@ update_character_motor( CharacterMotor & 	motor,
 			using namespace math;
 
 			motor.jumpTimer -= elapsedTime;
+			motor.jumpTimer = math::max(motor.jumpTimer - elapsedTime, 0.0f);
 
 			// Note(Leo): Sorry future me, math is fun :D If this is confusing try plotting it in desmos.com
 			crouchWeightFromJumping = smooth(1.0f - absolute((-2 * motor.jumpTimer + motor.jumpDuration) / motor.jumpDuration));

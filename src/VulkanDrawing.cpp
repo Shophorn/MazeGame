@@ -317,8 +317,8 @@ vulkan::record_draw_command(VulkanContext * context, ModelHandle model, m44 tran
                             array_count(dynamicOffsets), dynamicOffsets);
 
 
-    vkCmdBindVertexBuffers(frame->commandBuffers.scene, 0, 1, &mesh->buffer, &mesh->vertexOffset);
-    vkCmdBindIndexBuffer(frame->commandBuffers.scene, mesh->buffer, mesh->indexOffset, mesh->indexType);
+    vkCmdBindVertexBuffers(frame->commandBuffers.scene, 0, 1, &mesh->bufferReference, &mesh->vertexOffset);
+    vkCmdBindIndexBuffer(frame->commandBuffers.scene, mesh->bufferReference, mesh->indexOffset, mesh->indexType);
 
     vkCmdDrawIndexed(frame->commandBuffers.scene, mesh->indexCount, 1, 0, 0, 0);
 
@@ -328,8 +328,8 @@ vulkan::record_draw_command(VulkanContext * context, ModelHandle model, m44 tran
     ///////////////////////////
     if (castShadow)
     {
-        vkCmdBindVertexBuffers(frame->commandBuffers.offscreen, 0, 1, &mesh->buffer, &mesh->vertexOffset);
-        vkCmdBindIndexBuffer(frame->commandBuffers.offscreen, mesh->buffer, mesh->indexOffset, mesh->indexType);
+        vkCmdBindVertexBuffers(frame->commandBuffers.offscreen, 0, 1, &mesh->bufferReference, &mesh->vertexOffset);
+        vkCmdBindIndexBuffer(frame->commandBuffers.offscreen, mesh->bufferReference, mesh->indexOffset, mesh->indexType);
 
         u32 shadowPassSceneSet = 0;
         u32 shadowPassModelSet = 1;

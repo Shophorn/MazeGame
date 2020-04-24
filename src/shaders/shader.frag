@@ -1,12 +1,12 @@
 #version 450
 
-layout (set = 0) uniform CameraProjections 
+layout (set = 0, binding = 0) uniform CameraProjections 
 {
 	mat4 view;
 	mat4 projection;
 } camera;
 
-layout (set = 3) uniform Lighting
+layout (set = 3, binding = 0) uniform Lighting
 {
 	vec4 direction;
 	vec4 color;
@@ -39,29 +39,6 @@ layout(binding = 0, set = 4) uniform sampler2D lightMap;
 
 void main()
 {
-	// // compute tangent T and bitangent B
-	// vec3 Q1 = dFdx(fragPosition);
-	// vec3 Q2 = dFdy(fragPosition);
-	// vec2 st1 = dFdx(fragTexCoord);
-	// vec2 st2 = dFdy(fragTexCoord);
-	
-	// vec3 T = normalize(Q1*st2.t - Q2*st1.t);
-	// vec3 B = normalize(-Q1*st2.s + Q2*st1.s);
-
-	// mat3 TBN = mat3(T, B, fragNormal);
-
-
-	// vec3 normalFromTexture 	= texture(texSampler[NORMAL_INDEX], fragTexCoord).rgb;
-	// normalFromTexture 		= normalFromTexture * 2.0 - 1.0;
-	// vec3 normal 			= normalFromTexture * TBN;
-	// // vec3 mockNormalFromTexture = vec3(0.5, 0.5, 1.0);
-	// // mockNormalFromTexture = mockNormalFromTexture * 2.0 - 1.0;
-	// // vec3 normal = mockNormalFromTexture * TBN;
-
-	// outColor.rgb = B;
-	// outColor.a = 1;
-	// return;
-
 	vec3 normal = fragNormal;
 
 	float ldotn = dot(-light.direction.xyz, normal);
@@ -92,20 +69,31 @@ void main()
 	// outColor.a = 1;
 	// return;
 
+	// const vec3 shadowColor = vec3 (0,0.1, 0.5);
+	lightIntensity = min(lightIntensity, inLight);
 
-	if (inLight < 0.5)
+	// vec3 light = light.ambient.rgb + (light.color.rgb * lightIntensity);
+	vec3 color = light.color.rgb * albedo;
+	if (lightIntensity < 0.5)
 	{
-
-		outColor = vec4(0,0.1,0.5,1);
-		// outColor.xyz *= luma;
-		// lightIntensity *= (1.0 - lightCoords.w);
-		return;
+		color = light.ambient.rgb;//max(light.ambient.rgb, color);
 	}
-
-	vec3 light = light.ambient.rgb + (light.color.rgb * lightIntensity);
-	vec3 color = light * albedo;
 
 	// outColor.rgb = mix(color, normalize(camera.view[3].rgb), 0.3);
 	outColor.rgb = color;
 	outColor.a = 1.0;
+
+
+	// if (inLight < 0.5)
+	// {
+	// 	const vec3 shadowColor = vec3 (0,0.1, 0.5);
+	// 	outColor.rgb *= shadowColor;
+
+	// 	// outColor.rgb = mix(outColor.rgb, vec3(0,0.1,0.5), 0.9);
+
+
+	// 	// outColor.xyz *= luma;
+	// 	// lightIntensity *= (1.0 - lightCoords.w);
+	// 	return;
+	// }
 }

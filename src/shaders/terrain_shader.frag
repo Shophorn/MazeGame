@@ -1,12 +1,12 @@
 #version 450
 
-layout (set = 0) uniform CameraProjections 
+layout (set = 0, binding = 0) uniform CameraProjections 
 {
 	mat4 view;
 	mat4 projection;
 } camera;
 
-layout (set = 3) uniform Lighting
+layout (set = 3, binding = 0) uniform Lighting
 {
 	vec4 direction;
 	vec4 color;
@@ -49,7 +49,8 @@ const vec3 background = vec3 (0.8, 0.7, 0.9); //vec3(0.2, 0.1, 0.3);
 
 void main()
 {
-	float ldotn = dot(-light.direction.xyz, fragNormal);
+	vec3 normal = normalize(fragNormal);
+	float ldotn = dot(-light.direction.xyz, normal);
 	
 	float lightRange = 1;
 	float lightIntensity = smoothstep(-lightRange, lightRange, ldotn);

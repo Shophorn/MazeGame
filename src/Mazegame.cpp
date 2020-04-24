@@ -6,8 +6,11 @@ Leo Tamminen
 #include "MazegamePlatform.hpp"
 #include "Mazegame.hpp"
 
-platform::Functions * platformApi;
-platform::Graphics * platformGraphics;
+static platform::Functions * 	platformApi;
+static platform::Graphics * 	platformGraphics;
+static platform::Window * 		platformWindow;
+
+static MemoryArena * global_transientMemory;
 
 namespace physics
 {
@@ -16,10 +19,20 @@ namespace physics
 
 namespace colors
 {
+	constexpr v4 brightRed 		= {1.0, 0.0, 0.0, 1.0};
+	constexpr v4 brightGreen 	= {0.0, 1.0, 0.0, 1.0};
+	constexpr v4 brightBlue 	= {0.0, 0.0, 1.0, 1.0};
+	constexpr v4 brightYellow 	= {1.0, 1.0, 0.0, 1.0};
+
 	constexpr v4 mutedRed 		= {0.8, 0.2, 0.3, 1.0};
 	constexpr v4 mutedGreen 	= {0.2, 0.8, 0.3, 1.0};
 	constexpr v4 mutedBlue 		= {0.2, 0.3, 0.8, 1.0};
 	constexpr v4 mutedYellow 	= {0.8, 0.8, 0.2, 1.0};
+
+	constexpr v4 white 			= {1,1,1,1};
+	constexpr v4 lightGray 		= {0.8, 0.8, 0.8, 1};
+	constexpr v4 darkGray 		= {0.3, 0.3, 0.3, 1};
+	constexpr v4 black 			= {0,0,0,1};
 }
 
 
@@ -53,8 +66,6 @@ and both are still missing some because they are listed above. */
 #include "Scene3D.cpp"
 #include "Scene2D.cpp"
 #include "MenuScene.cpp"
-
-
 
 struct AudioClip
 {
@@ -194,6 +205,10 @@ bool32 update_game(
 	not yet had time to think about it, so here we are */
 	platformApi 		= functions;
 	platformGraphics 	= graphics;
+	platformWindow 		= window;
+
+	// Note(Leo): Testing out this idea
+	global_transientMemory = &state->transientMemoryArena;
 
 	// Note(Leo): Free space for current frame.
 	flush_memory_arena(&state->transientMemoryArena);

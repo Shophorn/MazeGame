@@ -6,13 +6,16 @@ struct FollowerController
 	s32 			motorInputIndex;
 
 	// Properties, may be set
-	f32 stopDistanceToTarget 	= 2;
+	f32 startFollowDistance 	= 2.5f;
+	f32 stopFollowDistance 		= 1.5f;
+
 	f32 jumpTimeInterval 		= 15.0f;
 	f32 timeToWaitBeforeSit		= 5.0f;
 
 	// State, should not be set
-	f32 nextJumpTimeTimer;
-	f32 timeWaitedBeforeSitting;
+	bool32 	isFollowing;
+	f32 	nextJumpTimeTimer;
+	f32 	timeWaitedBeforeSitting;
 };
 
 
@@ -30,21 +33,67 @@ void update_follower_input(	FollowerController 			& controller,
 							f32 elapsedTime)
 {
 	v3 toTarget 			= controller.targetTransform->position - controller.transform->position;
-	toTarget.z = 0;
+	toTarget.z 				= 0;
 	float distanceToTarget 	= toTarget.magnitude();
 
-	distanceToTarget = math::clamp(distanceToTarget - controller.stopDistanceToTarget, 0.0f, 1.0f);
+	m44 gizmoTransform = make_transform_matrix(	controller.transform->position + v3::up * controller.transform->scale * 2.0f, 
+												controller.transform->rotation,
+												0.2f);
+	if (distanceToTarget < controller.stopFollowDistance)
+	{
+		debug::draw_diamond_2d(gizmoTransform, colors::brightGreen, ORIENT_2D_XZ);
+	}
+	else if (distanceToTarget < controller.startFollowDistance)
+	{
+		debug::draw_diamond_2d(gizmoTransform, colors::brightYellow, ORIENT_2D_XZ);
+	}
+	else
+	{
+		debug::draw_diamond_2d(gizmoTransform, colors::brightRed, ORIENT_2D_XZ);
+	}
 
-	v3 inputVector = distanceToTarget < 0.00001f
-					? v3 {0, 0, 0}
-					: toTarget.normalized() * distanceToTarget;
+	v3 inputVector = {};
+	if (controller.isFollowing)
+	{
+		if (distanceToTarget > controller.stopFollowDistance)
+		{
+			/* Note(Leo): Do not clamp to zero, or we will run out of input prematurely.
+			By clamping to a small value, we ensure that while there is distance to go,
+			we will always keep  moving.
 
+			Todo(Leo): clamping lower end might be clunky, investigate and maybe fix. */
+			inputVector = toTarget.normalized() * math::clamp(distanceToTarget - controller.stopFollowDistance, 0.05f, 1.0f);
+		}
+		else
+		{
+			controller.isFollowing = false;
+			inputVector = v3{0,0,0};
+		}
+	}
+	else if (controller.isFollowing == false)
+	{
+		if (distanceToTarget > controller.startFollowDistance)
+		{
+			inputVector = toTarget.normalized() * math::clamp(distanceToTarget - controller.startFollowDistance, 0.0f, 1.0f);
+			controller.isFollowing = true;
+		}
+		else
+		{
+			inputVector = v3{0,0,0};
+		}
+	}
+
+	if (controller.isFollowing)
+	{
+		gizmoTransform = gizmoTransform * make_scale_matrix({0.5f, 0.5f, 0.5f});
+		debug::draw_diamond_2d(gizmoTransform, colors::brightBlue, ORIENT_2D_XZ);
+	}
 
 
 	bool32 jumpInput = false;
 	bool32 crouchInput = false;
 
-	if (distanceToTarget < 0.00001f)
+	if (controller.isFollowing == false)
 	{
 		controller.timeWaitedBeforeSitting += elapsedTime;
 
@@ -60,7 +109,7 @@ void update_follower_input(	FollowerController 			& controller,
 		controller.timeWaitedBeforeSitting = 0;
 	}
 	
-	if (distanceToTarget > 0.99999f)
+	if (distanceToTarget > controller.startFollowDistance)
 	{
 		controller.nextJumpTimeTimer -= elapsedTime;
 		if (controller.nextJumpTimeTimer < 0.0f)
