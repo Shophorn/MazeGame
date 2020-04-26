@@ -65,8 +65,23 @@ load_animation_glb(MemoryArena & allocator, GltfFile const & file, char const * 
 
 	auto accessors 		= file.json["accessors"].GetArray();
 
+	s32 translationChannelCount = 0;
+	s32 rotationChannelCount = 0;
+
+	for (auto const & jsonChannel : jsonChannels)
+	{
+		char const * path 	= jsonChannel["target"]["path"].GetString();
+
+		if (cstring_equals(path, "translation"))	{ translationChannelCount += 1; } //channelType = ANIMATION_CHANNEL_TRANSLATION;
+		else if(cstring_equals(path, "rotation")) { rotationChannelCount += 1; }//	channelType = ANIMATION_CHANNEL_ROTATION;
+		else if (cstring_equals(path, "scale"))	 {} //channelType = ANIMATION_CHANNEL_SCALE;
+		else
+			Assert(false);
+	}
+
 	Animation result = {};
-	result.channels = allocate_array<AnimationChannel>(allocator, jsonChannels.Size());
+	result.translationChannels 	= allocate_array<TranslationChannel>(allocator, translationChannelCount);
+	result.rotationChannels 	= allocate_array<RotationChannel>(allocator, rotationChannelCount);
 
 	float minTime = math::highest_value<float>;
 	float maxTime = math::lowest_value<float>;
@@ -84,6 +99,15 @@ load_animation_glb(MemoryArena & allocator, GltfFile const & file, char const * 
 
 
 		// ------------------------------------------------------------------------------
+
+		enum ChannelType
+		{
+			ANIMATION_CHANNEL_TRANSLATION,
+			ANIMATION_CHANNEL_ROTATION,
+			ANIMATION_CHANNEL_SCALE,
+
+			ANIMATION_CHANNEL_COUNT
+		};
 
 		InterpolationMode 	interpolationMode;
 		ChannelType 		channelType;
@@ -116,11 +140,7 @@ load_animation_glb(MemoryArena & allocator, GltfFile const & file, char const * 
 			continue;
 		}
 
-		AnimationChannel & channel 	= *result.channels.push_return_pointer({});
-		channel.type 				= channelType;
-		channel.interpolationMode 	= interpolationMode;
-
-
+		s32 targetIndex = -1;
 		{
 			/* Note(Leo): Bones (or joints) are somewhat cumbersomely behind different list, so we need to remap those.
 			Probably the best idea would be to have skeleton reference here too. */
@@ -128,9 +148,9 @@ load_animation_glb(MemoryArena & allocator, GltfFile const & file, char const * 
 
 			auto bonesArray 	= file.json["skins"][0]["joints"].GetArray();
 			s32 targetNode 		= jsonChannel["target"]["node"].GetInt();
-			channel.targetIndex = find_bone_by_node(bonesArray, targetNode);
+			targetIndex = find_bone_by_node(bonesArray, targetNode);
 		
-			Assert(channel.targetIndex >= 0);
+			Assert(targetIndex >= 0);
 		}
 		
 		// ------------------------------------------------------------------------------
@@ -139,32 +159,46 @@ load_animation_glb(MemoryArena & allocator, GltfFile const & file, char const * 
 
 		float const * keyframeStart = get_buffer_start<float>(file, inputAccessor);
 		float const * keyframeEnd 	= keyframeStart + keyframeCount;
-		channel.times 				= allocate_array<float>(allocator, keyframeStart, keyframeEnd);
+		// channel.times 				= allocate_array<float>(allocator, keyframeStart, keyframeEnd);
+		Array<f32> times 				= allocate_array<float>(allocator, keyframeStart, keyframeEnd);
 
 		/* Note(Leo): CUBICSPLINE interpolation has three values in total: inTangent,
 		splineVertex(aka actual keyframe value) and outTangent. */
-		s32 valueCount = channel.interpolationMode == INTERPOLATION_MODE_CUBICSPLINE
+		s32 valueCount = interpolationMode == INTERPOLATION_MODE_CUBICSPLINE
 						? keyframeCount * 3
 						: keyframeCount;
 
-		switch(channel.type)
+		switch(channelType)
 		{
 			case ANIMATION_CHANNEL_TRANSLATION:
 			{
-				logDebug(1) << "translation channel for bone " << channel.targetIndex;
+				logDebug(1) << "translation channel for bone " << targetIndex;
 
 				v3 const * start 		= get_buffer_start<v3>(file, outputAccessor);
 				v3 const * end 			= start + valueCount;
-				channel.translations	= allocate_array<v3>(allocator, start, end);
+
+				TranslationChannel channel 	= {};
+				channel.times 				= std::move(times);
+				channel.translations		= allocate_array<v3>(allocator, start, end);
+				channel.interpolationMode 	= interpolationMode;
+				channel.targetIndex 		= targetIndex;
+
+				result.translationChannels.push(std::move(channel));
 			} break;
 
 			case ANIMATION_CHANNEL_ROTATION:
 			{
-				logDebug(1) << "rotation channel for bone " << channel.targetIndex;
+				logDebug(1) << "rotation channel for bone " << targetIndex;
 		
 				quaternion const * start 	= get_buffer_start<quaternion>(file, outputAccessor);
 				quaternion const * end 		= start + valueCount;
+
+				RotationChannel channel 	= {};
+				channel.times 				= std::move(times);
 				channel.rotations 			= allocate_array<quaternion>(allocator, start, end);
+				channel.interpolationMode 	= interpolationMode;
+				channel.targetIndex 		= targetIndex;
+
 
 				/* Note(Leo): For some reason, we get inverted rotations from blender produced gltf-files,
 				so we need to invert them here. I have not tested glTF files from other sources.
@@ -176,10 +210,11 @@ load_animation_glb(MemoryArena & allocator, GltfFile const & file, char const * 
 					rotation = rotation.inverse_non_unit();
 				}
 
+				result.rotationChannels.push(std::move(channel));
 			} break;
 
 			default:
-				logDebug(1) << FILE_ADDRESS << "Invalid or unimplemented animation channel: '" << channel.type << "' for bone " << channel.targetIndex;
+				logDebug(1) << FILE_ADDRESS << "Invalid or unimplemented animation channel: '" << channelType << "' for bone " << targetIndex;
 				continue;
 
 		}

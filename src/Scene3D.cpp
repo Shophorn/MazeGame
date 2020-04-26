@@ -17,6 +17,7 @@ struct Scene3d
 {
 	// Components
 	Array<Transform3D> 			transforms;
+	Array<AnimatedSkeleton> 	animatedSkeletons;
 	Array<SkeletonAnimator> 	skeletonAnimators;	
 	Array<CharacterMotor>		characterMotors;
 	Array<CharacterInput>		characterInputs;
@@ -34,7 +35,7 @@ struct Scene3d
 	Transform3D * 				playerCharacterTransform;
 
 	// Other actors
-	FollowerController followers[50];
+	FollowerController followers[20];
 
 	// Data
 	Animation characterAnimations [CharacterAnimations::ANIMATION_COUNT];
@@ -159,23 +160,24 @@ Scene3d::update(	void * 					scenePtr,
 
 void Scene3d::load(	void * 						scenePtr, 
 					MemoryArena * 				persistentMemory,
-					MemoryArena * 				transientMemory,
-					platform::Graphics *		graphics,
-					platform::Window * 			window,
-					platform::Functions *		functions)
+					MemoryArena *,
+					platform::Graphics *,
+					platform::Window *,
+					platform::Functions *)
 {
 	Scene3d * scene = reinterpret_cast<Scene3d*>(scenePtr);
 	
 	// Note(Leo): This is good, more this.
-	scene->gui = make_scene_gui(transientMemory, graphics, functions);
+	scene->gui = make_scene_gui(global_transientMemory, platformGraphics, platformApi);
 
 	// Note(Leo): amounts are SWAG, rethink.
-	scene->transforms 	= allocate_array<Transform3D>(*persistentMemory, 1200);
+	scene->transforms 			= allocate_array<Transform3D>(*persistentMemory, 1200);
+	scene->animatedSkeletons 	= allocate_array<AnimatedSkeleton>(*persistentMemory, 600);
 	scene->skeletonAnimators 	= allocate_array<SkeletonAnimator>(*persistentMemory, 600);
 	scene->animatedRenderers 	= allocate_array<AnimatedRenderer>(*persistentMemory, 600);
-	scene->renderers 		= allocate_array<Renderer>(*persistentMemory, 600);
+	scene->renderers 			= allocate_array<Renderer>(*persistentMemory, 600);
 	scene->characterMotors		= allocate_array<CharacterMotor>(*persistentMemory, 600);
-	scene->characterInputs	= allocate_array<CharacterInput>(*persistentMemory, scene->characterMotors.capacity(), ALLOC_FILL | ALLOC_NO_CLEAR);
+	scene->characterInputs		= allocate_array<CharacterInput>(*persistentMemory, scene->characterMotors.capacity(), ALLOC_FILL | ALLOC_NO_CLEAR);
 
 	allocate_collision_system(&scene->collisionSystem, persistentMemory, 600);
 
@@ -186,30 +188,30 @@ void Scene3d::load(	void * 						scenePtr,
 		MaterialHandle sky;
 	} materials;
 
-	PipelineHandle characterPipeline = functions->push_pipeline(graphics, "assets/shaders/animated_vert.spv", "assets/shaders/frag.spv", { .textureCount = 3});
-	PipelineHandle normalPipeline 	= functions->push_pipeline(graphics, "assets/shaders/vert.spv", "assets/shaders/frag.spv", {.textureCount = 3});
-	PipelineHandle terrainPipeline 	= functions->push_pipeline(graphics, "assets/shaders/vert.spv", "assets/shaders/terrain_frag.spv", {.textureCount = 3});
-	PipelineHandle skyPipeline 		= functions->push_pipeline(graphics, "assets/shaders/vert_sky.spv", "assets/shaders/frag_sky.spv", {.textureCount = 1, .enableDepth = false});
+	PipelineHandle characterPipeline 	= platformApi->push_pipeline(platformGraphics, "assets/shaders/animated_vert.spv", "assets/shaders/frag.spv", { .textureCount = 3});
+	PipelineHandle normalPipeline 		= platformApi->push_pipeline(platformGraphics, "assets/shaders/vert.spv", "assets/shaders/frag.spv", {.textureCount = 3});
+	PipelineHandle terrainPipeline 		= platformApi->push_pipeline(platformGraphics, "assets/shaders/vert.spv", "assets/shaders/terrain_frag.spv", {.textureCount = 3});
+	PipelineHandle skyPipeline 			= platformApi->push_pipeline(platformGraphics, "assets/shaders/vert_sky.spv", "assets/shaders/frag_sky.spv", {.textureCount = 1, .enableDepth = false});
 
-	auto load_and_push_texture = [transientMemory, functions, graphics](const char * path) -> TextureHandle
+	auto load_and_push_texture = [](const char * path) -> TextureHandle
 	{
-		auto asset = load_texture_asset(path, transientMemory);
-		auto result = functions->push_texture(graphics, &asset);
+		auto asset = load_texture_asset(path, global_transientMemory);
+		auto result = platformApi->push_texture(platformGraphics, &asset);
 		return result;
 	};
 
-	TextureAsset whiteTextureAsset = make_texture_asset(allocate_array<u32>(*transientMemory, {0xffffffff}), 1, 1);
-	TextureAsset blackTextureAsset = make_texture_asset(allocate_array<u32>(*transientMemory, {0xff000000}), 1, 1);
-	TextureAsset neutralBumpTextureAsset = make_texture_asset(allocate_array<u32>(*transientMemory, {0xff8080ff}), 1, 1);
+	TextureAsset whiteTextureAsset = make_texture_asset(allocate_array<u32>(*global_transientMemory, {0xffffffff}), 1, 1);
+	TextureAsset blackTextureAsset = make_texture_asset(allocate_array<u32>(*global_transientMemory, {0xff000000}), 1, 1);
+	TextureAsset neutralBumpTextureAsset = make_texture_asset(allocate_array<u32>(*global_transientMemory, {0xff8080ff}), 1, 1);
 
-	TextureHandle whiteTexture 			= functions->push_texture(graphics, &whiteTextureAsset);
-	TextureHandle blackTexture 			= functions->push_texture(graphics, &blackTextureAsset);
-	TextureHandle neutralBumpTexture 	= functions->push_texture(graphics, &neutralBumpTextureAsset);
+	TextureHandle whiteTexture 			= platformApi->push_texture(platformGraphics, &whiteTextureAsset);
+	TextureHandle blackTexture 			= platformApi->push_texture(platformGraphics, &blackTextureAsset);
+	TextureHandle neutralBumpTexture 	= platformApi->push_texture(platformGraphics, &neutralBumpTextureAsset);
 
-	auto push_material = [functions, transientMemory, graphics](PipelineHandle shader, TextureHandle a, TextureHandle b, TextureHandle c) -> MaterialHandle
+	auto push_material = [](PipelineHandle shader, TextureHandle a, TextureHandle b, TextureHandle c) -> MaterialHandle
 	{
-		MaterialAsset asset = make_material_asset(shader, allocate_array(*transientMemory, {a, b, c}));
-		MaterialHandle handle = functions->push_material(graphics, &asset);
+		MaterialAsset asset = make_material_asset(shader, allocate_array(*global_transientMemory, {a, b, c}));
+		MaterialHandle handle = platformApi->push_material(platformGraphics, &asset);
 		return handle;
 	};
 
@@ -234,38 +236,38 @@ void Scene3d::load(	void * 						scenePtr,
 		// (+X,-X,+Y,-Y,+Z,-Z).
 		StaticArray<TextureAsset,6> skyboxTextureAssets =
 		{
-			load_texture_asset("assets/textures/miramar_rt.png", transientMemory),
-			load_texture_asset("assets/textures/miramar_lf.png", transientMemory),
-			load_texture_asset("assets/textures/miramar_ft.png", transientMemory),
-			load_texture_asset("assets/textures/miramar_bk.png", transientMemory),
-			load_texture_asset("assets/textures/miramar_up.png", transientMemory),
-			load_texture_asset("assets/textures/miramar_dn.png", transientMemory),
+			load_texture_asset("assets/textures/miramar_rt.png", global_transientMemory),
+			load_texture_asset("assets/textures/miramar_lf.png", global_transientMemory),
+			load_texture_asset("assets/textures/miramar_ft.png", global_transientMemory),
+			load_texture_asset("assets/textures/miramar_bk.png", global_transientMemory),
+			load_texture_asset("assets/textures/miramar_up.png", global_transientMemory),
+			load_texture_asset("assets/textures/miramar_dn.png", global_transientMemory),
 		};
-		auto skyboxTexture = functions->push_cubemap(graphics, &skyboxTextureAssets);
+		auto skyboxTexture = platformApi->push_cubemap(platformGraphics, &skyboxTextureAssets);
 
-		auto skyMaterialAsset 	= make_material_asset(skyPipeline, allocate_array(*transientMemory, {skyboxTexture}));	
-		materials.sky 			= functions->push_material(graphics, &skyMaterialAsset);
+		auto skyMaterialAsset 	= make_material_asset(skyPipeline, allocate_array(*global_transientMemory, {skyboxTexture}));	
+		materials.sky 			= platformApi->push_material(platformGraphics, &skyMaterialAsset);
 	}
 
-    auto push_model = [functions, graphics] (MeshHandle mesh, MaterialHandle material) -> ModelHandle
+    auto push_model = [](MeshHandle mesh, MaterialHandle material) -> ModelHandle
     {
-    	auto handle = functions->push_model(graphics, mesh, material);
+    	auto handle = platformApi->push_model(platformGraphics, mesh, material);
     	return handle;
     };
 
 	// Skybox
     {
-    	auto meshAsset 	= create_skybox_mesh(transientMemory);
-    	auto meshHandle = functions->push_mesh(graphics, &meshAsset);
+    	auto meshAsset 	= create_skybox_mesh(global_transientMemory);
+    	auto meshHandle = platformApi->push_mesh(platformGraphics, &meshAsset);
     	scene->skybox 	= push_model(meshHandle, materials.sky);
     }
 
 	// Characters
 	{
 		char const * filename 	= "assets/models/cube_head.glb";
-		auto const gltfFile 	= read_gltf_file(*transientMemory, filename);
+		auto const gltfFile 	= read_gltf_file(*global_transientMemory, filename);
 
-		auto girlMeshAsset 	= load_mesh_glb(*transientMemory, gltfFile, "cube_head");
+		auto girlMeshAsset 	= load_mesh_glb(*global_transientMemory, gltfFile, "cube_head");
 		auto girlMesh 		= platformApi->push_mesh(platformGraphics, &girlMeshAsset);
 
 		// --------------------------------------------------------------------
@@ -295,21 +297,22 @@ void Scene3d::load(	void * 						scenePtr,
 			motor->animations[CROUCH] 	= &scene->characterAnimations[CROUCH];
 		}
 
+		AnimatedSkeleton * cubeHeadSkeleton = scene->animatedSkeletons.push_return_pointer(load_skeleton_glb(*persistentMemory, gltfFile, "cube_head"));
 
 		scene->skeletonAnimators.push({
-			.skeleton 		= load_skeleton_glb(*persistentMemory, gltfFile, "cube_head"),
+			.skeleton 		= cubeHeadSkeleton,
 			.animations 	= motor->animations,
 			.weights 		= motor->animationWeights,
 			.animationCount = CharacterAnimations::ANIMATION_COUNT
 		});
 
 		// Note(Leo): take the reference here, so we can easily copy this down below.
-		auto & cubeHeadSkeleton = scene->skeletonAnimators.last().skeleton;
+		// auto & cubeHeadSkeleton = scene->skeletonAnimators.last().skeleton;
 
 		auto model = push_model(girlMesh, materials.character);
 		scene->animatedRenderers.push(make_animated_renderer(
 				playerTransform,
-				&scene->skeletonAnimators.last().skeleton,
+				cubeHeadSkeleton,
 				model,
 				*persistentMemory
 			));
@@ -342,20 +345,18 @@ void Scene3d::load(	void * 						scenePtr,
 				motor->animations[CROUCH] 	= &scene->characterAnimations[CROUCH];
 			}
 
+			AnimatedSkeleton * skeleton = scene->animatedSkeletons.push_return_pointer({});
+			skeleton->bones = copy_array(*persistentMemory, cubeHeadSkeleton->bones);
+
 			scene->skeletonAnimators.push({
-					.skeleton 		= { .bones = copy_array(*persistentMemory, cubeHeadSkeleton.bones) },
+					.skeleton 		= skeleton,
 					.animations 	= motor->animations,
 					.weights 		= motor->animationWeights,
 					.animationCount = CharacterAnimations::ANIMATION_COUNT
 				});
 
 			auto model = push_model(girlMesh, materials.character); 
-			scene->animatedRenderers.push(make_animated_renderer(
-					transform,
-					&scene->skeletonAnimators.last().skeleton,
-					model,
-					*persistentMemory
-				));
+			scene->animatedRenderers.push(make_animated_renderer(transform,	skeleton, model, *persistentMemory));
 		}
 
 	}
@@ -375,11 +376,11 @@ void Scene3d::load(	void * 						scenePtr,
 			// Note(Leo): this is maximum size we support with u16 mesh vertex indices
 			s32 gridSize = 256;
 
-			auto heightmapTexture 	= load_texture_asset("assets/textures/heightmap6.jpg", transientMemory);
-			auto heightmap 			= make_heightmap(transientMemory, &heightmapTexture, gridSize, mapSize, -terrainHeight / 2, terrainHeight / 2);
-			auto groundMeshAsset 	= generate_terrain(transientMemory, 32, &heightmap);
+			auto heightmapTexture 	= load_texture_asset("assets/textures/heightmap6.jpg", global_transientMemory);
+			auto heightmap 			= make_heightmap(global_transientMemory, &heightmapTexture, gridSize, mapSize, -terrainHeight / 2, terrainHeight / 2);
+			auto groundMeshAsset 	= generate_terrain(global_transientMemory, 32, &heightmap);
 
-			auto groundMesh 		= functions->push_mesh(graphics, &groundMeshAsset);
+			auto groundMesh 		= platformApi->push_mesh(platformGraphics, &groundMeshAsset);
 			auto model 				= push_model(groundMesh, materials.ground);
 			auto transform 			= scene->transforms.push_return_pointer({{-mapSize / 2, -mapSize / 2, 0}});
 
@@ -390,8 +391,8 @@ void Scene3d::load(	void * 						scenePtr,
 		}
 
 		{
-			auto totemMesh 			= load_mesh_glb(*transientMemory, read_gltf_file(*transientMemory, "assets/models/totem.glb"), "totem");
-			auto totemMeshHandle 	= functions->push_mesh(graphics, &totemMesh);
+			auto totemMesh 			= load_mesh_glb(*global_transientMemory, read_gltf_file(*global_transientMemory, "assets/models/totem.glb"), "totem");
+			auto totemMeshHandle 	= platformApi->push_mesh(platformGraphics, &totemMesh);
 			auto model = push_model(totemMeshHandle, materials.environment);
 
 			auto transform = scene->transforms.push_return_pointer({});
@@ -413,8 +414,8 @@ void Scene3d::load(	void * 						scenePtr,
 			s32 pillarCountPerDirection = mapSize / 10;
 			s32 pillarCount = pillarCountPerDirection * pillarCountPerDirection;
 
-			auto pillarMesh 		= load_mesh_glb(*transientMemory, read_gltf_file(*transientMemory, "assets/models/big_pillar.glb"), "big_pillar");
-			auto pillarMeshHandle 	= functions->push_mesh(graphics, &pillarMesh);
+			auto pillarMesh 		= load_mesh_glb(*global_transientMemory, read_gltf_file(*global_transientMemory, "assets/models/big_pillar.glb"), "big_pillar");
+			auto pillarMeshHandle 	= platformApi->push_mesh(platformGraphics, &pillarMesh);
 
 			// pillarCount = 1;
 
@@ -458,8 +459,8 @@ void Scene3d::load(	void * 						scenePtr,
 			auto * transform = scene->transforms.push_return_pointer({.position = position});
 
 			char const * filename 	= "assets/models/Robot53.glb";
-			auto meshAsset 			= load_mesh_glb(*transientMemory, read_gltf_file(*transientMemory, filename), "model_rigged");	
-			auto mesh 				= functions->push_mesh(graphics, &meshAsset);
+			auto meshAsset 			= load_mesh_glb(*global_transientMemory, read_gltf_file(*global_transientMemory, filename), "model_rigged");	
+			auto mesh 				= platformApi->push_mesh(platformGraphics, &meshAsset);
 
 			auto albedo 			= load_and_push_texture("assets/textures/Robot_53_albedo_4k.png");
 			auto material 			= push_material(normalPipeline, albedo, neutralBumpTexture, blackTexture);

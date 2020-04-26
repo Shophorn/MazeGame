@@ -296,7 +296,7 @@ scene_2d::load(	void * scenePtr,
 			auto bones2 = allocate_array<Transform3D*>(*persistentMemory, 6);
 
 			int ladderRigBoneCount = 6;
-			auto channels = allocate_array<AnimationChannel>(*persistentMemory, ladderRigBoneCount);
+			auto channels = allocate_array<TranslationChannel>(*persistentMemory, ladderRigBoneCount);
 
 			auto parent1 = root1;
 			auto parent2 = root2;
@@ -328,7 +328,7 @@ scene_2d::load(	void * scenePtr,
 
 					channels.push({ladderIndex, std::move(keyframeTimes),	std::move(translations)});
 					channels.last().interpolationMode = INTERPOLATION_MODE_LINEAR;
-					channels.last().type = ANIMATION_CHANNEL_TRANSLATION;
+					// channels.last().type = ANIMATION_CHANNEL_TRANSLATION;
 				}
 				else
 				{
@@ -338,7 +338,7 @@ scene_2d::load(	void * scenePtr,
 				}
 			}	
 
-			scene->laddersUpAnimation 	= make_animation(std::move(channels));
+			scene->laddersUpAnimation 	= make_animation(std::move(channels), {});
 
 			scene->laddersDownAnimation = copy_animation(*persistentMemory, scene->laddersUpAnimation);
 			reverse_animation_clip(scene->laddersDownAnimation);

@@ -13,24 +13,22 @@ enum InterpolationMode
 	INTERPOLATION_MODE_COUNT
 };
 
-enum ChannelType
-{
-	ANIMATION_CHANNEL_TRANSLATION,
-	ANIMATION_CHANNEL_ROTATION,
-	ANIMATION_CHANNEL_SCALE,
-
-	ANIMATION_CHANNEL_COUNT
-};
-
-struct AnimationChannel
+struct TranslationChannel
 {
 	s32 				targetIndex;
-
 	Array<f32> 			times;
 	Array<v3> 			translations;
-	Array<quaternion> 	rotations;
+	InterpolationMode 	interpolationMode;
 
-	ChannelType 		type;
+	s32 keyframe_count() const { return times.count(); }
+};
+
+
+struct RotationChannel
+{
+	s32 				targetIndex;
+	Array<f32> 			times;
+	Array<quaternion> 	rotations;
 	InterpolationMode 	interpolationMode;
 
 	s32 keyframe_count() const { return times.count(); }
@@ -40,12 +38,10 @@ struct AnimationChannel
 // Note(Leo): This is for complete animation, with different keyframes for different bones
 struct Animation
 {
-	Array<AnimationChannel> channels;
-	f32 					duration;
-
-	bool 					loop = false;
+	Array<TranslationChannel> 	translationChannels;
+	Array<RotationChannel> 		rotationChannels;
+	f32 						duration;
 };
-
 
 // Property/State
 struct AnimationRig
@@ -96,8 +92,8 @@ struct AnimatedSkeleton
 
 struct SkeletonAnimator
 {
-	AnimatedSkeleton 	skeleton;
-
+	AnimatedSkeleton *	skeleton;
+	
 	Animation const ** 	animations;
 	f32 *				weights;
 	s32					animationCount;
@@ -138,76 +134,90 @@ make_animation_rig(Transform3D * root, Array<Transform3D*> bones)
 }
 
 internal Animation
-copy_animation(MemoryArena & memoryArena, Animation const & original)
+copy_animation(MemoryArena & allocator, Animation const & original)
 {
-	Animation result = 
+	s32 translationCount 	= original.translationChannels.count();
+	s32 rotationCount 		= original.rotationChannels.count();
+
+	Animation copy = 
 	{
-		.channels = allocate_array<AnimationChannel>(memoryArena, original.channels.count()),
-		.duration = original.duration
+		allocate_array<TranslationChannel>(allocator, translationCount, ALLOC_FILL),
+		allocate_array<RotationChannel>(allocator, rotationCount, ALLOC_FILL),
+		original.duration
 	};
 
-	for (s32 childIndex = 0; childIndex < original.channels.count(); ++childIndex)
+	for (s32 i = 0; i < translationCount; ++ i)
 	{
-		result.channels.push({original.channels[childIndex].targetIndex, 
-								copy_array(memoryArena, original.channels[childIndex].times),
-								copy_array(memoryArena, original.channels[childIndex].translations),
-								copy_array(memoryArena, original.channels[childIndex].rotations) });
+		TranslationChannel const & channel = original.translationChannels[i];
+
+		copy.translationChannels[i] = 
+		{
+			channel.targetIndex,
+			copy_array(allocator, channel.times),
+			copy_array(allocator, channel.translations),
+			channel.interpolationMode
+		};
 	}
-	return result;
+
+	for (s32 i = 0; i <rotationCount; ++i)
+	{
+		RotationChannel const & channel = original.rotationChannels[i];
+
+		copy.rotationChannels[i] =
+		{ 	
+			channel.targetIndex,
+			copy_array(allocator, channel.times),
+			copy_array(allocator, channel.rotations),
+			channel.interpolationMode
+		};
+	}
+
+	return copy;
 }
 
 internal void
 reverse_animation_clip(Animation & animation)
 {
-	for (AnimationChannel & channel : animation.channels)
+	for (auto & channel : animation.translationChannels)
 	{
-		switch(channel.type)
+		reverse_array(channel.translations);
+	
+		reverse_array(channel.times);
+		for (f32 & time : channel.times)
 		{
-			case ANIMATION_CHANNEL_TRANSLATION:
-				reverse_array(channel.translations);
-				break;
-
-			case ANIMATION_CHANNEL_ROTATION:
-				reverse_array(channel.rotations);
-				break;
-
-			default:
-				logDebug(0) << FILE_ADDRESS << "Invalid or unimplemented animation channel type: " << channel.type;
-				// Note(Leo): Continue here instead of break, we probably should not touch times either.
-				continue;
+			time = animation.duration - time;
 		}
+	}
+
+	for (auto & channel : animation.rotationChannels)
+	{
+		reverse_array(channel.rotations);
 
 		reverse_array(channel.times);
-
-		for(f32 & time : channel.times)
+		for (f32 & time : channel.times)
 		{
 			time = animation.duration - time;
 		}
 	}
 }
 
-internal f32
-compute_duration (Array<AnimationChannel> const & channels)
+internal Animation
+make_animation (Array<TranslationChannel> translationChannels, Array<RotationChannel> rotationChannels)
 {
 	f32 duration = 0;
-	for (auto & channel : channels)
-	{
+	for (auto const & channel : translationChannels)
 		duration = math::max(duration, channel.times.last());
-	}
-	return duration;
-}
 
-internal Animation
-make_animation (Array<AnimationChannel> channels)
-{
-	f32 duration = compute_duration(channels);
+	for (auto const & channel : rotationChannels)
+		duration = math::max(duration, channel.times.last());
 
-	Animation result = 
+	Animation animation =
 	{
-		.channels = std::move(channels),
-		.duration = duration
+		std::move(translationChannels),
+		std::move(rotationChannels),
+		duration
 	};
-	return result;
+	return animation;
 }
 
 s32 previous_keyframe(Array<f32> const & keyframeTimes, f32 time)
@@ -251,7 +261,7 @@ update_animator_system(game::Input * input, Array<Animator> & animators)
 		f32 timeStep = animator.playbackSpeed * input->elapsedTime;
 		animator.time += timeStep;
 
-		for (auto const & channel : animator.animation->channels)
+		for (auto const & channel : animator.animation->translationChannels)
 		{
 			Transform3D & target = *animator.rig.bones[channel.targetIndex];
 
@@ -317,14 +327,14 @@ f32 loop_time(f32 time, f32 duration)
 }
 
 
-f32 get_relative_time(AnimationChannel const & 	channel,
-						s32 						previousKeyframeIndex,
-						s32 						nextKeyframeIndex,
-						f32 						animationTime,
-						f32 						animationDuration)
+f32 get_relative_time(	Array<f32> const & 	times,
+						s32 				previousKeyframeIndex,
+						s32 				nextKeyframeIndex,
+						f32 				animationTime,
+						f32 				animationDuration)
 {
-	f32 previousTime 	= channel.times[previousKeyframeIndex];
-	f32 nextTime 		= channel.times[nextKeyframeIndex];
+	f32 previousTime 	= times[previousKeyframeIndex];
+	f32 nextTime 		= times[nextKeyframeIndex];
 
 	f32 swagEpsilon = 0.000000001f; // Should this be in scale of frame time?
 
@@ -347,7 +357,7 @@ f32 get_relative_time(AnimationChannel const & 	channel,
 
 void update_skeleton_animator(SkeletonAnimator & animator, f32 elapsedTime)
 {
-	AnimatedSkeleton & skeleton 	= animator.skeleton;
+	AnimatedSkeleton & skeleton 	= *animator.skeleton;
 	Animation const ** animations 	= animator.animations;
 	f32 * weights 					= animator.weights;
 	s32 animationCount 				= animator.animationCount;
@@ -364,9 +374,9 @@ void update_skeleton_animator(SkeletonAnimator & animator, f32 elapsedTime)
 
 	struct ChannelInfo
 	{
-		AnimationChannel const * channel;
-		f32 weight;
+		void const * channel;
 		f32 duration;
+		f32 weight;
 		f32 time;
 	};
 
@@ -388,27 +398,16 @@ void update_skeleton_animator(SkeletonAnimator & animator, f32 elapsedTime)
 
 		f32 duration 	= animations[animationIndex]->duration;
 		f32 time 		= loop_time(animator.animationTime, duration);
+		f32 weight 		= weights[animationIndex];
 
-		Array<AnimationChannel> const & channels = animations[animationIndex]->channels;
-
-		for (s32 channelIndex = 0; channelIndex < channels.count(); ++channelIndex)
+		for (auto const & channel : animations[animationIndex]->translationChannels)
 		{
-			s32 boneIndex = channels[channelIndex].targetIndex;
+			translationChannelInfos[channel.targetIndex].push({&channel, duration, weight, time});
+		}
 
-			switch (channels[channelIndex].type)
-			{
-				case ANIMATION_CHANNEL_TRANSLATION:
-					translationChannelInfos[boneIndex].push({&channels[channelIndex], weights[animationIndex], duration, time});
-					break;
-
-				case ANIMATION_CHANNEL_ROTATION:
-					rotationChannelInfos[boneIndex].push({&channels[channelIndex], weights[animationIndex], duration, time});
-					break;
-
-				default:
-					logAnim(0) << FILE_ADDRESS << "Animation channel type " << channels[channelIndex].type << " not supported";
-					break;
-			}
+		for (auto const & channel : animations[animationIndex]->rotationChannels)
+		{
+			rotationChannelInfos[channel.targetIndex].push({&channel, duration, weight, time});
 		}
 	}
 
@@ -426,11 +425,11 @@ void update_skeleton_animator(SkeletonAnimator & animator, f32 elapsedTime)
 		{
 			v3 translation;
 
-			AnimationChannel const & channel 	= *channelInfo.channel;
+			TranslationChannel const & channel 	= *reinterpret_cast<TranslationChannel const *>(channelInfo.channel);
 
 			s32 previousKeyframeIndex 	= previous_keyframe(channel.times, channelInfo.time);
 			s32 nextKeyframeIndex 		= (previousKeyframeIndex + 1) % channel.keyframe_count();
-			f32 relativeTime 			= get_relative_time(channel, previousKeyframeIndex, nextKeyframeIndex, channelInfo.time, channelInfo.duration);
+			f32 relativeTime 			= get_relative_time(channel.times, previousKeyframeIndex, nextKeyframeIndex, channelInfo.time, channelInfo.duration);
 
 			switch(channel.interpolationMode)
 			{
@@ -484,12 +483,11 @@ void update_skeleton_animator(SkeletonAnimator & animator, f32 elapsedTime)
 
 		for (ChannelInfo const & channelInfo : rotationChannelInfos[boneIndex])
 		{
-
-			AnimationChannel const & channel = *channelInfo.channel;
+			RotationChannel const & channel = *reinterpret_cast<RotationChannel const *>(channelInfo.channel);
 
 			s32 previousKeyframeIndex	= previous_keyframe(channel.times, channelInfo.time);
 			s32 nextKeyframeIndex 		= (previousKeyframeIndex + 1) % channel.keyframe_count();
-			f32 relativeTime 			= get_relative_time(channel, previousKeyframeIndex, nextKeyframeIndex, channelInfo.time, channelInfo.duration);
+			f32 relativeTime 			= get_relative_time(channel.times, previousKeyframeIndex, nextKeyframeIndex, channelInfo.time, channelInfo.duration);
 
 			quaternion rotation;
 

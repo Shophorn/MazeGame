@@ -50,6 +50,7 @@ print (vulkan_sdk)
 if compiler == 'clang++':
 	# Build settings
 	flags 		= "-static -std=c++17 -g -gcodeview -O0"
+	# flags 		= "-static -std=c++17 -O1"
 
 	definitions = [ "-DMAZEGAME_DEVELOPMENT=1",
 					"-DBUILD_DATE_TIME=" + buildTime]

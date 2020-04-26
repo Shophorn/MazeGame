@@ -11,12 +11,12 @@ STUDY: https://devblogs.nvidia.com/vulkan-dos-donts/
 #ifndef WIN_VULKAN_HPP
 
 internal void 
-print_vulkan_assert(char const * file, s32 line, VkResult result)
+print_vulkan_assert(LogInput::FileAddress address, VkResult result)
 {
-    logVulkan() << "Vulkan check failed [" << file << ":" << line << "]: " << vulkan::to_str(result) << "(" << result << ")\n";
+    logVulkan(0) << address << "Vulkan check failed " << vulkan::to_str(result) << "(" << result << ")\n";
 }
 
-#define VULKAN_CHECK(result) if (result != VK_SUCCESS) { print_vulkan_assert(__FILE__, __LINE__, result); abort();}
+#define VULKAN_CHECK(result) if (result != VK_SUCCESS) { print_vulkan_assert(FILE_ADDRESS, result); abort();}
 
 
 constexpr s32 VIRTUAL_FRAME_COUNT = 3;
@@ -29,7 +29,7 @@ constexpr s32 VULKAN_MAX_MODEL_COUNT = 2000;
 constexpr s32 VULKAN_MAX_MATERIAL_COUNT = 100;
 
 
-constexpr VkSampleCountFlagBits VULKAN_MAX_MSAA_SAMPLE_COUNT = VK_SAMPLE_COUNT_1_BIT;
+constexpr VkSampleCountFlagBits VULKAN_MAX_MSAA_SAMPLE_COUNT = VK_SAMPLE_COUNT_2_BIT;
 
 // Note(Leo): these need to align properly
 

@@ -31,9 +31,9 @@ align_up(u64 size, u64 alignment)
     return size;
 }
 
-void copy_memory (void * dst, void const * src, u64 byteCount)
+void copy_memory (void * destination, void const * source, u64 byteCount)
 {
-	memcpy(dst, src, byteCount);
+	memcpy(destination, source, byteCount);
 };
 
 template<typename T>
