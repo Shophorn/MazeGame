@@ -100,17 +100,12 @@ load_animation_glb(MemoryArena & allocator, GltfFile const & file, char const * 
 
 		// ------------------------------------------------------------------------------
 
-		enum ChannelType
-		{
-			ANIMATION_CHANNEL_TRANSLATION,
-			ANIMATION_CHANNEL_ROTATION,
-			ANIMATION_CHANNEL_SCALE,
-
-			ANIMATION_CHANNEL_COUNT
-		};
+		enum { 	ANIMATION_CHANNEL_TRANSLATION,
+				ANIMATION_CHANNEL_ROTATION,
+				ANIMATION_CHANNEL_SCALE,
+		} channelType;
 
 		InterpolationMode 	interpolationMode;
-		ChannelType 		channelType;
 		{
 			char const * interpolationModeStr = samplers[samplerIndex]["interpolation"].GetString();
 

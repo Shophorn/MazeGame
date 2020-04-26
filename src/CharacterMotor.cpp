@@ -32,7 +32,6 @@ struct CharacterMotor
 	Animation const * 	animations [CharacterAnimations::ANIMATION_COUNT];
 	f32 				animationWeights [CharacterAnimations::ANIMATION_COUNT];
 
-
 	BufferedPercent fallPercent = { .duration = 0.2f };
 	BufferedPercent jumpPercent = { .duration = 0.2f };
 	BufferedPercent crouchPercent = { .duration = 0.2f };

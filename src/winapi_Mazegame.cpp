@@ -31,7 +31,7 @@ staging buffer and actual vertex buffer. https://vulkan-tutorial.com/en/Vertex_b
 
 #include "MazegamePlatform.hpp"
 
-using TimePoint = LARGE_INTEGER;
+using TimePoint = platform::TimePoint;
 
 LARGE_INTEGER get_performance_frequency()
 {
@@ -47,15 +47,14 @@ TimePoint current_time ()
 {
     LARGE_INTEGER t;
     QueryPerformanceCounter(&t);
-    return t;
+    return {t.QuadPart};
 }
 
 f64 elapsed_seconds(TimePoint start, TimePoint end)
 {
     local_persist s64 frequency = get_performance_frequency().QuadPart;
 
-    f64 seconds = (f64)(end.QuadPart - start.QuadPart);
-    seconds /= frequency;
+    f64 seconds = (f64)(end.value - start.value) / frequency;
     return seconds;
 }
 
@@ -205,6 +204,9 @@ Run(HINSTANCE hInstance)
         };
         platform::set_functions(&vulkanContext, &state.platformFunctions);
 
+        state.platformFunctions.current_time = current_time;
+        state.platformFunctions.elapsed_seconds = elapsed_seconds;
+
         Assert(all_functions_set(&state.platformFunctions));
     }
 
@@ -250,8 +252,13 @@ Run(HINSTANCE hInstance)
     bool gameIsRunning = true;
     game::Input gameInput = {};
 
-    TimePoint   frameFlipTime;
-    f64         lastFrameElapsedSeconds;    while(gameIsRunning)
+    TimePoint frameFlipTime;
+    f64 lastFrameElapsedSeconds;
+
+    f64 approxAvgFrameTime      = targetFrameTime;
+    f64 approxAvgFrameTimeAlpha = 0.5;
+
+    while(gameIsRunning)
     {
         /// ----- START TIME -----
         auto currentTimeMark = std::chrono::high_resolution_clock::now();
@@ -412,6 +419,10 @@ Run(HINSTANCE hInstance)
             TimePoint now           = current_time();
             lastFrameElapsedSeconds = elapsed_seconds(frameFlipTime, now);
             frameFlipTime           = now;
+
+
+            approxAvgFrameTime = interpolate(approxAvgFrameTime, lastFrameElapsedSeconds, approxAvgFrameTimeAlpha);
+            logConsole(0) << approxAvgFrameTime;
         }
     }
     ///////////////////////////////////////

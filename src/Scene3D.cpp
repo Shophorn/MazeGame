@@ -35,7 +35,7 @@ struct Scene3d
 	Transform3D * 				playerCharacterTransform;
 
 	// Other actors
-	FollowerController followers[20];
+	FollowerController followers[150];
 
 	// Data
 	Animation characterAnimations [CharacterAnimations::ANIMATION_COUNT];
@@ -282,12 +282,16 @@ void Scene3d::load(	void * 						scenePtr,
 		{
 			using namespace CharacterAnimations;			
 
+			auto startTime = platformApi->current_time();
+
 			scene->characterAnimations[WALK] 	= load_animation_glb(*persistentMemory, gltfFile, "Walk");
 			scene->characterAnimations[RUN] 	= load_animation_glb(*persistentMemory, gltfFile, "Run");
 			scene->characterAnimations[IDLE] 	= load_animation_glb(*persistentMemory, gltfFile, "Idle");
 			scene->characterAnimations[JUMP]	= load_animation_glb(*persistentMemory, gltfFile, "JumpUp");
 			scene->characterAnimations[FALL]	= load_animation_glb(*persistentMemory, gltfFile, "JumpDown");
 			scene->characterAnimations[CROUCH] 	= load_animation_glb(*persistentMemory, gltfFile, "Crouch");
+
+			logSystem(1) << "Loading all 6 animations took: " << platformApi->elapsed_seconds(startTime, platformApi->current_time()) << " s";
 
 			motor->animations[WALK] 	= &scene->characterAnimations[WALK];
 			motor->animations[RUN] 		= &scene->characterAnimations[RUN];
@@ -297,7 +301,11 @@ void Scene3d::load(	void * 						scenePtr,
 			motor->animations[CROUCH] 	= &scene->characterAnimations[CROUCH];
 		}
 
+		auto startTime = platformApi->current_time();
+
 		AnimatedSkeleton * cubeHeadSkeleton = scene->animatedSkeletons.push_return_pointer(load_skeleton_glb(*persistentMemory, gltfFile, "cube_head"));
+
+		logSystem(1) << "Loading skeleton took: " << platformApi->elapsed_seconds(startTime, platformApi->current_time()) << " s";
 
 		scene->skeletonAnimators.push({
 			.skeleton 		= cubeHeadSkeleton,

@@ -113,6 +113,11 @@ namespace platform
 	// struct Network;
 	// struct Audio;
 
+	struct TimePoint
+	{
+		s64 value;
+	};
+
 	struct Functions
 	{
 		// GRAPHICS SCENE FUNCTIONS
@@ -143,6 +148,10 @@ namespace platform
 		u32 (*get_window_height) 		(Window const *);
 		bool32 (*is_window_fullscreen) 	(Window const *);
 		void (*set_window_fullscreen) 	(Window*, bool32 value);
+
+		// TIME FUNCTIONS
+		TimePoint (*current_time) 	();
+		f64 (*elapsed_seconds)		(TimePoint start, TimePoint end);
 	};
 
 
