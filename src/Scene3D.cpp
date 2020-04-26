@@ -13,10 +13,19 @@ Scene description for 3d development scene
 
 #include "DefaultSceneGui.cpp"
 
+struct HierarchyNode
+{
+	s32 parent;
+	s32 firstChild;
+	s32 childCount;
+};
+
 struct Scene3d
 {
 	// Components
 	Array<Transform3D> 			transforms;
+	Array<HierarchyNode>		transformHierarchy;
+
 	Array<AnimatedSkeleton> 	animatedSkeletons;
 	Array<SkeletonAnimator> 	skeletonAnimators;	
 	Array<CharacterMotor>		characterMotors;

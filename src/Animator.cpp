@@ -38,10 +38,7 @@ struct RotationChannel
 // Note(Leo): This is for complete animation, with different keyframes for different bones
 struct Animation
 {
-	Array<TranslationChannel> 		translationChannels;
-	s32 stepInterpolationCount;
-	s32 linearInterpolationCount;
-
+	Array<TranslationChannel> 	translationChannels;
 	Array<RotationChannel> 		rotationChannels;
 	f32 						duration;
 };

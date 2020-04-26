@@ -420,9 +420,8 @@ Run(HINSTANCE hInstance)
             lastFrameElapsedSeconds = elapsed_seconds(frameFlipTime, now);
             frameFlipTime           = now;
 
-
             approxAvgFrameTime = interpolate(approxAvgFrameTime, lastFrameElapsedSeconds, approxAvgFrameTimeAlpha);
-            logConsole(0) << approxAvgFrameTime;
+            // logConsole(0) << approxAvgFrameTime;
         }
     }
     ///////////////////////////////////////
@@ -444,7 +443,7 @@ Run(HINSTANCE hInstance)
         /* TODO(Leo): If there are multiple of these it means we had crash previously
         and want to reset this. This should be handled betterly though.... :( */
         timeEndPeriod(deviceMinSchedulerGranularity);
-        logWindow() << "shut down\n";
+        logWindow(0) << "shut down\n";
     }
 }
 

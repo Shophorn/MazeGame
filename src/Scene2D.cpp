@@ -298,9 +298,6 @@ scene_2d::load(	void * scenePtr,
 			int ladderRigBoneCount = 6;
 			auto channels = allocate_array<TranslationChannel>(*persistentMemory, ladderRigBoneCount);
 
-			auto parent1 = root1;
-			auto parent2 = root2;
-			
 			int ladder2StartIndex = 6;
 			int ladderCount = 12;
 
@@ -317,8 +314,6 @@ scene_2d::load(	void * scenePtr,
 
 				if (ladderIndex < ladder2StartIndex)
 				{
-					transform->parent = parent1;
-					parent1 = transform;
 					bones1.push(transform);
 	
 
@@ -332,8 +327,6 @@ scene_2d::load(	void * scenePtr,
 				}
 				else
 				{
-					transform->parent = parent2;
-					parent2 = transform;	
 					bones2.push(transform);
 				}
 			}	

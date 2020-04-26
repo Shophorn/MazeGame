@@ -57,8 +57,9 @@ struct CollisionManager2D
 						continue;
 			}
 
-			v3 worldPosition = get_world_position(*colliders[i].transform);
-			v2 position2D = {	worldPosition.x, worldPosition.z };
+			// v3 worldPosition = get_world_position(*colliders[i].transform);
+			v3 worldPosition = colliders[i].transform->position;
+			v2 position2D = {worldPosition.x, worldPosition.z };
 
 			position2D += colliders[i].offset;
 			v2 extents = colliders[i].extents;
@@ -106,8 +107,8 @@ struct CollisionManager2D
 		{
 			for (s32 b = a + 1; b < colliders.count(); ++b)
 			{
-				v2 positionA = v2{get_world_position(*colliders[a].transform).x, get_world_position(*colliders[a].transform).z} + colliders[a].offset;
-				v2 positionB = v2{get_world_position(*colliders[b].transform).x, get_world_position(*colliders[b].transform).z} + colliders[b].offset;
+				v2 positionA = v2{colliders[a].transform->position.x, colliders[a].transform->position.z} + colliders[a].offset;
+				v2 positionB = v2{colliders[b].transform->position.x, colliders[b].transform->position.z} + colliders[b].offset;
 
 				float xDeltaAtoB 	= positionB.x - positionA.x;
 				float xDistance		= math::absolute(xDeltaAtoB);
