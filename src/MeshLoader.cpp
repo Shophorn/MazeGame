@@ -417,6 +417,14 @@ load_mesh_glb(MemoryArena & allocator, GltfFile const & file, char const * model
 	return result;
 }
 
+
+internal MeshAsset
+load_mesh_glb(MemoryArena & allocator, char const * filename, char const * modelName)
+{
+	GltfFile file = read_gltf_file(*global_transientMemory, filename);
+	return load_mesh_glb(allocator, file, modelName);
+}
+
 namespace mesh_ops
 {
 	internal void

@@ -220,10 +220,10 @@ namespace winapi
         WinAPIWindow window = {};
 
 
-        window.width = windowRect.right - windowRect.left;
-        window.height = windowRect.bottom - windowRect.top;
-        window.hwnd = hwnd;
-        window.hInstance = winInstance;
+        window.width        = windowRect.right - windowRect.left;
+        window.height       = windowRect.bottom - windowRect.top;
+        window.hwnd         = hwnd;
+        window.hInstance    = winInstance;
 
         return window;
     }

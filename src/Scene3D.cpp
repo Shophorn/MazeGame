@@ -43,8 +43,18 @@ struct Scene3d
 	s32 						playerMotorIndex;
 	Transform3D * 				playerCharacterTransform;
 
+	static constexpr s32 potCount = 10;
+	bool 			potIsCarried[potCount];
+	Transform3D * 	potTransforms[potCount];
+
+	f32 			treeGrowths[potCount];
+	Transform3D * 	treeTransforms[potCount];
+
+	bool playerIsCarrying;
+
 	// Other actors
 	FollowerController followers[150];
+	RandomWalkController randomWalkers [10];
 
 	// Data
 	Animation characterAnimations [CharacterAnimations::ANIMATION_COUNT];
@@ -81,15 +91,15 @@ SceneInfo get_3d_scene_info()
 MenuResult
 Scene3d::update(	void * 					scenePtr,
 					game::Input * 			input,
-					platform::Graphics * 	graphics,
-					platform::Window *	 	window,
-					platform::Functions * 	functions)
+					platform::Graphics *,
+					platform::Window *,
+					platform::Functions *)
 {
 	Scene3d * scene = reinterpret_cast<Scene3d*>(scenePtr);
 
 	/* Sadly, we need to draw skybox before game logic, because otherwise
 	debug lines would be hidden. This can be fixed though, just make debug pipeline similar to shadows. */ 
-	functions->draw_model(graphics, scene->skybox, m44::identity(), false, nullptr, 0);
+	platformApi->draw_model(platformGraphics, scene->skybox, m44::identity(), false, nullptr, 0);
 
 	/*
 	1. update input
@@ -100,11 +110,49 @@ Scene3d::update(	void * 					scenePtr,
 	
 	*/
 
-
-
 	// Game Logic section
 	update_player_input(scene->playerMotorIndex, scene->characterInputs, scene->worldCamera, *input);
 	
+	for (s32 potIndex = 0; potIndex < scene->potCount; ++ potIndex)
+	{
+		if (is_clicked(input->Y))
+		{
+			if (scene->potIsCarried[potIndex])
+			{
+				scene->potIsCarried[potIndex] = false;
+				scene->potTransforms[potIndex]->position.z = get_terrain_height(&scene->collisionSystem, *scene->potTransforms[potIndex]->position.xy());
+				scene->treeTransforms[potIndex]->position = multiply_point(get_matrix(*scene->potTransforms[potIndex]), {0, 0, 0.3});
+				scene->playerIsCarrying = false;
+			}
+			else
+			{
+				if ((scene->playerIsCarrying == false) && ((scene->playerCharacterTransform->position - scene->potTransforms[potIndex]->position).magnitude() < 1.0))
+				{
+					scene->potIsCarried[potIndex] = true;
+					scene->playerIsCarrying = true;
+				}
+			}
+		}
+
+		if (scene->potIsCarried[potIndex])
+		{
+			scene->potTransforms[potIndex]->position = multiply_point(get_matrix(*scene->playerCharacterTransform), {0, 0.5, 0.7});
+			scene->treeTransforms[potIndex]->position = multiply_point(get_matrix(*scene->potTransforms[potIndex]), {0, 0, 0.3});
+		}
+		else
+		{
+			scene->treeGrowths[potIndex] += input->elapsedTime / 20;
+			scene->treeGrowths[potIndex] = math::clamp(scene->treeGrowths[potIndex], 0.0f, 1.0f);
+			scene->treeTransforms[potIndex]->scale = scene->treeGrowths[potIndex];
+		}
+	}
+
+
+	for (auto & randomWalker : scene->randomWalkers)
+	{
+		update_random_walker_input(randomWalker, scene->characterInputs, input->elapsedTime);
+	}
+
 	for (auto & follower : scene->followers)
 	{
 		update_follower_input(follower, scene->characterInputs, input->elapsedTime);
@@ -134,7 +182,7 @@ Scene3d::update(	void * 					scenePtr,
 		3. Render animated models
 	*/
 
-    update_camera_system(&scene->worldCamera, input, graphics, window);
+    update_camera_system(&scene->worldCamera, input, platformGraphics, platformWindow);
 
 	Light light = { .direction 	= v3{1, 1.2, -3}.normalized(), 
 					.color 		= v3{0.95, 0.95, 0.9}};
@@ -154,7 +202,7 @@ Scene3d::update(	void * 					scenePtr,
 	{
 		update_animated_renderer(renderer);
 
-		platformApi->draw_model(graphics, renderer.model, get_matrix(*renderer.transform),
+		platformApi->draw_model(platformGraphics, renderer.model, get_matrix(*renderer.transform),
 								renderer.castShadows, renderer.bones.data(),
 								renderer.bones.count());
 	}
@@ -273,6 +321,8 @@ void Scene3d::load(	void * 						scenePtr,
 
 	// Characters
 	{
+		scene->playerIsCarrying = false;
+
 		char const * filename 	= "assets/models/cube_head.glb";
 		auto const gltfFile 	= read_gltf_file(*global_transientMemory, filename);
 
@@ -336,7 +386,47 @@ void Scene3d::load(	void * 						scenePtr,
 
 		// --------------------------------------------------------------------
 
-		Transform3D * targetTransform = playerTransform;
+		for (s32 randomWalkerIndex = 0; randomWalkerIndex < array_count(scene->randomWalkers); ++randomWalkerIndex)
+		{
+			v3 position = {RandomRange(-99, 99), RandomRange(-99, 99), 0};
+			f32 scale 	= {RandomRange(0.8f, 1.5f)};
+
+			auto * transform 	= scene->transforms.push_return_pointer({.position = position, .scale = scale});
+			s32 motorIndex 		= scene->characterMotors.count();
+			auto * motor 		= scene->characterMotors.push_return_pointer();
+			motor->transform 	= transform;
+
+			scene->randomWalkers[randomWalkerIndex] = {transform, motorIndex, {RandomRange(-99, 99), RandomRange(-99, 99)}};
+
+			{
+				using namespace CharacterAnimations;			
+
+				motor->animations[WALK] 	= &scene->characterAnimations[WALK];
+				motor->animations[RUN] 		= &scene->characterAnimations[RUN];
+				motor->animations[IDLE] 	= &scene->characterAnimations[IDLE];
+				motor->animations[JUMP]		= &scene->characterAnimations[JUMP];
+				motor->animations[FALL]		= &scene->characterAnimations[FALL];
+				motor->animations[CROUCH] 	= &scene->characterAnimations[CROUCH];
+			}
+
+			AnimatedSkeleton * skeleton = scene->animatedSkeletons.push_return_pointer({});
+			skeleton->bones = copy_array(*persistentMemory, cubeHeadSkeleton->bones);
+
+			scene->skeletonAnimators.push({
+					.skeleton 		= skeleton,
+					.animations 	= motor->animations,
+					.weights 		= motor->animationWeights,
+					.animationCount = CharacterAnimations::ANIMATION_COUNT
+				});
+
+			auto model = push_model(girlMesh, materials.character); 
+			scene->animatedRenderers.push(make_animated_renderer(transform,	skeleton, model, *persistentMemory));
+		}
+
+
+
+		Transform3D * targetTransform = nullptr;
+		s32 followersPerWalker = array_count(scene->followers) / array_count(scene->randomWalkers); 
 
 		for (s32 followerIndex = 0; followerIndex < array_count(scene->followers); ++followerIndex)
 		{
@@ -347,6 +437,14 @@ void Scene3d::load(	void * 						scenePtr,
 			s32 motorIndex 		= scene->characterMotors.count();
 			auto * motor 		= scene->characterMotors.push_return_pointer();
 			motor->transform 	= transform;
+
+
+			if ((followerIndex % followersPerWalker) == 0)
+			{
+				s32 targetIndex = followerIndex / followersPerWalker;
+				targetTransform = scene->randomWalkers[targetIndex].transform;
+			}
+
 
 			scene->followers[followerIndex] = make_follower_controller(transform, targetTransform, motorIndex);
 			targetTransform = transform;
@@ -473,7 +571,7 @@ void Scene3d::load(	void * 						scenePtr,
 		{
 			v3 position 			= {21, 10, 0};
 			position.z 				= get_terrain_height(&scene->collisionSystem, *position.xy());
-			auto * transform = scene->transforms.push_return_pointer({.position = position});
+			auto * transform 		= scene->transforms.push_return_pointer({.position = position});
 
 			char const * filename 	= "assets/models/Robot53.glb";
 			auto meshAsset 			= load_mesh_glb(*global_transientMemory, read_gltf_file(*global_transientMemory, filename), "model_rigged");	
@@ -486,7 +584,39 @@ void Scene3d::load(	void * 						scenePtr,
 			scene->renderers.push({transform, model});
 		}
 
-		logConsole() << FILE_ADDRESS << used_percent(*persistentMemory) * 100 <<  "% of persistent memory used.";
-		logSystem() << "Scene3d loaded, " << used_percent(*persistentMemory) * 100 << "% of persistent memory used.";
+		{
+			auto gltfFile 		= read_gltf_file(*global_transientMemory, "assets/models/scenery.glb");
+			auto potMeshAsset 	= load_mesh_glb(*global_transientMemory, gltfFile, "pot");
+			auto mesh 			= platformApi->push_mesh(platformGraphics, &potMeshAsset);
+
+			for(s32 potIndex = 0; potIndex < scene->potCount; ++potIndex)
+			{
+				auto model 			= push_model(mesh, materials.environment);
+
+				v3 position 					= {15, potIndex * 15.0f, 0};
+				position.z 						= get_terrain_height(&scene->collisionSystem, *position.xy());
+				scene->potTransforms[potIndex]	= scene->transforms.push_return_pointer({.position = position});
+
+				scene->renderers.push({scene->potTransforms[potIndex], model});
+			}
+
+			auto treeTextureAsset 	= load_texture_asset("assets/textures/tree.png", global_transientMemory);
+			auto treeTexture 		= platformApi->push_texture(platformGraphics, &treeTextureAsset);			
+			auto treeMaterial 		= push_material(normalPipeline, treeTexture, neutralBumpTexture, blackTexture);
+			auto treeMeshAsset 		= load_mesh_glb(*global_transientMemory, gltfFile, "tree");
+			auto treeMesh 			= platformApi->push_mesh(platformGraphics, &treeMeshAsset);
+
+			for (s32 treeIndex = 0; treeIndex < scene->potCount; ++treeIndex)
+			{
+				auto treeModel 		= push_model(treeMesh, treeMaterial);
+
+				scene->treeTransforms[treeIndex] = scene->transforms.push_return_pointer({});
+				scene->treeTransforms[treeIndex]->position = multiply_point(get_matrix(*scene->potTransforms[treeIndex]), v3{0,0,0.3});
+				scene->renderers.push({scene->treeTransforms[treeIndex], treeModel});
+			}
+		}
+
+		logSystem(0) << "Scene3d loaded, " << used_percent(*global_transientMemory) * 100 << "% of transient memory used.";
+		logSystem(0) << "Scene3d loaded, " << used_percent(*persistentMemory) * 100 << "% of persistent memory used.";
 	}
 }

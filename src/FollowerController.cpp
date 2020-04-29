@@ -28,7 +28,7 @@ FollowerController make_follower_controller(Transform3D * 	transform,
 	return controller;
 }
 
-void update_follower_input(	FollowerController 			& controller,
+void update_follower_input(	FollowerController 		& controller,
 							Array<CharacterInput> 	& motorInputs,
 							f32 elapsedTime)
 {
@@ -123,4 +123,54 @@ void update_follower_input(	FollowerController 			& controller,
 
 
 	motorInputs[controller.motorInputIndex] = {inputVector, jumpInput, crouchInput};
+}
+
+struct RandomWalkController
+{
+	Transform3D * transform;
+	s32 motorInputIndex;
+
+	v2 targetPosition;
+	f32 waitTimer;
+
+	bool isWaiting;
+};
+
+void update_random_walker_input(RandomWalkController & controller,
+								Array<CharacterInput> & motorInputs,
+								f32 elapsedTime)
+{
+	if (controller.isWaiting)
+	{
+		controller.waitTimer -= elapsedTime;
+		if (controller.waitTimer < 0)
+		{
+			controller.targetPosition = { RandomRange(-99, 99), RandomRange(-99, 99)};
+			controller.isWaiting = false;
+		}
+
+
+		m44 gizmoTransform = make_transform_matrix(	controller.transform->position + v3::up * controller.transform->scale * 2.0f, 
+													controller.transform->rotation,
+													controller.waitTimer);
+		debug::draw_diamond_2d(gizmoTransform, colors::mutedRed, ORIENT_2D_XZ);
+	}
+	
+	f32 distance = (*controller.transform->position.xy() - controller.targetPosition).magnitude();
+	if (distance < 1.0f && controller.isWaiting == false)
+	{
+		controller.waitTimer = 10;
+		controller.isWaiting = true;
+	}
+
+
+	v3 input 			= {};
+	*input.xy() 		= controller.targetPosition - *controller.transform->position.xy();
+	f32 inputMagnitude 	= input.magnitude();
+	input 				= input / inputMagnitude;
+	inputMagnitude 		= math::clamp(inputMagnitude, 0.0f, 1.0f);
+	input 				= input * inputMagnitude;
+
+	motorInputs[controller.motorInputIndex] = {input, false, false};
+
 }
