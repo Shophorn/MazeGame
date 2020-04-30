@@ -40,15 +40,16 @@ struct Scene3d
 	// Player
 	Camera 						worldCamera;
 	CameraController3rdPerson 	cameraController;
-	s32 						playerMotorIndex;
+
+	PlayerInputState 			playerInputState;
 	Transform3D * 				playerCharacterTransform;
 
-	static constexpr s32 potCount = 10;
-	bool 			potIsCarried[potCount];
-	Transform3D * 	potTransforms[potCount];
+	static constexpr 	s32 potCount = 10;
+	bool 				potIsCarried[potCount];
+	Transform3D * 		potTransforms[potCount];
 
-	f32 			treeGrowths[potCount];
-	Transform3D * 	treeTransforms[potCount];
+	f32 				treeGrowths[potCount];
+	Transform3D * 		treeTransforms[potCount];
 
 	bool playerIsCarrying;
 
@@ -111,11 +112,12 @@ Scene3d::update(	void * 					scenePtr,
 	*/
 
 	// Game Logic section
-	update_player_input(scene->playerMotorIndex, scene->characterInputs, scene->worldCamera, *input);
+	update_player_input(scene->playerInputState, scene->characterInputs, scene->worldCamera, *input);
 	
+
 	for (s32 potIndex = 0; potIndex < scene->potCount; ++ potIndex)
 	{
-		if (is_clicked(input->Y))
+		if (is_clicked(input->A))
 		{
 			if (scene->potIsCarried[potIndex])
 			{
@@ -136,7 +138,7 @@ Scene3d::update(	void * 					scenePtr,
 
 		if (scene->potIsCarried[potIndex])
 		{
-			scene->potTransforms[potIndex]->position = multiply_point(get_matrix(*scene->playerCharacterTransform), {0, 0.5, 0.7});
+			scene->potTransforms[potIndex]->position = multiply_point(get_matrix(*scene->playerCharacterTransform), {0, 0.7, 0.7});
 			scene->treeTransforms[potIndex]->position = multiply_point(get_matrix(*scene->potTransforms[potIndex]), {0, 0, 0.3});
 		}
 		else
@@ -146,6 +148,13 @@ Scene3d::update(	void * 					scenePtr,
 			scene->treeTransforms[potIndex]->scale = scene->treeGrowths[potIndex];
 		}
 	}
+
+	for (auto const & collider : scene->collisionSystem.cylinderColliders)
+	{
+		debug::draw_circle_xy(collider.transform->position + collider.center, collider.radius, colors::brightYellow);
+	}
+
+	debug::draw_circle_xy(scene->playerCharacterTransform->position + v3{0,0,0.7}, 0.25f, colors::brightGreen);
 
 
 	for (auto & randomWalker : scene->randomWalkers)
@@ -157,6 +166,7 @@ Scene3d::update(	void * 					scenePtr,
 	{
 		update_follower_input(follower, scene->characterInputs, input->elapsedTime);
 	}
+	
 	update_camera_controller(&scene->cameraController, input);
 
 	for (int i = 0; i < scene->characterMotors.count(); ++i)
@@ -233,10 +243,17 @@ void Scene3d::load(	void * 						scenePtr,
 	scene->skeletonAnimators 	= allocate_array<SkeletonAnimator>(*persistentMemory, 600);
 	scene->animatedRenderers 	= allocate_array<AnimatedRenderer>(*persistentMemory, 600);
 	scene->renderers 			= allocate_array<Renderer>(*persistentMemory, 600);
+
+	// Todo(Leo): Probaly need to allocate these more coupledly, at least they must be able to reordered together
 	scene->characterMotors		= allocate_array<CharacterMotor>(*persistentMemory, 600);
 	scene->characterInputs		= allocate_array<CharacterInput>(*persistentMemory, scene->characterMotors.capacity(), ALLOC_FILL | ALLOC_NO_CLEAR);
 
-	allocate_collision_system(&scene->collisionSystem, persistentMemory, 600);
+	scene->collisionSystem.boxColliders 	= allocate_array<BoxCollider>(*persistentMemory, 600);
+	scene->collisionSystem.cylinderColliders = allocate_array<CylinderCollider>(*persistentMemory, 600);
+
+	logSystem() << "Allocations succesful! :)";
+
+	// ----------------------------------------------------------------------------------
 
 	struct MaterialCollection {
 		MaterialHandle character;
@@ -334,7 +351,8 @@ void Scene3d::load(	void * 						scenePtr,
 		Transform3D * playerTransform = scene->transforms.push_return_pointer({10, 10, 5});
 		scene->playerCharacterTransform = playerTransform;
 
-		scene->playerMotorIndex = scene->characterMotors.count();
+		s32 motorIndex = scene->characterMotors.count();
+		scene->playerInputState.inputArrayIndex = motorIndex;
 		auto * motor = scene->characterMotors.push_return_pointer();
 		motor->transform = playerTransform;
 
@@ -473,7 +491,6 @@ void Scene3d::load(	void * 						scenePtr,
 			auto model = push_model(girlMesh, materials.character); 
 			scene->animatedRenderers.push(make_animated_renderer(transform,	skeleton, model, *persistentMemory));
 		}
-
 	}
 
 	scene->worldCamera = make_camera(50, 0.1f, 1000.0f);
@@ -513,16 +530,18 @@ void Scene3d::load(	void * 						scenePtr,
 			auto transform = scene->transforms.push_return_pointer({});
 			transform->position.z = get_terrain_height(&scene->collisionSystem, *transform->position.xy()) - 0.5f;
 			scene->renderers.push({transform, model});
-			push_collider_to_system(&scene->collisionSystem,
-									BoxCollider3D{ .extents = {1.0, 1.0, 5.0}, .center = {0,0,2} },
-									transform);
+			push_box_collider(	scene->collisionSystem,
+								v3 {1.0, 1.0, 5.0},
+								v3 {0,0,2},
+								transform);
 
 			transform = scene->transforms.push_return_pointer({.position = {0, 5, 0} , .scale = 0.5});
 			transform->position.z = get_terrain_height(&scene->collisionSystem, *transform->position.xy()) - 0.25f;
 			scene->renderers.push({transform, model});
-			push_collider_to_system(&scene->collisionSystem,
-									BoxCollider3D{ .extents = {0.5, 0.5, 2.5}, .center = {0,0,1} },
-									transform);
+			push_box_collider(	scene->collisionSystem,
+								v3{0.5, 0.5, 2.5},
+								v3{0,0,1},
+								transform);
 		}
 
 		{
@@ -562,8 +581,7 @@ void Scene3d::load(	void * 						scenePtr,
 				auto model = push_model(pillarMeshHandle, materials.environment);
 				scene->renderers.push({transform, model});
 
-				auto collider  = BoxCollider3D{ .extents = {2, 2, 50}, .center = {0, 0, 25}};
-				push_collider_to_system(&scene->collisionSystem, collider, transform);
+				push_box_collider(scene->collisionSystem, v3{2,2,50}, v3{0,0,25}, transform);
 			}
 		}
 
@@ -585,25 +603,43 @@ void Scene3d::load(	void * 						scenePtr,
 		}
 
 		{
-			auto gltfFile 		= read_gltf_file(*global_transientMemory, "assets/models/scenery.glb");
-			auto potMeshAsset 	= load_mesh_glb(*global_transientMemory, gltfFile, "pot");
-			auto mesh 			= platformApi->push_mesh(platformGraphics, &potMeshAsset);
+			auto sceneryFile 		= read_gltf_file(*global_transientMemory, "assets/models/scenery.glb");
+			
+			auto smallPotMeshAsset 	= load_mesh_glb(*global_transientMemory, sceneryFile, "small_pot");
+			auto smallPotMesh 		= platformApi->push_mesh(platformGraphics, &smallPotMeshAsset);
 
 			for(s32 potIndex = 0; potIndex < scene->potCount; ++potIndex)
 			{
-				auto model 			= push_model(mesh, materials.environment);
+				auto model 			= push_model(smallPotMesh, materials.environment);
 
-				v3 position 					= {15, potIndex * 15.0f, 0};
+				v3 position 					= {15, potIndex * 5.0f, 0};
 				position.z 						= get_terrain_height(&scene->collisionSystem, *position.xy());
 				scene->potTransforms[potIndex]	= scene->transforms.push_return_pointer({.position = position});
 
 				scene->renderers.push({scene->potTransforms[potIndex], model});
+				push_cylinder_collider(scene->collisionSystem, 0.3, 0.5, v3{0,0,0.25}, scene->potTransforms[potIndex]);
 			}
+
+			auto bigPotMeshAsset 	= load_mesh_glb(*global_transientMemory, sceneryFile, "big_pot");
+			auto bigPotMesh 		= platformApi->push_mesh(platformGraphics, &bigPotMeshAsset);
+
+			s32 bigPotCount = 5;
+			for (s32 i = 0; i < bigPotCount; ++i)
+			{
+				ModelHandle model 		= platformApi->push_model(platformGraphics, bigPotMesh, materials.environment);
+				Transform3D * transform = scene->transforms.push_return_pointer({13, 2.0f + i * 4.0f, 0});
+
+				transform->position.z 	= get_terrain_height(&scene->collisionSystem, *transform->position.xy());
+
+				scene->renderers.push({transform, model});
+				push_cylinder_collider(scene->collisionSystem, 0.6, 1, v3{0,0,0.5}, transform);
+			}
+
 
 			auto treeTextureAsset 	= load_texture_asset("assets/textures/tree.png", global_transientMemory);
 			auto treeTexture 		= platformApi->push_texture(platformGraphics, &treeTextureAsset);			
 			auto treeMaterial 		= push_material(normalPipeline, treeTexture, neutralBumpTexture, blackTexture);
-			auto treeMeshAsset 		= load_mesh_glb(*global_transientMemory, gltfFile, "tree");
+			auto treeMeshAsset 		= load_mesh_glb(*global_transientMemory, sceneryFile, "tree");
 			auto treeMesh 			= platformApi->push_mesh(platformGraphics, &treeMeshAsset);
 
 			for (s32 treeIndex = 0; treeIndex < scene->potCount; ++treeIndex)

@@ -5,7 +5,13 @@ shophorn @ internet
 3rd person character controller, nothhng less, nothing more
 =============================================================================*/
 
-void update_player_input(	s32 						inputIndex,
+struct PlayerInputState
+{
+	bool32 	crouching;
+	s32 	inputArrayIndex;
+};
+
+void update_player_input(	PlayerInputState & 			playerState,
 							Array<CharacterInput> & 	inputs,
 							Camera & 					playerCamera,
 							game::Input & 				platformInput)
@@ -18,7 +24,12 @@ void update_player_input(	s32 						inputIndex,
 	v3 worldSpaceInput 	= viewRight * platformInput.move.x + viewForward * platformInput.move.y;
 
 	bool32 jumpInput 	= is_clicked(platformInput.X);
-	bool32 crouchInput 	= is_pressed(platformInput.B);
 
-	inputs[inputIndex] = {worldSpaceInput, jumpInput, crouchInput};
+	if(is_clicked(platformInput.B))
+	{
+		playerState.crouching = !playerState.crouching;
+	}
+	bool32 crouchInput 	= playerState.crouching;
+
+	inputs[playerState.inputArrayIndex] = {worldSpaceInput, jumpInput, crouchInput};
 } 

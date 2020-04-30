@@ -113,6 +113,12 @@ namespace math
     {
         return absolute(a - b);
     }
+
+    template<typename T>
+    internal inline T pow2(T value)
+    {
+        return value * value;
+    }
 }
 
 
@@ -170,6 +176,7 @@ Sign(S value)
 }
 
 internal inline constexpr float pi = 3.141592653589793f;
+internal inline constexpr float tau = 2 * pi;
 
 inline float to_degrees(float radians)
 {

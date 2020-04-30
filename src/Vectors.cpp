@@ -55,11 +55,39 @@ struct Vector<S, 2>
 	S square_magnitude() const 	{ return vector_impl_::square_magnitude<S, 2>(this); }
 
 	Vector normalized() const 	{ Vector result = *this; vector_impl_::divide<S, 2>(&result, magnitude()); return result; }
-};
 
+};
 
 using v2 = Vector<float, 2>;
 using point2 = Vector<u32, 2>;
+
+
+f32 dot_product(v2 a, v2 b)
+{
+	f32 p = { a.x * b.x + a.y * b.y };
+	return p;
+}
+
+f32 magnitude(v2 v)
+{
+	f32 m = math::square_root(v.x * v.x + v.y * v.y);
+	return m;
+}
+
+v2 divide(v2 v, f32 f)
+{
+	v.x /= f;
+	v.y /= f;
+	return v;
+}
+
+v2 normalize(v2 v)
+{
+	v = divide(v, magnitude(v));
+	return v;
+}
+
+
 
 template<typename S>
 struct Vector<S, 3>
@@ -67,6 +95,7 @@ struct Vector<S, 3>
 	S x, y, z; 
 
 	Vector<S, 2> * xy () { return reinterpret_cast<Vector<S,2>*>(this); }
+	Vector<S, 2> const * xy() const { return reinterpret_cast<Vector<S, 2> const *>(this); }
 
 	static Vector const right;
 	static Vector const forward;
@@ -82,6 +111,34 @@ using v3 	= Vector<float, 3>;
 template<typename S> Vector<S,3> constexpr Vector<S,3>::right 	= {1,0,0};
 template<typename S> Vector<S,3> constexpr Vector<S,3>::forward = {0,1,0};
 template<typename S> Vector<S,3> constexpr Vector<S,3>::up 		= {0,0,1};
+
+f32 magnitude(v3 v)
+{
+	using namespace math;
+
+	f32 m = square_root(pow2(v.x) + pow2(v.y) + pow2(v.z));
+	return m;
+}
+
+v3 divide(v3 v, f32 f)
+{
+	v.x /= f;
+	v.y /= f;
+	v.z /= f;
+
+	return v;
+}
+
+v3 normalize(v3 v)
+{
+	v = divide(v, magnitude(v));
+	return v;
+}
+
+
+
+
+
 
 struct world
 {

@@ -68,6 +68,58 @@ namespace debug
 		platformApi->draw_line(platformGraphics, zPos, yNeg, 1.0f, color);
 	}
 
+	struct Line
+	{
+		v3 start, end;
+	};
+
+	void draw_lines(Line * lines, s32 lineCount, v4 color)
+	{
+		for (int i = 0; i < lineCount; ++i)
+		{
+			platformApi->draw_line(platformGraphics, lines[i].start, lines[i].end, 1.0f, color);
+		}
+	}
+
+	void draw_circle_xy(v3 position, f32 radius, v4 color)
+	{
+		Line lines [16];
+		s32 lineCount = array_count(lines);
+
+		f32 angle = tau / lineCount;
+
+		for (s32 i = 0; i < lineCount; ++i)
+		{
+			lines[i].start 	= v3{cosine(i * angle) * radius, sine(i * angle) * radius} + position;
+
+			s32 next = (i + 1) % lineCount;
+			lines[i].end 	= v3{cosine(next * angle) * radius, sine(next * angle) * radius} + position;
+		}
+
+		draw_lines(lines, lineCount, color);
+	}
+
+	// Note(Leo): this was wrong but it yielded a nice pattern so I saved it :)
+	// void draw_circle_xy(v3 position, f32 radius, v4 color)
+	// {
+	// 	Line lines [16] = {};
+	// 	f32 angle = tau / 16;
+
+	// 	for (s32 i = 0; i < 16; ++i)
+	// 	{
+	// 		// f32 s = sine(i * angle);
+	// 		// f32 c = cosine(i * angle);
+
+	// 		lines[i].start 	= v3{cosine(i * angle) * radius, sine(i * angle) * radius} + position;
+
+			// Note(Leo): error was here, should have been: (i + 1) % 16....
+	// 		s32 next = (i + i) / 16;
+	// 		lines[i].end 	= v3{cosine(next * angle) * radius, sine(next * angle) * radius} + position;
+	// 	}
+
+	// 	draw_lines(lines, 16, color);
+	// }
+
 	void draw_diamond_2d(m44 transform, v4 color, s32 orientation)
 	{
 		v3 corners [4];
@@ -102,6 +154,9 @@ namespace debug
 		}
 	}
 
+
+
+
 	void draw_line(v3 start, v3 end, v4 color)
 	{
 		platformApi->draw_line(platformGraphics, start, end, 1.0f, color);
@@ -125,4 +180,5 @@ namespace debug
 		platformApi->draw_line(platformGraphics, cornerA, cornerB, 1.0f, color);
 
 	}
+
 }

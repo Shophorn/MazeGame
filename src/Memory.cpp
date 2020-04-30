@@ -54,6 +54,14 @@ T convert_bytes(byte const * bytes, u64 offset)
 	return result;
 }
 
+template<typename T>
+void swap(T & a, T & b)
+{
+	T temp = a;
+	a = b;
+	b = temp;
+}
+
 // ----------------------------------------------------------------------------
 
 template<typename T, u32 Count>
@@ -132,6 +140,63 @@ internal f32 used_percent(MemoryArena & arena)
 	f32 percent = (f32)arena.used / arena.size;
 	return percent;
 }
+
+// ---------------------------------------------------------------------------
+/* Note(Leo): This has not yet been needed, but it was fun to write it. We are
+still succesfully using flush_memory_arena()*/
+
+/*
+struct MemoryCheckpoint
+{
+	MemoryArena * arena;
+	u64 used;
+};
+
+MemoryCheckpoint push_checkpoint(MemoryArena & arena)
+{
+	MemoryCheckpoint checkpoint = {&arena, arena.used};
+	return checkpoint;
+}
+
+void reset_checkpoint(MemoryCheckpoint & checkpoint)
+{
+	Assert(checkpoint.arena != nullptr);
+
+	checkpoint.arena->used = checkpoint.used;
+}
+
+void pop_checkpoint(MemoryCheckpoint & checkpoint)
+{
+	Assert(checkpoint.arena != nullptr);
+
+	checkpoint.arena->used 	= checkpoint.used;
+	checkpoint.arena 		= nullptr;
+	checkpoint.used 		= 0;
+}
+
+
+void test()
+{
+	MemoryCheckpoint checkpoint = {};
+	checkpoint = push_checkpoint(arena);
+
+	// do stuff
+
+	reset_checkpoint(checkpoint);
+
+	// do stuff
+
+	reset_checkpoint(checkpoint);
+
+	// do stuff
+
+	reset_checkpoint(checkpoint);
+
+	// do stuff
+
+	pop_checkpoint(checkpoint);
+}
+*/
 
 // ----------------------------------------------------------------------------
 
