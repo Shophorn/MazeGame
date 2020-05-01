@@ -129,7 +129,7 @@ value_to_byte(float value)
 }
 
 inline u32
-make_pixel(float4 color)
+make_color_argb_32(float4 color)
 {
 	u32 pixel = (u32)value_to_byte(color.w) << 24
 				| (u32)value_to_byte(color.x) << 16

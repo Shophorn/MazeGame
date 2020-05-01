@@ -56,7 +56,7 @@ vulkan::find_memory_type (VkPhysicalDevice physicalDevice, u32 typeFilter, VkMem
     VkPhysicalDeviceMemoryProperties memoryProperties;
     vkGetPhysicalDeviceMemoryProperties (physicalDevice, &memoryProperties);
 
-    for (int i = 0; i < memoryProperties.memoryTypeCount; ++i)
+    for (s32 i = 0; i < memoryProperties.memoryTypeCount; ++i)
     {
         bool32 filterMatch = (typeFilter & (1 << i)) != 0;
         bool32 memoryTypeOk = (memoryProperties.memoryTypes[i].propertyFlags & properties) == properties;
@@ -171,7 +171,7 @@ vulkan::choose_swapchain_surface_format(std::vector<VkSurfaceFormatKHR>& availab
     constexpr VkColorSpaceKHR preferredColorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
 
     VkSurfaceFormatKHR result = availableFormats [0];
-    for (int i = 0; i < availableFormats.size(); ++i)
+    for (s32 i = 0; i < availableFormats.size(); ++i)
     {
         if (availableFormats[i].format == preferredFormat && availableFormats[i].colorSpace == preferredColorSpace)
         {
@@ -188,7 +188,7 @@ vulkan::choose_surface_present_mode(std::vector<VkPresentModeKHR> & availablePre
     constexpr VkPresentModeKHR preferredPresentMode = VK_PRESENT_MODE_MAILBOX_KHR;
 
     VkPresentModeKHR result = VK_PRESENT_MODE_FIFO_KHR;
-    for (int i = 0; i < availablePresentModes.size(); ++i)
+    for (s32 i = 0; i < availablePresentModes.size(); ++i)
     {
         if (availablePresentModes[i] == preferredPresentMode)
         {
@@ -208,7 +208,7 @@ vulkan::find_queue_families (VkPhysicalDevice device, VkSurfaceKHR surface)
 
     bool32 properQueueFamilyFound = false;
     VulkanQueueFamilyIndices result = {};
-    for (int i = 0; i < queueFamilyCount; ++i)
+    for (s32 i = 0; i < queueFamilyCount; ++i)
     {
         if (queueFamilyProps[i].queueCount > 0 && (queueFamilyProps[i].queueFlags & VK_QUEUE_GRAPHICS_BIT))
         {
@@ -423,7 +423,7 @@ vulkan::make_material_vk_descriptor_set(
     VULKAN_CHECK(vkAllocateDescriptorSets(context->device, &allocateInfo, &resultSet));
 
     VkDescriptorImageInfo samplerInfos [maxTextures];
-    for (int i = 0; i < textureCount; ++i)
+    for (s32 i = 0; i < textureCount; ++i)
     {
         samplerInfos[i] = 
         {
@@ -829,6 +829,9 @@ winapi::create_vulkan_context(WinAPIWindow * window)
         vkGetDeviceQueue(context.device, queueFamilyIndices.graphics, 0, &context.queues.graphics);
         vkGetDeviceQueue(context.device, queueFamilyIndices.present, 0, &context.queues.present);
 
+        context.queues.graphicsIndex = queueFamilyIndices.graphics;
+        context.queues.presentIndex = queueFamilyIndices.present;
+
         /// START OF RESOURCES SECTION ////////////////////
         VkCommandPoolCreateInfo poolInfo =
         {
@@ -982,46 +985,34 @@ winapi_vulkan_internal_::add_cleanup(VulkanContext * context, VulkanContext::Cle
 internal VkInstance
 winapi_vulkan_internal_::create_vk_instance()
 {
-    auto CheckValidationLayerSupport = [] () -> bool32
+    if (vulkan::enableValidationLayers)
     {
+
         VkLayerProperties availableLayers [50];
-        u32 availableLayersCount = array_count(availableLayers);
+        u32 availableCount = array_count(availableLayers);
 
-        bool32 result = true;
-        if (vkEnumerateInstanceLayerProperties (&availableLayersCount, availableLayers) == VK_SUCCESS)
+        VULKAN_CHECK(vkEnumerateInstanceLayerProperties(&availableCount, availableLayers));
+
+        for (s32 layerIndex = 0; layerIndex < vulkan::VALIDATION_LAYERS_COUNT; ++layerIndex)
         {
+            bool32 layerFound = false;
+            char const * layerName = vulkan::validationLayers[layerIndex];
 
-            for (
-                int validationLayerIndex = 0;
-                validationLayerIndex < vulkan::VALIDATION_LAYERS_COUNT;
-                ++validationLayerIndex)
+            for(s32 availableIndex = 0; availableIndex < availableCount; ++availableIndex)
             {
-                bool32 layerFound = false;
-                for(
-                    int availableLayerIndex = 0; 
-                    availableLayerIndex < availableLayersCount; 
-                    ++availableLayerIndex)
+                if (cstring_equals(layerName, availableLayers[availableIndex].layerName))
                 {
-                    if (strcmp (vulkan::validationLayers[validationLayerIndex], availableLayers[availableLayerIndex].layerName) == 0)
-                    {
-                        layerFound = true;
-                        break;
-                    }
-                }
-
-                if (layerFound == false)
-                {
-                    result = false;
+                    layerFound = true;
                     break;
                 }
             }
+
+            Assert(layerFound);
         }
+        
+        logVulkan(0) << "Validation layers ok!";
+    }
 
-        return result;
-    };
-
-    // Note(Leo): If validation is enable, check support
-    Assert (!vulkan::enableValidationLayers || CheckValidationLayerSupport());
 
     VkApplicationInfo appInfo = {};
     appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
@@ -1077,13 +1068,13 @@ winapi_vulkan_internal_::create_vk_physical_device(VkInstance vulkanInstance, Vk
         vkEnumerateDeviceExtensionProperties (testDevice, nullptr, &availableExtensionsCount, availableExtensions);
 
         bool32 result = true;
-        for (int requiredIndex = 0;
+        for (s32 requiredIndex = 0;
             requiredIndex < vulkan::DEVICE_EXTENSION_COUNT;
             ++requiredIndex)
         {
 
             bool32 requiredExtensionFound = false;
-            for (int availableIndex = 0;
+            for (s32 availableIndex = 0;
                 availableIndex < availableExtensionsCount;
                 ++availableIndex)
             {
@@ -1141,7 +1132,7 @@ winapi_vulkan_internal_::create_vk_physical_device(VkInstance vulkanInstance, Vk
     // Note(Leo): No gpu found at all, or no vulkan supporting gpu
     RELEASE_ASSERT(deviceCount != 0, "");
 
-    for (int i = 0; i < deviceCount; i++)
+    for (s32 i = 0; i < deviceCount; i++)
     {
         if (IsPhysicalDeviceSuitable(devices[i], surface))
         {
@@ -1162,10 +1153,10 @@ winapi_vulkan_internal_::create_vk_device(VkPhysicalDevice physicalDevice, VkSur
     
     /* Note: We need both graphics and present queue, but they might be on
     separate devices (correct???), so we may need to end up with multiple queues */
-    int uniqueQueueFamilyCount = queueIndices.graphics == queueIndices.present ? 1 : 2;
+    s32 uniqueQueueFamilyCount = queueIndices.graphics == queueIndices.present ? 1 : 2;
     VkDeviceQueueCreateInfo queueCreateInfos [2] = {};
     float queuePriorities[/*queueCount*/] = { 1.0f };
-    for (int i = 0; i <uniqueQueueFamilyCount; ++i)
+    for (s32 i = 0; i <uniqueQueueFamilyCount; ++i)
     {
         // VkDeviceQueueCreateInfo queueCreateInfo = {};
         queueCreateInfos[i].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;

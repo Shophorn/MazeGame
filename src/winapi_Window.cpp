@@ -192,8 +192,8 @@ namespace winapi
     internal WinAPIWindow
     make_window(HINSTANCE winInstance, u32 width, u32 height)
     {
-        wchar windowClassName [] = L"MazegameWindowClass";
-        wchar windowTitle [] = L"Mazegame";
+        wchar windowClassName [] = L"FriendSimulatorWindowClass";
+        wchar windowTitle [] = L"FriendSimulator";
 
         WNDCLASSW windowClass = {};
         windowClass.style           = CS_VREDRAW | CS_HREDRAW;

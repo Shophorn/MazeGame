@@ -18,6 +18,14 @@ print_vulkan_assert(LogInput::FileAddress address, VkResult result)
 
 #define VULKAN_CHECK(result) if (result != VK_SUCCESS) { print_vulkan_assert(FILE_ADDRESS, result); abort();}
 
+static void check_vk_result(VkResult result)
+{
+	VULKAN_CHECK(result);
+	    // if (err == 0) return;
+	    // printf("VkResult %d\n", err);
+	    // if (err < 0)
+	    //     abort();
+}
 
 constexpr s32 VIRTUAL_FRAME_COUNT = 3;
 
@@ -182,6 +190,9 @@ struct platform::Graphics
 	struct {
 		VkQueue graphics;
 		VkQueue present;
+
+		u32 graphicsIndex;
+		u32 presentIndex;
 	} queues;
 
     VulkanVirtualFrame virtualFrames [VIRTUAL_FRAME_COUNT];

@@ -237,9 +237,6 @@ raycast_3d(	CollisionSystem3D * system,
 			continue;
 		}
 
-		logDebug(0) << "Hit Cylinder!";
-
-
 
 		v2 hitNormal2 	= -rejectionToCircleCenter + (-bDistance * d);
 		v3 hitNormal 	= {hitNormal2.x, hitNormal2.y, 0};

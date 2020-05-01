@@ -340,8 +340,7 @@ load_mesh_glb(MemoryArena & allocator, GltfFile const & file, char const * model
 	Assert (meshPrimitive.HasMember("indices"));
 	Assert (meshPrimitive.HasMember("mode") == false || meshPrimitive["mode"].GetInt() == glTF::PRIMITIVE_TYPE_TRIANGLES);
 
-
-	auto attribObject	= meshPrimitive["attributes"].GetObject();
+	auto attribObject		= meshPrimitive["attributes"].GetObject();
 
 	s32 positionAccessor 	= attribObject["POSITION"].GetInt();
 	s32 normalAccessor 		= attribObject["NORMAL"].GetInt();

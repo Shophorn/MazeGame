@@ -244,9 +244,42 @@ Run(HINSTANCE hInstance)
     winapi::load_game(&game);
     logSystem() << "Game dll loaded";
 
+#if 0
+    /// ---------- INIT IMGUI ---------------------------
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO & io = ImGui::GetIO();
+    ImGui_ImplWin32_Init(window.hwnd);
 
-    ////////////////////////////////////////////////////
-    ///             MAIN LOOP                        ///
+    ImGui_ImplVulkan_InitInfo imguiVulkanInitInfo = {};
+    imguiVulkanInitInfo.Instance        = vulkanContext.instance;
+    imguiVulkanInitInfo.PhysicalDevice  = vulkanContext.physicalDevice;
+    imguiVulkanInitInfo.Device          = vulkanContext.device;
+    imguiVulkanInitInfo.QueueFamily     = vulkanContext.queues.graphicsIndex;
+    imguiVulkanInitInfo.Queue           = vulkanContext.queues.graphics;
+    imguiVulkanInitInfo.PipelineCache   = VK_NULL_HANDLE;
+    imguiVulkanInitInfo.DescriptorPool  = vulkanContext.descriptorPools.persistent;
+    imguiVulkanInitInfo.MinImageCount   = 2;
+    imguiVulkanInitInfo.ImageCount      = 2;
+    imguiVulkanInitInfo.MSAASamples     = vulkanContext.msaaSamples;
+    imguiVulkanInitInfo.Allocator       = nullptr;
+    imguiVulkanInitInfo.CheckVkResultFn = check_vk_result;
+    ImGui_ImplVulkan_Init(&imguiVulkanInitInfo, vulkanContext.drawingResources.renderPass);
+
+    auto cmdBuffer = vulkan::begin_command_buffer(vulkanContext.device, vulkanContext.commandPool);
+    ImGui_ImplVulkan_CreateFontsTexture(cmdBuffer);
+    vulkan::execute_command_buffer(cmdBuffer, vulkanContext.device, vulkanContext.commandPool, vulkanContext.queues.graphics);
+
+    ImGui_ImplVulkan_DestroyFontUploadObjects();
+    ImGui::StyleColorsDark();
+
+    logDebug(0) << "Imgui initialized";
+#endif
+
+
+
+      ////////////////////////////////////////////////////
+     ///             MAIN LOOP                        ///
     ////////////////////////////////////////////////////
 
     bool gameIsRunning = true;
@@ -357,6 +390,25 @@ Run(HINSTANCE hInstance)
                                                 &state.platformFunctions,
                                                 &logFile);
 
+
+                    // ImGui_ImplVulkan_NewFrame();
+                    // ImGui_ImplWin32_NewFrame();
+                    // ImGui::NewFrame();
+
+                    // ImGui::SetNextWindowSize(ImVec2(50, 50));
+                    // ImGui::Begin("Hello Window");
+                    // ImGui::End();
+
+                    // ImGui::Render();
+
+                    // auto commandBuffer = vulkan::begin_command_buffer(vulkanContext.device, vulkanContext.commandPool);
+                    // ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), commandBuffer);
+                    // vulkan::execute_command_buffer(commandBuffer, vulkanContext.device, vulkanContext.commandPool, vulkanContext.queues.graphics);
+
+
+
+
+
                     // vulkan::draw_frame(&vulkanContext);
                     break;
 
@@ -433,6 +485,9 @@ Run(HINSTANCE hInstance)
     winapi::StopPlaying(&audio);
     winapi::ReleaseAudio(&audio);
     winapi::CloseNetwork(&network);
+#if 0
+    ImGui_ImplVulkan_Shutdown();
+#endif
     winapi::destroy_vulkan_context(&vulkanContext);
 
     /// ----- Cleanup Windows

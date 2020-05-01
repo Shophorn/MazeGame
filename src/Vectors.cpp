@@ -136,10 +136,6 @@ v3 normalize(v3 v)
 }
 
 
-
-
-
-
 struct world
 {
 	/*

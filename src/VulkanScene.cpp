@@ -419,7 +419,7 @@ vulkan::make_texture(VulkanContext * context, u32 width, u32 height, float4 colo
     VkDeviceSize imageSize = width * height * channels;
 
     u32 pixelCount = width * height;
-    u32 pixelValue = make_pixel(color);
+    u32 pixelValue = make_color_argb_32(color);
 
     u32 * data;
     vkMapMemory(context->device, context->stagingBufferPool.memory, 0, imageSize, 0, (void**)&data);
