@@ -102,6 +102,21 @@ namespace math
         return value;
     }
 
+    internal s32 loop(s32 value, s32 min, s32 max)
+    {
+        if (value < min)
+        {
+            s32 d = min - value;
+            value = max - d + 1;
+        }
+        else if (value > max)
+        {
+            s32 d = value - max;
+            value = min + d - 1;
+        }
+        return value;
+    }
+
     template<typename T>
     internal bool is_nan(T value)
     { 
@@ -119,6 +134,7 @@ namespace math
     {
         return value * value;
     }
+
 }
 
 
@@ -178,13 +194,13 @@ Sign(S value)
 internal inline constexpr float pi = 3.141592653589793f;
 internal inline constexpr float tau = 2 * pi;
 
-inline float to_degrees(float radians)
+constexpr inline float to_degrees(float radians)
 {
     constexpr float conversion = 180.0f / pi;
     return conversion * radians;
 }
 
-inline float to_radians(float degrees)
+constexpr inline float to_radians(float degrees)
 {
     constexpr float conversion = pi / 180.0f;
     return conversion * degrees;

@@ -31,8 +31,6 @@ const float transitionDistance = 10.0;
 void main ()
 {
 
-
-
 	gl_Position = camera.projection * camera.view * model.model * vec4(inPosition, 1.0);
 
 	// Todo(Leo): Check correctness???

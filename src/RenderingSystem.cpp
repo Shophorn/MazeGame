@@ -16,28 +16,23 @@ struct AnimatedRenderer
 	AnimatedSkeleton * 	skeleton;
 	ModelHandle 		model;
 
-	// Memory where animated bone matrices are stores
-	Array<m44> bones;
-
 	// Options
 	bool32 castShadows = true;
 };
 
 AnimatedRenderer make_animated_renderer (	Transform3D * transform,
 											AnimatedSkeleton * skeleton,
-											ModelHandle model,
-											MemoryArena & allocator)
+											ModelHandle model)
 {
 	auto result = AnimatedRenderer {
 			.transform 	= transform,
 			.skeleton 	= skeleton,
 			.model 		= model,
-			.bones 		= allocate_array<m44>(allocator, skeleton->bones.count(), ALLOC_FILL | ALLOC_NO_CLEAR)
 		};	
 	return result;		
 }
 
-void update_animated_renderer(AnimatedRenderer & renderer)
+void update_animated_renderer(m44 * boneTransformMatrices, Array<AnimatedBone> const & skeletonBones)
 {
 	/* Note(Leo): Vertex shader where actual deforming happens, needs to know
 	transform from bind position aka default position (i.e. the original position
@@ -45,31 +40,28 @@ void update_animated_renderer(AnimatedRenderer & renderer)
 
 	We compute the deformed matrix by applying the whole hierarchy of matrices,
 	and adding it to the inverse bind matrix which is the inverse transform from origin
-	to the bind pose. */
-	
-	AnimatedSkeleton const & skeleton 	= *renderer.skeleton; 
-	u32 boneCount 						= skeleton.bones.count();
+	to the bind pose.
 
-	// Compute current pose in model space
-	for (int i = 0; i < boneCount; ++i)
+	Todo(Leo): Try optimizing this by first zipping matrices to aos containing all m44s needed.
+
+	Note(Leo): set bones[0] separately, so we don't need if statement inside loop.
+	We require proper order of bones from source file by asserting it in loader function, 
+	proper order meaning that parent always comes before children in array, so that we can
+	use same array to store "own" transforms and check parent transform, that has been
+	previously set in loop. */
+
+	s32 boneCount = skeletonBones.count();
+
+	boneTransformMatrices[0] = transform_matrix(skeletonBones[0].boneSpaceTransform);
+	for (s32 i = 1; i < boneCount; ++i)
 	{
-		m44 matrix = get_matrix(skeleton.bones[i].boneSpaceTransform);
-
-		if (skeleton.bones[i].is_root() == false)
-		{
-			// Note(Leo): this is sanity check for future, we don't currently check this elsewhere
-			s32 parentIndex = skeleton.bones[i].parent;
-			Assert(parentIndex < i);
-
-			m44 parentMatrix = renderer.bones[parentIndex];
-			matrix = parentMatrix * matrix;
-		}
-		renderer.bones[i] = matrix;
+		s32 parentIndex = skeletonBones[i].parent;
+		boneTransformMatrices[i] = boneTransformMatrices[parentIndex] * transform_matrix(skeletonBones[i].boneSpaceTransform);
 	}
 
-	// Compute deform transformation (from bind position to pose position) in model space
-	for (int i = 0; i < boneCount; ++i)
+	for (s32 i = 0; i < boneCount; ++i)
 	{
-		renderer.bones[i] = renderer.bones[i] * skeleton.bones[i].inverseBindMatrix;
+		boneTransformMatrices[i] = boneTransformMatrices[i] * skeletonBones[i].inverseBindMatrix;
+		// boneTransformMatrices[i] = boneTransformMatrices[i] * skeleton.inverseBindMatrices[i];
 	}
 }

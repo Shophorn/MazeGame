@@ -20,36 +20,3 @@ enum MenuResult
 	SCENE_CONTINUE,
 	SCENE_EXIT
 };
-
-struct SceneInfo
-{
-	u64 		(*get_alloc_size)();
-
-	void 		(*load)( 	void *						scenePtr,
-							MemoryArena *				persistentMemory,
-							MemoryArena *				transientMemory,
-
-							platform::Graphics*,
-							platform::Window*,
-							platform::Functions*);
-
-	MenuResult 	(*update)(	void * 						guiPtr,
-							game::Input * 				input,
-							platform::Graphics*,
-							platform::Window*,
-							platform::Functions*);
-};
-
-internal SceneInfo
-make_scene_info(decltype(SceneInfo::get_alloc_size) getAllocSizeFunc,
-				decltype(SceneInfo::load) 			loadFunc,
-				decltype(SceneInfo::update)			updateFunc)
-{
-	SceneInfo result = 
-	{
-		.get_alloc_size 	= getAllocSizeFunc,
-		.load 				= loadFunc,
-		.update 			= updateFunc
-	};
-	return result;
-}

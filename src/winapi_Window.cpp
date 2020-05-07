@@ -180,12 +180,8 @@ namespace winapi
         MSG message;
         while (PeekMessageW(&message, winWindow, 0, 0, PM_REMOVE))
         {
-            switch (message.message)
-            {
-                default:
-                    TranslateMessage(&message);
-                    DispatchMessage(&message);
-            }
+            TranslateMessage(&message);
+            DispatchMessage(&message);
         }
     }
 

@@ -160,6 +160,47 @@ make_transform_matrix(v3 translation, quaternion rotation, float uniformScale = 
 	return result;	
 }
 
+m44 transform_matrix(v3 translation, quaternion rotation, v3 scale)
+{
+	// s =
+	// {
+	// 	A, 0, 0, 0,
+	// 	0, B, 0, 0,
+	// 	0, 0, C, 0,
+	// 	0, 0, 0, 1,	
+	// };
+
+	// r = 
+	// {
+	// 	n, n, n, 0,
+	// 	n, n, n, 0,
+	// 	n, n, n, 0
+	// 	0, 0, 0, 1
+	// }
+
+	// s * r = 
+	// {
+	// 	An, An, An, 0,
+
+	// }
+
+	float 	x = rotation.x,
+			y = rotation.y,
+			z = rotation.z,
+			w = rotation.w;
+
+
+	m44 result =
+	{
+		scale.x * (1 - 2*y*y - 2*z*z), 	scale.x * (2*x*y-2*w*z), 			scale.x * (2*x*z + 2*w*y),		0,
+		scale.y * (2*x*y + 2*w*z), 		scale.y * (1 - 2*x*x - 2*z*z),	scale.y * (2*y*z - 2*w*x),		0,
+		scale.z * (2*x*z - 2*w*y),		scale.z * (2*y*z + 2*w*x),		scale.z * (1 - 2*x*x - 2*y*y),	0,
+		translation.x,				translation.y,				translation.z,				1
+	};
+
+	return result;	
+}
+
 m44 invert_transform_matrix(m44 matrix)
 {
 	v3 translation = {matrix[3].x, matrix[3].y, matrix[3].z};

@@ -72,9 +72,9 @@ load_animation_glb(MemoryArena & allocator, GltfFile const & file, char const * 
 	{
 		char const * path 	= jsonChannel["target"]["path"].GetString();
 
-		if (cstring_equals(path, "translation"))	{ translationChannelCount += 1; } //channelType = ANIMATION_CHANNEL_TRANSLATION;
-		else if(cstring_equals(path, "rotation")) { rotationChannelCount += 1; }//	channelType = ANIMATION_CHANNEL_ROTATION;
-		else if (cstring_equals(path, "scale"))	 {} //channelType = ANIMATION_CHANNEL_SCALE;
+		if (cstring_equals(path, "translation"))	{ translationChannelCount += 1; }
+		else if(cstring_equals(path, "rotation")) { rotationChannelCount += 1; }
+		else if (cstring_equals(path, "scale"))	 {}
 		else
 			Assert(false);
 	}
@@ -174,8 +174,23 @@ load_animation_glb(MemoryArena & allocator, GltfFile const & file, char const * 
 
 				TranslationChannel channel 	= {};
 				channel.times 				= std::move(times);
-				channel.translations		= allocate_array<v3>(allocator, start, end);
-				channel.interpolationMode 	= interpolationMode;
+
+				// Note(Leo): We do not yet support cubicspline interpolation, so we do not need the data for it, convert to linear				
+				if (interpolationMode == INTERPOLATION_MODE_CUBICSPLINE)
+				{
+					channel.translations = allocate_array<v3>(allocator, keyframeCount, ALLOC_FILL | ALLOC_NO_CLEAR);
+					for (s32 keyframeIndex = 0; keyframeIndex < keyframeCount; ++keyframeIndex)
+					{
+						s32 valueIndex = keyframeIndex * 3 + 1;
+						channel.translations[keyframeIndex] = start[valueIndex];
+					}					
+					channel.interpolationMode = INTERPOLATION_MODE_LINEAR;
+				}
+				else
+				{
+					channel.translations		= allocate_array<v3>(allocator, start, end);
+					channel.interpolationMode 	= interpolationMode;
+				}
 				channel.targetIndex 		= targetIndex;
 
 				result.translationChannels.push(std::move(channel));
@@ -190,8 +205,24 @@ load_animation_glb(MemoryArena & allocator, GltfFile const & file, char const * 
 
 				RotationChannel channel 	= {};
 				channel.times 				= std::move(times);
-				channel.rotations 			= allocate_array<quaternion>(allocator, start, end);
-				channel.interpolationMode 	= interpolationMode;
+
+				// Note(Leo): We do not yet support cubicspline interpolation, so we do not need the data for it, convert to linear				
+				if (interpolationMode == INTERPOLATION_MODE_CUBICSPLINE)
+				{
+					channel.rotations = allocate_array<quaternion>(allocator, keyframeCount, ALLOC_FILL | ALLOC_NO_CLEAR);
+
+					for (s32 keyframeIndex = 0; keyframeIndex < keyframeCount; ++keyframeIndex)
+					{
+						s32 valueIndex = keyframeIndex * 3 + 1;
+						channel.rotations[keyframeIndex] = start[valueIndex];
+					}
+					channel.interpolationMode = INTERPOLATION_MODE_LINEAR;
+				}
+				else
+				{
+					channel.rotations 			= allocate_array<quaternion>(allocator, start, end);
+					channel.interpolationMode 	= interpolationMode;
+				}
 				channel.targetIndex 		= targetIndex;
 
 
@@ -199,7 +230,7 @@ load_animation_glb(MemoryArena & allocator, GltfFile const & file, char const * 
 				so we need to invert them here. I have not tested glTF files from other sources.
 
 				If interpolation mode is CUBICSPLINE, we also have tangent quaternions, that are not
-				unit length, so we must use proper inversion method. */
+				unit length, so we must use proper inversion method for those. */
 				for (auto & rotation : channel.rotations)
 				{
 					rotation = rotation.inverse_non_unit();
@@ -241,17 +272,18 @@ load_skeleton_glb(MemoryArena & allocator, GltfFile const & file, char const * m
 	auto skin 		= file.json["skins"][0].GetObject();
 	auto jsonBones 	= skin["joints"].GetArray();
 	u32 boneCount 	= jsonBones.Size();
+
 	m44 const * inverseBindMatrices = get_buffer_start<m44>(file, skin["inverseBindMatrices"].GetInt());
 
 	AnimatedSkeleton skeleton = {};
-	skeleton.bones = allocate_array<AnimatedBone>(allocator, boneCount, ALLOC_FILL | ALLOC_NO_CLEAR);
+	skeleton.bones = allocate_array<AnimatedBone>(allocator, boneCount, ALLOC_NO_CLEAR);
 	
 	for (int boneIndex = 0; boneIndex < boneCount; ++boneIndex)
 	{
 		u32 nodeIndex 		= jsonBones[boneIndex].GetInt();
 		auto const & node 	= nodes[nodeIndex].GetObject();
 
-		u32 parent = -1;
+		s32	 parent = -1;
 
 		for (int parentBoneIndex = 0; parentBoneIndex < boneCount; ++parentBoneIndex)
 		{
@@ -269,6 +301,21 @@ load_skeleton_glb(MemoryArena & allocator, GltfFile const & file, char const * m
 						parent = parentBoneIndex;
 					}
 				}
+			}
+		}
+
+		if (parent < 0)
+		{
+			/* Note(Leo): Only accept one bone with no parent, and we recognize it by name now
+
+			This is a hack, but it works well enough. Bones that are not root,
+			but have no parent are likely to be ik rig bones or similar non deforming bones. 
+			We have made notion to asset workflow to remove these bones before exporting,
+			this will catch those if forgotten. */
+			Assert(node.HasMember("name"));
+			if (cstring_equals("Root", node["name"].GetString()) == false)
+			{
+				parent = 0;
 			}
 		}
 
@@ -293,10 +340,20 @@ load_skeleton_glb(MemoryArena & allocator, GltfFile const & file, char const * m
 		}
 
 		m44 inverseBindMatrix = inverseBindMatrices[boneIndex];
-		skeleton.bones[boneIndex] = make_bone(boneSpaceTransform, inverseBindMatrix, parent);
+		skeleton.bones.push(make_bone(boneSpaceTransform, inverseBindMatrix, parent));
 
 		// Note(Leo): Name is not essential...
-		skeleton.bones[boneIndex].name = node.HasMember("name") ? node["name"].GetString() : "nameless bone";
+		skeleton.bones.last().name = node.HasMember("name") ? node["name"].GetString() : "nameless bone";
+	}
+
+	/* Note(Leo): Check that parent always comes before bone itself. Currently we have no mechanism
+	to fix the situation, so we just abort.*/
+	Assert(skeleton.bones[0].parent < 0);
+
+	for (s32 i = 1; i < skeleton.bones.count(); ++i)
+	{
+		logDebug(0) << "Bone " << i << ": \"" << skeleton.bones[i].name << "\", parent: " << skeleton.bones[i].parent;
+		Assert((skeleton.bones[i].parent < i) && skeleton.bones[i].parent >= 0);
 	}
 
 	return skeleton;

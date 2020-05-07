@@ -51,7 +51,7 @@ struct CameraController3rdPerson
 {
 	// References, these must be set separately
 	Camera *				camera;
-	Transform3D * 	target;
+	Transform3D * 			target;
 	
 	// This is also property but it is calculated when creating the camera
 	v3 lastTrackedPosition;
@@ -83,7 +83,7 @@ make_camera_controller_3rd_person(Camera * camera, Transform3D * target)
 }
 
 internal void
-update_camera_controller(CameraController3rdPerson * controller, game::Input * input)
+update_camera_controller(CameraController3rdPerson * controller, v3 * cameraPosition, game::Input * input)
 {
 	if (is_pressed(input->zoomIn))
 	{
@@ -140,7 +140,8 @@ update_camera_controller(CameraController3rdPerson * controller, game::Input * i
 
     v3 targetPosition = trackedPosition + controller->baseOffset;
     
-    controller->camera->position = targetPosition + localPosition;
+    // controller->camera->position = targetPosition + localPosition;
+    *cameraPosition = targetPosition + localPosition;
 	controller->camera->direction = -1.0f * localPosition.normalized();
 
 	Assert(math::distance(controller->camera->direction.square_magnitude(), 1.0f) < 0.00001f);

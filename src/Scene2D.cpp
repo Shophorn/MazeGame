@@ -7,69 +7,38 @@ Scene description for 2d development scene
 
 // #include "DefaultSceneGui.cpp"
 
-namespace scene_2d
+struct Scene2d
 {
-	struct Scene
-	{
-		Array<Transform3D> transformStorage;
-		Array<Renderer> renderSystem;
-		Array<Animator> animatorSystem;
+	Array<Transform3D> transformStorage;
+	Array<Renderer> renderSystem;
+	Array<Animator> animatorSystem;
 
-		// Todo(Leo): make this similar 'system' to others
-		CollisionManager2D collisionManager;
+	// Todo(Leo): make this similar 'system' to others
+	CollisionManager2D collisionManager;
 
-		Camera worldCamera;
-		// CameraController3rdPerson cameraController;
-		CameraControllerSideScroller cameraController;
-		CharacterControllerSideScroller characterController;
+	Camera worldCamera;
+	// CameraController3rdPerson cameraController;
+	CameraControllerSideScroller cameraController;
+	CharacterControllerSideScroller characterController;
 
-		// Todo(Leo): make animation state controller or similar for these
-		Animation laddersUpAnimation;
-		Animation laddersDownAnimation;
+	// Todo(Leo): make animation state controller or similar for these
+	Animation laddersUpAnimation;
+	Animation laddersDownAnimation;
 
-		// Todo(Leo): make controller for these
-		CharacterControllerSideScroller::LadderTriggerFunc ladderTrigger1;
-		CharacterControllerSideScroller::LadderTriggerFunc ladderTrigger2;
-		bool32 ladderOn = false;
-		bool32 ladder2On = false;
+	// Todo(Leo): make controller for these
+	CharacterControllerSideScroller::LadderTriggerFunc ladderTrigger1;
+	CharacterControllerSideScroller::LadderTriggerFunc ladderTrigger2;
+	bool32 ladderOn = false;
+	bool32 ladder2On = false;
 
-		SceneGui gui;
-	};
-
-	internal u64
-	get_alloc_size() { return sizeof(Scene); };
-
-	internal MenuResult
-	update(	void * 						scenePtr,
-			game::Input * 				input,
-			platform::Graphics*,
-			platform::Window*,
-			platform::Functions*);
-
-	internal void
-	load(	void * 						scenePtr,
-			MemoryArena * 				persistentMemory,
-			MemoryArena * 				transientMemory,
-			platform::Graphics*,
-			platform::Window*,
-			platform::Functions*);
-}
-
-SceneInfo get_2d_scene_info()
-{
-	return make_scene_info(	scene_2d::get_alloc_size,
-							scene_2d::load,
-							scene_2d::update);
-}
+	Gui 	gui;
+	bool32 	guiVisible;
+};
 
 internal MenuResult
-scene_2d::update(	void * scenePtr,
-					game::Input * input,
-					platform::Graphics * graphics,
-					platform::Window * window,
-					platform::Functions * functions)
+update_scene_2d(void * scenePtr, game::Input * input)
 {
-	Scene * scene = reinterpret_cast<Scene*>(scenePtr);
+	Scene2d * scene = reinterpret_cast<Scene2d*>(scenePtr);
 
 	scene->collisionManager.do_collisions();
 
@@ -87,54 +56,70 @@ scene_2d::update(	void * scenePtr,
 	*/
 
 	scene->cameraController.update(input);
-    update_camera_system(&scene->worldCamera, input, graphics, window);
+    update_camera_system(&scene->worldCamera, input, platformGraphics, platformWindow);
 
 	for (auto & renderer : scene->renderSystem)
 	{
 		platformApi->draw_model(platformGraphics, renderer.model,
-								get_matrix(*renderer.transform),
+								transform_matrix(*renderer.transform),
 								renderer.castShadows,
 								nullptr, 0);
 	}
 
-	// for (auto & renderer : scene->animatedRenderers)
-	// {
-	// 	update_animated_renderer(renderer);
-
-	// 	platformApi->draw_model(graphics, renderer.model, get_matrix(*renderer.transform),
-	// 							renderer.castShadows, renderer.bones.data(),
-	// 							renderer.bones.count());
-	// }
-
-
 	Light light = { v3{1, 1, -3}.normalized(), {0.95, 0.95, 0.9}};
 	v3 ambient = {0.2, 0.25, 0.4};
-	functions->update_lighting(graphics, &light, &scene->worldCamera, ambient);
+	platformApi->update_lighting(platformGraphics, &light, &scene->worldCamera, ambient);
 
 
-	auto result = update_scene_gui(&scene->gui, input, graphics, functions);
+	// auto result = update_scene_gui(&scene->gui, input, platformGraphics, platformApi);
+
+	MenuResult result = MENU_NONE;
+
+	if (is_clicked(input->start))
+	{
+		if(scene->guiVisible)
+		{
+			scene->guiVisible = false;
+		}
+		else
+		{
+			scene->guiVisible = true;
+			scene->gui.selectedIndex = 0;
+		}
+	}
+
+	if (scene->guiVisible)
+	{
+		gui_start(scene->gui, input);
+
+		if (gui_button(v4{1,1,1,1}))
+		{
+			scene->guiVisible = false;
+		}
+
+		if (gui_button(v4{1,1,1,1}))
+		{
+			result = SCENE_EXIT;
+		}
+
+		gui_end();
+	}
+
+
 	return result;
 }
 
-internal void 
-scene_2d::load(	void * scenePtr,
-				MemoryArena * persistentMemory,
-				MemoryArena * transientMemory,
-				platform::Graphics * graphics,
-				platform::Window * platform,
-				platform::Functions * functions)
+internal void * load_scene_2d(MemoryArena & persistentMemory)
 {
-	Scene * scene = reinterpret_cast<Scene*>(scenePtr);
+	void * scenePtr = allocate(persistentMemory, sizeof(Scene2d), true);
+	Scene2d * scene = reinterpret_cast<Scene2d*>(scenePtr);
 
 	// Note(Leo): lol this is so much better than others :D
-	scene->gui = make_scene_gui(transientMemory, graphics, functions);
+	scene->gui = make_gui();
 
-	// auto * persistentMemory = &state->persistentMemoryArena;
-	// auto * transientMemory = &state->transientMemoryArena;
-
-	scene->transformStorage = allocate_array<Transform3D>(*persistentMemory, 100);
-	scene->renderSystem 	= allocate_array<Renderer>(*persistentMemory, 100);
-	scene->animatorSystem 	= allocate_array<Animator>(*persistentMemory, 100);
+	scene->transformStorage = allocate_array<Transform3D>(persistentMemory, 100);
+	scene->renderSystem 	= allocate_array<Renderer>(persistentMemory, 100);
+	scene->animatorSystem 	= allocate_array<Animator>(persistentMemory, 100);
 
 
 	auto allocate_transform = [](Array<Transform3D> & storage, Transform3D value) -> Transform3D *
@@ -146,8 +131,8 @@ scene_2d::load(	void * scenePtr,
 
 	scene->collisionManager =
 	{
-		.colliders 	= allocate_array<Collider2D>(*persistentMemory, 200),
-		.collisions = allocate_array<Collision2D>(*persistentMemory, 300, ALLOC_FILL | ALLOC_NO_CLEAR) // Todo(Leo): Not enough..
+		.colliders 	= allocate_array<Collider2D>(persistentMemory, 200),
+		.collisions = allocate_array<Collision2D>(persistentMemory, 300, ALLOC_FILL | ALLOC_NO_CLEAR) // Todo(Leo): Not enough..
 	};
 
 	struct MaterialCollection {
@@ -157,18 +142,18 @@ scene_2d::load(	void * scenePtr,
 
 	// Create MateriaLs
 	{
-		PipelineHandle shader = functions->push_pipeline(graphics, "assets/shaders/vert.spv", "assets/shaders/frag.spv", {.textureCount = 3});
+		PipelineHandle shader = platformApi->push_pipeline(platformGraphics, "assets/shaders/vert.spv", "assets/shaders/frag.spv", {.textureCount = 3});
 
-		TextureAsset whiteTextureAsset = make_texture_asset(allocate_array<u32>(*transientMemory, {0xffffffff}), 1, 1);
-		TextureAsset blackTextureAsset = make_texture_asset(allocate_array<u32>(*transientMemory, {0xff000000}), 1, 1);
+		TextureAsset whiteTextureAsset = make_texture_asset(allocate_array<u32>(*global_transientMemory, {0xffffffff}), 1, 1);
+		TextureAsset blackTextureAsset = make_texture_asset(allocate_array<u32>(*global_transientMemory, {0xff000000}), 1, 1);
 
-		TextureHandle whiteTexture = functions->push_texture(graphics, &whiteTextureAsset);
-		TextureHandle blackTexture = functions->push_texture(graphics, &blackTextureAsset);
+		TextureHandle whiteTexture = platformApi->push_texture(platformGraphics, &whiteTextureAsset);
+		TextureHandle blackTexture = platformApi->push_texture(platformGraphics, &blackTextureAsset);
 
-		auto load_and_push_texture = [transientMemory, functions, graphics](const char * path) -> TextureHandle
+		auto load_and_push_texture = [](const char * path) -> TextureHandle
 		{
-			auto asset = load_texture_asset(path, transientMemory);
-			auto result = functions->push_texture(graphics, &asset);
+			auto asset = load_texture_asset(path, global_transientMemory);
+			auto result = platformApi->push_texture(platformGraphics, &asset);
 			return result;
 		};
 
@@ -176,10 +161,10 @@ scene_2d::load(	void * scenePtr,
 		auto lavaTexture 	= load_and_push_texture("assets/textures/lava.jpg");
 		auto faceTexture 	= load_and_push_texture("assets/textures/texture.jpg");
 
-		auto push_material = [shader, functions, transientMemory, graphics](MaterialType type, TextureHandle a, TextureHandle b, TextureHandle c) -> MaterialHandle
+		auto push_material = [shader](MaterialType type, TextureHandle a, TextureHandle b, TextureHandle c) -> MaterialHandle
 		{
-			MaterialAsset asset = make_material_asset(shader, allocate_array(*transientMemory, {a, b, c}));
-			MaterialHandle handle = functions->push_material(graphics, &asset);
+			MaterialAsset asset = make_material_asset(shader, allocate_array(*global_transientMemory, {a, b, c}));
+			MaterialHandle handle = platformApi->push_material(platformGraphics, &asset);
 			return handle;
 		};
 
@@ -197,17 +182,17 @@ scene_2d::load(	void * scenePtr,
 		};
 	}
 
-    auto push_model = [functions, graphics] (MeshHandle mesh, MaterialHandle material) -> ModelHandle
+    auto push_model = [] (MeshHandle mesh, MaterialHandle material) -> ModelHandle
     {
-    	auto handle = functions->push_model(graphics, mesh, material);
+    	auto handle = platformApi->push_model(platformGraphics, mesh, material);
     	return handle;
     };
 
 	// Characters
 	Transform3D* characterTransform = {};
 	{
-		auto characterMesh 			= load_mesh_glb(*transientMemory, read_gltf_file(*transientMemory, "assets/models/cube_head.glb"), "cube_head");
-		auto characterMeshHandle 	= functions->push_mesh(graphics, &characterMesh);
+		auto characterMesh 			= load_mesh_glb(*global_transientMemory, read_gltf_file(*global_transientMemory, "assets/models/cube_head.glb"), "cube_head");
+		auto characterMeshHandle 	= platformApi->push_mesh(platformGraphics, &characterMesh);
 
 		// Our dude
 		auto transform = allocate_transform(scene->transformStorage, {});
@@ -253,13 +238,13 @@ scene_2d::load(	void * scenePtr,
 		constexpr bool32 addPlatforms 	= true;
 
 		{
-			auto groundQuad 	= mesh_primitives::create_quad(transientMemory, false);
+			auto groundQuad 	= mesh_primitives::create_quad(global_transientMemory, false);
 			auto meshTransform	= make_translation_matrix({-width / 2, -depth /2, 0}) * make_scale_matrix({width, depth, 0});
 
 			mesh_ops::transform(&groundQuad, meshTransform);
 			mesh_ops::transform_tex_coords(&groundQuad, {0,0}, {width / 2, depth / 2});
 
-			auto groundQuadHandle 	= functions->push_mesh(graphics, &groundQuad);
+			auto groundQuadHandle 	= platformApi->push_mesh(platformGraphics, &groundQuad);
 			auto model 			= push_model(groundQuadHandle, materials.environment);
 			auto transform 			= allocate_transform(scene->transformStorage, {});
 
@@ -269,8 +254,8 @@ scene_2d::load(	void * scenePtr,
 
 		if (addPillars)
 		{
-			auto pillarMesh 		= load_mesh_glb(*transientMemory, read_gltf_file(*transientMemory, "assets/models/big_pillar.glb"), "big_pillar");
-			auto pillarMeshHandle 	= functions->push_mesh(graphics, &pillarMesh);
+			auto pillarMesh 		= load_mesh_glb(*global_transientMemory, read_gltf_file(*global_transientMemory, "assets/models/big_pillar.glb"), "big_pillar");
+			auto pillarMeshHandle 	= platformApi->push_mesh(platformGraphics, &pillarMesh);
 
 			auto model 	= push_model(pillarMeshHandle, materials.environment);
 			auto transform 	= allocate_transform(scene->transformStorage, {-width / 4, 0, 0});
@@ -287,16 +272,16 @@ scene_2d::load(	void * scenePtr,
 
 		if (addLadders)
 		{
-			auto ladderMesh 		= load_mesh_glb(*transientMemory, read_gltf_file(*transientMemory, "assets/models/ladder.glb"), "LadderSection");
-			auto ladderMeshHandle 	= functions->push_mesh(graphics, &ladderMesh);
+			auto ladderMesh 		= load_mesh_glb(*global_transientMemory, read_gltf_file(*global_transientMemory, "assets/models/ladder.glb"), "LadderSection");
+			auto ladderMeshHandle 	= platformApi->push_mesh(platformGraphics, &ladderMesh);
 
 			auto root1 	= allocate_transform(scene->transformStorage, {0, 0.5f, -ladderHeight});
 			auto root2 	= allocate_transform(scene->transformStorage, {10, 0.5f, 6 - ladderHeight});
-			auto bones1 = allocate_array<Transform3D*>(*persistentMemory, 6);
-			auto bones2 = allocate_array<Transform3D*>(*persistentMemory, 6);
+			auto bones1 = allocate_array<Transform3D*>(persistentMemory, 6);
+			auto bones2 = allocate_array<Transform3D*>(persistentMemory, 6);
 
 			int ladderRigBoneCount = 6;
-			auto channels = allocate_array<TranslationChannel>(*persistentMemory, ladderRigBoneCount);
+			auto channels = allocate_array<TranslationChannel>(persistentMemory, ladderRigBoneCount);
 
 			int ladder2StartIndex = 6;
 			int ladderCount = 12;
@@ -318,8 +303,8 @@ scene_2d::load(	void * scenePtr,
 	
 
 					// Todo(Leo): only one animation needed, move somewhere else				
-					auto keyframeTimes = allocate_array<float>(*persistentMemory, {ladderIndex * 0.12f, (ladderIndex + 1) * 0.15f});
-					auto translations = allocate_array<v3>(*persistentMemory, {{0,0,0}, {0,0,ladderHeight}});
+					auto keyframeTimes = allocate_array<float>(persistentMemory, {ladderIndex * 0.12f, (ladderIndex + 1) * 0.15f});
+					auto translations = allocate_array<v3>(persistentMemory, {{0,0,0}, {0,0,ladderHeight}});
 
 					channels.push({ladderIndex, std::move(keyframeTimes),	std::move(translations)});
 					channels.last().interpolationMode = INTERPOLATION_MODE_LINEAR;
@@ -333,7 +318,7 @@ scene_2d::load(	void * scenePtr,
 
 			scene->laddersUpAnimation 	= make_animation(std::move(channels), {});
 
-			scene->laddersDownAnimation = copy_animation(*persistentMemory, scene->laddersUpAnimation);
+			scene->laddersDownAnimation = copy_animation(persistentMemory, scene->laddersUpAnimation);
 			reverse_animation_clip(scene->laddersDownAnimation);
 
 			auto rig1 = make_animation_rig(root1, std::move(bones1));
@@ -383,8 +368,8 @@ scene_2d::load(	void * scenePtr,
 				{8, 0, 12},
 			};
 
-			auto platformMeshAsset 	= load_mesh_glb(*transientMemory, read_gltf_file(*transientMemory, "assets/models/platform.glb"), "platform");
-			auto platformMeshHandle = functions->push_mesh(graphics, &platformMeshAsset);
+			auto platformMeshAsset 	= load_mesh_glb(*global_transientMemory, read_gltf_file(*global_transientMemory, "assets/models/platform.glb"), "platform");
+			auto platformMeshHandle = platformApi->push_mesh(platformGraphics, &platformMeshAsset);
 
 			int platformCount = 12;
 			for (int platformIndex = 0; platformIndex < platformCount; ++platformIndex)
@@ -399,8 +384,8 @@ scene_2d::load(	void * scenePtr,
 
 		if(addButtons)
 		{
-			auto keyholeMeshAsset 	= load_mesh_glb(*transientMemory, read_gltf_file(*transientMemory, "assets/models/keyhole.glb"), "keyhole");
-			auto keyholeMeshHandle 	= functions->push_mesh(graphics, &keyholeMeshAsset);
+			auto keyholeMeshAsset 	= load_mesh_glb(*global_transientMemory, read_gltf_file(*global_transientMemory, "assets/models/keyhole.glb"), "keyhole");
+			auto keyholeMeshHandle 	= platformApi->push_mesh(platformGraphics, &keyholeMeshAsset);
 
 			auto model 	= push_model(keyholeMeshHandle, materials.environment);
 			auto transform 	= allocate_transform(scene->transformStorage, {.position = v3{5, 0, 0}, .rotation = quaternion::axis_angle(v3::up, to_radians(180))});
@@ -417,4 +402,5 @@ scene_2d::load(	void * scenePtr,
 	}
 
 	logDebug(0) << "Loaded 2D scene";
+	return scenePtr;
 }

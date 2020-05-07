@@ -36,25 +36,25 @@ void main ()
 	/* Note(Leo): There have been unaddressed suspicions about this
 	kind of linear matrix interpolation, but so far everything seems
 	to work nicely. */
-	mat4 skinMatrix =
+	mat4 poseMatrix =
 		inBoneWeights[0] * model.bonesToLocal[inBoneIndices[0]] +
 		inBoneWeights[1] * model.bonesToLocal[inBoneIndices[1]] +
 		inBoneWeights[2] * model.bonesToLocal[inBoneIndices[2]] +
 		inBoneWeights[3] * model.bonesToLocal[inBoneIndices[3]];
 
 
-	float assertValue = abs(skinMatrix[3][3] - 1.0);
+	float assertValue = abs(poseMatrix[3][3] - 1.0);
 	if(assertValue > 0.00001)
 	{
 		// Do not animate if this happens.
-		skinMatrix = mat4(1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1);
+		poseMatrix = mat4(1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1);
 	}
-	// skinMatrix /= skinMatrix[3][3];
+	// poseMatrix /= poseMatrix[3][3];
 
 	// MetaNote(Leo): This note may be important, save it for later when we have time to study
 	// Note(Leo): position coordinates must be divided with z-component after matrix multiplication
-	vec4 posePosition = skinMatrix * vec4(inPosition, 1);
-	vec4 poseNormal = skinMatrix * vec4(inNormal, 0);
+	vec4 posePosition = poseMatrix * vec4(inPosition, 1);
+	vec4 poseNormal = poseMatrix * vec4(inNormal, 0);
 
 	gl_Position = camera.projection * camera.view * model.localToWorld * posePosition;
 	// vec4 poseNormal = vec4(inNormal, 0);

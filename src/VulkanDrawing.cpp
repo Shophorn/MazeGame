@@ -284,7 +284,7 @@ vulkan::record_draw_command(VulkanContext * context, ModelHandle model, m44 tran
     pBuffer->isAnimated = bonesCount;
 
     Assert(bonesCount <= array_count(pBuffer->bonesToLocal));    
-    memcpy(pBuffer->bonesToLocal, bones, sizeof(m44) * bonesCount);
+    copy_memory(pBuffer->bonesToLocal, bones, sizeof(m44) * bonesCount);
 
     vkUnmapMemory(context->device, context->modelUniformBuffer.memory);
 

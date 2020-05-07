@@ -19,7 +19,7 @@ Transform3D Transform3D::identity()
 	return transform;
 }
 
-m44 get_matrix(Transform3D const & transform)
+m44 transform_matrix(Transform3D const & transform)
 {
 	/* Study(Leo): members of this struct are ordered so that position and scale would
 	occupy first half of struct, and rotation the other half by itself. Does this matter,

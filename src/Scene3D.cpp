@@ -11,14 +11,21 @@ Scene description for 3d development scene
 #include "PlayerController3rdPerson.cpp"
 #include "FollowerController.cpp"
 
-#include "DefaultSceneGui.cpp"
+enum CameraMode : s32
+{ 
+	CAMERA_MODE_PLAYER, 
+	CAMERA_MODE_FREE,
+
+	CAMERA_MODE_COUNT
+};
+
+enum CarryMode : s32 { CARRY_NONE, CARRY_POT, CARRY_WATER, CARRY_SEED };
 
 struct Scene3d
 {
 	// Components
 	Array<Transform3D> 			transforms;
 
-	Array<AnimatedSkeleton> 	animatedSkeletons;
 	Array<SkeletonAnimator> 	skeletonAnimators;	
 	Array<CharacterMotor>		characterMotors;
 	Array<CharacterInput>		characterInputs;
@@ -60,52 +67,37 @@ struct Scene3d
 	ModelHandle treeModel;
 	ModelHandle potModel;
 
-	enum : s32 { CARRY_NONE, CARRY_POT, CARRY_WATER, CARRY_SEED };
 	s32 playerCarryState;
 	s32 carriedItemIndex;
 
 	// Other actors
-	FollowerController followers[150];
-	RandomWalkController randomWalkers [10];
+	static constexpr s32 followerCapacity = 150;
+	FollowerController followers[followerCapacity];
+
+	static constexpr s32 walkerCapacity = 10;
+	RandomWalkController randomWalkers [walkerCapacity];
 
 	// Data
 	Animation characterAnimations [CharacterAnimations::ANIMATION_COUNT];
 
 	// Random
 	ModelHandle skybox;
-	SceneGui gui;
+	Gui 		gui;
+	bool32		guiVisible;
+	s32 		cameraMode;
 
- 	// Todo(Leo): maybe make free functions
-	static MenuResult
-	update(	void * 						scenePtr, 
-			game::Input * 				input,
-			platform::Graphics*,
-			platform::Window*,
-			platform::Functions*);
+	v3 			freeCameraPosition;
+	quaternion 	freeCameraRotation;
+	f32 		freeCameraMoveSpeed = 10;
+	f32 		freeCameraRotateSpeed = to_radians(180);
 
-	static void
-	load(	void * 						scenePtr,
-			MemoryArena * 				persistentMemory,
-			MemoryArena * 				transientMemory,
-			platform::Graphics*,
-			platform::Window*,
-			platform::Functions*);
+	v3 			playerCameraPosition;
+	v3  		playerCameraDirection;
 };
 
-SceneInfo get_3d_scene_info()
-{
-	return make_scene_info(	get_size_of<Scene3d>,
-							Scene3d::load,
-							Scene3d::update);
-}
-
-
 MenuResult
-Scene3d::update(	void * 					scenePtr,
-					game::Input * 			input,
-					platform::Graphics *,
-					platform::Window *,
-					platform::Functions *)
+update_scene_3d(	void * 					scenePtr,
+					game::Input * 			input)
 {
 	Scene3d * scene = reinterpret_cast<Scene3d*>(scenePtr);
 
@@ -123,8 +115,27 @@ Scene3d::update(	void * 					scenePtr,
 	*/
 
 	// Game Logic section
-	update_player_input(scene->playerInputState, scene->characterInputs, scene->worldCamera, *input);
-	
+	if(scene->cameraMode == CAMERA_MODE_PLAYER)
+	{
+		update_player_input(scene->playerInputState, scene->characterInputs, scene->worldCamera, *input);
+		update_camera_controller(&scene->cameraController, &scene->playerCameraPosition, input);
+
+		scene->worldCamera.position = scene->playerCameraPosition;
+		scene->playerCameraDirection = scene->worldCamera.direction;
+	}
+	else
+	{
+		scene->characterInputs[scene->playerInputState.inputArrayIndex] = {};
+
+		scene->freeCameraPosition.x += input->move.x * scene->freeCameraMoveSpeed * input->elapsedTime;
+		scene->freeCameraPosition.y += input->move.y * scene->freeCameraMoveSpeed * input->elapsedTime;
+
+		// f32 zMove = is_pressed(input->zoomOut) - is_pressed(input->zoomIn);
+		// scene->freeCameraPosition.z += zMove * scene->freeCameraMoveSpeed * input->elapsedTime;
+
+		scene->worldCamera.position = scene->freeCameraPosition;
+		logDebug(0) << scene->worldCamera.position; 
+	}	
 	/*
 	RULES:
 		- Seed, water and pot can be carried
@@ -337,19 +348,23 @@ Scene3d::update(	void * 					scenePtr,
 	} // endif input
 
 
-	v3 carriedPosition = multiply_point(get_matrix(*scene->playerCharacterTransform), {0, 0.7, 0.7});
+	v3 carriedPosition = multiply_point(transform_matrix(*scene->playerCharacterTransform), {0, 0.7, 0.7});
+	quaternion carriedRotation = scene->playerCharacterTransform->rotation;
 	switch(scene->playerCarryState)
 	{
 		case CARRY_POT:
 			scene->potTransforms[scene->carriedItemIndex].position = carriedPosition;
+			scene->potTransforms[scene->carriedItemIndex].rotation = carriedRotation;
 			break;
 
 		case CARRY_WATER:
 			scene->waterTransforms[scene->carriedItemIndex].position = carriedPosition;
+			scene->waterTransforms[scene->carriedItemIndex].rotation = carriedRotation;
 			break;
 
 		case CARRY_SEED:
 			scene->seedTransforms[scene->carriedItemIndex].position = carriedPosition;
+			scene->seedTransforms[scene->carriedItemIndex].rotation = carriedRotation;
 			break;
 
 		default:
@@ -360,8 +375,8 @@ Scene3d::update(	void * 					scenePtr,
 	// since they do not directly map to pot indices
 	for (s32 i = 0; i < scene->treesInPotCount; ++i)
 	{
-		// Note(Leo): these happaned to naturally map one to one, see comment in CARRY_WATER case in dropping section
-		scene->treeTransforms[i].position = scene->potTransforms[i].position + v3{0, 0, 0.25};
+		scene->treeTransforms[i].position = multiply_point(transform_matrix(scene->potTransforms[i]), v3{0, 0, 0.25});
+		scene->treeTransforms[i].rotation = scene->potTransforms[i].rotation;
 	}
 	
 	// -----------------------------------------------------------------------------------------------------------
@@ -384,8 +399,6 @@ Scene3d::update(	void * 					scenePtr,
 		update_follower_input(follower, scene->characterInputs, input->elapsedTime);
 	}
 	
-	update_camera_controller(&scene->cameraController, input);
-
 	for (int i = 0; i < scene->characterMotors.count(); ++i)
 	{
 		update_character_motor(	scene->characterMotors[i],
@@ -403,10 +416,10 @@ Scene3d::update(	void * 					scenePtr,
 
 	// Rebellious(Leo): stop using systems, and instead just do the stuff you need to >:)
 	/// DRAW UNUSED WATER
-	for (s32 i = 0; i <scene->waterCount; ++i)
+	for (s32 i = 0; i < scene->waterCount; ++i)
 	{
 		platformApi->draw_model(platformGraphics, scene->waterModel,
-								get_matrix(scene->waterTransforms[i]),
+								transform_matrix(scene->waterTransforms[i]),
 								true,
 								nullptr, 0);
 	}
@@ -415,7 +428,7 @@ Scene3d::update(	void * 					scenePtr,
 	for (s32 i = 0; i < scene->currentSeedCount; ++i)
 	{
 		platformApi->draw_model(platformGraphics, scene->seedModel,
-								get_matrix(scene->seedTransforms[i]),
+								transform_matrix(scene->seedTransforms[i]),
 								true,
 								nullptr, 0);
 	}
@@ -425,7 +438,7 @@ Scene3d::update(	void * 					scenePtr,
 	for (s32 i = 0; i < totalTreeCount; ++i)
 	{
 		platformApi->draw_model(platformGraphics, scene->treeModel,
-								get_matrix(scene->treeTransforms[i]),
+								transform_matrix(scene->treeTransforms[i]),
 								true,
 								nullptr, 0);
 	}
@@ -434,7 +447,7 @@ Scene3d::update(	void * 					scenePtr,
 	for (s32 i = 0; i < scene->totalPotsCount; ++i)
 	{
 		platformApi->draw_model(platformGraphics, scene->potModel,
-								get_matrix(scene->potTransforms[i]),
+								transform_matrix(scene->potTransforms[i]),
 								true,
 								nullptr, 0);
 	}
@@ -444,7 +457,7 @@ Scene3d::update(	void * 					scenePtr,
 	{
 		s32 potWithSeedIndex = i + scene->potsWithTreeCount;
 		platformApi->draw_model(platformGraphics, scene->seedModel,
-								get_matrix(scene->potTransforms[potWithSeedIndex]),
+								transform_matrix(scene->potTransforms[potWithSeedIndex]),
 								true,
 								nullptr, 0);
 	}
@@ -469,55 +482,102 @@ Scene3d::update(	void * 					scenePtr,
 	for (auto & renderer : scene->renderers)
 	{
 		platformApi->draw_model(platformGraphics, renderer.model,
-								get_matrix(*renderer.transform),
+								transform_matrix(*renderer.transform),
 								renderer.castShadows,
 								nullptr, 0);
 	}
 
 
-	
 	for (auto & renderer : scene->animatedRenderers)
 	{
-		update_animated_renderer(renderer);
+		m44 boneTransformMatrices [32];
 
-		platformApi->draw_model(platformGraphics, renderer.model, get_matrix(*renderer.transform),
-								renderer.castShadows, renderer.bones.data(),
-								renderer.bones.count());
+ 		update_animated_renderer(boneTransformMatrices, renderer.skeleton->bones);
+
+		platformApi->draw_model(platformGraphics, renderer.model, transform_matrix(*renderer.transform),
+								renderer.castShadows, boneTransformMatrices, array_count(boneTransformMatrices));
 	}
-
 
 	// ------------------------------------------------------------------------
 
+	if (is_clicked(input->start))
+	{
+		if (scene->guiVisible)
+		{
+			scene->guiVisible = false;
+		}
+		else
+		{
+			scene->guiVisible = true;
+			scene->gui.selectedIndex = 0;
+		}
+	}
 
-	auto result = update_scene_gui(&scene->gui, input, platformGraphics, platformApi);
+	MenuResult result = MENU_NONE;
+
+	if (scene->guiVisible)
+	{
+		enum : s32 { GUI_CONTINUE, GUI_CAMERA, GUI_EXIT, GUI_COUNT };
+
+		gui_start(scene->gui, input);
+
+		if (gui_button(colors::mutedYellow))
+		{
+			scene->guiVisible = false;
+		}
+
+		v4 cameraButtonColor = scene->cameraMode == CAMERA_MODE_PLAYER ? colors::mutedBlue : colors::mutedGreen;
+		if (gui_button(cameraButtonColor))
+		{
+			scene->cameraMode += 1;
+			scene->cameraMode %= CAMERA_MODE_COUNT;
+
+			if (scene->cameraMode == CAMERA_MODE_FREE)
+			{
+				scene->freeCameraPosition = scene->playerCameraPosition;
+				// scene->worldCamera.position = scene->playerCameraPosition;
+				// scene->worldCamera.direction = scene->playerCameraDirection;
+			}
+			else
+			{
+				// scene-
+			}
+		}
+
+		if (gui_button(colors::mutedRed))
+		{
+			result = SCENE_EXIT;
+		}
+
+		gui_end();
+	}
+
+	// auto result = update_scene_gui(&scene->gui, input, platformGraphics, platformApi);
 	return result;
 }
 
-void Scene3d::load(	void * 						scenePtr, 
-					MemoryArena * 				persistentMemory,
-					MemoryArena *,
-					platform::Graphics *,
-					platform::Window *,
-					platform::Functions *)
+void * load_scene_3d(MemoryArena & persistentMemory)
 {
+	void * scenePtr = allocate(persistentMemory, sizeof(Scene3d), true);
 	Scene3d * scene = reinterpret_cast<Scene3d*>(scenePtr);
-	
+	*scene = {};
+
 	// Note(Leo): This is good, more this.
-	scene->gui = make_scene_gui(global_transientMemory, platformGraphics, platformApi);
+	// scene->gui = make_scene_gui(global_transientMemory, platformGraphics, platformApi);
+	scene->gui = make_gui();
 
 	// Note(Leo): amounts are SWAG, rethink.
-	scene->transforms 			= allocate_array<Transform3D>(*persistentMemory, 1200);
-	scene->animatedSkeletons 	= allocate_array<AnimatedSkeleton>(*persistentMemory, 600);
-	scene->skeletonAnimators 	= allocate_array<SkeletonAnimator>(*persistentMemory, 600);
-	scene->animatedRenderers 	= allocate_array<AnimatedRenderer>(*persistentMemory, 600);
-	scene->renderers 			= allocate_array<Renderer>(*persistentMemory, 600);
+	scene->transforms 			= allocate_array<Transform3D>(persistentMemory, 1200);
+	scene->skeletonAnimators 	= allocate_array<SkeletonAnimator>(persistentMemory, 600);
+	scene->animatedRenderers 	= allocate_array<AnimatedRenderer>(persistentMemory, 600);
+	scene->renderers 			= allocate_array<Renderer>(persistentMemory, 600);
 
 	// Todo(Leo): Probaly need to allocate these more coupledly, at least they must be able to reordered together
-	scene->characterMotors		= allocate_array<CharacterMotor>(*persistentMemory, 600);
-	scene->characterInputs		= allocate_array<CharacterInput>(*persistentMemory, scene->characterMotors.capacity(), ALLOC_FILL | ALLOC_NO_CLEAR);
+	scene->characterMotors		= allocate_array<CharacterMotor>(persistentMemory, 600);
+	scene->characterInputs		= allocate_array<CharacterInput>(persistentMemory, scene->characterMotors.capacity(), ALLOC_FILL | ALLOC_NO_CLEAR);
 
-	scene->collisionSystem.boxColliders 	= allocate_array<BoxCollider>(*persistentMemory, 600);
-	scene->collisionSystem.cylinderColliders = allocate_array<CylinderCollider>(*persistentMemory, 600);
+	scene->collisionSystem.boxColliders 	= allocate_array<BoxCollider>(persistentMemory, 600);
+	scene->collisionSystem.cylinderColliders = allocate_array<CylinderCollider>(persistentMemory, 600);
 
 	logSystem() << "Allocations succesful! :)";
 
@@ -609,7 +669,7 @@ void Scene3d::load(	void * 						scenePtr,
 	{
 		scene->playerCarryState = CARRY_NONE;
 
-		char const * filename 	= "assets/models/cube_head.glb";
+		char const * filename 	= "assets/models/cube_head_v3.glb";
 		auto const gltfFile 	= read_gltf_file(*global_transientMemory, filename);
 
 		auto girlMeshAsset 	= load_mesh_glb(*global_transientMemory, gltfFile, "cube_head");
@@ -630,12 +690,12 @@ void Scene3d::load(	void * 						scenePtr,
 
 			auto startTime = platformApi->current_time();
 
-			scene->characterAnimations[WALK] 	= load_animation_glb(*persistentMemory, gltfFile, "Walk");
-			scene->characterAnimations[RUN] 	= load_animation_glb(*persistentMemory, gltfFile, "Run");
-			scene->characterAnimations[IDLE] 	= load_animation_glb(*persistentMemory, gltfFile, "Idle");
-			scene->characterAnimations[JUMP]	= load_animation_glb(*persistentMemory, gltfFile, "JumpUp");
-			scene->characterAnimations[FALL]	= load_animation_glb(*persistentMemory, gltfFile, "JumpDown");
-			scene->characterAnimations[CROUCH] 	= load_animation_glb(*persistentMemory, gltfFile, "Crouch");
+			scene->characterAnimations[WALK] 	= load_animation_glb(persistentMemory, gltfFile, "Walk");
+			scene->characterAnimations[RUN] 	= load_animation_glb(persistentMemory, gltfFile, "Run");
+			scene->characterAnimations[IDLE] 	= load_animation_glb(persistentMemory, gltfFile, "Idle");
+			scene->characterAnimations[JUMP]	= load_animation_glb(persistentMemory, gltfFile, "JumpUp");
+			scene->characterAnimations[FALL]	= load_animation_glb(persistentMemory, gltfFile, "JumpDown");
+			scene->characterAnimations[CROUCH] 	= load_animation_glb(persistentMemory, gltfFile, "Crouch");
 
 			logSystem(1) << "Loading all 6 animations took: " << platformApi->elapsed_seconds(startTime, platformApi->current_time()) << " s";
 
@@ -649,27 +709,25 @@ void Scene3d::load(	void * 						scenePtr,
 
 		auto startTime = platformApi->current_time();
 
-		AnimatedSkeleton * cubeHeadSkeleton = scene->animatedSkeletons.push_return_pointer(load_skeleton_glb(*persistentMemory, gltfFile, "cube_head"));
+		// AnimatedSkeleton * cubeHeadSkeleton = scene->animatedSkeletons.push_return_pointer(load_skeleton_glb(persistentMemory, gltfFile, "cube_head"));
 
 		logSystem(1) << "Loading skeleton took: " << platformApi->elapsed_seconds(startTime, platformApi->current_time()) << " s";
 
 		scene->skeletonAnimators.push({
-			.skeleton 		= cubeHeadSkeleton,
+			.skeleton 		= load_skeleton_glb(persistentMemory, gltfFile, "cube_head"),
 			.animations 	= motor->animations,
 			.weights 		= motor->animationWeights,
 			.animationCount = CharacterAnimations::ANIMATION_COUNT
 		});
 
 		// Note(Leo): take the reference here, so we can easily copy this down below.
-		// auto & cubeHeadSkeleton = scene->skeletonAnimators.last().skeleton;
+		auto & cubeHeadSkeleton = scene->skeletonAnimators.last().skeleton;
 
 		auto model = push_model(girlMesh, materials.character);
 		scene->animatedRenderers.push(make_animated_renderer(
 				playerTransform,
-				cubeHeadSkeleton,
-				model,
-				*persistentMemory
-			));
+				&cubeHeadSkeleton,
+				model));
 
 		// --------------------------------------------------------------------
 
@@ -696,18 +754,15 @@ void Scene3d::load(	void * 						scenePtr,
 				motor->animations[CROUCH] 	= &scene->characterAnimations[CROUCH];
 			}
 
-			AnimatedSkeleton * skeleton = scene->animatedSkeletons.push_return_pointer({});
-			skeleton->bones = copy_array(*persistentMemory, cubeHeadSkeleton->bones);
-
 			scene->skeletonAnimators.push({
-					.skeleton 		= skeleton,
+					.skeleton 		= { .bones = copy_array(persistentMemory, cubeHeadSkeleton.bones) },
 					.animations 	= motor->animations,
 					.weights 		= motor->animationWeights,
 					.animationCount = CharacterAnimations::ANIMATION_COUNT
 				});
 
 			auto model = push_model(girlMesh, materials.character); 
-			scene->animatedRenderers.push(make_animated_renderer(transform,	skeleton, model, *persistentMemory));
+			scene->animatedRenderers.push(make_animated_renderer(transform,	&scene->skeletonAnimators.last().skeleton, model));
 		}
 
 
@@ -747,18 +802,15 @@ void Scene3d::load(	void * 						scenePtr,
 				motor->animations[CROUCH] 	= &scene->characterAnimations[CROUCH];
 			}
 
-			AnimatedSkeleton * skeleton = scene->animatedSkeletons.push_return_pointer({});
-			skeleton->bones = copy_array(*persistentMemory, cubeHeadSkeleton->bones);
-
 			scene->skeletonAnimators.push({
-					.skeleton 		= skeleton,
+					.skeleton 		= { .bones = copy_array(persistentMemory, cubeHeadSkeleton.bones) },
 					.animations 	= motor->animations,
 					.weights 		= motor->animationWeights,
 					.animationCount = CharacterAnimations::ANIMATION_COUNT
 				});
 
 			auto model = push_model(girlMesh, materials.character); 
-			scene->animatedRenderers.push(make_animated_renderer(transform,	skeleton, model, *persistentMemory));
+			scene->animatedRenderers.push(make_animated_renderer(transform,	&scene->skeletonAnimators.last().skeleton, model));
 		}
 	}
 
@@ -777,7 +829,7 @@ void Scene3d::load(	void * 						scenePtr,
 			// Note(Leo): this is maximum size we support with u16 mesh vertex indices
 			s32 gridSize = 256;
 
-			auto heightmapTexture 	= load_texture_asset("assets/textures/heightmap6.jpg", global_transientMemory);
+			auto heightmapTexture 	= load_texture_asset("assets/textures/valley_heightmap.png", global_transientMemory);
 			auto heightmap 			= make_heightmap(global_transientMemory, &heightmapTexture, gridSize, mapSize, -terrainHeight / 2, terrainHeight / 2);
 			auto groundMeshAsset 	= generate_terrain(global_transientMemory, 32, &heightmap);
 
@@ -945,7 +997,7 @@ void Scene3d::load(	void * 						scenePtr,
 
 			// ----------------------------------------------------------------
 
-			for(s32 i = 0; i < seedCapacity; ++i)
+			for(s32 i = 0; i < scene->seedCapacity; ++i)
 			{
 				scene->seedTransforms[i] = Transform3D::identity();
 
@@ -968,6 +1020,8 @@ void Scene3d::load(	void * 						scenePtr,
 		}
 
 		logSystem(0) << "Scene3d loaded, " << used_percent(*global_transientMemory) * 100 << "% of transient memory used.";
-		logSystem(0) << "Scene3d loaded, " << used_percent(*persistentMemory) * 100 << "% of persistent memory used.";
+		logSystem(0) << "Scene3d loaded, " << used_percent(persistentMemory) * 100 << "% of persistent memory used.";
 	}
+
+	return scenePtr;
 }

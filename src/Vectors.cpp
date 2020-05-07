@@ -87,7 +87,12 @@ v2 normalize(v2 v)
 	return v;
 }
 
-
+v2 scale_v2 (v2 a, v2 b)
+{
+	a.x *= b.x;
+	a.y *= b.y;
+	return a;
+}
 
 template<typename S>
 struct Vector<S, 3>
