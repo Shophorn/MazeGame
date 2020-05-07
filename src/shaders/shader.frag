@@ -76,7 +76,9 @@ void main()
 	vec3 color = light.color.rgb * albedo;
 	if (lightIntensity < 0.5)
 	{
-		color = light.ambient.rgb;//max(light.ambient.rgb, color);
+		// color = light.ambient.rgb;//max(light.ambient.rgb, color);
+		// color = max(light.ambient.rgb, color);
+		color = light.ambient.rgb * albedo;
 	}
 
 	// outColor.rgb = mix(color, normalize(camera.view[3].rgb), 0.3);

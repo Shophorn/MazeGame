@@ -35,8 +35,7 @@ struct Scene2d
 	bool32 	guiVisible;
 };
 
-internal MenuResult
-update_scene_2d(void * scenePtr, game::Input * input)
+internal bool32 update_scene_2d(void * scenePtr, game::Input * input)
 {
 	Scene2d * scene = reinterpret_cast<Scene2d*>(scenePtr);
 
@@ -71,9 +70,8 @@ update_scene_2d(void * scenePtr, game::Input * input)
 	platformApi->update_lighting(platformGraphics, &light, &scene->worldCamera, ambient);
 
 
-	// auto result = update_scene_gui(&scene->gui, input, platformGraphics, platformApi);
 
-	MenuResult result = MENU_NONE;
+	bool32 keepScene = true;;
 
 	if (is_clicked(input->start))
 	{
@@ -99,14 +97,13 @@ update_scene_2d(void * scenePtr, game::Input * input)
 
 		if (gui_button(v4{1,1,1,1}))
 		{
-			result = SCENE_EXIT;
+			keepScene = false;
 		}
 
 		gui_end();
 	}
 
-
-	return result;
+	return keepScene;
 }
 
 internal void * load_scene_2d(MemoryArena & persistentMemory)

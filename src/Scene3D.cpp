@@ -14,12 +14,18 @@ Scene description for 3d development scene
 enum CameraMode : s32
 { 
 	CAMERA_MODE_PLAYER, 
-	CAMERA_MODE_FREE,
+	CAMERA_MODE_ELEVATOR,
 
 	CAMERA_MODE_COUNT
 };
 
-enum CarryMode : s32 { CARRY_NONE, CARRY_POT, CARRY_WATER, CARRY_SEED };
+enum CarryMode : s32
+{ 	
+	CARRY_NONE,
+	CARRY_POT,
+	CARRY_WATER,
+	CARRY_SEED,
+};
 
 struct Scene3d
 {
@@ -86,18 +92,19 @@ struct Scene3d
 	bool32		guiVisible;
 	s32 		cameraMode;
 
-	v3 			freeCameraPosition;
-	quaternion 	freeCameraRotation;
-	f32 		freeCameraMoveSpeed = 10;
-	f32 		freeCameraRotateSpeed = to_radians(180);
+	// v3 			freeCameraPosition;
+	f32 		freeCameraMoveSpeed = 30;
+	f32 		freeCameraZMoveSpeed = 15;
+	f32 		freeCameraRotateSpeed = 0.5f * tau;
+	f32 		freeCameraPanAngle;
+	f32 		freeCameraTiltAngle;
+	f32 		freeCameraMaxTilt = 0.2f * tau;
 
-	v3 			playerCameraPosition;
-	v3  		playerCameraDirection;
+	// v3 			playerCameraPosition;
+	// v3  		playerCameraDirection;
 };
 
-MenuResult
-update_scene_3d(	void * 					scenePtr,
-					game::Input * 			input)
+internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 {
 	Scene3d * scene = reinterpret_cast<Scene3d*>(scenePtr);
 
@@ -118,23 +125,40 @@ update_scene_3d(	void * 					scenePtr,
 	if(scene->cameraMode == CAMERA_MODE_PLAYER)
 	{
 		update_player_input(scene->playerInputState, scene->characterInputs, scene->worldCamera, *input);
-		update_camera_controller(&scene->cameraController, &scene->playerCameraPosition, input);
-
-		scene->worldCamera.position = scene->playerCameraPosition;
-		scene->playerCameraDirection = scene->worldCamera.direction;
+		update_camera_controller(&scene->cameraController, &scene->worldCamera.position, input);
 	}
 	else
 	{
 		scene->characterInputs[scene->playerInputState.inputArrayIndex] = {};
 
-		scene->freeCameraPosition.x += input->move.x * scene->freeCameraMoveSpeed * input->elapsedTime;
-		scene->freeCameraPosition.y += input->move.y * scene->freeCameraMoveSpeed * input->elapsedTime;
 
-		// f32 zMove = is_pressed(input->zoomOut) - is_pressed(input->zoomIn);
-		// scene->freeCameraPosition.z += zMove * scene->freeCameraMoveSpeed * input->elapsedTime;
+		// Note(Leo): positive rotation is to left, which is opposite of joystick
+		scene->freeCameraPanAngle += -1 * input->look.x * scene->freeCameraRotateSpeed * input->elapsedTime;
 
-		scene->worldCamera.position = scene->freeCameraPosition;
-		logDebug(0) << scene->worldCamera.position; 
+		scene->freeCameraTiltAngle += -1 * input->look.y * scene->freeCameraRotateSpeed * input->elapsedTime;
+		scene->freeCameraTiltAngle = math::clamp(scene->freeCameraTiltAngle, -scene->freeCameraMaxTilt, scene->freeCameraMaxTilt);
+
+		quaternion pan = quaternion_axis_angle(up_v3, scene->freeCameraPanAngle);
+		m44 panMatrix = make_rotation_matrix(pan);
+
+		// Todo(Leo): somewhy this points to opposite of right
+		v3 right = multiply_direction(panMatrix, right_v3);
+		v3 forward = multiply_direction(panMatrix, forward_v3);
+
+		f32 moveStep 		= scene->freeCameraMoveSpeed * input->elapsedTime;
+		v3 rightMovement 	= right * input->move.x * moveStep;
+		v3 forwardMovement 	= forward * input->move.y * moveStep;
+
+		f32 zInput = is_pressed(input->zoomOut) - is_pressed(input->zoomIn);
+		v3 upMovement = up_v3 * zInput * moveStep;
+
+		scene->worldCamera.position += rightMovement + forwardMovement + upMovement;
+
+		quaternion tilt = quaternion_axis_angle(right, scene->freeCameraTiltAngle);
+		m44 rotation 	= make_rotation_matrix(pan * tilt);
+		v3 direction 	= multiply_direction(rotation, forward_v3);
+		
+		scene->worldCamera.direction = direction;
 	}	
 	/*
 	RULES:
@@ -209,7 +233,8 @@ update_scene_3d(	void * 					scenePtr,
 
 			case CARRY_POT:
 				scene->playerCarryState = CARRY_NONE;
-				scene->potTransforms[scene->carriedItemIndex].position.z = get_terrain_height(&scene->collisionSystem, *scene->potTransforms[scene->carriedItemIndex].position.xy());
+				scene->potTransforms[scene->carriedItemIndex].position.z
+					= get_terrain_height(&scene->collisionSystem, *scene->potTransforms[scene->carriedItemIndex].position.xy());
 				break;
 				
 			case CARRY_WATER:
@@ -513,12 +538,10 @@ update_scene_3d(	void * 					scenePtr,
 		}
 	}
 
-	MenuResult result = MENU_NONE;
+	bool32 keepScene = true;
 
 	if (scene->guiVisible)
 	{
-		enum : s32 { GUI_CONTINUE, GUI_CAMERA, GUI_EXIT, GUI_COUNT };
-
 		gui_start(scene->gui, input);
 
 		if (gui_button(colors::mutedYellow))
@@ -531,29 +554,17 @@ update_scene_3d(	void * 					scenePtr,
 		{
 			scene->cameraMode += 1;
 			scene->cameraMode %= CAMERA_MODE_COUNT;
-
-			if (scene->cameraMode == CAMERA_MODE_FREE)
-			{
-				scene->freeCameraPosition = scene->playerCameraPosition;
-				// scene->worldCamera.position = scene->playerCameraPosition;
-				// scene->worldCamera.direction = scene->playerCameraDirection;
-			}
-			else
-			{
-				// scene-
-			}
 		}
 
 		if (gui_button(colors::mutedRed))
 		{
-			result = SCENE_EXIT;
+			keepScene = false;
 		}
 
 		gui_end();
 	}
 
-	// auto result = update_scene_gui(&scene->gui, input, platformGraphics, platformApi);
-	return result;
+	return keepScene;
 }
 
 void * load_scene_3d(MemoryArena & persistentMemory)

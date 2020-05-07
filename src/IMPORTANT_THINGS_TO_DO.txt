@@ -1,0 +1,11 @@
+Friend Simulator
+	- go everywhere and give names to specific places
+	- change the environment with plants
+
+	- beware of the angery mountain
+	- kingdom and king in west
+	- dead robots "everywhere"
+	- other kingdom in east
+
+	- easterlings travel through valley to western kingdom for asylum etc.
+	- player cannot pass, for they have no interkingdom passport

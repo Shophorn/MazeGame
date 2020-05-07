@@ -40,6 +40,8 @@ Gui * global_currentGui = nullptr;
 
 void gui_start(Gui & gui, game::Input * input)
 {
+	Assert(global_currentGui == nullptr);
+
 	global_currentGui 			= &gui;
 	gui.input 					= input;
 	gui.currentPosition 		= gui.startPosition;

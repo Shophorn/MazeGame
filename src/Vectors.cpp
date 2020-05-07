@@ -111,11 +111,18 @@ struct Vector<S, 3>
 
 	Vector normalized() const 	{ Vector result = *this; vector_impl_::divide<S, 3>(&result, magnitude()); return result; }
 };
+
 using v3 	= Vector<float, 3>;
+
+constexpr v3 right_v3 	= {1,0,0};
+constexpr v3 forward_v3 = {0,1,0};
+constexpr v3 up_v3 		= {0,0,1};
 
 template<typename S> Vector<S,3> constexpr Vector<S,3>::right 	= {1,0,0};
 template<typename S> Vector<S,3> constexpr Vector<S,3>::forward = {0,1,0};
 template<typename S> Vector<S,3> constexpr Vector<S,3>::up 		= {0,0,1};
+
+
 
 f32 magnitude(v3 v)
 {
@@ -123,6 +130,14 @@ f32 magnitude(v3 v)
 
 	f32 m = square_root(pow2(v.x) + pow2(v.y) + pow2(v.z));
 	return m;
+}
+
+f32 square_magnitude_v3(v3 v)
+{
+	using namespace math;
+
+	f32 sqrMagnitude = pow2(v.x) + pow2(v.y) + pow2(v.z);
+	return sqrMagnitude;
 }
 
 v3 divide(v3 v, f32 f)
@@ -140,6 +155,41 @@ v3 normalize(v3 v)
 	return v;
 }
 
+v3 normalize_v3(v3 v)
+{
+	v = divide(v, magnitude(v));
+	return v;
+}
+
+f32 dot_v3(v3 a, v3 b)
+{
+	f32 dot = a.x * b.x + a.y * b.y + a.z * b.z;
+	return dot;
+}
+
+v3 cross_v3(v3 lhs, v3 rhs)
+{
+	lhs = 
+	{
+		lhs.y * rhs.z - lhs.z * rhs.y,
+		lhs.z * rhs.x - lhs.x * rhs.z,
+		lhs.x * rhs.y - lhs.y * rhs.x
+	};
+	return lhs;
+}
+
+f32 angle_v3(v3 from, v3 to)
+{
+	// Note(Leo): copied from unity vector.cs...
+
+	f32 denominator = math::square_root(square_magnitude_v3(from) * square_magnitude_v3(to));
+	if (denominator < 1e-15f)
+		return 0.0f;
+
+	f32 dot = math::clamp(dot_v3(from, to) / denominator, -1.0f, 1.0f);
+	f32 angle = arc_cosine(dot);
+	return angle;
+}
 
 struct world
 {
@@ -419,9 +469,9 @@ namespace vector_meta_
 
 	template<template<typename, u32> typename V, typename S, u32 D>
 	constexpr VectorInfo<S,D> get_info(V<S,D> const &) { return {}; }
- 	
+	
 	template<typename TVector>
- 	using Info = decltype(get_info(std::declval<TVector>()));
+	using Info = decltype(get_info(std::declval<TVector>()));
 
 	template<typename> constexpr bool32 isVectorTemplate = false;
 	template<typename T, u32 D> constexpr bool32 isVectorTemplate<Vector<T,D>> = true;

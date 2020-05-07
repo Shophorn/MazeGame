@@ -73,8 +73,9 @@ void main()
 		// float luma = dot(albedo, vec3(0.299, 0.587, 0.114));
 
 		// lightIntensity *= (1.0 - lightCoords.w);
-		outColor = vec4(0.6, 0, 0.6, 1);
+		outColor.rgb = albedo * vec3(0.6, 0, 0.6);
 		// outColor.rgb *= luma;
+		outColor.a = 0;
 		return;
 	}
 	// ------------------------------------------------------------------------

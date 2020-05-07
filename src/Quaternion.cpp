@@ -73,6 +73,19 @@ quaternion::axis_angle(v3 axis, float angleInRadians)
 	return result;
 }
 
+quaternion quaternion_axis_angle(v3 axis, float angleInRadians)
+{
+	angleInRadians *= -1;
+	float halfAngle = angleInRadians / 2.0f;
+
+	quaternion result = {};
+
+	result.w = cosine(halfAngle);
+	result.vector = axis * sine(halfAngle);
+
+	return result;
+}
+
 quaternion
 quaternion::euler_angles(v3 eulerRotation)
 {
@@ -255,5 +268,25 @@ quaternion quaternion::normalized() const
 
 	Assert(result.x == result.x && result.y == result.y && result.z == result.z && result.w == result.w && "probably a nan");
 	Assert(result.is_unit_quaternion());
+	return result;
+}
+
+quaternion quaternion_from_to(v3 from, v3 to)
+{
+	f32 angle = angle_v3(from, to);
+
+	v3 axis = normalize_v3(cross_v3(from, to));
+
+    f32 cross_x = from.y * to.z - from.z * to.y;
+    f32 cross_y = from.z * to.x - from.x * to.z;
+    f32 cross_z = from.x * to.y - from.y * to.x;
+    f32 sign = axis.x * cross_x + axis.y * cross_y + axis.z * cross_z;
+	
+	sign = sign < 0 ? -1 : 1;
+
+	// Todo(Leo): this was also copied from unity, which has wrong handed coordinate-system, multiply by -1 for that
+	angle = -1 * sign * angle;
+
+	quaternion result = quaternion::axis_angle(axis, angle);
 	return result;
 }

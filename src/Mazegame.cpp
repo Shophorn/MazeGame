@@ -57,9 +57,6 @@ namespace colors
 #include "MeshLoader.cpp"
 #include "TextureLoader.cpp"
 
-
-#include "Scene.cpp"
-
 #include "Gui.cpp"
 
 /* Todo(Leo): Haxor: these should be in different translation units, and only include
@@ -109,7 +106,9 @@ struct GameState
 	bool isInitialized;
 
 	void * loadedScene;
-	using FN_updateScene = MenuResult(void * scene, game::Input * input);
+
+	// Note(Leo): This MUST return false if it intends to close the scene, and true otherwise
+	using FN_updateScene = bool32(void * scene, game::Input * input);
 	FN_updateScene * updateScene;
 
 	Gui 	gui;
@@ -187,17 +186,13 @@ bool32 update_game(
 	}
 	
 	bool32 gameIsAlive = true;
-	bool32 unloadScene = false;
+	bool32 sceneIsAlive = true;
 
 	functions->prepare_frame(graphics);
 
 	if (state->loadedScene != nullptr)
 	{
-		auto guiResult = state->updateScene(state->loadedScene, input);
-		if (guiResult == SCENE_EXIT)
-		{
-			unloadScene = true;
-		}
+		sceneIsAlive = state->updateScene(state->loadedScene, input);
 	}
 	else
 	{
@@ -223,9 +218,12 @@ bool32 update_game(
 		gui_end();
 	}
 
+	/* Note(Leo): We MUST currently finish the frame before unloading scene, 
+	because we have at this point issued commands to vulkan command buffers,
+	and we currently have no mechanism to abort those. */
 	functions->finish_frame(graphics);
 
-	if (unloadScene)
+	if (sceneIsAlive == false)
 	{
 		platformApi->unload_scene(platformGraphics);
 		flush_memory_arena(&state->persistentMemoryArena);
@@ -236,7 +234,7 @@ bool32 update_game(
 		state->gui = make_gui();
 	}
 
-	// Todo(Leo): These still do not belong here
+	// Todo(Leo): These still MAYBE do not belong here
 	if (is_clicked(input->select))
 	{
 		if (functions->is_window_fullscreen(window))
