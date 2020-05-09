@@ -152,10 +152,9 @@ load_animation_glb(MemoryArena & allocator, GltfFile const & file, char const * 
 
 		int keyframeCount = accessors[inputAccessor]["count"].GetInt();
 
-		float const * keyframeStart = get_buffer_start<float>(file, inputAccessor);
-		float const * keyframeEnd 	= keyframeStart + keyframeCount;
-		// channel.times 				= allocate_array<float>(allocator, keyframeStart, keyframeEnd);
-		Array<f32> times 				= allocate_array<float>(allocator, keyframeStart, keyframeEnd);
+		float const * timesStart = get_buffer_start<float>(file, inputAccessor);
+		float const * timesEnd 	= timesStart + keyframeCount;
+		Array<f32> times 			= allocate_array<float>(allocator, timesStart, timesEnd);
 
 		/* Note(Leo): CUBICSPLINE interpolation has three values in total: inTangent,
 		splineVertex(aka actual keyframe value) and outTangent. */
