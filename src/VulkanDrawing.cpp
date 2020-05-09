@@ -191,7 +191,7 @@ vulkan::finish_drawing(VulkanContext * context)
 
     VkClearValue clearValues [] =
     {
-        { .color = {0.35f, 0.0f, 0.35f, 1.0f} },
+        { .color = {1.0f, 1.0f, 1.0f, 1.0f} },
         { .depthStencil = {1.0f, 0} }
     };
     VkRenderPassBeginInfo renderPassInfo =

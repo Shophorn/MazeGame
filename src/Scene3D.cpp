@@ -100,6 +100,11 @@ struct Scene3d
 	f32 		freeCameraTiltAngle;
 	f32 		freeCameraMaxTilt = 0.2f * tau;
 
+	s32 drawCharacter = 0;
+	f32 axisScale = 0.1f;
+	f32 animationTime = 0.0f;
+	s32 animationIndex = 0;
+
 	// v3 			playerCameraPosition;
 	// v3  		playerCameraDirection;
 };
@@ -110,7 +115,7 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 
 	/* Sadly, we need to draw skybox before game logic, because otherwise
 	debug lines would be hidden. This can be fixed though, just make debug pipeline similar to shadows. */ 
-	platformApi->draw_model(platformGraphics, scene->skybox, m44::identity(), false, nullptr, 0);
+	// platformApi->draw_model(platformGraphics, scene->skybox, m44::identity(), false, nullptr, 0);
 
 	/*
 	1. update input
@@ -406,39 +411,72 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 	
 	// -----------------------------------------------------------------------------------------------------------
 
-	for (auto const & collider : scene->collisionSystem.cylinderColliders)
-	{
-		debug::draw_circle_xy(collider.transform->position + collider.center, collider.radius, colors::brightYellow);
-	}
+	// for (auto const & collider : scene->collisionSystem.cylinderColliders)
+	// {
+	// 	debug::draw_circle_xy(collider.transform->position + collider.center, collider.radius, colors::brightYellow);
+	// }
 
-	debug::draw_circle_xy(scene->playerCharacterTransform->position + v3{0,0,0.7}, 0.25f, colors::brightGreen);
+	// debug::draw_circle_xy(scene->playerCharacterTransform->position + v3{0,0,0.7}, 0.25f, colors::brightGreen);
 
 
-	for (auto & randomWalker : scene->randomWalkers)
-	{
-		update_random_walker_input(randomWalker, scene->characterInputs, input->elapsedTime);
-	}
+	// for (auto & randomWalker : scene->randomWalkers)
+	// {
+	// 	update_random_walker_input(randomWalker, scene->characterInputs, input->elapsedTime);
+	// }
 
-	for (auto & follower : scene->followers)
-	{
-		update_follower_input(follower, scene->characterInputs, input->elapsedTime);
-	}
+	// for (auto & follower : scene->followers)
+	// {
+	// 	update_follower_input(follower, scene->characterInputs, input->elapsedTime);
+	// }
 	
-	for (int i = 0; i < scene->characterMotors.count(); ++i)
-	{
-		update_character_motor(	scene->characterMotors[i],
-								scene->characterInputs[i],
+	// for (int i = 0; i < scene->characterMotors.count(); ++i)
+	// {
+		scene->characterInputs[0].jumpInput = false;
+		scene->characterInputs[0].crouchInput = false;
+		update_character_motor(	scene->characterMotors[0],
+								scene->characterInputs[0],
 								scene->collisionSystem,
 								input->elapsedTime);
+
+	// }
+
+	scene->animationTime -= is_pressed(input->left) * 0.2 * input->elapsedTime;
+	if (scene->animationTime < 0)
+	{
+		scene->animationTime = 10;
 	}
 
-
-	for (auto & animator : scene->skeletonAnimators)
+	scene->animationTime += is_pressed(input->right) * 0.2 * input->elapsedTime;
+	if (scene->animationTime > 10)
 	{
+		scene->animationTime = 0;
+	}
+
+	if (is_clicked(input->B))
+	{
+		scene->animationIndex += 1;
+		scene->animationIndex %= CharacterAnimations::ANIMATION_COUNT;
+
+		logDebug(0) << scene->animationIndex;
+	}
+
+	// for (auto & animator : scene->skeletonAnimators)
+	{
+		auto & animator = scene->skeletonAnimators[0];
+
+		animator.animationTime = scene->animationTime;
+
+		for (s32 i = 0; i < CharacterAnimations::ANIMATION_COUNT; ++i)
+		{
+			animator.weights[i] = 0;
+		}
+
+		animator.weights[scene->animationIndex] = 1;
+
 		update_skeleton_animator(animator, input->elapsedTime);
 	}
 
-
+/*
 	// Rebellious(Leo): stop using systems, and instead just do the stuff you need to >:)
 	/// DRAW UNUSED WATER
 	for (s32 i = 0; i < scene->waterCount; ++i)
@@ -486,7 +524,7 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 								true,
 								nullptr, 0);
 	}
-
+*/
 	  //////////////////////////////
 	 /// 	RENDERING 			///
 	//////////////////////////////
@@ -504,24 +542,57 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 	v3 ambient 	= {0.1, 0.1, 0.5};
 	platformApi->update_lighting(platformGraphics, &light, &scene->worldCamera, ambient);
 
-	for (auto & renderer : scene->renderers)
+	// for (auto & renderer : scene->renderers)
+	// {
+	// 	platformApi->draw_model(platformGraphics, renderer.model,
+	// 							transform_matrix(*renderer.transform),
+	// 							renderer.castShadows,
+	// 							nullptr, 0);
+	// }
+
+	if (is_clicked(input->A))
 	{
-		platformApi->draw_model(platformGraphics, renderer.model,
-								transform_matrix(*renderer.transform),
-								renderer.castShadows,
-								nullptr, 0);
+		scene->drawCharacter += 1;
+		scene->drawCharacter %= 3;
 	}
 
+	scene->axisScale -= is_pressed(input->down) * 0.2 * input->elapsedTime;
+	scene->axisScale += is_pressed(input->up) * 0.2 * input->elapsedTime;
 
-	for (auto & renderer : scene->animatedRenderers)
+
 	{
+		auto & renderer = scene->animatedRenderers[0];
+
 		m44 boneTransformMatrices [32];
+		m44 debugMatrices [32];
 
- 		update_animated_renderer(boneTransformMatrices, renderer.skeleton->bones);
+ 		update_animated_renderer(boneTransformMatrices, debugMatrices, renderer.skeleton->bones);
 
-		platformApi->draw_model(platformGraphics, renderer.model, transform_matrix(*renderer.transform),
-								renderer.castShadows, boneTransformMatrices, array_count(boneTransformMatrices));
+ 		if(scene->drawCharacter < 2)
+ 		{
+			platformApi->draw_model(platformGraphics, renderer.model, transform_matrix(*renderer.transform),
+									renderer.castShadows, boneTransformMatrices, array_count(boneTransformMatrices));
+ 		}
+ 		
+ 		if (scene->drawCharacter > 0)
+ 		{
+ 			m44 modelTransformation = transform_matrix(*renderer.transform);
+ 			for (s32 i = 0; i < renderer.skeleton->bones.count(); ++i)
+ 			{
+ 				debug::draw_axes(platformGraphics, modelTransformation * debugMatrices[i], scene->axisScale, platformApi);
+ 			}
+ 		}
 	}
+
+	// for (auto & renderer : scene->animatedRenderers)
+	// {
+	// 	m44 boneTransformMatrices [32];
+
+ // 		update_animated_renderer(boneTransformMatrices, renderer.skeleton->bones);
+
+	// 	platformApi->draw_model(platformGraphics, renderer.model, transform_matrix(*renderer.transform),
+	// 							renderer.castShadows, boneTransformMatrices, array_count(boneTransformMatrices));
+	// }
 
 	// ------------------------------------------------------------------------
 
@@ -680,7 +751,7 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 	{
 		scene->playerCarryState = CARRY_NONE;
 
-		char const * filename 	= "assets/models/cube_head_v3.glb";
+		char const * filename 	= "assets/models/cube_head_v3_noik.glb";
 		auto const gltfFile 	= read_gltf_file(*global_transientMemory, filename);
 
 		auto girlMeshAsset 	= load_mesh_glb(*global_transientMemory, gltfFile, "cube_head");

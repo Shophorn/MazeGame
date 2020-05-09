@@ -32,7 +32,7 @@ AnimatedRenderer make_animated_renderer (	Transform3D * transform,
 	return result;		
 }
 
-void update_animated_renderer(m44 * boneTransformMatrices, Array<AnimatedBone> const & skeletonBones)
+void update_animated_renderer(m44 * boneTransformMatrices, m44 * debugMatrices, Array<AnimatedBone> const & skeletonBones)
 {
 	/* Note(Leo): Vertex shader where actual deforming happens, needs to know
 	transform from bind position aka default position (i.e. the original position
@@ -57,6 +57,11 @@ void update_animated_renderer(m44 * boneTransformMatrices, Array<AnimatedBone> c
 	{
 		s32 parentIndex = skeletonBones[i].parent;
 		boneTransformMatrices[i] = boneTransformMatrices[parentIndex] * transform_matrix(skeletonBones[i].boneSpaceTransform);
+	}
+
+	for (s32 i = 0; i < boneCount; ++i)
+	{
+		debugMatrices[i] = boneTransformMatrices[i];
 	}
 
 	for (s32 i = 0; i < boneCount; ++i)

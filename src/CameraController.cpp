@@ -70,6 +70,8 @@ struct CameraController3rdPerson
 	float relativeZoomSpeed 	= 1.0f;
 	float minDistance 			= 2.0f;
 	float maxDistance 			= 100.0f;
+
+	s32 zoomMode;
 };
 
 internal CameraController3rdPerson
@@ -85,15 +87,35 @@ make_camera_controller_3rd_person(Camera * camera, Transform3D * target)
 internal void
 update_camera_controller(CameraController3rdPerson * controller, v3 * cameraPosition, game::Input * input)
 {
-	if (is_pressed(input->zoomIn))
+	if (is_clicked(input->Y))
 	{
-		controller->distance -= controller->distance * controller->relativeZoomSpeed * input->elapsedTime;
-		controller->distance = math::max(controller->distance, controller->minDistance);
+		controller->zoomMode += 1;
+		controller->zoomMode %= 2;
 	}
-	else if(is_pressed(input->zoomOut))
+
+	if (controller->zoomMode == 0)
 	{
-		controller->distance += controller->distance * controller->relativeZoomSpeed * input->elapsedTime;
-		controller->distance = math::min(controller->distance, controller->maxDistance);
+		if (is_pressed(input->zoomIn))
+		{
+			controller->distance -= controller->distance * controller->relativeZoomSpeed * input->elapsedTime;
+			controller->distance = math::max(controller->distance, controller->minDistance);
+		}
+		else if(is_pressed(input->zoomOut))
+		{
+			controller->distance += controller->distance * controller->relativeZoomSpeed * input->elapsedTime;
+			controller->distance = math::min(controller->distance, controller->maxDistance);
+		}
+	}
+	else
+	{
+		if (is_pressed(input->zoomIn))
+		{
+			controller->baseOffset.z -= 1.0f * input->elapsedTime;
+		}
+		else if (is_pressed(input->zoomOut))
+		{
+			controller->baseOffset.z += 1.0f * input->elapsedTime;
+		}
 	}
 
     controller->orbitDegrees += input->look.x * controller->rotateSpeed * input->elapsedTime;
