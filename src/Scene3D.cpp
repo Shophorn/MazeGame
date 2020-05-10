@@ -440,13 +440,13 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 
 	// }
 
-	scene->animationTime -= is_pressed(input->left) * 0.2 * input->elapsedTime;
+	scene->animationTime -= is_pressed(input->left) * 0.5 * input->elapsedTime;
 	if (scene->animationTime < 0)
 	{
 		scene->animationTime = 10;
 	}
 
-	scene->animationTime += is_pressed(input->right) * 0.2 * input->elapsedTime;
+	scene->animationTime += is_pressed(input->right) * 0.5 * input->elapsedTime;
 	if (scene->animationTime > 10)
 	{
 		scene->animationTime = 0;
