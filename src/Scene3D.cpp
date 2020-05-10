@@ -77,10 +77,10 @@ struct Scene3d
 	s32 carriedItemIndex;
 
 	// Other actors
-	static constexpr s32 followerCapacity = 150;
+	static constexpr s32 followerCapacity = 45;
 	FollowerController followers[followerCapacity];
 
-	static constexpr s32 walkerCapacity = 10;
+	static constexpr s32 walkerCapacity = 5;
 	RandomWalkController randomWalkers [walkerCapacity];
 
 	// Data
@@ -840,7 +840,7 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 			// Note(Leo): this is maximum size we support with u16 mesh vertex indices
 			s32 gridSize = 256;
 
-			auto heightmapTexture 	= load_texture_asset("assets/textures/valley_heightmap.png", global_transientMemory);
+			auto heightmapTexture 	= load_texture_asset("assets/textures/heightmap6.jpg", global_transientMemory);
 			auto heightmap 			= make_heightmap(global_transientMemory, &heightmapTexture, gridSize, mapSize, -terrainHeight / 2, terrainHeight / 2);
 			auto groundMeshAsset 	= generate_terrain(global_transientMemory, 32, &heightmap);
 

@@ -473,7 +473,7 @@ Run(HINSTANCE hInstance)
             frameFlipTime           = now;
 
             approxAvgFrameTime = interpolate(approxAvgFrameTime, lastFrameElapsedSeconds, approxAvgFrameTimeAlpha);
-            // logConsole(0) << approxAvgFrameTime;
+            logConsole(0) << approxAvgFrameTime;
         }
     }
     ///////////////////////////////////////
@@ -500,6 +500,7 @@ Run(HINSTANCE hInstance)
         timeEndPeriod(deviceMinSchedulerGranularity);
         logWindow(0) << "shut down\n";
     }
+
 }
 
 

@@ -233,6 +233,9 @@ quaternion interpolate(quaternion from, quaternion to, float t)
 
 	quaternion difference = from.inverse_non_unit() * to;
 
+	// https://theory.org/software/qfa/writeup/node12.html
+	// https://fi.wikipedia.org/wiki/Hyperbolinen_funktio
+
 	// Convert to rodriques rotation
 	v3 axis 		= normalize_or_zero(difference.vector);
 	float angle 	= arc_cosine(difference.w) * 2 * t;
