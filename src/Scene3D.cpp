@@ -471,7 +471,15 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 			animator.weights[i] = 0;
 		}
 
-		animator.weights[scene->animationIndex] = 1;
+		if(scene->animationIndex == CharacterAnimations::JUMP)
+		{
+			animator.weights[CharacterAnimations::CROUCH] = 0.5f;
+			animator.weights[CharacterAnimations::WALK] = 0.5f;
+		}
+		else
+		{
+			animator.weights[scene->animationIndex] = 1;
+		}
 
 		update_skeleton_animator(animator, input->elapsedTime);
 	}
