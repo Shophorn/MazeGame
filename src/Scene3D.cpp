@@ -76,11 +76,15 @@ struct Scene3d
 	s32 playerCarryState;
 	s32 carriedItemIndex;
 
+	// Big Scenery
+	Array<Transform3D> stoneWallTransforms;
+	ModelHandle stoneWallModel;
+
 	// Other actors
-	static constexpr s32 followerCapacity = 45;
+	static constexpr s32 followerCapacity = 270;
 	FollowerController followers[followerCapacity];
 
-	static constexpr s32 walkerCapacity = 5;
+	static constexpr s32 walkerCapacity = 30;
 	RandomWalkController randomWalkers [walkerCapacity];
 
 	// Data
@@ -487,6 +491,14 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 								nullptr, 0);
 	}
 
+	/// DRAW STONE WALLS
+	for(s32 i = 0; i < scene->stoneWallTransforms.count(); ++i)
+	{
+		platformApi->draw_model(platformGraphics, scene->stoneWallModel,
+								transform_matrix(scene->stoneWallTransforms[i]), 
+								true, nullptr, 0);
+	}
+
 	  //////////////////////////////
 	 /// 	RENDERING 			///
 	//////////////////////////////
@@ -859,7 +871,7 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 			auto totemMeshHandle 	= platformApi->push_mesh(platformGraphics, &totemMesh);
 			auto model = push_model(totemMeshHandle, materials.environment);
 
-			auto transform = scene->transforms.push_return_pointer({});
+			Transform3D * transform = scene->transforms.push_return_pointer({});
 			transform->position.z = get_terrain_height(&scene->collisionSystem, *transform->position.xy()) - 0.5f;
 			scene->renderers.push({transform, model});
 			push_box_collider(	scene->collisionSystem,
@@ -1030,9 +1042,22 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 			logDebug(0) << "Debug from empty lambda";
 		}
 
+		{
+			auto file 			= read_gltf_file(*global_transientMemory, "assets/models/stonewalls.glb");
+			auto meshAsset 		= load_mesh_glb(*global_transientMemory, file, "StoneWall.001");
+			auto mesh 			= platformApi->push_mesh(platformGraphics, &meshAsset);
+			auto textureAsset 	= load_texture_asset("assets/textures/stone_wall.jpg", global_transientMemory);
+			auto texture 		= platformApi->push_texture(platformGraphics, &textureAsset);
+			auto material   	= push_material(normalPipeline, texture, neutralBumpTexture, blackTexture);
+
+			scene->stoneWallTransforms = load_all_transforms_glb(persistentMemory, file, "StoneWall");
+			scene->stoneWallModel= platformApi->push_model(platformGraphics, mesh, material);
+		}
+
 		logSystem(0) << "Scene3d loaded, " << used_percent(*global_transientMemory) * 100 << "% of transient memory used.";
 		logSystem(0) << "Scene3d loaded, " << used_percent(persistentMemory) * 100 << "% of persistent memory used.";
 	}
+
 
 	return scenePtr;
 }

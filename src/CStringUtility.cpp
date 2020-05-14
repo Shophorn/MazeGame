@@ -28,6 +28,24 @@ cstring_equals(char const * a, char const * b)
 	return compare_cstring(a, b) == 0;
 }
 
+
+internal bool
+cstring_begins_with(char const * cstring, char const * begin)
+{
+	while(*begin != 0)
+	{
+		if (*cstring == 0 || *cstring != *begin)
+		{
+			return false;
+		}
+
+		++cstring;
+		++begin;
+	}
+
+	return true;
+}
+
 template<s32 Capacity = 128>
 struct CStringBuilder
 {

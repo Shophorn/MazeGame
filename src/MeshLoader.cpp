@@ -40,6 +40,64 @@ s32 index_by_name(JsonArray & nodes, char const * name)
 	return -1;
 }
 
+internal Array<Transform3D>
+load_all_transforms_glb(MemoryArena & allocator, GltfFile const & file, char const * nodeName)
+{
+	auto nodes = file.json["nodes"].GetArray();
+
+	s32 transformCount = 0;
+
+	for (auto const & node : nodes)
+	{
+		if (cstring_begins_with(node["name"].GetString(), nodeName))
+		{
+			transformCount += 1;
+		}
+	}
+
+	Array<Transform3D> transforms = allocate_array<Transform3D>(allocator, transformCount, ALLOC_NO_CLEAR);
+
+	for (auto const & node : nodes)
+	{
+		if (cstring_begins_with(node["name"].GetString(), nodeName))
+		{
+			Transform3D transform;
+
+			if(node.HasMember("translation"))
+			{
+				auto translationArray = node["translation"].GetArray();
+				transform.position.x = translationArray[0].GetFloat();
+				transform.position.y = translationArray[1].GetFloat();
+				transform.position.z = translationArray[2].GetFloat();
+			}
+			else
+			{
+				transform.position = {0, 0, 0};
+			}
+
+			if (node.HasMember("rotation"))
+			{
+				auto rotationArray = node["rotation"].GetArray();
+				transform.rotation.x = rotationArray[0].GetFloat();
+				transform.rotation.y = rotationArray[1].GetFloat();
+				transform.rotation.z = rotationArray[2].GetFloat();
+				transform.rotation.w = rotationArray[3].GetFloat();
+
+				transform.rotation = transform.rotation.inverse();
+			}
+			else
+			{
+				transform.rotation = quaternion::identity();
+			}
+
+			transform.scale = 1;
+
+			transforms.push(transform);
+		}
+	}
+	return transforms;
+}
+
 internal Animation
 load_animation_glb(MemoryArena & allocator, GltfFile const & file, char const * animationName)
 {
