@@ -23,6 +23,8 @@ struct quaternion
 	quaternion normalized() const;
 };
 
+internal constexpr quaternion identity_quaternion = {0, 0, 0, 1};
+
 static_assert(std::is_aggregate_v<quaternion>, "");
 static_assert(std::is_standard_layout_v<quaternion>, "");
 static_assert(std::is_trivial_v<quaternion>, "");
@@ -134,7 +136,7 @@ quaternion quaternion::inverse() const
 quaternion quaternion::inverse_non_unit() const
 {
 	using namespace vector;
-	float vectorMagnitude = vector.magnitude();
+	float vectorMagnitude = ::magnitude(vector);
 
 	float conjugate = (w * w) + (vectorMagnitude * vectorMagnitude);
 

@@ -46,6 +46,9 @@ namespace colors
 #include "Collisions2D.cpp"
 #include "CollisionManager2D.cpp"
 #include "Skybox.cpp"
+#include "TerrainGenerator.cpp"
+#include "Collisions3D.cpp"
+
 
 #include "CharacterSystems.cpp"
 #include "CameraController.cpp"

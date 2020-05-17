@@ -164,13 +164,13 @@ namespace debug
 
 	void draw_vector(v3 position, v3 vector, v4 color, f32 size = 0.1f)
 	{
-		f32 length 		= vector.magnitude();
+		f32 length 		= magnitude(vector);
 		size 			= math::min(size, length / 2);
 
-		v3 binormal 	= vector::cross(vector, v3::up);
-		v3 up 			= vector::cross(vector, binormal).normalized();
+		v3 binormal 	= vector::cross(vector, up_v3);
+		v3 up 			= normalize(vector::cross(vector, binormal));
 
-		v3 direction 	= vector.normalized();
+		v3 direction 	= normalize(vector);
 		v3 cornerA 		= position + direction * (length - size) + up * size;
 		v3 cornerB 		= position + direction * (length - size) - up * size;
 
@@ -179,6 +179,37 @@ namespace debug
 		platformApi->draw_line(platformGraphics, position + vector, cornerB, 1.0f, color);
 		platformApi->draw_line(platformGraphics, cornerA, cornerB, 1.0f, color);
 
+	}
+
+	void draw_box(m44 transform, v4 color)
+	{
+		v3 corners [] =
+		{
+			multiply_point(transform, {-1,-1,-1}),
+			multiply_point(transform, { 1,-1,-1}),
+			multiply_point(transform, {-1, 1,-1}),
+			multiply_point(transform, { 1, 1,-1}),
+
+			multiply_point(transform, {-1,-1, 1}),
+			multiply_point(transform, { 1,-1, 1}),
+			multiply_point(transform, {-1, 1, 1}),
+			multiply_point(transform, { 1, 1, 1}),
+		};
+
+		platformApi->draw_line(platformGraphics, corners[0], corners[1], 1.0f, color);
+		platformApi->draw_line(platformGraphics, corners[2], corners[3], 1.0f, color);
+		platformApi->draw_line(platformGraphics, corners[4], corners[5], 1.0f, color);
+		platformApi->draw_line(platformGraphics, corners[6], corners[7], 1.0f, color);
+		
+		platformApi->draw_line(platformGraphics, corners[0], corners[2], 1.0f, color);
+		platformApi->draw_line(platformGraphics, corners[1], corners[3], 1.0f, color);
+		platformApi->draw_line(platformGraphics, corners[4], corners[6], 1.0f, color);
+		platformApi->draw_line(platformGraphics, corners[5], corners[7], 1.0f, color);
+		
+		platformApi->draw_line(platformGraphics, corners[0], corners[4], 1.0f, color);
+		platformApi->draw_line(platformGraphics, corners[1], corners[5], 1.0f, color);
+		platformApi->draw_line(platformGraphics, corners[2], corners[6], 1.0f, color);
+		platformApi->draw_line(platformGraphics, corners[3], corners[7], 1.0f, color);
 	}
 
 }

@@ -205,7 +205,8 @@ update_character_motor( CharacterMotor & 	motor,
 		v3 rayStartPositions [rayCount];
 		f32 sineStep 	= 2.0f / (rayCount - 1);
 
-		rayStartPositions[0] = vector::rotate(direction * motor.collisionRadius, up, pi / 2.0f);
+		f32 skinwidth = 0.01f;
+		rayStartPositions[0] = vector::rotate(direction * (motor.collisionRadius - skinwidth), up, pi / 2.0f);
 		for (int i = 1; i < rayCount; ++i)
 		{
 			f32 sine 		= -1.0f + (i - 1) * sineStep;
@@ -214,36 +215,63 @@ update_character_motor( CharacterMotor & 	motor,
 		}
 
 	
-		bool32 rayHit = false;
-		RaycastResult raycastResult;
+		// bool32 rayHit = false;
+		// RaycastResult raycastResult;
+
+		RaycastResult rayHitResults[rayCount];
+		s32 rayHitCount = 0;
+
+
+
 		for (int i  = 0; i < rayCount; ++i)
 		{
 			v3 start = rayStartPositions[i] + up * 0.25f + motor.transform->position;
 
-			bool32 hit = raycast_3d(&collisionSystem, start, direction, distance, &raycastResult);
-			rayHit = rayHit || hit;
+			RaycastResult currentResult;
+			bool32 hit = raycast_3d(&collisionSystem, start, direction, (distance * 2 + skinwidth), &currentResult);
 
-			float4 lineColor = hit ? float4{0,1,0,1} : float4{1,0,0,1};
-			// platformApi->draw_line(graphics, start, start + direction, 5.0f, lineColor);
+			if (hit)
+			{
+				rayHitResults[rayHitCount] = currentResult;
+				++rayHitCount;
 
+
+
+				// raycastResult = currentResult;
+				// rayHit = true;
+
+				debug::draw_line(start, start + direction, colors::brightRed);
+			}
+			else
+			{
+				debug::draw_line(start, start + direction, colors::mutedYellow);
+			}
 		}
 
-		if (rayHit == false)
+		// if (rayHit == false)
+		if (rayHitCount == 0)
 		{
 			motor.transform->position += direction * distance;
 		}
 		else
 		{
 			v3 movement = direction * distance;
-			v3 projection = raycastResult.hitNormal * vector::dot(movement, raycastResult.hitNormal);
+
+			for (s32 i = 0; i < rayHitCount; ++i)
+			{
+				v3 projection = rayHitResults[i].hitNormal * vector::dot(movement, rayHitResults[i].hitNormal);
+				movement -= projection;//vector::project(raycastResult.hitNormal, movement);
+			}
 
 
 
-			movement -= projection;//vector::project(raycastResult.hitNormal, movement);
+
+
+
 
 			motor.transform->position += movement;
 
-			debug::draw_vector(raycastResult.hitPosition, raycastResult.hitNormal, colors::mutedYellow);
+			// debug::draw_vector(raycastResult.hitPosition, raycastResult.hitNormal, colors::mutedYellow);
 
 			// motor.hitRayPosition = motor.transform->position + up * 0.25f;
 			// motor.hitRayNormal = raycastResult.hitNormal;
@@ -260,7 +288,7 @@ update_character_motor( CharacterMotor & 	motor,
 	{
 		/* Note(Leo): input is inverted, because negative input means left,
 		but in our right handed coordinate system, negative rotation means right */
-		quaternion rotation = quaternion::axis_angle(v3::up, -1 * rightInput * motor.rotationSpeed * elapsedTime);
+		quaternion rotation = quaternion::axis_angle(up_v3, -1 * rightInput * motor.rotationSpeed * elapsedTime);
 		motor.transform->rotation = motor.transform->rotation * rotation;
 	}
 
@@ -287,11 +315,11 @@ update_character_motor( CharacterMotor & 	motor,
 
 	// ----------------------------------------------------------------------------------
 
-	f32 groundHeight = get_terrain_height(&collisionSystem, vector::convert_to<v2>(motor.transform->position));
-	bool32 grounded = motor.transform->position.z < (0.1f + groundHeight);
+	f32 groundHeight 			= get_terrain_height(&collisionSystem, *motor.transform->position.xy());
+	bool32 grounded 			= motor.transform->position.z < (0.1f + groundHeight);
 
-	bool32 startLanding = motor.wasGroundedLastFrame == false && grounded == true;
-	motor.wasGroundedLastFrame = grounded;
+	bool32 startLanding 		= motor.wasGroundedLastFrame == false && grounded == true;
+	motor.wasGroundedLastFrame 	= grounded;
 
 	move_towards(grounded, elapsedTime, motor.grounded);
 

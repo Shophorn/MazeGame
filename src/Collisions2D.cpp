@@ -29,7 +29,7 @@ CircleCircleCollision(Circle a, Circle b)
 	float distanceThreshold = a.radius + b.radius;
 	float sqrDistanceThreshold = distanceThreshold * distanceThreshold;
 
-	float sqrDistance = vector::get_sqr_distance(a.position, b.position);
+	float sqrDistance = square_magnitude_v2(a.position - b.position);
 
 	bool32 result = sqrDistance < sqrDistanceThreshold;
 	return result;

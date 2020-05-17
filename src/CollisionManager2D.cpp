@@ -76,11 +76,11 @@ struct CollisionManager2D
 			auto AB = corners[1] - corners[0];
 			auto AD = corners[2] - corners[0];
 
-			bool32 startInside = 	(0 < vector::dot(AMstart, AB) && vector::dot(AMstart, AB) < vector::dot (AB, AB))
-									&& (0 < vector::dot(AMstart, AD) && vector::dot(AMstart, AD) < vector::dot (AD, AD));
+			bool32 startInside = 	(0 < dot_v2(AMstart, AB) && dot_v2(AMstart, AB) < dot_v2 (AB, AB))
+									&& (0 < dot_v2(AMstart, AD) && dot_v2(AMstart, AD) < dot_v2 (AD, AD));
 
-			bool32 endInside = 	(0 < vector::dot(AMend, AB) && vector::dot(AMend, AB) < vector::dot (AB, AB))
-								&& (0 < vector::dot(AMend, AD) && vector::dot(AMend, AD) < vector::dot (AD, AD));
+			bool32 endInside = 	(0 < dot_v2(AMend, AB) && dot_v2(AMend, AB) < dot_v2 (AB, AB))
+								&& (0 < dot_v2(AMend, AD) && dot_v2(AMend, AD) < dot_v2 (AD, AD));
 
 			if (!startInside && endInside)
 				return true;

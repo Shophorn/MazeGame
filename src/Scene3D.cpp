@@ -4,9 +4,6 @@ shophorn @ internet
 
 Scene description for 3d development scene
 =============================================================================*/
-#include "TerrainGenerator.cpp"
-#include "Collisions3D.cpp"
-
 #include "CharacterMotor.cpp"
 #include "PlayerController3rdPerson.cpp"
 #include "FollowerController.cpp"
@@ -78,13 +75,16 @@ struct Scene3d
 
 	// Big Scenery
 	Array<Transform3D> stoneWallTransforms;
+	Array<Transform3D> buildingTransforms;
+
 	ModelHandle stoneWallModel;
+	ModelHandle buildingModel;
 
 	// Other actors
-	static constexpr s32 followerCapacity = 270;
+	static constexpr s32 followerCapacity = 30;
 	FollowerController followers[followerCapacity];
 
-	static constexpr s32 walkerCapacity = 30;
+	static constexpr s32 walkerCapacity = 10;
 	RandomWalkController randomWalkers [walkerCapacity];
 
 	// Data
@@ -143,7 +143,7 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 		scene->freeCameraTiltAngle = math::clamp(scene->freeCameraTiltAngle, -scene->freeCameraMaxTilt, scene->freeCameraMaxTilt);
 
 		quaternion pan = quaternion_axis_angle(up_v3, scene->freeCameraPanAngle);
-		m44 panMatrix = make_rotation_matrix(pan);
+		m44 panMatrix = rotation_matrix(pan);
 
 		// Todo(Leo): somewhy this points to opposite of right
 		v3 right = multiply_direction(panMatrix, right_v3);
@@ -159,7 +159,7 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 		scene->worldCamera.position += rightMovement + forwardMovement + upMovement;
 
 		quaternion tilt = quaternion_axis_angle(right, scene->freeCameraTiltAngle);
-		m44 rotation 	= make_rotation_matrix(pan * tilt);
+		m44 rotation 	= rotation_matrix(pan * tilt);
 		v3 direction 	= multiply_direction(rotation, forward_v3);
 		
 		scene->worldCamera.direction = direction;
@@ -195,19 +195,22 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 	{
 		v3 playerPosition = scene->playerCharacterTransform->position;
 		f32 grabDistance = 1.0f;
-		s32 oldCarryState = scene->playerCarryState;
-		s32 newCarryState = scene->playerCarryState;
+		// s32 oldCarryState = scene->playerCarryState;
+		// s32 newCarryState = scene->playerCarryState;
 
 		switch(scene->playerCarryState)
 		{
 			case CARRY_NONE: {
+				s32 newCarryMode = CARRY_NONE;
+				s32 newCarryIndex = -1;
+
 				for (s32 i = 0; i < scene->totalPotsCount; ++i)
 				{
 					if (magnitude(playerPosition - scene->potTransforms[i].position) < grabDistance)
 					{
 						scene->playerCarryState = CARRY_POT;
 						scene->carriedItemIndex = i;
-						goto ESCAPE;
+						goto CARRY_NONE_ESCAPE;
 					}
 				}
 
@@ -217,7 +220,7 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 					{
 						scene->playerCarryState = CARRY_WATER;
 						scene->carriedItemIndex = i;
-						goto ESCAPE;
+						goto CARRY_NONE_ESCAPE;
 					}
 				}
 
@@ -227,12 +230,12 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 					{
 						scene->playerCarryState = CARRY_SEED;
 						scene->carriedItemIndex = i;
-						goto ESCAPE;
+						goto CARRY_NONE_ESCAPE;
 					}
 				}
 			
 				// Note(Leo): Goto here if we start carrying in some of the loops above, so we dont override it immediately.
-				ESCAPE:;
+				CARRY_NONE_ESCAPE:;
 			} break;
 
 			case CARRY_POT:
@@ -410,6 +413,9 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 	
 	// -----------------------------------------------------------------------------------------------------------
 
+	precompute_colliders(scene->collisionSystem);
+
+
 	for (auto const & collider : scene->collisionSystem.cylinderColliders)
 	{
 		debug::draw_circle_xy(collider.transform->position + collider.center, collider.radius, colors::brightYellow);
@@ -492,11 +498,29 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 	}
 
 	/// DRAW STONE WALLS
-	for(s32 i = 0; i < scene->stoneWallTransforms.count(); ++i)
 	{
-		platformApi->draw_model(platformGraphics, scene->stoneWallModel,
-								transform_matrix(scene->stoneWallTransforms[i]), 
-								true, nullptr, 0);
+		for(s32 i = 0; i < scene->stoneWallTransforms.count(); ++i)
+		{
+			platformApi->draw_model(platformGraphics, scene->stoneWallModel,
+									transform_matrix(scene->stoneWallTransforms[i]), 
+									true, nullptr, 0);
+		}
+
+		for (s32 i = 0; i < scene->buildingTransforms.count(); ++i)
+		{
+			platformApi->draw_model(platformGraphics, scene->buildingModel,
+									transform_matrix(scene->buildingTransforms[i]),
+									true, nullptr, 0);
+		}
+	}
+
+
+	/// DEBUG DRAW COLLIDERS
+	{
+		for (auto const & collider : scene->collisionSystem.precomputedColliders)
+		{
+			debug::draw_box(collider.transform, colors::mutedGreen);
+		}
 	}
 
 	  //////////////////////////////
@@ -511,7 +535,7 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 
     update_camera_system(&scene->worldCamera, input, platformGraphics, platformWindow);
 
-	Light light = { .direction 	= v3{1, 1.2, -3}.normalized(), 
+	Light light = { .direction 	= normalize(v3{1, -1.2, -3}), 
 					.color 		= v3{0.95, 0.95, 0.9}};
 	v3 ambient 	= {0.1, 0.1, 0.5};
 	platformApi->update_lighting(platformGraphics, &light, &scene->worldCamera, ambient);
@@ -660,6 +684,7 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 		
 		// Note(Leo): internet told us vulkan(or glsl) cubemap face order is as follows:
 		// (+X,-X,+Y,-Y,+Z,-Z).
+		// ... seems to wrock
 		StaticArray<TextureAsset,6> skyboxTextureAssets =
 		{
 			load_texture_asset("assets/textures/miramar_rt.png", global_transientMemory),
@@ -687,6 +712,8 @@ void * load_scene_3d(MemoryArena & persistentMemory)
     	auto meshHandle = platformApi->push_mesh(platformGraphics, &meshAsset);
     	scene->skybox 	= push_model(meshHandle, materials.sky);
     }
+
+
 
 	// Characters
 	{
@@ -732,7 +759,6 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 
 		auto startTime = platformApi->current_time();
 
-		// AnimatedSkeleton * cubeHeadSkeleton = scene->animatedSkeletons.push_return_pointer(load_skeleton_glb(persistentMemory, gltfFile, "cube_head"));
 
 		logSystem(1) << "Loading skeleton took: " << platformApi->elapsed_seconds(startTime, platformApi->current_time()) << " s";
 
@@ -888,6 +914,19 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 								transform);
 		}
 
+	    {
+	    	// test collider
+	    	Transform3D * transform = scene->transforms.push_return_pointer({});
+	    	transform->position = {21, 15};
+	    	transform->position.z = get_terrain_height(&scene->collisionSystem, {20, 20});
+
+	    	push_box_collider( 	scene->collisionSystem,
+	    						v3{2.0f, 0.05f,5.0f},
+	    						v3{0,0, 2.0f},
+	    						transform);
+	    }
+
+
 		{
 			s32 pillarCountPerDirection = mapSize / 10;
 			s32 pillarCount = pillarCountPerDirection * pillarCountPerDirection;
@@ -921,6 +960,7 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 
 				v3 position = {x, y, z - 1};
 				auto transform = scene->transforms.push_return_pointer({position});
+				transform->rotation = quaternion_axis_angle(up_v3, RandomRange(-tau / 8, tau / 8));
 				
 				auto model = push_model(pillarMeshHandle, materials.environment);
 				scene->renderers.push({transform, model});
@@ -1044,14 +1084,38 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 
 		{
 			auto file 			= read_gltf_file(*global_transientMemory, "assets/models/stonewalls.glb");
-			auto meshAsset 		= load_mesh_glb(*global_transientMemory, file, "StoneWall.001");
-			auto mesh 			= platformApi->push_mesh(platformGraphics, &meshAsset);
-			auto textureAsset 	= load_texture_asset("assets/textures/stone_wall.jpg", global_transientMemory);
-			auto texture 		= platformApi->push_texture(platformGraphics, &textureAsset);
-			auto material   	= push_material(normalPipeline, texture, neutralBumpTexture, blackTexture);
 
-			scene->stoneWallTransforms = load_all_transforms_glb(persistentMemory, file, "StoneWall");
-			scene->stoneWallModel= platformApi->push_model(platformGraphics, mesh, material);
+			{
+				auto meshAsset 		= load_mesh_glb(*global_transientMemory, file, "StoneWall.001");
+				auto mesh 			= platformApi->push_mesh(platformGraphics, &meshAsset);
+				auto textureAsset 	= load_texture_asset("assets/textures/stone_wall.jpg", global_transientMemory);
+				auto texture 		= platformApi->push_texture(platformGraphics, &textureAsset);
+				auto material   	= push_material(normalPipeline, texture, neutralBumpTexture, blackTexture);
+
+				Array<BoxCollider> colliders = {};
+
+				scene->stoneWallTransforms = load_all_transforms_glb(persistentMemory, file, "StoneWall", &colliders);
+				scene->stoneWallModel= platformApi->push_model(platformGraphics, mesh, material);
+
+				for (auto & collider : colliders)
+				{
+					scene->collisionSystem.boxColliders.push(collider);
+				}
+			}
+
+			{
+				auto meshAsset = load_mesh_glb(*global_transientMemory, file, "Building.001");
+				auto mesh = platformApi->push_mesh(platformGraphics, &meshAsset);
+
+				Array<BoxCollider> colliders = {};
+				scene->buildingTransforms = load_all_transforms_glb(persistentMemory, file, "Building", &colliders);
+				scene->buildingModel = platformApi->push_model(platformGraphics, mesh, materials.environment);
+
+				for (auto & collider : colliders)
+				{
+					scene->collisionSystem.boxColliders.push(collider);
+				}
+			}
 		}
 
 		logSystem(0) << "Scene3d loaded, " << used_percent(*global_transientMemory) * 100 << "% of transient memory used.";

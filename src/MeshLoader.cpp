@@ -41,11 +41,12 @@ s32 index_by_name(JsonArray & nodes, char const * name)
 }
 
 internal Array<Transform3D>
-load_all_transforms_glb(MemoryArena & allocator, GltfFile const & file, char const * nodeName)
+load_all_transforms_glb(MemoryArena & allocator, GltfFile const & file, char const * nodeName, Array<BoxCollider> * outColliders)
 {
 	auto nodes = file.json["nodes"].GetArray();
 
 	s32 transformCount = 0;
+	s32 colliderCount = 0;
 
 	for (auto const & node : nodes)
 	{
@@ -53,9 +54,15 @@ load_all_transforms_glb(MemoryArena & allocator, GltfFile const & file, char con
 		{
 			transformCount += 1;
 		}
+		else if (cstring_begins_with(node["name"].GetString(), "BoxCollider"))
+		{
+			colliderCount += 1;
+		}
 	}
 
 	Array<Transform3D> transforms = allocate_array<Transform3D>(allocator, transformCount, ALLOC_NO_CLEAR);
+	Array<BoxCollider> colliders = allocate_array<BoxCollider>(allocator, colliderCount, ALLOC_NO_CLEAR);
+	Array<Transform3D> colliderFinalTransforms = allocate_array<Transform3D>(allocator, colliderCount, ALLOC_NO_CLEAR);
 
 	for (auto const & node : nodes)
 	{
@@ -93,8 +100,73 @@ load_all_transforms_glb(MemoryArena & allocator, GltfFile const & file, char con
 			transform.scale = 1;
 
 			transforms.push(transform);
+
+
+			if(node.HasMember("children"))
+			{
+				auto const & childArray = node["children"].GetArray();
+
+				s32 childCount = childArray.Size();
+				m44 parentTransform = transform_matrix(transform);
+				quaternion parentRotation = transform.rotation;
+
+				for (s32 i = 0; i < childCount; ++i)
+				{
+					auto const & child = nodes[childArray[i].GetInt()].GetObject();
+					Assert(child.HasMember("name"));
+
+					if (cstring_begins_with(child["name"].GetString(), "BoxCollider"))
+					{
+						v3 center 					= {0,0,0};
+						v3 extents 					= {0,0,0};
+						quaternion localRotation 	= {0,0,0,1};
+
+						if (child.HasMember("translation"))
+						{
+							auto translationArray = child["translation"].GetArray();
+							center.x = translationArray[0].GetFloat();
+							center.y = translationArray[1].GetFloat();
+							center.z = translationArray[2].GetFloat();
+						}
+
+						if (child.HasMember("rotation"))
+						{
+							auto rotationArray = child["rotation"].GetArray();
+							localRotation.x = rotationArray[0].GetFloat();
+							localRotation.y = rotationArray[1].GetFloat();
+							localRotation.z = rotationArray[2].GetFloat();
+							localRotation.w = rotationArray[3].GetFloat();
+
+							localRotation = localRotation.inverse();
+						}
+
+						if (child.HasMember("scale"))
+						{
+							auto scaleArray = child["scale"].GetArray();
+							extents.x = scaleArray[0].GetFloat();
+							extents.y = scaleArray[1].GetFloat();
+							extents.z = scaleArray[2].GetFloat();
+						}
+
+						colliders.push({ 	.extents = extents,
+											.center = center,
+											.orientation = localRotation,
+											.transform = &transforms.last()});
+
+						// v3 finalPosition 			= multiply_point(parentTransform, center);
+						// quaternion finalRotation 	= parentRotation * rotation;
+						// // v3 finalScale 				= extents;
+
+						// m44 colliderTransform = 
+
+					}
+				}
+			}
+
 		}
 	}
+
+	*outColliders = std::move(colliders);
 	return transforms;
 }
 
@@ -557,7 +629,7 @@ namespace mesh_ops
 		for(int vertexIndex = 0; vertexIndex < vertexCount; ++vertexIndex)
 		{
 
-			mesh->vertices[vertexIndex].texCoord = vector::scale(mesh->vertices[vertexIndex].texCoord, scale);
+			mesh->vertices[vertexIndex].texCoord = scale_v2(mesh->vertices[vertexIndex].texCoord, scale);
 			mesh->vertices[vertexIndex].texCoord += translation;
 		}
 	}

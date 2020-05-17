@@ -32,15 +32,15 @@ m44 transform_matrix(Transform3D const & transform)
 // Todo(Leo): Use quaternion multiplications
 v3 get_forward(Transform3D const & transform)
 {
-	return multiply_point(make_rotation_matrix(transform.rotation), world::forward);
+	return multiply_point(rotation_matrix(transform.rotation), forward_v3);
 }
 
 v3 get_right(Transform3D const & transform)
 {
-	return multiply_point(make_rotation_matrix(transform.rotation), world::right);
+	return multiply_point(rotation_matrix(transform.rotation), right_v3);
 }
 
 v3 get_up(Transform3D const & transform)
 {
-	return multiply_point(make_rotation_matrix(transform.rotation), world::up);
+	return multiply_point(rotation_matrix(transform.rotation), up_v3);
 }

@@ -27,7 +27,7 @@ struct CameraControllerSideScroller
 			distance = math::min(distance, maxDistance);
 		}
 
-		v3 direction = world::forward;
+		v3 direction = forward_v3;
 		camera->direction = direction;
 		camera->position = 	baseOffset
 							+ target->position
@@ -142,7 +142,7 @@ update_camera_controller(CameraController3rdPerson * controller, v3 * cameraPosi
     
     // controller->camera->position = targetPosition + localPosition;
     *cameraPosition = targetPosition + localPosition;
-	controller->camera->direction = -1.0f * localPosition.normalized();
+	controller->camera->direction = -1.0f * normalize(localPosition);
 
-	Assert(math::distance(controller->camera->direction.square_magnitude(), 1.0f) < 0.00001f);
+	Assert(math::distance(square_magnitude_v3(controller->camera->direction), 1.0f) < 0.00001f);
 }

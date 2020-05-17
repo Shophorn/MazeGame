@@ -156,7 +156,7 @@ generate_terrain(	MemoryArena * memory,
 			v3 normal = {	heightLeft - heightRight,
 								heightBack - heightFront,
 								2 * gridTileSize};
-			normal = normal.normalized();
+			normal = normalize(normal);
 
 			Vertex vertex = 
 			{

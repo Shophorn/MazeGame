@@ -86,16 +86,29 @@ constexpr m44 m44::identity()
 	return identity_;
 }
 
-m44
-make_translation_matrix(v3 translation)
+// m44
+// make_translation_matrix(v3 translation)
+// {
+// 	m44 result = m44::identity();
+// 	result[3] = v4{translation.x, translation.y, translation.z, 1.0f};
+// 	return result;
+// }
+
+
+internal m44 translation_matrix(v3 translation)
 {
-	m44 result = m44::identity();
-	result[3] = v4{translation.x, translation.y, translation.z, 1.0f};
+	m44 result =
+	{
+		1, 0, 0, 0,
+		0, 1, 0, 0,
+		0, 0, 1, 0,
+		translation.x, translation.y, translation.z, 1
+	};
 	return result;
 }
 
-m44
-make_rotation_matrix(quaternion rotation)
+
+internal m44 rotation_matrix(quaternion rotation)
 {
 	// Todo(Leo): Study matrix multiplication order, and order of axes in here
 	float 	x = rotation.x,
@@ -114,9 +127,17 @@ make_rotation_matrix(quaternion rotation)
 	return result;	
 }
 
-m44
-make_scale_matrix(v3 scale)
+internal m44 scale_matrix(v3 scale)
 {
+	// m44 result =
+	// {
+	// 	scale.x, 0, 0, 0,
+	// 	0, scale.y, 0, 0,
+	// 	0, 0, scale.z, 0,
+	// 	0, 0, 0, 0
+	// };
+
+
 	m44 result = {};
 	result(0,0) = scale.x;
 	result(1,1) = scale.y;

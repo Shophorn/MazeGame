@@ -1,8 +1,5 @@
 #include <vector>
 
-global_variable int global_arrayEmptyDctorCounter 		= 0;
-global_variable int global_arrayHasContentDctorCounter = 0;
-
 template<typename T>
 struct Array
 {
@@ -80,7 +77,9 @@ Array<T> & Array<T>::operator= (Array<T> && old)
 {
 	/* Note(Leo): Prevent assigning to an already used array. User code must
 	be responsible for clearing memory in case of array of arrays, because
-	by default allocating array does not initialize to zero. */
+	by default allocating array does not initialize to zero. 
+
+	NOTE(Leo): This has proven super good, do not remove. */
 	Assert(this->memory_ == nullptr);
 
 	this->memory_ 	= old.memory_;
@@ -148,4 +147,11 @@ void Array<T>::push_many(std::initializer_list<T> values)
 	{
 		push(item);
 	}
+}
+
+template<typename T>
+void clear_array(Array<T> & array)
+{
+	// TODO(Leo): rechek this when there is granular deallocation possibility
+	new (&array) Array<T>(nullptr, 0, 0);
 }

@@ -2,7 +2,7 @@ struct Camera
 {
 	v3 position;
 	// Todo(Leo): change to quaternion, maybe
-	v3 direction = world::forward;
+	v3 direction = forward_v3;
 
 	float verticalFieldOfView;
 	float nearClipPlane;
@@ -73,11 +73,11 @@ get_view_transform(Camera const * camera)
 	// Study: https://www.3dgep.com/understanding-the-view-matrix/
 	// Todo(Leo): try to undeerstand why this is negative
 	v3 yAxis 	= -camera->direction;
-	v3 xAxis 	= cross(world::up, yAxis).normalized();
+	v3 xAxis 	= normalize(cross(up_v3, yAxis));
 
 	/* Note(Leo): this is not normalized because both components are unit length,
 	AND they are orthogonal so they produce a unit length vector anyway.
-	They are surely orthogonal because xAxis was a cross product from yAxis(with world::up) */
+	They are surely orthogonal because xAxis was a cross product from yAxis(with up_v3) */
 	v3 zAxis 	= cross (yAxis, xAxis);
 
 	m44 orientation = {
@@ -89,7 +89,7 @@ get_view_transform(Camera const * camera)
 	
 	/* Todo(Leo): Translation can be done inline with matrix initialization
 	instead of as separate function call */
-	m44 translation = make_translation_matrix(-camera->position);
+	m44 translation = translation_matrix(-camera->position);
 	m44 result = orientation * translation;
 
 	return result;	
@@ -97,7 +97,7 @@ get_view_transform(Camera const * camera)
 
 v3 get_forward(Camera const * camera)
 {
-	Assert(math::distance(camera->direction.square_magnitude(), 1.0f) < 0.00001f);
+	Assert(math::distance(square_magnitude_v3(camera->direction), 1.0f) < 0.00001f);
 	return camera->direction;
 }
 
@@ -109,5 +109,5 @@ v3 get_up(Camera const * camera)
 v3 get_right(Camera const * camera)
 {
 	using namespace vector;
-	return cross(camera->direction, world::up).normalized();
+	return normalize(cross(camera->direction, up_v3));
 }

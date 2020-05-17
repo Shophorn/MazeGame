@@ -84,8 +84,8 @@ bool gui_button(v4 color)
 
 	if (isSelected)
 	{
-		position -= v2{0.1f * size.x, 0.1f*size.y};
-		size *= 1.2f;
+		position = position - v2{0.1f * size.x, 0.1f*size.y};
+		size = size * 1.2f;
 	}
 	platformApi->draw_gui(platformGraphics, position, size, gui.material, color);
 	gui.currentPosition.y += gui.buttonSize.y + gui.padding;

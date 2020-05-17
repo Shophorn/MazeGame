@@ -34,6 +34,8 @@ round_to<u32, float>(float value)
     return static_cast<u32>(value);
 }
 
+constexpr f32 highest_f32 = std::numeric_limits<f32>::max();
+constexpr f32 lowest_f32 = std::numeric_limits<f32>::lowest();
 
 #include<limits>
 namespace math

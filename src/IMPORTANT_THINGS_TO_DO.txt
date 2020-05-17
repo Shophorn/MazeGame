@@ -9,3 +9,32 @@ Friend Simulator
 
 	- easterlings travel through valley to western kingdom for asylum etc.
 	- player cannot pass, for they have no interkingdom passport
+
+Where we are:
+	- Rotated box colliders work, but character motors do not yet know
+		how to handle non vertical collisions.
+
+
+TREE THINGS
+	Trees have roots, it is just a radius
+	Roots determine size and capacity of water reservoir
+	Dropping water on resevoir raises current wateriness level
+	When wateriness is more zero, tree will use it to grow over time
+	Growing decreases wateriness
+	Bigger trees need more water to grow
+	If wateriness is zero, tree will slowly start to die
+	Trees grow at constant rate, but because bigger trees have bigger reserovoirs, they can manage longer without watering
+
+	Mature trees produce seeds
+
+	Water comes from clouds
+
+TODO:
+	colliders compute transforms beforehand, only once per frame	
+	multiple collisions
+
+	New tree rules
+	Falling objects
+	Pickup animation
+	Clouds and rain
+	

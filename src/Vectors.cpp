@@ -58,32 +58,88 @@ struct Vector<S, 2>
 
 };
 
-using v2 = Vector<float, 2>;
-using point2 = Vector<u32, 2>;
+// using v2 = Vector<float, 2>;
+struct v2
+{	
+	f32 x, y;
+};
+
+struct point2
+{
+	u32 x, y;
+};
 
 
-f32 dot_product(v2 a, v2 b)
+v2 operator + (v2 a, v2 b)
+{
+	a.x += b.x;
+	a.y += b.y;
+	return a;
+}
+
+v2 & operator += (v2 & a, v2 b)
+{
+	a.x += b.x;
+	a.y += b.y;
+	return a;
+}
+
+v2 operator - (v2 lhs, v2 rhs)
+{
+	lhs.x -= rhs.x;
+	lhs.y -= rhs.y;
+	return lhs;
+}
+
+v2 & operator -= (v2 & lhs, v2 rhs)
+{
+	lhs.x -= rhs.x;
+	lhs.y -= rhs.y;
+	return lhs;
+}
+
+v2 operator * (v2 vec, f32 f)
+{
+	vec.x *= f;
+	vec.y *= f;
+	return vec;
+}
+
+v2 operator / (v2 vec, f32 f)
+{
+	vec.x /= f;
+	vec.y /= f;
+	return vec;
+}
+
+v2 operator -(v2 vec)
+{
+	vec.x = -vec.x;
+	vec.y = vec.y;
+	return vec;
+}
+
+f32 dot_v2(v2 a, v2 b)
 {
 	f32 p = { a.x * b.x + a.y * b.y };
 	return p;
 }
 
-f32 magnitude(v2 v)
+f32 magnitude_v2(v2 v)
 {
 	f32 m = math::square_root(v.x * v.x + v.y * v.y);
 	return m;
 }
 
-v2 divide(v2 v, f32 f)
+f32 square_magnitude_v2(v2 v)
 {
-	v.x /= f;
-	v.y /= f;
-	return v;
+	f32 result = v.x * v.x + v.y * v.y;
+	return result;
 }
 
-v2 normalize(v2 v)
+v2 normalize_v2(v2 v)
 {
-	v = divide(v, magnitude(v));
+	v = v / magnitude_v2(v);
 	return v;
 }
 
@@ -94,22 +150,31 @@ v2 scale_v2 (v2 a, v2 b)
 	return a;
 }
 
+v2 clamp_length_v2(v2 vec, f32 length)
+{
+	f32 magnitude = magnitude_v2(vec);
+	if (magnitude > length)
+	{
+		vec = vec / magnitude;
+		vec = vec * length;
+	}
+	return vec;
+}
+
+// union v3
+// {
+// 	struct { f32 x, y, z; };
+// 	struct { v2 xy, f32 ignored_; }
+// 	f32 elements [3];
+// };
+
 template<typename S>
 struct Vector<S, 3>
 { 
 	S x, y, z; 
 
-	Vector<S, 2> * xy () { return reinterpret_cast<Vector<S,2>*>(this); }
-	Vector<S, 2> const * xy() const { return reinterpret_cast<Vector<S, 2> const *>(this); }
-
-	static Vector const right;
-	static Vector const forward;
-	static Vector const up;
-
-	S magnitude() const 		{ return math::square_root(vector_impl_::square_magnitude<S, 3>(this)); }
-	S square_magnitude() const 	{ return vector_impl_::square_magnitude<S, 3>(this); }
-
-	Vector normalized() const 	{ Vector result = *this; vector_impl_::divide<S, 3>(&result, magnitude()); return result; }
+	v2 * xy () { return reinterpret_cast<v2*>(this); }
+	v2 const * xy() const { return reinterpret_cast<v2 const *>(this); }
 };
 
 using v3 	= Vector<float, 3>;
@@ -117,11 +182,6 @@ using v3 	= Vector<float, 3>;
 constexpr v3 right_v3 	= {1,0,0};
 constexpr v3 forward_v3 = {0,1,0};
 constexpr v3 up_v3 		= {0,0,1};
-
-template<typename S> Vector<S,3> constexpr Vector<S,3>::right 	= {1,0,0};
-template<typename S> Vector<S,3> constexpr Vector<S,3>::forward = {0,1,0};
-template<typename S> Vector<S,3> constexpr Vector<S,3>::up 		= {0,0,1};
-
 
 
 f32 magnitude(v3 v)
@@ -190,20 +250,6 @@ f32 angle_v3(v3 from, v3 to)
 	f32 angle = arc_cosine(dot);
 	return angle;
 }
-
-struct world
-{
-	/*
-	Note(Leo): Right handed coordinate system, x right, y, forward, z up.
-	*/
-
-	static constexpr v3 left 		= {-1,  0,  0};
-	static constexpr v3 right 		= { 1,  0,  0};
-	static constexpr v3 back 		= { 0, -1,  0};
-	static constexpr v3 forward 	= { 0,  1,  0};
-	static constexpr v3 down 		= { 0,  0, -1};
-	static constexpr v3 up 			= { 0,  0,  1};
-};
 
 template<typename S>
 struct Vector<S, 4>
@@ -435,13 +481,13 @@ vector::interpolate(Vector<S, D> a, Vector<S, D> b, S t)
 template<typename S, u32 D> Vector<S,D>
 vector::normalize_or_zero(Vector<S,D> vec)
 {
-	float sqrMagnitude = vec.square_magnitude();
+	float sqrMagnitude = square_magnitude_v3(vec);
 	if (sqrMagnitude < epsilon<S>)
 	{
 		return vec;
 	}
 
-	return vec.normalized();
+	return normalize(vec);
 
 	vec /= math::square_root(sqrMagnitude);
 	return vec;
@@ -480,7 +526,6 @@ namespace vector_meta_
 template<typename TNew, typename TOld> TNew
 vector::convert_to(TOld const & old)
 {	
-
 	using namespace vector_meta_;
 
 	constexpr bool32 valid = isVectorTemplate<TNew> && isVectorTemplate<TOld>;

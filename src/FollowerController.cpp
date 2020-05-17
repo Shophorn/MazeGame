@@ -34,9 +34,9 @@ void update_follower_input(	FollowerController 		& controller,
 {
 	v3 toTarget 			= controller.targetTransform->position - controller.transform->position;
 	toTarget.z 				= 0;
-	float distanceToTarget 	= toTarget.magnitude();
+	float distanceToTarget 	= magnitude(toTarget);
 
-	m44 gizmoTransform = make_transform_matrix(	controller.transform->position + v3::up * controller.transform->scale * 2.0f, 
+	m44 gizmoTransform = make_transform_matrix(	controller.transform->position + up_v3 * controller.transform->scale * 2.0f, 
 												controller.transform->rotation,
 												0.2f);
 	if (distanceToTarget < controller.stopFollowDistance)
@@ -62,7 +62,7 @@ void update_follower_input(	FollowerController 		& controller,
 			we will always keep  moving.
 
 			Todo(Leo): clamping lower end might be clunky, investigate and maybe fix. */
-			inputVector = toTarget.normalized() * math::clamp(distanceToTarget - controller.stopFollowDistance, 0.05f, 1.0f);
+			inputVector = normalize(toTarget) * math::clamp(distanceToTarget - controller.stopFollowDistance, 0.05f, 1.0f);
 		}
 		else
 		{
@@ -74,7 +74,7 @@ void update_follower_input(	FollowerController 		& controller,
 	{
 		if (distanceToTarget > controller.startFollowDistance)
 		{
-			inputVector = toTarget.normalized() * math::clamp(distanceToTarget - controller.startFollowDistance, 0.0f, 1.0f);
+			inputVector = normalize(toTarget) * math::clamp(distanceToTarget - controller.startFollowDistance, 0.0f, 1.0f);
 			controller.isFollowing = true;
 		}
 		else
@@ -85,7 +85,7 @@ void update_follower_input(	FollowerController 		& controller,
 
 	if (controller.isFollowing)
 	{
-		gizmoTransform = gizmoTransform * make_scale_matrix({0.5f, 0.5f, 0.5f});
+		gizmoTransform = gizmoTransform * scale_matrix({0.5f, 0.5f, 0.5f});
 		debug::draw_diamond_2d(gizmoTransform, colors::brightBlue, ORIENT_2D_XZ);
 	}
 
@@ -150,13 +150,13 @@ void update_random_walker_input(RandomWalkController & controller,
 		}
 
 
-		m44 gizmoTransform = make_transform_matrix(	controller.transform->position + v3::up * controller.transform->scale * 2.0f, 
+		m44 gizmoTransform = make_transform_matrix(	controller.transform->position + up_v3 * controller.transform->scale * 2.0f, 
 													controller.transform->rotation,
 													controller.waitTimer);
 		debug::draw_diamond_2d(gizmoTransform, colors::mutedRed, ORIENT_2D_XZ);
 	}
 	
-	f32 distance = (*controller.transform->position.xy() - controller.targetPosition).magnitude();
+	f32 distance = magnitude_v2(*controller.transform->position.xy() - controller.targetPosition);
 	if (distance < 1.0f && controller.isWaiting == false)
 	{
 		controller.waitTimer = 10;
@@ -166,7 +166,7 @@ void update_random_walker_input(RandomWalkController & controller,
 
 	v3 input 			= {};
 	*input.xy() 		= controller.targetPosition - *controller.transform->position.xy();
-	f32 inputMagnitude 	= input.magnitude();
+	f32 inputMagnitude 	= magnitude(input);
 	input 				= input / inputMagnitude;
 	inputMagnitude 		= math::clamp(inputMagnitude, 0.0f, 1.0f);
 	input 				= input * inputMagnitude;
