@@ -135,8 +135,7 @@ quaternion quaternion::inverse() const
 
 quaternion quaternion::inverse_non_unit() const
 {
-	using namespace vector;
-	float vectorMagnitude = ::magnitude(vector);
+	float vectorMagnitude = magnitude_v3(vector);
 
 	float conjugate = (w * w) + (vectorMagnitude * vectorMagnitude);
 
@@ -156,12 +155,10 @@ quaternion operator * (quaternion lhs, quaternion rhs)
 	// 	lhs.w * rhs.w - lhs.x * rhs.x - lhs.y * rhs.y - lhs.z * rhs.z
 	// };
 	
-	using namespace vector;
-	
 	// https://www.youtube.com/watch?v=BXajpAy5-UI
 	quaternion result = {
-		.vector = lhs.w * rhs.vector + rhs.w * lhs.vector + cross(lhs.vector, rhs.vector),
-		.w 		= lhs.w * rhs.w - vector::dot(lhs.vector, rhs.vector)
+		.vector = rhs.vector * lhs.w + lhs.vector * rhs.w + cross_v3(lhs.vector, rhs.vector),
+		.w 		= lhs.w * rhs.w - dot_v3(lhs.vector, rhs.vector)
 	};
 
 	return result;
@@ -169,19 +166,15 @@ quaternion operator * (quaternion lhs, quaternion rhs)
 
 quaternion & operator *= (quaternion & lhs, quaternion const & rhs)
 {
-	using namespace vector;
-
 	lhs = {
-		.vector = lhs.w * rhs.vector + rhs.w * lhs.vector + cross(lhs.vector, rhs.vector),
-		.w 		= lhs.w * rhs.w - vector::dot(lhs.vector, rhs.vector)
+		.vector = rhs.vector * lhs.w + lhs.vector * rhs.w + cross_v3(lhs.vector, rhs.vector),
+		.w 		= lhs.w * rhs.w - dot_v3(lhs.vector, rhs.vector)
 	};
 	return lhs;
 }
 
 quaternion interpolate(quaternion from, quaternion to, float t)
 {
-	using namespace vector;
-
 	// Assert(t == t && "probably a nan");
 	if (t < -0.00001f || t > 1.00001f)
 	{
@@ -239,11 +232,23 @@ quaternion interpolate(quaternion from, quaternion to, float t)
 	// https://fi.wikipedia.org/wiki/Hyperbolinen_funktio
 
 	// Convert to rodriques rotation
-	v3 axis 		= normalize_or_zero(difference.vector);
+	v3 axis;
+
+	f32 magnitude = magnitude_v3(difference.vector);
+	if (magnitude < 0.0001f)
+	{
+		axis = difference.vector;
+	}
+	else
+	{
+		axis = difference.vector / magnitude;
+	}
+
+	// v3 axis 		= normalize_or_zero(difference.vector);
 	float angle 	= arc_cosine(difference.w) * 2 * t;
 
 	quaternion result = {
-		.vector = sine(angle / 2.0f) * axis,
+		.vector = axis * sine(angle / 2.0f),
 		.w 		= cosine(angle / 2.0f)
 	};
 

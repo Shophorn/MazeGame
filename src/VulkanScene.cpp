@@ -409,7 +409,7 @@ vulkan::make_texture(VulkanContext * context, TextureAsset * asset)
 }
 
 internal VulkanTexture
-vulkan::make_texture(VulkanContext * context, u32 width, u32 height, float4 color, VkFormat format)
+vulkan::make_texture(VulkanContext * context, u32 width, u32 height, v4 color, VkFormat format)
 {
     using namespace vulkan_scene_internal_;
 

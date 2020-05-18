@@ -142,7 +142,7 @@ update_camera_controller(CameraController3rdPerson * controller, v3 * cameraPosi
     
     // controller->camera->position = targetPosition + localPosition;
     *cameraPosition = targetPosition + localPosition;
-	controller->camera->direction = -1.0f * normalize(localPosition);
+	controller->camera->direction = -normalize_v3(localPosition);
 
 	Assert(math::distance(square_magnitude_v3(controller->camera->direction), 1.0f) < 0.00001f);
 }

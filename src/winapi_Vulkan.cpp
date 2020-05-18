@@ -885,7 +885,7 @@ winapi::create_vulkan_context(WinAPIWindow * window)
             .fragmentShaderPath         = "assets/shaders/line_frag.spv",
 
             .options = {
-                .pushConstantSize       = sizeof(float4) * 3,
+                .pushConstantSize       = sizeof(v4) * 3,
                 .lineWidth              = 2.0f,
 
                 .primitiveType          = platform::RenderingOptions::PRIMITIVE_LINE,
@@ -907,7 +907,7 @@ winapi::create_vulkan_context(WinAPIWindow * window)
 
             .options = {
                 .textureCount           = 1,
-                .pushConstantSize       = sizeof(v2) * 4 + sizeof(float4),
+                .pushConstantSize       = sizeof(v2) * 4 + sizeof(v4),
 
                 .primitiveType          = platform::RenderingOptions::PRIMITIVE_TRIANGLE_STRIP,
                 .cullMode               = platform::RenderingOptions::CULL_NONE,

@@ -4,95 +4,73 @@ Leo Tamminen
 Matrix structure declaration and definition.
 Matrices are column major.
 =============================================================================*/
-template <typename Scalar, u32 Rows, u32 Columns>
-struct Matrix
+
+struct m44
 {
-	constexpr static u32 rows_count 	= Rows;
-	constexpr static u32 columns_count 	= Columns;
+	v4 columns [4];
 
-	using scalar_type 					= Scalar;
-	using column_type 					= Vector<Scalar, Rows>;
+	v4 & operator [] (s32 column)
+	{ 
+		return columns[column];
+	}
 
-	/// -------- CONTENTS -------------------
-	column_type columns [columns_count];
-
-	/// ------- ACCESSORS ----------------------------
-	column_type & operator [] (s32 column) 				{ return columns[column]; }
-	column_type operator [] (s32 column) const 			{ return columns[column]; }
-	
-	scalar_type & operator()(u32 column, u32 row) 		{ return vector::begin(&columns[column])[row];}
-	scalar_type operator() (u32 column, u32 row) const 	{ return vector::const_begin(&columns[column])[row];	}
-
-	constexpr static Matrix identity();
-	constexpr Matrix<Scalar, Columns, Rows> transpose() const;
+	v4 operator [] (s32 column) const
+	{ 
+		return columns[column];
+	}
 };
 
-template<typename Scalar, u32 LeftRows, u32 InnerSize, u32 RightColumns>
-Matrix<Scalar, LeftRows, RightColumns>
-operator * (Matrix<Scalar, LeftRows, InnerSize> const & lhs,
-			Matrix<Scalar, InnerSize, RightColumns> const & rhs)
+internal constexpr m44 identity_m44 = {	1, 0, 0, 0,
+										0, 1, 0, 0,
+										0, 0, 1, 0,
+										0, 0, 0, 1 };
+
+internal m44 operator * (m44 lhs, m44 const & rhs)
 {
-	auto lhsTranspose = lhs.transpose();
+	lhs = transpose_m44(lhs);
 
-	Matrix<Scalar, LeftRows, RightColumns> product;
+	lhs = { dot_v4(lhs[0], rhs[0]), dot_v4(lhs[1], rhs[0]), dot_v4(lhs[2], rhs[0]), dot_v4(lhs[3], rhs[0]),
+			dot_v4(lhs[0], rhs[1]), dot_v4(lhs[1], rhs[1]), dot_v4(lhs[2], rhs[1]), dot_v4(lhs[3], rhs[1]),
+			dot_v4(lhs[0], rhs[2]), dot_v4(lhs[1], rhs[2]), dot_v4(lhs[2], rhs[2]), dot_v4(lhs[3], rhs[2]),
+			dot_v4(lhs[0], rhs[3]), dot_v4(lhs[1], rhs[3]), dot_v4(lhs[2], rhs[3]), dot_v4(lhs[3], rhs[3]) };
 
-	for(u32 col = 0; col < RightColumns; ++col)
-		for (u32 row = 0; row < LeftRows; ++row)
-		{
-			product(col, row) = vector::dot(lhsTranspose[row], rhs[col]);
-		}
+	return lhs;
+}
 
-	return product;
-}  
-
-using m33 = Matrix<float, 3, 3>;
-using m44 = Matrix<float, 4, 4>;
-
-v3 multiply_point(m44 const & mat, v3 point)
+internal m44 transpose_m44(m44 mat)
 {
-	Matrix<float,4,1> vecMatrix = { point.x, point.y, point.z, 1.0	};
-	Matrix<float,4,1> product = mat * vecMatrix;
+	mat = {	mat[0].x, mat[1].x, mat[2].x, mat[3].x,
+			mat[0].y, mat[1].y, mat[2].y, mat[3].y,
+			mat[0].z, mat[1].z, mat[2].z, mat[3].z,
+			mat[0].w, mat[1].w, mat[2].w, mat[3].w };
+	return mat;
+}
 
-	point = {
-		product(0,0) / product(0,3),
-		product(0,1) / product(0,3),
-		product(0,2) / product(0,3)
-	};
+
+internal v3 multiply_point(m44 mat, v3 point)
+{
+	v4 vec4 = v3_to_v4(point, 1.0f);
+
+	mat = transpose_m44(mat);
+
+	f32 w = dot_v4(mat[3], vec4);
+
+	point = { 	dot_v4(mat[0], vec4) / w,
+				dot_v4(mat[1], vec4) / w,
+				dot_v4(mat[2], vec4) / w }; 
+
 	return point;
 }
 
-v3 multiply_direction(const m44 & mat, v3 direction)
+internal v3 multiply_direction(m44 mat, v3 direction)
 {
-	using namespace vector;
+	mat = transpose_m44(mat);
 
-	auto lhs = mat.transpose();
-
-	direction = {
-		dot(convert_to<v3>(lhs[0]), direction),
-		dot(convert_to<v3>(lhs[1]), direction),
-		dot(convert_to<v3>(lhs[2]), direction)
-	};
+	direction = { 	dot_v3(mat[0].xyz, direction),
+					dot_v3(mat[1].xyz, direction),
+					dot_v3(mat[2].xyz, direction) };
 	return direction;	
 }
-
-
-template<>
-constexpr m44 m44::identity()
-{
-	constexpr m44 identity_ = {	1, 0, 0, 0,
-								0, 1, 0, 0,
-								0, 0, 1, 0,
-								0, 0, 0, 1};
-	return identity_;
-}
-
-// m44
-// make_translation_matrix(v3 translation)
-// {
-// 	m44 result = m44::identity();
-// 	result[3] = v4{translation.x, translation.y, translation.z, 1.0f};
-// 	return result;
-// }
 
 
 internal m44 translation_matrix(v3 translation)
@@ -129,39 +107,23 @@ internal m44 rotation_matrix(quaternion rotation)
 
 internal m44 scale_matrix(v3 scale)
 {
-	// m44 result =
-	// {
-	// 	scale.x, 0, 0, 0,
-	// 	0, scale.y, 0, 0,
-	// 	0, 0, scale.z, 0,
-	// 	0, 0, 0, 0
-	// };
-
-
-	m44 result = {};
-	result(0,0) = scale.x;
-	result(1,1) = scale.y;
-	result(2,2) = scale.z;
-	result(3,3) = 1.0f;
+	m44 result = {	scale.x, 0, 0, 0,
+					0, scale.y, 0, 0,
+					0, 0, scale.z, 0,
+					0, 0, 0, 1.0f };
 	return result;	
 }
 
-m44
-make_transform_matrix(v3 translation, float uniformScale = 1.0f)
+internal m44 make_transform_matrix(v3 translation, float scale = 1.0f)
 {
-	m44 result = {};
-
-	result(0,0) = uniformScale;
-	result(1,1) = uniformScale;
-	result(2,2) = uniformScale;
-
-	result[3] = { translation.x, translation.y, translation.z, 1.0f };
-
+	m44 result = {	scale, 0, 0, 0,
+					0, scale, 0, 0,
+					0, 0, scale, 0,
+					translation.x, translation.y,  translation.z, 1.0f };
 	return result;
 }
 
-m44
-make_transform_matrix(v3 translation, quaternion rotation, float uniformScale = 1.0f)
+internal m44 make_transform_matrix(v3 translation, quaternion rotation, float uniformScale = 1.0f)
 {
 	float 	x = rotation.x,
 			y = rotation.y,
@@ -181,88 +143,25 @@ make_transform_matrix(v3 translation, quaternion rotation, float uniformScale = 
 	return result;	
 }
 
-m44 transform_matrix(v3 translation, quaternion rotation, v3 scale)
+internal m44 transform_matrix(v3 translation, quaternion rotation, v3 scale)
 {
-	// s =
-	// {
-	// 	A, 0, 0, 0,
-	// 	0, B, 0, 0,
-	// 	0, 0, C, 0,
-	// 	0, 0, 0, 1,	
-	// };
-
-	// r = 
-	// {
-	// 	n, n, n, 0,
-	// 	n, n, n, 0,
-	// 	n, n, n, 0
-	// 	0, 0, 0, 1
-	// }
-
-	// s * r = 
-	// {
-	// 	An, An, An, 0,
-
-	// }
-
 	float 	x = rotation.x,
 			y = rotation.y,
 			z = rotation.z,
-			w = rotation.w;
+			w = rotation.w,
 
+			sx = scale.x,
+			sy = scale.y,
+			sz = scale.z;
 
 	m44 result =
 	{
-		scale.x * (1 - 2*y*y - 2*z*z), 	scale.x * (2*x*y-2*w*z), 			scale.x * (2*x*z + 2*w*y),		0,
-		scale.y * (2*x*y + 2*w*z), 		scale.y * (1 - 2*x*x - 2*z*z),	scale.y * (2*y*z - 2*w*x),		0,
-		scale.z * (2*x*z - 2*w*y),		scale.z * (2*y*z + 2*w*x),		scale.z * (1 - 2*x*x - 2*y*y),	0,
+		sx * (1 - 2*y*y - 2*z*z), 	sx * (2*x*y-2*w*z), 		sx * (2*x*z + 2*w*y),		0,
+		sy * (2*x*y + 2*w*z), 		sy * (1 - 2*x*x - 2*z*z),	sy * (2*y*z - 2*w*x),		0,
+		sz * (2*x*z - 2*w*y),		sz * (2*y*z + 2*w*x),		sz * (1 - 2*x*x - 2*y*y),	0,
 		translation.x,				translation.y,				translation.z,				1
 	};
 
 	return result;	
 }
-
-m44 invert_transform_matrix(m44 matrix)
-{
-	v3 translation = {matrix[3].x, matrix[3].y, matrix[3].z};
-
-	matrix[3] = {0,0,0,1};
-	// matrix = matrix::transpose(matrix);
-	matrix = matrix.transpose();
-
-	translation = -multiply_point(matrix, translation);
-
-	matrix[3] = { translation.x, translation.y, translation.z, 1 };
-	matrix(3,3) = 1;
-	return matrix;
-}
-
-template<typename S, u32 R, u32 C>
-constexpr Matrix<S, C, R> Matrix<S,R,C>::transpose() const
-{
-	Matrix<S, C, R> result;
-	for (u32 col = 0; col < C; ++col)
-		for (u32 row = 0; row < R; ++row)
-		{
-			result(col, row) = (*this)(row, col);
-		}
-	return result;
-}
-
-#if MAZEGAME_INCLUDE_STD_IOSTREAM
-namespace std
-{
-	template<typename S, u32 C, u32 R> ostream &
-	operator << (ostream & os, Matrix<S, C, R> mat)
-	{
-		os << "(" << mat[0];
-		for (s32 i = 1; i < C; ++i)
-		{
-			os << ";" << mat[i];
-		}
-		os << ")";
-		return os;
-	}
-}
-#endif
 

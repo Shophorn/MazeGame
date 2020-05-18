@@ -42,14 +42,6 @@ namespace winapi
         return isDrawable;
     }
 
-    point2
-    get_window_size(WinAPIWindow * window)
-    {
-        return {
-            .x = window->width,
-            .y = window->height,
-        };
-    }
 
     internal void
     set_window_fullscreen(WinAPIWindow * window, bool32 setFullscreen)

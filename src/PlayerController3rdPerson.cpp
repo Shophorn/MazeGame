@@ -18,8 +18,8 @@ void update_player_input(	PlayerInputState & 			playerState,
 {
 	v3 viewForward 		= get_forward(&playerCamera);
 	viewForward.z 		= 0;
-	viewForward 		= normalize(viewForward);
-	v3 viewRight 		= vector::cross(viewForward, up_v3);
+	viewForward 		= normalize_v3(viewForward);
+	v3 viewRight 		= cross_v3(viewForward, up_v3);
 
 	v3 worldSpaceInput 	= viewRight * platformInput.move.x + viewForward * platformInput.move.y;
 

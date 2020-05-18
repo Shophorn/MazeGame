@@ -34,7 +34,7 @@ void update_follower_input(	FollowerController 		& controller,
 {
 	v3 toTarget 			= controller.targetTransform->position - controller.transform->position;
 	toTarget.z 				= 0;
-	float distanceToTarget 	= magnitude(toTarget);
+	f32 distanceToTarget 	= magnitude_v3(toTarget);
 
 	m44 gizmoTransform = make_transform_matrix(	controller.transform->position + up_v3 * controller.transform->scale * 2.0f, 
 												controller.transform->rotation,
@@ -62,7 +62,7 @@ void update_follower_input(	FollowerController 		& controller,
 			we will always keep  moving.
 
 			Todo(Leo): clamping lower end might be clunky, investigate and maybe fix. */
-			inputVector = normalize(toTarget) * math::clamp(distanceToTarget - controller.stopFollowDistance, 0.05f, 1.0f);
+			inputVector = normalize_v3(toTarget) * math::clamp(distanceToTarget - controller.stopFollowDistance, 0.05f, 1.0f);
 		}
 		else
 		{
@@ -74,7 +74,7 @@ void update_follower_input(	FollowerController 		& controller,
 	{
 		if (distanceToTarget > controller.startFollowDistance)
 		{
-			inputVector = normalize(toTarget) * math::clamp(distanceToTarget - controller.startFollowDistance, 0.0f, 1.0f);
+			inputVector = normalize_v3(toTarget) * math::clamp(distanceToTarget - controller.startFollowDistance, 0.0f, 1.0f);
 			controller.isFollowing = true;
 		}
 		else
@@ -156,7 +156,7 @@ void update_random_walker_input(RandomWalkController & controller,
 		debug::draw_diamond_2d(gizmoTransform, colors::mutedRed, ORIENT_2D_XZ);
 	}
 	
-	f32 distance = magnitude_v2(*controller.transform->position.xy() - controller.targetPosition);
+	f32 distance = magnitude_v2(controller.transform->position.xy - controller.targetPosition);
 	if (distance < 1.0f && controller.isWaiting == false)
 	{
 		controller.waitTimer = 10;
@@ -165,8 +165,8 @@ void update_random_walker_input(RandomWalkController & controller,
 
 
 	v3 input 			= {};
-	*input.xy() 		= controller.targetPosition - *controller.transform->position.xy();
-	f32 inputMagnitude 	= magnitude(input);
+	input.xy	 		= controller.targetPosition - controller.transform->position.xy;
+	f32 inputMagnitude 	= magnitude_v3(input);
 	input 				= input / inputMagnitude;
 	inputMagnitude 		= math::clamp(inputMagnitude, 0.0f, 1.0f);
 	input 				= input * inputMagnitude;

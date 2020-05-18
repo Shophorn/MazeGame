@@ -52,9 +52,9 @@ vulkan::update_lighting(VulkanContext * context, Light const * light, Camera con
     vkMapMemory(context->device, context->sceneUniformBuffer.memory,
                 context->lightingUniformOffset, sizeof(LightingUniformBuffer), 0, (void**)&lightPtr);
 
-    lightPtr->direction    = vector::convert_to<v4>(light->direction);
-    lightPtr->color        = vector::convert_to<float4>(light->color);
-    lightPtr->ambient      = vector::convert_to<float4>(ambient);
+    lightPtr->direction    = v3_to_v4(light->direction, 0);
+    lightPtr->color        = v3_to_v4(light->color, 0);
+    lightPtr->ambient      = v3_to_v4(ambient, 0);
 
     vkUnmapMemory(context->device, context->sceneUniformBuffer.memory);
 
@@ -355,7 +355,7 @@ vulkan::record_draw_command(VulkanContext * context, ModelHandle model, m44 tran
 }
 
 void
-vulkan::record_line_draw_command(VulkanContext * context, v3 start, v3 end, float width, float4 color)
+vulkan::record_line_draw_command(VulkanContext * context, v3 start, v3 end, float width, v4 color)
 {
     /*
     vulkan bufferless drawing
@@ -390,10 +390,10 @@ struct VulkanGuiPushConstants
     v2 bottomRight;
     v2 topLeft;
     v2 topRight;
-    float4 color;
+    v4 color;
 };
 
-void vulkan::record_gui_draw_command(VulkanContext * context, v2 position, v2 size, MaterialHandle materialHandle, float4 color)
+void vulkan::record_gui_draw_command(VulkanContext * context, v2 position, v2 size, MaterialHandle materialHandle, v4 color)
 {
     auto * frame = get_current_virtual_frame(context);
 

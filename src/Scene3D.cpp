@@ -114,7 +114,7 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 
 	/* Sadly, we need to draw skybox before game logic, because otherwise
 	debug lines would be hidden. This can be fixed though, just make debug pipeline similar to shadows. */ 
-	platformApi->draw_model(platformGraphics, scene->skybox, m44::identity(), false, nullptr, 0);
+	platformApi->draw_model(platformGraphics, scene->skybox, identity_m44, false, nullptr, 0);
 
 	/*
 	1. update input
@@ -206,7 +206,7 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 
 				for (s32 i = 0; i < scene->totalPotsCount; ++i)
 				{
-					if (magnitude(playerPosition - scene->potTransforms[i].position) < grabDistance)
+					if (magnitude_v3(playerPosition - scene->potTransforms[i].position) < grabDistance)
 					{
 						scene->playerCarryState = CARRY_POT;
 						scene->carriedItemIndex = i;
@@ -216,7 +216,7 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 
 				for (s32 i = 0; i < scene->waterCount; ++i)
 				{
-					if(magnitude(playerPosition - scene->waterTransforms[i].position) < grabDistance)
+					if(magnitude_v3(playerPosition - scene->waterTransforms[i].position) < grabDistance)
 					{
 						scene->playerCarryState = CARRY_WATER;
 						scene->carriedItemIndex = i;
@@ -226,7 +226,7 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 
 				for (s32 i = 0; i < scene->currentSeedCount; ++i)
 				{
-					if (magnitude(playerPosition - scene->seedTransforms[i].position) < grabDistance)
+					if (magnitude_v3(playerPosition - scene->seedTransforms[i].position) < grabDistance)
 					{
 						scene->playerCarryState = CARRY_SEED;
 						scene->carriedItemIndex = i;
@@ -241,7 +241,7 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 			case CARRY_POT:
 				scene->playerCarryState = CARRY_NONE;
 				scene->potTransforms[scene->carriedItemIndex].position.z
-					= get_terrain_height(&scene->collisionSystem, *scene->potTransforms[scene->carriedItemIndex].position.xy());
+					= get_terrain_height(&scene->collisionSystem, scene->potTransforms[scene->carriedItemIndex].position.xy);
 				break;
 				
 			case CARRY_WATER:
@@ -249,13 +249,13 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 				Transform3D & waterTransform = scene->waterTransforms[scene->carriedItemIndex];
 
 				scene->playerCarryState = CARRY_NONE;
-				waterTransform.position.z = get_terrain_height(&scene->collisionSystem, *waterTransform.position.xy());
+				waterTransform.position.z = get_terrain_height(&scene->collisionSystem, waterTransform.position.xy);
 
 				/// LOOK FOR NEARBY SEEDS ON GROUND
 				for (s32 seedIndex = 0; seedIndex < scene->currentSeedCount; ++seedIndex)
 				{
 					// Todo(Leo): Once we have some benchmarking, test if this was faster with all distances computed before
-					f32 distanceToSeed = magnitude(waterTransform.position - scene->seedTransforms[seedIndex].position);
+					f32 distanceToSeed = magnitude_v3(waterTransform.position - scene->seedTransforms[seedIndex].position);
 					if (distanceToSeed < 0.5f)
 					{
 						s32 treeIndex = scene->treesInPotCount + scene->treesOnGroundCount;
@@ -280,7 +280,7 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 				s32 endPotWithSeed = scene->potsWithTreeCount + scene->potsWithSeedCount;
 				for (s32 potIndex = startPotWithSeed; potIndex < endPotWithSeed; ++potIndex)
 				{
-					f32 distanceToPotWithSeed = magnitude(waterTransform.position - scene->potTransforms[potIndex].position);
+					f32 distanceToPotWithSeed = magnitude_v3(waterTransform.position - scene->potTransforms[potIndex].position);
 					if (distanceToPotWithSeed < 0.5f)
 					{
 						s32 newTreeInPotIndex = scene->treesInPotCount;
@@ -322,7 +322,7 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 				/// LOOK FOR NEARBY TREES IN POTS
 				for (s32 treeIndex = 0; treeIndex < scene->treesInPotCount; ++treeIndex)
 				{
-					f32 distanceToTreeInPot = magnitude(waterTransform.position - scene->treeTransforms[treeIndex].position);
+					f32 distanceToTreeInPot = magnitude_v3(waterTransform.position - scene->treeTransforms[treeIndex].position);
 					if (distanceToTreeInPot < 0.5f)
 					{
 						// scene->treeGrowths[treeIndex] += 0.5f;
@@ -339,7 +339,7 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 				/// LOOK FOR NEARBY TREES ON GROUND
 				for (s32 treeIndex = scene->treesInPotCount; treeIndex < (scene->treesInPotCount + scene->treesOnGroundCount); ++treeIndex)
 				{
-					f32 distnceToTreeOnGround = magnitude(waterTransform.position - scene->treeTransforms[treeIndex].position);
+					f32 distnceToTreeOnGround = magnitude_v3(waterTransform.position - scene->treeTransforms[treeIndex].position);
 					if (distnceToTreeOnGround < 0.5f)
 					{
 						scene->treeGrowths[treeIndex] += 0.5f;
@@ -356,12 +356,12 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 
 			case CARRY_SEED:
 				scene->playerCarryState = CARRY_NONE;
-				scene->seedTransforms[scene->carriedItemIndex].position.z = get_terrain_height(&scene->collisionSystem, *scene->seedTransforms[scene->carriedItemIndex].position.xy());
+				scene->seedTransforms[scene->carriedItemIndex].position.z = get_terrain_height(&scene->collisionSystem, scene->seedTransforms[scene->carriedItemIndex].position.xy);
 
 				s32 firstEmptyPot = scene->potsWithTreeCount + scene->potsWithSeedCount;
 				for (s32 potIndex = firstEmptyPot; potIndex < scene->totalPotsCount; ++potIndex)
 				{
-					f32 distanceToEmptyPot = magnitude(scene->potTransforms[potIndex].position - scene->seedTransforms[scene->carriedItemIndex].position);
+					f32 distanceToEmptyPot = magnitude_v3(scene->potTransforms[potIndex].position - scene->seedTransforms[scene->carriedItemIndex].position);
 					if(distanceToEmptyPot < 0.5f)
 					{
 						swap (scene->potTransforms[firstEmptyPot], scene->potTransforms[potIndex]);
@@ -535,7 +535,7 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 
     update_camera_system(&scene->worldCamera, input, platformGraphics, platformWindow);
 
-	Light light = { .direction 	= normalize(v3{1, -1.2, -3}), 
+	Light light = { .direction 	= normalize_v3({1, -1.2, -3}), 
 					.color 		= v3{0.95, 0.95, 0.9}};
 	v3 ambient 	= {0.1, 0.1, 0.5};
 	platformApi->update_lighting(platformGraphics, &light, &scene->worldCamera, ambient);
@@ -898,7 +898,7 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 			auto model = push_model(totemMeshHandle, materials.environment);
 
 			Transform3D * transform = scene->transforms.push_return_pointer({});
-			transform->position.z = get_terrain_height(&scene->collisionSystem, *transform->position.xy()) - 0.5f;
+			transform->position.z = get_terrain_height(&scene->collisionSystem, transform->position.xy) - 0.5f;
 			scene->renderers.push({transform, model});
 			push_box_collider(	scene->collisionSystem,
 								v3 {1.0, 1.0, 5.0},
@@ -906,7 +906,7 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 								transform);
 
 			transform = scene->transforms.push_return_pointer({.position = {0, 5, 0} , .scale = 0.5});
-			transform->position.z = get_terrain_height(&scene->collisionSystem, *transform->position.xy()) - 0.25f;
+			transform->position.z = get_terrain_height(&scene->collisionSystem, transform->position.xy) - 0.25f;
 			scene->renderers.push({transform, model});
 			push_box_collider(	scene->collisionSystem,
 								v3{0.5, 0.5, 2.5},
@@ -972,7 +972,7 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 		// Test robot
 		{
 			v3 position 			= {21, 10, 0};
-			position.z 				= get_terrain_height(&scene->collisionSystem, *position.xy());
+			position.z 				= get_terrain_height(&scene->collisionSystem, position.xy);
 			auto * transform 		= scene->transforms.push_return_pointer({.position = position});
 
 			char const * filename 	= "assets/models/Robot53.glb";
@@ -997,7 +997,7 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 			{
 
 				v3 position 					= {15, potIndex * 5.0f, 0};
-				position.z 						= get_terrain_height(&scene->collisionSystem, *position.xy());
+				position.z 						= get_terrain_height(&scene->collisionSystem, position.xy);
 				scene->potTransforms[potIndex]	= { .position = position };
 
 				push_cylinder_collider(scene->collisionSystem, 0.3, 0.5, v3{0,0,0.25}, &scene->potTransforms[potIndex]);
@@ -1016,7 +1016,7 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 				ModelHandle model 		= platformApi->push_model(platformGraphics, bigPotMesh, materials.environment);
 				Transform3D * transform = scene->transforms.push_return_pointer({13, 2.0f + i * 4.0f, 0});
 
-				transform->position.z 	= get_terrain_height(&scene->collisionSystem, *transform->position.xy());
+				transform->position.z 	= get_terrain_height(&scene->collisionSystem, transform->position.xy);
 
 				scene->renderers.push({transform, model});
 				push_cylinder_collider(scene->collisionSystem, 0.6, 1, v3{0,0,0.5}, transform);
@@ -1053,7 +1053,7 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 			for (s32 i = 0; i < scene->waterCount; ++i)
 			{
 				v3 position = {RandomRange(-50, 50), RandomRange(-50, 50)};
-				position.z 	= get_terrain_height(&scene->collisionSystem, *position.xy());
+				position.z 	= get_terrain_height(&scene->collisionSystem, position.xy);
 
 				scene->waterTransforms[i] = { .position = position };
 			}
@@ -1065,7 +1065,7 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 				scene->seedTransforms[i] = Transform3D::identity();
 
 				v3 position = {RandomRange(-50, 50), RandomRange(-50, 50), 0};
-				position.z = get_terrain_height(&scene->collisionSystem, *position.xy());
+				position.z = get_terrain_height(&scene->collisionSystem, position.xy);
 				scene->seedTransforms[i].position = position;
 			}
 

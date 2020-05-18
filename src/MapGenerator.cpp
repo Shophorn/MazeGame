@@ -105,13 +105,13 @@ AddHexCell(v3 cellPosition, HexMap * map, bool blocked, u16 * vertexIndex, Verte
 
 	f32 gridSize = map->WorldSize();
 	v2 offset = {0.5f, 0.5f};
-	vertexLocation[0].texCoord = *vertexLocation[0].position.xy() / gridSize + offset;
-	vertexLocation[1].texCoord = *vertexLocation[1].position.xy() / gridSize + offset;
-	vertexLocation[2].texCoord = *vertexLocation[2].position.xy() / gridSize + offset;
-	vertexLocation[3].texCoord = *vertexLocation[3].position.xy() / gridSize + offset;
-	vertexLocation[4].texCoord = *vertexLocation[4].position.xy() / gridSize + offset;
-	vertexLocation[5].texCoord = *vertexLocation[5].position.xy() / gridSize + offset;
-	vertexLocation[6].texCoord = *vertexLocation[6].position.xy() / gridSize + offset;
+	vertexLocation[0].texCoord = vertexLocation[0].position.xy / gridSize + offset;
+	vertexLocation[1].texCoord = vertexLocation[1].position.xy / gridSize + offset;
+	vertexLocation[2].texCoord = vertexLocation[2].position.xy / gridSize + offset;
+	vertexLocation[3].texCoord = vertexLocation[3].position.xy / gridSize + offset;
+	vertexLocation[4].texCoord = vertexLocation[4].position.xy / gridSize + offset;
+	vertexLocation[5].texCoord = vertexLocation[5].position.xy / gridSize + offset;
+	vertexLocation[6].texCoord = vertexLocation[6].position.xy / gridSize + offset;
 
 	triangleLocation[0] = *vertexIndex;
 	triangleLocation[1] = *vertexIndex + 1; 

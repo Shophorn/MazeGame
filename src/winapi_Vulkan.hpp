@@ -53,8 +53,8 @@ namespace vulkan
 	struct LightingUniformBuffer
 	{
 		v4 direction;
-		float4 color;
-		float4 ambient;
+		v4 color;
+		v4 ambient;
 	};
 	
 	struct ModelUniformBuffer
@@ -471,8 +471,8 @@ namespace vulkan
     internal void update_camera				(VulkanContext*, Camera const *);
     internal void update_lighting			(VulkanContext*, Light const *, Camera const *, v3 ambient);
 	internal void record_draw_command 		(VulkanContext*, ModelHandle handle, m44 transform, bool32 castShadow, m44 const * bones, u32 bonesCount);
-	internal void record_line_draw_command	(VulkanContext*, v3 start, v3 end, float width, float4 color);
-	internal void record_gui_draw_command	(VulkanContext*, v2 position, v2 size, MaterialHandle material, float4 color);
+	internal void record_line_draw_command	(VulkanContext*, v3 start, v3 end, float width, v4 color);
+	internal void record_gui_draw_command	(VulkanContext*, v2 position, v2 size, MaterialHandle material, v4 color);
 
     internal TextureHandle  push_texture (VulkanContext * context, TextureAsset * texture);
     internal MaterialHandle push_material (VulkanContext * context, MaterialAsset * asset);
@@ -484,7 +484,7 @@ namespace vulkan
     internal void           unload_scene(VulkanContext * context);
     
     internal VulkanTexture  make_texture(VulkanContext * context, TextureAsset * asset);
-    internal VulkanTexture  make_texture(VulkanContext * context, u32 width, u32 height, float4 color, VkFormat format);
+    internal VulkanTexture  make_texture(VulkanContext * context, u32 width, u32 height, v4 color, VkFormat format);
     internal VulkanTexture  make_cubemap(VulkanContext * context, StaticArray<TextureAsset, 6> * assets);        
 
 }

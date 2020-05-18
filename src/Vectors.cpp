@@ -1,74 +1,19 @@
 /*=============================================================================
 Leo Tamminen
 
-Vector function templates and template instantiations
+2d, 3d and 4d vector types
 
 TODO(Leo):
 	- Full testing
 	- SIMD / SSE / AVX
 =============================================================================*/
-template<typename S, u32 D>
-struct Vector;
 
-namespace vector_impl_
-{
-	template<typename S, u32 D> S square_magnitude(void const * vec)
-	{
-		S result = 0;
-		for (int i = 0; i < D; ++i)
-		{
-			// Note(Leo): There is a 'hidden' subscript operator in the end of expression....
-			S element = reinterpret_cast<S const *>(vec)[i];
-			result += element * element;
-		}
-		return result;
-	}
+/// ------- v2 ------------
 
-	template <typename S, u32 D> void divide(void * vec, S divisor)
-	{
-		Assert(divisor != 0);
-		
-		for (int i = 0; i < D; ++i)
-		{
-			reinterpret_cast<S*>(vec)[i] /= divisor;
-		}
-	}
-
-	template <typename S, s32 D> S sum(void const * vec)
-	{
-		S sum = 0;
-		for(int i = 0; i < D; ++i)
-		{
-			sum += reinterpret_cast<S const *>(vec)[i];
-		}
-		return sum;
-	}
-}
-
-// ------------------ DEFINITIONS ---------------------------------
-template<typename S>
-struct Vector<S, 2>
-{ 
-	S x, y;
-
-	S magnitude() const 		{ return math::square_root(vector_impl_::square_magnitude<S, 2>(this)); }
-	S square_magnitude() const 	{ return vector_impl_::square_magnitude<S, 2>(this); }
-
-	Vector normalized() const 	{ Vector result = *this; vector_impl_::divide<S, 2>(&result, magnitude()); return result; }
-
-};
-
-// using v2 = Vector<float, 2>;
 struct v2
 {	
 	f32 x, y;
 };
-
-struct point2
-{
-	u32 x, y;
-};
-
 
 v2 operator + (v2 a, v2 b)
 {
@@ -161,30 +106,85 @@ v2 clamp_length_v2(v2 vec, f32 length)
 	return vec;
 }
 
-// union v3
-// {
-// 	struct { f32 x, y, z; };
-// 	struct { v2 xy, f32 ignored_; }
-// 	f32 elements [3];
-// };
+// ------------ v3 ----------------
 
-template<typename S>
-struct Vector<S, 3>
-{ 
-	S x, y, z; 
+union v3
+{
+	struct
+	{
+		f32 x, y, z;
+	};
 
-	v2 * xy () { return reinterpret_cast<v2*>(this); }
-	v2 const * xy() const { return reinterpret_cast<v2 const *>(this); }
+	struct
+	{
+		v2 xy;
+		f32 ignored_;
+	};
 };
-
-using v3 	= Vector<float, 3>;
 
 constexpr v3 right_v3 	= {1,0,0};
 constexpr v3 forward_v3 = {0,1,0};
 constexpr v3 up_v3 		= {0,0,1};
 
+v3 operator + (v3 a, v3 b)
+{
+	a.x += b.x;
+	a.y += b.y;
+	a.z += b.z;
+	return a;
+}
 
-f32 magnitude(v3 v)
+v3 & operator += (v3 & a, v3 b)
+{
+	a = a + b;
+	return a;
+}
+
+v3 operator - (v3 lhs, v3 rhs)
+{
+	lhs.x -= rhs.x;
+	lhs.y -= rhs.y;
+	lhs.z -= rhs.z;
+	return lhs;
+}
+
+v3 & operator -= (v3 & lhs, v3 rhs)
+{
+	lhs = lhs - rhs;
+	return lhs;
+}
+
+v3 operator * (v3 vec, f32 f)
+{
+	vec.x *= f;
+	vec.y *= f;
+	vec.z *= f;
+	return vec;
+}
+
+v3 operator *= (v3 vec, f32 f)
+{
+	vec = vec * f;
+	return vec;
+}
+
+v3 operator / (v3 vec, f32 f)
+{
+	vec.x /= f;
+	vec.y /= f;
+	vec.z /= f;
+	return vec;
+}
+
+v3 operator - (v3 vec)
+{
+	vec.x = -vec.x;
+	vec.y = -vec.y;
+	vec.z = -vec.z;
+	return vec;
+}
+
+f32 magnitude_v3(v3 v)
 {
 	using namespace math;
 
@@ -200,24 +200,9 @@ f32 square_magnitude_v3(v3 v)
 	return sqrMagnitude;
 }
 
-v3 divide(v3 v, f32 f)
-{
-	v.x /= f;
-	v.y /= f;
-	v.z /= f;
-
-	return v;
-}
-
-v3 normalize(v3 v)
-{
-	v = divide(v, magnitude(v));
-	return v;
-}
-
 v3 normalize_v3(v3 v)
 {
-	v = divide(v, magnitude(v));
+	v = v / magnitude_v3(v);
 	return v;
 }
 
@@ -229,18 +214,32 @@ f32 dot_v3(v3 a, v3 b)
 
 v3 cross_v3(v3 lhs, v3 rhs)
 {
-	lhs = 
-	{
-		lhs.y * rhs.z - lhs.z * rhs.y,
-		lhs.z * rhs.x - lhs.x * rhs.z,
-		lhs.x * rhs.y - lhs.y * rhs.x
-	};
+	lhs = {	lhs.y * rhs.z - lhs.z * rhs.y,
+			lhs.z * rhs.x - lhs.x * rhs.z,
+			lhs.x * rhs.y - lhs.y * rhs.x };
 	return lhs;
+}
+
+v3 interpolate_v3(v3 from, v3 to, f32 t)
+{
+	from = from * (1 - t) + to * t;
+	return from;
+}
+
+v3 rotate_v3(v3 vec, v3 axis, f32 angleInRadians)
+{
+	v3 projection = axis * dot_v3(axis, vec);
+	v3 rejection = vec - projection;
+
+	v3 rotatedRejection = rejection * cosine(angleInRadians) + cross_v3(axis, rejection) * sine(angleInRadians);
+
+	vec = projection + rotatedRejection;
+	return vec;	
 }
 
 f32 angle_v3(v3 from, v3 to)
 {
-	// Note(Leo): copied from unity vector.cs...
+	// Note(Leo): copied from unity3d vector.cs...
 
 	f32 denominator = math::square_root(square_magnitude_v3(from) * square_magnitude_v3(to));
 	if (denominator < 1e-15f)
@@ -251,430 +250,40 @@ f32 angle_v3(v3 from, v3 to)
 	return angle;
 }
 
-template<typename S>
-struct Vector<S, 4>
-{
-	S x, y, z, w;
-
-	S magnitude() const 		{ return math::square_root(vector_impl_::square_magnitude<S, 4>(this)); }
-	S square_magnitude() const 	{ return vector_impl_::square_magnitude<S, 4>(this); }
-
-	Vector normalized() const 	{ Vector result = *this; vector_impl_::divide<S, 4>(&result, magnitude()); return result; }
-};
-
-using v4 		= Vector<float,4>;
-using float4 	= Vector<float, 4>;
-
-using point4_u32 = Vector<u32, 4>;
-
-namespace vector
-{
-	template<typename S>
-	constexpr S epsilon = 0.000001f;
-
-	template <typename S, u32 D> S * 				begin(Vector<S, D> * vec);
-	template <typename S, u32 D> S const * 			const_begin(Vector<S, D> const * vec);
-
-	template<typename S, u32 D> S 					dot(Vector<S,D> const & a, Vector<S,D> const & b);
-	template<typename S, u32 D>	Vector<S,D>			interpolate(Vector<S,D> a, Vector<S,D> b, S t);
-	template<typename S, u32 D> Vector<S,D> 		normalize_or_zero(Vector<S,D> vec);
-	template<typename S, u32 D> Vector<S, D>		clamp_length(Vector<S,D> vec, S maxLength);
-	template<typename S, u32 D> Vector<S, D> 		scale(Vector<S,D> vec, Vector<S,D> const & scale);
-	template<typename S, u32 D> void 				dissect (Vector<S,D> const & vec, Vector<S,D> * outDirection, S * outLength);
-	template<typename S, u32 D> Vector<S,D>			project (Vector<S,D> vec, Vector<S,D> const & projectionTarget);
-	template<typename S, u32 D> S 					get_sqr_distance(Vector<S,D> const & a, Vector<S,D> const & b);
-
-	template<typename TNew, typename Told> TNew		convert_to(Told const & old);
-
-	// 3-dimensional vectors specific
-	template<typename S> Vector<S, 3>				cross(Vector<S,3> lhs, Vector<S,3> const & rhs);
-	template<typename S> Vector<S, 3> 				rotate(Vector<S,3> vec, Vector<S,3> const & axis, S angleInRadians);
-	template<typename S> S 							get_signed_angle(Vector<S,3> const & from, Vector<S,3> const & to, Vector<S,3> const & axis);
-
-	template<typename S, u32 D> S coeff_sum(Vector<S,D> const &vec)
-	{
-		return vector_impl_::sum<S,D>(&vec);
-	}
-}
-
-namespace vector_operators_
-{
-	#define VECTOR_OPERATOR template<typename S, u32 D> Vector<S,D>
-
-	VECTOR_OPERATOR & 	operator += (Vector<S,D> &, Vector<S,D> const &);
-	VECTOR_OPERATOR 	operator + 	(Vector<S,D>, 	Vector<S,D> const &);
-	VECTOR_OPERATOR &	operator -= (Vector<S,D> &, Vector<S,D> const &);
-	VECTOR_OPERATOR 	operator - 	(Vector<S,D>, 	Vector<S,D> const &);
-
-	VECTOR_OPERATOR &	operator *= (Vector<S,D> &, S);
-	VECTOR_OPERATOR 	operator * 	(Vector<S,D>, 	S);
-	VECTOR_OPERATOR 	operator *	(S, Vector<S, D>);
-	VECTOR_OPERATOR &	operator /= (Vector<S,D> &, S);
-	VECTOR_OPERATOR 	operator / 	(Vector<S,D>, 	S);
-
-	VECTOR_OPERATOR		operator - 	(Vector<S,D>);
-
-	#undef VECTOR_OPERATOR
-}
-
-/* Note(Leo): these are in namespace to begin with only that we get errors
-if either definition or declaration is changed. */
-using namespace vector_operators_;
-
-template<typename S, u32 D> Vector<S,D> &
-vector_operators_::operator += (Vector<S,D> & a, Vector<S,D> const & b)
-{
-	S * pA 			= vector::begin(&a);
-	S const * pB	= vector::const_begin(&b);
-
-	for (int i = 0; i < D; ++i)
-	{
-		pA[i] += pB[i];
-	}
-	return a;
-}
-
-template <typename S, u32 D> Vector<S,D>
-vector_operators_::operator + (Vector<S,D> a, Vector<S,D> const & b)
-{
-	a += b;
-	return a;
-}
-
-
-template <typename S, u32 D> Vector<S,D> &
-vector_operators_::operator -= (Vector<S,D> & a, Vector<S,D> const & b)
-{
-	S * pA 			= vector::begin(&a);
-	S const * pB 	= vector::const_begin(&b);
-	
-	for (int i = 0; i < D; ++i)
-	{
-		pA[i] -= pB[i];
-	}
-	return a;
-}
-
-template <typename S, u32 D> Vector<S,D>
-vector_operators_::operator - (Vector<S,D> a, Vector<S,D> const & b)
-{
-	a -= b;
-	return a;
-}
-
-template <typename S, u32 D> Vector<S,D> &
-vector_operators_::operator *= (Vector<S,D> & vec, S value)
-{
-	auto * pVec = vector::begin(&vec);
-
-	for (int i = 0; i < D; ++i)
-	{
-		pVec[i] *= value;
-	}
-	return vec;
-}
-
-template <typename S, u32 D> Vector<S,D>
-vector_operators_::operator * (Vector<S,D> vec, S value)
-{
-	vec *= value;
-	return vec;
-}
-
-template <typename S, u32 D> Vector<S,D>
-vector_operators_::operator * (S value, Vector<S,D> vec)
-{
-	vec *= value;
-	return vec;
-}
-
-template <typename S, u32 D> Vector<S,D> &
-vector_operators_::operator /= (Vector<S,D> & vec, S value)
-{
-	auto * pVec = vector::begin(&vec);
-	for (int i = 0; i < D; ++i)
-	{
-		pVec[i] /= value;
-	}
-	return vec;
-}
-
-template <typename S, u32 D> Vector<S,D>
-vector_operators_::operator / (Vector<S,D> vec, S value)
-{
-	vec /= value;
-	return vec;
-}
-
-template <typename S, u32 D> Vector<S,D>
-vector_operators_::operator - (Vector<S,D> vec)
-{
-	auto * pVec = vector::begin(&vec);
-	for(int i = 0; i < D; ++i)
-	{
-		pVec[i] = -pVec[i];
-	}
-	return vec;
-}
-
-template <typename T, u32 D> T * 
-vector::begin(Vector<T, D> * vec)
-{
-	return reinterpret_cast<T*> (vec);
-}
-
-template <typename T, u32 D> T const * 
-vector::const_begin(Vector<T, D> const * vec)
-{
-	return reinterpret_cast<T const *>(vec);
-}
-
-template<typename S, u32 D> S
-vector::dot(Vector<S,D> const & a, Vector<S,D> const & b)
-{
-	S const * pA = const_begin(&a);
-	S const * pB = const_begin(&b);
-
-	S result = 0;
-	for (int i = 0; i < D; ++i)
-	{
-		result += pA[i] * pB[i];
-	}
-	return result;
-}
-
-template<typename S> Vector<S,3>
-vector::cross(Vector<S,3> lhs, Vector<S,3> const & rhs)
-{
-	lhs = {
-		lhs.y * rhs.z - lhs.z * rhs.y,
-		lhs.z * rhs.x - lhs.x * rhs.z,
-		lhs.x * rhs.y - lhs.y * rhs.x
-	};
-	return lhs;
-}
-
-template<typename S, u32 D> Vector<S,D>
-vector::interpolate(Vector<S, D> a, Vector<S, D> b, S t)
-{
-	S * pA = begin(&a);
-	S const * pB = const_begin(&b);
-
-	for (int i = 0; i < D; ++i)
-	{
-		pA[i] = ::interpolate(pA[i], pB[i], t);
-	}
-	return a;	
-}
-
-// template<typename S, u32 D> Vector<S,D>
-// vector::normalize(Vector<S,D> vec)
-// {
-// 	return vec.normalized();
-
-// 	 Note(Leo): We deliberately do handle bad cases here, so that any code where there is risk
-// 	to  normalize 0 length vector should handle that themself. so that
-// 	// vec /= vec.magnitude();
-// 	// return vec;
-// }
-
-template<typename S, u32 D> Vector<S,D>
-vector::normalize_or_zero(Vector<S,D> vec)
-{
-	float sqrMagnitude = square_magnitude_v3(vec);
-	if (sqrMagnitude < epsilon<S>)
-	{
-		return vec;
-	}
-
-	return normalize(vec);
-
-	vec /= math::square_root(sqrMagnitude);
-	return vec;
-}
-
-template<typename S, u32 D> Vector<S,D>
-vector::clamp_length(Vector<S,D> vec, S maxLength)
-{
-	auto length = vec.magnitude();
-	if (length > maxLength)
-	{
-		vec *= (maxLength / length);
-	}
-	return vec;
-}
-
-namespace vector_meta_
-{
-	template<typename S, u32 D>
-	struct VectorInfo
-	{
-		using scalar_type = S;
-		constexpr static u32 dimension = D;
-	};
-
-	template<template<typename, u32> typename V, typename S, u32 D>
-	constexpr VectorInfo<S,D> get_info(V<S,D> const &) { return {}; }
-	
-	template<typename TVector>
-	using Info = decltype(get_info(std::declval<TVector>()));
-
-	template<typename> constexpr bool32 isVectorTemplate = false;
-	template<typename T, u32 D> constexpr bool32 isVectorTemplate<Vector<T,D>> = true;
-}
-
-template<typename TNew, typename TOld> TNew
-vector::convert_to(TOld const & old)
-{	
-	using namespace vector_meta_;
-
-	constexpr bool32 valid = isVectorTemplate<TNew> && isVectorTemplate<TOld>;
-	static_assert(valid, "Can only convert Vector types");
-
-	/* Note(Leo): this is to stop compiling these for invalid types. static_assert
-	does not necessrily stop there, but merely reports an error. */
-	if constexpr(valid)
-	{
-		using SNew = typename Info<TNew>::scalar_type;
-		constexpr u32 dimension = math::min(Info<TNew>::dimension, Info<TOld>::dimension);
-		
-
-		TNew result = {};	
-	
-		auto * pResult 		= begin(&result);
-		auto const * pOld 	= const_begin(&old);
-
-
-		for (u32 i = 0; i < dimension; ++i)
-		{
-			pResult[i] = static_cast<SNew>(pOld[i]);
-		}
-		return result;
-	}
-}
-
-template<typename S, u32 D> Vector<S,D>
-vector::scale(Vector<S,D> vec, Vector<S,D> const & scale)
-{
-	S * pVec 		= begin(&vec);
-	S const * pScale = const_begin(&scale);
-
-	for (int i = 0; i < D; ++i)
-	{
-		pVec[i] *= pScale[i];
-	}
-	return vec;
-}
-
-
-// VECTOR_3_TEMPLATE VECTOR_3_TYPE
-// rotate(VECTOR_3_TYPE vec, VECTOR_3_TYPE axis, Scalar angleInRadians)
-// {
-// 	// https://math.stackexchange.com/questions/511370/how-to-rotate-one-vector-about-another
-// 	VECTOR_3_TYPE projection = project(vec, axis);
-// 	VECTOR_3_TYPE rejection = vec - projection;
-
-// 	VECTOR_3_TYPE w = cross(axis, rejection);
-	
-// 	Scalar rejectionLength = get_length(rejection);
-// 	Scalar x1 = cosine(angleInRadians) / rejectionLength;
-// 	Scalar x2 = sine(angleInRadians) / get_length(w);
-
-// 	VECTOR_3_TYPE rotatedRejection = (rejection * x1 + w * x2) * rejectionLength	;
-
-// 	vec = projection + rotatedRejection;
-// 	return vec;
-// }
-
-template<typename S, u32 D> void
-vector::dissect(Vector<S,D> const & vec, Vector<S,D> * outDirection, S * outLength)
-{
-	*outLength = vec.magnitude();
-
-	if (*outLength < epsilon<S>)
-	{
-		*outLength = 0;
-		*outDirection = {0, 0, 0};
-	}
-	else
-	{
-		*outDirection = vec / (*outLength);
-	}
-}
-
-
-template<typename S, u32 D> Vector<S,D>
-vector::project(Vector<S,D> vec, Vector<S,D> const & projectionTarget)
-{
-	S c = dot(projectionTarget, vec) / dot(vec, vec);
-	return projectionTarget * c;
-}
-
-template<typename S> S
-vector::get_signed_angle(Vector<S,3> const & from, Vector<S,3> const & to, Vector<S,3> const & axis)
-{
-	// Todo(Leo): Check if this relly is correct
-	S a = dot(cross(from, to), axis);
-	S b = dot(to, from);
-
-	S result = arc_tan_2(a, b);
-	return result;
-}
-
-template<typename S, u32 D> S
-vector::get_sqr_distance(Vector<S,D> const & a, Vector<S,D> const & b)
-{
-	S const * pA = const_begin(&a);
-	S const * pB = const_begin(&b);
-
-	S distance = 0;
-	for (u32 i = 0; i < D; ++i)
-	{
-		S s = pA[i] - pB[i];
-		distance += s * s;
-	}
-	return distance;
-}
-
-template<typename S> Vector<S,3>
-vector::rotate(Vector<S,3> vec, Vector<S,3> const & axis, S angleInRadians)
-{
-	auto projection = dot(axis, vec) * axis;
-	auto rejection = vec - projection;
-
-	auto rotatedRejection = cosine(angleInRadians) * rejection
-							+ sine(angleInRadians) * cross(axis, rejection);
-
-	// Vector<S,3> projection 	= project(vec, axis);
-	// Vector<S,3> rejection 	= vec - projection;
-
-	// Vector<S,3> w 			= cross(axis, rejection);
-	// S rejectionLength 		= get_length(rejection);
-	// S x1 					= cosine(angleInRadians) / rejectionLength;
-	// S x2 					= sine(angleInRadians) / get_length(w);
-
-	// Vector<S,3> rotatedRejection = (rejection * x1 + w * x2) * rejectionLength;
-
-	vec = projection + rotatedRejection;
-	return vec;	
-}
-
 #if MAZEGAME_INCLUDE_STD_IOSTREAM
 
-// namespace std
-// {	
-	template<typename S, u32 D> std::ostream &
-	operator << (std::ostream & os, Vector<S,D> const & vec)
-	{
-		S const * pVec = vector::const_begin(&vec);
-		os << "(" << pVec[0];
-		for (int i = 1; i < D; ++i)
-		{
-			os << "," << pVec[i];
-		}
-		os << ")";
-		return os;
-	}
-// }
+std::ostream & operator << (std::ostream & os, v3 vec)
+{
+	os << "(" << vec.x << "," << vec.y << "," << vec.z << ")";
+	return os;
+}
 
 #endif
+
+// ----------- v4 ----------------
+
+union v4
+{
+	struct
+	{ 
+		f32 x, y, z, w;
+	};
+
+	struct
+	{
+		v3 xyz;
+		f32 ignored_;
+	};
+};
+
+f32 dot_v4(v4 a, v4 b)
+{
+	f32 dot = a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w;
+	return dot;
+}
+
+v4 v3_to_v4(v3 vec, f32 w)
+{
+	v4 result = {vec.x, vec.y, vec.z, w};
+	return result;
+}

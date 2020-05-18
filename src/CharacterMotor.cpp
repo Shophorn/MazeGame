@@ -93,8 +93,8 @@ update_character_motor( CharacterMotor & 	motor,
 	v3 right 	= get_right(*motor.transform);
 
 	// Note(Leo): these are in motor's local space
-	f32 forwardInput 	= vector::dot(inputVector, forward);
-	f32 rightInput 		= vector::dot(inputVector, right);
+	f32 forwardInput 	= dot_v3(inputVector, forward);
+	f32 rightInput 		= dot_v3(inputVector, right);
 
 	// -------------------------------------------------
 
@@ -206,12 +206,12 @@ update_character_motor( CharacterMotor & 	motor,
 		f32 sineStep 	= 2.0f / (rayCount - 1);
 
 		f32 skinwidth = 0.01f;
-		rayStartPositions[0] = vector::rotate(direction * (motor.collisionRadius - skinwidth), up, pi / 2.0f);
+		rayStartPositions[0] = rotate_v3(direction * (motor.collisionRadius - skinwidth), up, pi / 2.0f);
 		for (int i = 1; i < rayCount; ++i)
 		{
 			f32 sine 		= -1.0f + (i - 1) * sineStep;
 			f32 angle 	= -arc_cosine(sine);
-			rayStartPositions[i] = vector::rotate(rayStartPositions[0], up, angle);
+			rayStartPositions[i] = rotate_v3(rayStartPositions[0], up, angle);
 		}
 
 	
@@ -259,8 +259,8 @@ update_character_motor( CharacterMotor & 	motor,
 
 			for (s32 i = 0; i < rayHitCount; ++i)
 			{
-				v3 projection = rayHitResults[i].hitNormal * vector::dot(movement, rayHitResults[i].hitNormal);
-				movement -= projection;//vector::project(raycastResult.hitNormal, movement);
+				v3 projection = rayHitResults[i].hitNormal * dot_v3(movement, rayHitResults[i].hitNormal);
+				movement -= projection;
 			}
 
 
@@ -315,7 +315,7 @@ update_character_motor( CharacterMotor & 	motor,
 
 	// ----------------------------------------------------------------------------------
 
-	f32 groundHeight 			= get_terrain_height(&collisionSystem, *motor.transform->position.xy());
+	f32 groundHeight 			= get_terrain_height(&collisionSystem, motor.transform->position.xy);
 	bool32 grounded 			= motor.transform->position.z < (0.1f + groundHeight);
 
 	bool32 startLanding 		= motor.wasGroundedLastFrame == false && grounded == true;

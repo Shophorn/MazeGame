@@ -164,13 +164,13 @@ namespace debug
 
 	void draw_vector(v3 position, v3 vector, v4 color, f32 size = 0.1f)
 	{
-		f32 length 		= magnitude(vector);
+		f32 length 		= magnitude_v3(vector);
 		size 			= math::min(size, length / 2);
 
-		v3 binormal 	= vector::cross(vector, up_v3);
-		v3 up 			= normalize(vector::cross(vector, binormal));
+		v3 binormal 	= cross_v3(vector, up_v3);
+		v3 up 			= normalize_v3(cross_v3(vector, binormal));
 
-		v3 direction 	= normalize(vector);
+		v3 direction 	= normalize_v3(vector);
 		v3 cornerA 		= position + direction * (length - size) + up * size;
 		v3 cornerB 		= position + direction * (length - size) - up * size;
 

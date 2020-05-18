@@ -210,7 +210,7 @@ raycast_3d(	CollisionSystem3D * system,
 					outResult->hitPosition = multiply_point(collider.transform, outResult->hitPosition);
 
 					outResult->hitNormal = multiply_direction(collider.transform, outResult->hitNormal);
-					outResult->hitNormal = normalize(outResult->hitNormal);//*= colliderSpaceRayLengthMultiplier;
+					outResult->hitNormal = normalize_v3(outResult->hitNormal);//*= colliderSpaceRayLengthMultiplier;
 				}
 
 			}
@@ -229,14 +229,14 @@ raycast_3d(	CollisionSystem3D * system,
 			test xy distance againts radius
 		*/
 
-		v2 p = *rayStart.xy();
-		v2 d = *normalizedRayDirection.xy();
+		v2 p = rayStart.xy;
+		v2 d = normalizedRayDirection.xy;
 		f32 dMagnitude = magnitude_v2(d);
 		d = normalize_v2(d);
 
 		v3 cPosition = collider.transform->position + collider.center;
 
-		v2 toCircleCenter 				= *cPosition.xy() - p;
+		v2 toCircleCenter = cPosition.xy - p;
 
 		if (dot_v2(d, toCircleCenter) < 0.0f)
 		{
@@ -319,7 +319,7 @@ raycast_3d(	CollisionSystem3D * system,
 			rayHitSquareDistance = sqrDistance;
 			
 			outResult->hitPosition = cPosition + hitNormal;
-			outResult->hitNormal = normalize(hitNormal);
+			outResult->hitNormal = normalize_v3(hitNormal);
 		}
 
 		hit = true;

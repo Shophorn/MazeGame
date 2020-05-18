@@ -65,7 +65,7 @@ internal bool32 update_scene_2d(void * scenePtr, game::Input * input)
 								nullptr, 0);
 	}
 
-	Light light = { normalize(v3{1, 1, -3}), {0.95, 0.95, 0.9}};
+	Light light = { normalize_v3({1, 1, -3}), {0.95, 0.95, 0.9}};
 	v3 ambient = {0.2, 0.25, 0.4};
 	platformApi->update_lighting(platformGraphics, &light, &scene->worldCamera, ambient);
 

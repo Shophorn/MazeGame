@@ -68,17 +68,15 @@ get_projection_transform(Camera const * camera)
 m44
 get_view_transform(Camera const * camera)
 {
-	using namespace vector;
-
 	// Study: https://www.3dgep.com/understanding-the-view-matrix/
 	// Todo(Leo): try to undeerstand why this is negative
 	v3 yAxis 	= -camera->direction;
-	v3 xAxis 	= normalize(cross(up_v3, yAxis));
+	v3 xAxis 	= normalize_v3(cross_v3(up_v3, yAxis));
 
 	/* Note(Leo): this is not normalized because both components are unit length,
 	AND they are orthogonal so they produce a unit length vector anyway.
 	They are surely orthogonal because xAxis was a cross product from yAxis(with up_v3) */
-	v3 zAxis 	= cross (yAxis, xAxis);
+	v3 zAxis 	= cross_v3(yAxis, xAxis);
 
 	m44 orientation = {
 		xAxis.x, zAxis.x, yAxis.x, 0,
@@ -103,11 +101,10 @@ v3 get_forward(Camera const * camera)
 
 v3 get_up(Camera const * camera)
 {
-	return vector::cross(get_right(camera), camera->direction);
+	return cross_v3(get_right(camera), camera->direction);
 }
 
 v3 get_right(Camera const * camera)
 {
-	using namespace vector;
-	return normalize(cross(camera->direction, up_v3));
+	return normalize_v3(cross_v3(camera->direction, up_v3));
 }

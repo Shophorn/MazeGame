@@ -278,7 +278,7 @@ update_animator_system(game::Input * input, Array<Animator> & animators)
 				f32 currentKeyFrameTime 	= channel.times[nextKeyframe];
 				f32 relativeTime 			= (animator.time - previousKeyFrameTime) / (currentKeyFrameTime - previousKeyFrameTime);
 
-				target.position = vector::interpolate(	channel.translations[previousKeyframe],
+				target.position = interpolate_v3(	channel.translations[previousKeyframe],
 														channel.translations[nextKeyframe],
 														relativeTime); 
 			}
@@ -414,7 +414,7 @@ void update_skeleton_animator(SkeletonAnimator & animator, f32 elapsedTime)
 																channelInfo.time,
 																channelInfo.duration);
 
-				translation = vector::interpolate(	channel.translations[previousKeyframeIndex],
+				translation = interpolate_v3(	channel.translations[previousKeyframeIndex],
 													channel.translations[nextKeyframeIndex],
 													relativeTime);
 			}
@@ -430,7 +430,7 @@ void update_skeleton_animator(SkeletonAnimator & animator, f32 elapsedTime)
 		}
 
 		f32 defaultPoseWeight 	= 1.0f - totalAppliedWeight;
-		totalTranslation 		+= defaultPoseWeight * skeleton.bones[boneIndex].boneSpaceDefaultTransform.position;
+		totalTranslation 		+= skeleton.bones[boneIndex].boneSpaceDefaultTransform.position * defaultPoseWeight;
 
 		skeleton.bones[boneIndex].boneSpaceTransform.position = totalTranslation;
 	}
