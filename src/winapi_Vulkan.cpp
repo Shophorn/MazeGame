@@ -916,6 +916,7 @@ winapi::create_vulkan_context(WinAPIWindow * window)
                 .useSceneLayoutSet      = false,
                 .useMaterialLayoutSet   = true,
                 .useModelLayoutSet      = false,
+                .enableTransparency     = true
             }
         };
         context.guiDrawPipeline = vulkan::make_pipeline(&context, guiPipelineInfo);

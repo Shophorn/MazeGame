@@ -30,12 +30,10 @@ const float transitionDistance = 10.0;
 
 void main ()
 {
-
 	gl_Position = camera.projection * camera.view * model.model * vec4(inPosition, 1.0);
 
 	// Todo(Leo): Check correctness???
 	fragNormal = (transpose(inverse(model.model)) * vec4(inNormal, 0)).xyz;
-	
 
 	lightCoords = camera.lightViewProjection * model.model * vec4(inPosition, 1.0);
 	lightCoords.xy *= 0.5;
@@ -46,7 +44,6 @@ void main ()
 	distance = distance - (shadowDistance - transitionDistance);
 	distance = distance / transitionDistance;
 	lightCoords.w = clamp (1.0 - distance, 0, 1);
-
 
 	fragColor = inColor;
 	fragTexCoord = inTexCoord;

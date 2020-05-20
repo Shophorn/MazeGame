@@ -24,6 +24,17 @@ enum CarryMode : s32
 	CARRY_SEED,
 };
 
+struct Trees
+{
+	f32 * 			growths;
+	v3 * 			positions;
+	quaternion * 	rotations;
+
+	s32 			count;
+};
+
+
+
 struct Scene3d
 {
 	// Components
@@ -59,6 +70,8 @@ struct Scene3d
 	static constexpr s32 seedCapacity = 20;
 	Transform3D	seedTransforms[seedCapacity];
 	s32 currentSeedCount;
+
+	Trees trees;
 	
 	f32 treeGrowths	[seedCapacity];
 	Transform3D treeTransforms[seedCapacity];
@@ -106,6 +119,8 @@ struct Scene3d
 
 	// v3 			playerCameraPosition;
 	// v3  		playerCameraDirection;
+
+	MaterialHandle guiTestMaterial;
 };
 
 internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
@@ -142,7 +157,7 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 		scene->freeCameraTiltAngle += -1 * input->look.y * scene->freeCameraRotateSpeed * input->elapsedTime;
 		scene->freeCameraTiltAngle = math::clamp(scene->freeCameraTiltAngle, -scene->freeCameraMaxTilt, scene->freeCameraMaxTilt);
 
-		quaternion pan = quaternion_axis_angle(up_v3, scene->freeCameraPanAngle);
+		quaternion pan = axis_angle_quaternion(up_v3, scene->freeCameraPanAngle);
 		m44 panMatrix = rotation_matrix(pan);
 
 		// Todo(Leo): somewhy this points to opposite of right
@@ -158,7 +173,7 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 
 		scene->worldCamera.position += rightMovement + forwardMovement + upMovement;
 
-		quaternion tilt = quaternion_axis_angle(right, scene->freeCameraTiltAngle);
+		quaternion tilt = axis_angle_quaternion(right, scene->freeCameraTiltAngle);
 		m44 rotation 	= rotation_matrix(pan * tilt);
 		v3 direction 	= multiply_direction(rotation, forward_v3);
 		
@@ -261,8 +276,8 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 						s32 treeIndex = scene->treesInPotCount + scene->treesOnGroundCount;
 						scene->treeGrowths[treeIndex] = 0.5f;
 						scene->treeTransforms[treeIndex].position = scene->seedTransforms[seedIndex].position;
-						scene->treeTransforms[treeIndex].rotation = quaternion::identity();
-						scene->treeTransforms[treeIndex].scale = scene->treeGrowths[treeIndex];
+						scene->treeTransforms[treeIndex].rotation = identity_quaternion;
+						scene->treeTransforms[treeIndex].scale = make_uniform_v3(scene->treeGrowths[treeIndex]);
 
 						++scene->treesOnGroundCount;
 
@@ -297,8 +312,8 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 						scene->treeGrowths[newTreeInPotIndex] = 0.5f;
 						// scene->treePotIndices[newTreeInPotIndex] = potIndex;
 						scene->treeTransforms[newTreeInPotIndex].position = scene->potTransforms[potIndex].position;
-						scene->treeTransforms[newTreeInPotIndex].rotation = quaternion::identity();
-						scene->treeTransforms[newTreeInPotIndex].scale = scene->treeGrowths[newTreeInPotIndex];
+						scene->treeTransforms[newTreeInPotIndex].rotation = identity_quaternion;
+						scene->treeTransforms[newTreeInPotIndex].scale = make_uniform_v3(scene->treeGrowths[newTreeInPotIndex]);
 
 						/* Note(Leo): this seems to work, we can rely on it for a while, until we make proper hashmaps.
 						It works because there is equal number of pots with trees and trees in pots, naturally, and they
@@ -327,7 +342,7 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 					{
 						// scene->treeGrowths[treeIndex] += 0.5f;
 						scene->treeGrowths[treeIndex] = math::min(scene->treeGrowths[treeIndex] + 0.5f, 1.0f);
-						scene->treeTransforms[treeIndex].scale = scene->treeGrowths[treeIndex];
+						scene->treeTransforms[treeIndex].scale = make_uniform_v3(scene->treeGrowths[treeIndex]);
 
 						scene->waterCount -= 1;
 						scene->waterTransforms[scene->carriedItemIndex] = scene->waterTransforms[scene->waterCount];
@@ -343,7 +358,7 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 					if (distnceToTreeOnGround < 0.5f)
 					{
 						scene->treeGrowths[treeIndex] += 0.5f;
-						scene->treeTransforms[treeIndex].scale = scene->treeGrowths[treeIndex];
+						scene->treeTransforms[treeIndex].scale = make_uniform_v3(scene->treeGrowths[treeIndex]);
 
 						scene->waterCount -= 1;
 						scene->waterTransforms[scene->carriedItemIndex] = scene->waterTransforms[scene->waterCount];
@@ -576,42 +591,75 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 
 	bool32 keepScene = true;
 
+	gui_start(scene->gui, input);
+	
 	if (scene->guiVisible)
 	{
-		gui_start(scene->gui, input);
-
-		if (gui_button(colors::mutedYellow))
+		// if (gui_button(colors::mutedYellow))
+		if (gui_button("Continue"))
 		{
 			scene->guiVisible = false;
 		}
 
-		v4 cameraButtonColor = scene->cameraMode == CAMERA_MODE_PLAYER ? colors::mutedBlue : colors::mutedGreen;
-		if (gui_button(cameraButtonColor))
+
+		// v4 cameraButtonColor = scene->cameraMode == CAMERA_MODE_PLAYER ? colors::mutedBlue : colors::mutedGreen;
+		// if (gui_button(cameraButtonColor))
+
+		char const * cameraButtonLabel = scene->cameraMode == CAMERA_MODE_PLAYER ? "Camera Mode: Player" : "Camera Mode: Free";
+		if (gui_button(cameraButtonLabel))
 		{
 			scene->cameraMode += 1;
 			scene->cameraMode %= CAMERA_MODE_COUNT;
 		}
 
-		if (gui_button(colors::mutedRed))
+		if (gui_button("Exit Scene"))
 		{
 			keepScene = false;
 		}
 
-		gui_end();
 	}
+
+	gui_text("Hello World!", {100, 100}, colors::mutedRed);
+	gui_end();
+
+
 
 	return keepScene;
 }
 
 void * load_scene_3d(MemoryArena & persistentMemory)
 {
-	void * scenePtr = allocate(persistentMemory, sizeof(Scene3d), true);
+	void * scenePtr = allocate(persistentMemory, sizeof(Scene3d), 0);
 	Scene3d * scene = reinterpret_cast<Scene3d*>(scenePtr);
 	*scene = {};
 
-	// Note(Leo): This is good, more this.
-	// scene->gui = make_scene_gui(global_transientMemory, platformGraphics, platformApi);
-	scene->gui = make_gui();
+	auto guiPipeline = platformApi->push_pipeline (platformGraphics,
+								"assets/shaders/gui_vert3.spv",
+    							"assets/shaders/gui_frag2.spv",
+    							{
+					                .textureCount           = 1,
+					                .pushConstantSize       = sizeof(v2) * 4 + sizeof(v4),
+
+					                .primitiveType          = platform::RenderingOptions::PRIMITIVE_TRIANGLE_STRIP,
+					                .cullMode               = platform::RenderingOptions::CULL_NONE,
+
+					                .useVertexInput         = false,
+					                .useSceneLayoutSet      = false,
+					                .useMaterialLayoutSet   = true,
+					                .useModelLayoutSet      = false,
+					                .enableTransparency     = true
+					            });
+
+
+	scene->gui 		= make_gui();
+	scene->gui.buttonSize = {10, 50};
+	scene->gui.padding = 10;
+	scene->gui.font = load_font(persistentMemory, "c:/windows/fonts/arial.ttf");
+
+
+	MaterialAsset guiTestMaterial2Asset = {guiPipeline, allocate_array<TextureHandle>(*global_transientMemory, {scene->gui.font.atlasTexture})};
+	scene->gui.fontMaterial = platformApi->push_material(platformGraphics, &guiTestMaterial2Asset);
+
 
 	// Note(Leo): amounts are SWAG, rethink.
 	scene->transforms 			= allocate_array<Transform3D>(persistentMemory, 1200);
@@ -649,11 +697,11 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 		return result;
 	};
 
-	TextureAsset whiteTextureAsset 			= make_texture_asset(allocate_array<u32>(*global_transientMemory, {0xffffffff}), 1, 1);
-	TextureAsset blackTextureAsset	 		= make_texture_asset(allocate_array<u32>(*global_transientMemory, {0xff000000}), 1, 1);
-	TextureAsset neutralBumpTextureAsset 	= make_texture_asset(allocate_array<u32>(*global_transientMemory, {0xff8080ff}), 1, 1);
-	TextureAsset waterBlueTextureAsset 		= make_texture_asset(allocate_array<u32>(*global_transientMemory, {0xffffdb00}), 1, 1);
-	TextureAsset seedBrownTextureAsset 		= make_texture_asset(allocate_array<u32>(*global_transientMemory, {0xff003399}), 1, 1);
+	TextureAsset whiteTextureAsset 			= make_texture_asset(allocate_array<u32>(*global_transientMemory, {0xffffffff}), 1, 1, 4);
+	TextureAsset blackTextureAsset	 		= make_texture_asset(allocate_array<u32>(*global_transientMemory, {0xff000000}), 1, 1, 4);
+	TextureAsset neutralBumpTextureAsset 	= make_texture_asset(allocate_array<u32>(*global_transientMemory, {0xff8080ff}), 1, 1, 4);
+	TextureAsset waterBlueTextureAsset 		= make_texture_asset(allocate_array<u32>(*global_transientMemory, {0xffffdb00}), 1, 1, 4);
+	TextureAsset seedBrownTextureAsset 		= make_texture_asset(allocate_array<u32>(*global_transientMemory, {0xff003399}), 1, 1, 4);
 
 	TextureHandle whiteTexture 			= platformApi->push_texture(platformGraphics, &whiteTextureAsset);
 	TextureHandle blackTexture 			= platformApi->push_texture(platformGraphics, &blackTextureAsset);
@@ -783,7 +831,7 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 		for (s32 randomWalkerIndex = 0; randomWalkerIndex < array_count(scene->randomWalkers); ++randomWalkerIndex)
 		{
 			v3 position = {RandomRange(-99, 99), RandomRange(-99, 99), 0};
-			f32 scale 	= {RandomRange(0.8f, 1.5f)};
+			v3 scale 	= make_uniform_v3(RandomRange(0.8f, 1.5f));
 
 			auto * transform 	= scene->transforms.push_return_pointer({.position = position, .scale = scale});
 			s32 motorIndex 		= scene->characterMotors.count();
@@ -822,7 +870,7 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 		for (s32 followerIndex = 0; followerIndex < array_count(scene->followers); ++followerIndex)
 		{
 			v3 position 		= {RandomRange(-99, 99), RandomRange(-99, 99), 0};
-			f32 scale 			= RandomRange(0.8f, 1.5f);
+			v3 scale 			= make_uniform_v3(RandomRange(0.8f, 1.5f));
 			auto * transform 	= scene->transforms.push_return_pointer({.position = position, .scale = scale});
 
 			s32 motorIndex 		= scene->characterMotors.count();
@@ -905,7 +953,7 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 								v3 {0,0,2},
 								transform);
 
-			transform = scene->transforms.push_return_pointer({.position = {0, 5, 0} , .scale = 0.5});
+			transform = scene->transforms.push_return_pointer({.position = {0, 5, 0} , .scale =  {0.5, 0.5, 0.5}});
 			transform->position.z = get_terrain_height(&scene->collisionSystem, transform->position.xy) - 0.25f;
 			scene->renderers.push({transform, model});
 			push_box_collider(	scene->collisionSystem,
@@ -960,7 +1008,7 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 
 				v3 position = {x, y, z - 1};
 				auto transform = scene->transforms.push_return_pointer({position});
-				transform->rotation = quaternion_axis_angle(up_v3, RandomRange(-tau / 8, tau / 8));
+				transform->rotation = axis_angle_quaternion(up_v3, RandomRange(-tau / 8, tau / 8));
 				
 				auto model = push_model(pillarMeshHandle, materials.environment);
 				scene->renderers.push({transform, model});
@@ -1035,6 +1083,8 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 			scene->treesInPotCount = 0;
 			scene->treesOnGroundCount = 0;
 
+			// scene->trees.growths = allocate(persistentMemory, sizeof(f32) * scene->seedCapacity);
+
 			// ----------------------------------------------------------------	
 
 			MeshAsset waterDropAsset 	= load_mesh_glb(*global_transientMemory, sceneryFile, "water_drop");
@@ -1062,7 +1112,7 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 
 			for(s32 i = 0; i < scene->seedCapacity; ++i)
 			{
-				scene->seedTransforms[i] = Transform3D::identity();
+				scene->seedTransforms[i] = identity_transform;
 
 				v3 position = {RandomRange(-50, 50), RandomRange(-50, 50), 0};
 				position.z = get_terrain_height(&scene->collisionSystem, position.xy);

@@ -90,14 +90,14 @@ load_all_transforms_glb(MemoryArena & allocator, GltfFile const & file, char con
 				transform.rotation.z = rotationArray[2].GetFloat();
 				transform.rotation.w = rotationArray[3].GetFloat();
 
-				transform.rotation = transform.rotation.inverse();
+				transform.rotation = inverse_quaternion(transform.rotation);
 			}
 			else
 			{
-				transform.rotation = quaternion::identity();
+				transform.rotation = identity_quaternion;
 			}
 
-			transform.scale = 1;
+			transform.scale = {1,1,1};
 
 			transforms.push(transform);
 
@@ -137,7 +137,7 @@ load_all_transforms_glb(MemoryArena & allocator, GltfFile const & file, char con
 							localRotation.z = rotationArray[2].GetFloat();
 							localRotation.w = rotationArray[3].GetFloat();
 
-							localRotation = localRotation.inverse();
+							localRotation = inverse_quaternion(localRotation);
 						}
 
 						if (child.HasMember("scale"))
@@ -362,7 +362,7 @@ load_animation_glb(MemoryArena & allocator, GltfFile const & file, char const * 
 				unit length, so we must use proper inversion method for those. */
 				for (auto & rotation : channel.rotations)
 				{
-					rotation = rotation.inverse_non_unit();
+					rotation = inverse_non_unit_quaternion(rotation);
 				}
 
 				result.rotationChannels.push(std::move(channel));
@@ -448,7 +448,7 @@ load_skeleton_glb(MemoryArena & allocator, GltfFile const & file, char const * m
 			}
 		}
 
-		auto boneSpaceTransform = Transform3D::identity();
+		auto boneSpaceTransform = identity_transform;
 		if(node.HasMember("translation"))
 		{
 			auto translationArray = node["translation"].GetArray();
@@ -465,7 +465,7 @@ load_skeleton_glb(MemoryArena & allocator, GltfFile const & file, char const * m
 			boneSpaceTransform.rotation.z = rotationArray[2].GetFloat();
 			boneSpaceTransform.rotation.w = rotationArray[3].GetFloat();
  
-			boneSpaceTransform.rotation = boneSpaceTransform.rotation.inverse();
+			boneSpaceTransform.rotation = inverse_quaternion(boneSpaceTransform.rotation);
 		}
 
 		m44 inverseBindMatrix = inverseBindMatrices[boneIndex];

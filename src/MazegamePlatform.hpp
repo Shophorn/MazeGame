@@ -90,6 +90,7 @@ namespace platform
 	    bool8 useMaterialLayoutSet  = true;
 	    bool8 useModelLayoutSet 	= true;
 	    bool8 useLighting			= true;
+	    bool8 enableTransparency 	= false;
 	};
 
 	/* 
@@ -142,6 +143,7 @@ namespace platform
 		void (*draw_model) 		(Graphics*, ModelHandle model, m44 transform, bool32 castShadow, m44 const * bones, u32 boneCount);
 		void (*draw_line) 		(Graphics*, v3 start, v3 end, float width, v4 color);
 		void (*draw_gui) 		(Graphics*, v2 position, v2 size, MaterialHandle material, v4 color);
+		void (*draw_screen_rect)(Graphics*, v2 position, v2 size, v2 uvPosition, v2 uvSize, MaterialHandle material, v4 color);
 
 		// WINDOW FUNCTIONS	
 		u32 (*get_window_width) 		(Window const *);

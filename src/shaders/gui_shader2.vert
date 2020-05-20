@@ -19,8 +19,8 @@ const vec2 texcoords [4] =
 
 void main ()
 {
-	gl_Position = vec4(gui.quad[gl_VertexIndex], 0, 1);
-	fragColor = gui.color.rgb;
-	fragTexCoord = texcoords[gl_VertexIndex];
+	gl_Position 	= vec4(gui.quad[gl_VertexIndex], 0, 1);
+	fragColor 		= gui.color.rgb;
+	fragTexCoord 	= texcoords[gl_VertexIndex];
 }
 

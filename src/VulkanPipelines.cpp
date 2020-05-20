@@ -186,6 +186,18 @@ vulkan::make_pipeline(
                                     | VK_COLOR_COMPONENT_A_BIT,
     };
 
+    if (options.enableTransparency)
+    {
+        colorBlendAttachment.blendEnable = VK_TRUE;
+
+        colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+        colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+
+        colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+        colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+        colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_SUBTRACT;
+    }
+
     // Note: this is global
     VkPipelineColorBlendStateCreateInfo colorBlending =
     {

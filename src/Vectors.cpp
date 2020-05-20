@@ -250,6 +250,12 @@ f32 angle_v3(v3 from, v3 to)
 	return angle;
 }
 
+v3 make_uniform_v3(f32 value)
+{
+	v3 result = {value, value, value};
+	return result;
+}
+
 #if MAZEGAME_INCLUDE_STD_IOSTREAM
 
 std::ostream & operator << (std::ostream & os, v3 vec)
@@ -273,6 +279,11 @@ union v4
 	{
 		v3 xyz;
 		f32 ignored_;
+	};
+
+	struct
+	{
+		v2 xy, zw;
 	};
 };
 

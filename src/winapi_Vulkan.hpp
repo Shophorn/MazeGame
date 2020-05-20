@@ -474,6 +474,8 @@ namespace vulkan
 	internal void record_line_draw_command	(VulkanContext*, v3 start, v3 end, float width, v4 color);
 	internal void record_gui_draw_command	(VulkanContext*, v2 position, v2 size, MaterialHandle material, v4 color);
 
+
+
     internal TextureHandle  push_texture (VulkanContext * context, TextureAsset * texture);
     internal MaterialHandle push_material (VulkanContext * context, MaterialAsset * asset);
     internal MaterialHandle push_gui_material (VulkanContext * context, TextureHandle texture);
@@ -489,6 +491,7 @@ namespace vulkan
 
 }
 
+internal void FSVulkanImpl_draw_screen_rect(VulkanContext * context, v2 position, v2 size, v2 uvPosition, v2 uvSize, MaterialHandle materialHandle, v4 color);
 
 
 platform::FrameResult
@@ -538,6 +541,7 @@ platform::set_functions(VulkanContext * context, platform::Functions * functions
  	functions->draw_model         	= vulkan::record_draw_command;
  	functions->draw_line          	= vulkan::record_line_draw_command;
  	functions->draw_gui           	= vulkan::record_gui_draw_command;
+ 	functions->draw_screen_rect 	= FSVulkanImpl_draw_screen_rect;
 }
 
 #define WIN_VULKAN_HPP

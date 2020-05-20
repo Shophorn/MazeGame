@@ -85,36 +85,39 @@ struct StaticArray
 
 // ----------------------------------------------------------------------------
 
+enum AllocFlags : s32
+{
+	ALLOC_FLAGS_NONE 	= 0,
+	ALLOC_FILL 			= 1,
+	ALLOC_NO_CLEAR  	= 2,
+};
+
 struct MemoryArena
 {
 	// Todo(Leo): Is this appropriate??
 	static constexpr u64 defaultAlignment = sizeof(u64);
 
-	void * 	memory;
+	u8 * 	memory;
 	u64 	size;
 	u64 	used;
-
-	void * next () { return (u8*)memory + used; }
-	u64 available () { return size - used; }
 };
 
 internal void *
-allocate(MemoryArena & arena, s64 size, bool clear = false)
+allocate(MemoryArena & allocator, s64 size, s32 flags = 0)
 {
-	size = align_up(size, MemoryArena::defaultAlignment);
+	s64 start = align_up(allocator.used, MemoryArena::defaultAlignment);
+	void * result = allocator.memory + start;
 
-	DEBUG_ASSERT(size <= arena.available(), "Not enough memory available in MemoryArena");
+	allocator.used = start + size;
 
-	void * result = arena.next();
-	arena.used += size;
+	Assert(allocator.used <= allocator.size);
 
-	if (clear)
+	if ((flags & ALLOC_NO_CLEAR) == 0)
 	{
 		std::memset(result, 0, size);
 	}
 
 	return result;
-
 }
 
 internal MemoryArena
@@ -218,14 +221,6 @@ Array<T> allocate_array(MemoryArena & arena, std::initializer_list<T> values)
 {
 	return allocate_array(arena, values.begin(), values.end());
 }
-
-
-enum AllocFlags : s32
-{
-	ALLOC_FLAGS_NONE 	= 0,
-	ALLOC_FILL 			= 1,
-	ALLOC_NO_CLEAR  	= 2,
-};
 
 template <typename T>
 Array<T> allocate_array(MemoryArena & allocator, u64 capacity, s32 flags = ALLOC_FLAGS_NONE)

@@ -141,8 +141,8 @@ internal void * load_scene_2d(MemoryArena & persistentMemory)
 	{
 		PipelineHandle shader = platformApi->push_pipeline(platformGraphics, "assets/shaders/vert.spv", "assets/shaders/frag.spv", {.textureCount = 3});
 
-		TextureAsset whiteTextureAsset = make_texture_asset(allocate_array<u32>(*global_transientMemory, {0xffffffff}), 1, 1);
-		TextureAsset blackTextureAsset = make_texture_asset(allocate_array<u32>(*global_transientMemory, {0xff000000}), 1, 1);
+		TextureAsset whiteTextureAsset = make_texture_asset(allocate_array<u32>(*global_transientMemory, {0xffffffff}), 1, 1, 4);
+		TextureAsset blackTextureAsset = make_texture_asset(allocate_array<u32>(*global_transientMemory, {0xff000000}), 1, 1, 4);
 
 		TextureHandle whiteTexture = platformApi->push_texture(platformGraphics, &whiteTextureAsset);
 		TextureHandle blackTexture = platformApi->push_texture(platformGraphics, &blackTextureAsset);
@@ -385,13 +385,13 @@ internal void * load_scene_2d(MemoryArena & persistentMemory)
 			auto keyholeMeshHandle 	= platformApi->push_mesh(platformGraphics, &keyholeMeshAsset);
 
 			auto model 	= push_model(keyholeMeshHandle, materials.environment);
-			auto transform 	= allocate_transform(scene->transformStorage, {.position = v3{5, 0, 0}, .rotation = quaternion::axis_angle(up_v3, to_radians(180))});
+			auto transform 	= allocate_transform(scene->transformStorage, {.position = v3{5, 0, 0}, .rotation = axis_angle_quaternion(up_v3, to_radians(180))});
 
 			scene->renderSystem.push({transform, model});
 			push_collider(&scene->collisionManager, transform, {0.3f, 0.6f}, {0, 0.3f}, ColliderTag::Trigger);
 
 			model 	= push_model(keyholeMeshHandle, materials.environment);
-			transform 	= allocate_transform(scene->transformStorage, {.position = v3{4, 0, 6}, .rotation = quaternion::axis_angle(up_v3, to_radians(180))});
+			transform 	= allocate_transform(scene->transformStorage, {.position = v3{4, 0, 6}, .rotation = axis_angle_quaternion(up_v3, to_radians(180))});
 
 			scene->renderSystem.push({transform, model});
 			push_collider(&scene->collisionManager, transform, {0.3f, 0.6f}, {0, 0.3f}, ColliderTag::Trigger2);

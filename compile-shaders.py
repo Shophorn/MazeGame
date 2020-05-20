@@ -16,5 +16,6 @@ os.system("glslangValidator -V src/shaders/sky_shader.vert -o assets/shaders/ver
 os.system("glslangValidator -V src/shaders/sky_shader.frag -o assets/shaders/frag_sky.spv")
 
 os.system("glslangValidator -V src/shaders/gui_shader2.vert -o assets/shaders/gui_vert2.spv")
+os.system("glslangValidator -V src/shaders/gui_shader3.vert -o assets/shaders/gui_vert3.spv")
 os.system("glslangValidator -V src/shaders/gui_shader2.frag -o assets/shaders/gui_frag2.spv")
 

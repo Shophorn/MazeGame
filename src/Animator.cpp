@@ -82,7 +82,7 @@ struct AnimatedBone
 internal AnimatedBone
 make_bone (Transform3D boneSpaceDefaultTransform, m44 inverseBindMatrix, s32 parent)
 {
-	AnimatedBone bone = {Transform3D::identity(),
+	AnimatedBone bone = {identity_transform,
 						boneSpaceDefaultTransform,
 						inverseBindMatrix,
 						parent};
@@ -441,7 +441,7 @@ void update_skeleton_animator(SkeletonAnimator & animator, f32 elapsedTime)
 
 	for (s32 boneIndex = 0; boneIndex < skeleton.bones.count(); ++boneIndex)
 	{
-		quaternion totalRotation = quaternion::identity();
+		quaternion totalRotation = identity_quaternion;
 		f32 totalAppliedWeight 	= 0;
 
 		for (ChannelInfo const & channelInfo : rotationChannelInfos[boneIndex])
@@ -466,9 +466,9 @@ void update_skeleton_animator(SkeletonAnimator & animator, f32 elapsedTime)
 
 				case INTERPOLATION_MODE_LINEAR:
 				{
-					rotation = interpolate(	channel.rotations[previousKeyframeIndex],
-											channel.rotations[nextKeyframeIndex],
-											relativeTime);
+					rotation = interpolate_quaternion(	channel.rotations[previousKeyframeIndex],
+														channel.rotations[nextKeyframeIndex],
+														relativeTime);
 				} break;
 
 				default:
@@ -480,11 +480,13 @@ void update_skeleton_animator(SkeletonAnimator & animator, f32 elapsedTime)
 
 			totalAppliedWeight 	+= channelInfo.weight;
 			f32 relativeWeight 	= channelInfo.weight / totalAppliedWeight;
-			totalRotation		= interpolate(totalRotation, rotation, relativeWeight);
+			totalRotation		= interpolate_quaternion(totalRotation, rotation, relativeWeight);
 		}
 
 		f32 defaultPoseWeight 	= 1.0f - totalAppliedWeight;
-		totalRotation 			= interpolate(totalRotation, skeleton.bones[boneIndex].boneSpaceDefaultTransform.rotation, defaultPoseWeight);
+		totalRotation 			= interpolate_quaternion(	totalRotation,
+															skeleton.bones[boneIndex].boneSpaceDefaultTransform.rotation,
+															defaultPoseWeight);
 
 		skeleton.bones[boneIndex].boneSpaceTransform.rotation = totalRotation;
 	}

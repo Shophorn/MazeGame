@@ -18,7 +18,7 @@ template <typename TTo, typename TFrom>
 internal TTo round_to(TFrom value);
 
 template<> s32
-round_to<s32, float>(float value)
+round_to<s32, f32>(f32 value)
 {
     if (value < 0.0f)
         value -= 0.5f;
@@ -28,7 +28,7 @@ round_to<s32, float>(float value)
 }
 
 template<> u32
-round_to<u32, float>(float value)
+round_to<u32, f32>(f32 value)
 {
     value += 0.5f;
     return static_cast<u32>(value);
@@ -40,10 +40,10 @@ constexpr f32 lowest_f32 = std::numeric_limits<f32>::lowest();
 #include<limits>
 namespace math
 {   
-    internal float
-    square_root(float value)
+    internal f32
+    square_root(f32 value)
     {
-        float result = sqrtf(value);
+        f32 result = sqrtf(value);
         return result; 
     }
 
@@ -68,7 +68,7 @@ namespace math
     }
 
 
-    s32 ceil_to_s32(float value)
+    s32 ceil_to_s32(f32 value)
     {
         s32 result = (s32)std::ceil(value);
         return result;
@@ -86,7 +86,7 @@ namespace math
         return value < 0 ? -value : value;
     }
 
-    bool close_enough_small (float a, float b)
+    bool close_enough_small (f32 a, f32 b)
     {
         return absolute(a - b) < 0.00001f;
     }
@@ -140,47 +140,47 @@ namespace math
 }
 
 
-inline float modulo(float dividend, float divisor)
+inline f32 modulo(f32 dividend, f32 divisor)
 {
-    float result = fmodf(dividend, divisor);
+    f32 result = fmodf(dividend, divisor);
     return result;
 }
 
 
 // Todo(Leo): Add namespace
-inline float sine (float value)
+inline f32 sine (f32 value)
 {
-    float result = sinf(value);
+    f32 result = sinf(value);
     return result;
 }
 
-inline float cosine(float value)
+inline f32 cosine(f32 value)
 {
-    float result = cosf(value);
+    f32 result = cosf(value);
     return result;
 }
 
-inline float Tan(float value)
+inline f32 Tan(f32 value)
 {
-    float result = tanf(value);
+    f32 result = tanf(value);
     return result;
 }
 
-inline float arc_sine(float value)
+inline f32 arc_sine(f32 value)
 {
-    float result = asinf(value);
+    f32 result = asinf(value);
     return result;
 }
 
-inline float arc_cosine(float value)
+inline f32 arc_cosine(f32 value)
 {
-    float result = acosf(value);
+    f32 result = acosf(value);
     return result;
 }
 
-inline float arc_tan_2(float cosValue, float sinValue)
+inline f32 arc_tan_2(f32 cosValue, f32 sinValue)
 {
-    float result = atan2f(cosValue, sinValue);
+    f32 result = atan2f(cosValue, sinValue);
     return result;
 }
 
@@ -193,24 +193,24 @@ Sign(S value)
     return 0;
 }
 
-internal inline constexpr float pi = 3.141592653589793f;
-internal inline constexpr float tau = 2 * pi;
+internal inline constexpr f32 pi = 3.141592653589793f;
+internal inline constexpr f32 tau = 2 * pi;
 
-constexpr inline float to_degrees(float radians)
+constexpr inline f32 to_degrees(f32 radians)
 {
-    constexpr float conversion = 180.0f / pi;
+    constexpr f32 conversion = 180.0f / pi;
     return conversion * radians;
 }
 
-constexpr inline float to_radians(float degrees)
+constexpr inline f32 to_radians(f32 degrees)
 {
-    constexpr float conversion = pi / 180.0f;
+    constexpr f32 conversion = pi / 180.0f;
     return conversion * degrees;
 }
 
-inline float interpolate(float from, float to, float t)
+inline f32 interpolate(f32 from, f32 to, f32 t)
 {
-    float result = (1.0f - t) * from + t * to;
+    f32 result = (1.0f - t) * from + t * to;
     return result;
 }
 

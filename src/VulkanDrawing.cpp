@@ -6,7 +6,6 @@ Vulkan drawing functions' definitions.
 =============================================================================*/
 namespace vulkan_drawing_internal_
 {
-
     /* Note(Leo): This is EXPERIMENTAL. Idea is that we don't need to always
     create a new struct, but we can just reuse same. Vulkan functions always want
     a pointer to struct, so we cannot use a return value from a function, but this
@@ -418,6 +417,7 @@ void vulkan::record_gui_draw_command(VulkanContext * context, v2 position, v2 si
         color,
     };
 
+    // // Todo(Leo): this is not good idea. Proper toggles etc and not null pointers for flow control, said wise in the internets
     auto * pipeline = is_valid_handle(materialHandle) ? &context->guiDrawPipeline : &context->shadowPass.debugView;
     auto * material = is_valid_handle(materialHandle) ? get_loaded_gui_material(context, materialHandle) :
                                                         &context->defaultGuiMaterial;
@@ -428,13 +428,86 @@ void vulkan::record_gui_draw_command(VulkanContext * context, v2 position, v2 si
     vkCmdBindPipeline(  frame->commandBuffers.scene, VK_PIPELINE_BIND_POINT_GRAPHICS,
                         pipeline->pipeline);
 
-    // // Todo(Leo): this is not good idea. Proper toggles etc and not null pointers for flow control, said wise in the internets
     vkCmdBindDescriptorSets(frame->commandBuffers.scene, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->layout,
                             0, 1, &material->descriptorSet,
                             0, nullptr);
 
     vkCmdDraw(frame->commandBuffers.scene, 4, 1, 0, 0);
 
-    // Note(Leo): This must be done so that next time we draw normally, we know to bind thos descriptors again
+    // Note(Leo): This must be done so that next time we draw normally, we know to bind those descriptors again
     context->currentBoundPipeline = PipelineHandle::Null;
 }
+
+internal void FSVulkanImpl_draw_screen_rect(VulkanContext * context, v2 position, v2 size, v2 uvPosition, v2 uvSize, MaterialHandle materialHandle, v4 color)
+{
+    auto * frame = vulkan::get_current_virtual_frame(context);
+
+    auto transform_point = [context](v2 position) -> v2
+    {
+        // Note(Leo): This is temporarily here only, aka scale to fit width.
+        const v2 referenceResolution = {1920, 1080};
+        float ratio = context->drawingResources.extent.width / referenceResolution.x;
+
+        float x = (position.x / context->drawingResources.extent.width) * ratio * 2.0f - 1.0f;
+        float y = (position.y / context->drawingResources.extent.height) * ratio * 2.0f - 1.0f;
+
+        return {x, y};
+    };
+
+    v2 transformedStart = transform_point(position);
+    v2 transformedEnd = transform_point(position + size);
+    v2 transformedDelta = transformedEnd - transformedStart;
+
+
+    VulkanGuiPushConstants pushConstants =
+    {
+        // transform_point(position),
+        // transform_point(size),
+        transformedStart,
+        transformedDelta,
+
+        uvPosition, 
+        uvSize,
+
+        color,
+    };
+
+
+
+    // auto * pipeline = is_valid_handle(materialHandle) ? &context->guiDrawPipeline : &context->shadowPass.debugView;
+    auto * material = is_valid_handle(materialHandle) ? vulkan::get_loaded_material(context, materialHandle) :
+                                                        &context->defaultGuiMaterial;
+    auto * pipeline = vulkan::get_loaded_pipeline(context, material->pipeline);
+
+    vkCmdPushConstants( frame->commandBuffers.scene, pipeline->layout,
+                        VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pushConstants), &pushConstants);
+
+    vkCmdBindPipeline(  frame->commandBuffers.scene, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                        pipeline->pipeline);
+
+    vkCmdBindDescriptorSets(frame->commandBuffers.scene, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->layout,
+                            0, 1, &material->descriptorSet,
+                            0, nullptr);
+
+    vkCmdDraw(frame->commandBuffers.scene, 4, 1, 0, 0);
+
+    // Note(Leo): This must be done so that next time we draw normally, we know to bind those descriptors again
+    context->currentBoundPipeline = PipelineHandle::Null;
+}
+
+// Note(Leo): Quad with two triangles, and offsettable uv.s
+// struct SimpleQuad
+// {
+//     v2 position;
+//     v2 size;
+//     v2 uvPosition;
+//     v2 uvSize;
+// };
+
+// // void vulkan_draw_simple_quad(VulkanContext * context, SimpleQuad * quad, MaterialHandle material, v4 color)
+// // {
+// //     auto frame = get_current_virtual_frame(context);
+    
+// // }
+
+// // void vulkan_draw_nine_sliced_quad();

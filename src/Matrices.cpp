@@ -25,6 +25,15 @@ internal constexpr m44 identity_m44 = {	1, 0, 0, 0,
 										0, 0, 1, 0,
 										0, 0, 0, 1 };
 
+internal m44 transpose_m44(m44 mat)
+{
+	mat = {	mat[0].x, mat[1].x, mat[2].x, mat[3].x,
+			mat[0].y, mat[1].y, mat[2].y, mat[3].y,
+			mat[0].z, mat[1].z, mat[2].z, mat[3].z,
+			mat[0].w, mat[1].w, mat[2].w, mat[3].w };
+	return mat;
+}
+
 internal m44 operator * (m44 lhs, m44 const & rhs)
 {
 	lhs = transpose_m44(lhs);
@@ -37,14 +46,6 @@ internal m44 operator * (m44 lhs, m44 const & rhs)
 	return lhs;
 }
 
-internal m44 transpose_m44(m44 mat)
-{
-	mat = {	mat[0].x, mat[1].x, mat[2].x, mat[3].x,
-			mat[0].y, mat[1].y, mat[2].y, mat[3].y,
-			mat[0].z, mat[1].z, mat[2].z, mat[3].z,
-			mat[0].w, mat[1].w, mat[2].w, mat[3].w };
-	return mat;
-}
 
 
 internal v3 multiply_point(m44 mat, v3 point)

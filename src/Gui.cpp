@@ -10,6 +10,10 @@ struct Gui
 	// References
 	MaterialHandle 	material;
 
+	// MaterialHandle 	textMaterial;
+	Font 			font;
+	MaterialHandle 	fontMaterial;
+
 	// Properties
 	v2 				startPosition = {810, 500};
 	v2 				buttonSize = {300, 120};
@@ -32,6 +36,14 @@ internal Gui make_gui()
 
 	Gui gui = {};
 	gui.material = platformApi->push_gui_material(platformGraphics, texture);
+
+	return gui;
+}
+
+internal Gui make_gui(MaterialHandle material)
+{
+	Gui gui = {};
+	gui.material = material;
 
 	return gui;
 }
@@ -88,6 +100,61 @@ bool gui_button(v4 color)
 		size = size * 1.2f;
 	}
 	platformApi->draw_gui(platformGraphics, position, size, gui.material, color);
+	gui.currentPosition.y += gui.buttonSize.y + gui.padding;
+
+	return isSelected && is_clicked(gui.input->confirm);
+}
+
+
+void gui_text (char const * text, v2 position, v4 color)
+{
+	Gui & gui = *global_currentGui;
+
+	f32 size = 40;
+	s32 firstCharacter = ' ';
+	s32 charactersPerDirection = 10;
+	f32 characterUvSize = 1.0f / charactersPerDirection;
+
+	while(*text != 0)
+	{
+		if (*text == ' ')
+		{
+			position.x += size * gui.font.spaceWidth;
+			++text;
+			continue;
+		}
+
+		f32 u = ((*text - firstCharacter) % charactersPerDirection) * characterUvSize;
+		f32 v = ((*text - firstCharacter) / charactersPerDirection) * characterUvSize;
+
+		s32 index = *text - firstCharacter;
+
+		platformApi->draw_screen_rect(	platformGraphics,
+										position,
+										{gui.font.characterWidths[index] * size, size},
+										// {u,v},
+										gui.font.uvPositionsAndSizes[index].xy,
+										gui.font.uvPositionsAndSizes[index].zw,
+										// {characterUvSize, characterUvSize},
+										gui.fontMaterial,
+										color);
+
+		position.x += size * gui.font.characterWidths[index];//size;
+		++text;
+	}
+};
+
+bool gui_button(char const * label)
+{
+	Gui & gui = *global_currentGui;
+
+	bool isSelected = (gui.currentSelectableIndex == gui.selectedIndex);
+	++gui.currentSelectableIndex;
+
+	v4 color = isSelected ? colors::mutedRed : colors::white;
+
+	gui_text(label, gui.currentPosition, color);
+
 	gui.currentPosition.y += gui.buttonSize.y + gui.padding;
 
 	return isSelected && is_clicked(gui.input->confirm);

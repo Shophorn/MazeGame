@@ -2,70 +2,42 @@ struct quaternion
 {
 	union
 	{
-		struct {float x, y, z; };
+		struct {f32 x, y, z; };
 		v3 vector;
 	};
-	float w;
-
-	constexpr static quaternion	identity();
-	static quaternion axis_angle(v3 axis, float angleInRadians);
-
-	static quaternion euler_angles(float x, float y, float z);
-	static quaternion euler_angles(v3 eulerRotation);
-
-	bool is_unit_quaternion() const;
-
-	float magnitude() const;
-	float square_magnitude() const;
-	quaternion inverse() const;
-	quaternion inverse_non_unit() const;
-
-	quaternion normalized() const;
+	f32 w;
 };
-
-internal constexpr quaternion identity_quaternion = {0, 0, 0, 1};
 
 static_assert(std::is_aggregate_v<quaternion>, "");
 static_assert(std::is_standard_layout_v<quaternion>, "");
 static_assert(std::is_trivial_v<quaternion>, "");
 
+internal constexpr quaternion identity_quaternion = {0, 0, 0, 1};
+
+
 quaternion operator * (quaternion lhs, quaternion rhs);
-quaternion interpolate(quaternion from, quaternion to, float t);
-float dot_product(quaternion a, quaternion b);
 
-#if MAZEGAME_INCLUDE_STD_IOSTREAM
 
-std::ostream & operator << (std::ostream & os, quaternion q)
+f32 magnitude_quaternion (quaternion q)
 {
-	os << "(" << q.vector << ", " << q.w << ")";
-	return os;
+	return math::square_root(q.x*q.x + q.y*q.y + q.z*q.z + q.w*q.w);
 }
 
-#endif
-
-float quaternion::magnitude() const
+f32 square_magnitude_quaternion (quaternion q)
 {
-	return math::square_root(x*x + y*y + z*z + w*w);
+	return q.x*q.x + q.y*q.y + q.z*q.z + q.w*q.w;
 }
 
-float quaternion::square_magnitude() const
+bool is_unit_quaternion(quaternion q)
 {
-	return x*x + y*y + z*z + w*w;
+	bool result = math::close_enough_small(square_magnitude_quaternion(q), 1.0f);
+	return result;
 }
 
-constexpr quaternion
-quaternion::identity()
-{
-	constexpr quaternion identity = {0, 0, 0, 1};
-	return identity;
-}
-
-
-quaternion
-quaternion::axis_angle(v3 axis, float angleInRadians)
+internal quaternion axis_angle_quaternion(v3 axis, f32 angleInRadians)
 {
 	angleInRadians *= -1;
-	float halfAngle = angleInRadians / 2.0f;
+	f32 halfAngle = angleInRadians / 2.0f;
 
 	quaternion result = {};
 
@@ -75,39 +47,19 @@ quaternion::axis_angle(v3 axis, float angleInRadians)
 	return result;
 }
 
-quaternion quaternion_axis_angle(v3 axis, float angleInRadians)
-{
-	angleInRadians *= -1;
-	float halfAngle = angleInRadians / 2.0f;
-
-	quaternion result = {};
-
-	result.w = cosine(halfAngle);
-	result.vector = axis * sine(halfAngle);
-
-	return result;
-}
-
-quaternion
-quaternion::euler_angles(v3 eulerRotation)
-{
-	return euler_angles(eulerRotation.x, eulerRotation.y, eulerRotation.z);
-}
-
-quaternion
-quaternion::euler_angles(float eulerX, float eulerY, float eulerZ)
+internal quaternion euler_angles_quaternion(f32 eulerX, f32 eulerY, f32 eulerZ)
 {
 	/* Note(Leo): I found these somewhere in the web, but they seem to 
 	yield left-handed rotations, which is something we do not want.
 	Definetly better way to compute from euler angles though. */
     
     // Abbreviations for the various angular functions
-    // float cy = cosf(eulerRotation.z * 0.5);
-    // float sy = sinf(eulerRotation.z * 0.5);
-    // float cp = cosf(eulerRotation.y * 0.5);
-    // float sp = sinf(eulerRotation.y * 0.5);
-    // float cr = cosf(eulerRotation.x * 0.5);
-    // float sr = sinf(eulerRotation.x * 0.5);
+    // f32 cy = cosf(eulerRotation.z * 0.5);
+    // f32 sy = sinf(eulerRotation.z * 0.5);
+    // f32 cp = cosf(eulerRotation.y * 0.5);
+    // f32 sp = sinf(eulerRotation.y * 0.5);
+    // f32 cr = cosf(eulerRotation.x * 0.5);
+    // f32 sr = sinf(eulerRotation.x * 0.5);
 
     // quaternion q;
     // q.w = cy * cp * cr + sy * sp * sr;
@@ -118,30 +70,35 @@ quaternion::euler_angles(float eulerX, float eulerY, float eulerZ)
     // return q;
 
 
-	quaternion x = axis_angle({1,0,0}, eulerX);
-	quaternion y = axis_angle({0,1,0}, eulerY);
-	quaternion z = axis_angle({0,0,1}, eulerZ);
+	quaternion x = axis_angle_quaternion({1,0,0}, eulerX);
+	quaternion y = axis_angle_quaternion({0,1,0}, eulerY);
+	quaternion z = axis_angle_quaternion({0,0,1}, eulerZ);
 
 	return z * y * x;	
 }
 
-quaternion quaternion::inverse() const
+internal quaternion euler_angles_quaternion(v3 eulerRotation)
 {
-	Assert(this->is_unit_quaternion());
+	return euler_angles_quaternion(eulerRotation.x, eulerRotation.y, eulerRotation.z);
+}
 
-	quaternion result = { -x, -y, -z, w };
+internal quaternion inverse_quaternion(quaternion q)
+{
+	Assert(is_unit_quaternion(q));
+
+	quaternion result = { -q.x, -q.y, -q.z, q.w };
 	return result;
 }
 
-quaternion quaternion::inverse_non_unit() const
+quaternion inverse_non_unit_quaternion(quaternion q)
 {
-	float vectorMagnitude = magnitude_v3(vector);
+	f32 vectorMagnitude = magnitude_v3(q.vector);
 
-	float conjugate = (w * w) + (vectorMagnitude * vectorMagnitude);
+	f32 conjugate = (q.w * q.w) + (vectorMagnitude * vectorMagnitude);
 
 	return {
-		.vector = (-vector) / conjugate,
-		.w 		= w / conjugate
+		.vector = (-q.vector) / conjugate,
+		.w 		= q.w / conjugate
 	};	
 }
 
@@ -173,7 +130,27 @@ quaternion & operator *= (quaternion & lhs, quaternion const & rhs)
 	return lhs;
 }
 
-quaternion interpolate(quaternion from, quaternion to, float t)
+f32 dot_quaternion(quaternion a, quaternion b)
+{
+	f32 result = a.x*b.x + a.y*b.y + a.z*b.z + a.w*b.w;
+	return result;
+}
+
+quaternion normalize_quaternion(quaternion q)
+{
+	f32 magnitude = magnitude_quaternion(q);
+
+	quaternion result = { 	q.x / magnitude,
+							q.y / magnitude,
+							q.z / magnitude,
+							q.w / magnitude};
+
+	Assert(result.x == result.x && result.y == result.y && result.z == result.z && result.w == result.w && "probably a nan");
+	Assert(is_unit_quaternion(result));
+	return result;
+}
+
+quaternion interpolate_quaternion(quaternion from, quaternion to, f32 t)
 {
 	// Assert(t == t && "probably a nan");
 	if (t < -0.00001f || t > 1.00001f)
@@ -186,7 +163,7 @@ quaternion interpolate(quaternion from, quaternion to, float t)
 
 
 	// Note(Leo): This ensures that rotation takes the shorter path
-	float dot = dot_product(from, to);
+	f32 dot = dot_quaternion(from, to);
 	if (dot < 0)
 	{
 		to.vector = -to.vector;
@@ -204,9 +181,9 @@ quaternion interpolate(quaternion from, quaternion to, float t)
 
 		// quaternion result;
 
-		// float * resultPtr 	= &result.x;
-		// float * fromPtr 	= &from.x;
-		// float * toPtr 		= &to.x;
+		// f32 * resultPtr 	= &result.x;
+		// f32 * fromPtr 	= &from.x;
+		// f32 * toPtr 		= &to.x;
 
 		// for (int i = 0; i < 4; ++i)
 		// {
@@ -223,10 +200,11 @@ quaternion interpolate(quaternion from, quaternion to, float t)
 			Assert(false);
 		}
 		// Assert(result.x == result.x && result.y == result.y && result.z == result.z && result.w == result.w && "probably a nan");
-		return result.normalized();
+		result = normalize_quaternion(result);
+		return result;
 	}
 
-	quaternion difference = from.inverse_non_unit() * to;
+	quaternion difference = inverse_non_unit_quaternion(from) * to;
 
 	// https://theory.org/software/qfa/writeup/node12.html
 	// https://fi.wikipedia.org/wiki/Hyperbolinen_funktio
@@ -245,7 +223,7 @@ quaternion interpolate(quaternion from, quaternion to, float t)
 	}
 
 	// v3 axis 		= normalize_or_zero(difference.vector);
-	float angle 	= arc_cosine(difference.w) * 2 * t;
+	f32 angle 	= arc_cosine(difference.w) * 2 * t;
 
 	quaternion result = {
 		.vector = axis * sine(angle / 2.0f),
@@ -253,32 +231,6 @@ quaternion interpolate(quaternion from, quaternion to, float t)
 	};
 
 	return from * result;
-}
-
-float dot_product(quaternion a, quaternion b)
-{
-	float result = a.x*b.x + a.y*b.y + a.z*b.z + a.w*b.w;
-	return result;
-}
-
-bool quaternion::is_unit_quaternion() const
-{
-	bool result = math::close_enough_small(square_magnitude(), 1.0f);
-	return result;
-}
-
-quaternion quaternion::normalized() const
-{
-	float magnitude_ = magnitude();
-
-	quaternion result = { 	x / magnitude_,
-							y / magnitude_,
-							z / magnitude_,
-							w / magnitude_};
-
-	Assert(result.x == result.x && result.y == result.y && result.z == result.z && result.w == result.w && "probably a nan");
-	Assert(result.is_unit_quaternion());
-	return result;
 }
 
 quaternion quaternion_from_to(v3 from, v3 to)
@@ -297,6 +249,16 @@ quaternion quaternion_from_to(v3 from, v3 to)
 	// Todo(Leo): this was also copied from unity, which has wrong handed coordinate-system, multiply by -1 for that
 	angle = -1 * sign * angle;
 
-	quaternion result = quaternion::axis_angle(axis, angle);
+	quaternion result = axis_angle_quaternion(axis, angle);
 	return result;
 }
+
+#if MAZEGAME_INCLUDE_STD_IOSTREAM
+
+std::ostream & operator << (std::ostream & os, quaternion q)
+{
+	os << "(" << q.vector << ", " << q.w << ")";
+	return os;
+}
+
+#endif

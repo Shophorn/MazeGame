@@ -54,10 +54,26 @@ namespace colors
 #include "CameraController.cpp"
 #include "RenderingSystem.cpp"
 
+struct Font
+{
+	static constexpr u8 firstCharacter = 32; // space
+	static constexpr u8 lastCharacter = 127; 
+	static constexpr s32 count = lastCharacter - firstCharacter;
+
+	TextureHandle atlasTexture;
+
+	f32 spaceWidth;
+
+	f32 characterWidths [count];
+	v4 uvPositionsAndSizes [count];
+};
+
 /// Note(Leo): These still use external libraries we may want to get rid of
 #include "Files.cpp"
 #include "AudioFile.cpp"
 #include "MeshLoader.cpp"
+
+// Note(Leo): stb libraries here seems cool
 #include "TextureLoader.cpp"
 
 #include "Gui.cpp"

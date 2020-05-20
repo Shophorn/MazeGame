@@ -57,9 +57,9 @@ internal void precompute_colliders(CollisionSystem3D & system)
 							1.0f / collider.extents.z };
 
 		m44 colliderInverseMatrix = scale_matrix(inverseScale)
-									* rotation_matrix(collider.orientation.inverse())
+									* rotation_matrix(inverse_quaternion(collider.orientation))
 									* translation_matrix(-collider.center)
-									* rotation_matrix(collider.transform->rotation.inverse())
+									* rotation_matrix(inverse_quaternion(collider.transform->rotation))
 									* translation_matrix(-collider.transform->position);
 
 		system.precomputedColliders[i].transform 		= colliderTransform;
