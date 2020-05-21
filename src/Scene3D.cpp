@@ -33,8 +33,6 @@ struct Trees
 	s32 			count;
 };
 
-
-
 struct Scene3d
 {
 	// Components
@@ -619,7 +617,7 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 
 	}
 
-	gui_text("Hello World!", {100, 100}, colors::mutedRed);
+	gui_text("Sphinx of black quartz, judge my vow!", {100, 100}, colors::mutedRed);
 	gui_end();
 
 
@@ -633,33 +631,11 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 	Scene3d * scene = reinterpret_cast<Scene3d*>(scenePtr);
 	*scene = {};
 
-	auto guiPipeline = platformApi->push_pipeline (platformGraphics,
-								"assets/shaders/gui_vert3.spv",
-    							"assets/shaders/gui_frag2.spv",
-    							{
-					                .textureCount           = 1,
-					                .pushConstantSize       = sizeof(v2) * 4 + sizeof(v4),
-
-					                .primitiveType          = platform::RenderingOptions::PRIMITIVE_TRIANGLE_STRIP,
-					                .cullMode               = platform::RenderingOptions::CULL_NONE,
-
-					                .useVertexInput         = false,
-					                .useSceneLayoutSet      = false,
-					                .useMaterialLayoutSet   = true,
-					                .useModelLayoutSet      = false,
-					                .enableTransparency     = true
-					            });
-
-
-	scene->gui 		= make_gui();
-	scene->gui.buttonSize = {10, 50};
-	scene->gui.padding = 10;
-	scene->gui.font = load_font(persistentMemory, "c:/windows/fonts/arial.ttf");
-
-
-	MaterialAsset guiTestMaterial2Asset = {guiPipeline, allocate_array<TextureHandle>(*global_transientMemory, {scene->gui.font.atlasTexture})};
-	scene->gui.fontMaterial = platformApi->push_material(platformGraphics, &guiTestMaterial2Asset);
-
+	scene->gui 				= {};
+	scene->gui.buttonSize 	= {10, 50};
+	scene->gui.padding 		= 10;
+	scene->gui.font 		= load_font(persistentMemory, "c:/windows/fonts/arial.ttf");
+	gui_generate_font_material(scene->gui);
 
 	// Note(Leo): amounts are SWAG, rethink.
 	scene->transforms 			= allocate_array<Transform3D>(persistentMemory, 1200);

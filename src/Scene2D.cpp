@@ -90,12 +90,12 @@ internal bool32 update_scene_2d(void * scenePtr, game::Input * input)
 	{
 		gui_start(scene->gui, input);
 
-		if (gui_button(v4{1,1,1,1}))
+		if (gui_button("Continue"))
 		{
 			scene->guiVisible = false;
 		}
 
-		if (gui_button(v4{1,1,1,1}))
+		if (gui_button("Exit Scene"))
 		{
 			keepScene = false;
 		}
@@ -112,7 +112,12 @@ internal void * load_scene_2d(MemoryArena & persistentMemory)
 	Scene2d * scene = reinterpret_cast<Scene2d*>(scenePtr);
 
 	// Note(Leo): lol this is so much better than others :D
-	scene->gui = make_gui();
+	Gui & gui = scene->gui;
+	gui = {};
+	gui.buttonSize = {10, 50};
+	gui.padding = 10;
+	gui.font = load_font(persistentMemory, "c:/windows/fonts/arial.ttf");
+	gui_generate_font_material(gui);
 
 	scene->transformStorage = allocate_array<Transform3D>(persistentMemory, 100);
 	scene->renderSystem 	= allocate_array<Renderer>(persistentMemory, 100);

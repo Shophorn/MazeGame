@@ -90,12 +90,16 @@ load_font(MemoryArena & allocator, char const * fontFilePath)
         s32 ix0, ix1, iy0, iy1;
         stbtt_GetCodepointBitmapBox(&fontInfo, character, scale, scale, &ix0, &iy0, &ix1, &iy1);
 
-        // s32 leftSideBearing
+        s32 advanceWidth, leftSideBearing;
+        stbtt_GetCodepointHMetrics(&fontInfo, character, &advanceWidth, &leftSideBearing);
 
+        result.advanceWidths[i] = (advanceWidth * scale) / characterSize;
+        result.leftSideBearings[i] = (leftSideBearing * scale) / characterSize;
 
         if (character >= 'a' && character <= 'z')
         {
-            logDebug(0) << character << ": " << ix0 << ", " << ix1 << ", " << ix1 - ix0 << ", " << iy0 << ", " << iy1 << ", " << iy1 - iy0;
+            // logDebug(0) << character << ": " << ix0 << ", " << ix1 << ", " << ix1 - ix0 << ", " << iy0 << ", " << iy1 << ", " << iy1 - iy0;
+            logDebug(0) << character << ": " << leftSideBearing * scale << ", " << advanceWidth * scale;
         }
 
         s32 x = i % charactersPerDirection;
@@ -107,13 +111,6 @@ load_font(MemoryArena & allocator, char const * fontFilePath)
         result.characterWidths[i] = (float)(ix1 - ix0) / characterSize;
         result.uvPositionsAndSizes[i].xy = {u, v};
         result.uvPositionsAndSizes[i].zw = {result.characterWidths[i] / charactersPerDirection, 1.0f / charactersPerDirection};
-
-
-
-
-
-
-
 
 
 

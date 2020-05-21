@@ -64,8 +64,12 @@ struct Font
 
 	f32 spaceWidth;
 
+	f32 leftSideBearings [count];
+	f32 advanceWidths [count];
 	f32 characterWidths [count];
 	v4 uvPositionsAndSizes [count];
+
+	// Todo(Leo): Kerning
 };
 
 /// Note(Leo): These still use external libraries we may want to get rid of
@@ -154,7 +158,12 @@ initialize_game_state(GameState * state, platform::Memory * memory)
 
 	state->backgroundAudio = load_audio_clip("assets/sounds/Wind-Mark_DiAngelo-1940285615.wav");
 
-	state->gui = make_gui();
+	Gui & gui = state->gui;
+	gui = {};
+	gui.buttonSize = {10, 50};
+	gui.padding = 10;
+	gui.font = load_font(state->persistentMemoryArena, "c:/windows/fonts/arial.ttf");
+	gui_generate_font_material(gui);
 
 	state->isInitialized = true;
 }
@@ -217,19 +226,19 @@ bool32 update_game(
 	{
 		gui_start(state->gui, input);
 
-		if(gui_button(colors::mutedGreen))
+		if(gui_button("3D Scene"))
 		{
 			state->loadedScene = load_scene_3d(state->persistentMemoryArena);
 			state->updateScene = update_scene_3d;
 		}
 
-		if (gui_button(colors::mutedYellow))
+		if (gui_button("2D Scene"))
 		{
 			state->loadedScene = load_scene_2d(state->persistentMemoryArena);
 			state->updateScene = update_scene_2d;
 		}
 
-		if (gui_button(colors::mutedRed))
+		if (gui_button("Quit"))
 		{
 			gameIsAlive = false;
 		}
@@ -250,7 +259,12 @@ bool32 update_game(
 		state->loadedScene = nullptr;
 
 		// Todo(Leo): this is a hack, unload_scene also unloads main gui, which is rather unwanted...
-		state->gui = make_gui();
+		Gui & gui = state->gui;
+		gui = {};
+		gui.buttonSize = {10, 50};
+		gui.padding = 10;
+		gui.font = load_font(state->persistentMemoryArena, "c:/windows/fonts/arial.ttf");
+		gui_generate_font_material(gui);
 	}
 
 	// Todo(Leo): These still MAYBE do not belong here

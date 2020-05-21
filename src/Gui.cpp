@@ -10,7 +10,6 @@ struct Gui
 	// References
 	MaterialHandle 	material;
 
-	// MaterialHandle 	textMaterial;
 	Font 			font;
 	MaterialHandle 	fontMaterial;
 
@@ -28,25 +27,6 @@ struct Gui
 	s32 			selectedIndex;
 	s32 			selectableCountLastFrame;
 };
-
-internal Gui make_gui()
-{
-	auto textureAsset = load_texture_asset("assets/textures/no_gui_texture.png", global_transientMemory);
-	auto texture = platformApi->push_texture(platformGraphics, &textureAsset);
-
-	Gui gui = {};
-	gui.material = platformApi->push_gui_material(platformGraphics, texture);
-
-	return gui;
-}
-
-internal Gui make_gui(MaterialHandle material)
-{
-	Gui gui = {};
-	gui.material = material;
-
-	return gui;
-}
 
 Gui * global_currentGui = nullptr;
 
@@ -79,32 +59,9 @@ void gui_start(Gui & gui, game::Input * input)
 
 void gui_end()
 {
-	// Todo(Leo): move all draw calls here
 	global_currentGui->selectableCountLastFrame = global_currentGui->currentSelectableIndex;
 	global_currentGui = nullptr;
 }
-
-bool gui_button(v4 color)
-{
-	Gui & gui = *global_currentGui;
-
-	v2 size 	= gui.buttonSize;
-	v2 position = gui.currentPosition;
-
-	bool isSelected = (gui.currentSelectableIndex == gui.selectedIndex);
-	++gui.currentSelectableIndex;
-
-	if (isSelected)
-	{
-		position = position - v2{0.1f * size.x, 0.1f*size.y};
-		size = size * 1.2f;
-	}
-	platformApi->draw_gui(platformGraphics, position, size, gui.material, color);
-	gui.currentPosition.y += gui.buttonSize.y + gui.padding;
-
-	return isSelected && is_clicked(gui.input->confirm);
-}
-
 
 void gui_text (char const * text, v2 position, v4 color)
 {
@@ -124,22 +81,17 @@ void gui_text (char const * text, v2 position, v4 color)
 			continue;
 		}
 
-		f32 u = ((*text - firstCharacter) % charactersPerDirection) * characterUvSize;
-		f32 v = ((*text - firstCharacter) / charactersPerDirection) * characterUvSize;
-
 		s32 index = *text - firstCharacter;
 
 		platformApi->draw_screen_rect(	platformGraphics,
-										position,
+										{position.x + gui.font.leftSideBearings[index], position.y},
 										{gui.font.characterWidths[index] * size, size},
-										// {u,v},
 										gui.font.uvPositionsAndSizes[index].xy,
 										gui.font.uvPositionsAndSizes[index].zw,
-										// {characterUvSize, characterUvSize},
 										gui.fontMaterial,
 										color);
 
-		position.x += size * gui.font.characterWidths[index];//size;
+		position.x += size * gui.font.advanceWidths[index];
 		++text;
 	}
 };
@@ -151,11 +103,40 @@ bool gui_button(char const * label)
 	bool isSelected = (gui.currentSelectableIndex == gui.selectedIndex);
 	++gui.currentSelectableIndex;
 
-	v4 color = isSelected ? colors::mutedRed : colors::white;
+	v4 color = isSelected ? colors::mutedYellow : colors::white;
 
 	gui_text(label, gui.currentPosition, color);
 
 	gui.currentPosition.y += gui.buttonSize.y + gui.padding;
 
-	return isSelected && is_clicked(gui.input->confirm);
+	bool result = isSelected && is_clicked(gui.input->confirm);
+	return result;
+}
+
+void gui_generate_font_material(Gui & gui)
+{
+	// Todo(Leo): We need something like this, but this won't work since TextureHandles do have default index -1, 
+	// but if we have allocted this in array etc, it may not have been initialized to it properly...
+	Assert(gui.font.atlasTexture >= 0);
+
+	auto guiPipeline = platformApi->push_pipeline (	platformGraphics,
+													"assets/shaders/gui_vert3.spv",
+					    							"assets/shaders/gui_frag2.spv",
+					    							{
+										                .textureCount           = 1,
+										                .pushConstantSize       = sizeof(v2) * 4 + sizeof(v4),
+
+										                .primitiveType          = platform::RenderingOptions::PRIMITIVE_TRIANGLE_STRIP,
+										                .cullMode               = platform::RenderingOptions::CULL_NONE,
+
+														.enableDepth 			= false,
+										                .useVertexInput         = false,
+										                .useSceneLayoutSet      = false,
+										                .useMaterialLayoutSet   = true,
+										                .useModelLayoutSet      = false,
+										                .enableTransparency     = true
+										            });
+
+	MaterialAsset guiFontMaterialInfo = {guiPipeline, allocate_array<TextureHandle>(*global_transientMemory, {gui.font.atlasTexture})};
+	gui.fontMaterial = platformApi->push_material(platformGraphics, &guiFontMaterialInfo);
 }

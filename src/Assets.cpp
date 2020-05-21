@@ -25,15 +25,14 @@ struct BaseHandle
 	inline static const BaseHandle Null = {};
 };
 
-using MeshHandle  				= BaseHandle<MESH>;
-using TextureHandle  			= BaseHandle<TEXTURE>;
-using MaterialHandle  			= BaseHandle<MATERIAL>;
-using ModelHandle  				= BaseHandle<MODEL>;
-using PipelineHandle 			= BaseHandle<PIPELINE>;
+using MeshHandle  		= BaseHandle<MESH>;
+using TextureHandle  	= BaseHandle<TEXTURE>;
+using MaterialHandle  	= BaseHandle<MATERIAL>;
+using ModelHandle  		= BaseHandle<MODEL>;
+using PipelineHandle 	= BaseHandle<PIPELINE>;
 
 template<HandleType T>
-bool32
-is_valid_handle(BaseHandle<T> handle)
+bool32 is_valid_handle(BaseHandle<T> handle)
 {
 	return (BaseHandle<T>::Null.index_ != handle.index_);
 }
