@@ -48,7 +48,7 @@ load_texture_asset(const char * assetPath, MemoryArena * memoryArena)
 #include "external/stb_truetype.h"
 
 internal Font
-load_font(MemoryArena & allocator, char const * fontFilePath)
+load_font(char const * fontFilePath)
 {
     Array<byte> fontFile = read_binary_file(*global_transientMemory, fontFilePath);
 
@@ -112,8 +112,6 @@ load_font(MemoryArena & allocator, char const * fontFilePath)
         result.uvPositionsAndSizes[i].xy = {u, v};
         result.uvPositionsAndSizes[i].zw = {result.characterWidths[i] / charactersPerDirection, 1.0f / charactersPerDirection};
 
-
-
         s32 byteOffset = x * characterSize + y * charactersPerDirection * characterSize * characterSize;
 
         s32 extraRows = (ascent * scale) + iy0;
@@ -122,7 +120,7 @@ load_font(MemoryArena & allocator, char const * fontFilePath)
         stbtt_MakeCodepointBitmap(&fontInfo, monoColorBitmap + byteOffset, ix1 - ix0, iy1 - iy0, width, scale, scale, character);
     }
 
-    Array<u32> fontBitMap = allocate_array<u32>(allocator, width * height, ALLOC_FILL);
+    Array<u32> fontBitMap = allocate_array<u32>(*global_transientMemory, width * height, ALLOC_FILL);
 
     for (s32 y = 0; y < height; ++y)
     {
@@ -138,7 +136,4 @@ load_font(MemoryArena & allocator, char const * fontFilePath)
     result.atlasTexture = platformApi->push_texture(platformGraphics, &atlasAsset);
 
     return result;
-
-    // return {};
-    // return make_texture_asset(std::move(fontBitMap), width, height, 4);
 }

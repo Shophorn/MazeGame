@@ -41,15 +41,15 @@ void update_follower_input(	FollowerController 		& controller,
 												0.2f);
 	if (distanceToTarget < controller.stopFollowDistance)
 	{
-		debug::draw_diamond_2d(gizmoTransform, colors::brightGreen, ORIENT_2D_XZ);
+		debug_draw_diamond_xz(gizmoTransform, colors::brightGreen, DEBUG_NPC);
 	}
 	else if (distanceToTarget < controller.startFollowDistance)
 	{
-		debug::draw_diamond_2d(gizmoTransform, colors::brightYellow, ORIENT_2D_XZ);
+		debug_draw_diamond_xz(gizmoTransform, colors::brightYellow, DEBUG_NPC);
 	}
 	else
 	{
-		debug::draw_diamond_2d(gizmoTransform, colors::brightRed, ORIENT_2D_XZ);
+		debug_draw_diamond_xz(gizmoTransform, colors::brightRed, DEBUG_NPC);
 	}
 
 	v3 inputVector = {};
@@ -86,7 +86,7 @@ void update_follower_input(	FollowerController 		& controller,
 	if (controller.isFollowing)
 	{
 		gizmoTransform = gizmoTransform * scale_matrix({0.5f, 0.5f, 0.5f});
-		debug::draw_diamond_2d(gizmoTransform, colors::brightBlue, ORIENT_2D_XZ);
+		debug_draw_diamond_xz(gizmoTransform, colors::brightBlue, 1);
 	}
 
 
@@ -153,7 +153,7 @@ void update_random_walker_input(RandomWalkController & controller,
 		m44 gizmoTransform = make_transform_matrix(	controller.transform->position + up_v3 * controller.transform->scale.z * 2.0f, 
 													controller.transform->rotation,
 													controller.waitTimer);
-		debug::draw_diamond_2d(gizmoTransform, colors::mutedRed, ORIENT_2D_XZ);
+		debug_draw_diamond_xz(gizmoTransform, colors::mutedRed, 1);
 	}
 	
 	f32 distance = magnitude_v2(controller.transform->position.xy - controller.targetPosition);

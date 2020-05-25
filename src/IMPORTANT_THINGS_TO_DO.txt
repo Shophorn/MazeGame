@@ -29,8 +29,12 @@ TREE THINGS
 
 	Water comes from clouds
 
-TODO:
+	Trees grow differently in light and shadow, so meter lightness also
+
+DONE:
 	colliders compute transforms beforehand, only once per frame	
+
+TODO:
 	multiple collisions
 
 	New tree rules

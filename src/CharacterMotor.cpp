@@ -214,14 +214,8 @@ update_character_motor( CharacterMotor & 	motor,
 			rayStartPositions[i] = rotate_v3(rayStartPositions[0], up, angle);
 		}
 
-	
-		// bool32 rayHit = false;
-		// RaycastResult raycastResult;
-
 		RaycastResult rayHitResults[rayCount];
 		s32 rayHitCount = 0;
-
-
 
 		for (int i  = 0; i < rayCount; ++i)
 		{
@@ -235,20 +229,14 @@ update_character_motor( CharacterMotor & 	motor,
 				rayHitResults[rayHitCount] = currentResult;
 				++rayHitCount;
 
-
-
-				// raycastResult = currentResult;
-				// rayHit = true;
-
-				debug::draw_line(start, start + direction, colors::brightRed);
+				debug_draw_line(start, start + direction, colors::brightRed, DEBUG_PLAYER);
 			}
 			else
 			{
-				debug::draw_line(start, start + direction, colors::mutedYellow);
+				debug_draw_line(start, start + direction, colors::mutedYellow, DEBUG_PLAYER);
 			}
 		}
 
-		// if (rayHit == false)
 		if (rayHitCount == 0)
 		{
 			motor.transform->position += direction * distance;
@@ -263,23 +251,7 @@ update_character_motor( CharacterMotor & 	motor,
 				movement -= projection;
 			}
 
-
-
-
-
-
-
 			motor.transform->position += movement;
-
-			// debug::draw_vector(raycastResult.hitPosition, raycastResult.hitNormal, colors::mutedYellow);
-
-			// motor.hitRayPosition = motor.transform->position + up * 0.25f;
-			// motor.hitRayNormal = raycastResult.hitNormal;
-
-
-			// TOdo(Leo): Make so that we only reduce the amount of normal's part
-			// auto projectionOnNormal = vector::project(direction * distance, raycastResult.hitNormal);
-			// motor.transform->position += direction * distance - projectionOnNormal;
 		}
 	}
 

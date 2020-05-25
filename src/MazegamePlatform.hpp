@@ -12,8 +12,6 @@ Interface definition between Platform and Game.
 #include "MazegameEssentials.hpp"
 #include "Logging.cpp"
 
-
-
 #if MAZEGAME_DEVELOPMENT
 	void log_assert(LogInput::FileAddress fileAddress, char const * message, char const * expression)
 	{
@@ -53,6 +51,14 @@ needs to be specified for compiler. */
 #include "Camera.cpp"
 #include "Light.cpp"
 
+struct ScreenRect
+{
+	v2 position;
+	v2 size;
+	v2 uvPosition;
+	v2 uvSize;	
+};
+
 namespace platform
 {
 	constexpr s32 maxBonesInSkeleton = 32;
@@ -72,6 +78,7 @@ namespace platform
 
 	    enum {
 	    	PRIMITIVE_LINE,
+	    	PRIMITIVE_LINE_STRIP,
     		PRIMITIVE_TRIANGLE,
     		PRIMITIVE_TRIANGLE_STRIP
 	    } primitiveType = PRIMITIVE_TRIANGLE;
@@ -143,7 +150,10 @@ namespace platform
 		void (*draw_model) 		(Graphics*, ModelHandle model, m44 transform, bool32 castShadow, m44 const * bones, u32 boneCount);
 		void (*draw_line) 		(Graphics*, v3 start, v3 end, float width, v4 color);
 		void (*draw_gui) 		(Graphics*, v2 position, v2 size, MaterialHandle material, v4 color);
-		void (*draw_screen_rect)(Graphics*, v2 position, v2 size, v2 uvPosition, v2 uvSize, MaterialHandle material, v4 color);
+
+		void (*draw_meshes)			(Graphics*, s32 count, m44 * transforms, MeshHandle mesh, MaterialHandle material);
+		void (*draw_screen_rects)	(Graphics*, s32 count, ScreenRect * rects, MaterialHandle material, v4 color);
+		void (*draw_lines)			(Graphics*, s32 count, v3 * points, v4 color);
 
 		// WINDOW FUNCTIONS	
 		u32 (*get_window_width) 		(Window const *);

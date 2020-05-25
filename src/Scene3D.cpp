@@ -76,8 +76,12 @@ struct Scene3d
 	s32 treesInPotCount;
 	s32 treesOnGroundCount;
 
-	ModelHandle waterModel;
-	ModelHandle seedModel;
+	MeshHandle 		dropMesh;
+	MaterialHandle 	waterDropMaterial;
+	MaterialHandle 	seedMaterial;
+
+	// ModelHandle waterModel;
+	// ModelHandle seedModel;
 	ModelHandle treeModel;
 	ModelHandle potModel;
 
@@ -85,11 +89,37 @@ struct Scene3d
 	s32 carriedItemIndex;
 
 	// Big Scenery
-	Array<Transform3D> stoneWallTransforms;
-	Array<Transform3D> buildingTransforms;
+	// Array<Transform3D> stoneWallTransforms;
+	// Array<Transform3D> buildingTransforms;
 
-	ModelHandle stoneWallModel;
-	ModelHandle buildingModel;
+	// ModelHandle stoneWallModel;
+	// ModelHandle buildingModel;
+
+	m44 * 			stoneWallTransforms;
+	s32 			stoneWallCount;
+	MeshHandle 		stoneWallMesh;
+	MaterialHandle 	stoneWallMaterial;
+
+	m44 *			buildingTransforms;
+	s32 			buildingCount;
+	MeshHandle 		buildingMesh;
+	MaterialHandle 	buildingMaterial;
+
+	m44 * 			gateTransforms;
+	s32 			gateCount;
+	MeshHandle 		gateMesh;
+	MaterialHandle 	gateMaterial;
+
+	// struct ArrayRenderer
+	// {
+	// 	Transform3D * 	transforms;
+	// 	s32 			count;
+	// 	MeshHandle 		mesh;
+	// 	MaterialHandle 	material;
+	// };
+
+	// ArrayRenderer stoneWalls;
+	// ArrayRenderer buildings;
 
 	// Other actors
 	static constexpr s32 followerCapacity = 30;
@@ -104,8 +134,16 @@ struct Scene3d
 	// Random
 	ModelHandle skybox;
 	Gui 		gui;
-	bool32		guiVisible;
 	s32 		cameraMode;
+
+	enum MenuView : s32
+	{
+		MENU_OFF,
+		MENU_MAIN,
+		MENU_CONFIRM_EXIT,
+	};
+
+	MenuView menuView;
 
 	// v3 			freeCameraPosition;
 	f32 		freeCameraMoveSpeed = 30;
@@ -118,7 +156,6 @@ struct Scene3d
 	// v3 			playerCameraPosition;
 	// v3  		playerCameraDirection;
 
-	MaterialHandle guiTestMaterial;
 };
 
 internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
@@ -147,7 +184,6 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 	else
 	{
 		scene->characterInputs[scene->playerInputState.inputArrayIndex] = {};
-
 
 		// Note(Leo): positive rotation is to left, which is opposite of joystick
 		scene->freeCameraPanAngle += -1 * input->look.x * scene->freeCameraRotateSpeed * input->elapsedTime;
@@ -431,10 +467,9 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 
 	for (auto const & collider : scene->collisionSystem.cylinderColliders)
 	{
-		debug::draw_circle_xy(collider.transform->position + collider.center, collider.radius, colors::brightYellow);
+		debug_draw_circle_xy(collider.transform->position + collider.center, collider.radius, colors::brightYellow, DEBUG_BACKGROUND);
 	}
-
-	debug::draw_circle_xy(scene->playerCharacterTransform->position + v3{0,0,0.7}, 0.25f, colors::brightGreen);
+	debug_draw_circle_xy(scene->playerCharacterTransform->position + v3{0,0,0.7}, 0.25f, colors::brightGreen, DEBUG_BACKGROUND);
 
 
 	for (auto & randomWalker : scene->randomWalkers)
@@ -461,25 +496,22 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 		update_skeleton_animator(animator, input->elapsedTime);
 	}
 
-
 	// Rebellious(Leo): stop using systems, and instead just do the stuff you need to >:)
 	/// DRAW UNUSED WATER
+	m44 * waterTransforms = push_memory<m44>(*global_transientMemory, scene->waterCount, ALLOC_NO_CLEAR);
 	for (s32 i = 0; i < scene->waterCount; ++i)
 	{
-		platformApi->draw_model(platformGraphics, scene->waterModel,
-								transform_matrix(scene->waterTransforms[i]),
-								true,
-								nullptr, 0);
+		waterTransforms[i] = transform_matrix(scene->waterTransforms[i]);
 	}
-
+	platformApi->draw_meshes(platformGraphics, scene->waterCount, waterTransforms, scene->dropMesh, scene->waterDropMaterial);
+	
 	/// DRAW UNUSED SEEDS
+	m44 * seedTransforms = push_memory<m44>(*global_transientMemory, scene->currentSeedCount, ALLOC_NO_CLEAR);
 	for (s32 i = 0; i < scene->currentSeedCount; ++i)
 	{
-		platformApi->draw_model(platformGraphics, scene->seedModel,
-								transform_matrix(scene->seedTransforms[i]),
-								true,
-								nullptr, 0);
+		seedTransforms[i] = transform_matrix(scene->seedTransforms[i]);
 	}
+	platformApi->draw_meshes(platformGraphics, scene->currentSeedCount, seedTransforms, scene->dropMesh, scene->seedMaterial);
 
 	/// DRAW TREES
 	s32 totalTreeCount = scene->treesInPotCount + scene->treesOnGroundCount;
@@ -501,30 +533,23 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 	}
 
 	/// DRAW SEEDS INSIDE POTS
-	for (s32 i = 0; i < scene->potsWithSeedCount; ++i)
+	if (scene->potsWithSeedCount > 0)
 	{
-		s32 potWithSeedIndex = i + scene->potsWithTreeCount;
-		platformApi->draw_model(platformGraphics, scene->seedModel,
-								transform_matrix(scene->potTransforms[potWithSeedIndex]),
-								true,
-								nullptr, 0);
+		m44 * seedsInPotTransforms = push_memory<m44>(*global_transientMemory, scene->potsWithSeedCount, ALLOC_NO_CLEAR);
+		for (s32 i = 0; i < scene->potsWithSeedCount; ++i)
+		{
+			// Note(Leo): pots are ordered so that first pots have trees, then seeds, and last empty
+			s32 seedInPotIndex = i + scene->potsWithTreeCount;
+			seedsInPotTransforms[i] = transform_matrix(scene->potTransforms[seedInPotIndex]);
+		}
+		platformApi->draw_meshes(platformGraphics, scene->potsWithSeedCount, seedsInPotTransforms, scene->dropMesh, scene->seedMaterial);
 	}
 
 	/// DRAW STONE WALLS
 	{
-		for(s32 i = 0; i < scene->stoneWallTransforms.count(); ++i)
-		{
-			platformApi->draw_model(platformGraphics, scene->stoneWallModel,
-									transform_matrix(scene->stoneWallTransforms[i]), 
-									true, nullptr, 0);
-		}
-
-		for (s32 i = 0; i < scene->buildingTransforms.count(); ++i)
-		{
-			platformApi->draw_model(platformGraphics, scene->buildingModel,
-									transform_matrix(scene->buildingTransforms[i]),
-									true, nullptr, 0);
-		}
+		platformApi->draw_meshes(platformGraphics, scene->stoneWallCount, scene->stoneWallTransforms, scene->stoneWallMesh, scene->stoneWallMaterial);
+		platformApi->draw_meshes(platformGraphics, scene->buildingCount, scene->buildingTransforms, scene->buildingMesh, scene->buildingMaterial);
+		platformApi->draw_meshes(platformGraphics, scene->gateCount, scene->gateTransforms, scene->gateMesh, scene->gateMaterial);
 	}
 
 
@@ -532,8 +557,22 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 	{
 		for (auto const & collider : scene->collisionSystem.precomputedColliders)
 		{
-			debug::draw_box(collider.transform, colors::mutedGreen);
+			debug_draw_box(collider.transform, colors::mutedGreen, DEBUG_BACKGROUND);
 		}
+
+		for (auto const & collider : scene->collisionSystem.staticBoxColliders)
+		{
+			debug_draw_box(collider.transform, colorDarkGreen, DEBUG_BACKGROUND);
+		}
+
+		// v3 points [] =
+		// {
+		// 	{0,0,0},
+		// 	{0,0,50},
+		// 	{2,0,50},
+		// 	{2,0,0}
+		// };
+		// platformApi->draw_lines(platformGraphics, 4, points, colors::brightBlue);
 	}
 
 	  //////////////////////////////
@@ -546,7 +585,7 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 	*/
 
 
-    update_camera_system(&scene->worldCamera, input, platformGraphics, platformWindow);
+	update_camera_system(&scene->worldCamera, input, platformGraphics, platformWindow);
 
 	Light light = { .direction 	= normalize_v3({1, -1.2, -3}), 
 					.color 		= v3{0.95, 0.95, 0.9}};
@@ -566,7 +605,7 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 	{
 		m44 boneTransformMatrices [32];
 
- 		update_animated_renderer(boneTransformMatrices, renderer.skeleton->bones);
+		update_animated_renderer(boneTransformMatrices, renderer.skeleton->bones);
 
 		platformApi->draw_model(platformGraphics, renderer.model, transform_matrix(*renderer.transform),
 								renderer.castShadows, boneTransformMatrices, array_count(boneTransformMatrices));
@@ -574,50 +613,88 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 
 	// ------------------------------------------------------------------------
 
+	gui_start(scene->gui, input);
+
 	if (is_clicked(input->start))
 	{
-		if (scene->guiVisible)
+		if (scene->menuView == Scene3d::MENU_OFF)
 		{
-			scene->guiVisible = false;
+			scene->menuView = Scene3d::MENU_MAIN;
+			gui_reset_selection();
 		}
 		else
 		{
-			scene->guiVisible = true;
-			scene->gui.selectedIndex = 0;
+			scene->menuView = Scene3d::MENU_OFF;
 		}
 	}
 
 	bool32 keepScene = true;
-
-	gui_start(scene->gui, input);
 	
-	if (scene->guiVisible)
-	{
-		// if (gui_button(colors::mutedYellow))
-		if (gui_button("Continue"))
-		{
-			scene->guiVisible = false;
-		}
+	switch(scene->menuView)
+	{	
+		case Scene3d::MENU_OFF:
+			// Nothing to do
+			break;
 
+		case Scene3d::MENU_CONFIRM_EXIT:
+			gui_position({900, 300});
+			gui_text("Exit to Main Menu");
 
-		// v4 cameraButtonColor = scene->cameraMode == CAMERA_MODE_PLAYER ? colors::mutedBlue : colors::mutedGreen;
-		// if (gui_button(cameraButtonColor))
+			if (gui_button("Yes"))
+			{
+				keepScene = false;
+			}
 
-		char const * cameraButtonLabel = scene->cameraMode == CAMERA_MODE_PLAYER ? "Camera Mode: Player" : "Camera Mode: Free";
-		if (gui_button(cameraButtonLabel))
-		{
-			scene->cameraMode += 1;
-			scene->cameraMode %= CAMERA_MODE_COUNT;
-		}
+			if (gui_button("No"))
+			{
+				scene->menuView = Scene3d::MENU_MAIN;
+				gui_reset_selection();
+			}
+			break;
 
-		if (gui_button("Exit Scene"))
-		{
-			keepScene = false;
-		}
+		case Scene3d::MENU_MAIN:
+			gui_position({900, 300});	
+			if (gui_button("Continue"))
+			{
+				scene->menuView = Scene3d::MENU_OFF;
+			}
 
+			char const * cameraModeLabels [] =
+			{
+				"Camera Mode: Player", 
+				"Camera Mode: Free"
+			};
+			
+			if (gui_button(cameraModeLabels[scene->cameraMode]))
+			{
+				scene->cameraMode += 1;
+				scene->cameraMode %= CAMERA_MODE_COUNT;
+			}
+
+			char const * const debugLevelButtonLabels [] =
+			{
+				"Debug Level: Off",
+				"Debug Level: Player",
+				"Debug Level: Player, NPC",
+				"Debug Level: Player, NPC, Background"
+			};
+
+			if(gui_button(debugLevelButtonLabels[global_DebugDrawLevel]))
+			{
+				global_DebugDrawLevel += 1;
+				global_DebugDrawLevel %= DEBUG_LEVEL_COUNT;
+			}
+
+			if (gui_button("Exit Scene"))
+			{
+				scene->menuView = Scene3d::MENU_CONFIRM_EXIT;
+				gui_reset_selection();
+			}
+			break;
 	}
 
-	gui_text("Sphinx of black quartz, judge my vow!", {100, 100}, colors::mutedRed);
+	gui_position({100, 100});
+	gui_text("Sphinx of black quartz, judge my vow!");
 	gui_end();
 
 
@@ -631,10 +708,12 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 	Scene3d * scene = reinterpret_cast<Scene3d*>(scenePtr);
 	*scene = {};
 
-	scene->gui 				= {};
-	scene->gui.buttonSize 	= {10, 50};
-	scene->gui.padding 		= 10;
-	scene->gui.font 		= load_font(persistentMemory, "c:/windows/fonts/arial.ttf");
+	scene->gui 						= {};
+	scene->gui.textSize 			= 40;
+	scene->gui.textColor 			= colors::white;
+	scene->gui.selectedTextColor 	= colors::mutedRed;
+	scene->gui.padding 				= 10;
+	scene->gui.font 				= load_font("c:/windows/fonts/arial.ttf");
 	gui_generate_font_material(scene->gui);
 
 	// Note(Leo): amounts are SWAG, rethink.
@@ -647,8 +726,9 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 	scene->characterMotors		= allocate_array<CharacterMotor>(persistentMemory, 600);
 	scene->characterInputs		= allocate_array<CharacterInput>(persistentMemory, scene->characterMotors.capacity(), ALLOC_FILL | ALLOC_NO_CLEAR);
 
-	scene->collisionSystem.boxColliders 	= allocate_array<BoxCollider>(persistentMemory, 600);
-	scene->collisionSystem.cylinderColliders = allocate_array<CylinderCollider>(persistentMemory, 600);
+	scene->collisionSystem.boxColliders 		= allocate_array<BoxCollider>(persistentMemory, 600);
+	scene->collisionSystem.cylinderColliders 	= allocate_array<CylinderCollider>(persistentMemory, 600);
+	scene->collisionSystem.staticBoxColliders 	= allocate_array<StaticBoxCollider>(persistentMemory, 2000);
 
 	logSystem() << "Allocations succesful! :)";
 
@@ -663,7 +743,7 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 
 	PipelineHandle characterPipeline 	= platformApi->push_pipeline(platformGraphics, "assets/shaders/animated_vert.spv", "assets/shaders/frag.spv", { .textureCount = 3});
 	PipelineHandle normalPipeline 		= platformApi->push_pipeline(platformGraphics, "assets/shaders/vert.spv", "assets/shaders/frag.spv", {.textureCount = 3});
-	PipelineHandle terrainPipeline 		= platformApi->push_pipeline(platformGraphics, "assets/shaders/vert.spv", "assets/shaders/terrain_frag.spv", {.textureCount = 3});
+	PipelineHandle terrainPipeline 		= platformApi->push_pipeline(platformGraphics, "assets/shaders/vert.spv", "assets/shaders/frag.spv", {.textureCount = 3});
 	PipelineHandle skyPipeline 			= platformApi->push_pipeline(platformGraphics, "assets/shaders/vert_sky.spv", "assets/shaders/frag_sky.spv", {.textureCount = 1, .enableDepth = false});
 
 	auto load_and_push_texture = [](const char * path) -> TextureHandle
@@ -724,18 +804,18 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 		materials.sky 			= platformApi->push_material(platformGraphics, &skyMaterialAsset);
 	}
 
-    auto push_model = [](MeshHandle mesh, MaterialHandle material) -> ModelHandle
-    {
-    	auto handle = platformApi->push_model(platformGraphics, mesh, material);
-    	return handle;
-    };
+	auto push_model = [](MeshHandle mesh, MaterialHandle material) -> ModelHandle
+	{
+		auto handle = platformApi->push_model(platformGraphics, mesh, material);
+		return handle;
+	};
 
 	// Skybox
-    {
-    	auto meshAsset 	= create_skybox_mesh(global_transientMemory);
-    	auto meshHandle = platformApi->push_mesh(platformGraphics, &meshAsset);
-    	scene->skybox 	= push_model(meshHandle, materials.sky);
-    }
+	{
+		auto meshAsset 	= create_skybox_mesh(global_transientMemory);
+		auto meshHandle = platformApi->push_mesh(platformGraphics, &meshAsset);
+		scene->skybox 	= push_model(meshHandle, materials.sky);
+	}
 
 
 
@@ -938,17 +1018,17 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 								transform);
 		}
 
-	    {
-	    	// test collider
-	    	Transform3D * transform = scene->transforms.push_return_pointer({});
-	    	transform->position = {21, 15};
-	    	transform->position.z = get_terrain_height(&scene->collisionSystem, {20, 20});
+		{
+			// test collider
+			Transform3D * transform = scene->transforms.push_return_pointer({});
+			transform->position = {21, 15};
+			transform->position.z = get_terrain_height(&scene->collisionSystem, {20, 20});
 
-	    	push_box_collider( 	scene->collisionSystem,
-	    						v3{2.0f, 0.05f,5.0f},
-	    						v3{0,0, 2.0f},
-	    						transform);
-	    }
+			push_box_collider( 	scene->collisionSystem,
+								v3{2.0f, 0.05f,5.0f},
+								v3{0,0, 2.0f},
+								transform);
+		}
 
 
 		{
@@ -1063,17 +1143,15 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 
 			// ----------------------------------------------------------------	
 
-			MeshAsset waterDropAsset 	= load_mesh_glb(*global_transientMemory, sceneryFile, "water_drop");
-			MeshHandle waterDropHandle 	= platformApi->push_mesh(platformGraphics, &waterDropAsset);
+			MeshAsset dropMeshAsset = load_mesh_glb(*global_transientMemory, sceneryFile, "water_drop");
+			scene->dropMesh 		= platformApi->push_mesh(platformGraphics, &dropMeshAsset);
 
 			MaterialAsset waterMaterialAsset =
 			{
 				.pipeline = normalPipeline,
 				.textures = allocate_array(*global_transientMemory, {waterTextureHandle, neutralBumpTexture, blackTexture})
 			};
-
-			MaterialHandle waterDropMaterial = platformApi->push_material(platformGraphics, &	waterMaterialAsset);
-			scene->waterModel = platformApi->push_model(platformGraphics, waterDropHandle, waterDropMaterial);
+			scene->waterDropMaterial = platformApi->push_material(platformGraphics, &	waterMaterialAsset);
 
 			scene->waterCount = scene->waterCapacity;
 			for (s32 i = 0; i < scene->waterCount; ++i)
@@ -1084,8 +1162,14 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 				scene->waterTransforms[i] = { .position = position };
 			}
 
-			// ----------------------------------------------------------------
+			MaterialAsset seedMaterialAsset = 
+			{
+				.pipeline = normalPipeline,
+				.textures = allocate_array(*global_transientMemory, {seedTextureHandle, neutralBumpTexture, blackTexture})
+			};
+			scene->seedMaterial = platformApi->push_material(platformGraphics, &seedMaterialAsset);
 
+			scene->currentSeedCount = scene->seedCapacity;
 			for(s32 i = 0; i < scene->seedCapacity; ++i)
 			{
 				scene->seedTransforms[i] = identity_transform;
@@ -1094,18 +1178,6 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 				position.z = get_terrain_height(&scene->collisionSystem, position.xy);
 				scene->seedTransforms[i].position = position;
 			}
-
-			scene->currentSeedCount = scene->seedCapacity;
-
-			MaterialAsset seedMaterialAsset = 
-			{
-				.pipeline = normalPipeline,
-				.textures = allocate_array(*global_transientMemory, {seedTextureHandle, neutralBumpTexture, blackTexture})
-			};
-			auto seedMaterial 	= platformApi->push_material(platformGraphics, &seedMaterialAsset);
-			scene->seedModel 	= platformApi->push_model(platformGraphics, waterDropHandle, seedMaterial);
-
-			logDebug(0) << "Debug from empty lambda";
 		}
 
 		{
@@ -1120,26 +1192,68 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 
 				Array<BoxCollider> colliders = {};
 
-				scene->stoneWallTransforms = load_all_transforms_glb(persistentMemory, file, "StoneWall", &colliders);
-				scene->stoneWallModel= platformApi->push_model(platformGraphics, mesh, material);
+				auto transformsArray = load_all_transforms_glb(persistentMemory, file, "StoneWall", &colliders);
+
+				scene->stoneWallCount 		= transformsArray.count();
+				scene->stoneWallTransforms 	= push_memory<m44>(persistentMemory, scene->stoneWallCount, ALLOC_NO_CLEAR);
+				for (s32 i = 0; i < scene->stoneWallCount; ++i)
+				{
+					scene->stoneWallTransforms[i] = transform_matrix(transformsArray[i]);
+				}
+				scene->stoneWallMesh		= mesh;
+				scene->stoneWallMaterial 	= material;
 
 				for (auto & collider : colliders)
 				{
-					scene->collisionSystem.boxColliders.push(collider);
+					scene->collisionSystem.staticBoxColliders.push({compute_collider_transform(collider),
+																	compute_inverse_collider_transform(collider)});
 				}
 			}
 
 			{
-				auto meshAsset = load_mesh_glb(*global_transientMemory, file, "Building.001");
-				auto mesh = platformApi->push_mesh(platformGraphics, &meshAsset);
+				auto meshAsset 					= load_mesh_glb(*global_transientMemory, file, "Building.001");
+				auto mesh 						= platformApi->push_mesh(platformGraphics, &meshAsset);
 
-				Array<BoxCollider> colliders = {};
-				scene->buildingTransforms = load_all_transforms_glb(persistentMemory, file, "Building", &colliders);
-				scene->buildingModel = platformApi->push_model(platformGraphics, mesh, materials.environment);
+				Array<BoxCollider> colliders 	= {};
+				auto transformsArray 			= load_all_transforms_glb(*global_transientMemory, file, "Building", &colliders);
+
+				scene->buildingCount 			= transformsArray.count();
+ 				scene->buildingTransforms 		= push_memory<m44>(persistentMemory, scene->buildingCount, ALLOC_NO_CLEAR);
+				for (s32 i = 0; i < scene->buildingCount; ++i)
+				{
+					scene->buildingTransforms[i] = transform_matrix(transformsArray[i]);
+				}
+
+				scene->buildingMesh = mesh;
+				scene->buildingMaterial = materials.environment;
 
 				for (auto & collider : colliders)
 				{
-					scene->collisionSystem.boxColliders.push(collider);
+					scene->collisionSystem.staticBoxColliders.push({compute_collider_transform(collider),
+																	compute_inverse_collider_transform(collider)});
+				}
+			}
+
+			{
+				auto meshAsset 	= load_mesh_glb(*global_transientMemory, file, "Gate.001");
+				auto meshHandle = platformApi->push_mesh(platformGraphics, &meshAsset);
+
+				Array<BoxCollider> colliders = {};
+				auto transformsArray = load_all_transforms_glb(*global_transientMemory, file, "Gate", &colliders);
+				scene->gateTransforms = push_memory<m44>(persistentMemory, transformsArray.count(), ALLOC_NO_CLEAR);
+				for (s32 i = 0; i < transformsArray.count(); ++i)
+				{
+					scene->gateTransforms[i] = transform_matrix(transformsArray[i]);
+				}
+
+				scene->gateCount 	= transformsArray.count();
+				scene->gateMesh 	= meshHandle;
+				scene->gateMaterial = materials.environment;
+
+				for (auto collider : colliders)
+				{
+					scene->collisionSystem.staticBoxColliders.push({compute_collider_transform(collider),
+																	compute_inverse_collider_transform(collider)});
 				}
 			}
 		}

@@ -10,6 +10,7 @@ os.system("glslangValidator -V src/shaders/shadow_shader.vert -o assets/shaders/
 os.system("glslangValidator -V src/shaders/shadow_view.frag -o assets/shaders/shadow_view_frag.spv")
 
 os.system("glslangValidator -V src/shaders/line_shader.vert -o assets/shaders/line_vert.spv")
+os.system("glslangValidator -V src/shaders/line_shader2.vert -o assets/shaders/line_vert2.spv")
 os.system("glslangValidator -V src/shaders/line_shader.frag -o assets/shaders/line_frag.spv")
 
 os.system("glslangValidator -V src/shaders/sky_shader.vert -o assets/shaders/vert_sky.spv")

@@ -491,8 +491,9 @@ namespace vulkan
 
 }
 
-internal void FSVulkanImpl_draw_screen_rect(VulkanContext * context, v2 position, v2 size, v2 uvPosition, v2 uvSize, MaterialHandle materialHandle, v4 color);
-
+internal void fsvulkan_draw_meshes(VulkanContext * context, s32 count, m44 * transforms, MeshHandle, MaterialHandle);
+internal void fsvulkan_draw_screen_rects(VulkanContext * context, s32 count, ScreenRect * rects, MaterialHandle material, v4 color);
+internal void fsvulkan_draw_lines(VulkanContext*, s32 count, v3 * points, v4 color);
 
 platform::FrameResult
 platform::prepare_frame(VulkanContext * context)
@@ -523,25 +524,28 @@ platform::prepare_frame(VulkanContext * context)
 }
 
 void
-platform::set_functions(VulkanContext * context, platform::Functions * functions)
+platform::set_functions(VulkanContext * context, platform::Functions * api)
 {
- 	functions->push_mesh           	= vulkan::push_mesh;
- 	functions->push_texture        	= vulkan::push_texture;
- 	functions->push_cubemap        	= vulkan::push_cubemap;
- 	functions->push_material       	= vulkan::push_material;
- 	functions->push_gui_material   	= vulkan::push_gui_material;
- 	functions->push_model          	= vulkan::push_model;
- 	functions->push_pipeline       	= vulkan::push_pipeline;
- 	functions->unload_scene        	= vulkan::unload_scene;
+ 	api->push_mesh          = vulkan::push_mesh;
+ 	api->push_texture       = vulkan::push_texture;
+ 	api->push_cubemap       = vulkan::push_cubemap;
+ 	api->push_material      = vulkan::push_material;
+ 	api->push_gui_material  = vulkan::push_gui_material;
+ 	api->push_model         = vulkan::push_model;
+ 	api->push_pipeline      = vulkan::push_pipeline;
+ 	api->unload_scene       = vulkan::unload_scene;
     
- 	functions->prepare_frame       	= vulkan::prepare_drawing;
- 	functions->finish_frame        	= vulkan::finish_drawing;
- 	functions->update_camera       	= vulkan::update_camera;
- 	functions->update_lighting		= vulkan::update_lighting;
- 	functions->draw_model         	= vulkan::record_draw_command;
- 	functions->draw_line          	= vulkan::record_line_draw_command;
- 	functions->draw_gui           	= vulkan::record_gui_draw_command;
- 	functions->draw_screen_rect 	= FSVulkanImpl_draw_screen_rect;
+ 	api->prepare_frame      = vulkan::prepare_drawing;
+ 	api->finish_frame       = vulkan::finish_drawing;
+ 	api->update_camera      = vulkan::update_camera;
+ 	api->update_lighting	= vulkan::update_lighting;
+ 	api->draw_model         = vulkan::record_draw_command;
+ 	api->draw_line          = vulkan::record_line_draw_command;
+ 	api->draw_gui           = vulkan::record_gui_draw_command;
+
+ 	api->draw_meshes 		= fsvulkan_draw_meshes;
+ 	api->draw_screen_rects 	= fsvulkan_draw_screen_rects;
+ 	api->draw_lines 		= fsvulkan_draw_lines;
 }
 
 #define WIN_VULKAN_HPP

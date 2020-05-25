@@ -111,13 +111,13 @@ internal void * load_scene_2d(MemoryArena & persistentMemory)
 	void * scenePtr = allocate(persistentMemory, sizeof(Scene2d), true);
 	Scene2d * scene = reinterpret_cast<Scene2d*>(scenePtr);
 
-	// Note(Leo): lol this is so much better than others :D
-	Gui & gui = scene->gui;
-	gui = {};
-	gui.buttonSize = {10, 50};
-	gui.padding = 10;
-	gui.font = load_font(persistentMemory, "c:/windows/fonts/arial.ttf");
-	gui_generate_font_material(gui);
+	scene->gui 						= {};
+	scene->gui.textSize 			= 40;
+	scene->gui.textColor 			= colors::white;
+	scene->gui.selectedTextColor 	= colors::mutedRed;
+	scene->gui.padding 				= 10;
+	scene->gui.font = load_font("c:/windows/fonts/arial.ttf");
+	gui_generate_font_material(scene->gui);
 
 	scene->transformStorage = allocate_array<Transform3D>(persistentMemory, 100);
 	scene->renderSystem 	= allocate_array<Renderer>(persistentMemory, 100);

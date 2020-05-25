@@ -102,6 +102,7 @@ struct MemoryArena
 	u64 	used;
 };
 
+
 internal void *
 allocate(MemoryArena & allocator, s64 size, s32 flags = 0)
 {
@@ -118,6 +119,14 @@ allocate(MemoryArena & allocator, s64 size, s32 flags = 0)
 	}
 
 	return result;
+}
+
+template <typename T>
+internal T* push_memory(MemoryArena & arena, s32 count, s32 flags)
+{
+	s64 size = sizeof(T) * count;
+	T * result = reinterpret_cast<T*>(allocate(arena, size, flags));
+	return result;	
 }
 
 internal MemoryArena

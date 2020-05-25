@@ -1,8 +1,8 @@
 struct BoxCollider
 {
-	v3 extents;
-	v3 center; 
-	quaternion orientation;
+	v3 			extents;
+	v3 			center; 
+	quaternion 	orientation;
 
 	Transform3D * transform;
 };
@@ -20,7 +20,6 @@ struct StaticBoxCollider
 {
 	m44 transform;
 	m44 inverseTransform;
-	v3 extents;
 };
 
 struct CollisionSystem3D
@@ -28,13 +27,38 @@ struct CollisionSystem3D
 	Array<BoxCollider> 	boxColliders;
 	Array<CylinderCollider> cylinderColliders;
 
-
+	Array<StaticBoxCollider> staticBoxColliders;
 	Array<StaticBoxCollider> precomputedColliders;
 
 	// Todo(Leo): include these to above
 	HeightMap terrainCollider;
 	Transform3D * terrainTransform;
 };
+
+internal m44 compute_collider_transform(BoxCollider const & collider)
+{
+	m44 transformMatrix = 	translation_matrix(collider.transform->position)
+							* rotation_matrix(collider.transform->rotation)
+							* translation_matrix(collider.center)
+							* rotation_matrix(collider.orientation)
+							* scale_matrix(collider.extents);
+	return transformMatrix;
+}
+
+internal m44 compute_inverse_collider_transform(BoxCollider const & collider)
+{
+	v3 inverseScale = { 1.0f / collider.extents.x,
+						1.0f / collider.extents.y,
+						1.0f / collider.extents.z };
+
+	m44 inverseColliderTransform = 	scale_matrix(inverseScale)
+									* rotation_matrix(inverse_quaternion(collider.orientation))
+									* translation_matrix(-collider.center)
+									* rotation_matrix(inverse_quaternion(collider.transform->rotation))
+		 							* translation_matrix(-collider.transform->position);
+
+	return inverseColliderTransform;
+}
 
 internal void precompute_colliders(CollisionSystem3D & system)
 {
@@ -46,28 +70,10 @@ internal void precompute_colliders(CollisionSystem3D & system)
 	{
 		const BoxCollider & collider = system.boxColliders[i];
 
-		m44 colliderTransform = translation_matrix(collider.transform->position)
-								* rotation_matrix(collider.transform->rotation)
-								* translation_matrix(collider.center)
-								* rotation_matrix(collider.orientation)
-								* scale_matrix(collider.extents);
-
-		v3 inverseScale = { 1.0f / collider.extents.x,
-							1.0f / collider.extents.y,
-							1.0f / collider.extents.z };
-
-		m44 colliderInverseMatrix = scale_matrix(inverseScale)
-									* rotation_matrix(inverse_quaternion(collider.orientation))
-									* translation_matrix(-collider.center)
-									* rotation_matrix(inverse_quaternion(collider.transform->rotation))
-									* translation_matrix(-collider.transform->position);
-
-		system.precomputedColliders[i].transform 		= colliderTransform;
-		system.precomputedColliders[i].inverseTransform = colliderInverseMatrix;
-		system.precomputedColliders[i].extents 			= collider.extents;
+		system.precomputedColliders[i].transform 		= compute_collider_transform(collider);
+		system.precomputedColliders[i].inverseTransform = compute_inverse_collider_transform(collider);
 	}
 }
-
 
 internal void push_box_collider (	CollisionSystem3D & system,
 									v3 					extents,
@@ -87,12 +93,12 @@ internal void push_cylinder_collider ( 	CollisionSystem3D & system,
 	system.cylinderColliders.push({radius, height, center, transform});
 }
 
-internal float
+internal f32
 get_terrain_height(CollisionSystem3D * system, v2 position)
 {
 	position.x -= system->terrainTransform->position.x;
 	position.y -= system->terrainTransform->position.y;
-	float value = get_height_at(&system->terrainCollider, position);
+	f32 value = get_height_at(&system->terrainCollider, position);
 	return value;
 }
 
@@ -103,19 +109,16 @@ struct RaycastResult
 	f32 hitDistance;
 };
 
-internal bool32
-raycast_3d(	CollisionSystem3D * system,
-			v3 rayStart,
-			v3 normalizedRayDirection,
-			float rayLength,
-			RaycastResult * outResult = nullptr)
+internal bool32 ray_box_collisions(	Array<StaticBoxCollider> & colliders,
+									v3 rayStart,
+									v3 normalizedRayDirection,
+									f32 rayLength,
+									RaycastResult * outResult,
+									f32 * rayHitSquareDistance)
 {
-	// https://www.scratchapixel.com/lessons/3d-basic-rendering/minimal-ray-tracer-rendering-simple-shapes/ray-box-intersection
-
-	f32 rayHitSquareDistance = highest_f32;
 	bool32 hit = false;
 
-	for (auto const & collider : system->precomputedColliders)
+	for (auto const & collider : colliders)
 	{
 		v3 colliderSpaceRayStart 		= multiply_point(collider.inverseTransform, rayStart);
 		v3 colliderSpaceRayDirection 	= multiply_direction(collider.inverseTransform, normalizedRayDirection);  
@@ -133,22 +136,22 @@ raycast_3d(	CollisionSystem3D * system,
 			1.0f / colliderSpaceRayDirection.z,
 		};
 
-		float xDistanceToMin = (min.x - colliderSpaceRayStart.x) * inverseDirection.x;
-		float xDistanceToMax = (max.x - colliderSpaceRayStart.x) * inverseDirection.x;
+		f32 xDistanceToMin = (min.x - colliderSpaceRayStart.x) * inverseDirection.x;
+		f32 xDistanceToMax = (max.x - colliderSpaceRayStart.x) * inverseDirection.x;
 		if (inverseDirection.x < 0)
 		{
 			swap(xDistanceToMin, xDistanceToMax);
 		}
 
-		float yDistanceToMin = (min.y - colliderSpaceRayStart.y) * inverseDirection.y;
-		float yDistanceToMax = (max.y - colliderSpaceRayStart.y) * inverseDirection.y;
+		f32 yDistanceToMin = (min.y - colliderSpaceRayStart.y) * inverseDirection.y;
+		f32 yDistanceToMax = (max.y - colliderSpaceRayStart.y) * inverseDirection.y;
 		if (inverseDirection.y < 0)
 		{
 			swap(yDistanceToMin, yDistanceToMax);
 		}
 		
-		float zDistanceToMin = (min.z - colliderSpaceRayStart.z) * inverseDirection.z;
-		float zDistanceToMax = (max.z - colliderSpaceRayStart.z) * inverseDirection.z;
+		f32 zDistanceToMin = (min.z - colliderSpaceRayStart.z) * inverseDirection.z;
+		f32 zDistanceToMax = (max.z - colliderSpaceRayStart.z) * inverseDirection.z;
 		if (inverseDirection.z < 0)
 		{
 			swap(zDistanceToMin, zDistanceToMax);
@@ -161,8 +164,8 @@ raycast_3d(	CollisionSystem3D * system,
 			continue;
 		}			
 
-		float distanceToMin = math::max(xDistanceToMin, yDistanceToMin);
-		float distanceToMax = math::min(xDistanceToMax, yDistanceToMax);
+		f32 distanceToMin = math::max(xDistanceToMin, yDistanceToMin);
+		f32 distanceToMax = math::min(xDistanceToMax, yDistanceToMax);
 		
 
 		if ((distanceToMin > zDistanceToMax) || (zDistanceToMin > distanceToMax))
@@ -182,9 +185,9 @@ raycast_3d(	CollisionSystem3D * system,
 			v3 hitPosition = multiply_point(collider.transform, colliderSpaceHitPosition);
 			f32 sqrDistance = square_magnitude_v3(hitPosition - rayStart);
 
-			if (sqrDistance < rayHitSquareDistance)
+			if (sqrDistance < *rayHitSquareDistance)
 			{
-				rayHitSquareDistance = sqrDistance;
+				*rayHitSquareDistance = sqrDistance;
 
 				// Note(Leo): This is only supporting axis-aligned colliders
 				if (outResult != nullptr)
@@ -221,6 +224,23 @@ raycast_3d(	CollisionSystem3D * system,
 			// // return true;
 		}
 	}
+	return hit;
+}
+
+internal bool32
+raycast_3d(	CollisionSystem3D * system,
+			v3 rayStart,
+			v3 normalizedRayDirection,
+			f32 rayLength,
+			RaycastResult * outResult = nullptr)
+{
+	// https://www.scratchapixel.com/lessons/3d-basic-rendering/minimal-ray-tracer-rendering-simple-shapes/ray-box-intersection
+
+	f32 rayHitSquareDistance 	= highest_f32;
+	bool32 hit 					= false;
+
+	hit = hit | ray_box_collisions(system->precomputedColliders, rayStart, normalizedRayDirection, rayLength, outResult, &rayHitSquareDistance);
+	hit = hit | ray_box_collisions(system->staticBoxColliders, rayStart, normalizedRayDirection, rayLength, outResult, &rayHitSquareDistance);
 
 	for (auto const & collider : system->cylinderColliders)
 	{

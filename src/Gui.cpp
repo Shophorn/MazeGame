@@ -5,18 +5,32 @@ shophorn @ internet
 Immediate mode gui structure.
 =============================================================================*/
 
+#define BEGIN_C_BLOCK extern "C" {
+#define END_C_BLOCK }
+
+/* Note(Leo): We do this to get compile errors when forward declaration and 
+definition signatures do not match. C does not allow overloading and having 
+same name on two functions with different signatures generates error. With c++
+this could be solved with namespaces by forward declaring in namespace block
+and defining with fully qualified name, but I am currently experimenting with
+more C-like coding style. 22.5.2020 */
+BEGIN_C_BLOCK
+
 struct Gui
 {
 	// References
-	MaterialHandle 	material;
-
 	Font 			font;
 	MaterialHandle 	fontMaterial;
 
-	// Properties
-	v2 				startPosition = {810, 500};
-	v2 				buttonSize = {300, 120};
-	f32 			padding = 20;
+	// Style
+
+
+	// v2 buttonSize;
+	v4 textColor;
+	f32 textSize;
+	v4 selectedTextColor;
+	
+	f32 padding;
 
 	// Per frame state
 	game::Input * 	input;
@@ -30,13 +44,32 @@ struct Gui
 
 Gui * global_currentGui = nullptr;
 
+// Maintenance
+void gui_start(Gui & gui, game::Input * input);
+void gui_end();
+void gui_generate_font_material(Gui & gui);
+
+// Layout
+void gui_position(v2 position);
+void gui_reset_selection();
+
+// Widgets
+bool gui_button(char const * label);
+void gui_text(char const * label);
+
+// Internal
+void gui_render_text_ (char const * text, v2 position, v4 color);
+
+  //////////////////////////////////
+ ///  GUI IMPLEMENTATION 		///
+//////////////////////////////////
 void gui_start(Gui & gui, game::Input * input)
 {
 	Assert(global_currentGui == nullptr);
 
 	global_currentGui 			= &gui;
 	gui.input 					= input;
-	gui.currentPosition 		= gui.startPosition;
+	gui.currentPosition 		= {0,0};//gui.startPosition;
 	gui.currentSelectableIndex 	= 0;
 
 	if (gui.selectableCountLastFrame > 0)
@@ -63,15 +96,27 @@ void gui_end()
 	global_currentGui = nullptr;
 }
 
-void gui_text (char const * text, v2 position, v4 color)
+void gui_position(v2 position)
+{
+	global_currentGui->currentPosition = position;
+}
+
+void gui_reset_selection()
+{
+	global_currentGui->selectedIndex = 0;
+}
+
+void gui_render_text_ (char const * text, v2 position, v4 color)
 {
 	Gui & gui = *global_currentGui;
 
-	f32 size = 40;
+	f32 size = gui.textSize;
 	s32 firstCharacter = ' ';
 	s32 charactersPerDirection = 10;
 	f32 characterUvSize = 1.0f / charactersPerDirection;
 
+	ScreenRect rects [256];
+	s32 rectIndex = 0;
 	while(*text != 0)
 	{
 		if (*text == ' ')
@@ -83,17 +128,22 @@ void gui_text (char const * text, v2 position, v4 color)
 
 		s32 index = *text - firstCharacter;
 
-		platformApi->draw_screen_rect(	platformGraphics,
-										{position.x + gui.font.leftSideBearings[index], position.y},
-										{gui.font.characterWidths[index] * size, size},
-										gui.font.uvPositionsAndSizes[index].xy,
-										gui.font.uvPositionsAndSizes[index].zw,
-										gui.fontMaterial,
-										color);
+		rects[rectIndex] = 
+		{
+			.position = {position.x + gui.font.leftSideBearings[index], position.y},
+			
+			// Todo(Leo): also consider glyph's actual height
+			.size = {gui.font.characterWidths[index] * size, size},
+			.uvPosition = gui.font.uvPositionsAndSizes[index].xy,
+			.uvSize = gui.font.uvPositionsAndSizes[index].zw,
+		};
+
+		++rectIndex;
 
 		position.x += size * gui.font.advanceWidths[index];
 		++text;
 	}
+	platformApi->draw_screen_rects(platformGraphics, rectIndex, rects, gui.fontMaterial, color);
 };
 
 bool gui_button(char const * label)
@@ -103,15 +153,21 @@ bool gui_button(char const * label)
 	bool isSelected = (gui.currentSelectableIndex == gui.selectedIndex);
 	++gui.currentSelectableIndex;
 
-	v4 color = isSelected ? colors::mutedYellow : colors::white;
-
-	gui_text(label, gui.currentPosition, color);
-
-	gui.currentPosition.y += gui.buttonSize.y + gui.padding;
+	gui_render_text_(label, gui.currentPosition, isSelected ? gui.selectedTextColor : gui.textColor);
+	gui.currentPosition.y += gui.textSize + gui.padding;
 
 	bool result = isSelected && is_clicked(gui.input->confirm);
 	return result;
 }
+
+void gui_text(char const * text)
+{
+	Gui & gui = *global_currentGui;
+
+	gui_render_text_(text, gui.currentPosition, gui.textColor);
+	gui.currentPosition.y += gui.textSize + gui.padding;
+}
+
 
 void gui_generate_font_material(Gui & gui)
 {
@@ -140,3 +196,5 @@ void gui_generate_font_material(Gui & gui)
 	MaterialAsset guiFontMaterialInfo = {guiPipeline, allocate_array<TextureHandle>(*global_transientMemory, {gui.font.atlasTexture})};
 	gui.fontMaterial = platformApi->push_material(platformGraphics, &guiFontMaterialInfo);
 }
+
+END_C_BLOCK

@@ -35,6 +35,7 @@ namespace colors
 	constexpr v4 black 			= {0,0,0,1};
 }
 
+constexpr v4 colorDarkGreen = {0, 0.6, 0, 1};
 
 #include "Debug.cpp"
 
@@ -141,8 +142,20 @@ struct GameState
 	AudioClip backgroundAudio;
 };
 
-internal void
-initialize_game_state(GameState * state, platform::Memory * memory)
+internal Gui make_main_menu_gui(MemoryArena & allocator)
+{
+	Gui gui 		= {};
+	gui.textSize 	= 40;
+	gui.textColor 	= colors::white;
+	gui.selectedTextColor = colors::mutedBlue;
+	gui.padding 	= 10;
+	gui.font 		= load_font("c:/windows/fonts/arial.ttf");
+	gui_generate_font_material(gui);
+
+	return gui;
+}
+
+internal void initialize_game_state(GameState * state, platform::Memory * memory)
 {
 	*state = {};
 
@@ -158,15 +171,12 @@ initialize_game_state(GameState * state, platform::Memory * memory)
 
 	state->backgroundAudio = load_audio_clip("assets/sounds/Wind-Mark_DiAngelo-1940285615.wav");
 
-	Gui & gui = state->gui;
-	gui = {};
-	gui.buttonSize = {10, 50};
-	gui.padding = 10;
-	gui.font = load_font(state->persistentMemoryArena, "c:/windows/fonts/arial.ttf");
-	gui_generate_font_material(gui);
+	state->gui = make_main_menu_gui(state->persistentMemoryArena);
 
 	state->isInitialized = true;
 }
+
+
 
 /* Note(Leo): return whether or not game still continues
 Todo(Leo): indicate meaning of return value betterly somewhere, I almost forgot it.
@@ -259,12 +269,7 @@ bool32 update_game(
 		state->loadedScene = nullptr;
 
 		// Todo(Leo): this is a hack, unload_scene also unloads main gui, which is rather unwanted...
-		Gui & gui = state->gui;
-		gui = {};
-		gui.buttonSize = {10, 50};
-		gui.padding = 10;
-		gui.font = load_font(state->persistentMemoryArena, "c:/windows/fonts/arial.ttf");
-		gui_generate_font_material(gui);
+		state->gui = make_main_menu_gui(state->persistentMemoryArena);	
 	}
 
 	// Todo(Leo): These still MAYBE do not belong here

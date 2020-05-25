@@ -898,6 +898,10 @@ winapi::create_vulkan_context(WinAPIWindow * window)
         };
         context.lineDrawPipeline = vulkan::make_pipeline(&context, linePipelineInfo);
 
+        linePipelineInfo.vertexShaderPath = "assets/shaders/line_vert2.spv";
+        linePipelineInfo.options.primitiveType = platform::RenderingOptions::PRIMITIVE_LINE_STRIP;
+
+
         // ---------------------------------------------------------------------
 
         VulkanPipelineLoadInfo guiPipelineInfo =
@@ -1256,7 +1260,6 @@ winapi_vulkan_internal_::init_memory(VulkanContext * context)
                                     context, sceneUniformBufferSize,
                                     VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
                                     VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
-
 
     add_cleanup(context, [](VulkanContext * context){
         vulkan::destroy_buffer_resource(context->device, &context->staticMeshPool);
