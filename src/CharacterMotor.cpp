@@ -217,6 +217,10 @@ update_character_motor( CharacterMotor & 	motor,
 		RaycastResult rayHitResults[rayCount];
 		s32 rayHitCount = 0;
 
+		v3 rayDebugLinePoints [2 * rayCount];
+		s32 rayDebugHitIndex = 0;
+		s32 rayDebugMissIndex = 2 * rayCount - 1;
+
 		for (int i  = 0; i < rayCount; ++i)
 		{
 			v3 start = rayStartPositions[i] + up * 0.25f + motor.transform->position;
@@ -229,12 +233,25 @@ update_character_motor( CharacterMotor & 	motor,
 				rayHitResults[rayHitCount] = currentResult;
 				++rayHitCount;
 
-				debug_draw_line(start, start + direction, colors::brightRed, DEBUG_PLAYER);
+				// debug_draw_line(start, start + direction, colors::brightRed, DEBUG_PLAYER);
+
+
+				rayDebugLinePoints[rayDebugHitIndex] = start;
+				rayDebugLinePoints[rayDebugHitIndex + 1] = start + direction;
+
+				rayDebugHitIndex += 2;
 			}
 			else
 			{
-				debug_draw_line(start, start + direction, colors::mutedYellow, DEBUG_PLAYER);
+				rayDebugLinePoints[rayDebugMissIndex - 1] = start;
+				rayDebugLinePoints[rayDebugMissIndex] = start + direction;
+
+				rayDebugMissIndex -= 2;
+				// debug_draw_line(start, start + direction, colors::mutedYellow, DEBUG_PLAYER);
 			}
+
+			debug_draw_lines(rayDebugHitIndex, rayDebugLinePoints, colors::brightRed, DEBUG_NPC);
+			debug_draw_lines(2 * rayCount - rayDebugHitIndex, rayDebugLinePoints + rayDebugHitIndex, colors::mutedGreen, DEBUG_NPC);
 		}
 
 		if (rayHitCount == 0)

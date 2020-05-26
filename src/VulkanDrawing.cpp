@@ -481,62 +481,41 @@ vulkan::record_line_draw_command(VulkanContext * context, v3 start, v3 end, floa
 }
 
 // vulkan::record_line_draw_command(VulkanContext * context, v3 start, v3 end, float width, v4 color)
-internal void fsvulkan_draw_lines(VulkanContext * context, s32 count, v3 * points, v4 color)
+internal void fsvulkan_draw_lines(VulkanContext * context, s32 pointCount, v3 * points, v4 color)
 {
 	// /*
 	// vulkan bufferless drawing
 	// https://www.saschawillems.de/blog/2016/08/13/vulkan-tutorial-on-rendering-a-fullscreen-quad-without-buffers/
 	// */
 
+	// Note(Leo): call prepare_drawing() first
+	Assert(context->canDraw);
 
-	// DEBUG_ASSERT(context->canDraw, "Invalid call to record_line_draw_command() when prepare_drawing() has not been called.")
+	VkCommandBuffer commandBuffer = vulkan::get_current_virtual_frame(context)->commandBuffers.scene;
 
-	// VkCommandBuffer commandBuffer = vulkan::get_current_virtual_frame(context)->commandBuffers.scene;
+	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, context->lineDrawPipeline.pipeline);
+	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, context->lineDrawPipeline.layout,
+							0, 1, &context->uniformDescriptorSets.camera, 0, nullptr);
 
-	// // Todo(Leo): Define some struct etc. for this
-	// v4 pushConstants [] = 
-	// {
-	// 	// {start.x, start.y, start.z, 0},
-	// 	// {end.x, end.y, end.z, 0},
-	// 	color,
-	// };
+	s32 lineCount = pointCount / 2;
 
-	// vkCmdPushConstants(commandBuffer, context->lineDrawPipeline.layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pushConstants), pushConstants);
+	for (s32 line = 0; line < lineCount; ++line)
+	{
+		s32 point = line * 2;
+		v4 pushConstants [] = 
+		{
+			{points[point].x, points[point].y, points[point].z, 0},
+			{points[point + 1].x, points[point + 1].y, points[point + 1].z, 0},
+			color,
+		};
 
-	// vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, context->BETTER_lineDrawPipeline.pipeline);
-	// vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, context->BETTER_lineDrawPipeline.layout,
-	// 						0, 1, &context->uniformDescriptorSets.camera, 0, nullptr);
+		vkCmdPushConstants(commandBuffer, context->lineDrawPipeline.layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pushConstants), pushConstants);
 
-	// // we need vertex bufferable buffer
-	// // map memory
-	// // copy to buffer
-	// // bind vertex buffer
+		vkCmdDraw(commandBuffer, 2, 1, 0, 0);
+	}
 
-	// VkDeviceSize size = vulkan::get_aligned_uniform_buffer_size(context, count * sizeof(v3));
-	// v3 * positions;
-	// // Todo(Leo): does this work?
-	// vkMapMemory(context->device, context->BETTER_lineDrawVertexBuffer.memory, context->BETTER_lineDrawVertexOffset, size, 0, (void**)positions);
-
-	// // copy_memory(positions, points, sizeof(v3) * count);
-	// for(s32 i = 0; i < count; ++i)
-	// {
-	// 	positions[i] = points[i];
-	// }
-
-
-	// VkDeviceSize offset = context->BETTER_lineDrawVertexOffset;
-	// context->BETTER_lineDrawVertexOffset += size;
-
-	// vkUnmapMemory(context->device, context->BETTER_lineDrawVertexBuffer.memory);
-
-
-	// vkCmdBindVertexBuffers(commandBuffer, 0, 1, &context->BETTER_lineDrawVertexBuffer.buffer, &offset);
-
-	// vkCmdDraw(commandBuffer, count, 1, 0, 0);
-
-	// // Note(Leo): This must be done so that next time we draw normally, we know to bind thos descriptors again
-	// context->currentBoundPipeline = PipelineHandle::Null;
-	
+	// Note(Leo): This must be done so that next time we draw normally, we know to bind thos descriptors again
+	context->currentBoundPipeline = PipelineHandle::Null;
 }
 
 

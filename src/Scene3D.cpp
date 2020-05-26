@@ -565,14 +565,14 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 			debug_draw_box(collider.transform, colorDarkGreen, DEBUG_BACKGROUND);
 		}
 
-		// v3 points [] =
-		// {
-		// 	{0,0,0},
-		// 	{0,0,50},
-		// 	{2,0,50},
-		// 	{2,0,0}
-		// };
-		// platformApi->draw_lines(platformGraphics, 4, points, colors::brightBlue);
+		v3 points [] =
+		{
+			{0,0,0},
+			{0,0,50},
+			{2,0,50},
+			{2,0,0}
+		};
+		platformApi->draw_lines(platformGraphics, 4, points, colors::brightBlue);
 	}
 
 	  //////////////////////////////

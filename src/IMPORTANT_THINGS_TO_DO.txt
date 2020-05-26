@@ -31,14 +31,28 @@ TREE THINGS
 
 	Trees grow differently in light and shadow, so meter lightness also
 
+	Toxic soil? 
+
 DONE:
 	colliders compute transforms beforehand, only once per frame	
 
 TODO:
-	multiple collisions
 
 	New tree rules
 	Falling objects
 	Pickup animation
 	Clouds and rain
-	
+
+	full terrain coverage
+	planet curvature shader
+
+
+	procedural sky
+	animated sun
+	daytime
+
+	multiple collisions
+
+NAMES:
+	Feral Gallery?
+	Pehvreiwjfpi Gallery?
