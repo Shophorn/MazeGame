@@ -5,6 +5,8 @@ layout (set = 0, binding = 0) uniform CameraProjections
 	mat4 view;
 	mat4 projection;
 	mat4 lightViewProjection;
+	float shadowDistance;
+	float shadowTransitionDistance;
 } camera;
 
 layout(set = 2, binding = 0) uniform ModelProjection

@@ -695,9 +695,23 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 
 	gui_position({100, 100});
 	gui_text("Sphinx of black quartz, judge my vow!");
+
+	// gui_pivot(GUI_PIVOT_TOP_RIGHT);
+	// gui_position({100, 100});
+	// gui_image(shadowTexture, {300, 300});
+
+
+
+	ScreenRect rect =
+	{
+		.position 		= gui_transform_screen_point({1500, 100}),
+		.size 			= gui_transform_screen_size({300, 300}),
+		.uvPosition 	= {0, 0},
+		.uvSize 		= {1, 1}
+	};
+	platformApi->draw_screen_rects(platformGraphics, 1, &rect, {-1}, {1,1,1,1});
+
 	gui_end();
-
-
 
 	return keepScene;
 }
@@ -771,6 +785,8 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 		MaterialHandle handle = platformApi->push_material(platformGraphics, &asset);
 		return handle;
 	};
+
+	TextureHandle shadowTexture = platformApi->init_shadow_pass(platformGraphics);
 
 	// Create MateriaLs
 	{
@@ -862,7 +878,6 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 		}
 
 		auto startTime = platformApi->current_time();
-
 
 		logSystem(1) << "Loading skeleton took: " << platformApi->elapsed_seconds(startTime, platformApi->current_time()) << " s";
 
@@ -974,16 +989,16 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 
 	// Environment
 	{
-		constexpr f32 depth = 100;
-		constexpr f32 width = 100;
-		f32 mapSize = 200;
-		f32 terrainHeight = 20;
+		// constexpr f32 depth = 500;
+		// constexpr f32 width = 500;
+		f32 mapSize 		= 1200;
+		f32 terrainHeight 	= 20;
 		{
 			// Note(Leo): this is maximum size we support with u16 mesh vertex indices
-			s32 gridSize = 256;
+			s32 terrainMeshResolution = 256;
 
 			auto heightmapTexture 	= load_texture_asset("assets/textures/heightmap6.jpg", global_transientMemory);
-			auto heightmap 			= make_heightmap(global_transientMemory, &heightmapTexture, gridSize, mapSize, -terrainHeight / 2, terrainHeight / 2);
+			auto heightmap 			= make_heightmap(global_transientMemory, &heightmapTexture, terrainMeshResolution, mapSize, -terrainHeight / 2, terrainHeight / 2);
 			auto groundMeshAsset 	= generate_terrain(global_transientMemory, 32, &heightmap);
 
 			auto groundMesh 		= platformApi->push_mesh(platformGraphics, &groundMeshAsset);
@@ -1032,8 +1047,10 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 
 
 		{
-			s32 pillarCountPerDirection = mapSize / 10;
-			s32 pillarCount = pillarCountPerDirection * pillarCountPerDirection;
+			f32 pillarRange 			= 600;
+			s32 pillarCountPerDirection = 20;
+			s32 pillarCount 			= pillarCountPerDirection * pillarCountPerDirection;
+
 
 			auto pillarMesh 		= load_mesh_glb(*global_transientMemory, read_gltf_file(*global_transientMemory, "assets/models/big_pillar.glb"), "big_pillar");
 			auto pillarMeshHandle 	= platformApi->push_mesh(platformGraphics, &pillarMesh);
@@ -1057,8 +1074,8 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 				}
 
 
-				f32 x = ((pillarIndex % pillarCountPerDirection) / (f32)pillarCountPerDirection) * mapSize - mapSize / 2;
-				f32 y = ((pillarIndex / pillarCountPerDirection) / (f32)pillarCountPerDirection) * mapSize - mapSize / 2;
+				f32 x = ((pillarIndex % pillarCountPerDirection) / (f32)pillarCountPerDirection) * pillarRange - pillarRange / 2;
+				f32 y = ((pillarIndex / pillarCountPerDirection) / (f32)pillarCountPerDirection) * pillarRange - pillarRange / 2;
 
 				f32 z = get_terrain_height(&scene->collisionSystem, v2{x, y});
 

@@ -18,8 +18,8 @@ enum HandleType
 template<HandleType T>
 struct BaseHandle
 {
-	u64 index_ =  -1;
-	operator u64() { return index_; }	
+	s64 index_ =  -1;
+	operator s64() { return index_; }	
 	static constexpr HandleType type = T;
 
 	inline static const BaseHandle Null = {};
@@ -117,7 +117,7 @@ get_pixel(TextureAsset * texture, u32 x, u32 y)
 {
 	DEBUG_ASSERT(x < texture->width && y < texture->height, "Invalid pixel coordinates!");
 
-	u64 index = x + y * texture->width;
+	s64 index = x + y * texture->width;
 	return texture->pixels[index];
 }
 
@@ -143,7 +143,7 @@ get_closest_pixel(TextureAsset * texture, v2 texcoord)
 	u32 u = round_to<u32>(texture->width * texcoord.x) % texture->width;
 	u32 v = round_to<u32>(texture->height * texcoord.y) % texture->height;
 
-	u64 index = u + v * texture->width;
+	s64 index = u + v * texture->width;
 	return texture->pixels[index];
 }
 

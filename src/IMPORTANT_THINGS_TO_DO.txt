@@ -35,23 +35,42 @@ TREE THINGS
 
 DONE:
 	colliders compute transforms beforehand, only once per frame	
+	full terrain coverage
 
 TODO:
+	Gui screen scale in game code
+	Gui draw texture
+	Vulkan expose shadow texture
+
+	Vulkan explicit shader structs for each pipeline, like ThinMatrix does
+	
+
+	Editor: teleport player
 
 	New tree rules
 	Falling objects
 	Pickup animation
 	Clouds and rain
 
-	full terrain coverage
-	planet curvature shader
+	Better shadows
 
+	planet curvature shader
 
 	procedural sky
 	animated sun
 	daytime
 
 	multiple collisions
+
+	fox suit?
+	bird suit
+
+	fox npc:s
+	bird npc:s
+
+	Angery mountain
+	Flying building with eternal shadow
+	underground cavern with water pump that can pump water and form a pond to under the flying building
 
 NAMES:
 	Feral Gallery?

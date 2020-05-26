@@ -43,8 +43,8 @@ vulkan::make_pipeline(
 {
     // VulkanPipelineLoadInfo & info = *infoPointer;
 
-    BinaryAsset vertexShaderCode = read_binary_file(info.vertexShaderPath.c_str());
-    BinaryAsset fragmentShaderCode = read_binary_file(info.fragmentShaderPath.c_str());
+    BinaryAsset vertexShaderCode = read_binary_file(info.vertexShaderPath);
+    BinaryAsset fragmentShaderCode = read_binary_file(info.fragmentShaderPath);
 
     VkShaderModule vertexShaderModule = make_vk_shader_module(vertexShaderCode, context->device);
     VkShaderModule fragmentShaderModule = make_vk_shader_module(fragmentShaderCode, context->device);

@@ -3,6 +3,7 @@ Leo Tamminen
 
 Implementation of Graphics interface for VulkanContext
 =============================================================================*/
+
 namespace vulkan_scene_internal_
 {
     internal u32 compute_mip_levels (u32 texWidth, u32 texHeight);
@@ -19,7 +20,7 @@ namespace vulkan_scene_internal_
 TextureHandle
 vulkan::push_texture (VulkanContext * context, TextureAsset * texture)
 {
-    TextureHandle handle = { context->loadedTextures.size() };
+    TextureHandle handle = { (s64)context->loadedTextures.size() };
     context->loadedTextures.push_back(vulkan::make_texture(context, texture));
     return handle;
 }
@@ -27,7 +28,7 @@ vulkan::push_texture (VulkanContext * context, TextureAsset * texture)
 MaterialHandle
 vulkan::push_material (VulkanContext * context, MaterialAsset * asset)
 {
-    MaterialHandle resultHandle = {context->loadedMaterials.size()};
+    MaterialHandle resultHandle = {(s64)context->loadedMaterials.size()};
     VulkanMaterial material = 
     {
         .pipeline = asset->pipeline,
@@ -41,7 +42,7 @@ vulkan::push_material (VulkanContext * context, MaterialAsset * asset)
 MaterialHandle
 vulkan::push_gui_material (VulkanContext * context, TextureHandle texture)
 {
-    MaterialHandle resultHandle = {context->loadedGuiMaterials.size()};
+    MaterialHandle resultHandle = { (s64)context->loadedGuiMaterials.size()};
     VulkanMaterial material = 
     {
         .pipeline = PipelineHandle::Null,
@@ -122,7 +123,7 @@ vulkan::push_model (VulkanContext * context, MeshHandle mesh, MaterialHandle mat
 TextureHandle
 vulkan::push_cubemap(VulkanContext * context, StaticArray<TextureAsset, 6> * assets)
 {
-    TextureHandle handle = { context->loadedTextures.size() };
+    TextureHandle handle = { (s64)context->loadedTextures.size() };
     context->loadedTextures.push_back(vulkan::make_cubemap(context, assets));
     return handle;    
 }
@@ -141,7 +142,7 @@ vulkan::push_pipeline(VulkanContext * context, const char * vertexShaderPath, co
     u64 index = context->loadedPipelines.size();
     context->loadedPipelines.push_back(pipeline);
 
-    return {index};
+    return {(s64)index};
 }
 
 void
@@ -565,7 +566,7 @@ make_shadow_texture(VulkanContext * context, u32 width, u32 height, VkFormat for
         .imageType      = VK_IMAGE_TYPE_2D,
         .format         = format,
         .extent         = { width, height, 1 },
-        .mipLevels      = mipLevels,
+        .mipLevels      = 1,
         .arrayLayers    = 1,
 
         .samples        = VK_SAMPLE_COUNT_1_BIT,

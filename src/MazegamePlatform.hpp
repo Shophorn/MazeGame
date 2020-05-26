@@ -142,18 +142,19 @@ namespace platform
 														RenderingOptions optios);
 		void (*unload_scene) 	(Graphics*);
 
+		// Others??
+		TextureHandle (*init_shadow_pass) (Graphics*);
+
 		// GRAPHICS DRAW FUNCTIONS
 		void (*prepare_frame) 	(Graphics*);
 		void (*finish_frame) 	(Graphics*);
 		void (*update_camera) 	(Graphics*, Camera const *);
 		void (*update_lighting)	(Graphics*, Light const *, Camera const * camera, v3 ambient);
 		void (*draw_model) 		(Graphics*, ModelHandle model, m44 transform, bool32 castShadow, m44 const * bones, u32 boneCount);
-		void (*draw_line) 		(Graphics*, v3 start, v3 end, float width, v4 color);
-		void (*draw_gui) 		(Graphics*, v2 position, v2 size, MaterialHandle material, v4 color);
 
-		void (*draw_meshes)			(Graphics*, s32 count, m44 * transforms, MeshHandle mesh, MaterialHandle material);
-		void (*draw_screen_rects)	(Graphics*, s32 count, ScreenRect * rects, MaterialHandle material, v4 color);
-		void (*draw_lines)			(Graphics*, s32 count, v3 * points, v4 color);
+		void (*draw_meshes)			(Graphics*, s32 count, m44 const * transforms, MeshHandle mesh, MaterialHandle material);
+		void (*draw_screen_rects)	(Graphics*, s32 count, ScreenRect const * rects, MaterialHandle material, v4 color);
+		void (*draw_lines)			(Graphics*, s32 count, v3 const * points, v4 color);
 
 		// WINDOW FUNCTIONS	
 		u32 (*get_window_width) 		(Window const *);

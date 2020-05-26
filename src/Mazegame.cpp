@@ -226,7 +226,9 @@ bool32 update_game(
 	bool32 gameIsAlive = true;
 	bool32 sceneIsAlive = true;
 
-	functions->prepare_frame(graphics);
+	enum { ACTION_NONE, ACTION_LOAD_3D_SCENE, ACTION_LOAD_2D_SCENE, ACTION_QUIT } action = ACTION_NONE;
+
+	platformApi->prepare_frame(graphics);
 
 	if (state->loadedScene != nullptr)
 	{
@@ -238,14 +240,19 @@ bool32 update_game(
 
 		if(gui_button("3D Scene"))
 		{
-			state->loadedScene = load_scene_3d(state->persistentMemoryArena);
-			state->updateScene = update_scene_3d;
+
+			action = ACTION_LOAD_3D_SCENE;
+
+			// state->loadedScene = load_scene_3d(state->persistentMemoryArena);
+			// state->updateScene = update_scene_3d;
 		}
 
 		if (gui_button("2D Scene"))
 		{
-			state->loadedScene = load_scene_2d(state->persistentMemoryArena);
-			state->updateScene = update_scene_2d;
+			action = ACTION_LOAD_2D_SCENE;
+
+			// state->loadedScene = load_scene_2d(state->persistentMemoryArena);
+			// state->updateScene = update_scene_2d;
 		}
 
 		if (gui_button("Quit"))
@@ -259,7 +266,23 @@ bool32 update_game(
 	/* Note(Leo): We MUST currently finish the frame before unloading scene, 
 	because we have at this point issued commands to vulkan command buffers,
 	and we currently have no mechanism to abort those. */
-	functions->finish_frame(graphics);
+	platformApi->finish_frame(graphics);
+
+
+	if(action == ACTION_LOAD_3D_SCENE)
+	{
+		state->loadedScene = load_scene_3d(state->persistentMemoryArena);
+		state->updateScene = update_scene_3d;
+	}	
+	else if(action == ACTION_LOAD_2D_SCENE)
+	{
+		state->loadedScene = load_scene_2d(state->persistentMemoryArena);
+		state->updateScene = update_scene_2d;
+	}		
+
+
+
+
 
 	if (sceneIsAlive == false)
 	{

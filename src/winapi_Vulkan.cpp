@@ -925,6 +925,7 @@ winapi::create_vulkan_context(WinAPIWindow * window)
         };
         context.guiDrawPipeline = vulkan::make_pipeline(&context, guiPipelineInfo);
 
+        guiPipelineInfo.vertexShaderPath = "assets/shaders/gui_vert3.spv";
         guiPipelineInfo.fragmentShaderPath = "assets/shaders/shadow_view_frag.spv";
 
         context.shadowPass.debugView = vulkan::make_pipeline(&context, guiPipelineInfo);
@@ -1366,25 +1367,6 @@ update_vk_descriptor_buffer(VkDescriptorSet set, VkDevice device, VkDescriptorTy
 }
 
 internal void
-update_vk_descriptor_image( VkDescriptorSet set, VkDevice device, VkDescriptorType type,
-                            VkSampler sampler, VkImageView view, VkImageLayout layout)
-{
-    VkDescriptorImageInfo info = { sampler, view, layout };
-
-    VkWriteDescriptorSet write = 
-    {
-        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-        .dstSet = set,
-        .dstBinding = 0,
-        .dstArrayElement = 0,
-        .descriptorCount = 1,
-        .descriptorType = type,
-        .pImageInfo = &info,
-    };
-    vkUpdateDescriptorSets(device, 1, &write, 0, nullptr);
-}
-
-internal void
 winapi_vulkan_internal_::init_uniform_buffers(VulkanContext * context)
 {
     // constexpr s32 count = 2;
@@ -1576,10 +1558,13 @@ winapi_vulkan_internal_::init_virtual_frames(VulkanContext * context)
     });
 }
 
-void
-winapi_vulkan_internal_::init_shadow_pass(VulkanContext * context, u32 width, u32 height)
+void winapi_vulkan_internal_::init_shadow_pass(VulkanContext * context, u32 width, u32 height)
 {
+        // init_shadow_pass(&context, 1024 * 4, 1024 * 4);
+
+
     using namespace vulkan;
+    // Todo(Leo): This may not be a valid format, query support or check if vulkan spec requires this.
     VkFormat format = VK_FORMAT_D32_SFLOAT;
 
     context->shadowPass.width = width;
@@ -1599,7 +1584,6 @@ winapi_vulkan_internal_::init_shadow_pass(VulkanContext * context, u32 width, u3
         .initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED,
         .finalLayout    = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
     };
-
 
 
     // Note(Leo): there can be only one depth attachment
@@ -1741,7 +1725,6 @@ winapi_vulkan_internal_::init_shadow_pass(VulkanContext * context, u32 width, u3
             .alphaToOneEnable       = VK_FALSE,
         };
 
-
         VkPipelineColorBlendStateCreateInfo colorBlending =
         {
             .sType              = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
@@ -1834,12 +1817,24 @@ winapi_vulkan_internal_::init_shadow_pass(VulkanContext * context, u32 width, u3
                                                                     context->descriptorPools.material,
                                                                     context->descriptorSetLayouts.shadowMap);
 
-    update_vk_descriptor_image(context->shadowMapDescriptorSet,
-                                context->device,
-                                VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                                context->shadowPass.sampler,
-                                context->shadowPass.attachment.view,
-                                VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL);
+    VkDescriptorImageInfo info =
+    {
+        context->shadowPass.sampler,
+        context->shadowPass.attachment.view,
+        VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL
+    };
+
+    VkWriteDescriptorSet write = 
+    {
+        .sType              = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        .dstSet             = context->shadowMapDescriptorSet,
+        .dstBinding         = 0,
+        .dstArrayElement    = 0,
+        .descriptorCount    = 1,
+        .descriptorType     = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+        .pImageInfo         = &info,
+    };
+    vkUpdateDescriptorSets(context->device, 1, &write, 0, nullptr);
 
     add_cleanup(context, [](VulkanContext * context)
     {
@@ -1852,4 +1847,10 @@ winapi_vulkan_internal_::init_shadow_pass(VulkanContext * context, u32 width, u3
         vkDestroyPipelineLayout(context->device, context->shadowPass.layout, nullptr);
         vkDestroyDescriptorSetLayout(context->device, context->descriptorSetLayouts.shadowMap, nullptr);
     });
+}
+
+internal TextureHandle fsvulkan_init_shadow_pass(VulkanContext * context)
+{
+    // winapi_vulkan_internal_::init_shadow_pass(context, 1024 * 4, 1024 * 4);
+    return {-1};
 }

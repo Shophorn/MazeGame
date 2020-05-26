@@ -65,7 +65,9 @@ vulkan::update_lighting(VulkanContext * context, Light const * light, Camera con
 	vkMapMemory(context->device, context->sceneUniformBuffer.memory,
 				context->cameraUniformOffset, sizeof(CameraUniformBuffer), 0, (void**)&pUbo);
 
-	pUbo->lightViewProjection = lightViewProjection;
+	pUbo->lightViewProjection 		= lightViewProjection;
+	pUbo->shadowDistance 			= light->shadowDistance;
+	pUbo->shadowTransitionDistance 	= light->shadowTransitionDistance;
 
 	vkUnmapMemory(context->device, context->sceneUniformBuffer.memory);
 }
@@ -149,6 +151,9 @@ vulkan::prepare_drawing(VulkanContext * context)
 		.pInheritanceInfo = vulkan_drawing_internal_::get_vk_command_buffer_inheritance_info(context->shadowPass.renderPass, context->shadowPass.framebuffer),
 	};
 	VULKAN_CHECK(vkBeginCommandBuffer(frame->commandBuffers.offscreen, &shadowCmdBeginInfo));
+
+	// Note(Leo): We only ever use this pipeline with shadows, so it is sufficient to only bind it once, here.
+	vkCmdBindPipeline(frame->commandBuffers.offscreen, VK_PIPELINE_BIND_POINT_GRAPHICS, context->shadowPass.pipeline);
 
 }
 
@@ -327,11 +332,10 @@ vulkan::record_draw_command(VulkanContext * context, ModelHandle model, m44 tran
 	///////////////////////////
 	if (castShadow)
 	{
+		// vkCmdBindPipeline(frame->commandBuffers.offscreen, VK_PIPELINE_BIND_POINT_GRAPHICS, context->shadowPass.pipeline);
+
 		vkCmdBindVertexBuffers(frame->commandBuffers.offscreen, 0, 1, &mesh->bufferReference, &mesh->vertexOffset);
 		vkCmdBindIndexBuffer(frame->commandBuffers.offscreen, mesh->bufferReference, mesh->indexOffset, mesh->indexType);
-
-		u32 shadowPassSceneSet = 0;
-		u32 shadowPassModelSet = 1;
 
 		VkDescriptorSet shadowSets [] =
 		{
@@ -339,7 +343,6 @@ vulkan::record_draw_command(VulkanContext * context, ModelHandle model, m44 tran
 			context->uniformDescriptorSets.model,
 		};
 
-		vkCmdBindPipeline(frame->commandBuffers.offscreen, VK_PIPELINE_BIND_POINT_GRAPHICS, context->shadowPass.pipeline);
 		vkCmdBindDescriptorSets(frame->commandBuffers.offscreen,
 								VK_PIPELINE_BIND_POINT_GRAPHICS,
 								context->shadowPass.layout,
@@ -353,7 +356,7 @@ vulkan::record_draw_command(VulkanContext * context, ModelHandle model, m44 tran
 	}
 }
 
-void fsvulkan_draw_meshes(VulkanContext * context, s32 count, m44 * transforms, MeshHandle meshHandle, MaterialHandle materialHandle)
+void fsvulkan_draw_meshes(VulkanContext * context, s32 count, m44 const * transforms, MeshHandle meshHandle, MaterialHandle materialHandle)
 {
 	Assert(count > 0 && "Vulkan cannot map memory of size 0, and this function should no be called for 0 meshes");
 	Assert(context->canDraw);
@@ -426,8 +429,6 @@ void fsvulkan_draw_meshes(VulkanContext * context, s32 count, m44 * transforms, 
 		vkCmdBindVertexBuffers(frame->commandBuffers.offscreen, 0, 1, &mesh->bufferReference, &mesh->vertexOffset);
 		vkCmdBindIndexBuffer(frame->commandBuffers.offscreen, mesh->bufferReference, mesh->indexOffset, mesh->indexType);
 
-		vkCmdBindPipeline(frame->commandBuffers.offscreen, VK_PIPELINE_BIND_POINT_GRAPHICS, context->shadowPass.pipeline);
-		
 		VkDescriptorSet shadowSets [] =
 		{
 			context->uniformDescriptorSets.camera,
@@ -450,38 +451,7 @@ void fsvulkan_draw_meshes(VulkanContext * context, s32 count, m44 * transforms, 
 	} 
 }
 
-void
-vulkan::record_line_draw_command(VulkanContext * context, v3 start, v3 end, float width, v4 color)
-{
-	/*
-	vulkan bufferless drawing
-	https://www.saschawillems.de/blog/2016/08/13/vulkan-tutorial-on-rendering-a-fullscreen-quad-without-buffers/
-	*/
-	DEBUG_ASSERT(context->canDraw, "Invalid call to record_line_draw_command() when prepare_drawing() has not been called.")
-
-	VkCommandBuffer commandBuffer = get_current_virtual_frame(context)->commandBuffers.scene;
-
-	// Todo(Leo): Define some struct etc. for this
-	v4 pushConstants [] = 
-	{
-		{start.x, start.y, start.z, 0},
-		{end.x, end.y, end.z, 0},
-		color,
-	};
-
-	vkCmdPushConstants(commandBuffer, context->lineDrawPipeline.layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pushConstants), pushConstants);
-
-	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, context->lineDrawPipeline.pipeline);
-	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, context->lineDrawPipeline.layout,
-							0, 1, &context->uniformDescriptorSets.camera, 0, nullptr);
-	vkCmdDraw(commandBuffer, 2, 1, 0, 0);
-
-	// Note(Leo): This must be done so that next time we draw normally, we know to bind thos descriptors again
-	context->currentBoundPipeline = PipelineHandle::Null;
-}
-
-// vulkan::record_line_draw_command(VulkanContext * context, v3 start, v3 end, float width, v4 color)
-internal void fsvulkan_draw_lines(VulkanContext * context, s32 pointCount, v3 * points, v4 color)
+internal void fsvulkan_draw_lines(VulkanContext * context, s32 pointCount, v3 const * points, v4 color)
 {
 	// /*
 	// vulkan bufferless drawing
@@ -518,83 +488,27 @@ internal void fsvulkan_draw_lines(VulkanContext * context, s32 pointCount, v3 * 
 	context->currentBoundPipeline = PipelineHandle::Null;
 }
 
-
-struct VulkanGuiPushConstants
-{
-	v2 bottomLeft;
-	v2 bottomRight;
-	v2 topLeft;
-	v2 topRight;
-	v4 color;
-};
-
-void vulkan::record_gui_draw_command(VulkanContext * context, v2 position, v2 size, MaterialHandle materialHandle, v4 color)
-{
-	auto * frame = get_current_virtual_frame(context);
-
-	auto transform_point = [context](v2 position) -> v2
-	{
-		// Note(Leo): This is temporarily here only, aka scale to fit width.
-		const v2 referenceResolution = {1920, 1080};
-		float ratio = context->drawingResources.extent.width / referenceResolution.x;
-
-		float x = (position.x / context->drawingResources.extent.width) * ratio * 2.0f - 1.0f;
-		float y = (position.y / context->drawingResources.extent.height) * ratio * 2.0f - 1.0f;
-
-		return {x, y};
-	};
-
-	VulkanGuiPushConstants pushConstants =
-	{
-		transform_point(position),
-		transform_point(position + v2{size.x, 0}),
-		transform_point(position + v2{0, size.y}),
-		transform_point(position + size),
-		color,
-	};
-
-	// // Todo(Leo): this is not good idea. Proper toggles etc and not null pointers for flow control, said wise in the internets
-	auto * pipeline = is_valid_handle(materialHandle) ? &context->guiDrawPipeline : &context->shadowPass.debugView;
-	auto * material = is_valid_handle(materialHandle) ? get_loaded_gui_material(context, materialHandle) :
-														&context->defaultGuiMaterial;
-
-	vkCmdPushConstants( frame->commandBuffers.scene, pipeline->layout,
-						VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pushConstants), &pushConstants);
-
-	vkCmdBindPipeline(  frame->commandBuffers.scene, VK_PIPELINE_BIND_POINT_GRAPHICS,
-						pipeline->pipeline);
-
-	vkCmdBindDescriptorSets(frame->commandBuffers.scene, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->layout,
-							0, 1, &material->descriptorSet,
-							0, nullptr);
-
-	vkCmdDraw(frame->commandBuffers.scene, 4, 1, 0, 0);
-
-	// Note(Leo): This must be done so that next time we draw normally, we know to bind those descriptors again
-	context->currentBoundPipeline = PipelineHandle::Null;
-}
-
-void fsvulkan_draw_screen_rects(VulkanContext * context, s32 count, ScreenRect * rects, MaterialHandle materialHandle, v4 color)
+internal void fsvulkan_draw_screen_rects(VulkanContext * context, s32 count, ScreenRect const * rects, MaterialHandle materialHandle, v4 color)
 {
 	auto * frame = vulkan::get_current_virtual_frame(context);
 
-	auto transform_point = [context](v2 position) -> v2
+	VulkanMaterial * material;
+	VulkanLoadedPipeline * pipeline;
+
+	if(materialHandle < 0)
 	{
-		// Note(Leo): This is temporarily here only, aka scale to fit width.
-		const v2 referenceResolution = {1920, 1080};
-		float ratio = context->drawingResources.extent.width / referenceResolution.x;
+		material = &context->defaultGuiMaterial;
+		pipeline = &context->shadowPass.debugView;
+	}
+	else
+	{
+		material = vulkan::get_loaded_material(context, materialHandle);
+		pipeline = vulkan::get_loaded_pipeline(context, material->pipeline);
+	}
 
-		float x = (position.x / context->drawingResources.extent.width) * ratio * 2.0f - 1.0f;
-		float y = (position.y / context->drawingResources.extent.height) * ratio * 2.0f - 1.0f;
-
-		return {x, y};
-	};
-
-
-	// auto * pipeline = is_valid_handle(materialHandle) ? &context->guiDrawPipeline : &context->shadowPass.debugView;
-	auto * material = is_valid_handle(materialHandle) ? vulkan::get_loaded_material(context, materialHandle) :
-														&context->defaultGuiMaterial;
-	auto * pipeline = vulkan::get_loaded_pipeline(context, material->pipeline);
+	// // auto * pipeline = is_valid_handle(materialHandle) ? &context->guiDrawPipeline : &context->shadowPass.debugView;
+	// VulkanMaterial * material = is_valid_handle(materialHandle) ? vulkan::get_loaded_material(context, materialHandle) :
+	// 													&context->defaultGuiMaterial;
 
 	vkCmdBindPipeline(  frame->commandBuffers.scene, VK_PIPELINE_BIND_POINT_GRAPHICS,
 						pipeline->pipeline);
@@ -603,47 +517,14 @@ void fsvulkan_draw_screen_rects(VulkanContext * context, s32 count, ScreenRect *
 							0, 1, &material->descriptorSet,
 							0, nullptr);
 
+	vkCmdPushConstants(frame->commandBuffers.scene, pipeline->layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(v2) * 4, sizeof(v4), &color);
+
 	for(s32 i = 0; i < count; ++i)
 	{      
-		v2 transformedStart = transform_point(rects[i].position);
-		v2 transformedEnd = transform_point(rects[i].position + rects[i].size);
-		v2 transformedDelta = transformedEnd - transformedStart;
-
-
-		VulkanGuiPushConstants pushConstants =
-		{
-			transformedStart,
-			transformedDelta,
-
-			rects[i].uvPosition, 
-			rects[i].uvSize,
-
-			color,
-		};
-
-		vkCmdPushConstants( frame->commandBuffers.scene, pipeline->layout,
-							VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pushConstants), &pushConstants);
-
+		vkCmdPushConstants( frame->commandBuffers.scene, pipeline->layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(v2) * 4, &rects[i]);
 		vkCmdDraw(frame->commandBuffers.scene, 4, 1, 0, 0);
 	}
 
 	// Note(Leo): This must be done so that next time we draw normally, we know to bind those descriptors again
 	context->currentBoundPipeline = PipelineHandle::Null;
 }
-
-// Note(Leo): Quad with two triangles, and offsettable uv.s
-// struct SimpleQuad
-// {
-//     v2 position;
-//     v2 size;
-//     v2 uvPosition;
-//     v2 uvSize;
-// };
-
-// // void vulkan_draw_simple_quad(VulkanContext * context, SimpleQuad * quad, MaterialHandle material, v4 color)
-// // {
-// //     auto frame = get_current_virtual_frame(context);
-	
-// // }
-
-// // void vulkan_draw_nine_sliced_quad();
