@@ -755,3 +755,20 @@ vulkan_pipelines_internal_::make_dynamic_state (platform::RenderingOptions * opt
 //         .materialLayout = materialLayout
 //     };
 // }
+
+internal void fsvulkan_initialize_default_material(VulkanContext & context)
+{
+	// Todo(Leo): do not use make_pipeline(), goal is to get rid of that
+	VulkanLoadedPipeline TEMP_SOLUTION = vulkan::make_pipeline(&context,{
+		"assets/shaders/vert.spv",
+		"assets/shaders/frag.spv",
+		{	
+			.textureCount = 3,
+		}
+	});
+
+	context.defaultMaterialPipeline 			= TEMP_SOLUTION.pipeline;
+	context.defaultMaterialPipelineLayout 		= TEMP_SOLUTION.layout;
+	context.defaultMaterialDescriptorSetLayout 	= TEMP_SOLUTION.materialLayout;
+	context.defaultMaterialTextureCount 		= 3;
+}

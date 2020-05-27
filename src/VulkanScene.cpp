@@ -29,11 +29,24 @@ MaterialHandle
 vulkan::push_material (VulkanContext * context, MaterialAsset * asset)
 {
     MaterialHandle resultHandle = {(s64)context->loadedMaterials.size()};
-    VulkanMaterial material = 
+
+
+    PipelineHandle pipeline = asset->pipeline;
+    VkDescriptorSet descriptorSet;
+    if (pipeline == context->defaultMaterialId)
     {
-        .pipeline = asset->pipeline,
-        .descriptorSet = make_material_vk_descriptor_set(context, asset->pipeline, asset->textures)
-    };
+        descriptorSet = fsvulkan_make_descriptor_set(context, pipeline, asset->textures.data());
+    }
+    else
+    {
+        descriptorSet = make_material_vk_descriptor_set(context, asset->pipeline, asset->textures);
+    }
+
+
+    VulkanMaterial material = {pipeline, descriptorSet};
+    // {
+    //     // .pipeline = asset->pipeline,
+    // };
     context->loadedMaterials.push_back(material);
 
     return resultHandle;

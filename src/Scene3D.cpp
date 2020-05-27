@@ -50,7 +50,9 @@ struct Scene3d
 
 	// Player
 	Camera 						worldCamera;
-	CameraController3rdPerson 	cameraController;
+	PlayerCameraController 		playerCamera;
+	FreeCameraController		freeCamera;
+
 
 	PlayerInputState 			playerInputState;
 	Transform3D * 				playerCharacterTransform;
@@ -89,31 +91,25 @@ struct Scene3d
 	s32 carriedItemIndex;
 
 	// Big Scenery
-	// Array<Transform3D> stoneWallTransforms;
-	// Array<Transform3D> buildingTransforms;
-
-	// ModelHandle stoneWallModel;
-	// ModelHandle buildingModel;
-
-	m44 * 			stoneWallTransforms;
 	s32 			stoneWallCount;
+	m44 * 			stoneWallTransforms;
 	MeshHandle 		stoneWallMesh;
 	MaterialHandle 	stoneWallMaterial;
 
-	m44 *			buildingTransforms;
 	s32 			buildingCount;
+	m44 *			buildingTransforms;
 	MeshHandle 		buildingMesh;
 	MaterialHandle 	buildingMaterial;
 
-	m44 * 			gateTransforms;
 	s32 			gateCount;
+	m44 * 			gateTransforms;
 	MeshHandle 		gateMesh;
 	MaterialHandle 	gateMaterial;
 
 	// struct ArrayRenderer
 	// {
-	// 	Transform3D * 	transforms;
 	// 	s32 			count;
+	// 	Transform3D * 	transforms;
 	// 	MeshHandle 		mesh;
 	// 	MaterialHandle 	material;
 	// };
@@ -135,6 +131,7 @@ struct Scene3d
 	ModelHandle skybox;
 	Gui 		gui;
 	s32 		cameraMode;
+	bool32		drawDebugShadowTexture;
 
 	enum MenuView : s32
 	{
@@ -144,18 +141,6 @@ struct Scene3d
 	};
 
 	MenuView menuView;
-
-	// v3 			freeCameraPosition;
-	f32 		freeCameraMoveSpeed = 30;
-	f32 		freeCameraZMoveSpeed = 15;
-	f32 		freeCameraRotateSpeed = 0.5f * tau;
-	f32 		freeCameraPanAngle;
-	f32 		freeCameraTiltAngle;
-	f32 		freeCameraMaxTilt = 0.2f * tau;
-
-	// v3 			playerCameraPosition;
-	// v3  		playerCameraDirection;
-
 };
 
 internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
@@ -179,40 +164,20 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 	if(scene->cameraMode == CAMERA_MODE_PLAYER)
 	{
 		update_player_input(scene->playerInputState, scene->characterInputs, scene->worldCamera, *input);
-		update_camera_controller(&scene->cameraController, &scene->worldCamera.position, input);
+		update_camera_controller(&scene->playerCamera, scene->playerCharacterTransform->position, input);
+
+		scene->worldCamera.position = scene->playerCamera.position;
+		scene->worldCamera.direction = scene->playerCamera.direction;
 	}
 	else
 	{
 		scene->characterInputs[scene->playerInputState.inputArrayIndex] = {};
+		update_free_camera(scene->freeCamera, *input);
 
-		// Note(Leo): positive rotation is to left, which is opposite of joystick
-		scene->freeCameraPanAngle += -1 * input->look.x * scene->freeCameraRotateSpeed * input->elapsedTime;
-
-		scene->freeCameraTiltAngle += -1 * input->look.y * scene->freeCameraRotateSpeed * input->elapsedTime;
-		scene->freeCameraTiltAngle = math::clamp(scene->freeCameraTiltAngle, -scene->freeCameraMaxTilt, scene->freeCameraMaxTilt);
-
-		quaternion pan = axis_angle_quaternion(up_v3, scene->freeCameraPanAngle);
-		m44 panMatrix = rotation_matrix(pan);
-
-		// Todo(Leo): somewhy this points to opposite of right
-		v3 right = multiply_direction(panMatrix, right_v3);
-		v3 forward = multiply_direction(panMatrix, forward_v3);
-
-		f32 moveStep 		= scene->freeCameraMoveSpeed * input->elapsedTime;
-		v3 rightMovement 	= right * input->move.x * moveStep;
-		v3 forwardMovement 	= forward * input->move.y * moveStep;
-
-		f32 zInput = is_pressed(input->zoomOut) - is_pressed(input->zoomIn);
-		v3 upMovement = up_v3 * zInput * moveStep;
-
-		scene->worldCamera.position += rightMovement + forwardMovement + upMovement;
-
-		quaternion tilt = axis_angle_quaternion(right, scene->freeCameraTiltAngle);
-		m44 rotation 	= rotation_matrix(pan * tilt);
-		v3 direction 	= multiply_direction(rotation, forward_v3);
-		
-		scene->worldCamera.direction = direction;
+		scene->worldCamera.position = scene->freeCamera.position;
+		scene->worldCamera.direction = scene->freeCamera.direction;
 	}	
+
 	/*
 	RULES:
 		- Seed, water and pot can be carried
@@ -462,8 +427,9 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 	
 	// -----------------------------------------------------------------------------------------------------------
 
+	// Todo(Leo): Rather use something like submit_collider() with what every collider can decide themselves, if they want to
+	// contribute to collisions this frame or not.
 	precompute_colliders(scene->collisionSystem);
-
 
 	for (auto const & collider : scene->collisionSystem.cylinderColliders)
 	{
@@ -564,15 +530,6 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 		{
 			debug_draw_box(collider.transform, colorDarkGreen, DEBUG_BACKGROUND);
 		}
-
-		v3 points [] =
-		{
-			{0,0,0},
-			{0,0,50},
-			{2,0,50},
-			{2,0,0}
-		};
-		platformApi->draw_lines(platformGraphics, 4, points, colors::brightBlue);
 	}
 
 	  //////////////////////////////
@@ -659,7 +616,7 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 				scene->menuView = Scene3d::MENU_OFF;
 			}
 
-			char const * cameraModeLabels [] =
+			char const * const cameraModeLabels [] =
 			{
 				"Camera Mode: Player", 
 				"Camera Mode: Free"
@@ -685,6 +642,17 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 				global_DebugDrawLevel %= DEBUG_LEVEL_COUNT;
 			}
 
+			char const * const drawDebugShadowLabels [] =
+			{
+				"Debug Shadow: Off",
+				"Debug Shadow: On"
+			};
+
+			if (gui_button(drawDebugShadowLabels[scene->drawDebugShadowTexture]))
+			{
+				scene->drawDebugShadowTexture = !scene->drawDebugShadowTexture;
+			}
+
 			if (gui_button("Exit Scene"))
 			{
 				scene->menuView = Scene3d::MENU_CONFIRM_EXIT;
@@ -701,15 +669,17 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 	// gui_image(shadowTexture, {300, 300});
 
 
-
-	ScreenRect rect =
+	if (scene->drawDebugShadowTexture)
 	{
-		.position 		= gui_transform_screen_point({1500, 100}),
-		.size 			= gui_transform_screen_size({300, 300}),
-		.uvPosition 	= {0, 0},
-		.uvSize 		= {1, 1}
-	};
-	platformApi->draw_screen_rects(platformGraphics, 1, &rect, {-1}, {1,1,1,1});
+		ScreenRect rect =
+		{
+			.position 		= gui_transform_screen_point({1550, 50}),
+			.size 			= gui_transform_screen_size({300, 300}),
+			.uvPosition 	= {0, 0},
+			.uvSize 		= {1, 1}
+		};
+		platformApi->draw_screen_rects(platformGraphics, 1, &rect, {-1}, {1,1,1,1});
+	}
 
 	gui_end();
 
@@ -750,7 +720,8 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 
 	struct MaterialCollection {
 		MaterialHandle character;
-		MaterialHandle environment;
+		// MaterialHandle environment;
+		MaterialHandle environment2;
 		MaterialHandle ground;
 		MaterialHandle sky;
 	} materials;
@@ -798,7 +769,8 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 		materials =
 		{
 			.character 		= push_material(characterPipeline, lavaTexture, neutralBumpTexture, blackTexture),
-			.environment 	= push_material(normalPipeline, tilesTexture, neutralBumpTexture, blackTexture),
+			// .environment 	= push_material(normalPipeline, tilesTexture, neutralBumpTexture, blackTexture),
+			.environment2 	= push_material({-2}, tilesTexture, neutralBumpTexture, blackTexture),
 			.ground 		= push_material(terrainPipeline, groundTexture, neutralBumpTexture, blackTexture),
 		};
 		
@@ -983,9 +955,9 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 	}
 
 	scene->worldCamera = make_camera(50, 0.1f, 1000.0f);
-	scene->cameraController = make_camera_controller_3rd_person(&scene->worldCamera, scene->playerCharacterTransform);
-	scene->cameraController.baseOffset = {0, 0, 1.5f};
-	scene->cameraController.distance = 5;
+	scene->playerCamera = {};
+	scene->playerCamera.baseOffset = {0, 0, 1.5f};
+	scene->playerCamera.distance = 5;
 
 	// Environment
 	{
@@ -1014,7 +986,7 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 		{
 			auto totemMesh 			= load_mesh_glb(*global_transientMemory, read_gltf_file(*global_transientMemory, "assets/models/totem.glb"), "totem");
 			auto totemMeshHandle 	= platformApi->push_mesh(platformGraphics, &totemMesh);
-			auto model = push_model(totemMeshHandle, materials.environment);
+			auto model = push_model(totemMeshHandle, materials.environment2);
 
 			Transform3D * transform = scene->transforms.push_return_pointer({});
 			transform->position.z = get_terrain_height(&scene->collisionSystem, transform->position.xy) - 0.5f;
@@ -1083,7 +1055,7 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 				auto transform = scene->transforms.push_return_pointer({position});
 				transform->rotation = axis_angle_quaternion(up_v3, RandomRange(-tau / 8, tau / 8));
 				
-				auto model = push_model(pillarMeshHandle, materials.environment);
+				auto model = push_model(pillarMeshHandle, materials.environment2);
 				scene->renderers.push({transform, model});
 
 				push_box_collider(scene->collisionSystem, v3{2,2,50}, v3{0,0,25}, transform);
@@ -1113,7 +1085,7 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 			auto smallPotMeshAsset 	= load_mesh_glb(*global_transientMemory, sceneryFile, "small_pot");
 			auto smallPotMesh 		= platformApi->push_mesh(platformGraphics, &smallPotMeshAsset);
 
-			scene->potModel			= push_model(smallPotMesh, materials.environment);
+			scene->potModel			= push_model(smallPotMesh, materials.environment2);
 			for(s32 potIndex = 0; potIndex < scene->potCapacity; ++potIndex)
 			{
 
@@ -1134,7 +1106,7 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 			s32 bigPotCount = 5;
 			for (s32 i = 0; i < bigPotCount; ++i)
 			{
-				ModelHandle model 		= platformApi->push_model(platformGraphics, bigPotMesh, materials.environment);
+				ModelHandle model 		= platformApi->push_model(platformGraphics, bigPotMesh, materials.environment2);
 				Transform3D * transform = scene->transforms.push_return_pointer({13, 2.0f + i * 4.0f, 0});
 
 				transform->position.z 	= get_terrain_height(&scene->collisionSystem, transform->position.xy);
@@ -1242,7 +1214,7 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 				}
 
 				scene->buildingMesh = mesh;
-				scene->buildingMaterial = materials.environment;
+				scene->buildingMaterial = materials.environment2;
 
 				for (auto & collider : colliders)
 				{
@@ -1265,7 +1237,7 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 
 				scene->gateCount 	= transformsArray.count();
 				scene->gateMesh 	= meshHandle;
-				scene->gateMaterial = materials.environment;
+				scene->gateMaterial = materials.environment2;
 
 				for (auto collider : colliders)
 				{

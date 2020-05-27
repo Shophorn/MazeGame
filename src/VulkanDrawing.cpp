@@ -38,8 +38,8 @@ vulkan::update_camera(VulkanContext * context, Camera const * camera)
 	vkMapMemory(context->device, context->sceneUniformBuffer.memory,
 				context->cameraUniformOffset, sizeof(CameraUniformBuffer), 0, (void**)&pUbo);
 
-	pUbo->view          = get_view_transform(camera);
-	pUbo->projection   = get_projection_transform(camera);
+	pUbo->view 			= camera_view_matrix(camera->position, camera->direction);
+	pUbo->projection 	= camera_projection_matrix(camera);
 
 	vkUnmapMemory(context->device, context->sceneUniformBuffer.memory);
 }
@@ -298,10 +298,24 @@ vulkan::record_draw_command(VulkanContext * context, ModelHandle model, m44 tran
  
 	auto * mesh     = get_loaded_mesh(context, meshHandle);
 	auto * material = get_loaded_material(context, materialHandle);
-	auto * pipeline = get_loaded_pipeline(context, material->pipeline);
+
+	VkPipeline pipeline;
+	VkPipelineLayout pipelineLayout;
+
+	if (material->pipeline == context->defaultMaterialId)
+	{
+		pipeline 		= context->defaultMaterialPipeline;
+		pipelineLayout 	= context->defaultMaterialPipelineLayout;
+	}
+	else
+	{
+		auto * loadedPipeline 	= get_loaded_pipeline(context, material->pipeline);
+		pipeline 				= loadedPipeline->pipeline;
+		pipelineLayout 			= loadedPipeline->layout;
+	}
 
 	// Material type
-	vkCmdBindPipeline(frame->commandBuffers.scene, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->pipeline);
+	vkCmdBindPipeline(frame->commandBuffers.scene, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 	
 	VkDescriptorSet sets [] =
 	{   
@@ -316,7 +330,7 @@ vulkan::record_draw_command(VulkanContext * context, ModelHandle model, m44 tran
 	// Note(Leo): this works, because models are only dynamic set
 	u32 dynamicOffsets [] = {uniformBufferOffset};
 
-	vkCmdBindDescriptorSets(frame->commandBuffers.scene, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->layout,
+	vkCmdBindDescriptorSets(frame->commandBuffers.scene, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout,
 							0, array_count(sets), sets,
 							array_count(dynamicOffsets), dynamicOffsets);
 
@@ -388,16 +402,31 @@ void fsvulkan_draw_meshes(VulkanContext * context, s32 count, m44 const * transf
 		uniformBufferOffsets[i] = startUniformBufferOffset + i * uniformBufferSize;
 	}
 
-	auto * mesh     = vulkan::get_loaded_mesh(context, meshHandle);
-	auto * material = vulkan::get_loaded_material(context, materialHandle);
-	auto * pipeline = vulkan::get_loaded_pipeline(context, material->pipeline);
+	VulkanMesh * mesh 			= vulkan::get_loaded_mesh(context, meshHandle);
+	VulkanMaterial * material 	= vulkan::get_loaded_material(context, materialHandle);
+
+	VkPipeline 			pipeline;
+	VkPipelineLayout 	pipelineLayout;
+
+	if (material->pipeline == context->defaultMaterialId)
+	{
+		pipeline 		= context->defaultMaterialPipeline;
+		pipelineLayout 	= context->defaultMaterialPipelineLayout;
+	}
+	else
+	{
+		auto *loadedPipeline 	= vulkan::get_loaded_pipeline(context, material->pipeline);
+		pipeline 				= loadedPipeline->pipeline;
+		pipelineLayout 			= loadedPipeline->layout;
+	}
+
 
 	// Bind mesh to normal draw buffer
 	vkCmdBindVertexBuffers(frame->commandBuffers.scene, 0, 1, &mesh->bufferReference, &mesh->vertexOffset);
 	vkCmdBindIndexBuffer(frame->commandBuffers.scene, mesh->bufferReference, mesh->indexOffset, mesh->indexType);
 	
 	// Material type
-	vkCmdBindPipeline(frame->commandBuffers.scene, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->pipeline);
+	vkCmdBindPipeline(frame->commandBuffers.scene, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 
 	VkDescriptorSet sets [] =
 	{   
@@ -411,7 +440,7 @@ void fsvulkan_draw_meshes(VulkanContext * context, s32 count, m44 const * transf
 
 	for (s32 i = 0; i < count; ++i)
 	{
-		vkCmdBindDescriptorSets(frame->commandBuffers.scene, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->layout,
+		vkCmdBindDescriptorSets(frame->commandBuffers.scene, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout,
 								0, array_count(sets), sets,
 								1, &uniformBufferOffsets[i]);
 

@@ -450,6 +450,71 @@ vulkan::make_material_vk_descriptor_set(
     return resultSet;
 }
 
+// vulkan::make_material_vk_descriptor_set(
+//     VulkanContext * context,
+//     PipelineHandle pipelineHandle,
+//     Array<TextureHandle> const & textures)
+internal VkDescriptorSet fsvulkan_make_descriptor_set(  VulkanContext * context,
+                                                        PipelineHandle pipelineHandle,
+                                                        // s32 textureCount,
+                                                        TextureHandle * textures)
+{
+    u32 textureCount = 0;//get_loaded_pipeline(context, pipelineHandle)->info.options.textureCount;
+    VkDescriptorSetLayout descriptorSetLayout = {};
+    if (pipelineHandle == context->defaultMaterialId)
+    {
+        textureCount        = context->defaultMaterialTextureCount;
+        descriptorSetLayout = context->defaultMaterialDescriptorSetLayout;
+    }
+    else
+    {
+        Assert(false && "Other materials not implemented yet");
+    }
+
+    constexpr u32 maxTextures = 10;
+    
+    DEBUG_ASSERT(textureCount < maxTextures, "Too many textures on material");
+    // DEBUG_ASSERT(textureCount == textureCount, "Wrong number of textures in ArenaArray 'textures'");
+
+    VkDescriptorSetAllocateInfo allocateInfo =
+    { 
+        .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+        .descriptorPool     = context->descriptorPools.material,
+        .descriptorSetCount = 1,
+        .pSetLayouts        = &descriptorSetLayout
+    };
+
+    VkDescriptorSet resultSet;
+    VULKAN_CHECK(vkAllocateDescriptorSets(context->device, &allocateInfo, &resultSet));
+
+    VkDescriptorImageInfo samplerInfos [maxTextures];
+    for (s32 i = 0; i < textureCount; ++i)
+    {
+        samplerInfos[i] = 
+        {
+            .sampler        = context->textureSampler,
+            .imageView      = vulkan::get_loaded_texture(context, textures[i])->view,
+            .imageLayout    = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        };
+    }
+
+    VkWriteDescriptorSet writing =
+    {  
+        .sType              = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        .dstSet             = resultSet,
+        .dstBinding         = 0,
+        .dstArrayElement    = 0,
+        .descriptorCount    = textureCount,
+        .descriptorType     = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+        .pImageInfo         = samplerInfos,
+    };
+
+    // Note(Leo): Two first are write info, two latter are copy info
+    vkUpdateDescriptorSets(context->device, 1, &writing, 0, nullptr);
+
+    return resultSet;
+}
+
 internal VkDescriptorSet
 vulkan::make_material_vk_descriptor_set(
     VulkanContext * context,
@@ -535,6 +600,7 @@ make_material_vk_descriptor_set_2(
 
     return resultSet;
 }
+
 
 internal VkFramebuffer
 vulkan::make_vk_framebuffer(VkDevice        device,
@@ -873,6 +939,14 @@ winapi::create_vulkan_context(WinAPIWindow * window)
         add_cleanup(&context, [](VulkanContext * context)
         {
             vulkan::destroy_texture(context, &context->debugTextures.white);
+        });
+
+        fsvulkan_initialize_default_material(context);
+        add_cleanup(&context, [](VulkanContext * context)
+        {
+            vkDestroyDescriptorSetLayout(context->device, context->defaultMaterialDescriptorSetLayout, nullptr);
+            vkDestroyPipelineLayout(context->device, context->defaultMaterialPipelineLayout, nullptr);
+            vkDestroyPipeline(context->device, context->defaultMaterialPipeline, nullptr);
         });
     }
 

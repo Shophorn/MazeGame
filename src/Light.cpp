@@ -63,7 +63,7 @@ get_light_view_projection(Light const * directionalLight, Camera const * camera)
 	lightCamera.position 	= lightPosition - directionalLight->direction * 100.0f;
 	lightCamera.direction 	= directionalLight->direction;
 
-	m44 lightView 			= get_view_transform(&lightCamera);
+	m44 lightView 			= camera_view_matrix(lightCamera.position, lightCamera.direction);
 
 	m44 inverseLightView = 
 	{

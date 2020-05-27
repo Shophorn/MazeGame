@@ -17,7 +17,7 @@ struct Scene2d
 	CollisionManager2D collisionManager;
 
 	Camera worldCamera;
-	// CameraController3rdPerson cameraController;
+	// PlayerCameraController cameraController;
 	CameraControllerSideScroller cameraController;
 	CharacterControllerSideScroller characterController;
 

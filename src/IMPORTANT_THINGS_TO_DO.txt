@@ -36,8 +36,19 @@ TREE THINGS
 DONE:
 	colliders compute transforms beforehand, only once per frame	
 	full terrain coverage
+	toggle debug shadow texture
 
 TODO:
+	non-generic shader code for main shader
+	non-generic shader code for other shaders
+
+	Gui draw only texture
+
+
+	Shadows
+		Separate player camera and free camera, so we can visualize view frustum
+
+
 	Gui screen scale in game code
 	Gui draw texture
 	Vulkan expose shadow texture

@@ -24,8 +24,7 @@ make_camera(float fieldOfView, float nearClipPlane, float farClipPlane)
 	};
 }
 
-m44
-get_projection_transform(Camera const * camera)
+internal m44 camera_projection_matrix(Camera const * camera)
 {
 	/*
 	Todo(Leo): Do studies, this really affects many things
@@ -65,12 +64,12 @@ get_projection_transform(Camera const * camera)
 	return result;	
 }
 
-m44
-get_view_transform(Camera const * camera)
+// internal m44 camera_view_matrix(Camera const * camera)
+internal m44 camera_view_matrix(v3 position, v3 direction)
 {
 	// Study: https://www.3dgep.com/understanding-the-view-matrix/
 	// Todo(Leo): try to undeerstand why this is negative
-	v3 yAxis 	= -camera->direction;
+	v3 yAxis 	= -direction;
 	v3 xAxis 	= normalize_v3(cross_v3(up_v3, yAxis));
 
 	/* Note(Leo): this is not normalized because both components are unit length,
@@ -87,7 +86,7 @@ get_view_transform(Camera const * camera)
 	
 	/* Todo(Leo): Translation can be done inline with matrix initialization
 	instead of as separate function call */
-	m44 translation = translation_matrix(-camera->position);
+	m44 translation = translation_matrix(-position);
 	m44 result = orientation * translation;
 
 	return result;	

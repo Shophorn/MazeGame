@@ -299,6 +299,16 @@ struct platform::Graphics
 	std::vector<VulkanMaterial> loadedGuiMaterials;
 	VulkanMaterial 				defaultGuiMaterial;
 
+	static constexpr s64 	defaultMaterialId = -2;
+	VkPipeline 				defaultMaterialPipeline;
+	VkPipelineLayout 		defaultMaterialPipelineLayout;
+	VkDescriptorSetLayout	defaultMaterialDescriptorSetLayout;
+	s32 					defaultMaterialTextureCount;
+
+
+
+
+
 	// Note(Leo): This is a list of functions to call when destroying this.
     using CleanupFunc = void (VulkanContext*);
 	std::vector<CleanupFunc*> cleanups = {};
@@ -490,11 +500,14 @@ namespace vulkan
 
 }
 
+internal VkDescriptorSet fsvulkan_make_descriptor_set(VulkanContext*, PipelineHandle, TextureHandle * textures);
+
 internal void fsvulkan_draw_meshes			(VulkanContext * context, s32 count, m44 const * transforms, MeshHandle, MaterialHandle);
 internal void fsvulkan_draw_screen_rects	(VulkanContext * context, s32 count, ScreenRect const * rects, MaterialHandle material, v4 color);
 internal void fsvulkan_draw_lines			(VulkanContext*, s32 count, v3 const * points, v4 color);
 
 internal TextureHandle fsvulkan_init_shadow_pass (VulkanContext*);
+
 
 platform::FrameResult
 platform::prepare_frame(VulkanContext * context)

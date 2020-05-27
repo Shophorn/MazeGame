@@ -6,12 +6,12 @@ struct CameraControllerSideScroller
 
 	// State
 	v3 baseOffset 	= {0, 0, 1};
-	float distance 		= 20.0f;
+	f32 distance 		= 20.0f;
 
 	// Properties
-	float minDistance 			= 5.0f;
-	float maxDistance 			= 100.0f;
-	float relativeZoomSpeed 	= 1.0f;
+	f32 minDistance 			= 5.0f;
+	f32 maxDistance 			= 100.0f;
+	f32 relativeZoomSpeed 	= 1.0f;
 
 	void
 	update(game::Input * input)
@@ -43,47 +43,33 @@ update_camera_system(	Camera * camera,
 {
 	/* Note(Leo): Update aspect ratio each frame, in case screen size has changed.
 	This probably costs us less than checking if it has :D */
-    camera->aspectRatio = (float)platformApi->get_window_width(window) / (float)platformApi->get_window_height(window);
+    camera->aspectRatio = (f32)platformApi->get_window_width(window) / (f32)platformApi->get_window_height(window);
     platformApi->update_camera(graphics, camera);
 }
 
-struct CameraController3rdPerson
+struct PlayerCameraController
 {
-	// References, these must be set separately
-	Camera *				camera;
-	Transform3D * 			target;
-	
-	// This is also property but it is calculated when creating the camera
-	v3 lastTrackedPosition;
-	
 	// State, these change from frame to frame
-	float distance 				= 20.0f;
-	float orbitDegrees 			= 180.0f;
-	float tumbleDegrees 		= 0.0f;
+	v3 position;
+	v3 direction;
+	v3 lastTrackedPosition;
 
+	f32 distance 			= 20.0f;
+	f32 orbitDegrees 		= 180.0f;
+	f32 tumbleDegrees 		= 0.0f;
 
 	// Properties
 	v3 baseOffset 			= {0, 0, 3.0f};
-	float rotateSpeed 			= 180.0f;
-	float minTumble 			= -85.0f;
-	float maxTumble 			= 85.0f;
-	float relativeZoomSpeed 	= 1.0f;
-	float minDistance 			= 2.0f;
-	float maxDistance 			= 100.0f;
+	f32 rotateSpeed 		= 180.0f;
+	f32 minTumble 			= -85.0f;
+	f32 maxTumble 			= 85.0f;
+	f32 relativeZoomSpeed 	= 1.0f;
+	f32 minDistance 		= 2.0f;
+	f32 maxDistance 		= 100.0f;
 };
 
-internal CameraController3rdPerson
-make_camera_controller_3rd_person(Camera * camera, Transform3D * target)
-{
-	return {
-		.camera 			= camera,
-		.target 			= target,
-		.lastTrackedPosition = target->position
-	};
-}
-
 internal void
-update_camera_controller(CameraController3rdPerson * controller, v3 * cameraPosition, game::Input * input)
+update_camera_controller(PlayerCameraController * controller, v3 targetPosition, game::Input * input)
 {
 	if (is_pressed(input->zoomIn))
 	{
@@ -101,8 +87,8 @@ update_camera_controller(CameraController3rdPerson * controller, v3 * cameraPosi
     controller->tumbleDegrees += input->look.y * controller->rotateSpeed * input->elapsedTime;
     controller->tumbleDegrees = math::clamp(controller->tumbleDegrees, controller->minTumble, controller->maxTumble);
 
-    float cameraDistance = controller->distance;
-    float cameraHorizontalDistance = cosine(to_radians(controller->tumbleDegrees)) * cameraDistance;
+    f32 cameraDistance = controller->distance;
+    f32 cameraHorizontalDistance = cosine(to_radians(controller->tumbleDegrees)) * cameraDistance;
     v3 localPosition =
     {
 		sine(to_radians(controller->orbitDegrees)) * cameraHorizontalDistance,
@@ -114,23 +100,23 @@ update_camera_controller(CameraController3rdPerson * controller, v3 * cameraPosi
     Todo[Camera] (Leo): This is good effect, but its too rough like this,
     make it good later when projections work
 
-    float cameraAdvanceAmount = 5;
+    f32 cameraAdvanceAmount = 5;
     v3 cameraAdvanceVector = characterMovementVector * cameraAdvanceAmount;
     v3 targetPosition = target.position + cameraAdvanceVector + cameraOffsetFromTarget;
     */
 
-    float trackSpeed = 10 * input->elapsedTime;
-    float z = interpolate(controller->lastTrackedPosition.z, controller->target->position.z, trackSpeed);
+    f32 trackSpeed = 10 * input->elapsedTime;
+    f32 z = interpolate(controller->lastTrackedPosition.z, targetPosition.z, trackSpeed);
 
 
     // Todo(Leo): Maybe track faster on xy plane, instead of teleporting
     // v3 trackedPosition = vector::interpolate(	controller->lastTrackedPosition,
-    // 												controller->target->position,
+    // 												targetPosition,
     // 												trackSpeed);
     v3 trackedPosition =
     {
-    	controller->target->position.x,
-    	controller->target->position.y,
+    	targetPosition.x,
+    	targetPosition.y,
     	// controller->target->position.z
     	z
     };
@@ -138,11 +124,51 @@ update_camera_controller(CameraController3rdPerson * controller, v3 * cameraPosi
 
     controller->lastTrackedPosition = trackedPosition;
 
-    v3 targetPosition = trackedPosition + controller->baseOffset;
-    
-    // controller->camera->position = targetPosition + localPosition;
-    *cameraPosition = targetPosition + localPosition;
-	controller->camera->direction = -normalize_v3(localPosition);
+	controller->position = trackedPosition + controller->baseOffset + localPosition;
+	controller->direction = -normalize_v3(localPosition);
 
-	Assert(math::distance(square_magnitude_v3(controller->camera->direction), 1.0f) < 0.00001f);
+	Assert(math::distance(square_magnitude_v3(controller->direction), 1.0f) < 0.00001f);
+}
+
+struct FreeCameraController
+{
+	v3 position;
+	v3 direction;
+
+	f32 moveSpeed = 30;
+	f32 zMoveSpeed = 15;
+	f32 rotateSpeed = 0.5f * tau;
+	f32 panAngle;
+	f32 tiltAngle;
+	f32 maxTilt = 0.2f * tau;
+};
+
+internal void update_free_camera(FreeCameraController & controller, game::Input const & input)
+{
+	// Note(Leo): positive rotation is to left, which is opposite of joystick
+	controller.panAngle += -1 * input.look.x * controller.rotateSpeed * input.elapsedTime;
+
+	controller.tiltAngle += -1 * input.look.y * controller.rotateSpeed * input.elapsedTime;
+	controller.tiltAngle = math::clamp(controller.tiltAngle, -controller.maxTilt, controller.maxTilt);
+
+	quaternion pan = axis_angle_quaternion(up_v3, controller.panAngle);
+	m44 panMatrix = rotation_matrix(pan);
+
+	// Todo(Leo): somewhy this points to opposite of right
+	v3 right = multiply_direction(panMatrix, right_v3);
+	v3 forward = multiply_direction(panMatrix, forward_v3);
+
+	f32 moveStep 		= controller.moveSpeed * input.elapsedTime;
+	v3 rightMovement 	= right * input.move.x * moveStep;
+	v3 forwardMovement 	= forward * input.move.y * moveStep;
+
+	f32 zInput = is_pressed(input.zoomOut) - is_pressed(input.zoomIn);
+	v3 upMovement = up_v3 * zInput * moveStep;
+
+	quaternion tilt = axis_angle_quaternion(right, controller.tiltAngle);
+	m44 rotation 	= rotation_matrix(pan * tilt);
+	v3 direction 	= multiply_direction(rotation, forward_v3);
+	
+	controller.position += rightMovement + forwardMovement + upMovement;
+	controller.direction = direction;
 }
