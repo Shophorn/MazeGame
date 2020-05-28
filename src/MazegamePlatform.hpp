@@ -34,7 +34,17 @@ Interface definition between Platform and Game.
 
 #include "CStringUtility.cpp"
 #include "SmallString.cpp"
-	
+
+// Note(Leo): Before assets...	
+enum GraphicsPipeline : s64
+{
+	GRAPHICS_PIPELINE_NORMAL,
+	GRAPHICS_PIPELINE_ANIMATED,
+	GRAPHICS_PIPELINE_SKYBOX,
+	GRAPHICS_PIPELINE_SCREEN_GUI,
+
+	GRAPHICS_PIPELINE_COUNT
+};
 
 /* Note(Leo): This is called 'Unity-build'. Basically import all things in single
 translation unit(??) to reduce pressure on linker and enable more optimizations.
@@ -59,6 +69,7 @@ struct ScreenRect
 	v2 uvSize;	
 };
 
+
 namespace platform
 {
 	constexpr s32 maxBonesInSkeleton = 32;
@@ -68,36 +79,6 @@ namespace platform
 		FRAME_OK,
 		FRAME_RECREATE,
 		FRAME_BAD_PROBLEM,
-	};
-
-	struct RenderingOptions
-	{
-	    s32 textureCount 		= 0;
-	    u32	pushConstantSize 	= 0;
-	    f32 lineWidth 			= 1.0f;
-
-	    enum {
-	    	PRIMITIVE_LINE,
-	    	PRIMITIVE_LINE_STRIP,
-    		PRIMITIVE_TRIANGLE,
-    		PRIMITIVE_TRIANGLE_STRIP
-	    } primitiveType = PRIMITIVE_TRIANGLE;
-
-	    enum {
-	    	CULL_BACK,
-	    	CULL_FRONT,
-	    	CULL_NONE
-	    } cullMode = CULL_BACK;
-
-
-	    bool8 enableDepth 			= true;
-	    bool8 clampDepth 			= false;
-	    bool8 useVertexInput		= true;
-	    bool8 useSceneLayoutSet 	= true;
-	    bool8 useMaterialLayoutSet  = true;
-	    bool8 useModelLayoutSet 	= true;
-	    bool8 useLighting			= true;
-	    bool8 enableTransparency 	= false;
 	};
 
 	/* 
@@ -132,14 +113,11 @@ namespace platform
 		MeshHandle 	(*push_mesh) 			(Graphics*, MeshAsset * asset);
 		TextureHandle (*push_texture) 		(Graphics*, TextureAsset * asset);
 		TextureHandle (*push_cubemap) 		(Graphics*, StaticArray<TextureAsset, 6> * asset);
-		MaterialHandle (*push_material) 	(Graphics*, MaterialAsset * asset);
-		MaterialHandle (*push_gui_material) (Graphics*, TextureHandle texture);
+		MaterialHandle (*push_material) 	(Graphics*, GraphicsPipeline, s32 textureCount, TextureHandle * textures);
 
 		// Todo(Leo): Maybe remove 'push_model', we can render also just passing mesh and material handles directly
 		ModelHandle (*push_model) 			(Graphics*, MeshHandle mesh, MaterialHandle material);
-		PipelineHandle (*push_pipeline) 	(Graphics*, char const * vertexShaderFilename,
-														char const * fragmentShaderFilename,
-														RenderingOptions optios);
+
 		void (*unload_scene) 	(Graphics*);
 
 		// Others??

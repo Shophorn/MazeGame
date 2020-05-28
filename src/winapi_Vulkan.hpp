@@ -130,8 +130,8 @@ struct VulkanMesh
 
 struct VulkanMaterial
 {
-	PipelineHandle 	pipeline;
-	VkDescriptorSet descriptorSet;
+	GraphicsPipeline 	pipeline;
+	VkDescriptorSet 	descriptorSet;
 };
 
 /* Todo(Leo): this is now redundant it can go away.
@@ -142,27 +142,27 @@ struct VulkanModel
 	MaterialHandle 	material;
 };
 
-struct VulkanPipelineLoadInfo
-{
-	char const * vertexShaderPath;
-	char const * fragmentShaderPath;
-	platform::RenderingOptions options;
-};
-
 struct VulkanLoadedPipeline
 {
 	// Note(Leo): we need info for recreating pipelines after swapchain recreation
-	VulkanPipelineLoadInfo 	info;
 	VkPipeline 				pipeline;
 	VkPipelineLayout 		layout;
 	VkDescriptorSetLayout	materialLayout;
+};
+
+struct FSVulkanPipeline
+{
+	VkPipeline 				pipeline;
+	VkPipelineLayout 		pipelineLayout;
+	VkDescriptorSetLayout 	descriptorSetLayout;
+	s32 					textureCount;
 };
 
 struct VulkanVirtualFrame
 {
 	struct
 	{
-		VkCommandBuffer primary;
+		VkCommandBuffer master;
 		VkCommandBuffer scene;
 		VkCommandBuffer gui;
 
@@ -180,6 +180,7 @@ struct VulkanVirtualFrame
 	VkSemaphore    renderFinishedSemaphore;
 	VkFence        inFlightFence; // Todo(Leo): Change to queuesubmitfence or commandbufferfence etc..
 };
+
 
 using VulkanContext = platform::Graphics;
 
@@ -207,6 +208,7 @@ struct platform::Graphics
     	VkDescriptorPool uniform;
     	VkDescriptorPool material;
 
+    	// Note(Leo): these are not cleared on unload
     	VkDescriptorPool persistent;
     } descriptorPools;
 
@@ -276,8 +278,9 @@ struct platform::Graphics
 		VkPipelineLayout 	layout;
 		VkPipeline 			pipeline;
 
-		VulkanLoadedPipeline debugView;
 	} shadowPass;
+
+	VkDescriptorSet 		shadowMapTexture;
 
     VulkanBufferResource stagingBufferPool;
     VulkanBufferResource staticMeshPool;
@@ -289,38 +292,22 @@ struct platform::Graphics
     std::vector<VulkanMesh>  			loadedMeshes;
 	std::vector<VulkanTexture> 			loadedTextures;
 	std::vector<VulkanMaterial>			loadedMaterials;
-    std::vector<VulkanLoadedPipeline> 	loadedPipelines;
 	std::vector<VulkanModel>			loadedModels;
 
-    VulkanLoadedPipeline 	lineDrawPipeline;
-    VulkanMaterial 			lineDrawMaterial;
 
-    VulkanLoadedPipeline		guiDrawPipeline;	
-	std::vector<VulkanMaterial> loadedGuiMaterials;
-	VulkanMaterial 				defaultGuiMaterial;
+	FSVulkanPipeline pipelines [GRAPHICS_PIPELINE_COUNT];
 
-	static constexpr s64 	defaultMaterialId = -2;
-	VkPipeline 				defaultMaterialPipeline;
-	VkPipelineLayout 		defaultMaterialPipelineLayout;
-	VkDescriptorSetLayout	defaultMaterialDescriptorSetLayout;
-	s32 					defaultMaterialTextureCount;
-
-
-
-
+	VkPipeline 				linePipeline;
+	VkPipelineLayout 		linePipelineLayout;
+	VkDescriptorSetLayout 	linePipelineDescriptorSetLayout;
 
 	// Note(Leo): This is a list of functions to call when destroying this.
     using CleanupFunc = void (VulkanContext*);
 	std::vector<CleanupFunc*> cleanups = {};
 
-	struct {
-		VulkanTexture white;
-	} debugTextures;
-
     // u32 currentDrawImageIndex;
     u32 currentDrawFrameIndex;
     bool32 canDraw = false;
-    PipelineHandle currentBoundPipeline;
     u32 currentUniformBufferOffset;
 
     bool32 sceneUnloaded = false;
@@ -342,12 +329,6 @@ namespace vulkan
 		return &context->virtualFrames[context->virtualFrameIndex];
 	}
 
-	internal inline VulkanLoadedPipeline *
-	get_loaded_pipeline(VulkanContext * context, PipelineHandle handle)
-	{
-		return &context->loadedPipelines[handle];
-	}
-
 	internal inline VulkanTexture *
 	get_loaded_texture(VulkanContext * context, TextureHandle handle)
 	{
@@ -358,12 +339,6 @@ namespace vulkan
 	get_loaded_material(VulkanContext * context, MaterialHandle handle)
 	{
 		return &context->loadedMaterials[handle];
-	}
-
-	internal inline VulkanMaterial *
-	get_loaded_gui_material(VulkanContext * context, MaterialHandle handle)
-	{
-		return &context->loadedGuiMaterials[handle];
 	}
 
 	internal inline VulkanMesh *
@@ -446,10 +421,6 @@ namespace vulkan
 	internal void destroy_drawing_resources 	(VulkanContext*);					
 
 	/// INTERNAL RESOURCES, CUSTOM
-	internal VulkanLoadedPipeline make_pipeline 		(VulkanContext*, VulkanPipelineLoadInfo);
-	internal void recreate_loaded_pipeline				(VulkanContext*, VulkanLoadedPipeline*);
-	internal void destroy_loaded_pipeline 				(VulkanContext*, VulkanLoadedPipeline*);
-
 	internal void destroy_texture 		(VulkanContext*, VulkanTexture * texture);
 
 	internal VulkanBufferResource make_buffer_resource(	VulkanContext*,
@@ -461,15 +432,7 @@ namespace vulkan
 	/// INTERNAL RESOURCES, VULKAN TYPES
     internal VkRenderPass 			make_vk_render_pass(VulkanContext*, VkFormat format, VkSampleCountFlagBits msaaSamples);
 	internal VkDescriptorSetLayout 	make_material_vk_descriptor_set_layout(VkDevice device, u32 textureCount);
-	internal VkDescriptorSet 		make_material_vk_descriptor_set(VulkanContext*, PipelineHandle pipeline, Array<TextureHandle> const & textures);
-	internal VkDescriptorSet 		make_material_vk_descriptor_set(VulkanContext*, 
-																	VulkanLoadedPipeline * pipeline,
-																	VulkanTexture * texture,
-																	VkDescriptorPool pool);
-	internal VkDescriptorSet 		make_material_vk_descriptor_set(VulkanContext*, 
-																	VulkanLoadedPipeline * pipeline,
-																	VkImageView imageView,
-																	VkDescriptorPool pool);
+
 	internal VkFramebuffer 			make_vk_framebuffer(VkDevice, VkRenderPass, u32 attachmentCount, VkImageView * attachments, u32 width, u32 height);
 	internal VkShaderModule 		make_vk_shader_module(BinaryAsset file, VkDevice logicalDevice);
 	internal VkImage 				make_vk_image(	VulkanContext*, u32 width, u32 height, u32 mipLevels, VkFormat format,
@@ -487,27 +450,29 @@ namespace vulkan
 
     internal TextureHandle  push_texture (VulkanContext * context, TextureAsset * texture);
     internal MaterialHandle push_material (VulkanContext * context, MaterialAsset * asset);
-    internal MaterialHandle push_gui_material (VulkanContext * context, TextureHandle texture);
     internal MeshHandle     push_mesh(VulkanContext * context, MeshAsset * mesh);
     internal ModelHandle    push_model (VulkanContext * context, MeshHandle mesh, MaterialHandle material);
     internal TextureHandle  push_cubemap(VulkanContext * context, StaticArray<TextureAsset, 6> * assets);
-    internal PipelineHandle push_pipeline(VulkanContext * context, const char * vertexShaderPath, const char * fragmentShaderPath, platform::RenderingOptions options);
     internal void           unload_scene(VulkanContext * context);
     
     internal VulkanTexture  make_texture(VulkanContext * context, TextureAsset * asset);
     internal VulkanTexture  make_texture(VulkanContext * context, u32 width, u32 height, v4 color, VkFormat format);
     internal VulkanTexture  make_cubemap(VulkanContext * context, StaticArray<TextureAsset, 6> * assets);        
-
 }
 
-internal VkDescriptorSet fsvulkan_make_descriptor_set(VulkanContext*, PipelineHandle, TextureHandle * textures);
+internal VkDescriptorSet fsvulkan_make_texture_descriptor_set(	VulkanContext*,
+														VkDescriptorSetLayout,
+														VkDescriptorPool,
+														s32 			textureCount,
+														TextureHandle * textures);
+
+internal MaterialHandle fsvulkan_push_material(VulkanContext*, GraphicsPipeline, s32 textureCount, TextureHandle * textures);
 
 internal void fsvulkan_draw_meshes			(VulkanContext * context, s32 count, m44 const * transforms, MeshHandle, MaterialHandle);
 internal void fsvulkan_draw_screen_rects	(VulkanContext * context, s32 count, ScreenRect const * rects, MaterialHandle material, v4 color);
 internal void fsvulkan_draw_lines			(VulkanContext*, s32 count, v3 const * points, v4 color);
 
 internal TextureHandle fsvulkan_init_shadow_pass (VulkanContext*);
-
 
 platform::FrameResult
 platform::prepare_frame(VulkanContext * context)
@@ -522,7 +487,6 @@ platform::prepare_frame(VulkanContext * context)
                                             frame->imageAvailableSemaphore,
                                             VK_NULL_HANDLE,
                                             &context->currentDrawFrameIndex);
-
     switch(result)
     {
     	case VK_SUCCESS:
@@ -543,10 +507,9 @@ platform::set_functions(VulkanContext * context, platform::Functions * api)
  	api->push_mesh          = vulkan::push_mesh;
  	api->push_texture       = vulkan::push_texture;
  	api->push_cubemap       = vulkan::push_cubemap;
- 	api->push_material      = vulkan::push_material;
- 	api->push_gui_material  = vulkan::push_gui_material;
+ 	api->push_material      = fsvulkan_push_material;
+
  	api->push_model         = vulkan::push_model;
- 	api->push_pipeline      = vulkan::push_pipeline;
  	api->unload_scene       = vulkan::unload_scene;
  
  	api->init_shadow_pass 	= fsvulkan_init_shadow_pass;

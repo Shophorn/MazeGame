@@ -123,14 +123,9 @@ vulkan::recreate_drawing_resources(VulkanContext * context, u32 width, u32 heigh
     destroy_drawing_resources(context);
     create_drawing_resources(context, width, height);
     
-
-    // Todo(Leo): these maybe should go somewhere else
-    for(auto & pipeline : context->loadedPipelines)
-    {
-        recreate_loaded_pipeline(context, &pipeline);
-    }
-    recreate_loaded_pipeline(context, &context->lineDrawPipeline);
-    recreate_loaded_pipeline(context, &context->guiDrawPipeline);
+    /* Todo(Leo, 28.5.): We currently have viewport and scissor sizes as dynamic
+    things in all pipelines, so we do not need to recreate those. But if we change that,
+    then we will need to. */
 }
 
 internal void

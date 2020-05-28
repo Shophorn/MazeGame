@@ -211,27 +211,7 @@ void gui_generate_font_material(Gui & gui)
 	// Todo(Leo): We need something like this, but this won't work since TextureHandles do have default index -1, 
 	// but if we have allocted this in array etc, it may not have been initialized to it properly...
 	Assert(gui.font.atlasTexture >= 0);
-
-	auto guiPipeline = platformApi->push_pipeline (	platformGraphics,
-													"assets/shaders/gui_vert3.spv",
-					    							"assets/shaders/gui_frag2.spv",
-					    							{
-										                .textureCount           = 1,
-										                .pushConstantSize       = sizeof(v2) * 4 + sizeof(v4),
-
-										                .primitiveType          = platform::RenderingOptions::PRIMITIVE_TRIANGLE_STRIP,
-										                .cullMode               = platform::RenderingOptions::CULL_NONE,
-
-														.enableDepth 			= false,
-										                .useVertexInput         = false,
-										                .useSceneLayoutSet      = false,
-										                .useMaterialLayoutSet   = true,
-										                .useModelLayoutSet      = false,
-										                .enableTransparency     = true
-										            });
-
-	MaterialAsset guiFontMaterialInfo = {guiPipeline, allocate_array<TextureHandle>(*global_transientMemory, {gui.font.atlasTexture})};
-	gui.fontMaterial = platformApi->push_material(platformGraphics, &guiFontMaterialInfo);
+	gui.fontMaterial = platformApi->push_material(platformGraphics, GRAPHICS_PIPELINE_SCREEN_GUI, 1, &gui.font.atlasTexture);
 }
 
 END_C_BLOCK

@@ -29,7 +29,6 @@ using MeshHandle  		= BaseHandle<MESH>;
 using TextureHandle  	= BaseHandle<TEXTURE>;
 using MaterialHandle  	= BaseHandle<MATERIAL>;
 using ModelHandle  		= BaseHandle<MODEL>;
-using PipelineHandle 	= BaseHandle<PIPELINE>;
 
 template<HandleType T>
 bool32 is_valid_handle(BaseHandle<T> handle)
@@ -42,7 +41,6 @@ bool32 operator==(BaseHandle<T> a, BaseHandle<T> b)
 {
 	return a.index_ == b.index_;
 }
-
 
 struct Vertex
 {
@@ -156,17 +154,6 @@ enum struct MaterialType : s32
 
 struct MaterialAsset
 {
-    PipelineHandle pipeline;
+    GraphicsPipeline pipeline;
     Array<TextureHandle> textures;
 };
-
-MaterialAsset
-make_material_asset(PipelineHandle pipeline, Array<TextureHandle> textures)
-{
-	MaterialAsset result = 
-	{
-		.pipeline = pipeline,
-		.textures = std::move(textures),
-	};
-	return result;
-}

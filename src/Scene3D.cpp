@@ -720,16 +720,10 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 
 	struct MaterialCollection {
 		MaterialHandle character;
-		// MaterialHandle environment;
-		MaterialHandle environment2;
+		MaterialHandle environment;
 		MaterialHandle ground;
 		MaterialHandle sky;
 	} materials;
-
-	PipelineHandle characterPipeline 	= platformApi->push_pipeline(platformGraphics, "assets/shaders/animated_vert.spv", "assets/shaders/frag.spv", { .textureCount = 3});
-	PipelineHandle normalPipeline 		= platformApi->push_pipeline(platformGraphics, "assets/shaders/vert.spv", "assets/shaders/frag.spv", {.textureCount = 3});
-	PipelineHandle terrainPipeline 		= platformApi->push_pipeline(platformGraphics, "assets/shaders/vert.spv", "assets/shaders/frag.spv", {.textureCount = 3});
-	PipelineHandle skyPipeline 			= platformApi->push_pipeline(platformGraphics, "assets/shaders/vert_sky.spv", "assets/shaders/frag_sky.spv", {.textureCount = 1, .enableDepth = false});
 
 	auto load_and_push_texture = [](const char * path) -> TextureHandle
 	{
@@ -750,10 +744,10 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 	TextureHandle waterTextureHandle	= platformApi->push_texture(platformGraphics, &waterBlueTextureAsset);
 	TextureHandle seedTextureHandle		= platformApi->push_texture(platformGraphics, &seedBrownTextureAsset);
 
-	auto push_material = [](PipelineHandle shader, TextureHandle a, TextureHandle b, TextureHandle c) -> MaterialHandle
+	auto push_material = [](GraphicsPipeline pipeline, TextureHandle a, TextureHandle b, TextureHandle c) -> MaterialHandle
 	{
-		MaterialAsset asset = make_material_asset(shader, allocate_array(*global_transientMemory, {a, b, c}));
-		MaterialHandle handle = platformApi->push_material(platformGraphics, &asset);
+		TextureHandle textures [] = {a, b, c};
+		MaterialHandle handle = platformApi->push_material(platformGraphics, pipeline, 3, textures);
 		return handle;
 	};
 
@@ -768,10 +762,10 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 
 		materials =
 		{
-			.character 		= push_material(characterPipeline, lavaTexture, neutralBumpTexture, blackTexture),
-			// .environment 	= push_material(normalPipeline, tilesTexture, neutralBumpTexture, blackTexture),
-			.environment2 	= push_material({-2}, tilesTexture, neutralBumpTexture, blackTexture),
-			.ground 		= push_material(terrainPipeline, groundTexture, neutralBumpTexture, blackTexture),
+			.character 		= push_material(GRAPHICS_PIPELINE_ANIMATED, lavaTexture, neutralBumpTexture, blackTexture),
+			// .environment 	= push_material(defaultPipeline, tilesTexture, neutralBumpTexture, blackTexture),
+			.environment 	= push_material(GRAPHICS_PIPELINE_NORMAL, tilesTexture, neutralBumpTexture, blackTexture),
+			.ground 		= push_material(GRAPHICS_PIPELINE_NORMAL, groundTexture, neutralBumpTexture, blackTexture),
 		};
 		
 		// Note(Leo): internet told us vulkan(or glsl) cubemap face order is as follows:
@@ -786,10 +780,8 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 			load_texture_asset("assets/textures/miramar_up.png", global_transientMemory),
 			load_texture_asset("assets/textures/miramar_dn.png", global_transientMemory),
 		};
-		auto skyboxTexture = platformApi->push_cubemap(platformGraphics, &skyboxTextureAssets);
-
-		auto skyMaterialAsset 	= make_material_asset(skyPipeline, allocate_array(*global_transientMemory, {skyboxTexture}));	
-		materials.sky 			= platformApi->push_material(platformGraphics, &skyMaterialAsset);
+		auto skyboxTexture 	= platformApi->push_cubemap(platformGraphics, &skyboxTextureAssets);
+		materials.sky 		= platformApi->push_material(platformGraphics, GRAPHICS_PIPELINE_SKYBOX, 1, &skyboxTexture);
 	}
 
 	auto push_model = [](MeshHandle mesh, MaterialHandle material) -> ModelHandle
@@ -986,7 +978,7 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 		{
 			auto totemMesh 			= load_mesh_glb(*global_transientMemory, read_gltf_file(*global_transientMemory, "assets/models/totem.glb"), "totem");
 			auto totemMeshHandle 	= platformApi->push_mesh(platformGraphics, &totemMesh);
-			auto model = push_model(totemMeshHandle, materials.environment2);
+			auto model = push_model(totemMeshHandle, materials.environment);
 
 			Transform3D * transform = scene->transforms.push_return_pointer({});
 			transform->position.z = get_terrain_height(&scene->collisionSystem, transform->position.xy) - 0.5f;
@@ -1055,7 +1047,7 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 				auto transform = scene->transforms.push_return_pointer({position});
 				transform->rotation = axis_angle_quaternion(up_v3, RandomRange(-tau / 8, tau / 8));
 				
-				auto model = push_model(pillarMeshHandle, materials.environment2);
+				auto model = push_model(pillarMeshHandle, materials.environment);
 				scene->renderers.push({transform, model});
 
 				push_box_collider(scene->collisionSystem, v3{2,2,50}, v3{0,0,25}, transform);
@@ -1073,7 +1065,7 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 			auto mesh 				= platformApi->push_mesh(platformGraphics, &meshAsset);
 
 			auto albedo 			= load_and_push_texture("assets/textures/Robot_53_albedo_4k.png");
-			auto material 			= push_material(normalPipeline, albedo, neutralBumpTexture, blackTexture);
+			auto material 			= push_material(GRAPHICS_PIPELINE_NORMAL, albedo, neutralBumpTexture, blackTexture);
 
 			auto model 				= push_model(mesh, material);
 			scene->renderers.push({transform, model});
@@ -1085,7 +1077,7 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 			auto smallPotMeshAsset 	= load_mesh_glb(*global_transientMemory, sceneryFile, "small_pot");
 			auto smallPotMesh 		= platformApi->push_mesh(platformGraphics, &smallPotMeshAsset);
 
-			scene->potModel			= push_model(smallPotMesh, materials.environment2);
+			scene->potModel			= push_model(smallPotMesh, materials.environment);
 			for(s32 potIndex = 0; potIndex < scene->potCapacity; ++potIndex)
 			{
 
@@ -1106,7 +1098,7 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 			s32 bigPotCount = 5;
 			for (s32 i = 0; i < bigPotCount; ++i)
 			{
-				ModelHandle model 		= platformApi->push_model(platformGraphics, bigPotMesh, materials.environment2);
+				ModelHandle model 		= platformApi->push_model(platformGraphics, bigPotMesh, materials.environment);
 				Transform3D * transform = scene->transforms.push_return_pointer({13, 2.0f + i * 4.0f, 0});
 
 				transform->position.z 	= get_terrain_height(&scene->collisionSystem, transform->position.xy);
@@ -1119,7 +1111,7 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 
 			auto treeTextureAsset 	= load_texture_asset("assets/textures/tree.png", global_transientMemory);
 			auto treeTexture 		= platformApi->push_texture(platformGraphics, &treeTextureAsset);			
-			auto treeMaterial 		= push_material(normalPipeline, treeTexture, neutralBumpTexture, blackTexture);
+			auto treeMaterial 		= push_material(GRAPHICS_PIPELINE_NORMAL, treeTexture, neutralBumpTexture, blackTexture);
 			auto treeMeshAsset 		= load_mesh_glb(*global_transientMemory, sceneryFile, "tree");
 			auto treeMesh 			= platformApi->push_mesh(platformGraphics, &treeMeshAsset);
 
@@ -1135,12 +1127,8 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 			MeshAsset dropMeshAsset = load_mesh_glb(*global_transientMemory, sceneryFile, "water_drop");
 			scene->dropMesh 		= platformApi->push_mesh(platformGraphics, &dropMeshAsset);
 
-			MaterialAsset waterMaterialAsset =
-			{
-				.pipeline = normalPipeline,
-				.textures = allocate_array(*global_transientMemory, {waterTextureHandle, neutralBumpTexture, blackTexture})
-			};
-			scene->waterDropMaterial = platformApi->push_material(platformGraphics, &	waterMaterialAsset);
+			TextureHandle waterTextures [] = {waterTextureHandle, neutralBumpTexture, blackTexture};
+			scene->waterDropMaterial = platformApi->push_material(platformGraphics, GRAPHICS_PIPELINE_NORMAL, 3, waterTextures);
 
 			scene->waterCount = scene->waterCapacity;
 			for (s32 i = 0; i < scene->waterCount; ++i)
@@ -1151,12 +1139,8 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 				scene->waterTransforms[i] = { .position = position };
 			}
 
-			MaterialAsset seedMaterialAsset = 
-			{
-				.pipeline = normalPipeline,
-				.textures = allocate_array(*global_transientMemory, {seedTextureHandle, neutralBumpTexture, blackTexture})
-			};
-			scene->seedMaterial = platformApi->push_material(platformGraphics, &seedMaterialAsset);
+			TextureHandle seedTextures [] = {seedTextureHandle, neutralBumpTexture, blackTexture};
+			scene->seedMaterial = platformApi->push_material(platformGraphics, GRAPHICS_PIPELINE_NORMAL, 3, seedTextures);
 
 			scene->currentSeedCount = scene->seedCapacity;
 			for(s32 i = 0; i < scene->seedCapacity; ++i)
@@ -1177,7 +1161,7 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 				auto mesh 			= platformApi->push_mesh(platformGraphics, &meshAsset);
 				auto textureAsset 	= load_texture_asset("assets/textures/stone_wall.jpg", global_transientMemory);
 				auto texture 		= platformApi->push_texture(platformGraphics, &textureAsset);
-				auto material   	= push_material(normalPipeline, texture, neutralBumpTexture, blackTexture);
+				auto material   	= push_material(GRAPHICS_PIPELINE_NORMAL, texture, neutralBumpTexture, blackTexture);
 
 				Array<BoxCollider> colliders = {};
 
@@ -1214,7 +1198,7 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 				}
 
 				scene->buildingMesh = mesh;
-				scene->buildingMaterial = materials.environment2;
+				scene->buildingMaterial = materials.environment;
 
 				for (auto & collider : colliders)
 				{
@@ -1237,7 +1221,7 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 
 				scene->gateCount 	= transformsArray.count();
 				scene->gateMesh 	= meshHandle;
-				scene->gateMaterial = materials.environment2;
+				scene->gateMaterial = materials.environment;
 
 				for (auto collider : colliders)
 				{

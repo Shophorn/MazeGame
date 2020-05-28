@@ -5,8 +5,6 @@ shophorn @ internet
 Scene description for 2d development scene
 =============================================================================*/
 
-// #include "DefaultSceneGui.cpp"
-
 struct Scene2d
 {
 	Array<Transform3D> transformStorage;
@@ -144,8 +142,6 @@ internal void * load_scene_2d(MemoryArena & persistentMemory)
 
 	// Create MateriaLs
 	{
-		PipelineHandle shader = platformApi->push_pipeline(platformGraphics, "assets/shaders/vert.spv", "assets/shaders/frag.spv", {.textureCount = 3});
-
 		TextureAsset whiteTextureAsset = make_texture_asset(allocate_array<u32>(*global_transientMemory, {0xffffffff}), 1, 1, 4);
 		TextureAsset blackTextureAsset = make_texture_asset(allocate_array<u32>(*global_transientMemory, {0xff000000}), 1, 1, 4);
 
@@ -163,10 +159,10 @@ internal void * load_scene_2d(MemoryArena & persistentMemory)
 		auto lavaTexture 	= load_and_push_texture("assets/textures/lava.jpg");
 		auto faceTexture 	= load_and_push_texture("assets/textures/texture.jpg");
 
-		auto push_material = [shader](MaterialType type, TextureHandle a, TextureHandle b, TextureHandle c) -> MaterialHandle
+		auto push_material = [](MaterialType type, TextureHandle a, TextureHandle b, TextureHandle c) -> MaterialHandle
 		{
-			MaterialAsset asset = make_material_asset(shader, allocate_array(*global_transientMemory, {a, b, c}));
-			MaterialHandle handle = platformApi->push_material(platformGraphics, &asset);
+			TextureHandle textures [] = {a,b,c};
+			MaterialHandle handle = platformApi->push_material(platformGraphics, GRAPHICS_PIPELINE_NORMAL, 3, textures);
 			return handle;
 		};
 

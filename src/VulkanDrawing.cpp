@@ -79,7 +79,6 @@ vulkan::prepare_drawing(VulkanContext * context)
 	context->canDraw                    = true;
 
 	context->currentUniformBufferOffset = 0;
-	context->currentBoundPipeline       = PipelineHandle::Null;
 
 	auto * frame = get_current_virtual_frame(context);
 
@@ -103,7 +102,7 @@ vulkan::prepare_drawing(VulkanContext * context)
 												context->drawingResources.extent.width,
 												context->drawingResources.extent.height);    
 
-	VkCommandBufferBeginInfo primaryCmdBeginInfo =
+	VkCommandBufferBeginInfo masterCmdBeginInfo =
 	{
 		.sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
 		.flags              = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
@@ -112,7 +111,7 @@ vulkan::prepare_drawing(VulkanContext * context)
 
 	/* Note (Leo): beginning command buffer implicitly resets it, if we have specified
 	VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT in command pool creation */
-	VULKAN_CHECK(vkBeginCommandBuffer(frame->commandBuffers.primary, &primaryCmdBeginInfo));
+	VULKAN_CHECK(vkBeginCommandBuffer(frame->commandBuffers.master, &masterCmdBeginInfo));
 	
 	VkCommandBufferBeginInfo sceneCmdBeginInfo =
 	{
@@ -183,9 +182,9 @@ vulkan::finish_drawing(VulkanContext * context)
 		.clearValueCount    = 1,
 		.pClearValues       = &shadowClearValue,
 	};
-	vkCmdBeginRenderPass(frame->commandBuffers.primary, &shadowRenderPassInfo, VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS);
-	vkCmdExecuteCommands(frame->commandBuffers.primary, 1, &frame->commandBuffers.offscreen);
-	vkCmdEndRenderPass(frame->commandBuffers.primary);
+	vkCmdBeginRenderPass(frame->commandBuffers.master, &shadowRenderPassInfo, VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS);
+	vkCmdExecuteCommands(frame->commandBuffers.master, 1, &frame->commandBuffers.offscreen);
+	vkCmdEndRenderPass(frame->commandBuffers.master);
 
 	// Note(Leo): Debug quad, MaterialHandle::Null directs to debug material where shadow image is bound
 	// record_gui_draw_command(context, {1500, 20}, {400, 400}, MaterialHandle::Null, {0,1,1,1});
@@ -212,13 +211,13 @@ vulkan::finish_drawing(VulkanContext * context)
 		.clearValueCount    = 2,
 		.pClearValues       = clearValues,
 	};
-	vkCmdBeginRenderPass(frame->commandBuffers.primary, &renderPassInfo, VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS);
-	vkCmdExecuteCommands(frame->commandBuffers.primary, 1, &frame->commandBuffers.scene);
-	vkCmdEndRenderPass(frame->commandBuffers.primary);
+	vkCmdBeginRenderPass(frame->commandBuffers.master, &renderPassInfo, VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS);
+	vkCmdExecuteCommands(frame->commandBuffers.master, 1, &frame->commandBuffers.scene);
+	vkCmdEndRenderPass(frame->commandBuffers.master);
 	
 
 	// PRIMARY COMMAND BUFFER -------------------------------------------------
-	VULKAN_CHECK(vkEndCommandBuffer(frame->commandBuffers.primary));
+	VULKAN_CHECK(vkEndCommandBuffer(frame->commandBuffers.master));
 
 	/* Note(Leo): these have to do with sceneloading in game layer. We are then unloading
 	all resources associated with command buffer, which makes it invalid to submit to queue */
@@ -233,7 +232,7 @@ vulkan::finish_drawing(VulkanContext * context)
 		.pWaitSemaphores        = &frame->imageAvailableSemaphore,
 		.pWaitDstStageMask      = waitStages,
 		.commandBufferCount     = (u32)(skipFrame ? 0 : 1),
-		.pCommandBuffers        = &frame->commandBuffers.primary,
+		.pCommandBuffers        = &frame->commandBuffers.master,
 		.signalSemaphoreCount   = 1,
 		.pSignalSemaphores      = &frame->renderFinishedSemaphore,
 	};
@@ -299,20 +298,10 @@ vulkan::record_draw_command(VulkanContext * context, ModelHandle model, m44 tran
 	auto * mesh     = get_loaded_mesh(context, meshHandle);
 	auto * material = get_loaded_material(context, materialHandle);
 
-	VkPipeline pipeline;
-	VkPipelineLayout pipelineLayout;
+	Assert(material->pipeline < GRAPHICS_PIPELINE_SCREEN_GUI && "This pipeline does not support mesh rendering");
 
-	if (material->pipeline == context->defaultMaterialId)
-	{
-		pipeline 		= context->defaultMaterialPipeline;
-		pipelineLayout 	= context->defaultMaterialPipelineLayout;
-	}
-	else
-	{
-		auto * loadedPipeline 	= get_loaded_pipeline(context, material->pipeline);
-		pipeline 				= loadedPipeline->pipeline;
-		pipelineLayout 			= loadedPipeline->layout;
-	}
+	VkPipeline pipeline = context->pipelines[material->pipeline].pipeline;
+	VkPipelineLayout pipelineLayout = context->pipelines[material->pipeline].pipelineLayout;
 
 	// Material type
 	vkCmdBindPipeline(frame->commandBuffers.scene, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
@@ -323,8 +312,7 @@ vulkan::record_draw_command(VulkanContext * context, ModelHandle model, m44 tran
 		material->descriptorSet,
 		context->uniformDescriptorSets.model,
 		context->uniformDescriptorSets.lighting,
-		context->defaultGuiMaterial.descriptorSet,
-		// context->shadowMapDescriptorSet
+		context->shadowMapTexture,
 	};
 
 	// Note(Leo): this works, because models are only dynamic set
@@ -346,8 +334,6 @@ vulkan::record_draw_command(VulkanContext * context, ModelHandle model, m44 tran
 	///////////////////////////
 	if (castShadow)
 	{
-		// vkCmdBindPipeline(frame->commandBuffers.offscreen, VK_PIPELINE_BIND_POINT_GRAPHICS, context->shadowPass.pipeline);
-
 		vkCmdBindVertexBuffers(frame->commandBuffers.offscreen, 0, 1, &mesh->bufferReference, &mesh->vertexOffset);
 		vkCmdBindIndexBuffer(frame->commandBuffers.offscreen, mesh->bufferReference, mesh->indexOffset, mesh->indexType);
 
@@ -405,20 +391,10 @@ void fsvulkan_draw_meshes(VulkanContext * context, s32 count, m44 const * transf
 	VulkanMesh * mesh 			= vulkan::get_loaded_mesh(context, meshHandle);
 	VulkanMaterial * material 	= vulkan::get_loaded_material(context, materialHandle);
 
-	VkPipeline 			pipeline;
-	VkPipelineLayout 	pipelineLayout;
+	Assert(material->pipeline < GRAPHICS_PIPELINE_SCREEN_GUI && "This pipeline does not support mesh rendering");
 
-	if (material->pipeline == context->defaultMaterialId)
-	{
-		pipeline 		= context->defaultMaterialPipeline;
-		pipelineLayout 	= context->defaultMaterialPipelineLayout;
-	}
-	else
-	{
-		auto *loadedPipeline 	= vulkan::get_loaded_pipeline(context, material->pipeline);
-		pipeline 				= loadedPipeline->pipeline;
-		pipelineLayout 			= loadedPipeline->layout;
-	}
+	VkPipeline pipeline = context->pipelines[material->pipeline].pipeline;
+	VkPipelineLayout pipelineLayout = context->pipelines[material->pipeline].pipelineLayout;
 
 
 	// Bind mesh to normal draw buffer
@@ -434,8 +410,7 @@ void fsvulkan_draw_meshes(VulkanContext * context, s32 count, m44 const * transf
 		material->descriptorSet,
 		context->uniformDescriptorSets.model,
 		context->uniformDescriptorSets.lighting,
-		context->defaultGuiMaterial.descriptorSet,
-		// context->shadowMapDescriptorSet
+		context->shadowMapTexture,
 	};
 
 	for (s32 i = 0; i < count; ++i)
@@ -492,8 +467,8 @@ internal void fsvulkan_draw_lines(VulkanContext * context, s32 pointCount, v3 co
 
 	VkCommandBuffer commandBuffer = vulkan::get_current_virtual_frame(context)->commandBuffers.scene;
 
-	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, context->lineDrawPipeline.pipeline);
-	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, context->lineDrawPipeline.layout,
+	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, context->linePipeline);
+	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, context->linePipelineLayout,
 							0, 1, &context->uniformDescriptorSets.camera, 0, nullptr);
 
 	s32 lineCount = pointCount / 2;
@@ -508,52 +483,48 @@ internal void fsvulkan_draw_lines(VulkanContext * context, s32 pointCount, v3 co
 			color,
 		};
 
-		vkCmdPushConstants(commandBuffer, context->lineDrawPipeline.layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pushConstants), pushConstants);
+		vkCmdPushConstants(commandBuffer, context->linePipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pushConstants), pushConstants);
 
 		vkCmdDraw(commandBuffer, 2, 1, 0, 0);
 	}
-
-	// Note(Leo): This must be done so that next time we draw normally, we know to bind thos descriptors again
-	context->currentBoundPipeline = PipelineHandle::Null;
 }
 
 internal void fsvulkan_draw_screen_rects(VulkanContext * context, s32 count, ScreenRect const * rects, MaterialHandle materialHandle, v4 color)
 {
 	auto * frame = vulkan::get_current_virtual_frame(context);
 
-	VulkanMaterial * material;
-	VulkanLoadedPipeline * pipeline;
+
+	VkPipeline 			pipeline;
+	VkPipelineLayout 	pipelineLayout;
+	VkDescriptorSet 	descriptorSet;
 
 	if(materialHandle < 0)
 	{
-		material = &context->defaultGuiMaterial;
-		pipeline = &context->shadowPass.debugView;
+		descriptorSet = context->shadowMapTexture;
 	}
 	else
 	{
-		material = vulkan::get_loaded_material(context, materialHandle);
-		pipeline = vulkan::get_loaded_pipeline(context, material->pipeline);
+		VulkanMaterial * material = vulkan::get_loaded_material(context, materialHandle);
+		descriptorSet = material->descriptorSet;
+
+		Assert(material->pipeline == GRAPHICS_PIPELINE_SCREEN_GUI && "This pipeline does not exist or does not support screen gui rendering");
 	}
 
-	// // auto * pipeline = is_valid_handle(materialHandle) ? &context->guiDrawPipeline : &context->shadowPass.debugView;
-	// VulkanMaterial * material = is_valid_handle(materialHandle) ? vulkan::get_loaded_material(context, materialHandle) :
-	// 													&context->defaultGuiMaterial;
+	pipeline 		= context->pipelines[GRAPHICS_PIPELINE_SCREEN_GUI].pipeline;
+	pipelineLayout 	= context->pipelines[GRAPHICS_PIPELINE_SCREEN_GUI].pipelineLayout;
 
-	vkCmdBindPipeline(  frame->commandBuffers.scene, VK_PIPELINE_BIND_POINT_GRAPHICS,
-						pipeline->pipeline);
+	vkCmdBindPipeline(frame->commandBuffers.scene, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 	
-	vkCmdBindDescriptorSets(frame->commandBuffers.scene, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->layout,
-							0, 1, &material->descriptorSet,
+	vkCmdBindDescriptorSets(frame->commandBuffers.scene, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout,
+							0, 1, &descriptorSet,
 							0, nullptr);
 
-	vkCmdPushConstants(frame->commandBuffers.scene, pipeline->layout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(v2) * 4, sizeof(v4), &color);
+	// Note(Leo): Color does not change, so we update it only once, this will break if we change shader :(
+	vkCmdPushConstants(frame->commandBuffers.scene, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(v2) * 4, sizeof(v4), &color);
 
 	for(s32 i = 0; i < count; ++i)
 	{      
-		vkCmdPushConstants( frame->commandBuffers.scene, pipeline->layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(v2) * 4, &rects[i]);
+		vkCmdPushConstants( frame->commandBuffers.scene, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(v2) * 4, &rects[i]);
 		vkCmdDraw(frame->commandBuffers.scene, 4, 1, 0, 0);
 	}
-
-	// Note(Leo): This must be done so that next time we draw normally, we know to bind those descriptors again
-	context->currentBoundPipeline = PipelineHandle::Null;
 }
