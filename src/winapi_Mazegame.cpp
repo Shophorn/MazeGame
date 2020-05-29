@@ -218,12 +218,17 @@ Run(HINSTANCE hInstance)
         gameMemory.size = gigabytes(2);
 
         // TODO [MEMORY] (Leo): Check support for large pages
-    #if MAZEGAME_DEVELOPMENT
+        #if MAZEGAME_DEVELOPMENT
+        
         void * baseAddress = (void*)terabytes(2);
         gameMemory.memory = VirtualAlloc(baseAddress, gameMemory.size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-    #else
+        
+        #else
+        
         gameMemory.memory = VirtualAlloc(nullptr, gameMemory.size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-    #endif
+        
+        #endif
+        
         Assert(gameMemory.memory != nullptr);
     }
 
@@ -243,40 +248,6 @@ Run(HINSTANCE hInstance)
     winapi::Game game = {};
     winapi::load_game(&game);
     logSystem() << "Game dll loaded";
-
-#if 0
-    /// ---------- INIT IMGUI ---------------------------
-    IMGUI_CHECKVERSION();
-    ImGui::CreateContext();
-    ImGuiIO & io = ImGui::GetIO();
-    ImGui_ImplWin32_Init(window.hwnd);
-
-    ImGui_ImplVulkan_InitInfo imguiVulkanInitInfo = {};
-    imguiVulkanInitInfo.Instance        = vulkanContext.instance;
-    imguiVulkanInitInfo.PhysicalDevice  = vulkanContext.physicalDevice;
-    imguiVulkanInitInfo.Device          = vulkanContext.device;
-    imguiVulkanInitInfo.QueueFamily     = vulkanContext.queues.graphicsIndex;
-    imguiVulkanInitInfo.Queue           = vulkanContext.queues.graphics;
-    imguiVulkanInitInfo.PipelineCache   = VK_NULL_HANDLE;
-    imguiVulkanInitInfo.DescriptorPool  = vulkanContext.descriptorPools.persistent;
-    imguiVulkanInitInfo.MinImageCount   = 2;
-    imguiVulkanInitInfo.ImageCount      = 2;
-    imguiVulkanInitInfo.MSAASamples     = vulkanContext.msaaSamples;
-    imguiVulkanInitInfo.Allocator       = nullptr;
-    imguiVulkanInitInfo.CheckVkResultFn = check_vk_result;
-    ImGui_ImplVulkan_Init(&imguiVulkanInitInfo, vulkanContext.drawingResources.renderPass);
-
-    auto cmdBuffer = vulkan::begin_command_buffer(vulkanContext.device, vulkanContext.commandPool);
-    ImGui_ImplVulkan_CreateFontsTexture(cmdBuffer);
-    vulkan::execute_command_buffer(cmdBuffer, vulkanContext.device, vulkanContext.commandPool, vulkanContext.queues.graphics);
-
-    ImGui_ImplVulkan_DestroyFontUploadObjects();
-    ImGui::StyleColorsDark();
-
-    logDebug(0) << "Imgui initialized";
-#endif
-
-
 
       ////////////////////////////////////////////////////
      ///             MAIN LOOP                        ///
@@ -308,7 +279,6 @@ Run(HINSTANCE hInstance)
 
             logSystem() << "Reloaded game";
         }
-
 
         /// ----- HANDLE INPUT -----
         {
@@ -389,32 +359,12 @@ Run(HINSTANCE hInstance)
                                                 &window,
                                                 &state.platformFunctions,
                                                 &logFile);
-
-
-                    // ImGui_ImplVulkan_NewFrame();
-                    // ImGui_ImplWin32_NewFrame();
-                    // ImGui::NewFrame();
-
-                    // ImGui::SetNextWindowSize(ImVec2(50, 50));
-                    // ImGui::Begin("Hello Window");
-                    // ImGui::End();
-
-                    // ImGui::Render();
-
-                    // auto commandBuffer = vulkan::begin_command_buffer(vulkanContext.device, vulkanContext.commandPool);
-                    // ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), commandBuffer);
-                    // vulkan::execute_command_buffer(commandBuffer, vulkanContext.device, vulkanContext.commandPool, vulkanContext.queues.graphics);
-
-
-
-
-
-                    // vulkan::draw_frame(&vulkanContext);
                     break;
 
                 case platform::FRAME_RECREATE:
                     // Todo(Leo): this is last function we actually call specifically from 'vulkan'
                     // and not platform. Do something about that.
+                    // Or not, preferences have shifted
                     vulkan::recreate_drawing_resources(&vulkanContext, window.width, window.height);
                     break;
 

@@ -86,7 +86,7 @@ void update_follower_input(	FollowerController 		& controller,
 	if (controller.isFollowing)
 	{
 		gizmoTransform = gizmoTransform * scale_matrix({0.5f, 0.5f, 0.5f});
-		debug_draw_diamond_xz(gizmoTransform, colors::brightBlue, 1);
+		debug_draw_diamond_xz(gizmoTransform, colors::brightBlue, DEBUG_NPC);
 	}
 
 
@@ -153,7 +153,7 @@ void update_random_walker_input(RandomWalkController & controller,
 		m44 gizmoTransform = make_transform_matrix(	controller.transform->position + up_v3 * controller.transform->scale.z * 2.0f, 
 													controller.transform->rotation,
 													controller.waitTimer);
-		debug_draw_diamond_xz(gizmoTransform, colors::mutedRed, 1);
+		debug_draw_diamond_xz(gizmoTransform, colors::mutedRed, DEBUG_NPC);
 	}
 	
 	f32 distance = magnitude_v2(controller.transform->position.xy - controller.targetPosition);

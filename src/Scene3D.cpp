@@ -106,6 +106,11 @@ struct Scene3d
 	MeshHandle 		gateMesh;
 	MaterialHandle 	gateMaterial;
 
+	s32 			cubePyramidCount;
+	m44 *			cubePyramidTransforms;
+	MeshHandle 		cubePyramidMesh;
+	MaterialHandle 	cubePyramidMaterial;
+
 	// struct ArrayRenderer
 	// {
 	// 	s32 			count;
@@ -435,9 +440,15 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 
 	for (auto const & collider : scene->collisionSystem.cylinderColliders)
 	{
-		debug_draw_circle_xy(collider.transform->position + collider.center, collider.radius, colors::brightYellow, DEBUG_BACKGROUND);
+		v3 colliderPosition = collider.transform->position + collider.center;
+
+		colliderPosition.z -= (collider.height / 2.0f);
+		debug_draw_circle_xy(colliderPosition, collider.radius, color_bright_yellow, DEBUG_BACKGROUND);
+
+		colliderPosition.z += collider.height;
+		debug_draw_circle_xy(colliderPosition, collider.radius, color_bright_purple, DEBUG_BACKGROUND);
 	}
-	debug_draw_circle_xy(scene->playerCharacterTransform->position + v3{0,0,0.7}, 0.25f, colors::brightGreen, DEBUG_BACKGROUND);
+	debug_draw_circle_xy(scene->playerCharacterTransform->position + v3{0,0,0.7}, 0.25f, colors::brightGreen, DEBUG_PLAYER);
 
 
 	for (auto & randomWalker : scene->randomWalkers)
@@ -450,12 +461,14 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 		update_follower_input(follower, scene->characterInputs, input->elapsedTime);
 	}
 	
+	// for (int i = 0; i < 1; ++i)
 	for (int i = 0; i < scene->characterMotors.count(); ++i)
 	{
 		update_character_motor(	scene->characterMotors[i],
 								scene->characterInputs[i],
 								scene->collisionSystem,
-								input->elapsedTime);
+								input->elapsedTime,
+								i == 0 ? DEBUG_PLAYER : DEBUG_NPC);
 	}
 
 
@@ -513,11 +526,12 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 		platformApi->draw_meshes(platformGraphics, scene->potsWithSeedCount, seedsInPotTransforms, scene->dropMesh, scene->seedMaterial);
 	}
 
-	/// DRAW STONE WALLS
+	/// DRAW STATIC SCENERY
 	{
 		platformApi->draw_meshes(platformGraphics, scene->stoneWallCount, scene->stoneWallTransforms, scene->stoneWallMesh, scene->stoneWallMaterial);
 		platformApi->draw_meshes(platformGraphics, scene->buildingCount, scene->buildingTransforms, scene->buildingMesh, scene->buildingMaterial);
 		platformApi->draw_meshes(platformGraphics, scene->gateCount, scene->gateTransforms, scene->gateMesh, scene->gateMaterial);
+		platformApi->draw_meshes(platformGraphics, scene->cubePyramidCount, scene->cubePyramidTransforms, scene->cubePyramidMesh, scene->cubePyramidMaterial);
 	}
 
 
@@ -530,7 +544,7 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 
 		for (auto const & collider : scene->collisionSystem.staticBoxColliders)
 		{
-			debug_draw_box(collider.transform, colorDarkGreen, DEBUG_BACKGROUND);
+			debug_draw_box(collider.transform, color_dark_green, DEBUG_BACKGROUND);
 		}
 	}
 
@@ -766,7 +780,6 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 		materials =
 		{
 			.character 		= push_material(GRAPHICS_PIPELINE_ANIMATED, lavaTexture, neutralBumpTexture, blackTexture),
-			// .environment 	= push_material(defaultPipeline, tilesTexture, neutralBumpTexture, blackTexture),
 			.environment 	= push_material(GRAPHICS_PIPELINE_NORMAL, tilesTexture, neutralBumpTexture, blackTexture),
 			.ground 		= push_material(GRAPHICS_PIPELINE_NORMAL, groundTexture, neutralBumpTexture, blackTexture),
 		};
@@ -814,7 +827,8 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 
 		// --------------------------------------------------------------------
 
-		Transform3D * playerTransform = scene->transforms.push_return_pointer({10, 10, 5});
+		Transform3D * playerTransform = scene->transforms.push_return_pointer({10, 0, 5});
+		// Transform3D * playerTransform = scene->transforms.push_return_pointer({-350, -10, 5});
 		scene->playerCharacterTransform = playerTransform;
 
 		s32 motorIndex = scene->characterMotors.count();
@@ -949,10 +963,10 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 		}
 	}
 
-	scene->worldCamera = make_camera(50, 0.1f, 1000.0f);
-	scene->playerCamera = {};
-	scene->playerCamera.baseOffset = {0, 0, 1.5f};
-	scene->playerCamera.distance = 5;
+	scene->worldCamera 				= make_camera(50, 0.1f, 1000.0f);
+	scene->playerCamera 			= {};
+	scene->playerCamera.baseOffset 	= {0, 0, 1.5f};
+	scene->playerCamera.distance 	= 5;
 
 	// Environment
 	{
@@ -1088,7 +1102,7 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 				position.z 						= get_terrain_height(&scene->collisionSystem, position.xy);
 				scene->potTransforms[potIndex]	= { .position = position };
 
-				push_cylinder_collider(scene->collisionSystem, 0.3, 0.5, v3{0,0,0.25}, &scene->potTransforms[potIndex]);
+				push_cylinder_collider(scene->collisionSystem, 0.3, 0.55, v3{0,0,0.275}, &scene->potTransforms[potIndex]);
 			}
 
 			scene->totalPotsCount = scene->potCapacity;
@@ -1107,7 +1121,7 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 				transform->position.z 	= get_terrain_height(&scene->collisionSystem, transform->position.xy);
 
 				scene->renderers.push({transform, model});
-				push_cylinder_collider(scene->collisionSystem, 0.6, 1, v3{0,0,0.5}, transform);
+				push_cylinder_collider(scene->collisionSystem, 0.6, 1.2, v3{0,0,0.6}, transform);
 			}
 
 			// ----------------------------------------------------------------	
@@ -1159,6 +1173,7 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 		{
 			auto file 			= read_gltf_file(*global_transientMemory, "assets/models/stonewalls.glb");
 
+			// Stone Walls
 			{
 				auto meshAsset 		= load_mesh_glb(*global_transientMemory, file, "StoneWall.001");
 				auto mesh 			= platformApi->push_mesh(platformGraphics, &meshAsset);
@@ -1186,6 +1201,7 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 				}
 			}
 
+			// Buildings
 			{
 				auto meshAsset 					= load_mesh_glb(*global_transientMemory, file, "Building.001");
 				auto mesh 						= platformApi->push_mesh(platformGraphics, &meshAsset);
@@ -1210,6 +1226,7 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 				}
 			}
 
+			// Gates
 			{
 				auto meshAsset 	= load_mesh_glb(*global_transientMemory, file, "Gate.001");
 				auto meshHandle = platformApi->push_mesh(platformGraphics, &meshAsset);
@@ -1231,6 +1248,37 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 					scene->collisionSystem.staticBoxColliders.push({compute_collider_transform(collider),
 																	compute_inverse_collider_transform(collider)});
 				}
+			}
+
+			{
+				auto meshAsset = load_mesh_glb(*global_transientMemory, file, "CubePyramid");
+				auto meshHandle = platformApi->push_mesh(platformGraphics, &meshAsset);
+
+				Array<BoxCollider> colliders = {};
+				auto transformsArray = load_all_transforms_glb(*global_transientMemory, file, "CubePyramid", &colliders);
+				scene->cubePyramidCount = transformsArray.count();
+
+				scene->cubePyramidTransforms = push_memory<m44>(persistentMemory, scene->cubePyramidCount, ALLOC_NO_CLEAR);
+				for (s32 i = 0; i < scene->cubePyramidCount; ++i)
+				{
+					scene->cubePyramidTransforms[i] = transform_matrix(transformsArray[i]);
+				}
+
+				scene->cubePyramidMesh = meshHandle;
+
+				auto textureAsset = load_texture_asset("assets/textures/concrete_XX.png", global_transientMemory);
+				auto texture = platformApi->push_texture(platformGraphics, &textureAsset);
+
+
+				TextureHandle textures [] = {texture, neutralBumpTexture, blackTexture};
+				scene->cubePyramidMaterial = platformApi->push_material(platformGraphics, GRAPHICS_PIPELINE_NORMAL, 3, textures);
+
+				for (auto collider : colliders)
+				{
+					scene->collisionSystem.staticBoxColliders.push({compute_collider_transform(collider),
+																	compute_inverse_collider_transform(collider)});
+				}
+
 			}
 		}
 

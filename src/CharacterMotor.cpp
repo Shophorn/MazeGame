@@ -81,7 +81,8 @@ void
 update_character_motor( CharacterMotor & 	motor,
 						CharacterInput input,
 						CollisionSystem3D &	collisionSystem,
-						f32 elapsedTime)
+						f32 elapsedTime,
+						s32 debugLevel)
 {
 	v3 inputVector 		= input.inputVector;
 	bool32 jumpInput 	= input.jumpInput;
@@ -93,8 +94,21 @@ update_character_motor( CharacterMotor & 	motor,
 	v3 right 	= get_right(*motor.transform);
 
 	// Note(Leo): these are in motor's local space
-	f32 forwardInput 	= dot_v3(inputVector, forward);
-	f32 rightInput 		= dot_v3(inputVector, right);
+	f32 forwardInput	= dot_v3(inputVector, forward);
+
+	f32 rightInput 		= 0;
+	if (square_magnitude_v3(inputVector) > v3_sqr_epsilon)
+	{
+		f32 angle = v2_signed_angle(inputVector.xy, forward.xy);
+		rightInput = math::clamp(angle, -1.0f, 1.0f);
+	}
+
+	debug_draw_axes(translation_matrix({0,0,2}) * transform_matrix(*motor.transform), 0.3f, debugLevel);
+
+	v3 points [] = {motor.transform->position + v3{0,0,1.9},
+					motor.transform->position + v3{0,0,1.9} + right * rightInput};
+	debug_draw_lines(2, points, color_muted_purple, debugLevel);
+
 
 	// -------------------------------------------------
 
@@ -217,9 +231,12 @@ update_character_motor( CharacterMotor & 	motor,
 		RaycastResult rayHitResults[rayCount];
 		s32 rayHitCount = 0;
 
-		v3 rayDebugLinePoints [2 * rayCount];
-		s32 rayDebugHitIndex = 0;
-		s32 rayDebugMissIndex = 2 * rayCount - 1;
+		v3 rayDebugHitPoints [2 * rayCount];
+		s32 rayDebugHitCount = 0;
+
+		v3 rayDebugMissPoints [2 * rayCount];
+		s32 rayDebugMissCount = 0;
+
 
 		for (int i  = 0; i < rayCount; ++i)
 		{
@@ -233,25 +250,19 @@ update_character_motor( CharacterMotor & 	motor,
 				rayHitResults[rayHitCount] = currentResult;
 				++rayHitCount;
 
-				// debug_draw_line(start, start + direction, colors::brightRed, DEBUG_PLAYER);
-
-
-				rayDebugLinePoints[rayDebugHitIndex] = start;
-				rayDebugLinePoints[rayDebugHitIndex + 1] = start + direction;
-
-				rayDebugHitIndex += 2;
+				rayDebugHitPoints[rayDebugHitCount] = start;
+				rayDebugHitPoints[rayDebugHitCount + 1] = start + direction;
+				rayDebugHitCount += 2;
 			}
 			else
 			{
-				rayDebugLinePoints[rayDebugMissIndex - 1] = start;
-				rayDebugLinePoints[rayDebugMissIndex] = start + direction;
-
-				rayDebugMissIndex -= 2;
-				// debug_draw_line(start, start + direction, colors::mutedYellow, DEBUG_PLAYER);
+				rayDebugMissPoints[rayDebugMissCount] = start;
+				rayDebugMissPoints[rayDebugMissCount + 1] = start + direction;
+				rayDebugMissCount += 2;
 			}
 
-			debug_draw_lines(rayDebugHitIndex, rayDebugLinePoints, colors::brightRed, DEBUG_NPC);
-			debug_draw_lines(2 * rayCount - rayDebugHitIndex, rayDebugLinePoints + rayDebugHitIndex, colors::mutedGreen, DEBUG_NPC);
+			debug_draw_lines(rayDebugHitCount, rayDebugHitPoints, colors::brightRed, debugLevel);
+			debug_draw_lines(rayDebugMissCount, rayDebugMissPoints, colors::mutedGreen, debugLevel);
 		}
 
 		if (rayHitCount == 0)
@@ -304,8 +315,30 @@ update_character_motor( CharacterMotor & 	motor,
 
 	// ----------------------------------------------------------------------------------
 
-	f32 groundHeight 			= get_terrain_height(&collisionSystem, motor.transform->position.xy);
-	bool32 grounded 			= motor.transform->position.z < (0.1f + groundHeight);
+
+	f32 groundThreshold = 0.05f;
+	f32 groundHeight 	= get_terrain_height(&collisionSystem, motor.transform->position.xy);
+	bool32 grounded 	= motor.transform->position.z < (groundThreshold + groundHeight);
+
+	// CHECK COLLISION WITH OTHER COLLIDERS TOO
+	if(grounded == false)
+	{
+		f32 groundRaySkinWidth = 0.1f;
+		v3 groundRayStart = motor.transform->position + v3{0,0,groundRaySkinWidth};
+		v3 groundRayDirection = -up_v3;
+		f32 groundRayLength = groundRaySkinWidth + math::max(0.1f, math::absolute(motor.zSpeed));
+
+		RaycastResult rayResult;
+		if (raycast_3d(&collisionSystem, groundRayStart, groundRayDirection, groundRayLength, &rayResult))
+		{
+			groundHeight 	= math::max(groundHeight, rayResult.hitPosition.z);
+			grounded 		= motor.transform->position.z < (groundThreshold + groundHeight);
+
+			debug_draw_line(motor.transform->position, rayResult.hitPosition, color_dark_red, debugLevel);
+			debug_draw_cross_xy(motor.transform->position, 0.3, color_bright_yellow, debugLevel);
+			debug_draw_cross_xy(rayResult.hitPosition, 0.3, color_bright_purple, debugLevel);
+		}
+	}
 
 	bool32 startLanding 		= motor.wasGroundedLastFrame == false && grounded == true;
 	motor.wasGroundedLastFrame 	= grounded;
@@ -334,7 +367,7 @@ update_character_motor( CharacterMotor & 	motor,
 
 	motor.transform->position.z += motor.zSpeed * elapsedTime;
 
-	if (motor.transform->position.z > groundHeight)
+	if ((motor.transform->position.z > groundHeight))
 	{	
 		motor.zSpeed += physics::gravityAcceleration * elapsedTime;
 	}
@@ -344,15 +377,15 @@ update_character_motor( CharacterMotor & 	motor,
         motor.transform->position.z = groundHeight;
 	}
 
+	// ----------------------------------------------
+	// Update animation weigthes
+	// ----------------------------------------------
+
 	bool32 falling = motor.zSpeed < - 1;
 	move_towards(falling ? (1 - motor.grounded.current) : 0, elapsedTime, motor.fallPercent);
 
 	s32 goingUp = motor.zSpeed > 0.1;
 	move_towards(goingUp, elapsedTime, motor.jumpPercent);
-
-	// ----------------------------------------------
-	// Update animation weigthes
-	// ----------------------------------------------
 
 	if (speed < 0.00001f)
 	{

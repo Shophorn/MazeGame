@@ -178,9 +178,11 @@ inline f32 arc_cosine(f32 value)
     return result;
 }
 
-inline f32 arc_tan_2(f32 cosValue, f32 sinValue)
+// Todo(Leo): Study this.
+// https://www.quora.com/Why-do-we-not-use-cross-product-instead-of-dot-product-for-finding-out-the-angle-between-the-two-vectors
+inline f32 arctan2(f32 y, f32 x)
 {
-    f32 result = atan2f(cosValue, sinValue);
+    f32 result = atan2f(y, x);
     return result;
 }
 

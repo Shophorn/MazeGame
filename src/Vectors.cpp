@@ -106,6 +106,17 @@ v2 clamp_length_v2(v2 vec, f32 length)
 	return vec;
 }
 
+f32 v2_signed_angle(v2 from, v2 to)
+{
+	// https://stackoverflow.com/questions/14066933/direct-way-of-computing-clockwise-angle-between-2-vectors/16544330#16544330
+	
+	f32 dot = dot_v2(from, to);
+	f32 det = from.x * to.y - from.y * to.x;
+	f32 angle = arctan2(det, dot);
+
+	return angle;
+}
+
 // ------------ v3 ----------------
 
 union v3
@@ -237,18 +248,28 @@ v3 rotate_v3(v3 vec, v3 axis, f32 angleInRadians)
 	return vec;	
 }
 
+constexpr f32 v3_sqr_epsilon = 1e-15f;
+
 f32 angle_v3(v3 from, v3 to)
 {
 	// Note(Leo): copied from unity3d vector.cs...
 
 	f32 denominator = math::square_root(square_magnitude_v3(from) * square_magnitude_v3(to));
-	if (denominator < 1e-15f)
+	if (denominator < v3_sqr_epsilon)
 		return 0.0f;
 
 	f32 dot = math::clamp(dot_v3(from, to) / denominator, -1.0f, 1.0f);
 	f32 angle = arc_cosine(dot);
 	return angle;
 }
+
+// // Todo(Leo): Not tested...
+// f32 v3_signed_angle(v3 from, v3 to, v3 normalizedReferenceUp)
+// {
+// 	f32 angle = arctan2(dot_v3(cross_v3(from, to), normalizedReferenceUp), dot_v3(from, to));
+// 	return angle;
+// }
+
 
 v3 make_uniform_v3(f32 value)
 {

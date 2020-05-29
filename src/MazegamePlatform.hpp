@@ -133,7 +133,7 @@ namespace platform
 
 		void (*draw_meshes)			(Graphics*, s32 count, m44 const * transforms, MeshHandle mesh, MaterialHandle material);
 		void (*draw_screen_rects)	(Graphics*, s32 count, ScreenRect const * rects, GuiTextureHandle texture, v4 color);
-		void (*draw_lines)			(Graphics*, s32 count, v3 const * points, v4 color);
+		void (*draw_lines)			(Graphics*, s32 pointCount, v3 const * points, v4 color);
 
 		// WINDOW FUNCTIONS	
 		u32 (*get_window_width) 		(Window const *);

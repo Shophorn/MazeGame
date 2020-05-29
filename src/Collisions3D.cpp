@@ -7,6 +7,12 @@ struct BoxCollider
 	Transform3D * transform;
 };
 
+struct RaycastResult
+{
+	v3 hitPosition;
+	v3 hitNormal;
+};
+
 struct CylinderCollider
 {
 	f32 radius;
@@ -101,13 +107,6 @@ get_terrain_height(CollisionSystem3D * system, v2 position)
 	f32 value = get_height_at(&system->terrainCollider, position);
 	return value;
 }
-
-struct RaycastResult
-{
-	v3 hitPosition;
-	v3 hitNormal;
-	f32 hitDistance;
-};
 
 internal bool32 ray_box_collisions(	Array<StaticBoxCollider> & colliders,
 									v3 rayStart,
@@ -249,10 +248,14 @@ raycast_3d(	CollisionSystem3D * system,
 			test xy distance againts radius
 		*/
 
-		v2 p = rayStart.xy;
-		v2 d = normalizedRayDirection.xy;
-		f32 dMagnitude = magnitude_v2(d);
-		d = normalize_v2(d);
+		v2 p 			= rayStart.xy;
+		v2 d 			= normalizedRayDirection.xy;
+		f32 dMagnitude 	= magnitude_v2(d);
+		if(dMagnitude > 0.00001f)
+		{
+			d = d / dMagnitude;
+		}
+
 
 		v3 cPosition = collider.transform->position + collider.center;
 

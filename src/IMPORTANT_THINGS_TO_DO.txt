@@ -48,10 +48,11 @@ DONE:
 		Gui draw only texture
 		Vulkan expose shadow texture
 		Gui draw texture
+	chalk pyramid cube thing
 
 TODO:
+	Separate player debug levels
 	vertical collision rays
-	chalk pyramid cube thing
 
 	Editor: teleport player
 
@@ -94,6 +95,16 @@ TODO:
 	underground cavern with water pump that can pump water and form a pond to under the flying building
 	chalk pyramid
 
+	"Simulation space ends here" signs at both ends
+
+	Gear 2:
+		Separate animation from motor, and only animate visible models
+		Lower collision detection accuracy for models far away
+		Overall cull stuff :)
+
 NAMES:
 	Feral Gallery?
 	Pehvreiwjfpi Gallery?
+
+	Lyndgth Galleries?
+	Lndgth Galleries?

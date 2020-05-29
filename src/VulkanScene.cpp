@@ -153,6 +153,12 @@ vulkan::unload_scene(VulkanContext * context)
 	}
 	context->loadedTextures.resize(0);
 
+	for(VulkanGuiTexture & gui : context->loadedGuiTextures)
+	{
+		vulkan::destroy_texture(context, &gui.texture);
+	}
+	context->loadedGuiTextures.resize(0);
+
 	// Materials
 	vkResetDescriptorPool(context->device, context->descriptorPools.material, 0);   
 	context->loadedMaterials.resize(0);
@@ -160,10 +166,8 @@ vulkan::unload_scene(VulkanContext * context)
 	// Rendered objects
 	context->loadedModels.resize(0);
 
-	for(VulkanGuiTexture & gui : context->loadedGuiTextures)
-	{
-		vulkan::destroy_texture(context, &gui.texture);
-	}
+
+
 
 	context->sceneUnloaded = true;
 }
