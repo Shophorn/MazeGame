@@ -117,6 +117,12 @@ struct VulkanTexture
 	VkDeviceMemory memory;
 };
 
+struct VulkanGuiTexture
+{
+	VulkanTexture 	texture;
+	VkDescriptorSet descriptorSet;
+};
+
 struct VulkanMesh
 {
     VkBuffer        bufferReference;
@@ -280,7 +286,6 @@ struct platform::Graphics
 
 	} shadowPass;
 
-	VkDescriptorSet 		shadowMapTexture;
 
     VulkanBufferResource stagingBufferPool;
     VulkanBufferResource staticMeshPool;
@@ -288,18 +293,24 @@ struct platform::Graphics
     VulkanBufferResource sceneUniformBuffer;
    
     // Todo(Leo): Use our own arena arrays for these.
-    // Todo(Leo): Expose a function to game layer to reserve memory for these
-    std::vector<VulkanMesh>  			loadedMeshes;
-	std::vector<VulkanTexture> 			loadedTextures;
-	std::vector<VulkanMaterial>			loadedMaterials;
-	std::vector<VulkanModel>			loadedModels;
+    // Todo(Leo): That requires access to persistent memory block at platform layer
+    std::vector<VulkanMesh>  	loadedMeshes;
+	std::vector<VulkanTexture> 	loadedTextures;
+	std::vector<VulkanMaterial>	loadedMaterials;
+	std::vector<VulkanModel>	loadedModels;
 
+	std::vector<VulkanGuiTexture> 	loadedGuiTextures;
+	std::vector<VulkanTexture> 		loadedGuiTexturesTextures;
+	std::vector<VkDescriptorSet> 	loadedGuiTexturesDescriptorSets;
+
+	VkDescriptorSet 		shadowMapTexture;
 
 	FSVulkanPipeline pipelines [GRAPHICS_PIPELINE_COUNT];
 
 	VkPipeline 				linePipeline;
 	VkPipelineLayout 		linePipelineLayout;
 	VkDescriptorSetLayout 	linePipelineDescriptorSetLayout;
+
 
 	// Note(Leo): This is a list of functions to call when destroying this.
     using CleanupFunc = void (VulkanContext*);
@@ -312,6 +323,13 @@ struct platform::Graphics
 
     bool32 sceneUnloaded = false;
 };
+
+// Note(Leo): We are expecting to at some point need to get things from multiple different
+// containers, which is easier with helper function.
+internal VulkanGuiTexture & fsvulkan_get_loaded_gui_texture (VulkanContext & context, GuiTextureHandle id)
+{
+	return context.loadedGuiTextures[id];
+}
 
 
 namespace vulkan
@@ -461,15 +479,16 @@ namespace vulkan
 }
 
 internal VkDescriptorSet fsvulkan_make_texture_descriptor_set(	VulkanContext*,
-														VkDescriptorSetLayout,
-														VkDescriptorPool,
-														s32 			textureCount,
-														TextureHandle * textures);
+																VkDescriptorSetLayout,
+																VkDescriptorPool,
+																s32 			textureCount,
+																VkImageView * 	textures);
 
+internal GuiTextureHandle fsvulkan_push_gui_texture(VulkanContext * context, TextureAsset * asset);
 internal MaterialHandle fsvulkan_push_material(VulkanContext*, GraphicsPipeline, s32 textureCount, TextureHandle * textures);
 
 internal void fsvulkan_draw_meshes			(VulkanContext * context, s32 count, m44 const * transforms, MeshHandle, MaterialHandle);
-internal void fsvulkan_draw_screen_rects	(VulkanContext * context, s32 count, ScreenRect const * rects, MaterialHandle material, v4 color);
+internal void fsvulkan_draw_screen_rects	(VulkanContext * context, s32 count, ScreenRect const * rects, GuiTextureHandle, v4 color);
 internal void fsvulkan_draw_lines			(VulkanContext*, s32 count, v3 const * points, v4 color);
 
 internal TextureHandle fsvulkan_init_shadow_pass (VulkanContext*);
@@ -509,10 +528,10 @@ platform::set_functions(VulkanContext * context, platform::Functions * api)
  	api->push_cubemap       = vulkan::push_cubemap;
  	api->push_material      = fsvulkan_push_material;
 
+ 	api->push_gui_texture 	= fsvulkan_push_gui_texture;
+
  	api->push_model         = vulkan::push_model;
  	api->unload_scene       = vulkan::unload_scene;
- 
- 	api->init_shadow_pass 	= fsvulkan_init_shadow_pass;
 
  	api->prepare_frame      = vulkan::prepare_drawing;
  	api->finish_frame       = vulkan::finish_drawing;
@@ -520,9 +539,9 @@ platform::set_functions(VulkanContext * context, platform::Functions * api)
  	api->update_lighting	= vulkan::update_lighting;
  	api->draw_model         = vulkan::record_draw_command;
 
- 	api->draw_meshes 			= fsvulkan_draw_meshes;
- 	api->draw_screen_rects 		= fsvulkan_draw_screen_rects;
- 	api->draw_lines 			= fsvulkan_draw_lines;
+ 	api->draw_meshes 		= fsvulkan_draw_meshes;
+ 	api->draw_screen_rects	= fsvulkan_draw_screen_rects;
+ 	api->draw_lines 		= fsvulkan_draw_lines;
 }
 
 #define WIN_VULKAN_HPP

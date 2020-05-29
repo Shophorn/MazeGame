@@ -399,7 +399,7 @@ internal VkDescriptorSet fsvulkan_make_texture_descriptor_set(  VulkanContext * 
 																VkDescriptorSetLayout   descriptorSetLayout,
 																VkDescriptorPool 		descriptorPool,
 																s32                     textureCount,
-																TextureHandle *         textures)
+																VkImageView *         	imageViews)
 {
 	constexpr u32 maxTextures = 10;
 	DEBUG_ASSERT(textureCount < maxTextures, "Too many textures on material");
@@ -421,7 +421,7 @@ internal VkDescriptorSet fsvulkan_make_texture_descriptor_set(  VulkanContext * 
 		samplerInfos[i] = 
 		{
 			.sampler        = context->textureSampler,
-			.imageView      = vulkan::get_loaded_texture(context, textures[i])->view,
+			.imageView      = imageViews[i],
 			.imageLayout    = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 		};
 	}
@@ -1743,10 +1743,4 @@ void winapi_vulkan_internal_::init_shadow_pass(VulkanContext * context, u32 widt
 		vkDestroyPipelineLayout(context->device, context->shadowPass.layout, nullptr);
 		vkDestroyDescriptorSetLayout(context->device, context->descriptorSetLayouts.shadowMap, nullptr);
 	});
-}
-
-internal TextureHandle fsvulkan_init_shadow_pass(VulkanContext * context)
-{
-	// winapi_vulkan_internal_::init_shadow_pass(context, 1024 * 4, 1024 * 4);
-	return {-1};
 }

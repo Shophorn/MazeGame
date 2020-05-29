@@ -12,14 +12,14 @@ enum HandleType
 	TEXTURE,
 	MATERIAL,
 	MODEL,
-	PIPELINE,	
+	GUITEXTURE,
 };
 
 template<HandleType T>
 struct BaseHandle
 {
 	s64 index_ =  -1;
-	operator s64() { return index_; }	
+	operator s64() const { return index_; }	
 	static constexpr HandleType type = T;
 
 	inline static const BaseHandle Null = {};
@@ -29,6 +29,7 @@ using MeshHandle  		= BaseHandle<MESH>;
 using TextureHandle  	= BaseHandle<TEXTURE>;
 using MaterialHandle  	= BaseHandle<MATERIAL>;
 using ModelHandle  		= BaseHandle<MODEL>;
+using GuiTextureHandle 	= BaseHandle<GUITEXTURE>;
 
 template<HandleType T>
 bool32 is_valid_handle(BaseHandle<T> handle)

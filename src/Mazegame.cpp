@@ -61,7 +61,8 @@ struct Font
 	static constexpr u8 lastCharacter = 127; 
 	static constexpr s32 count = lastCharacter - firstCharacter;
 
-	TextureHandle atlasTexture;
+	// TextureHandle atlasTexture;
+	GuiTextureHandle atlasTexture;
 
 	f32 spaceWidth;
 

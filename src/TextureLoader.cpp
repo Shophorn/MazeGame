@@ -133,7 +133,7 @@ load_font(char const * fontFilePath)
     }
 
     auto atlasAsset = make_texture_asset(std::move(fontBitMap), width, height, 4);
-    result.atlasTexture = platformApi->push_texture(platformGraphics, &atlasAsset);
+    result.atlasTexture = platformApi->push_gui_texture(platformGraphics, &atlasAsset);
 
     return result;
 }

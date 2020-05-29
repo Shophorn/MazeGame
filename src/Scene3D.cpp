@@ -141,6 +141,8 @@ struct Scene3d
 	};
 
 	MenuView menuView;
+
+	GuiTextureHandle testGuiHandle;
 };
 
 internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
@@ -668,18 +670,12 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 	// gui_position({100, 100});
 	// gui_image(shadowTexture, {300, 300});
 
-
+	gui_position({1550, 50});
 	if (scene->drawDebugShadowTexture)
 	{
-		ScreenRect rect =
-		{
-			.position 		= gui_transform_screen_point({1550, 50}),
-			.size 			= gui_transform_screen_size({300, 300}),
-			.uvPosition 	= {0, 0},
-			.uvSize 		= {1, 1}
-		};
-		platformApi->draw_screen_rects(platformGraphics, 1, &rect, {-1}, {1,1,1,1});
+		gui_image(GRAPHICS_RESOURCE_SHADOWMAP_GUI_TEXTURE, {300, 300});
 	}
+	gui_image(scene->testGuiHandle, {300, 300}, v4{0.8,0.8,0.8, 0.5});
 
 	gui_end();
 
@@ -692,6 +688,8 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 	Scene3d * scene = reinterpret_cast<Scene3d*>(scenePtr);
 	*scene = {};
 
+	// ----------------------------------------------------------------------------------
+
 	scene->gui 						= {};
 	scene->gui.textSize 			= 40;
 	scene->gui.textColor 			= colors::white;
@@ -699,6 +697,8 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 	scene->gui.padding 				= 10;
 	scene->gui.font 				= load_font("c:/windows/fonts/arial.ttf");
 	gui_generate_font_material(scene->gui);
+	
+	// ----------------------------------------------------------------------------------
 
 	// Note(Leo): amounts are SWAG, rethink.
 	scene->transforms 			= allocate_array<Transform3D>(persistentMemory, 1200);
@@ -717,6 +717,11 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 	logSystem() << "Allocations succesful! :)";
 
 	// ----------------------------------------------------------------------------------
+
+	{
+		TextureAsset testGuiAsset = load_texture_asset( "assets/textures/texture.jpg", global_transientMemory);
+		scene->testGuiHandle = platformApi->push_gui_texture(platformGraphics, &testGuiAsset);
+	}
 
 	struct MaterialCollection {
 		MaterialHandle character;
@@ -750,8 +755,6 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 		MaterialHandle handle = platformApi->push_material(platformGraphics, pipeline, 3, textures);
 		return handle;
 	};
-
-	TextureHandle shadowTexture = platformApi->init_shadow_pass(platformGraphics);
 
 	// Create MateriaLs
 	{

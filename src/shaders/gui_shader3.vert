@@ -1,6 +1,6 @@
 #version 450
 
-layout (location = 0) out vec3 fragColor;
+layout (location = 0) out vec4 fragColor;
 layout (location = 1) out vec2 fragTexCoord;
 
 layout (push_constant) uniform GuiInfo
@@ -10,6 +10,8 @@ layout (push_constant) uniform GuiInfo
 	vec2 size;
 	vec2 uvPosition;
 	vec2 uvSize;
+
+	// Todo(Leo): move to fragment shader
 	vec4 color;
 } gui;
 
@@ -31,7 +33,7 @@ void main ()
 						0, 1);
 
 	// gl_Position 	= vec4(gui.quad[gl_VertexIndex], 0, 1);
-	fragColor 		= gui.color.rgb;
+	fragColor 		= gui.color;
 	fragTexCoord 	= vec2 (gui.uvPosition.x + u * gui.uvSize.x,
 							gui.uvPosition.y + v * gui.uvSize.y);
 	// fragColor 		= vec3(fragTexCoord, 0);

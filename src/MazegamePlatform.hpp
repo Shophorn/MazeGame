@@ -46,6 +46,7 @@ enum GraphicsPipeline : s64
 	GRAPHICS_PIPELINE_COUNT
 };
 
+
 /* Note(Leo): This is called 'Unity-build'. Basically import all things in single
 translation unit(??) to reduce pressure on linker and enable more optimizations.
 Also makes actual build commands a lot cleaner and easier, since only this file
@@ -69,6 +70,7 @@ struct ScreenRect
 	v2 uvSize;	
 };
 
+constexpr GuiTextureHandle GRAPHICS_RESOURCE_SHADOWMAP_GUI_TEXTURE = {-1};
 
 namespace platform
 {
@@ -118,10 +120,9 @@ namespace platform
 		// Todo(Leo): Maybe remove 'push_model', we can render also just passing mesh and material handles directly
 		ModelHandle (*push_model) 			(Graphics*, MeshHandle mesh, MaterialHandle material);
 
-		void (*unload_scene) 	(Graphics*);
+		GuiTextureHandle (*push_gui_texture) (Graphics*, TextureAsset * asset);
 
-		// Others??
-		TextureHandle (*init_shadow_pass) (Graphics*);
+		void (*unload_scene) 	(Graphics*);
 
 		// GRAPHICS DRAW FUNCTIONS
 		void (*prepare_frame) 	(Graphics*);
@@ -131,7 +132,7 @@ namespace platform
 		void (*draw_model) 		(Graphics*, ModelHandle model, m44 transform, bool32 castShadow, m44 const * bones, u32 boneCount);
 
 		void (*draw_meshes)			(Graphics*, s32 count, m44 const * transforms, MeshHandle mesh, MaterialHandle material);
-		void (*draw_screen_rects)	(Graphics*, s32 count, ScreenRect const * rects, MaterialHandle material, v4 color);
+		void (*draw_screen_rects)	(Graphics*, s32 count, ScreenRect const * rects, GuiTextureHandle texture, v4 color);
 		void (*draw_lines)			(Graphics*, s32 count, v3 const * points, v4 color);
 
 		// WINDOW FUNCTIONS	

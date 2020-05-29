@@ -1,0 +1,14 @@
+THINGS TO LEARN
+
+Matrices:
+	rotation
+	scale
+	inversion
+	view
+	PROJECTION
+
+Quaternions:
+	lookat
+
+Trigonometry:
+	allll

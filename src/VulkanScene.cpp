@@ -25,24 +25,44 @@ vulkan::push_texture (VulkanContext * context, TextureAsset * texture)
 	return handle;
 }
 
+internal GuiTextureHandle fsvulkan_push_gui_texture(VulkanContext * context, TextureAsset * asset)
+{
+	VulkanTexture texture 			= vulkan::make_texture(context, asset);
+	VkDescriptorSet descriptorSet 	= fsvulkan_make_texture_descriptor_set(	context,	
+																			context->pipelines[GRAPHICS_PIPELINE_SCREEN_GUI].descriptorSetLayout,
+																			context->descriptorPools.material,
+																			1, &texture.view);
+	s64 index = context->loadedGuiTextures.size();
+	context->loadedGuiTextures.push_back({texture, descriptorSet});
+
+	return {index};
+}
+
 internal MaterialHandle fsvulkan_push_material (VulkanContext *     context,
 												GraphicsPipeline    pipeline,
 												s32                 textureCount,
 												TextureHandle *     textures)
 {
-	MaterialHandle resultHandle = {(s64)context->loadedMaterials.size()};
 
 	Assert(textureCount == context->pipelines[pipeline].textureCount);
-	
+	Assert(textureCount <= 10);
+
+	VkImageView imageViews [10];
+	for (s32 i = 0; i < textureCount; ++i)
+	{
+		imageViews[i] = vulkan::get_loaded_texture(context, textures[i])->view;
+	}
+
 	VkDescriptorSet descriptorSet = fsvulkan_make_texture_descriptor_set(   context,
 																	context->pipelines[pipeline].descriptorSetLayout,
 																	context->descriptorPools.material,
 																	textureCount,
-																	textures);
-	VulkanMaterial material = {pipeline, descriptorSet};
-	context->loadedMaterials.push_back(material);
+																	imageViews);
 
-	return resultHandle;
+	s64 index = (s64)context->loadedMaterials.size();
+	context->loadedMaterials.push_back({pipeline, descriptorSet});
+
+	return {index};
 }
 
 MeshHandle
@@ -139,6 +159,11 @@ vulkan::unload_scene(VulkanContext * context)
 
 	// Rendered objects
 	context->loadedModels.resize(0);
+
+	for(VulkanGuiTexture & gui : context->loadedGuiTextures)
+	{
+		vulkan::destroy_texture(context, &gui.texture);
+	}
 
 	context->sceneUnloaded = true;
 }

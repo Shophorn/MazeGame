@@ -489,25 +489,21 @@ internal void fsvulkan_draw_lines(VulkanContext * context, s32 pointCount, v3 co
 	}
 }
 
-internal void fsvulkan_draw_screen_rects(VulkanContext * context, s32 count, ScreenRect const * rects, MaterialHandle materialHandle, v4 color)
+internal void fsvulkan_draw_screen_rects(VulkanContext * context, s32 count, ScreenRect const * rects, GuiTextureHandle textureHandle, v4 color)
 {
 	auto * frame = vulkan::get_current_virtual_frame(context);
-
 
 	VkPipeline 			pipeline;
 	VkPipelineLayout 	pipelineLayout;
 	VkDescriptorSet 	descriptorSet;
 
-	if(materialHandle < 0)
+	if(textureHandle == GRAPHICS_RESOURCE_SHADOWMAP_GUI_TEXTURE)
 	{
 		descriptorSet = context->shadowMapTexture;
 	}
 	else
 	{
-		VulkanMaterial * material = vulkan::get_loaded_material(context, materialHandle);
-		descriptorSet = material->descriptorSet;
-
-		Assert(material->pipeline == GRAPHICS_PIPELINE_SCREEN_GUI && "This pipeline does not exist or does not support screen gui rendering");
+		descriptorSet = fsvulkan_get_loaded_gui_texture(*context, textureHandle).descriptorSet;
 	}
 
 	pipeline 		= context->pipelines[GRAPHICS_PIPELINE_SCREEN_GUI].pipeline;

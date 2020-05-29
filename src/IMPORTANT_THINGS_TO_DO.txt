@@ -37,33 +37,43 @@ DONE:
 	colliders compute transforms beforehand, only once per frame	
 	full terrain coverage
 	toggle debug shadow texture
+	Gui screen scale in game code
+	Separate player camera and free camera
+	remove game initializable shadow pipeline
+	Thing:
+		Vulkan explicit shader structs for each pipeline, like ThinMatrix does
+		non-generic shader code for main shader
+		non-generic shader code for other shaders
+
+		Gui draw only texture
+		Vulkan expose shadow texture
+		Gui draw texture
 
 TODO:
-	non-generic shader code for main shader
-	non-generic shader code for other shaders
-
-	Gui draw only texture
-
-
-	Shadows
-		Separate player camera and free camera, so we can visualize view frustum
-
-
-	Gui screen scale in game code
-	Gui draw texture
-	Vulkan expose shadow texture
-
-	Vulkan explicit shader structs for each pipeline, like ThinMatrix does
-	
+	vertical collision rays
+	chalk pyramid cube thing
 
 	Editor: teleport player
 
-	New tree rules
+	Normal mapping
+
+	STREAM: Animate robot
+	STREAM: New tree rules
+
+	Gui:
+		pivot control
+		panel widget
+
+	Shadows
+		Visualize camera frustums so we can visualize view frustum
+		Better shadows
+
 	Falling objects
 	Pickup animation
 	Clouds and rain
+	foliage and rocks
+	journey sand
 
-	Better shadows
 
 	planet curvature shader
 
@@ -82,6 +92,7 @@ TODO:
 	Angery mountain
 	Flying building with eternal shadow
 	underground cavern with water pump that can pump water and form a pond to under the flying building
+	chalk pyramid
 
 NAMES:
 	Feral Gallery?

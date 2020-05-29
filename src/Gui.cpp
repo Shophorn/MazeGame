@@ -14,7 +14,7 @@ same name on two functions with different signatures generates error. With c++
 this could be solved with namespaces by forward declaring in namespace block
 and defining with fully qualified name, but I am currently experimenting with
 more C-like coding style. 22.5.2020 */
-BEGIN_C_BLOCK
+// BEGIN_C_BLOCK
 
 struct Gui
 {
@@ -46,27 +46,27 @@ struct Gui
 Gui * global_currentGui = nullptr;
 
 // Maintenance
-void gui_start(Gui & gui, game::Input * input);
-void gui_end();
-void gui_generate_font_material(Gui & gui);
+internal void gui_start(Gui & gui, game::Input * input);
+internal void gui_end();
+internal void gui_generate_font_material(Gui & gui);
 
 // Layout
-void gui_position(v2 position);
-void gui_reset_selection();
+internal void gui_position(v2 position);
+internal void gui_reset_selection();
 
 // Widgets
-bool gui_button(char const * label);
-void gui_text(char const * label);
-void gui_image(TextureHandle texture, v2 size);
+internal bool gui_button(char const * label);
+internal void gui_text(char const * label);
+internal void gui_image(GuiTextureHandle texture, v2 size, v4 colour = colors::white);
 
 // Internal
-void gui_render_texture(TextureHandle texture, ScreenRect rect);
-void gui_render_text(char const * text, v2 position, v4 color);
+internal void gui_render_texture(TextureHandle texture, ScreenRect rect);
+internal void gui_render_text(char const * text, v2 position, v4 color);
 
   //////////////////////////////////
  ///  GUI IMPLEMENTATION 		///
 //////////////////////////////////
-void gui_start(Gui & gui, game::Input * input)
+internal void gui_start(Gui & gui, game::Input * input)
 {
 	Assert(global_currentGui == nullptr);
 
@@ -98,23 +98,23 @@ void gui_start(Gui & gui, game::Input * input)
 	gui.screenSizeRatio = gui.screenSize.x / gui.referenceScreenSize.x;
 }
 
-void gui_end()
+internal void gui_end()
 {
 	global_currentGui->selectableCountLastFrame = global_currentGui->currentSelectableIndex;
 	global_currentGui = nullptr;
 }
 
-void gui_position(v2 position)
+internal void gui_position(v2 position)
 {
 	global_currentGui->currentPosition = position;
 }
 
-void gui_reset_selection()
+internal void gui_reset_selection()
 {
 	global_currentGui->selectedIndex = 0;
 }
 
-v2 gui_transform_screen_point (v2 point)
+internal v2 gui_transform_screen_point (v2 point)
 {
 	Gui & gui = *global_currentGui;
 
@@ -124,7 +124,7 @@ v2 gui_transform_screen_point (v2 point)
 	return point;
 };
 
-v2 gui_transform_screen_size (v2 size)
+internal v2 gui_transform_screen_size (v2 size)
 {
 	Gui & gui = *global_currentGui;
 
@@ -134,7 +134,7 @@ v2 gui_transform_screen_size (v2 size)
 	return size;
 };
 
-void gui_render_text (char const * text, v2 position, v4 color)
+internal void gui_render_text (char const * text, v2 position, v4 color)
 {
 	Gui & gui = *global_currentGui;
 
@@ -176,10 +176,10 @@ void gui_render_text (char const * text, v2 position, v4 color)
 		position.x += size * gui.font.advanceWidths[index];
 		++text;
 	}
-	platformApi->draw_screen_rects(platformGraphics, rectIndex, rects, gui.fontMaterial, color);
+	platformApi->draw_screen_rects(platformGraphics, rectIndex, rects, gui.font.atlasTexture, color);
 };
 
-bool gui_button(char const * label)
+internal bool gui_button(char const * label)
 {
 	Gui & gui = *global_currentGui;
 
@@ -193,7 +193,7 @@ bool gui_button(char const * label)
 	return result;
 }
 
-void gui_text(char const * text)
+internal void gui_text(char const * text)
 {
 	Gui & gui = *global_currentGui;
 
@@ -201,17 +201,29 @@ void gui_text(char const * text)
 	gui.currentPosition.y += gui.textSize + gui.padding;
 }
 
-void gui_image(TextureHandle texture, v2 size)
-{
-	// platformApi->draw_screen_rects
+internal void gui_image(GuiTextureHandle texture, v2 size, v4 colour)
+{	
+	Gui & gui = *global_currentGui;
+
+	f32 yMovement = size.y;
+
+	v2 position = gui_transform_screen_point(gui.currentPosition);
+	size = gui_transform_screen_size(size);
+
+	gui.currentPosition.y += yMovement + gui.padding;
+
+	ScreenRect rect = {position, size, {0, 0}, {1, 1}};
+
+	platformApi->draw_screen_rects(platformGraphics, 1, &rect, texture, colour);
 }
 
-void gui_generate_font_material(Gui & gui)
+internal void gui_generate_font_material(Gui & gui)
 {
 	// Todo(Leo): We need something like this, but this won't work since TextureHandles do have default index -1, 
 	// but if we have allocted this in array etc, it may not have been initialized to it properly...
 	Assert(gui.font.atlasTexture >= 0);
-	gui.fontMaterial = platformApi->push_material(platformGraphics, GRAPHICS_PIPELINE_SCREEN_GUI, 1, &gui.font.atlasTexture);
+	// gui.fontMaterial = platformApi->push_material(platformGraphics, GRAPHICS_PIPELINE_SCREEN_GUI, 1, &gui.font.atlasTexture);
+	// gui.fontTexture = platformApi->push_material(platformGraphics, )
 }
 
-END_C_BLOCK
+// END_C_BLOCK
