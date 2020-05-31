@@ -100,6 +100,8 @@ struct MemoryArena
 	u8 * 	memory;
 	u64 	size;
 	u64 	used;
+
+	u64 	checkpoint;
 };
 
 
@@ -153,7 +155,28 @@ internal f32 used_percent(MemoryArena & arena)
 	return percent;
 }
 
+internal void push_memory_checkpoint(MemoryArena & arena)
+{
+	u64 used 				= arena.used;
+
+	u64 * checkpointMemory 	= push_memory<u64>(arena, 1, 0);
+	*checkpointMemory 		= arena.checkpoint;
+
+	arena.checkpoint 		= used;
+}
+
+internal void pop_memory_checkpoint(MemoryArena & arena)
+{
+	Assert(arena.checkpoint > 0 && "Cannot pop memory checkoint at 0");
+
+	u64 previousCheckpoint 	= *(u64*)(arena.memory + arena.checkpoint);
+
+	arena.used 				= arena.checkpoint;
+	arena.checkpoint 		= previousCheckpoint;
+}
+
 // ---------------------------------------------------------------------------
+
 /* Note(Leo): This has not yet been needed, but it was fun to write it. We are
 still succesfully using flush_memory_arena()*/
 

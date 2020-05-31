@@ -47,6 +47,8 @@ load_texture_asset(const char * assetPath, MemoryArena * memoryArena)
 // #define STBTT_assert(x) Assert(x)
 #include "external/stb_truetype.h"
 
+#undef assert
+
 internal Font
 load_font(char const * fontFilePath)
 {

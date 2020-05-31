@@ -116,13 +116,14 @@ namespace platform
 		TextureHandle (*push_texture) 		(Graphics*, TextureAsset * asset);
 		TextureHandle (*push_cubemap) 		(Graphics*, StaticArray<TextureAsset, 6> * asset);
 		MaterialHandle (*push_material) 	(Graphics*, GraphicsPipeline, s32 textureCount, TextureHandle * textures);
+		GuiTextureHandle (*push_gui_texture) (Graphics*, TextureAsset * asset);
 
 		// Todo(Leo): Maybe remove 'push_model', we can render also just passing mesh and material handles directly
 		ModelHandle (*push_model) 			(Graphics*, MeshHandle mesh, MaterialHandle material);
 
-		GuiTextureHandle (*push_gui_texture) (Graphics*, TextureAsset * asset);
-
 		void (*unload_scene) 	(Graphics*);
+		void (*reload_shaders) 	(Graphics*);
+
 
 		// GRAPHICS DRAW FUNCTIONS
 		void (*prepare_frame) 	(Graphics*);

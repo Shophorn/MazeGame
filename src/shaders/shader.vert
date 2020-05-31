@@ -26,6 +26,7 @@ layout (location = 1) out vec2 fragTexCoord;
 layout (location = 2) out vec3 fragNormal;
 layout (location = 3) out vec3 fragPosition;
 layout (location = 4) out vec4 lightCoords;
+layout (location = 5) out mat3 tbnMatrix;
 
 const float shadowDistance = 90.0;
 const float transitionDistance = 10.0;
@@ -35,7 +36,14 @@ void main ()
 	gl_Position = camera.projection * camera.view * model.model * vec4(inPosition, 1.0);
 
 	// Todo(Leo): Check correctness???
-	fragNormal = (transpose(inverse(model.model)) * vec4(inNormal, 0)).xyz;
+	fragNormal 	= (transpose(inverse(model.model)) * vec4(inNormal, 0)).xyz;
+	// fragTangent = (transpose(inverse(model.model)) * vec4(inTangent, 0)).xyz;
+
+	// world space tangent, normal and bitangent
+	vec3 t = normalize((model.model * vec4(inTangent, 0)).xyz);
+	vec3 n = normalize((model.model * vec4(inNormal, 0)).xyz);
+	vec3 b = normalize(cross(n, t));
+	tbnMatrix = transpose(mat3(t, b, n));
 
 	lightCoords = camera.lightViewProjection * model.model * vec4(inPosition, 1.0);
 	lightCoords.xy *= 0.5;
@@ -47,7 +55,7 @@ void main ()
 	distance = distance / transitionDistance;
 	lightCoords.w = clamp (1.0 - distance, 0, 1);
 
-	fragColor = inColor;
-	fragTexCoord = inTexCoord;
+	fragColor 		= inColor;
+	fragTexCoord 	= inTexCoord;
 }
 

@@ -41,7 +41,7 @@ constexpr v4 color_bright_yellow 	= {1.0, 1.0, 0.0, 1.0};
 constexpr v4 color_bright_purple 	= {1, 0, 1, 1};
 constexpr v4 color_muted_purple 	= {0.8, 0.2, 0.8, 1};
 
-
+constexpr v4 color_bump = {0.5, 0.5, 1.0, 0.0};
 
 #include "Debug.cpp"
 
@@ -247,25 +247,18 @@ bool32 update_game(
 
 		if(gui_button("3D Scene"))
 		{
-
 			action = ACTION_LOAD_3D_SCENE;
-
-			// state->loadedScene = load_scene_3d(state->persistentMemoryArena);
-			// state->updateScene = update_scene_3d;
 		}
 
 		if (gui_button("2D Scene"))
 		{
 			action = ACTION_LOAD_2D_SCENE;
-
-			// state->loadedScene = load_scene_2d(state->persistentMemoryArena);
-			// state->updateScene = update_scene_2d;
 		}
 
 		if (gui_button("Quit"))
 		{
 			gameIsAlive = false;
-		}
+		}	
 
 		gui_end();
 	}

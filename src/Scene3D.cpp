@@ -111,6 +111,12 @@ struct Scene3d
 	MeshHandle 		cubePyramidMesh;
 	MaterialHandle 	cubePyramidMaterial;
 
+	// Note(Leo): There are multiple mesh handles here
+	s32 			terrainCount;
+	m44 * 			terrainTransforms;
+	MeshHandle * 	terrainMeshes;
+	MaterialHandle 	terrainMaterial;
+
 	// struct ArrayRenderer
 	// {
 	// 	s32 			count;
@@ -143,6 +149,7 @@ struct Scene3d
 		MENU_OFF,
 		MENU_MAIN,
 		MENU_CONFIRM_EXIT,
+		MENU_CONFIRM_TELEPORT,
 	};
 
 	MenuView menuView;
@@ -153,6 +160,9 @@ struct Scene3d
 internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 {
 	Scene3d * scene = reinterpret_cast<Scene3d*>(scenePtr);
+	
+	gui_start(scene->gui, input);
+
 
 	/* Sadly, we need to draw skybox before game logic, because otherwise
 	debug lines would be hidden. This can be fixed though, just make debug pipeline similar to shadows. */ 
@@ -170,11 +180,22 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 	// Game Logic section
 	if(scene->cameraMode == CAMERA_MODE_PLAYER)
 	{
-		update_player_input(scene->playerInputState, scene->characterInputs, scene->worldCamera, *input);
+		if (scene->menuView == Scene3d::MENU_OFF)
+		{
+			// Todo(Leo): Maybe do submit motor thing, so we can also disable falling etc here
+			update_player_input(scene->playerInputState, scene->characterInputs, scene->worldCamera, *input);
+		}
+		else
+		{
+			scene->characterInputs[scene->playerInputState.inputArrayIndex] = {};
+		}
+
 		update_camera_controller(&scene->playerCamera, scene->playerCharacterTransform->position, input);
 
 		scene->worldCamera.position = scene->playerCamera.position;
 		scene->worldCamera.direction = scene->playerCamera.direction;
+
+		scene->worldCamera.farClipPlane = 1000;
 	}
 	else
 	{
@@ -183,6 +204,16 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 
 		scene->worldCamera.position = scene->freeCamera.position;
 		scene->worldCamera.direction = scene->freeCamera.direction;
+
+		/// Document(Leo): Teleport player
+		if (scene->menuView == Scene3d::MENU_OFF && is_clicked(input->A))
+		{
+			scene->menuView = Scene3d::MENU_CONFIRM_TELEPORT;
+			gui_ignore_input();
+			gui_reset_selection();
+		}
+
+		scene->worldCamera.farClipPlane = 2000;
 	}	
 
 	/*
@@ -468,7 +499,7 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 								scene->characterInputs[i],
 								scene->collisionSystem,
 								input->elapsedTime,
-								i == 0 ? DEBUG_PLAYER : DEBUG_NPC);
+								i == scene->playerInputState.inputArrayIndex ? DEBUG_PLAYER : DEBUG_NPC);
 	}
 
 
@@ -532,6 +563,11 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 		platformApi->draw_meshes(platformGraphics, scene->buildingCount, scene->buildingTransforms, scene->buildingMesh, scene->buildingMaterial);
 		platformApi->draw_meshes(platformGraphics, scene->gateCount, scene->gateTransforms, scene->gateMesh, scene->gateMaterial);
 		platformApi->draw_meshes(platformGraphics, scene->cubePyramidCount, scene->cubePyramidTransforms, scene->cubePyramidMesh, scene->cubePyramidMaterial);
+
+		for(s32 i = 0; i < scene->terrainCount; ++i)
+		{
+			platformApi->draw_meshes(platformGraphics, 1, scene->terrainTransforms + i, scene->terrainMeshes[i], scene->terrainMaterial);
+		}
 	}
 
 
@@ -586,8 +622,6 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 
 	// ------------------------------------------------------------------------
 
-	gui_start(scene->gui, input);
-
 	if (is_clicked(input->start))
 	{
 		if (scene->menuView == Scene3d::MENU_OFF)
@@ -610,8 +644,9 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 			break;
 
 		case Scene3d::MENU_CONFIRM_EXIT:
+		{
 			gui_position({900, 300});
-			gui_text("Exit to Main Menu");
+			gui_text("Exit to Main Menu?");
 
 			if (gui_button("Yes"))
 			{
@@ -623,9 +658,10 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 				scene->menuView = Scene3d::MENU_MAIN;
 				gui_reset_selection();
 			}
-			break;
+		} break;
 
 		case Scene3d::MENU_MAIN:
+		{
 			gui_position({900, 300});	
 			if (gui_button("Continue"))
 			{
@@ -669,15 +705,39 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 				scene->drawDebugShadowTexture = !scene->drawDebugShadowTexture;
 			}
 
+			if (gui_button("Reload Shaders"))
+			{
+				platformApi->reload_shaders(platformGraphics);
+			}
+
 			if (gui_button("Exit Scene"))
 			{
 				scene->menuView = Scene3d::MENU_CONFIRM_EXIT;
 				gui_reset_selection();
 			}
-			break;
+		} break;
+	
+		case Scene3d::MENU_CONFIRM_TELEPORT:
+		{
+			gui_position({900, 300});
+			gui_text("Teleport Player Here?");
+
+			if (gui_button("Yes"))
+			{
+				scene->playerCharacterTransform->position = scene->freeCamera.position;
+				scene->menuView = Scene3d::MENU_OFF;
+				scene->cameraMode = CAMERA_MODE_PLAYER;
+			}
+
+			if (gui_button("No"))
+			{
+				scene->menuView = Scene3d::MENU_OFF;
+			}
+		} break;
 	}
 
 	gui_position({100, 100});
+	gui_text("Sphinx of black quartz, judge my vow!");
 	gui_text("Sphinx of black quartz, judge my vow!");
 
 	// gui_pivot(GUI_PIVOT_TOP_RIGHT);
@@ -753,7 +813,7 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 
 	TextureAsset whiteTextureAsset 			= make_texture_asset(allocate_array<u32>(*global_transientMemory, {0xffffffff}), 1, 1, 4);
 	TextureAsset blackTextureAsset	 		= make_texture_asset(allocate_array<u32>(*global_transientMemory, {0xff000000}), 1, 1, 4);
-	TextureAsset neutralBumpTextureAsset 	= make_texture_asset(allocate_array<u32>(*global_transientMemory, {0xff8080ff}), 1, 1, 4);
+	TextureAsset neutralBumpTextureAsset 	= make_texture_asset(allocate_array<u32>(*global_transientMemory, {color_rgba_32(color_bump)}), 1, 1, 4);
 	TextureAsset waterBlueTextureAsset 		= make_texture_asset(allocate_array<u32>(*global_transientMemory, {0xffffdb00}), 1, 1, 4);
 	TextureAsset seedBrownTextureAsset 		= make_texture_asset(allocate_array<u32>(*global_transientMemory, {0xff003399}), 1, 1, 4);
 
@@ -772,16 +832,19 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 
 	// Create MateriaLs
 	{
-		auto tilesTexture 	= load_and_push_texture("assets/textures/tiles.jpg");
-		auto groundTexture 	= load_and_push_texture("assets/textures/ground.png");
+		auto tilesAlbedo 	= load_and_push_texture("assets/textures/tiles.jpg");
+		auto tilesNormal 	= load_and_push_texture("assets/textures/tiles_normal.png");
+		auto groundAlbedo 	= load_and_push_texture("assets/textures/ground.png");
+		auto groundNormal 	= load_and_push_texture("assets/textures/ground_normal.png");
 		auto lavaTexture 	= load_and_push_texture("assets/textures/lava.jpg");
 		auto faceTexture 	= load_and_push_texture("assets/textures/texture.jpg");
+
 
 		materials =
 		{
 			.character 		= push_material(GRAPHICS_PIPELINE_ANIMATED, lavaTexture, neutralBumpTexture, blackTexture),
-			.environment 	= push_material(GRAPHICS_PIPELINE_NORMAL, tilesTexture, neutralBumpTexture, blackTexture),
-			.ground 		= push_material(GRAPHICS_PIPELINE_NORMAL, groundTexture, neutralBumpTexture, blackTexture),
+			.environment 	= push_material(GRAPHICS_PIPELINE_NORMAL, tilesAlbedo, tilesNormal, blackTexture),
+			.ground 		= push_material(GRAPHICS_PIPELINE_NORMAL, groundAlbedo, groundNormal, blackTexture),
 		};
 		
 		// Note(Leo): internet told us vulkan(or glsl) cubemap face order is as follows:
@@ -819,16 +882,17 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 	{
 		scene->playerCarryState = CARRY_NONE;
 
-		char const * filename 	= "assets/models/cube_head_v3.glb";
-		auto const gltfFile 	= read_gltf_file(*global_transientMemory, filename);
+		auto const gltfFile 		= read_gltf_file(*global_transientMemory, "assets/models/cube_head_v4.glb");
+
+		// Exporting animations from blender is not easy, this file has working animations
+		auto const animationFile 	= read_gltf_file(*global_transientMemory, "assets/models/cube_head_v3.glb");
 
 		auto girlMeshAsset 	= load_mesh_glb(*global_transientMemory, gltfFile, "cube_head");
 		auto girlMesh 		= platformApi->push_mesh(platformGraphics, &girlMeshAsset);
 
 		// --------------------------------------------------------------------
 
-		Transform3D * playerTransform = scene->transforms.push_return_pointer({10, 0, 5});
-		// Transform3D * playerTransform = scene->transforms.push_return_pointer({-350, -10, 5});
+		Transform3D * playerTransform 	= scene->transforms.push_return_pointer({10, 0, 5});
 		scene->playerCharacterTransform = playerTransform;
 
 		s32 motorIndex = scene->characterMotors.count();
@@ -841,12 +905,12 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 
 			auto startTime = platformApi->current_time();
 
-			scene->characterAnimations[WALK] 	= load_animation_glb(persistentMemory, gltfFile, "Walk");
-			scene->characterAnimations[RUN] 	= load_animation_glb(persistentMemory, gltfFile, "Run");
-			scene->characterAnimations[IDLE] 	= load_animation_glb(persistentMemory, gltfFile, "Idle");
-			scene->characterAnimations[JUMP]	= load_animation_glb(persistentMemory, gltfFile, "JumpUp");
-			scene->characterAnimations[FALL]	= load_animation_glb(persistentMemory, gltfFile, "JumpDown");
-			scene->characterAnimations[CROUCH] 	= load_animation_glb(persistentMemory, gltfFile, "Crouch");
+			scene->characterAnimations[WALK] 	= load_animation_glb(persistentMemory, animationFile, "Walk");
+			scene->characterAnimations[RUN] 	= load_animation_glb(persistentMemory, animationFile, "Run");
+			scene->characterAnimations[IDLE] 	= load_animation_glb(persistentMemory, animationFile, "Idle");
+			scene->characterAnimations[JUMP]	= load_animation_glb(persistentMemory, animationFile, "JumpUp");
+			scene->characterAnimations[FALL]	= load_animation_glb(persistentMemory, animationFile, "JumpDown");
+			scene->characterAnimations[CROUCH] 	= load_animation_glb(persistentMemory, animationFile, "Crouch");
 
 			logSystem(1) << "Loading all 6 animations took: " << platformApi->elapsed_seconds(startTime, platformApi->current_time()) << " s";
 
@@ -973,22 +1037,60 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 		// constexpr f32 depth = 500;
 		// constexpr f32 width = 500;
 		f32 mapSize 		= 1200;
-		f32 terrainHeight 	= 20;
+		f32 terrainHeight 	= 50;
 		{
 			// Note(Leo): this is maximum size we support with u16 mesh vertex indices
-			s32 terrainMeshResolution = 256;
 
-			auto heightmapTexture 	= load_texture_asset("assets/textures/heightmap6.jpg", global_transientMemory);
-			auto heightmap 			= make_heightmap(global_transientMemory, &heightmapTexture, terrainMeshResolution, mapSize, -terrainHeight / 2, terrainHeight / 2);
-			auto groundMeshAsset 	= generate_terrain(global_transientMemory, 32, &heightmap);
+			s32 chunkCountPerDirection 	= 10;
+			s32 chunkResolution			= 128;
+			f32 chunkSize 				= 1.0f / chunkCountPerDirection;
+			f32 chunkWorldSize 			= chunkSize * mapSize;
 
-			auto groundMesh 		= platformApi->push_mesh(platformGraphics, &groundMeshAsset);
-			auto model 				= push_model(groundMesh, materials.ground);
-			auto transform 			= scene->transforms.push_return_pointer({{-mapSize / 2, -mapSize / 2, 0}});
+			push_memory_checkpoint(*global_transientMemory);
 
-			scene->renderers.push({transform, model});
+			s32 heightmapResolution = 1024;
+			auto heightmapTexture 	= load_texture_asset("assets/textures/heightmap.png", global_transientMemory);
+			auto heightmap 			= make_heightmap(&persistentMemory, &heightmapTexture, heightmapResolution, mapSize, -terrainHeight / 2, terrainHeight / 2);
 
-			scene->collisionSystem.terrainCollider = std::move(heightmap);
+			pop_memory_checkpoint(*global_transientMemory);
+
+			s32 terrainCount 			= chunkCountPerDirection * chunkCountPerDirection;
+			scene->terrainCount 		= terrainCount;
+			scene->terrainTransforms 	= push_memory<m44>(persistentMemory, terrainCount, ALLOC_NO_CLEAR);
+			scene->terrainMeshes 		= push_memory<MeshHandle>(persistentMemory, terrainCount, ALLOC_NO_CLEAR);
+			scene->terrainMaterial 		= materials.ground;
+
+			for (s32 i = 0; i < terrainCount; ++i)
+			{
+				s32 x = i % chunkCountPerDirection;
+				s32 y = i / chunkCountPerDirection;
+
+				v2 position = { x * chunkSize, y * chunkSize };
+				v2 size 	= { chunkSize, chunkSize };
+
+				push_memory_checkpoint(*global_transientMemory);
+
+				auto groundMeshAsset 	= generate_terrain(*global_transientMemory, heightmap, position, size, chunkResolution, 10);
+				scene->terrainMeshes[i] = platformApi->push_mesh(platformGraphics, &groundMeshAsset);
+
+				pop_memory_checkpoint(*global_transientMemory);
+			}
+
+			f32 halfMapSize = mapSize / 2;
+			v3 terrainOrigin = {-halfMapSize, -halfMapSize, 0};
+
+			for (s32 i = 0; i < terrainCount; ++i)
+			{
+				s32 x = i % chunkCountPerDirection;
+				s32 y = i / chunkCountPerDirection;
+
+				v3 leftBackCornerPosition = {x * chunkWorldSize - halfMapSize, y * chunkWorldSize - halfMapSize, 0};
+				scene->terrainTransforms[i] = translation_matrix(leftBackCornerPosition);
+			}
+
+			auto transform = scene->transforms.push_return_pointer({{-mapSize / 2, -mapSize / 2, 0}});
+
+			scene->collisionSystem.terrainCollider 	= std::move(heightmap);
 			scene->collisionSystem.terrainTransform = transform;
 		}
 
@@ -1032,11 +1134,8 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 			s32 pillarCountPerDirection = 20;
 			s32 pillarCount 			= pillarCountPerDirection * pillarCountPerDirection;
 
-
 			auto pillarMesh 		= load_mesh_glb(*global_transientMemory, read_gltf_file(*global_transientMemory, "assets/models/big_pillar.glb"), "big_pillar");
 			auto pillarMeshHandle 	= platformApi->push_mesh(platformGraphics, &pillarMesh);
-
-			// pillarCount = 1;
 
 			for (s32 pillarIndex = 0; pillarIndex < pillarCount; ++pillarIndex)
 			{
@@ -1053,7 +1152,6 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 				{
 					continue;
 				}
-
 
 				f32 x = ((pillarIndex % pillarCountPerDirection) / (f32)pillarCountPerDirection) * pillarRange - pillarRange / 2;
 				f32 y = ((pillarIndex / pillarCountPerDirection) / (f32)pillarCountPerDirection) * pillarRange - pillarRange / 2;
@@ -1082,7 +1180,8 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 			auto mesh 				= platformApi->push_mesh(platformGraphics, &meshAsset);
 
 			auto albedo 			= load_and_push_texture("assets/textures/Robot_53_albedo_4k.png");
-			auto material 			= push_material(GRAPHICS_PIPELINE_NORMAL, albedo, neutralBumpTexture, blackTexture);
+			auto normal 			= load_and_push_texture("assets/textures/Robot_53_normal_4k.png");
+			auto material 			= push_material(GRAPHICS_PIPELINE_NORMAL, albedo, normal, blackTexture);
 
 			auto model 				= push_model(mesh, material);
 			scene->renderers.push({transform, model});
@@ -1126,13 +1225,13 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 
 			// ----------------------------------------------------------------	
 
-			auto treeTextureAsset 	= load_texture_asset("assets/textures/tree.png", global_transientMemory);
-			auto treeTexture 		= platformApi->push_texture(platformGraphics, &treeTextureAsset);			
-			auto treeMaterial 		= push_material(GRAPHICS_PIPELINE_NORMAL, treeTexture, neutralBumpTexture, blackTexture);
-			auto treeMeshAsset 		= load_mesh_glb(*global_transientMemory, sceneryFile, "tree");
-			auto treeMesh 			= platformApi->push_mesh(platformGraphics, &treeMeshAsset);
+			auto treeAlbedo 	= load_and_push_texture("assets/textures/tree.png");
+			auto treeNormal 	= load_and_push_texture("assets/textures/tree_normal.png");
+			auto treeMaterial 	= push_material(GRAPHICS_PIPELINE_NORMAL, treeAlbedo, treeNormal, blackTexture);
+			auto treeMeshAsset 	= load_mesh_glb(*global_transientMemory, sceneryFile, "tree");
+			auto treeMesh 		= platformApi->push_mesh(platformGraphics, &treeMeshAsset);
 
-			scene->treeModel 		= push_model(treeMesh, treeMaterial);
+			scene->treeModel 	= push_model(treeMesh, treeMaterial);
 			
 			scene->treesInPotCount = 0;
 			scene->treesOnGroundCount = 0;
@@ -1171,15 +1270,16 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 		}
 
 		{
-			auto file 			= read_gltf_file(*global_transientMemory, "assets/models/stonewalls.glb");
+			auto file = read_gltf_file(*global_transientMemory, "assets/models/stonewalls.glb");
 
 			// Stone Walls
 			{
-				auto meshAsset 		= load_mesh_glb(*global_transientMemory, file, "StoneWall.001");
-				auto mesh 			= platformApi->push_mesh(platformGraphics, &meshAsset);
-				auto textureAsset 	= load_texture_asset("assets/textures/stone_wall.jpg", global_transientMemory);
-				auto texture 		= platformApi->push_texture(platformGraphics, &textureAsset);
-				auto material   	= push_material(GRAPHICS_PIPELINE_NORMAL, texture, neutralBumpTexture, blackTexture);
+				auto meshAsset 	= load_mesh_glb(*global_transientMemory, file, "StoneWall.001");
+				auto mesh 		= platformApi->push_mesh(platformGraphics, &meshAsset);
+
+				auto albedo 	= load_and_push_texture("assets/textures/stone_wall.jpg");
+				auto normal 	= load_and_push_texture("assets/textures/stone_wall_normal.png");
+				auto material   = push_material(GRAPHICS_PIPELINE_NORMAL, albedo, normal, blackTexture);
 
 				Array<BoxCollider> colliders = {};
 
@@ -1250,6 +1350,7 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 				}
 			}
 
+			// Pyramid thing
 			{
 				auto meshAsset = load_mesh_glb(*global_transientMemory, file, "CubePyramid");
 				auto meshHandle = platformApi->push_mesh(platformGraphics, &meshAsset);

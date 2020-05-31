@@ -1131,7 +1131,7 @@ winapi_vulkan_internal_::init_memory(VulkanContext * context)
 {
 	// TODO [MEMORY] (Leo): Properly measure required amount
 	// TODO[memory] (Leo): Log usage
-	u64 staticMeshPoolSize       = megabytes(500);
+	u64 staticMeshPoolSize       = gigabytes(2);
 	u64 stagingBufferPoolSize    = megabytes(100);
 	u64 modelUniformBufferSize   = megabytes(100);
 	u64 sceneUniformBufferSize   = megabytes(100);

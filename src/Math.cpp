@@ -37,6 +37,14 @@ round_to<u32, f32>(f32 value)
 constexpr f32 highest_f32 = std::numeric_limits<f32>::max();
 constexpr f32 lowest_f32 = std::numeric_limits<f32>::lowest();
 
+constexpr u32 max_u32 = std::numeric_limits<u32>::max();
+constexpr u32 min_u32 = std::numeric_limits<u32>::min();
+
+s32 floor_to_s32(f32 f)
+{
+    return (s32)floorf(f);
+}
+
 #include<limits>
 namespace math
 {   

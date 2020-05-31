@@ -532,6 +532,11 @@ load_mesh_glb(MemoryArena & allocator, GltfFile const & file, char const * model
 	s32 normalAccessor 		= attribObject["NORMAL"].GetInt();
 	s32 texcoordAccessor 	= attribObject["TEXCOORD_0"].GetInt();
 
+	s32 tangentAccessor = -1;
+	if (attribObject.HasMember("TANGENT"))
+	{
+		tangentAccessor = attribObject["TANGENT"].GetInt();		
+	}
 
 	JsonArray const & accessors = file.json["accessors"].GetArray();
 
@@ -595,6 +600,47 @@ load_mesh_glb(MemoryArena & allocator, GltfFile const & file, char const * model
 	u16 const * indexStart 	= get_buffer_start<u16>(file, indexAccessor);
 	u16 const * indexEnd 	= indexStart + indexCount;
 	Array<u16> indices 		= allocate_array<u16>(allocator, indexStart, indexEnd);
+
+	// ----------------------------------------------------------------------------------
+
+	s32 triangleCount = indexCount / 3;
+	v3 * vertexTangents = push_memory<v3>(*global_transientMemory, vertexCount, 0);
+	
+	for (s32 i = 0; i < triangleCount; ++i)
+	{
+		s32 index0 = indices[i * 3];
+		s32 index1 = indices[i * 3 + 1];
+		s32 index2 = indices[i * 3 + 2];
+
+		v3 p0 = vertices[index0].position;
+		v3 p1 = vertices[index1].position;
+		v3 p2 = vertices[index2].position;
+
+		v3 p01 = p1 - p0;
+		v3 p02 = p2 - p0;
+
+		v2 uv0 = vertices[index0].texCoord;
+		v2 uv1 = vertices[index1].texCoord;
+		v2 uv2 = vertices[index2].texCoord;
+
+		v2 uv01 = uv1 - uv0;
+		v2 uv02 = uv2 - uv0;
+
+		f32 r = 1.0f / (uv01.x * uv02.y - uv01.y * uv02.x);
+
+		v3 tangent 	= (p01 * uv02.y - p02 * uv01.y) * r;
+		tangent 	= normalize_v3(tangent);
+
+		vertexTangents[index0] += tangent;
+		vertexTangents[index1] += tangent;
+		vertexTangents[index2] += tangent;
+	}
+
+	for (s32 i = 0; i < vertexCount; ++i)
+	{
+		vertices[i].tangent = normalize_v3(vertexTangents[i]);
+	}
+
 
 	// ----------------------------------------------------------------------------------
 

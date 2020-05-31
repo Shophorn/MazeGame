@@ -38,8 +38,12 @@ DONE:
 	full terrain coverage
 	toggle debug shadow texture
 	Gui screen scale in game code
+	
+	28.5:
 	Separate player camera and free camera
 	remove game initializable shadow pipeline
+
+	29.5:
 	Thing:
 		Vulkan explicit shader structs for each pipeline, like ThinMatrix does
 		non-generic shader code for main shader
@@ -49,21 +53,39 @@ DONE:
 		Vulkan expose shadow texture
 		Gui draw texture
 	chalk pyramid cube thing
-
-TODO:
 	Separate player debug levels
 	vertical collision rays
 
+	30.5:
 	Editor: teleport player
+	No input for player when menu is open
+	remove middle elements from scene
 
+	31.5:
+	chunked terrain for increased resolution
 	Normal mapping
 
-	STREAM: Animate robot
-	STREAM: New tree rules
+
+
+DOING:
+
+TODO:
+	Track vulkan memory like memoryarena
+	toggle shadows in game
+
+	fix ground and character normals
 
 	Gui:
 		pivot control
 		panel widget
+
+	Specular shading
+
+	STREAM: New tree rules
+	STREAM: Animate robot
+
+	proper pickuping, as in pickup from front only and closet item always, not first in array
+	cylinder colliders
 
 	Shadows
 		Visualize camera frustums so we can visualize view frustum
@@ -75,8 +97,13 @@ TODO:
 	foliage and rocks
 	journey sand
 
+	terrain lod meshes
+	chunked heightmap for faster collisions
+
 
 	planet curvature shader
+
+	character collisions with volumes
 
 	procedural sky
 	animated sun
@@ -96,6 +123,8 @@ TODO:
 	chalk pyramid
 
 	"Simulation space ends here" signs at both ends
+
+	marching cubes/voxel terrain
 
 	Gear 2:
 		Separate animation from motor, and only animate visible models

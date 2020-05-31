@@ -286,6 +286,9 @@ struct platform::Graphics
 
 	} shadowPass;
 
+	using PostRenderFunc = void(VulkanContext*);
+	PostRenderFunc * onPostRender;
+
 
     VulkanBufferResource stagingBufferPool;
     VulkanBufferResource staticMeshPool;
@@ -474,7 +477,6 @@ namespace vulkan
     internal void           unload_scene(VulkanContext * context);
     
     internal VulkanTexture  make_texture(VulkanContext * context, TextureAsset * asset);
-    internal VulkanTexture  make_texture(VulkanContext * context, u32 width, u32 height, v4 color, VkFormat format);
     internal VulkanTexture  make_cubemap(VulkanContext * context, StaticArray<TextureAsset, 6> * assets);        
 }
 
@@ -492,6 +494,53 @@ internal void fsvulkan_draw_screen_rects	(VulkanContext * context, s32 count, Sc
 internal void fsvulkan_draw_lines			(VulkanContext*, s32 count, v3 const * points, v4 color);
 
 internal TextureHandle fsvulkan_init_shadow_pass (VulkanContext*);
+
+internal void fsvulkan_initialize_normal_pipeline(VulkanContext & context);
+internal void fsvulkan_initialize_animated_pipeline(VulkanContext & context);
+internal void fsvulkan_initialize_skybox_pipeline(VulkanContext & context);
+internal void fsvulkan_initialize_screen_gui_pipeline(VulkanContext & context);
+internal void fsvulkan_initialize_line_pipeline(VulkanContext & context);
+
+internal VkDescriptorSet make_material_vk_descriptor_set_2(	VulkanContext *			context,
+															VkDescriptorSetLayout 	descriptorSetLayout,
+															VkImageView 			imageView,
+															VkDescriptorPool 		pool,
+															VkSampler 				sampler,
+															VkImageLayout 			layout);
+
+internal void fsvulkan_reload_shaders(VulkanContext * context)
+{
+	system("compile-shaders.py");
+
+	context->onPostRender = [](VulkanContext * context)
+	{
+		VkDevice device = context->device;
+
+		for (s32 i = 0; i < GRAPHICS_PIPELINE_COUNT; ++i)
+		{
+			vkDestroyDescriptorSetLayout(device, context->pipelines[i].descriptorSetLayout, nullptr);
+			vkDestroyPipelineLayout(device, context->pipelines[i].pipelineLayout, nullptr);
+			vkDestroyPipeline(device, context->pipelines[i].pipeline, nullptr);				
+		}
+
+		vkDestroyDescriptorSetLayout(device, context->linePipelineDescriptorSetLayout, nullptr);
+		vkDestroyPipelineLayout(device, context->linePipelineLayout, nullptr);
+		vkDestroyPipeline(device, context->linePipeline, nullptr);
+
+		fsvulkan_initialize_normal_pipeline(*context);
+		fsvulkan_initialize_animated_pipeline(*context);
+		fsvulkan_initialize_skybox_pipeline(*context);
+		fsvulkan_initialize_screen_gui_pipeline(*context);
+		fsvulkan_initialize_line_pipeline(*context);
+
+		context->shadowMapTexture = make_material_vk_descriptor_set_2( 	context,
+																		context->pipelines[GRAPHICS_PIPELINE_SCREEN_GUI].descriptorSetLayout,
+																		context->shadowPass.attachment.view,
+																		context->descriptorPools.persistent,
+																		context->shadowPass.sampler,
+																		VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	};
+}
 
 platform::FrameResult
 platform::prepare_frame(VulkanContext * context)
@@ -532,6 +581,7 @@ platform::set_functions(VulkanContext * context, platform::Functions * api)
 
  	api->push_model         = vulkan::push_model;
  	api->unload_scene       = vulkan::unload_scene;
+ 	api->reload_shaders 	= fsvulkan_reload_shaders;
 
  	api->prepare_frame      = vulkan::prepare_drawing;
  	api->finish_frame       = vulkan::finish_drawing;

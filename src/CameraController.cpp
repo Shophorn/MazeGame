@@ -134,36 +134,43 @@ struct FreeCameraController
 {
 	v3 position;
 	v3 direction;
-
-	f32 moveSpeed = 30;
-	f32 zMoveSpeed = 15;
-	f32 rotateSpeed = 0.5f * tau;
 	f32 panAngle;
 	f32 tiltAngle;
-	f32 maxTilt = 0.2f * tau;
 };
 
 internal void update_free_camera(FreeCameraController & controller, game::Input const & input)
 {
+	f32 lowMoveSpeed 	= 10;
+	f32 highMoveSpeed	= 100;
+	f32 zMoveSpeed 		= 25;
+	f32 rotateSpeed 	= pi;
+	f32 maxTilt 		= 0.4f * tau;
+
 	// Note(Leo): positive rotation is to left, which is opposite of joystick
-	controller.panAngle += -1 * input.look.x * controller.rotateSpeed * input.elapsedTime;
+	controller.panAngle += -1 * input.look.x * rotateSpeed * input.elapsedTime;
 
-	controller.tiltAngle += -1 * input.look.y * controller.rotateSpeed * input.elapsedTime;
-	controller.tiltAngle = math::clamp(controller.tiltAngle, -controller.maxTilt, controller.maxTilt);
+	controller.tiltAngle += -1 * input.look.y * rotateSpeed * input.elapsedTime;
+	controller.tiltAngle = math::clamp(controller.tiltAngle, -maxTilt, maxTilt);
 
-	quaternion pan = axis_angle_quaternion(up_v3, controller.panAngle);
-	m44 panMatrix = rotation_matrix(pan);
+	quaternion pan 	= axis_angle_quaternion(up_v3, controller.panAngle);
+	m44 panMatrix 	= rotation_matrix(pan);
 
 	// Todo(Leo): somewhy this points to opposite of right
-	v3 right = multiply_direction(panMatrix, right_v3);
-	v3 forward = multiply_direction(panMatrix, forward_v3);
+	// Note(Leo): It was maybe that camera was just upside down, but corrected only in vertical direction
+	v3 right 	= multiply_direction(panMatrix, right_v3);
+	v3 forward 	= multiply_direction(panMatrix, forward_v3);
 
-	f32 moveStep 		= controller.moveSpeed * input.elapsedTime;
+	constexpr f32 minHeight = 10;
+	constexpr f32 maxHeight = 50;
+	f32 heightValue = math::clamp(controller.position.z, minHeight, maxHeight) / maxHeight;
+	f32 moveSpeed 	= interpolate(lowMoveSpeed, highMoveSpeed, heightValue);
+
+	f32 moveStep 		= moveSpeed * input.elapsedTime;
 	v3 rightMovement 	= right * input.move.x * moveStep;
 	v3 forwardMovement 	= forward * input.move.y * moveStep;
 
-	f32 zInput = is_pressed(input.zoomOut) - is_pressed(input.zoomIn);
-	v3 upMovement = up_v3 * zInput * moveStep;
+	f32 zInput 		= is_pressed(input.zoomOut) - is_pressed(input.zoomIn);
+	v3 upMovement 	= up_v3 * zInput * zMoveSpeed * input.elapsedTime;
 
 	quaternion tilt = axis_angle_quaternion(right, controller.tiltAngle);
 	m44 rotation 	= rotation_matrix(pan * tilt);

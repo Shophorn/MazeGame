@@ -22,12 +22,14 @@ layout (location = 2) in vec3 inColor;
 layout (location = 3) in vec2 inTexCoord;
 layout (location = 4) in uvec4 inBoneIndices;
 layout (location = 5) in vec4 inBoneWeights;
+layout (location = 6) in vec3 inTangent;
 
 layout (location = 0) out vec3 fragColor;
 layout (location = 1) out vec2 fragTexCoord;
 layout (location = 2) out vec3 fragNormal;
 layout (location = 3) out vec3 fragPosition;
 layout (location = 4) out vec4 lightCoords;
+layout (location = 5) out mat3 tbnMatrix;
 
 // Todo(Leo): Move to uniform lighting section
 const float shadowDistance = 90.0;
@@ -44,19 +46,28 @@ void main ()
 		inBoneWeights[2] * model.bonesToLocal[inBoneIndices[2]] +
 		inBoneWeights[3] * model.bonesToLocal[inBoneIndices[3]];
 
-
 	float assertValue = abs(poseMatrix[3][3] - 1.0);
 	if(assertValue > 0.00001)
 	{
 		// Do not animate if this happens.
 		poseMatrix = mat4(1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1);
 	}
+	// Note(Leo): there is apparantly w division happening in between vertex and
+	// fragment shaders, so we do not need to do it ourselves
 	// poseMatrix /= poseMatrix[3][3];
+
+
 
 	// MetaNote(Leo): This note may be important, save it for later when we have time to study
 	// Note(Leo): position coordinates must be divided with z-component after matrix multiplication
 	vec4 posePosition = poseMatrix * vec4(inPosition, 1);
 	vec4 poseNormal = poseMatrix * vec4(inNormal, 0);
+
+	// world space tangent, normal and bitangent
+	vec3 t = normalize((model.localToWorld * vec4(inTangent, 0)).xyz);
+	vec3 n = normalize((model.localToWorld * poseNormal).xyz);
+	vec3 b = normalize(cross(n, t));
+	tbnMatrix = transpose(mat3(t, b, n));
 
 	gl_Position = camera.projection * camera.view * model.localToWorld * posePosition;
 	// vec4 poseNormal = vec4(inNormal, 0);

@@ -32,7 +32,7 @@ struct Gui
 	f32 padding;
 
 	// Per frame state
-	game::Input * 	input;
+	game::Input 	input;
 	v2 				currentPosition;
 	s32 			currentSelectableIndex;
 	v2 				screenSize;
@@ -50,9 +50,10 @@ internal void gui_start(Gui & gui, game::Input * input);
 internal void gui_end();
 internal void gui_generate_font_material(Gui & gui);
 
-// Layout
+// Control
 internal void gui_position(v2 position);
 internal void gui_reset_selection();
+internal void gui_ignore_input();
 
 // Widgets
 internal bool gui_button(char const * label);
@@ -71,7 +72,7 @@ internal void gui_start(Gui & gui, game::Input * input)
 	Assert(global_currentGui == nullptr);
 
 	global_currentGui 			= &gui;
-	gui.input 					= input;
+	gui.input 					= *input;
 	gui.currentPosition 		= {0,0};
 	gui.currentSelectableIndex 	= 0;
 
@@ -112,6 +113,13 @@ internal void gui_position(v2 position)
 internal void gui_reset_selection()
 {
 	global_currentGui->selectedIndex = 0;
+}
+
+internal void gui_ignore_input()
+{
+	f32 elapsedTime 						= global_currentGui->input.elapsedTime;
+	global_currentGui->input 				= {};
+	global_currentGui->input.elapsedTime 	= elapsedTime;
 }
 
 internal v2 gui_transform_screen_point (v2 point)
@@ -189,7 +197,7 @@ internal bool gui_button(char const * label)
 	gui_render_text(label, gui.currentPosition, isSelected ? gui.selectedTextColor : gui.textColor);
 	gui.currentPosition.y += gui.textSize + gui.padding;
 
-	bool result = isSelected && is_clicked(gui.input->confirm);
+	bool result = isSelected && is_clicked(gui.input.confirm);
 	return result;
 }
 

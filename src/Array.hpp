@@ -139,7 +139,6 @@ T * Array<T>::push_return_pointer(T value)
 	return result;
 }
 
-
 template<typename T>
 void Array<T>::push_many(std::initializer_list<T> values)
 {

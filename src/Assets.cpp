@@ -126,13 +126,12 @@ value_to_byte(float value)
 	return (u8)(value * 255);
 }
 
-inline u32
-make_color_argb_32(v4 color)
+internal u32 color_rgba_32(v4 color)
 {
-	u32 pixel = (u32)value_to_byte(color.w) << 24
-				| (u32)value_to_byte(color.x) << 16
-				| (u32)value_to_byte(color.y) << 8
-				| (u32)value_to_byte(color.z);
+	u32 pixel = (u32)value_to_byte(color.a) << 24
+				| (u32)value_to_byte(color.b) << 16
+				| (u32)value_to_byte(color.g) << 8
+				| (u32)value_to_byte(color.r);
 	return pixel;
 }
 

@@ -272,12 +272,12 @@ Run(HINSTANCE hInstance)
         FILETIME dllLatestWriteTime = get_file_write_time(GAMECODE_DLL_FILE_NAME);
         if (CompareFileTime(&dllLatestWriteTime, &game.dllWriteTime) > 0)
         {
-            logSystem() << "Attempting to reload game";
+            logSystem(0) << "Attempting to reload game";
 
             winapi::unload_game(&game);
             winapi::load_game(&game);
 
-            logSystem() << "Reloaded game";
+            logSystem(0) << "Reloaded game";
         }
 
         /// ----- HANDLE INPUT -----

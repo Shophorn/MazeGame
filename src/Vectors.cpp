@@ -291,20 +291,23 @@ std::ostream & operator << (std::ostream & os, v3 vec)
 
 union v4
 {
-	struct
-	{ 
-		f32 x, y, z, w;
-	};
-
+	struct { f32 x, y, z, w; };
 	struct
 	{
 		v3 xyz;
-		f32 ignored_;
+		f32 ignored_1;
 	};
 
 	struct
 	{
 		v2 xy, zw;
+	};
+
+	struct { f32 r, g, b, a; };
+	struct
+	{
+		v3 rgb; 
+		f32 ignored_2;
 	};
 };
 

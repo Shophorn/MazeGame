@@ -258,6 +258,13 @@ vulkan::finish_drawing(VulkanContext * context)
 	}
 
 	advance_virtual_frame(context);
+
+	if (context->onPostRender != nullptr)
+	{
+		vkDeviceWaitIdle(context->device);
+		context->onPostRender(context);
+		context->onPostRender = nullptr;
+	}
 }
 
 
