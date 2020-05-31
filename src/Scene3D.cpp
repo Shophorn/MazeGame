@@ -646,6 +646,8 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 		case Scene3d::MENU_CONFIRM_EXIT:
 		{
 			gui_position({900, 300});
+			gui_background_image(scene->testGuiHandle, 3, v4{0.8,0.8,0.8, 0.5});
+
 			gui_text("Exit to Main Menu?");
 
 			if (gui_button("Yes"))
@@ -663,6 +665,8 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 		case Scene3d::MENU_MAIN:
 		{
 			gui_position({900, 300});	
+			gui_background_image(scene->testGuiHandle, 6, v4{0.8,0.8,0.8, 0.5});
+
 			if (gui_button("Continue"))
 			{
 				scene->menuView = Scene3d::MENU_OFF;
@@ -720,6 +724,8 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 		case Scene3d::MENU_CONFIRM_TELEPORT:
 		{
 			gui_position({900, 300});
+			gui_background_image(scene->testGuiHandle, 3, v4{0.8,0.8,0.8, 0.5});
+
 			gui_text("Teleport Player Here?");
 
 			if (gui_button("Yes"))
@@ -749,7 +755,6 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 	{
 		gui_image(GRAPHICS_RESOURCE_SHADOWMAP_GUI_TEXTURE, {300, 300});
 	}
-	gui_image(scene->testGuiHandle, {300, 300}, v4{0.8,0.8,0.8, 0.5});
 
 	gui_end();
 

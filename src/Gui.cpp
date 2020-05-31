@@ -59,6 +59,7 @@ internal void gui_ignore_input();
 internal bool gui_button(char const * label);
 internal void gui_text(char const * label);
 internal void gui_image(GuiTextureHandle texture, v2 size, v4 colour = colors::white);
+internal void gui_background_image(GuiTextureHandle, s32 rows, v4 colour = colors::white);
 
 // Internal
 internal void gui_render_texture(TextureHandle texture, ScreenRect rect);
@@ -219,6 +220,23 @@ internal void gui_image(GuiTextureHandle texture, v2 size, v4 colour)
 	size = gui_transform_screen_size(size);
 
 	gui.currentPosition.y += yMovement + gui.padding;
+
+	ScreenRect rect = {position, size, {0, 0}, {1, 1}};
+
+	platformApi->draw_screen_rects(platformGraphics, 1, &rect, texture, colour);
+}
+
+internal void gui_background_image(GuiTextureHandle texture, s32 rows, v4 colour)
+{	
+	Gui & gui = *global_currentGui;
+
+	v2 position = gui.currentPosition - v2{gui.padding, gui.padding};
+	position = gui_transform_screen_point(position);
+
+	f32 height = rows * gui.textSize + (rows - 1) * gui.padding;
+	v2 size = {height, height};
+	size += {2* gui.padding, 2*gui.padding};
+	size = gui_transform_screen_size(size);
 
 	ScreenRect rect = {position, size, {0, 0}, {1, 1}};
 
