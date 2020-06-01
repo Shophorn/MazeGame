@@ -63,7 +63,7 @@ struct Scene3d
 	s32 potsWithSeedCount;
 	s32 totalPotsCount;
 
-	static constexpr s32 waterCapacity = 20;
+	static constexpr s32 waterCapacity = 100;
 	Transform3D waterTransforms[waterCapacity];
 	s32	waterCount;
 
@@ -72,11 +72,14 @@ struct Scene3d
 	s32 currentSeedCount;
 
 	Trees trees;
-	
-	f32 treeGrowths	[seedCapacity];
-	Transform3D treeTransforms[seedCapacity];
+
+	// Document(Leo): First Trees in pots, then on the ground
+	f32 treeGrowths				[seedCapacity];
+	f32 treeWateriness 			[seedCapacity];
+	Transform3D treeTransforms	[seedCapacity];
 	s32 treesInPotCount;
 	s32 treesOnGroundCount;
+	static constexpr f32 treeWaterAcceptDistance = 0.4f;
 
 	MeshHandle 		dropMesh;
 	MaterialHandle 	waterDropMaterial;
@@ -242,8 +245,30 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 	update carried item
 	*/
 
+	if ((scene->cameraMode == CAMERA_MODE_PLAYER) && is_clicked(input->Y))
+	{
+		v2 center = scene->playerCharacterTransform->position.xy;
 
-	if (is_clicked(input->A))
+		s32 spawnCount = 10;
+		spawnCount = math::min(spawnCount, scene->waterCapacity - scene->waterCount);
+
+		for (s32 i = 0; i < spawnCount; ++i)
+		{
+			f32 distance 	= RandomRange(1, 5);
+			f32 angle 		= RandomRange(0, 2 * pi);
+
+			f32 x = cosine(angle) * distance;
+			f32 y = sine(angle) * distance;
+
+			v3 position = { x + center.x, y + center.y, 0 };
+				position.z = get_terrain_height(&scene->collisionSystem, position.xy);
+
+			scene->waterTransforms[scene->waterCount].position = position;
+			++scene->waterCount;
+		}
+	}
+
+	if ((scene->cameraMode == CAMERA_MODE_PLAYER) && is_clicked(input->A))
 	{
 		v3 playerPosition = scene->playerCharacterTransform->position;
 		f32 grabDistance = 1.0f;
@@ -311,10 +336,11 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 					if (distanceToSeed < 0.5f)
 					{
 						s32 treeIndex = scene->treesInPotCount + scene->treesOnGroundCount;
-						scene->treeGrowths[treeIndex] = 0.5f;
-						scene->treeTransforms[treeIndex].position = scene->seedTransforms[seedIndex].position;
-						scene->treeTransforms[treeIndex].rotation = identity_quaternion;
-						scene->treeTransforms[treeIndex].scale = make_uniform_v3(scene->treeGrowths[treeIndex]);
+						scene->treeGrowths[treeIndex] = 0;
+						scene->treeWateriness[treeIndex] = 0.5f;
+						scene->treeTransforms[treeIndex].position 	= scene->seedTransforms[seedIndex].position;
+						scene->treeTransforms[treeIndex].rotation 	= identity_quaternion;
+						scene->treeTransforms[treeIndex].scale 		= {0,0,0};
 
 						++scene->treesOnGroundCount;
 
@@ -342,15 +368,17 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 							s32 treeMoveFromIndex = newTreeInPotIndex;
 							s32 treeMoveToIndex = scene->treesInPotCount + scene->treesOnGroundCount;
 							scene->treeGrowths[treeMoveToIndex] = scene->treeGrowths[treeMoveFromIndex];
+							scene->treeWateriness[treeMoveToIndex] = scene->treeGrowths[treeMoveFromIndex];
 							scene->treeTransforms[treeMoveToIndex] = scene->treeTransforms[treeMoveFromIndex];
 							// Note(Leo): no need to worry about pot index here; we are on ground!
 						}
 
-						scene->treeGrowths[newTreeInPotIndex] = 0.5f;
+						scene->treeGrowths[newTreeInPotIndex] = 0;
+						scene->treeWateriness[newTreeInPotIndex] = 0.5f;
 						// scene->treePotIndices[newTreeInPotIndex] = potIndex;
-						scene->treeTransforms[newTreeInPotIndex].position = scene->potTransforms[potIndex].position;
-						scene->treeTransforms[newTreeInPotIndex].rotation = identity_quaternion;
-						scene->treeTransforms[newTreeInPotIndex].scale = make_uniform_v3(scene->treeGrowths[newTreeInPotIndex]);
+						scene->treeTransforms[newTreeInPotIndex].position 	= scene->potTransforms[potIndex].position;
+						scene->treeTransforms[newTreeInPotIndex].rotation 	= identity_quaternion;
+						scene->treeTransforms[newTreeInPotIndex].scale 		= {0,0,0};
 
 						/* Note(Leo): this seems to work, we can rely on it for a while, until we make proper hashmaps.
 						It works because there is equal number of pots with trees and trees in pots, naturally, and they
@@ -377,9 +405,7 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 					f32 distanceToTreeInPot = magnitude_v3(waterTransform.position - scene->treeTransforms[treeIndex].position);
 					if (distanceToTreeInPot < 0.5f)
 					{
-						// scene->treeGrowths[treeIndex] += 0.5f;
-						scene->treeGrowths[treeIndex] = math::min(scene->treeGrowths[treeIndex] + 0.5f, 1.0f);
-						scene->treeTransforms[treeIndex].scale = make_uniform_v3(scene->treeGrowths[treeIndex]);
+						scene->treeWateriness[treeIndex] += 0.5f;
 
 						scene->waterCount -= 1;
 						scene->waterTransforms[scene->carriedItemIndex] = scene->waterTransforms[scene->waterCount];
@@ -391,11 +417,11 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 				/// LOOK FOR NEARBY TREES ON GROUND
 				for (s32 treeIndex = scene->treesInPotCount; treeIndex < (scene->treesInPotCount + scene->treesOnGroundCount); ++treeIndex)
 				{
-					f32 distnceToTreeOnGround = magnitude_v3(waterTransform.position - scene->treeTransforms[treeIndex].position);
-					if (distnceToTreeOnGround < 0.5f)
+					f32 distanceToTreeOnGround = magnitude_v3(waterTransform.position - scene->treeTransforms[treeIndex].position);
+					f32 distanceThreshold = scene->treeGrowths[treeIndex] * scene->treeWaterAcceptDistance;
+					if (distanceToTreeOnGround < distanceThreshold)
 					{
-						scene->treeGrowths[treeIndex] += 0.5f;
-						scene->treeTransforms[treeIndex].scale = make_uniform_v3(scene->treeGrowths[treeIndex]);
+						scene->treeWateriness[treeIndex] += 0.5f;
 
 						scene->waterCount -= 1;
 						scene->waterTransforms[scene->carriedItemIndex] = scene->waterTransforms[scene->waterCount];
@@ -469,19 +495,6 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 	// contribute to collisions this frame or not.
 	precompute_colliders(scene->collisionSystem);
 
-	for (auto const & collider : scene->collisionSystem.cylinderColliders)
-	{
-		v3 colliderPosition = collider.transform->position + collider.center;
-
-		colliderPosition.z -= (collider.height / 2.0f);
-		debug_draw_circle_xy(colliderPosition, collider.radius, color_bright_yellow, DEBUG_BACKGROUND);
-
-		colliderPosition.z += collider.height;
-		debug_draw_circle_xy(colliderPosition, collider.radius, color_bright_purple, DEBUG_BACKGROUND);
-	}
-	debug_draw_circle_xy(scene->playerCharacterTransform->position + v3{0,0,0.7}, 0.25f, colors::brightGreen, DEBUG_PLAYER);
-
-
 	for (auto & randomWalker : scene->randomWalkers)
 	{
 		update_random_walker_input(randomWalker, scene->characterInputs, input->elapsedTime);
@@ -525,14 +538,49 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 	}
 	platformApi->draw_meshes(platformGraphics, scene->currentSeedCount, seedTransforms, scene->dropMesh, scene->seedMaterial);
 
-	/// DRAW TREES
-	s32 totalTreeCount = scene->treesInPotCount + scene->treesOnGroundCount;
-	for (s32 i = 0; i < totalTreeCount; ++i)
+	/// UPDATE TREES
 	{
-		platformApi->draw_model(platformGraphics, scene->treeModel,
-								transform_matrix(scene->treeTransforms[i]),
-								true,
-								nullptr, 0);
+		s32 totalTreeCount = scene->treesInPotCount + scene->treesOnGroundCount;
+		f32 treeGrowthRate = 0.1f;
+
+		for (s32 i = 0; i < scene->treesInPotCount; ++i)
+		{
+			if (scene->treeWateriness[i] > 0)
+			{
+				f32 growth 					= treeGrowthRate * input->elapsedTime;
+				scene->treeGrowths[i] 		+= growth;
+				scene->treeGrowths[i] 		= math::min(1.0f, scene->treeGrowths[i]);
+				scene->treeWateriness[i] 	-= growth;
+			}
+		}
+
+		for (s32 i = 0; i < scene->treesOnGroundCount; ++i)
+		{
+			s32 index = i + scene->treesInPotCount;
+
+			if (scene->treeWateriness[index] > 0)
+			{
+				f32 growth 						= treeGrowthRate * input->elapsedTime;
+				scene->treeGrowths[index] 		+= growth;
+				scene->treeWateriness[index] 	-= growth;	
+			}
+		}
+
+		for (s32 i = 0; i < totalTreeCount; ++i)
+		{
+			scene->treeTransforms[i].scale = make_uniform_v3(scene->treeGrowths[i]);
+			debug_draw_circle_xy(	scene->treeTransforms[i].position + v3{0,0,0.5f},
+									scene->treeGrowths[i] * scene->treeWaterAcceptDistance,
+									colour_aqua_blue, DEBUG_NPC);
+		}
+
+		for (s32 i = 0; i < totalTreeCount; ++i)
+		{
+			platformApi->draw_model(platformGraphics, scene->treeModel,
+									transform_matrix(scene->treeTransforms[i]),
+									true,
+									nullptr, 0);
+		}
 	}
 
 	/// DRAW POTS
@@ -582,6 +630,21 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 		{
 			debug_draw_box(collider.transform, color_dark_green, DEBUG_BACKGROUND);
 		}
+
+		for (auto const & collider : scene->collisionSystem.cylinderColliders)
+		{
+			v3 colliderPosition = collider.transform->position + collider.center;
+
+			debug_draw_circle_xy(colliderPosition, collider.radius, color_bright_yellow, DEBUG_PLAYER);
+
+			colliderPosition.z -= (collider.height / 2.0f);
+			debug_draw_circle_xy(colliderPosition, collider.radius, color_bright_purple, DEBUG_BACKGROUND);
+
+			colliderPosition.z += collider.height;
+			debug_draw_circle_xy(colliderPosition, collider.radius, color_bright_purple, DEBUG_BACKGROUND);
+		}
+		debug_draw_circle_xy(scene->playerCharacterTransform->position + v3{0,0,0.7}, 0.25f, colors::brightGreen, DEBUG_PLAYER);
+
 	}
 
 	  //////////////////////////////
@@ -756,6 +819,17 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 		gui_image(GRAPHICS_RESOURCE_SHADOWMAP_GUI_TEXTURE, {300, 300});
 	}
 
+	gui_position({0, 0});
+
+	{
+		s32 elapsedMilliseconds 	= input->elapsedTime * 1000;
+		char elapsedTimeCString [] 	= "XX";
+		elapsedTimeCString[0] 		= '0' + ((elapsedMilliseconds / 10) % 10);
+		elapsedTimeCString[1] 		= '0' + elapsedMilliseconds % 10;
+
+		gui_text(elapsedTimeCString);
+	}
+
 	gui_end();
 
 	return keepScene;
@@ -798,7 +872,7 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 	// ----------------------------------------------------------------------------------
 
 	{
-		TextureAsset testGuiAsset = load_texture_asset( "assets/textures/texture.jpg", global_transientMemory);
+		TextureAsset testGuiAsset = load_texture_asset( "assets/textures/tiles.png", global_transientMemory);
 		scene->testGuiHandle = platformApi->push_gui_texture(platformGraphics, &testGuiAsset);
 	}
 
@@ -841,7 +915,7 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 		auto tilesNormal 	= load_and_push_texture("assets/textures/tiles_normal.png");
 		auto groundAlbedo 	= load_and_push_texture("assets/textures/ground.png");
 		auto groundNormal 	= load_and_push_texture("assets/textures/ground_normal.png");
-		auto lavaTexture 	= load_and_push_texture("assets/textures/lava.jpg");
+		auto lavaTexture 	= load_and_push_texture("assets/textures/tiles_red.png");
 		auto faceTexture 	= load_and_push_texture("assets/textures/texture.jpg");
 
 
@@ -1251,7 +1325,10 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 			TextureHandle waterTextures [] = {waterTextureHandle, neutralBumpTexture, blackTexture};
 			scene->waterDropMaterial = platformApi->push_material(platformGraphics, GRAPHICS_PIPELINE_NORMAL, 3, waterTextures);
 
-			scene->waterCount = scene->waterCapacity;
+			s32 waterStartCount = 20;
+			Assert(waterStartCount <= scene->waterCapacity);
+
+			scene->waterCount = waterStartCount;
 			for (s32 i = 0; i < scene->waterCount; ++i)
 			{
 				v3 position = {RandomRange(-50, 50), RandomRange(-50, 50)};

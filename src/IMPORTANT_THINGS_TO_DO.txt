@@ -64,16 +64,31 @@ DONE:
 	31.5:
 	chunked terrain for increased resolution
 	Normal mapping
+	fix ground and character normals
 
-
+	1.6:
+	STREAM: New tree rules
+	Frametime counter
 
 DOING:
+	New tree rules
+	
+
+	cylinder colliders
+	Tree collision
+	Tree radius depending on its growth
 
 TODO:
+	proper pickuping, as in pickup from front only and closest item always, not first in array
+
 	Track vulkan memory like memoryarena
 	toggle shadows in game
 
-	fix ground and character normals
+	Editor: add toggles to update only character
+	Per instance colors for main shader
+
+	seed does not disappear immediately
+	dig in to plant?
 
 	Gui:
 		pivot control
@@ -81,11 +96,8 @@ TODO:
 
 	Specular shading
 
-	STREAM: New tree rules
 	STREAM: Animate robot
 
-	proper pickuping, as in pickup from front only and closet item always, not first in array
-	cylinder colliders
 
 	Shadows
 		Visualize camera frustums so we can visualize view frustum

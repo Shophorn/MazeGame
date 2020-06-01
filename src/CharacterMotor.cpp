@@ -253,6 +253,8 @@ update_character_motor( CharacterMotor & 	motor,
 				rayDebugHitPoints[rayDebugHitCount] = start;
 				rayDebugHitPoints[rayDebugHitCount + 1] = start + direction;
 				rayDebugHitCount += 2;
+
+				debug_draw_vector(currentResult.hitPosition, currentResult.hitNormal, color_bright_yellow, debugLevel);
 			}
 			else
 			{
@@ -275,8 +277,9 @@ update_character_motor( CharacterMotor & 	motor,
 
 			for (s32 i = 0; i < rayHitCount; ++i)
 			{
-				v3 projection = rayHitResults[i].hitNormal * dot_v3(movement, rayHitResults[i].hitNormal);
-				movement -= projection;
+				f32 projectionLength 	= math::min(0.0f, dot_v3(movement, rayHitResults[i].hitNormal));
+				v3 projection 			= rayHitResults[i].hitNormal * projectionLength;
+				movement 				-= projection;
 			}
 
 			motor.transform->position += movement;
@@ -321,7 +324,10 @@ update_character_motor( CharacterMotor & 	motor,
 	bool32 grounded 	= motor.transform->position.z < (groundThreshold + groundHeight);
 
 	// CHECK COLLISION WITH OTHER COLLIDERS TOO
+	
+	// TODO(Leo): turn this back on
 	if(grounded == false)
+	// if(false)
 	{
 		f32 groundRaySkinWidth = 0.1f;
 		v3 groundRayStart = motor.transform->position + v3{0,0,groundRaySkinWidth};
@@ -337,6 +343,10 @@ update_character_motor( CharacterMotor & 	motor,
 			debug_draw_line(motor.transform->position, rayResult.hitPosition, color_dark_red, debugLevel);
 			debug_draw_cross_xy(motor.transform->position, 0.3, color_bright_yellow, debugLevel);
 			debug_draw_cross_xy(rayResult.hitPosition, 0.3, color_bright_purple, debugLevel);
+		}
+		else
+		{
+			debug_draw_line(motor.transform->position, motor.transform->position - v3{0,0,1}, colour_bright_green, debugLevel);
 		}
 	}
 

@@ -135,6 +135,12 @@ internal u32 color_rgba_32(v4 color)
 	return pixel;
 }
 
+internal constexpr v4 colour_rgb_255(u8 r, u8 g, u8 b)
+{
+	v4 colour = {r / 255.0f, g / 255.0f, b / 255.0f, 1.0f};
+	return colour;
+}
+
 internal Pixel
 get_closest_pixel(TextureAsset * texture, v2 texcoord)
 {
