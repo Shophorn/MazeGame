@@ -141,6 +141,12 @@ internal constexpr v4 colour_rgb_255(u8 r, u8 g, u8 b)
 	return colour;
 }
 
+internal constexpr v4 colour_rgb_alpha(v3 rgb, f32 alpha)
+{
+	v4 colour = {rgb.x, rgb.y, rgb.z, alpha};
+	return colour;
+}
+
 internal Pixel
 get_closest_pixel(TextureAsset * texture, v2 texcoord)
 {

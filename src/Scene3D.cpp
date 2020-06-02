@@ -157,13 +157,22 @@ struct Scene3d
 
 	MenuView menuView;
 
-	GuiTextureHandle testGuiHandle;
+	GuiTextureHandle guiPanelImage;
+	v4 guiPanelColour;
+
+	constexpr static s32 timeScaleCount = 3;
+	s32 timeScaleIndex;
 };
 
 internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 {
 	Scene3d * scene = reinterpret_cast<Scene3d*>(scenePtr);
 	
+	
+	f32 const timeScales [scene->timeScaleCount] { 1.0f, 0.1f, 0.5f }; 
+	input->elapsedTime *= timeScales[scene->timeScaleIndex];
+
+
 	gui_start(scene->gui, input);
 
 
@@ -709,7 +718,7 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 		case Scene3d::MENU_CONFIRM_EXIT:
 		{
 			gui_position({900, 300});
-			gui_background_image(scene->testGuiHandle, 3, v4{0.8,0.8,0.8, 0.5});
+			gui_background_image(scene->guiPanelImage, 3, scene->guiPanelColour);
 
 			gui_text("Exit to Main Menu?");
 
@@ -728,7 +737,7 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 		case Scene3d::MENU_MAIN:
 		{
 			gui_position({900, 300});	
-			gui_background_image(scene->testGuiHandle, 6, v4{0.8,0.8,0.8, 0.5});
+			gui_background_image(scene->guiPanelImage, 7, scene->guiPanelColour);
 
 			if (gui_button("Continue"))
 			{
@@ -777,6 +786,19 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 				platformApi->reload_shaders(platformGraphics);
 			}
 
+			char const * const timeScaleLabels [scene->timeScaleCount] =
+			{
+				"Time Scale: 1.0",
+				"Time Scale: 0.1",
+				"Time Scale: 0.5",
+			};
+
+			if (gui_button(timeScaleLabels[scene->timeScaleIndex]))
+			{
+				scene->timeScaleIndex += 1;
+				scene->timeScaleIndex %= scene->timeScaleCount;
+			}
+
 			if (gui_button("Exit Scene"))
 			{
 				scene->menuView = Scene3d::MENU_CONFIRM_EXIT;
@@ -787,7 +809,7 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 		case Scene3d::MENU_CONFIRM_TELEPORT:
 		{
 			gui_position({900, 300});
-			gui_background_image(scene->testGuiHandle, 3, v4{0.8,0.8,0.8, 0.5});
+			gui_background_image(scene->guiPanelImage, 3, scene->guiPanelColour);
 
 			gui_text("Teleport Player Here?");
 
@@ -873,7 +895,8 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 
 	{
 		TextureAsset testGuiAsset = load_texture_asset( "assets/textures/tiles.png", global_transientMemory);
-		scene->testGuiHandle = platformApi->push_gui_texture(platformGraphics, &testGuiAsset);
+		scene->guiPanelImage = platformApi->push_gui_texture(platformGraphics, &testGuiAsset);
+		scene->guiPanelColour = colour_rgb_alpha(colour_aqua_blue.rgb, 0.5);
 	}
 
 	struct MaterialCollection {
@@ -1117,6 +1140,7 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 		// constexpr f32 width = 500;
 		f32 mapSize 		= 1200;
 		f32 terrainHeight 	= 50;
+		// f32 terrainHeight 	= 0;
 		{
 			// Note(Leo): this is maximum size we support with u16 mesh vertex indices
 

@@ -319,14 +319,14 @@ update_character_motor( CharacterMotor & 	motor,
 	// ----------------------------------------------------------------------------------
 
 
-	f32 groundThreshold = 0.05f;
+	f32 groundThreshold = 0.01f;
 	f32 groundHeight 	= get_terrain_height(&collisionSystem, motor.transform->position.xy);
 	bool32 grounded 	= motor.transform->position.z < (groundThreshold + groundHeight);
 
 	// CHECK COLLISION WITH OTHER COLLIDERS TOO
 	
 	// TODO(Leo): turn this back on
-	if(grounded == false)
+	// if(grounded == false)
 	// if(false)
 	{
 		f32 groundRaySkinWidth = 0.1f;
@@ -338,7 +338,7 @@ update_character_motor( CharacterMotor & 	motor,
 		if (raycast_3d(&collisionSystem, groundRayStart, groundRayDirection, groundRayLength, &rayResult))
 		{
 			groundHeight 	= math::max(groundHeight, rayResult.hitPosition.z);
-			grounded 		= motor.transform->position.z < (groundThreshold + groundHeight);
+			grounded 		= grounded || motor.transform->position.z < (groundThreshold + groundHeight);
 
 			debug_draw_line(motor.transform->position, rayResult.hitPosition, color_dark_red, debugLevel);
 			debug_draw_cross_xy(motor.transform->position, 0.3, color_bright_yellow, debugLevel);
@@ -383,7 +383,7 @@ update_character_motor( CharacterMotor & 	motor,
 	}
 	else
 	{
-		motor.zSpeed = 0;
+		motor.zSpeed = math::max(0.0f, motor.zSpeed);
         motor.transform->position.z = groundHeight;
 	}
 

@@ -9,10 +9,16 @@ TODO(Leo):
 =============================================================================*/
 
 /// ------- v1 ------------
-// Note(Leo): testing out idea that scalars are just 1d vectors
+// Note(Leo): testing out conceptual idea that scalars are just 1d vectors
 f32 normalize_v1(f32 f)
 {
 	f = f / math::absolute(f);
+	return f;
+}
+
+f32 magnitude_v1(f32 f)
+{
+	f = math::absolute(f);
 	return f;
 }
 

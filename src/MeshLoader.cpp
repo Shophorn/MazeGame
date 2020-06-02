@@ -481,7 +481,6 @@ load_skeleton_glb(MemoryArena & allocator, GltfFile const & file, char const * m
 
 	for (s32 i = 1; i < skeleton.bones.count(); ++i)
 	{
-		logDebug(0) << "Bone " << i << ": \"" << skeleton.bones[i].name << "\", parent: " << skeleton.bones[i].parent;
 		Assert((skeleton.bones[i].parent < i) && skeleton.bones[i].parent >= 0);
 	}
 

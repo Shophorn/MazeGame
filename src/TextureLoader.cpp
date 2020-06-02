@@ -75,13 +75,8 @@ load_font(char const * fontFilePath)
     s32 ascent, descent, lineGap;
     stbtt_GetFontVMetrics(&fontInfo, &ascent, &descent, &lineGap);
 
-    logDebug(0) << "Loading font, ascent: " << ascent * scale
-                << ", descent: " << descent * scale
-                << ", lineGap: " << lineGap * scale
-                << ", scale: " << scale;
-
-    Font result = {};
-    result.spaceWidth = 0.25;
+    Font result         = {};
+    result.spaceWidth   = 0.25;
 
     for (u8 i = 0; i < characterCount; ++i)
     {
@@ -97,12 +92,6 @@ load_font(char const * fontFilePath)
 
         result.advanceWidths[i] = (advanceWidth * scale) / characterSize;
         result.leftSideBearings[i] = (leftSideBearing * scale) / characterSize;
-
-        if (character >= 'a' && character <= 'z')
-        {
-            // logDebug(0) << character << ": " << ix0 << ", " << ix1 << ", " << ix1 - ix0 << ", " << iy0 << ", " << iy1 << ", " << iy1 - iy0;
-            logDebug(0) << character << ": " << leftSideBearing * scale << ", " << advanceWidth * scale;
-        }
 
         s32 x = i % charactersPerDirection;
         s32 y = i / charactersPerDirection;

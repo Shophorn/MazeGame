@@ -91,7 +91,8 @@ namespace math
         fastest at least as significantly.
 
         Always optimize with proper compiler options :) */
-        return value < 0 ? -value : value;
+        // return value < 0 ? -value : value;
+        return abs(value);
     }
 
     bool close_enough_small (f32 a, f32 b)
