@@ -294,9 +294,11 @@ struct platform::Graphics
     VulkanBufferResource staticMeshPool;
     VulkanBufferResource modelUniformBuffer;
     VulkanBufferResource sceneUniformBuffer;
-   
+   	VulkanBufferResource leafInstanceVertexBuffer;
+
     // Todo(Leo): Use our own arena arrays for these.
     // Todo(Leo): That requires access to persistent memory block at platform layer
+    // Todo(Leo): Also make these per "scene" thing, so we can unload stuff per scene easily
     std::vector<VulkanMesh>  	loadedMeshes;
 	std::vector<VulkanTexture> 	loadedTextures;
 	std::vector<VulkanMaterial>	loadedMaterials;
@@ -500,6 +502,7 @@ internal void fsvulkan_initialize_animated_pipeline(VulkanContext & context);
 internal void fsvulkan_initialize_skybox_pipeline(VulkanContext & context);
 internal void fsvulkan_initialize_screen_gui_pipeline(VulkanContext & context);
 internal void fsvulkan_initialize_line_pipeline(VulkanContext & context);
+internal void fsvulkan_initialize_leaves_pipeline(VulkanContext & context);
 
 internal VkDescriptorSet make_material_vk_descriptor_set_2(	VulkanContext *			context,
 															VkDescriptorSetLayout 	descriptorSetLayout,
@@ -532,6 +535,7 @@ internal void fsvulkan_reload_shaders(VulkanContext * context)
 		fsvulkan_initialize_skybox_pipeline(*context);
 		fsvulkan_initialize_screen_gui_pipeline(*context);
 		fsvulkan_initialize_line_pipeline(*context);
+		fsvulkan_initialize_leaves_pipeline(*context);
 
 		context->shadowMapTexture = make_material_vk_descriptor_set_2( 	context,
 																		context->pipelines[GRAPHICS_PIPELINE_SCREEN_GUI].descriptorSetLayout,

@@ -826,6 +826,7 @@ winapi::create_vulkan_context(WinAPIWindow * window)
 		fsvulkan_initialize_skybox_pipeline(context);
 		fsvulkan_initialize_screen_gui_pipeline(context);
 		fsvulkan_initialize_line_pipeline(context);
+		fsvulkan_initialize_leaves_pipeline(context);
 		add_cleanup(&context, [](VulkanContext * context)
 		{
 			VkDevice device = context->device;
@@ -1136,6 +1137,7 @@ winapi_vulkan_internal_::init_memory(VulkanContext * context)
 	u64 modelUniformBufferSize   = megabytes(100);
 	u64 sceneUniformBufferSize   = megabytes(100);
 	u64 guiUniformBufferSize     = megabytes(100);
+	u64 leafInstanceVertexBufferSize = megabytes(100);
 
 	// TODO[MEMORY] (Leo): This will need guarding against multithreads once we get there
 	context->staticMeshPool = vulkan::make_buffer_resource(  
@@ -1150,7 +1152,7 @@ winapi_vulkan_internal_::init_memory(VulkanContext * context)
 
 	context->modelUniformBuffer = vulkan::make_buffer_resource(  
 									context, modelUniformBufferSize,
-									VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+									VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
 									VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
 	context->sceneUniformBuffer = vulkan::make_buffer_resource(
@@ -1158,11 +1160,17 @@ winapi_vulkan_internal_::init_memory(VulkanContext * context)
 									VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
 									VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
 
+	context->leafInstanceVertexBuffer = vulkan::make_buffer_resource(
+									context, leafInstanceVertexBufferSize,
+									VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+									VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
 	add_cleanup(context, [](VulkanContext * context){
 		vulkan::destroy_buffer_resource(context->device, &context->staticMeshPool);
 		vulkan::destroy_buffer_resource(context->device, &context->stagingBufferPool);
 		vulkan::destroy_buffer_resource(context->device, &context->modelUniformBuffer);
 		vulkan::destroy_buffer_resource(context->device, &context->sceneUniformBuffer);
+		vulkan::destroy_buffer_resource(context->device, &context->leafInstanceVertexBuffer);
 	});
 };
 

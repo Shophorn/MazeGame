@@ -324,19 +324,16 @@ update_character_motor( CharacterMotor & 	motor,
 	bool32 grounded 	= motor.transform->position.z < (groundThreshold + groundHeight);
 
 	// CHECK COLLISION WITH OTHER COLLIDERS TOO
-	
-	// TODO(Leo): turn this back on
-	// if(grounded == false)
-	// if(false)
 	{
-		f32 groundRaySkinWidth = 0.1f;
-		v3 groundRayStart = motor.transform->position + v3{0,0,groundRaySkinWidth};
-		v3 groundRayDirection = -up_v3;
-		f32 groundRayLength = groundRaySkinWidth + math::max(0.1f, math::absolute(motor.zSpeed));
+		f32 groundRaySkinWidth 	= 0.1f;
+		v3 groundRayStart 		= motor.transform->position + v3{0,0,groundRaySkinWidth};
+		v3 groundRayDirection 	= -up_v3;
+		f32 groundRayLength 	= groundRaySkinWidth + math::max(0.1f, math::absolute(motor.zSpeed));
 
 		RaycastResult rayResult;
 		if (raycast_3d(&collisionSystem, groundRayStart, groundRayDirection, groundRayLength, &rayResult))
 		{
+			// Notice: Only store more dramatic state
 			groundHeight 	= math::max(groundHeight, rayResult.hitPosition.z);
 			grounded 		= grounded || motor.transform->position.z < (groundThreshold + groundHeight);
 

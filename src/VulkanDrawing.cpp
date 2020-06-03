@@ -363,8 +363,93 @@ vulkan::record_draw_command(VulkanContext * context, ModelHandle model, m44 tran
 	}
 }
 
+void FSVULKAN_DRAW_LEAVES(VulkanContext * context, s32 count, m44 const * transforms)
+{
+	Assert(count > 0 && "Vulkan cannot map memory of size 0, and this function should no be called for 0 meshes");
+	Assert(context->canDraw);
+	// Note(Leo): lets keep this sensible
+	Assert(count <= 10000);
+
+	VulkanVirtualFrame * frame = vulkan::get_current_virtual_frame(context);
+
+	// Todo(Leo): Align start of region, not size.
+	u64 uniformBufferSize 				= vulkan::get_aligned_uniform_buffer_size(context, count * sizeof(m44));
+	u64 startUniformBufferOffset 		= context->currentUniformBufferOffset;
+	u64 totalRequiredMemory 			= uniformBufferSize;
+	context->currentUniformBufferOffset += totalRequiredMemory;
+
+	m44 * bufferPointer;
+	vkMapMemory(context->device, context->modelUniformBuffer.memory, startUniformBufferOffset, totalRequiredMemory, 0, (void**)&bufferPointer);
+	copy_memory(bufferPointer, transforms, count * sizeof(m44));
+	vkUnmapMemory(context->device, context->modelUniformBuffer.memory);
+
+	VkPipeline pipeline 			= context->pipelines[GRAPHICS_PIPELINE_LEAVES].pipeline;
+	VkPipelineLayout pipelineLayout = context->pipelines[GRAPHICS_PIPELINE_LEAVES].pipelineLayout;
+	
+	vkCmdBindPipeline(frame->commandBuffers.scene, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+
+	// Todo(Leo): These can be bound once per frame, they do not change
+	// Todo(Leo): Except that they need to be bound per pipeline, maybe unless selected binding etc. are identical
+	vkCmdBindDescriptorSets(frame->commandBuffers.scene, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout,
+							0, 1, &context->uniformDescriptorSets.camera,
+							0, nullptr);
+
+	vkCmdBindDescriptorSets(frame->commandBuffers.scene, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout,
+							3, 1, &context->uniformDescriptorSets.lighting,
+							0, nullptr);
+
+	vkCmdBindDescriptorSets(frame->commandBuffers.scene, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout,
+							4, 1, &context->shadowMapTexture,
+							0, nullptr);
+
+	vkCmdBindVertexBuffers(frame->commandBuffers.scene, 0, 1, &context->modelUniformBuffer.buffer, &startUniformBufferOffset);
+
+	// Note(Leo): Fukin cool, instantiation at last :DDDD 4.6.
+	vkCmdDraw(frame->commandBuffers.scene, 4, count, 0, 0);
+
+
+	// ------------------------------------------------
+	// ///////////////////////////
+	// ///   SHADOW PASS       ///
+	// ///////////////////////////
+	// bool castShadow = true;
+	// if (castShadow)
+	// {
+	// 	vkCmdBindVertexBuffers(frame->commandBuffers.offscreen, 0, 1, &mesh->bufferReference, &mesh->vertexOffset);
+	// 	vkCmdBindIndexBuffer(frame->commandBuffers.offscreen, mesh->bufferReference, mesh->indexOffset, mesh->indexType);
+
+	// 	VkDescriptorSet shadowSets [] =
+	// 	{
+	// 		context->uniformDescriptorSets.camera,
+	// 		context->uniformDescriptorSets.model,
+	// 	};
+
+	// 	for (s32 i = 0; i < count; ++i)
+	// 	{
+	// 		vkCmdBindDescriptorSets(frame->commandBuffers.offscreen,
+	// 								VK_PIPELINE_BIND_POINT_GRAPHICS,
+	// 								context->shadowPass.layout,
+	// 								0,
+	// 								2,
+	// 								shadowSets,
+	// 								1,
+	// 								&uniformBufferOffsets[i]);
+
+	// 		vkCmdDrawIndexed(frame->commandBuffers.offscreen, mesh->indexCount, 1, 0, 0, 0);
+	// 	}
+	// } 
+}
+
+
 void fsvulkan_draw_meshes(VulkanContext * context, s32 count, m44 const * transforms, MeshHandle meshHandle, MaterialHandle materialHandle)
 {
+	if (materialHandle < 0)
+	{
+		FSVULKAN_DRAW_LEAVES(context, count, transforms);
+		return;
+	}
+
+
 	Assert(count > 0 && "Vulkan cannot map memory of size 0, and this function should no be called for 0 meshes");
 	Assert(context->canDraw);
 

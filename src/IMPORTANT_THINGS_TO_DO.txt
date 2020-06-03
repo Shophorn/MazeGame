@@ -10,10 +10,6 @@ Friend Simulator
 	- easterlings travel through valley to western kingdom for asylum etc.
 	- player cannot pass, for they have no interkingdom passport
 
-Where we are:
-	- Rotated box colliders work, but character motors do not yet know
-		how to handle non vertical collisions.
-
 
 TREE THINGS
 	Trees have roots, it is just a radius
@@ -23,6 +19,12 @@ TREE THINGS
 	Growing decreases wateriness
 	Bigger trees need more water to grow
 	If wateriness is zero, tree will slowly start to die
+		Track this with vitality
+		Trees with high vitality grow faster (and thus use more water)
+		Vitality returns with water and time
+		Vitality zero trees will remain dried and died
+			Small ones will disappear, big ones will stand ther ever after as a monument of neglect
+
 	Trees grow at constant rate, but because bigger trees have bigger reserovoirs, they can manage longer without watering
 
 	Mature trees produce seeds
@@ -32,6 +34,14 @@ TREE THINGS
 	Trees grow differently in light and shadow, so meter lightness also
 
 	Toxic soil? 
+
+WATER RULES:
+	Soil is watered, not trees
+	When water is dropped on ground, it is slowly absorbed, either to list of points or to a pixel/voxel map
+	Trees drain nearby water within their root radius
+	Soil slowly dries itself
+	Deeper there is infinite water source, (aquifier?) where huge trees can reach
+
 
 DONE:
 	colliders compute transforms beforehand, only once per frame	
@@ -68,33 +78,87 @@ DONE:
 
 	1.6:
 	STREAM: New tree rules
+		Gradual growing
 	Frametime counter
 
-DOING:
-	New tree rules
-	
-
+	2.6:
 	cylinder colliders
 	Tree collision
 	Tree radius depending on its growth
 
+DOING:
+	Leaf rendering:
+		no buffer
+		vkCmdDraw with a ton of instances
+		generate mesh with vertex shaders
+		topology triangle strip -> 4 vertices for single quad, or 6 for two
+		double sided
+
+		start with diffuse, then add translucency
+
+		outline shape can be a function in uv-space?
+
+		Steps:
+		1. copy screen rect pipeline
+		2. make it 3d, using camera stuff
+
+
+		1. draw single quad
+		2. draw many quads
+		3. profit
+		4. add textures etc
+
 TODO:
+	SUPER IMPORTANT but not immediately:
+		Optimizable build -> vulkan stuff breaks with -O swithces
+			-> may have to do with validation layers
+		Startup time is unacceptably slow
+
+	New tree rules
+		roots
+		water capacity
+		dying -> drying, requires color control for shader
+
+	Better pipeline create functions like SaschaWillems
+
+	seed growing in trees 
+	falling objects instead of teleport on ground
+
+	remove fixed size arrays, just push_memory in scene initialization.
+	Use actual trees structure
+
+	Vulkan:
+		remove unnecessary bindings from drawings
+		remove need for animation data in vertices for non-animated meshes
+		Track vulkan memory like memoryarena
+		Put static scenery in static commandbuffer, that does not need to rewritten each frame
+
+	loading screen
+
+	targeting
+	contextual targeting, as in water is supposed to drop on tree and not on water
+
+
 	proper pickuping, as in pickup from front only and closest item always, not first in array
 
-	Track vulkan memory like memoryarena
 	toggle shadows in game
 
-	Editor: add toggles to update only character
+	Editor:
+		add toggles to update only character
+	
 	Per instance colors for main shader
 
 	seed does not disappear immediately
 	dig in to plant?
 
+	Translucent shading
+	Specular shading
+
 	Gui:
 		pivot control
 		panel widget
 
-	Specular shading
+	water rules
 
 	STREAM: Animate robot
 

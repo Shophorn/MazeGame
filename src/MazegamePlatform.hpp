@@ -30,6 +30,12 @@ Interface definition between Platform and Game.
 
 	// Note(Leo): Some things need to asserted in production too, this is a reminder for those only.
 	#define RELEASE_ASSERT DEBUG_ASSERT
+#else
+
+	#define Assert(expr)
+	#define DEBUG_ASSERT(expr, msg)
+	#define RELEASE_ASSERT DEBUG_ASSERT
+
 #endif
 
 #include "CStringUtility.cpp"
@@ -42,6 +48,7 @@ enum GraphicsPipeline : s64
 	GRAPHICS_PIPELINE_ANIMATED,
 	GRAPHICS_PIPELINE_SKYBOX,
 	GRAPHICS_PIPELINE_SCREEN_GUI,
+	GRAPHICS_PIPELINE_LEAVES,
 
 	GRAPHICS_PIPELINE_COUNT
 };

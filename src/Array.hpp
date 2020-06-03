@@ -149,7 +149,7 @@ void Array<T>::push_many(std::initializer_list<T> values)
 }
 
 template<typename T>
-void clear_array(Array<T> & array)
+void reset_array(Array<T> & array)
 {
 	// TODO(Leo): rechek this when there is granular deallocation possibility
 	new (&array) Array<T>(nullptr, 0, 0);

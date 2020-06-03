@@ -31,6 +31,20 @@ struct Trees
 	quaternion * 	rotations;
 
 	s32 			count;
+	s32 			capacity;
+};
+
+struct Leaves
+{
+	s32 count;
+	v3 position;
+
+	v3 * 			localPositions;
+	f32 * 			rotations;
+	f32 * 			directions;
+	v3 * 			axes;
+	f32 * 			scales;
+	quaternion * 	baseRotations;
 };
 
 struct Scene3d
@@ -77,9 +91,17 @@ struct Scene3d
 	f32 treeGrowths				[seedCapacity];
 	f32 treeWateriness 			[seedCapacity];
 	Transform3D treeTransforms	[seedCapacity];
+
+
 	s32 treesInPotCount;
 	s32 treesOnGroundCount;
+
+ 	s32 		leavesCount;
+ 	Leaves *	leaves;
+
 	static constexpr f32 treeWaterAcceptDistance = 0.4f;
+
+
 
 	MeshHandle 		dropMesh;
 	MaterialHandle 	waterDropMaterial;
@@ -119,6 +141,9 @@ struct Scene3d
 	m44 * 			terrainTransforms;
 	MeshHandle * 	terrainMeshes;
 	MaterialHandle 	terrainMaterial;
+
+
+
 
 	// struct ArrayRenderer
 	// {
@@ -160,8 +185,9 @@ struct Scene3d
 	GuiTextureHandle guiPanelImage;
 	v4 guiPanelColour;
 
-	constexpr static s32 timeScaleCount = 3;
-	s32 timeScaleIndex;
+	// Todo(Leo): this is kinda too hacky
+	constexpr static s32 	timeScaleCount = 3;
+	s32 					timeScaleIndex;
 };
 
 internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
@@ -504,6 +530,25 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 	// contribute to collisions this frame or not.
 	precompute_colliders(scene->collisionSystem);
 
+	/// SUBMIT COLLIDERS
+	{
+		// Todo(Leo): Maybe make something like that these would have predetermined range, that is only updated when
+		// tree has grown a certain amount or somthing. These are kinda semi-permanent by nature.
+
+		constexpr f32 baseRadius = 0.22;
+		constexpr f32 baseHeight = 2;
+		s32 totalTreeCount = scene->treesInPotCount + scene->treesOnGroundCount;
+		
+		for (s32 i = 0; i < totalTreeCount; ++i)
+		{
+			f32 radius 		= scene->treeGrowths[i] * baseRadius;
+			f32 halfHeight 	= (scene->treeGrowths[i] * baseHeight) / 2;
+			v3 center 		= scene->treeTransforms[i].position + v3{0, 0, halfHeight};
+
+			submit_cylinder_collider(scene->collisionSystem, radius, halfHeight, center);
+		}
+	}
+
 	for (auto & randomWalker : scene->randomWalkers)
 	{
 		update_random_walker_input(randomWalker, scene->characterInputs, input->elapsedTime);
@@ -592,6 +637,38 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 		}
 	}
 
+	/// DRAW TEST LEAVES
+	{
+		for (s32 leafBallIndex = 0; leafBallIndex < scene->leavesCount; ++leafBallIndex)
+		{
+			Leaves & leaves = scene->leaves[leafBallIndex]; 
+
+			m44 * leafTransforms = push_memory<m44>(*global_transientMemory, leaves.count, ALLOC_NO_CLEAR);
+			for (s32 leafIndex = 0; leafIndex < leaves.count; ++leafIndex)
+			{
+				leaves.rotations[leafIndex] += leaves.directions[leafIndex] * input->elapsedTime;
+				constexpr f32 rotationRange = 0.5;
+				// Todo(Leo): make pingpong like functionality and remove direction from Leaves
+				if(leaves.rotations[leafIndex] < -rotationRange)
+				{
+					leaves.directions[leafIndex] = 1;
+				}
+				else if (leaves.rotations[leafIndex] > rotationRange)
+				{
+					leaves.directions[leafIndex] = -1;
+				}
+
+				quaternion rotation = axis_angle_quaternion(leaves.axes[leafIndex], leaves.rotations[leafIndex]);
+				rotation 			= leaves.baseRotations[leafIndex] * rotation;
+				leafTransforms[leafIndex] 	= transform_matrix({leaves.position + leaves.localPositions[leafIndex], 
+														make_uniform_v3(leaves.scales[leafIndex]),
+														rotation});
+			}
+
+			platformApi->draw_meshes(platformGraphics, leaves.count, leafTransforms, {-1}, {-1});
+		}
+	}
+
 	/// DRAW POTS
 	for (s32 i = 0; i < scene->totalPotsCount; ++i)
 	{
@@ -630,7 +707,7 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 
 	/// DEBUG DRAW COLLIDERS
 	{
-		for (auto const & collider : scene->collisionSystem.precomputedColliders)
+		for (auto const & collider : scene->collisionSystem.precomputedBoxColliders)
 		{
 			debug_draw_box(collider.transform, colors::mutedGreen, DEBUG_BACKGROUND);
 		}
@@ -640,18 +717,18 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 			debug_draw_box(collider.transform, color_dark_green, DEBUG_BACKGROUND);
 		}
 
-		for (auto const & collider : scene->collisionSystem.cylinderColliders)
+		for (auto const & collider : scene->collisionSystem.precomputedCylinderColliders)
 		{
-			v3 colliderPosition = collider.transform->position + collider.center;
-
-			debug_draw_circle_xy(colliderPosition, collider.radius, color_bright_yellow, DEBUG_PLAYER);
-
-			colliderPosition.z -= (collider.height / 2.0f);
-			debug_draw_circle_xy(colliderPosition, collider.radius, color_bright_purple, DEBUG_BACKGROUND);
-
-			colliderPosition.z += collider.height;
-			debug_draw_circle_xy(colliderPosition, collider.radius, color_bright_purple, DEBUG_BACKGROUND);
+			debug_draw_circle_xy(collider.center - v3{0, 0, collider.halfHeight}, collider.radius, colour_bright_green, DEBUG_BACKGROUND);
+			debug_draw_circle_xy(collider.center + v3{0, 0, collider.halfHeight}, collider.radius, colour_bright_green, DEBUG_BACKGROUND);
 		}
+
+		for (auto const & collider : scene->collisionSystem.submittedCylinderColliders)
+		{
+			debug_draw_circle_xy(collider.center - v3{0, 0, collider.halfHeight}, collider.radius, colour_bright_green, DEBUG_BACKGROUND);
+			debug_draw_circle_xy(collider.center + v3{0, 0, collider.halfHeight}, collider.radius, colour_bright_green, DEBUG_BACKGROUND);
+		}
+
 		debug_draw_circle_xy(scene->playerCharacterTransform->position + v3{0,0,0.7}, 0.25f, colors::brightGreen, DEBUG_PLAYER);
 
 	}
@@ -660,6 +737,8 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 	 /// 	RENDERING 			///
 	//////////////////////////////
 	/*
+		TODO(LEO): THIS COMMENT PIECE IS NOT ACCURATE ANYMORE
+
 		1. Update camera and lights
 		2. Render normal models
 		3. Render animated models
@@ -827,9 +906,9 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 		} break;
 	}
 
-	gui_position({100, 100});
-	gui_text("Sphinx of black quartz, judge my vow!");
-	gui_text("Sphinx of black quartz, judge my vow!");
+	// gui_position({100, 100});
+	// gui_text("Sphinx of black quartz, judge my vow!");
+	// gui_text("Sphinx of black quartz, judge my vow!");
 
 	// gui_pivot(GUI_PIVOT_TOP_RIGHT);
 	// gui_position({100, 100});
@@ -845,9 +924,10 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 
 	{
 		s32 elapsedMilliseconds 	= input->elapsedTime * 1000;
-		char elapsedTimeCString [] 	= "XX";
-		elapsedTimeCString[0] 		= '0' + ((elapsedMilliseconds / 10) % 10);
-		elapsedTimeCString[1] 		= '0' + elapsedMilliseconds % 10;
+		char elapsedTimeCString [] 	= "XXX";
+		elapsedTimeCString[0]		= '0' + elapsedMilliseconds / 100;
+		elapsedTimeCString[1] 		= '0' + ((elapsedMilliseconds / 10) % 10);
+		elapsedTimeCString[2] 		= '0' + elapsedMilliseconds % 10;
 
 		gui_text(elapsedTimeCString);
 	}
@@ -894,9 +974,9 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 	// ----------------------------------------------------------------------------------
 
 	{
-		TextureAsset testGuiAsset = load_texture_asset( "assets/textures/tiles.png", global_transientMemory);
-		scene->guiPanelImage = platformApi->push_gui_texture(platformGraphics, &testGuiAsset);
-		scene->guiPanelColour = colour_rgb_alpha(colour_aqua_blue.rgb, 0.5);
+		TextureAsset testGuiAsset 	= load_texture_asset( "assets/textures/tiles.png", global_transientMemory);
+		scene->guiPanelImage 		= platformApi->push_gui_texture(platformGraphics, &testGuiAsset);
+		scene->guiPanelColour 		= colour_rgb_alpha(colour_aqua_blue.rgb, 0.5);
 	}
 
 	struct MaterialCollection {
@@ -1304,7 +1384,8 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 				position.z 						= get_terrain_height(&scene->collisionSystem, position.xy);
 				scene->potTransforms[potIndex]	= { .position = position };
 
-				push_cylinder_collider(scene->collisionSystem, 0.3, 0.55, v3{0,0,0.275}, &scene->potTransforms[potIndex]);
+				f32 colliderHeight = 0.58;
+				push_cylinder_collider(scene->collisionSystem, 0.3, colliderHeight, v3{0,0,colliderHeight / 2}, &scene->potTransforms[potIndex]);
 			}
 
 			scene->totalPotsCount = scene->potCapacity;
@@ -1323,7 +1404,8 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 				transform->position.z 	= get_terrain_height(&scene->collisionSystem, transform->position.xy);
 
 				scene->renderers.push({transform, model});
-				push_cylinder_collider(scene->collisionSystem, 0.6, 1.2, v3{0,0,0.6}, transform);
+				f32 colliderHeight = 1.16;
+				push_cylinder_collider(scene->collisionSystem, 0.6, colliderHeight, v3{0,0,colliderHeight / 2}, transform);
 			}
 
 			// ----------------------------------------------------------------	
@@ -1489,10 +1571,91 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 			}
 		}
 
-		logSystem(0) << "Scene3d loaded, " << used_percent(*global_transientMemory) * 100 << "% of transient memory used.";
-		logSystem(0) << "Scene3d loaded, " << used_percent(persistentMemory) * 100 << "% of persistent memory used.";
 	}
 
+	/// GENERATE TEST LEAVES
+	{
+		scene->leavesCount = 20;
+		scene->leaves = push_memory<Leaves>(persistentMemory, scene->leavesCount, 0);
+
+		v3 leavesPositions [20] =
+		{
+			{-60, 0, 20},
+			{-30, 0, 20},
+			{0, 0, 20},
+			{30, 0, 20},
+			{60, 0, 20},
+
+			{-60, 40, 20},
+			{-30, 40, 20},
+			{0, 40, 20},
+			{30, 40, 20},
+			{60, 40, 20},
+	
+			{-60, -40, 20},
+			{-30, -40, 20},
+			{0, -40, 20},
+			{30, -40, 20},
+			{60, -40, 20},
+
+			{-60, 80, 20},
+			{-30, 80, 20},
+			{0, 80, 20},
+			{30, 80, 20},
+			{60, 80, 20},
+		};
+
+		for (s32 leavesIndex = 0; leavesIndex < scene->leavesCount; ++leavesIndex)
+		{
+			Leaves & leaves = scene->leaves[leavesIndex];
+
+			leaves.count 	= 4000;
+			leaves.position = leavesPositions[leavesIndex];
+			f32 radius 		= 10;
+
+			leaves.localPositions 	= push_memory<v3>(persistentMemory, leaves.count, ALLOC_NO_CLEAR);
+			leaves.rotations 		= push_memory<f32>(persistentMemory, leaves.count, ALLOC_NO_CLEAR);
+			leaves.directions 		= push_memory<f32>(persistentMemory, leaves.count, ALLOC_NO_CLEAR);
+			leaves.axes 			= push_memory<v3>(persistentMemory, leaves.count, ALLOC_NO_CLEAR);
+			leaves.scales 			= push_memory<f32>(persistentMemory, leaves.count, ALLOC_NO_CLEAR);
+			leaves.baseRotations 	= push_memory<quaternion>(persistentMemory, leaves.count, ALLOC_NO_CLEAR);
+
+			for (s32 i = 0; i < leaves.count; ++i)
+			{
+				f32 horizontalAngle	= RandomRange(0, 2 * pi);
+				f32 verticalAngle 	= RandomRange(0, pi);
+
+				// Todo(Add more weight towards outer limit)
+				f32 distance 	= RandomRange(0.6, 1);
+				distance 		= distance * radius;
+
+				v3 localPosition =
+				{
+					sine(horizontalAngle) * sine(verticalAngle) * distance,
+					cosine(horizontalAngle) * sine(verticalAngle) * distance,
+					cosine(verticalAngle) * distance
+				};
+
+				leaves.localPositions[i] = localPosition;
+
+				// Todo(Leo): update names
+				leaves.rotations[i] = RandomRange(-1, 1);
+				leaves.directions[i] = Sign(RandomValue());
+
+				v3 orthogonalAxis 			= normalize_v3({localPosition.x, localPosition.y, 0});
+				v3 baseRotationAxis 		= cross_v3(up_v3, orthogonalAxis);
+				f32 baseRotationAngle 		= RandomRange(0.5, 1);
+				leaves.baseRotations[i] = axis_angle_quaternion(baseRotationAxis, baseRotationAngle);
+				leaves.axes[i] 			= multiply_direction(rotation_matrix(leaves.baseRotations[i]), orthogonalAxis);
+
+				leaves.scales[i] = RandomRange(0.5, 1.0f);
+			}
+		}
+
+	}
+
+	logSystem(0) << "Scene3d loaded, " << used_percent(*global_transientMemory) * 100 << "% of transient memory used.";
+	logSystem(0) << "Scene3d loaded, " << used_percent(persistentMemory) * 100 << "% of persistent memory used.";
 
 	return scenePtr;
 }

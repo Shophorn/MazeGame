@@ -45,6 +45,11 @@ s32 floor_to_s32(f32 f)
     return (s32)floorf(f);
 }
 
+f32 log_10(f32 exponent)
+{
+    return std::log10(exponent);
+}
+
 #include<limits>
 namespace math
 {   
