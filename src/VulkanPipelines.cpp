@@ -34,6 +34,101 @@ namespace vulkan_pipelines_internal_
 																	VkDynamicState(&array)[10]);
 }
 
+// -------------------------------------------------------------------------
+/// GOOD INITIALIZERS
+// Note(Leo): Only expose from these functions properties we are interested to change
+
+internal VkPipelineViewportStateCreateInfo
+fsvulkan_pipeline_viewport_state_create_info(u32 viewportCount, VkViewport * pViewports, u32 scissorCount, VkRect2D * pScissors)
+{
+	VkPipelineViewportStateCreateInfo viewportState =
+	{
+		.sType          = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
+		.viewportCount  = viewportCount,
+		.pViewports     = pViewports,
+		.scissorCount   = scissorCount,
+		.pScissors      = pScissors,
+	};
+
+	return viewportState;
+}
+
+internal VkPipelineRasterizationStateCreateInfo
+fsvulkan_pipeline_rasterization_state_create_info(VkCullModeFlags cullMode)
+{
+	VkPipelineRasterizationStateCreateInfo rasterizer =
+	{
+		.sType                      = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
+		.depthClampEnable           = VK_FALSE,
+		.rasterizerDiscardEnable    = VK_FALSE,
+		.polygonMode                = VK_POLYGON_MODE_FILL,
+		.cullMode                   = cullMode,
+		.frontFace                  = VK_FRONT_FACE_COUNTER_CLOCKWISE,
+		.depthBiasEnable            = VK_FALSE,
+		.depthBiasConstantFactor    = 0.0f,
+		.depthBiasClamp             = 0.0f,
+		.depthBiasSlopeFactor       = 0.0f,
+		.lineWidth                  = 1.0f,
+	};
+
+	return rasterizer;
+}
+
+internal VkPipelineLayoutCreateInfo
+fsvulkan_pipeline_layout_create_info(	u32 setLayoutCount, VkDescriptorSetLayout * pSetLayouts,
+										u32 pushConstantRangeCount, VkPushConstantRange * pPushConstantRanges)
+{
+	VkPipelineLayoutCreateInfo pipelineLayoutInfo =
+	{
+		.sType                  = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+		.pNext					= nullptr,
+		.flags 					= 0,
+		.setLayoutCount         = setLayoutCount,
+		.pSetLayouts            = pSetLayouts,
+		.pushConstantRangeCount = pushConstantRangeCount,
+		.pPushConstantRanges    = pPushConstantRanges,
+	};
+
+	return pipelineLayoutInfo;
+}
+
+internal VkPipelineVertexInputStateCreateInfo
+fsvulkan_pipeline_vertex_input_state_create_info(	u32 bindingDescriptionCount, VkVertexInputBindingDescription * bindingDescriptions,
+													u32 attributeDescriptionCount, VkVertexInputAttributeDescription * attributeDescriptions)
+{
+	VkPipelineVertexInputStateCreateInfo vertexInputInfo =
+	{
+		.sType                              = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+		.pNext 								= nullptr,
+		.flags 								= 0, // Reserved for future
+		.vertexBindingDescriptionCount      = bindingDescriptionCount,
+		.pVertexBindingDescriptions         = bindingDescriptions,
+		.vertexAttributeDescriptionCount    = attributeDescriptionCount,
+		.pVertexAttributeDescriptions       = attributeDescriptions,
+	};
+
+	return vertexInputInfo;
+}
+
+internal VkPipelineInputAssemblyStateCreateInfo
+fsvulkan_pipeline_input_assembly_create_info(VkPrimitiveTopology topology)
+{
+	VkPipelineInputAssemblyStateCreateInfo inputAssembly = 
+	{
+		.sType                  = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
+		.pNext 					= nullptr,
+		.flags 					= 0, // Reserved for future
+		.topology               = topology,
+		.primitiveRestartEnable = VK_FALSE,
+	};
+	
+	return inputAssembly;
+}
+
+
+// -------------------------------------------------------------------------
+
+
 internal FSVulkanPipeline fsvulkan_make_pipeline(
 	VulkanContext * context,
 	char const * 	vertexShaderPath,
@@ -74,39 +169,24 @@ internal FSVulkanPipeline fsvulkan_make_pipeline(
 	{
 		auto bindingDescription     = vulkan_pipelines_internal_::get_vertex_binding_description();
 		auto attributeDescriptions  = vulkan_pipelines_internal_::get_vertex_attribute_description();
-
-		vertexInputInfo = {
-			.sType                              = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-			.vertexBindingDescriptionCount      = 1,
-			.pVertexBindingDescriptions         = &bindingDescription,
-			.vertexAttributeDescriptionCount    = attributeDescriptions.count(),
-			.pVertexAttributeDescriptions       = attributeDescriptions.begin(),
-		};
+		vertexInputInfo = fsvulkan_pipeline_vertex_input_state_create_info(	1, 
+																			&bindingDescription,
+																			attributeDescriptions.count(),
+																			&attributeDescriptions[0]);
 	}
 	else
 	{
-		vertexInputInfo =  {
-			.sType                              = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-			.vertexBindingDescriptionCount      = 0,
-			.pVertexBindingDescriptions         = nullptr,
-			.vertexAttributeDescriptionCount    = 0,
-			.pVertexAttributeDescriptions       = nullptr,
-		};
+		vertexInputInfo = fsvulkan_pipeline_vertex_input_state_create_info(0, nullptr, 0, nullptr);
 	}
 
-	VkPipelineInputAssemblyStateCreateInfo inputAssembly = 
-	{
-		.sType                  = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
-		.topology               = options.primitiveType,
-		.primitiveRestartEnable = VK_FALSE,
-	};
+	auto inputAssembly = fsvulkan_pipeline_input_assembly_create_info(options.primitiveType);
 
 	VkViewport viewport =
 	{
 		.x          = 0.0f,
 		.y          = 0.0f,
-		.width      = (float) context->drawingResources.extent.width,
-		.height     = (float) context->drawingResources.extent.height,
+		.width      = (f32) context->drawingResources.extent.width,
+		.height     = (f32) context->drawingResources.extent.height,
 		.minDepth   = 0.0f,
 		.maxDepth   = 1.0f,
 	};
@@ -117,29 +197,9 @@ internal FSVulkanPipeline fsvulkan_make_pipeline(
 		.extent = context->drawingResources.extent,
 	};
 
-	VkPipelineViewportStateCreateInfo viewportState =
-	{
-		.sType          = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
-		.viewportCount  = 1,
-		.pViewports     = &viewport,
-		.scissorCount   = 1,
-		.pScissors      = &scissor,
-	};
+	auto viewportState = fsvulkan_pipeline_viewport_state_create_info(1, &viewport, 1, &scissor);
 
-	VkPipelineRasterizationStateCreateInfo rasterizer =
-	{
-		.sType                      = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
-		.depthClampEnable           = VK_FALSE,
-		.rasterizerDiscardEnable    = VK_FALSE,
-		.polygonMode                = VK_POLYGON_MODE_FILL,
-		.cullMode                   = options.cullModeFlags,
-		.frontFace                  = VK_FRONT_FACE_COUNTER_CLOCKWISE,
-		.depthBiasEnable            = VK_FALSE,
-		.depthBiasConstantFactor    = 0.0f,
-		.depthBiasClamp             = 0.0f,
-		.depthBiasSlopeFactor       = 0.0f,
-		.lineWidth                  = options.lineWidth,
-	};
+	auto rasterizer = fsvulkan_pipeline_rasterization_state_create_info(options.cullModeFlags);
 
 	VkPipelineMultisampleStateCreateInfo multisampling =
 	{
@@ -273,14 +333,7 @@ internal FSVulkanPipeline fsvulkan_make_pipeline(
 		++layoutSetCount;
 	}
 
-	VkPipelineLayoutCreateInfo pipelineLayoutInfo =
-	{
-		.sType                  = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-		.setLayoutCount         = layoutSetCount,
-		.pSetLayouts            = layoutSets,
-		.pushConstantRangeCount = pushConstantRangeCount,
-		.pPushConstantRanges    = &pushConstantRange,
-	};
+	auto pipelineLayoutInfo = fsvulkan_pipeline_layout_create_info(layoutSetCount, layoutSets, pushConstantRangeCount, &pushConstantRange);
 
 	VkPipelineLayout layout;
 	VULKAN_CHECK(vkCreatePipelineLayout (context->device, &pipelineLayoutInfo, nullptr, &layout));
@@ -477,8 +530,8 @@ internal FSVulkanPipeline fsvulkan_make_pipeline_WITH_EVEN_MORE_ARGUMENTS(
 	{
 		.x          = 0.0f,
 		.y          = 0.0f,
-		.width      = (float) context->drawingResources.extent.width,
-		.height     = (float) context->drawingResources.extent.height,
+		.width      = (f32) context->drawingResources.extent.width,
+		.height     = (f32) context->drawingResources.extent.height,
 		.minDepth   = 0.0f,
 		.maxDepth   = 1.0f,
 	};
@@ -767,17 +820,18 @@ internal void fsvulkan_initialize_leaves_pipeline(VulkanContext & context)
 {
 	VkVertexInputBindingDescription vertexBindingDescription =
 	{
-		.binding = 0,
-		.stride = sizeof(m44),
-		.inputRate = VK_VERTEX_INPUT_RATE_INSTANCE
+		.binding 	= 0,
+		.stride 	= sizeof(m44),
+		.inputRate 	= VK_VERTEX_INPUT_RATE_INSTANCE
 	};
 
+	// Note(Leo): We input matrix, it is described as 4 4d vectors
 	VkVertexInputAttributeDescription vertexAttributeDescriptions [4] =
 	{
-		{ 0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 0},
-		{ 1, 0, VK_FORMAT_R32G32B32A32_SFLOAT, sizeof(f32 ) * 4 },
-		{ 2, 0, VK_FORMAT_R32G32B32A32_SFLOAT, sizeof(f32 ) * 8 },
-		{ 3, 0, VK_FORMAT_R32G32B32A32_SFLOAT, sizeof(f32 ) * 12 },
+		{ 0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 0 * sizeof(v4)},
+		{ 1, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 1 * sizeof(v4)},
+		{ 2, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 2 * sizeof(v4)},
+		{ 3, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 3 * sizeof(v4)},
 	};
 
 	EvenMoreArguments arguments = 
@@ -824,4 +878,238 @@ internal void fsvulkan_initialize_line_pipeline(VulkanContext & context)
 	context.linePipeline 					= TEMP_SOLUTION.pipeline;
 	context.linePipelineLayout 				= TEMP_SOLUTION.pipelineLayout;
 	context.linePipelineDescriptorSetLayout = TEMP_SOLUTION.descriptorSetLayout;
+}
+
+internal void fsvulkan_initialize_shadow_pipeline(VulkanContext & context)
+{
+	VkShaderModule vertexShaderModule = vulkan::make_vk_shader_module(read_binary_file("assets/shaders/shadow_vert.spv"), context.device);
+
+	VkPipelineShaderStageCreateInfo shaderStages [] =
+	{
+		{
+			.sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+			.stage  = VK_SHADER_STAGE_VERTEX_BIT,
+			.module = vertexShaderModule,
+			.pName  = "main",
+		},
+	};
+
+	/// VERTEX INPUT STATE
+	auto bindingDescription     = vulkan_pipelines_internal_::get_vertex_binding_description();
+	auto attributeDescriptions  = vulkan_pipelines_internal_::get_vertex_attribute_description();
+	auto vertexInputInfo 		= fsvulkan_pipeline_vertex_input_state_create_info(	1,
+																					&bindingDescription,
+																					attributeDescriptions.count(),
+																					&attributeDescriptions[0]);
+
+	/// INPUT ASSEMBLY
+	auto inputAssembly = fsvulkan_pipeline_input_assembly_create_info(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+
+	/// VIEWPORT STATE
+	VkViewport viewport = {0, 0, (f32)context.shadowPass.width, (f32)context.shadowPass.height, 0, 1};
+	VkRect2D scissor 	= {{0,0}, {context.shadowPass.width, context.shadowPass.height}};
+	auto viewportState 	= fsvulkan_pipeline_viewport_state_create_info(1, &viewport, 1, &scissor);
+
+	/// RASTERIZATION
+	auto rasterizer = fsvulkan_pipeline_rasterization_state_create_info(VK_CULL_MODE_NONE);
+
+	VkPipelineMultisampleStateCreateInfo multisampling =
+	{
+		.sType                  = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
+		.rasterizationSamples   = VK_SAMPLE_COUNT_1_BIT,
+		.sampleShadingEnable    = VK_FALSE,
+		.minSampleShading       = 1.0f,
+		.pSampleMask            = nullptr,
+		.alphaToCoverageEnable  = VK_FALSE,
+		.alphaToOneEnable       = VK_FALSE,
+	};
+
+	// Note(Leo): this defaults nicely to zero, but I'm not sure its a good idea to rely on that
+	VkPipelineColorBlendStateCreateInfo colorBlending =	{ VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO };
+
+	VkPipelineDepthStencilStateCreateInfo depthStencil =
+	{ 
+		.sType              = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
+
+		.depthTestEnable    = VK_TRUE,
+		.depthWriteEnable   = VK_TRUE,
+		.depthCompareOp     = VK_COMPARE_OP_LESS_OR_EQUAL,
+
+		.depthBoundsTestEnable  = VK_FALSE,
+
+		.stencilTestEnable  = VK_FALSE,
+		.front              = {},
+		.back               = {},
+	  
+		.minDepthBounds     = 0.0f,
+		.maxDepthBounds     = 1.0f,
+	};
+
+	VkDescriptorSetLayout setLayouts [] =
+	{
+		context.descriptorSetLayouts.camera,
+		context.descriptorSetLayouts.model,
+	};
+
+	auto pipelineLayoutInfo = fsvulkan_pipeline_layout_create_info(array_count(setLayouts), setLayouts, 0, nullptr);
+
+	VkPipelineLayout layout;
+	VULKAN_CHECK(vkCreatePipelineLayout (context.device, &pipelineLayoutInfo, nullptr, &layout));
+
+	VkGraphicsPipelineCreateInfo pipelineInfo =
+	{
+		.sType                  = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+		.stageCount             = 1,
+		.pStages                = shaderStages,
+
+		.pVertexInputState      = &vertexInputInfo,
+		.pInputAssemblyState    = &inputAssembly,
+		.pViewportState         = &viewportState,
+		.pRasterizationState    = &rasterizer,
+		.pMultisampleState      = &multisampling,
+		.pDepthStencilState     = &depthStencil,
+		.pColorBlendState       = &colorBlending,
+		.pDynamicState          = nullptr,
+
+		.layout                 = layout,
+		.renderPass             = context.shadowPass.renderPass,
+		.subpass                = 0,
+
+		// Note(Leo): These are for cheaper re-use of pipelines, not used right now.
+		// Study(Leo): Like inheritance??
+		.basePipelineHandle = VK_NULL_HANDLE,
+		.basePipelineIndex = -1,
+	};
+
+
+	VkPipeline pipeline;
+	VULKAN_CHECK(vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline));
+
+	// Note: These can only be destroyed AFTER vkCreateGraphicsPipelines
+	// vkDestroyShaderModule(context.device, fragmentShaderModule, nullptr);
+	vkDestroyShaderModule(context.device, vertexShaderModule, nullptr);
+
+	context.shadowPass.pipeline = pipeline;
+	context.shadowPass.layout = layout;
+}
+
+internal void fsvulkan_initialize_leaves_shadow_pipeline(VulkanContext & context)
+{
+	VkShaderModule vertexShaderModule = vulkan::make_vk_shader_module(read_binary_file("assets/shaders/leaves_shadow_vert.spv"), context.device);
+
+	VkPipelineShaderStageCreateInfo shaderStages [] =
+	{
+		{
+			.sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+			.stage  = VK_SHADER_STAGE_VERTEX_BIT,
+			.module = vertexShaderModule,
+			.pName  = "main",
+		},
+	};
+
+	/// VERTEX INPUT STATE
+	VkVertexInputBindingDescription vertexBindingDescription =
+	{
+		.binding 	= 0,
+		.stride 	= sizeof(m44),
+		.inputRate 	= VK_VERTEX_INPUT_RATE_INSTANCE
+	};
+
+	// Note(Leo): We input matrix, it is described as 4 4d vectors
+	VkVertexInputAttributeDescription vertexAttributeDescriptions [4] =
+	{
+		{ 0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 0 * sizeof(v4)},
+		{ 1, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 1 * sizeof(v4)},
+		{ 2, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 2 * sizeof(v4)},
+		{ 3, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 3 * sizeof(v4)},
+	};
+	auto vertexInputInfo = fsvulkan_pipeline_vertex_input_state_create_info(1,
+																			&vertexBindingDescription,	
+																			array_count(vertexAttributeDescriptions),
+																			vertexAttributeDescriptions);
+
+	/// INPUT ASSEMBLY
+	auto inputAssembly = fsvulkan_pipeline_input_assembly_create_info(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP);
+
+	/// VIEWPORT STATE
+	VkViewport viewport = {0, 0, (f32)context.shadowPass.width, (f32)context.shadowPass.height, 0, 1};
+	VkRect2D scissor 	= {{0,0}, {context.shadowPass.width, context.shadowPass.height}};
+	auto viewportState 	= fsvulkan_pipeline_viewport_state_create_info(1, &viewport, 1, &scissor);
+
+	/// RASTERIZATION
+	auto rasterizer = fsvulkan_pipeline_rasterization_state_create_info(VK_CULL_MODE_NONE);
+
+	VkPipelineMultisampleStateCreateInfo multisampling =
+	{
+		.sType                  = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
+		.rasterizationSamples   = VK_SAMPLE_COUNT_1_BIT,
+		.sampleShadingEnable    = VK_FALSE,
+		.minSampleShading       = 1.0f,
+		.pSampleMask            = nullptr,
+		.alphaToCoverageEnable  = VK_FALSE,
+		.alphaToOneEnable       = VK_FALSE,
+	};
+
+	// Note(Leo): this defaults nicely to zero, but I'm not sure its a good idea to rely on that
+	VkPipelineColorBlendStateCreateInfo colorBlending =	{ VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO };
+
+	VkPipelineDepthStencilStateCreateInfo depthStencil =
+	{ 
+		.sType              = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
+
+		.depthTestEnable    = VK_TRUE,
+		.depthWriteEnable   = VK_TRUE,
+		.depthCompareOp     = VK_COMPARE_OP_LESS_OR_EQUAL,
+
+		.depthBoundsTestEnable  = VK_FALSE,
+
+		.stencilTestEnable  = VK_FALSE,
+		.front              = {},
+		.back               = {},
+	  
+		.minDepthBounds     = 0.0f,
+		.maxDepthBounds     = 1.0f,
+	};
+
+
+	auto pipelineLayoutInfo = fsvulkan_pipeline_layout_create_info(1, &context.descriptorSetLayouts.camera, 0, nullptr);
+
+	VkPipelineLayout layout;
+	VULKAN_CHECK(vkCreatePipelineLayout (context.device, &pipelineLayoutInfo, nullptr, &layout));
+
+	VkGraphicsPipelineCreateInfo pipelineInfo =
+	{
+		.sType                  = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+		.stageCount             = 1,
+		.pStages                = shaderStages,
+
+		.pVertexInputState      = &vertexInputInfo,
+		.pInputAssemblyState    = &inputAssembly,
+		.pViewportState         = &viewportState,
+		.pRasterizationState    = &rasterizer,
+		.pMultisampleState      = &multisampling,
+		.pDepthStencilState     = &depthStencil,
+		.pColorBlendState       = &colorBlending,
+		.pDynamicState          = nullptr,
+
+		.layout                 = layout,
+		.renderPass             = context.shadowPass.renderPass,
+		.subpass                = 0,
+
+		// Note(Leo): These are for cheaper re-use of pipelines, not used right now.
+		// Study(Leo): Like inheritance??
+		.basePipelineHandle = VK_NULL_HANDLE,
+		.basePipelineIndex = -1,
+	};
+
+
+	VkPipeline pipeline;
+	VULKAN_CHECK(vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline));
+
+	// Note: These can only be destroyed AFTER vkCreateGraphicsPipelines
+	// vkDestroyShaderModule(context.device, fragmentShaderModule, nullptr);
+	vkDestroyShaderModule(context.device, vertexShaderModule, nullptr);
+
+	context.leavesShadowPipeline 		= pipeline;
+	context.leavesShadowPipelineLayout 	= layout;
 }

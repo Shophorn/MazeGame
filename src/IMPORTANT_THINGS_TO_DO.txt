@@ -86,7 +86,7 @@ DONE:
 	Tree collision
 	Tree radius depending on its growth
 
-DOING:
+	3.6:
 	Leaf rendering:
 		no buffer
 		vkCmdDraw with a ton of instances
@@ -94,19 +94,8 @@ DOING:
 		topology triangle strip -> 4 vertices for single quad, or 6 for two
 		double sided
 
-		start with diffuse, then add translucency
-
-		outline shape can be a function in uv-space?
-
-		Steps:
-		1. copy screen rect pipeline
-		2. make it 3d, using camera stuff
-
-
-		1. draw single quad
-		2. draw many quads
-		3. profit
-		4. add textures etc
+		outline shape can be a function in uv-space
+DOING:
 
 TODO:
 	SUPER IMPORTANT but not immediately:
@@ -162,6 +151,8 @@ TODO:
 
 	STREAM: Animate robot
 
+	LOD:
+		Leaves -> keep leafs sorted by size, and only process to size determined by density function
 
 	Shadows
 		Visualize camera frustums so we can visualize view frustum

@@ -294,7 +294,6 @@ struct platform::Graphics
     VulkanBufferResource staticMeshPool;
     VulkanBufferResource modelUniformBuffer;
     VulkanBufferResource sceneUniformBuffer;
-   	VulkanBufferResource leafInstanceVertexBuffer;
 
     // Todo(Leo): Use our own arena arrays for these.
     // Todo(Leo): That requires access to persistent memory block at platform layer
@@ -315,6 +314,9 @@ struct platform::Graphics
 	VkPipeline 				linePipeline;
 	VkPipelineLayout 		linePipelineLayout;
 	VkDescriptorSetLayout 	linePipelineDescriptorSetLayout;
+
+	VkPipeline 			leavesShadowPipeline;
+	VkPipelineLayout 	leavesShadowPipelineLayout;
 
 
 	// Note(Leo): This is a list of functions to call when destroying this.

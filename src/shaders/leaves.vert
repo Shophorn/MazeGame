@@ -23,7 +23,7 @@ layout (set = 0, binding = 0) uniform CameraProjections
 
 layout (location = 0) in mat4 modelMatrix;
 
-layout (location = 0) out vec3 fragColor;
+// layout (location = 0) out vec3 fragColour;
 layout (location = 1) out vec2 fragTexCoord;
 layout (location = 2) out vec3 fragNormal;
 layout (location = 3) out vec3 fragPosition;
@@ -69,14 +69,5 @@ void main ()
 	distance = distance / transitionDistance;
 	lightCoords.w = clamp (1.0 - distance, 0, 1);
 
-
-	// Putple
-	// fragColor 		= vec3(0.62, 0.3, 0.8);
-
-	// Bluish
-	// fragColor 		= vec3(0.3, 0.62, 0.8);
-
-	// Green
-	fragColor 		= vec3(0.52, 0.7, 0.40);
 	fragTexCoord 	= vertexPositions[gl_VertexIndex].xy;
 }

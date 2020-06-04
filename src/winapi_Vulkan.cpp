@@ -1134,10 +1134,9 @@ winapi_vulkan_internal_::init_memory(VulkanContext * context)
 	// TODO[memory] (Leo): Log usage
 	u64 staticMeshPoolSize       = gigabytes(2);
 	u64 stagingBufferPoolSize    = megabytes(100);
-	u64 modelUniformBufferSize   = megabytes(100);
+	u64 modelUniformBufferSize   = megabytes(500);
 	u64 sceneUniformBufferSize   = megabytes(100);
 	u64 guiUniformBufferSize     = megabytes(100);
-	u64 leafInstanceVertexBufferSize = megabytes(100);
 
 	// TODO[MEMORY] (Leo): This will need guarding against multithreads once we get there
 	context->staticMeshPool = vulkan::make_buffer_resource(  
@@ -1160,17 +1159,11 @@ winapi_vulkan_internal_::init_memory(VulkanContext * context)
 									VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
 									VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
 
-	context->leafInstanceVertexBuffer = vulkan::make_buffer_resource(
-									context, leafInstanceVertexBufferSize,
-									VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-									VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-
 	add_cleanup(context, [](VulkanContext * context){
 		vulkan::destroy_buffer_resource(context->device, &context->staticMeshPool);
 		vulkan::destroy_buffer_resource(context->device, &context->stagingBufferPool);
 		vulkan::destroy_buffer_resource(context->device, &context->modelUniformBuffer);
 		vulkan::destroy_buffer_resource(context->device, &context->sceneUniformBuffer);
-		vulkan::destroy_buffer_resource(context->device, &context->leafInstanceVertexBuffer);
 	});
 };
 
@@ -1543,7 +1536,7 @@ void winapi_vulkan_internal_::init_shadow_pass(VulkanContext * context, u32 widt
 															context->shadowPass.width,
 															context->shadowPass.height);    
 
-	{
+/*	{
 		VkShaderModule vertexShaderModule = make_vk_shader_module(read_binary_file("assets/shaders/shadow_vert.spv"), context->device);
 
 		VkPipelineShaderStageCreateInfo shaderStages [] =
@@ -1711,8 +1704,10 @@ void winapi_vulkan_internal_::init_shadow_pass(VulkanContext * context, u32 widt
 
 		context->shadowPass.pipeline = pipeline;
 		context->shadowPass.layout = layout;
+	}*/
 
-	}
+	fsvulkan_initialize_shadow_pipeline(*context);
+	fsvulkan_initialize_leaves_shadow_pipeline(*context);
 
 	context->descriptorSetLayouts.shadowMap = make_vk_descriptor_set_layout(context->device,
 																			VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
@@ -1742,6 +1737,8 @@ void winapi_vulkan_internal_::init_shadow_pass(VulkanContext * context, u32 widt
 
 	add_cleanup(context, [](VulkanContext * context)
 	{
+		VkDevice device = context->device;
+
 		destroy_texture(context, &context->shadowPass.attachment);
 
 		vkDestroySampler(context->device, context->shadowPass.sampler, nullptr);
@@ -1750,5 +1747,8 @@ void winapi_vulkan_internal_::init_shadow_pass(VulkanContext * context, u32 widt
 		vkDestroyPipeline(context->device, context->shadowPass.pipeline, nullptr);
 		vkDestroyPipelineLayout(context->device, context->shadowPass.layout, nullptr);
 		vkDestroyDescriptorSetLayout(context->device, context->descriptorSetLayouts.shadowMap, nullptr);
+
+		vkDestroyPipeline(device, context->leavesShadowPipeline, nullptr);
+		vkDestroyPipelineLayout(device, context->leavesShadowPipelineLayout, nullptr);
 	});
 }

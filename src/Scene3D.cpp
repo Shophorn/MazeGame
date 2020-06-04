@@ -559,8 +559,8 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 		update_follower_input(follower, scene->characterInputs, input->elapsedTime);
 	}
 	
-	// for (int i = 0; i < 1; ++i)
-	for (int i = 0; i < scene->characterMotors.count(); ++i)
+	for (int i = 0; i < 1; ++i)
+	// for (int i = 0; i < scene->characterMotors.count(); ++i)
 	{
 		update_character_motor(	scene->characterMotors[i],
 								scene->characterInputs[i],
@@ -570,10 +570,11 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 	}
 
 
-	for (auto & animator : scene->skeletonAnimators)
-	{
-		update_skeleton_animator(animator, input->elapsedTime);
-	}
+	// for (auto & animator : scene->skeletonAnimators)
+	// {
+	// 	update_skeleton_animator(animator, input->elapsedTime);
+	// }
+	update_skeleton_animator(scene->skeletonAnimators[0], input->elapsedTime);
 
 	// Rebellious(Leo): stop using systems, and instead just do the stuff you need to >:)
 	/// DRAW UNUSED WATER
@@ -634,38 +635,6 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 									transform_matrix(scene->treeTransforms[i]),
 									true,
 									nullptr, 0);
-		}
-	}
-
-	/// DRAW TEST LEAVES
-	{
-		for (s32 leafBallIndex = 0; leafBallIndex < scene->leavesCount; ++leafBallIndex)
-		{
-			Leaves & leaves = scene->leaves[leafBallIndex]; 
-
-			m44 * leafTransforms = push_memory<m44>(*global_transientMemory, leaves.count, ALLOC_NO_CLEAR);
-			for (s32 leafIndex = 0; leafIndex < leaves.count; ++leafIndex)
-			{
-				leaves.rotations[leafIndex] += leaves.directions[leafIndex] * input->elapsedTime;
-				constexpr f32 rotationRange = 0.5;
-				// Todo(Leo): make pingpong like functionality and remove direction from Leaves
-				if(leaves.rotations[leafIndex] < -rotationRange)
-				{
-					leaves.directions[leafIndex] = 1;
-				}
-				else if (leaves.rotations[leafIndex] > rotationRange)
-				{
-					leaves.directions[leafIndex] = -1;
-				}
-
-				quaternion rotation = axis_angle_quaternion(leaves.axes[leafIndex], leaves.rotations[leafIndex]);
-				rotation 			= leaves.baseRotations[leafIndex] * rotation;
-				leafTransforms[leafIndex] 	= transform_matrix({leaves.position + leaves.localPositions[leafIndex], 
-														make_uniform_v3(leaves.scales[leafIndex]),
-														rotation});
-			}
-
-			platformApi->draw_meshes(platformGraphics, leaves.count, leafTransforms, {-1}, {-1});
 		}
 	}
 
@@ -761,8 +730,10 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 	}
 
 
-	for (auto & renderer : scene->animatedRenderers)
+	// for (auto & renderer : scene->animatedRenderers)
 	{
+		auto & renderer = scene->animatedRenderers[0];
+
 		m44 boneTransformMatrices [32];
 
 		update_animated_renderer(boneTransformMatrices, renderer.skeleton->bones);
@@ -770,6 +741,40 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 		platformApi->draw_model(platformGraphics, renderer.model, transform_matrix(*renderer.transform),
 								renderer.castShadows, boneTransformMatrices, array_count(boneTransformMatrices));
 	}
+
+	/// DRAW TEST LEAVES
+	// Todo(Leo): leaves are drawn last, so we can bind their shadow pipeline once, and not rebind the normal shadow thing
+	{
+		for (s32 leafBallIndex = 0; leafBallIndex < scene->leavesCount; ++leafBallIndex)
+		{
+			Leaves & leaves = scene->leaves[leafBallIndex]; 
+
+			m44 * leafTransforms = push_memory<m44>(*global_transientMemory, leaves.count, ALLOC_NO_CLEAR);
+			for (s32 leafIndex = 0; leafIndex < leaves.count; ++leafIndex)
+			{
+				leaves.rotations[leafIndex] += leaves.directions[leafIndex] * input->elapsedTime;
+				constexpr f32 rotationRange = 0.5;
+				// Todo(Leo): make pingpong like functionality and remove direction from Leaves
+				if(leaves.rotations[leafIndex] < -rotationRange)
+				{
+					leaves.directions[leafIndex] = 1;
+				}
+				else if (leaves.rotations[leafIndex] > rotationRange)
+				{
+					leaves.directions[leafIndex] = -1;
+				}
+
+				quaternion rotation = axis_angle_quaternion(leaves.axes[leafIndex], leaves.rotations[leafIndex]);
+				rotation 			= leaves.baseRotations[leafIndex] * rotation;
+				leafTransforms[leafIndex] 	= transform_matrix({leaves.position + leaves.localPositions[leafIndex], 
+														make_uniform_v3(leaves.scales[leafIndex]),
+														rotation});
+			}
+
+			platformApi->draw_meshes(platformGraphics, leaves.count, leafTransforms, {-1}, {-1});
+		}
+	}
+
 
 	// ------------------------------------------------------------------------
 
@@ -1578,7 +1583,7 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 		scene->leavesCount = 20;
 		scene->leaves = push_memory<Leaves>(persistentMemory, scene->leavesCount, 0);
 
-		v3 leavesPositions [20] =
+		v3 leavesPositions [40] =
 		{
 			{-60, 0, 20},
 			{-30, 0, 20},
@@ -1603,6 +1608,30 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 			{0, 80, 20},
 			{30, 80, 20},
 			{60, 80, 20},
+
+			{-60, 0, 50},
+			{-30, 0, 50},
+			{0, 0, 50},
+			{30, 0, 50},
+			{60, 0, 50},
+
+			{-60, 40, 50},
+			{-30, 40, 50},
+			{0, 40, 50},
+			{30, 40, 50},
+			{60, 40, 50},
+	
+			{-60, -40, 50},
+			{-30, -40, 50},
+			{0, -40, 50},
+			{30, -40, 50},
+			{60, -40, 50},
+
+			{-60, 80, 50},
+			{-30, 80, 50},
+			{0, 80, 50},
+			{30, 80, 50},
+			{60, 80, 50},
 		};
 
 		for (s32 leavesIndex = 0; leavesIndex < scene->leavesCount; ++leavesIndex)

@@ -23,6 +23,8 @@ os.system("glslangValidator -V src/shaders/gui_shader2.frag -o assets/shaders/gu
 targets = [
 	("leaves.vert", "leaves_vert.spv"),
 	("leaves.frag", "leaves_frag.spv"),
+	("leaves_shadow.vert", "leaves_shadow_vert.spv"),
+	# ("leaves_shadow.frag", "leaves_shadow_frag.spv")
 ]
 
 for target in targets:
