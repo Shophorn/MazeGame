@@ -373,6 +373,8 @@ void FSVULKAN_DRAW_LEAVES(VulkanContext * context, s32 count, m44 const * transf
 	VulkanVirtualFrame * frame = vulkan::get_current_virtual_frame(context);
 
 	// Todo(Leo): Align start of region, not size.
+	// TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
+	// TODO TODO(Leo): THIS MUST BE TRACKED
 	u64 uniformBufferSize 				= vulkan::get_aligned_uniform_buffer_size(context, count * sizeof(m44));
 	u64 startUniformBufferOffset 		= context->currentUniformBufferOffset;
 	u64 totalRequiredMemory 			= uniformBufferSize;
@@ -549,20 +551,29 @@ internal void fsvulkan_draw_lines(VulkanContext * context, s32 pointCount, v3 co
 
 	s32 lineCount = pointCount / 2;
 
-	for (s32 line = 0; line < lineCount; ++line)
+	// Note(Leo): we require a little too much memory here, v4s even though we use v3s
+	u64 requiredBufferSize 				= pointCount * sizeof(v4) * 2;
+	requiredBufferSize 					= vulkan::get_aligned_uniform_buffer_size(context, requiredBufferSize);
+
+	u64 bufferStartOffset 				= context->currentUniformBufferOffset;
+	context->currentUniformBufferOffset += requiredBufferSize;
+
+
+	v3 * instanceData;
+	// Todo(Leo): check map results
+	VkResult result = vkMapMemory(context->device, context->modelUniformBuffer.memory, bufferStartOffset, requiredBufferSize, 0, (void**)&instanceData);
+
+	for (s32 i = 0; i < pointCount; ++i)
 	{
-		s32 point = line * 2;
-		v4 pushConstants [] = 
-		{
-			{points[point].x, points[point].y, points[point].z, 0},
-			{points[point + 1].x, points[point + 1].y, points[point + 1].z, 0},
-			color,
-		};
-
-		vkCmdPushConstants(commandBuffer, context->linePipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pushConstants), pushConstants);
-
-		vkCmdDraw(commandBuffer, 2, 1, 0, 0);
+		instanceData[i * 2] = points[i];
+		instanceData[i * 2 + 1] = color.rgb;
 	}
+
+	vkUnmapMemory(context->device, context->modelUniformBuffer.memory);
+
+	vkCmdBindVertexBuffers(commandBuffer, 0, 1, &context->modelUniformBuffer.buffer, &bufferStartOffset);
+
+	vkCmdDraw(commandBuffer, pointCount, 1, 0, 0);
 }
 
 internal void fsvulkan_draw_screen_rects(VulkanContext * context, s32 count, ScreenRect const * rects, GuiTextureHandle textureHandle, v4 color)

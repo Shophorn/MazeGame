@@ -851,16 +851,44 @@ internal void fsvulkan_initialize_leaves_pipeline(VulkanContext & context)
 		{
 			.primitiveType          = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP,
 			.cullModeFlags          = VK_CULL_MODE_BACK_BIT,
-			.enableTransparency     = true,
+			// .enableTransparency     = true,
 		}
 	);
 }
 
 internal void fsvulkan_initialize_line_pipeline(VulkanContext & context)
 {
-	FSVulkanPipeline TEMP_SOLUTION = fsvulkan_make_pipeline(&context,
+	/*
+	Document(Leo): Lines are drawn by building line lists on demand. List
+	are build on uniform/vertex buffer dynamically.
+	*/
+
+	VkVertexInputBindingDescription vertexBindingDescription = 
+	{
+		.binding 	= 0,
+		.stride 	= 2 * sizeof(v3),
+		.inputRate 	= VK_VERTEX_INPUT_RATE_VERTEX,
+	};
+
+	VkVertexInputAttributeDescription vertexAttributeDescriptions [] =
+	{
+		{0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0},
+		{1, 0, VK_FORMAT_R32G32B32_SFLOAT, sizeof(v3)},
+	};
+
+	EvenMoreArguments arguments = 
+	{
+		.vertexBindingDescriptionCount 		= 1,
+		.vertexBindingDescriptions 			= &vertexBindingDescription,
+		.vertexAttributeDescriptionCount 	= array_count(vertexAttributeDescriptions),
+		.vertexAttributeDescriptions 		= vertexAttributeDescriptions
+	};
+
+	FSVulkanPipeline TEMP_SOLUTION = fsvulkan_make_pipeline_WITH_EVEN_MORE_ARGUMENTS(&context,
 		"assets/shaders/line_vert.spv",
 		"assets/shaders/line_frag.spv",
+
+		arguments,
 
 		{
 			.pushConstantSize       = sizeof(v4) * 3,
