@@ -34,8 +34,9 @@ round_to<u32, f32>(f32 value)
     return static_cast<u32>(value);
 }
 
-constexpr f32 highest_f32 = std::numeric_limits<f32>::max();
-constexpr f32 lowest_f32 = std::numeric_limits<f32>::lowest();
+constexpr f32 highest_f32   = std::numeric_limits<f32>::max();
+constexpr f32 lowest_f32    = std::numeric_limits<f32>::lowest();
+constexpr f32 smallest_f32  = std::numeric_limits<f32>::min();
 
 constexpr u32 max_u32 = std::numeric_limits<u32>::max();
 constexpr u32 min_u32 = std::numeric_limits<u32>::min();

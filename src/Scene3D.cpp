@@ -24,20 +24,23 @@ enum CarryMode : s32
 	CARRY_SEED,
 };
 
-struct Trees
-{
-	f32 * 			growths;
-	v3 * 			positions;
-	quaternion * 	rotations;
+// struct Trees
+// {
+// 	f32 * 			growths;
+// 	v3 * 			positions;
+// 	quaternion * 	rotations;
 
-	s32 			count;
-	s32 			capacity;
-};
+// 	s32 			count;
+// 	s32 			capacity;
+// };
 
 struct Leaves
 {
-	s32 count;
-	v3 position;
+	s32 	count;
+	v3 		position;
+	f32 	radius;
+	f32 	leafScale;
+	s32 	processCount;
 
 	v3 * 			localPositions;
 	f32 * 			rotations;
@@ -46,6 +49,70 @@ struct Leaves
 	f32 * 			scales;
 	quaternion * 	baseRotations;
 };
+
+internal Leaves make_leaves(MemoryArena & allocator)
+{
+	Leaves leaves = {};
+
+
+	leaves.count 		= 4000;
+	// leaves.position = leavesPositions[leavesIndex];
+	leaves.radius 		= 10;
+	leaves.leafScale 	= 1;
+
+	leaves.localPositions 	= push_memory<v3>(allocator, leaves.count, ALLOC_NO_CLEAR);
+	leaves.rotations 		= push_memory<f32>(allocator, leaves.count, ALLOC_NO_CLEAR);
+	leaves.directions 		= push_memory<f32>(allocator, leaves.count, ALLOC_NO_CLEAR);
+	leaves.axes 			= push_memory<v3>(allocator, leaves.count, ALLOC_NO_CLEAR);
+	leaves.scales 			= push_memory<f32>(allocator, leaves.count, ALLOC_NO_CLEAR);
+	leaves.baseRotations 	= push_memory<quaternion>(allocator, leaves.count, ALLOC_NO_CLEAR);
+
+	/* Note(Leo): Initialize leaves in order biggest to smallest, so we can easily LOD them
+	by limiting number of processed leaves. We do not currently have any such system, but
+	this costs zero, so we do it.
+
+	This to my best understanding represent uniform distribution, but it can be made to
+	use other distributions as well. */
+	f32 biggestScale 	= 1.0f;
+	f32 smallestScale 	= 0.5f;
+	f32 scaleStep 		= (biggestScale - smallestScale) / leaves.count;
+	f32 scale 			= biggestScale;
+
+	Assert(scaleStep > 0 && "Scale step is too small to make any change");
+
+	for (s32 i = 0; i < leaves.count; ++i)
+	{
+		f32 horizontalAngle	= RandomRange(0, 2 * pi);
+		f32 verticalAngle 	= RandomRange(0, pi);
+
+		// Todo(Add more weight towards outer limit)
+		f32 distance 	= RandomRange(0.6, 1);
+
+		v3 localPosition =
+		{
+			sine(horizontalAngle) * sine(verticalAngle) * distance,
+			cosine(horizontalAngle) * sine(verticalAngle) * distance,
+			cosine(verticalAngle) * distance
+		};
+
+		leaves.localPositions[i] = localPosition;
+
+		// Todo(Leo): update names
+		leaves.rotations[i] = RandomRange(-1, 1);
+		leaves.directions[i] = Sign(RandomValue());
+
+		v3 orthogonalAxis 			= normalize_v3({localPosition.x, localPosition.y, 0});
+		v3 baseRotationAxis 		= cross_v3(up_v3, orthogonalAxis);
+		f32 baseRotationAngle 		= RandomRange(0.5, 1);
+		leaves.baseRotations[i] 	= axis_angle_quaternion(baseRotationAxis, baseRotationAngle);
+		leaves.axes[i] 				= multiply_direction(rotation_matrix(leaves.baseRotations[i]), orthogonalAxis);
+
+		leaves.scales[i] 	= scale;
+		scale 				-= scaleStep;
+	}
+
+	return leaves;
+}
 
 struct Scene3d
 {
@@ -85,19 +152,20 @@ struct Scene3d
 	Transform3D	seedTransforms[seedCapacity];
 	s32 currentSeedCount;
 
-	Trees trees;
+	// Trees trees;
 
 	// Document(Leo): First Trees in pots, then on the ground
 	f32 treeGrowths				[seedCapacity];
 	f32 treeWateriness 			[seedCapacity];
 	Transform3D treeTransforms	[seedCapacity];
-
+	s32 treeLeavesIndices		[seedCapacity];
 
 	s32 treesInPotCount;
 	s32 treesOnGroundCount;
 
- 	s32 		leavesCount;
- 	Leaves *	leaves;
+	static constexpr s32 leavesCapacity = seedCapacity;
+ 	s32 	leavesCount;
+ 	Leaves 	leaves [leavesCapacity];
 
 	static constexpr f32 treeWaterAcceptDistance = 0.4f;
 
@@ -190,7 +258,7 @@ struct Scene3d
 	s32 					timeScaleIndex;
 };
 
-internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
+internal bool32 update_scene_3d(void * scenePtr, MemoryArena & persistentMemory, game::Input * input)
 {
 	Scene3d * scene = reinterpret_cast<Scene3d*>(scenePtr);
 	
@@ -377,6 +445,11 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 						scene->treeTransforms[treeIndex].rotation 	= identity_quaternion;
 						scene->treeTransforms[treeIndex].scale 		= {0,0,0};
 
+						s32 leavesIndex 					= scene->leavesCount;
+						scene->leaves[leavesIndex] 			= make_leaves(persistentMemory);
+						scene->treeLeavesIndices[treeIndex] = leavesIndex;
+						scene->leavesCount 					+= 1;
+
 						++scene->treesOnGroundCount;
 
 						scene->currentSeedCount -= 1;
@@ -405,6 +478,7 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 							scene->treeGrowths[treeMoveToIndex] = scene->treeGrowths[treeMoveFromIndex];
 							scene->treeWateriness[treeMoveToIndex] = scene->treeGrowths[treeMoveFromIndex];
 							scene->treeTransforms[treeMoveToIndex] = scene->treeTransforms[treeMoveFromIndex];
+							scene->treeLeavesIndices[treeMoveToIndex] = scene->treeLeavesIndices[treeMoveFromIndex];
 							// Note(Leo): no need to worry about pot index here; we are on ground!
 						}
 
@@ -414,6 +488,12 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 						scene->treeTransforms[newTreeInPotIndex].position 	= scene->potTransforms[potIndex].position;
 						scene->treeTransforms[newTreeInPotIndex].rotation 	= identity_quaternion;
 						scene->treeTransforms[newTreeInPotIndex].scale 		= {0,0,0};
+
+						s32 leavesIndex 							= scene->leavesCount;
+						scene->leaves[leavesIndex] 					= make_leaves(persistentMemory);
+						scene->treeLeavesIndices[newTreeInPotIndex] = leavesIndex;
+						scene->leavesCount 							+= 1;
+
 
 						/* Note(Leo): this seems to work, we can rely on it for a while, until we make proper hashmaps.
 						It works because there is equal number of pots with trees and trees in pots, naturally, and they
@@ -535,7 +615,7 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 		// Todo(Leo): Maybe make something like that these would have predetermined range, that is only updated when
 		// tree has grown a certain amount or somthing. These are kinda semi-permanent by nature.
 
-		constexpr f32 baseRadius = 0.22;
+		constexpr f32 baseRadius = 0.12;
 		constexpr f32 baseHeight = 2;
 		s32 totalTreeCount = scene->treesInPotCount + scene->treesOnGroundCount;
 		
@@ -578,20 +658,26 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 
 	// Rebellious(Leo): stop using systems, and instead just do the stuff you need to >:)
 	/// DRAW UNUSED WATER
-	m44 * waterTransforms = push_memory<m44>(*global_transientMemory, scene->waterCount, ALLOC_NO_CLEAR);
-	for (s32 i = 0; i < scene->waterCount; ++i)
+	if (scene->waterCount > 0)
 	{
-		waterTransforms[i] = transform_matrix(scene->waterTransforms[i]);
+		m44 * waterTransforms = push_memory<m44>(*global_transientMemory, scene->waterCount, ALLOC_NO_CLEAR);
+		for (s32 i = 0; i < scene->waterCount; ++i)
+		{
+			waterTransforms[i] = transform_matrix(scene->waterTransforms[i]);
+		}
+		platformApi->draw_meshes(platformGraphics, scene->waterCount, waterTransforms, scene->dropMesh, scene->waterDropMaterial);
 	}
-	platformApi->draw_meshes(platformGraphics, scene->waterCount, waterTransforms, scene->dropMesh, scene->waterDropMaterial);
 	
 	/// DRAW UNUSED SEEDS
-	m44 * seedTransforms = push_memory<m44>(*global_transientMemory, scene->currentSeedCount, ALLOC_NO_CLEAR);
-	for (s32 i = 0; i < scene->currentSeedCount; ++i)
+	if(scene->currentSeedCount)
 	{
-		seedTransforms[i] = transform_matrix(scene->seedTransforms[i]);
+		m44 * seedTransforms = push_memory<m44>(*global_transientMemory, scene->currentSeedCount, ALLOC_NO_CLEAR);
+		for (s32 i = 0; i < scene->currentSeedCount; ++i)
+		{
+			seedTransforms[i] = transform_matrix(scene->seedTransforms[i]);
+		}
+		platformApi->draw_meshes(platformGraphics, scene->currentSeedCount, seedTransforms, scene->dropMesh, scene->seedMaterial);
 	}
-	platformApi->draw_meshes(platformGraphics, scene->currentSeedCount, seedTransforms, scene->dropMesh, scene->seedMaterial);
 
 	/// UPDATE TREES
 	{
@@ -620,6 +706,29 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 				scene->treeWateriness[index] 	-= growth;	
 			}
 		}
+
+		/// UPDATE LEAVES
+		for (s32 i = 0; i < totalTreeCount; ++i)
+		{
+			constexpr f32 zPosition = 2.6;
+			constexpr f32 growthRadiusMultiplier = 1;
+			constexpr f32 growthScaleMin = 0.2; 
+			constexpr f32 growthScaleMax = 1; 
+
+			constexpr f32 maxGrowth = 20;
+
+			f32 growth 		= scene->treeGrowths[i];
+			Leaves & leaves = scene->leaves[scene->treeLeavesIndices[i]];
+
+			leaves.position 	= scene->treeTransforms[i].position + v3{0, 0, growth * zPosition};
+			leaves.radius 		= growth * growthRadiusMultiplier;
+			leaves.leafScale 	= 0.05f + math::clamp(growth / 5, 0.0f, 1.0f) * 0.95f;
+
+			constexpr s32 minLeavesNumber 	= 2;
+			f32 leafCountGrowthAmount 		= math::clamp (growth / 5, 0.0f, 1.0f);
+			leaves.processCount 			= minLeavesNumber + leafCountGrowthAmount * (leaves.count - minLeavesNumber);
+		}
+
 
 		for (s32 i = 0; i < totalTreeCount; ++i)
 		{
@@ -743,35 +852,36 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 	}
 
 	/// DRAW TEST LEAVES
-	// Todo(Leo): leaves are drawn last, so we can bind their shadow pipeline once, and not rebind the normal shadow thing
+	// Todo(Leo): leaves are drawn last, so we can bind their shadow pipeline once, and not rebind the normal shadow thing. Fix this unconvenience!
 	{
-		for (s32 leafBallIndex = 0; leafBallIndex < scene->leavesCount; ++leafBallIndex)
+		for (s32 leavesIndex = 0; leavesIndex < scene->leavesCount; ++leavesIndex)
 		{
-			Leaves & leaves = scene->leaves[leafBallIndex]; 
+			Leaves & leaves = scene->leaves[leavesIndex]; 
+			s32 processCount = leaves.processCount;
 
-			m44 * leafTransforms = push_memory<m44>(*global_transientMemory, leaves.count, ALLOC_NO_CLEAR);
-			for (s32 leafIndex = 0; leafIndex < leaves.count; ++leafIndex)
+			m44 * leafTransforms = push_memory<m44>(*global_transientMemory, processCount, ALLOC_NO_CLEAR);
+			for (s32 i = 0; i < processCount; ++i)
 			{
-				leaves.rotations[leafIndex] += leaves.directions[leafIndex] * input->elapsedTime;
+				leaves.rotations[i] += leaves.directions[i] * input->elapsedTime;
 				constexpr f32 rotationRange = 0.5;
 				// Todo(Leo): make pingpong like functionality and remove direction from Leaves
-				if(leaves.rotations[leafIndex] < -rotationRange)
+				if(leaves.rotations[i] < -rotationRange)
 				{
-					leaves.directions[leafIndex] = 1;
+					leaves.directions[i] = 1;
 				}
-				else if (leaves.rotations[leafIndex] > rotationRange)
+				else if (leaves.rotations[i] > rotationRange)
 				{
-					leaves.directions[leafIndex] = -1;
+					leaves.directions[i] = -1;
 				}
 
-				quaternion rotation = axis_angle_quaternion(leaves.axes[leafIndex], leaves.rotations[leafIndex]);
-				rotation 			= leaves.baseRotations[leafIndex] * rotation;
-				leafTransforms[leafIndex] 	= transform_matrix({leaves.position + leaves.localPositions[leafIndex], 
-														make_uniform_v3(leaves.scales[leafIndex]),
+				quaternion rotation = axis_angle_quaternion(leaves.axes[i], leaves.rotations[i]);
+				rotation 			= leaves.baseRotations[i] * rotation;
+				leafTransforms[i] 	= transform_matrix({leaves.position + leaves.localPositions[i] * leaves.radius, 
+														make_uniform_v3(leaves.scales[i] * leaves.leafScale),
 														rotation});
 			}
 
-			platformApi->draw_meshes(platformGraphics, leaves.count, leafTransforms, {-1}, {-1});
+			platformApi->draw_meshes(platformGraphics, processCount, leafTransforms, {-1}, {-1});
 		}
 	}
 
@@ -1578,109 +1688,33 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 
 	}
 
-	/// GENERATE TEST LEAVES
+	/// TEST TREES
 	{
-		scene->leavesCount = 20;
-		scene->leaves = push_memory<Leaves>(persistentMemory, scene->leavesCount, 0);
+		s32 testTreeCount = 10;
 
-		v3 leavesPositions [40] =
+		for (s32 i = 0; i < testTreeCount; ++i)
 		{
-			{-60, 0, 20},
-			{-30, 0, 20},
-			{0, 0, 20},
-			{30, 0, 20},
-			{60, 0, 20},
+			v3 position = {(f32)i * 10, 10, 0};
+			position.z = get_terrain_height(&scene->collisionSystem, position.xy);
 
-			{-60, 40, 20},
-			{-30, 40, 20},
-			{0, 40, 20},
-			{30, 40, 20},
-			{60, 40, 20},
-	
-			{-60, -40, 20},
-			{-30, -40, 20},
-			{0, -40, 20},
-			{30, -40, 20},
-			{60, -40, 20},
+			s32 treeIndex = scene->treesInPotCount + scene->treesOnGroundCount;
+			scene->treeGrowths[treeIndex] 				= (f32)i;
+			scene->treeWateriness[treeIndex] 			= 0.5f;
+			scene->treeTransforms[treeIndex].position 	= position;
+			scene->treeTransforms[treeIndex].rotation 	= identity_quaternion;
+			scene->treeTransforms[treeIndex].scale 		= {0,0,0};
 
-			{-60, 80, 20},
-			{-30, 80, 20},
-			{0, 80, 20},
-			{30, 80, 20},
-			{60, 80, 20},
+			s32 leavesIndex 					= scene->leavesCount;
+			scene->leaves[leavesIndex] 			= make_leaves(persistentMemory);
+			scene->treeLeavesIndices[treeIndex] = leavesIndex;
+			scene->leavesCount 					+= 1;
 
-			{-60, 0, 50},
-			{-30, 0, 50},
-			{0, 0, 50},
-			{30, 0, 50},
-			{60, 0, 50},
-
-			{-60, 40, 50},
-			{-30, 40, 50},
-			{0, 40, 50},
-			{30, 40, 50},
-			{60, 40, 50},
-	
-			{-60, -40, 50},
-			{-30, -40, 50},
-			{0, -40, 50},
-			{30, -40, 50},
-			{60, -40, 50},
-
-			{-60, 80, 50},
-			{-30, 80, 50},
-			{0, 80, 50},
-			{30, 80, 50},
-			{60, 80, 50},
-		};
-
-		for (s32 leavesIndex = 0; leavesIndex < scene->leavesCount; ++leavesIndex)
-		{
-			Leaves & leaves = scene->leaves[leavesIndex];
-
-			leaves.count 	= 4000;
-			leaves.position = leavesPositions[leavesIndex];
-			f32 radius 		= 10;
-
-			leaves.localPositions 	= push_memory<v3>(persistentMemory, leaves.count, ALLOC_NO_CLEAR);
-			leaves.rotations 		= push_memory<f32>(persistentMemory, leaves.count, ALLOC_NO_CLEAR);
-			leaves.directions 		= push_memory<f32>(persistentMemory, leaves.count, ALLOC_NO_CLEAR);
-			leaves.axes 			= push_memory<v3>(persistentMemory, leaves.count, ALLOC_NO_CLEAR);
-			leaves.scales 			= push_memory<f32>(persistentMemory, leaves.count, ALLOC_NO_CLEAR);
-			leaves.baseRotations 	= push_memory<quaternion>(persistentMemory, leaves.count, ALLOC_NO_CLEAR);
-
-			for (s32 i = 0; i < leaves.count; ++i)
-			{
-				f32 horizontalAngle	= RandomRange(0, 2 * pi);
-				f32 verticalAngle 	= RandomRange(0, pi);
-
-				// Todo(Add more weight towards outer limit)
-				f32 distance 	= RandomRange(0.6, 1);
-				distance 		= distance * radius;
-
-				v3 localPosition =
-				{
-					sine(horizontalAngle) * sine(verticalAngle) * distance,
-					cosine(horizontalAngle) * sine(verticalAngle) * distance,
-					cosine(verticalAngle) * distance
-				};
-
-				leaves.localPositions[i] = localPosition;
-
-				// Todo(Leo): update names
-				leaves.rotations[i] = RandomRange(-1, 1);
-				leaves.directions[i] = Sign(RandomValue());
-
-				v3 orthogonalAxis 			= normalize_v3({localPosition.x, localPosition.y, 0});
-				v3 baseRotationAxis 		= cross_v3(up_v3, orthogonalAxis);
-				f32 baseRotationAngle 		= RandomRange(0.5, 1);
-				leaves.baseRotations[i] = axis_angle_quaternion(baseRotationAxis, baseRotationAngle);
-				leaves.axes[i] 			= multiply_direction(rotation_matrix(leaves.baseRotations[i]), orthogonalAxis);
-
-				leaves.scales[i] = RandomRange(0.5, 1.0f);
-			}
+			++scene->treesOnGroundCount;
 		}
 
+		// Note(Leo): Häxöring so that we dont use too much tree space after test trees
+		scene->currentSeedCount -= testTreeCount;
+		// scene->currentSeedCount -= 1;
 	}
 
 	logSystem(0) << "Scene3d loaded, " << used_percent(*global_transientMemory) * 100 << "% of transient memory used.";

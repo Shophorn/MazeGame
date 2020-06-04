@@ -66,10 +66,11 @@ void main()
 	float lightDepthFromTexture = texture(lightMap, lightCoords.xy).r;
 
 	const float epsilon = 0.0001;
-	float inLight = 1.0 - step(lightDepthFromTexture + epsilon, lightCoords.z);
+	float inLight = 1.0 - step(lightDepthFromTexture + epsilon, lightCoords.z) * 0.8;
 
 	// SHADOWS
-	lightIntensity = min(lightIntensity, inLight);	
+	// lightIntensity = min(lightIntensity, inLight);	
+	lightIntensity = lightIntensity * inLight;
 
 	// lightIntensity *= 2;
 	vec3 lightColor = mix(light.ambient.rgb, light.color.rgb, lightIntensity);

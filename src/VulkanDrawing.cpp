@@ -405,54 +405,23 @@ void FSVULKAN_DRAW_LEAVES(VulkanContext * context, s32 count, m44 const * transf
 	vkCmdBindVertexBuffers(frame->commandBuffers.scene, 0, 1, &context->modelUniformBuffer.buffer, &startUniformBufferOffset);
 
 	// Note(Leo): Fukin cool, instantiation at last :DDDD 4.6.
-	vkCmdDraw(frame->commandBuffers.scene, 4, count, 0, 0);
+	vkCmdDraw(frame->commandBuffers.scene, 8, count, 0, 0);
 
 
 	// ------------------------------------------------
-	///////////////////////////
-	///   SHADOW PASS       ///
-	///////////////////////////
-	// bool castShadow = true;
-	// if (castShadow)
 
-// #if 1
-	// {
-		VkPipeline shadowPipeline 				= context->leavesShadowPipeline;
-		VkPipelineLayout shadowPipelineLayout 	= context->leavesShadowPipelineLayout;
+	VkPipeline shadowPipeline 				= context->leavesShadowPipeline;
+	VkPipelineLayout shadowPipelineLayout 	= context->leavesShadowPipelineLayout;
 
-		vkCmdBindPipeline(frame->commandBuffers.offscreen, VK_PIPELINE_BIND_POINT_GRAPHICS, shadowPipeline);
+	vkCmdBindPipeline(frame->commandBuffers.offscreen, VK_PIPELINE_BIND_POINT_GRAPHICS, shadowPipeline);
 
-		vkCmdBindDescriptorSets(frame->commandBuffers.offscreen, VK_PIPELINE_BIND_POINT_GRAPHICS, shadowPipelineLayout,
-								0, 1, &context->uniformDescriptorSets.camera, 0, nullptr);
+	vkCmdBindDescriptorSets(frame->commandBuffers.offscreen, VK_PIPELINE_BIND_POINT_GRAPHICS, shadowPipelineLayout,
+							0, 1, &context->uniformDescriptorSets.camera, 0, nullptr);
 
-		vkCmdBindVertexBuffers(frame->commandBuffers.offscreen, 0, 1, &context->modelUniformBuffer.buffer, &startUniformBufferOffset);
-		// vkCmdBindVertexBuffers(frame->commandBuffers.offscreen, 0, 1, &mesh->bufferReference, &mesh->vertexOffset);
-		// vkCmdBindIndexBuffer(frame->commandBuffers.offscreen, mesh->bufferReference, mesh->indexOffset, mesh->indexType);
+	vkCmdBindVertexBuffers(frame->commandBuffers.offscreen, 0, 1, &context->modelUniformBuffer.buffer, &startUniformBufferOffset);
 
-		vkCmdDraw(frame->commandBuffers.offscreen, 4, count, 0, 0);
+	vkCmdDraw(frame->commandBuffers.offscreen, 4, count, 0, 0);
 
-
-		// VkDescriptorSet shadowSets [] =
-		// {
-		// 	context->uniformDescriptorSets.camera,
-		// 	context->uniformDescriptorSets.model,
-		// };
-
-		// for (s32 i = 0; i < count; ++i)
-		// {
-		// 	vkCmdBindDescriptorSets(frame->commandBuffers.offscreen,
-		// 							VK_PIPELINE_BIND_POINT_GRAPHICS,
-		// 							context->shadowPass.layout,
-		// 							0,
-		// 							2,
-		// 							shadowSets,
-		// 							1,
-		// 							&uniformBufferOffsets[i]);
-
-		// 	vkCmdDrawIndexed(frame->commandBuffers.offscreen, mesh->indexCount, 1, 0, 0, 0);
-		// }
-	// }
-// #endif 
 }
 
 

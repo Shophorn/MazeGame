@@ -128,6 +128,8 @@ get_next_sample(AudioClip * clip)
 	return sample;
 }
 
+enum LoadedSceneType { LOADED_SCENE_NONE, LOADED_SCENE_3D, LOADED_SCENE_2D };
+
 // Note(Leo): This makes less sense as a 'state' now that we have 'Scene' struct
 struct GameState
 {
@@ -139,6 +141,7 @@ struct GameState
 
 	bool isInitialized;
 
+	LoadedSceneType loadedSceneType;
 	void * loadedScene;
 
 	// Note(Leo): This MUST return false if it intends to close the scene, and true otherwise
@@ -242,7 +245,15 @@ bool32 update_game(
 
 	if (state->loadedScene != nullptr)
 	{
-		sceneIsAlive = state->updateScene(state->loadedScene, input);
+		if (state->loadedSceneType == LOADED_SCENE_3D)
+		{
+			sceneIsAlive = update_scene_3d(state->loadedScene, state->persistentMemoryArena, input);
+		}
+		else if (state->loadedSceneType == LOADED_SCENE_2D)
+		{
+			sceneIsAlive = update_scene_2d(state->loadedScene, input);
+		}
+
 	}
 	else
 	{
@@ -275,12 +286,14 @@ bool32 update_game(
 	if(action == ACTION_LOAD_3D_SCENE)
 	{
 		state->loadedScene = load_scene_3d(state->persistentMemoryArena);
-		state->updateScene = update_scene_3d;
+		// state->updateScene = update_scene_3d;
+		state->loadedSceneType = LOADED_SCENE_3D;
 	}	
 	else if(action == ACTION_LOAD_2D_SCENE)
 	{
 		state->loadedScene = load_scene_2d(state->persistentMemoryArena);
-		state->updateScene = update_scene_2d;
+		// state->updateScene = update_scene_2d;
+		state->loadedSceneType = LOADED_SCENE_2D;
 	}		
 
 
@@ -292,7 +305,8 @@ bool32 update_game(
 		platformApi->unload_scene(platformGraphics);
 		flush_memory_arena(&state->persistentMemoryArena);
 
-		state->loadedScene = nullptr;
+		state->loadedScene 		= nullptr;
+		state->loadedSceneType 	= LOADED_SCENE_NONE;
 
 		// Todo(Leo): this is a hack, unload_scene also unloads main gui, which is rather unwanted...
 		state->gui = make_main_menu_gui(state->persistentMemoryArena);	

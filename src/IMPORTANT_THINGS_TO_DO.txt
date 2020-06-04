@@ -95,13 +95,21 @@ DONE:
 		double sided
 
 		outline shape can be a function in uv-space
+
+	4.6:
+	Combine leaves to trees
+
 DOING:
+	Optimize debug lines
 
 TODO:
 	SUPER IMPORTANT but not immediately:
 		Optimizable build -> vulkan stuff breaks with -O swithces
 			-> may have to do with validation layers
 		Startup time is unacceptably slow
+
+	Make actual functions for adding trees, there is a lot going on already, which calls for trouble
+
 
 	New tree rules
 		roots

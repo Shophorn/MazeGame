@@ -9,18 +9,6 @@ layout (set = 0, binding = 0) uniform CameraProjections
 	float shadowTransitionDistance;
 } camera;
 
-// layout(set = 2, binding = 0) uniform ModelProjection
-// {
-// 	mat4 model;
-// } model;
-
-// layout (location = 0) in vec3 inPosition;
-// layout (location = 1) in vec3 inNormal;
-// layout (location = 2) in vec3 inColor;
-// layout (location = 3) in vec2 inTexCoord;
-// layout (location = 6) in vec3 inTangent;
-// layout (location = 7) in vec3 inBiTangent;
-
 layout (location = 0) in mat4 modelMatrix;
 
 // layout (location = 0) out vec3 fragColour;
@@ -33,8 +21,13 @@ layout (location = 4) out vec4 lightCoords;
 const float shadowDistance = 90.0;
 const float transitionDistance = 10.0;
 
-const vec3 vertexPositions [4] =
+const vec3 vertexPositions [8] =
 {
+	vec3(-0.5, -0.5, 0),
+	vec3( 0.5, -0.5, 0),
+	vec3(-0.5,  0.5, 0),
+	vec3( 0.5,  0.5, 0),
+
 	vec3(-0.5, -0.5, 0),
 	vec3( 0.5, -0.5, 0),
 	vec3(-0.5,  0.5, 0),
@@ -45,6 +38,10 @@ void main ()
 {
 	vec3 inPosition = vertexPositions[gl_VertexIndex];
 	vec3 inNormal = vec3(0, 0, 1);
+	if (gl_VertexIndex >= 4)
+	{
+		inNormal.z = -1;
+	}
 
 	// gl_Position = camera.projection * camera.view * model.model * vec4(inPosition, 1.0);
 	gl_Position = camera.projection * camera.view * modelMatrix * vec4(inPosition, 1.0);

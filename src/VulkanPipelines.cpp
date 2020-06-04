@@ -850,7 +850,7 @@ internal void fsvulkan_initialize_leaves_pipeline(VulkanContext & context)
 
 		{
 			.primitiveType          = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP,
-			.cullModeFlags          = VK_CULL_MODE_NONE,
+			.cullModeFlags          = VK_CULL_MODE_BACK_BIT,
 			.enableTransparency     = true,
 		}
 	);
