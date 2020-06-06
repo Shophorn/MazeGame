@@ -83,29 +83,42 @@ internal Leaves make_leaves(MemoryArena & allocator)
 	for (s32 i = 0; i < leaves.count; ++i)
 	{
 		f32 horizontalAngle	= RandomRange(0, 2 * pi);
-		f32 verticalAngle 	= RandomRange(0, pi);
+		f32 verticalAngle 	= RandomRange(-pi / 2, pi / 2);
 
 		// Todo(Add more weight towards outer limit)
 		f32 distance 	= RandomRange(0.6, 1);
 
+		f32 sineHorizontal = sine(horizontalAngle);
+		f32 cosineHorizontal = cosine(horizontalAngle);
+
+		f32 x = cosineHorizontal;
+		f32 y = sineHorizontal;
+
 		v3 localPosition =
 		{
-			sine(horizontalAngle) * sine(verticalAngle) * distance,
-			cosine(horizontalAngle) * sine(verticalAngle) * distance,
-			cosine(verticalAngle) * distance
+			x * cosine(verticalAngle) * distance,
+			y * cosine(verticalAngle) * distance,
+			sine(verticalAngle) * distance
 		};
 
 		leaves.localPositions[i] = localPosition;
 
-		// Todo(Leo): update names
+		// Todo(Leo): update names: rotations is current rotation values, directions is just which direction we are
+		// rotation, counter clockwise or normal clockwise
 		leaves.rotations[i] = RandomRange(-1, 1);
 		leaves.directions[i] = Sign(RandomValue());
 
-		v3 orthogonalAxis 			= normalize_v3({localPosition.x, localPosition.y, 0});
-		v3 baseRotationAxis 		= cross_v3(up_v3, orthogonalAxis);
-		f32 baseRotationAngle 		= RandomRange(0.5, 1);
-		leaves.baseRotations[i] 	= axis_angle_quaternion(baseRotationAxis, baseRotationAngle);
-		leaves.axes[i] 				= multiply_direction(rotation_matrix(leaves.baseRotations[i]), orthogonalAxis);
+
+		// Note(Leo): leaf geometry is defined so that it points along positive y axis, so we rotate accordingly with -pi/2
+		quaternion awayFromCenterRotation = axis_angle_quaternion(up_v3, horizontalAngle - pi / 2);
+
+		v3 localYAxis 				= multiply_direction(rotation_matrix(awayFromCenterRotation), {0,1,0});
+		v3 localXAxis 				= cross_v3(localYAxis, up_v3);
+		f32 localXRotation 			= -pi / 4 + RandomRange(-pi / 12, pi / 12);
+
+		// quaternion 
+		leaves.baseRotations[i] 	= awayFromCenterRotation * axis_angle_quaternion(localXAxis, localXRotation);
+		leaves.axes[i] 				= multiply_direction(rotation_matrix(leaves.baseRotations[i]), {0,1,0});
 
 		leaves.scales[i] 	= scale;
 		scale 				-= scaleStep;
@@ -876,9 +889,20 @@ internal bool32 update_scene_3d(void * scenePtr, MemoryArena & persistentMemory,
 
 				quaternion rotation = axis_angle_quaternion(leaves.axes[i], leaves.rotations[i]);
 				rotation 			= leaves.baseRotations[i] * rotation;
+
+				// Todo(Leo): This is for testing, remove
+				// rotation 			= leaves.baseRotations[i];
 				leafTransforms[i] 	= transform_matrix({leaves.position + leaves.localPositions[i] * leaves.radius, 
 														make_uniform_v3(leaves.scales[i] * leaves.leafScale),
 														rotation});
+
+				// v3 debugPositions [] = {leaves.position + leaves.localPositions[i] * leaves.radius};
+				// debugPositions[1] = debugPositions[0] + multiply_direction(rotation_matrix(rotation), {0, 1, 0});
+				
+				// debug_draw_lines(2, debugPositions, colour_bright_green, DEBUG_PLAYER);
+
+				// debugPositions[1] = debugPositions[0] + leaves.axes[i];
+				// debug_draw_lines(2, debugPositions, colour_bright_red, DEBUG_PLAYER);
 			}
 
 			platformApi->draw_meshes(platformGraphics, processCount, leafTransforms, {-1}, {-1});
@@ -1458,7 +1482,7 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 
 				v3 position = {x, y, z - 1};
 				auto transform = scene->transforms.push_return_pointer({position});
-				transform->rotation = axis_angle_quaternion(up_v3, RandomRange(-tau / 8, tau / 8));
+				transform->rotation = axis_angle_quaternion(up_v3, RandomRange(-pi / 4, pi / 4));
 				
 				auto model = push_model(pillarMeshHandle, materials.environment);
 				scene->renderers.push({transform, model});

@@ -291,7 +291,7 @@ update_character_motor( CharacterMotor & 	motor,
 	{
 		/* Note(Leo): input is inverted, because negative input means left,
 		but in our right handed coordinate system, negative rotation means right */
-		quaternion rotation = axis_angle_quaternion(up_v3, -1 * rightInput * motor.rotationSpeed * elapsedTime);
+		quaternion rotation = axis_angle_quaternion(up_v3, -rightInput * motor.rotationSpeed * elapsedTime);
 		motor.transform->rotation = motor.transform->rotation * rotation;
 	}
 

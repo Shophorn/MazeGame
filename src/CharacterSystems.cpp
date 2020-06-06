@@ -46,7 +46,7 @@ struct CharacterControllerSideScroller
 			if (leftRayHit)
 				xMovement = math::max(0.0f, xMovement);
 
-			targetRotationRadians = -pi / 2.0f;
+			targetRotationRadians = pi / 2.0f;
 		}
 
 		// Going Right
@@ -60,7 +60,7 @@ struct CharacterControllerSideScroller
 			if (rightRayHit)
 				xMovement = math::min(0.0f, xMovement);
 
-			targetRotationRadians = pi / 2.0f;
+			targetRotationRadians = -pi / 2.0f;
 		}
 
 

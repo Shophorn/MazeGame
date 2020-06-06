@@ -163,23 +163,3 @@ internal m44 transform_matrix(v3 translation, quaternion rotation, v3 scale)
 
 	return result;	
 }
-
-internal m44 m44_look_at(v3 position, v3 target, v3 up)
-{
-	v3 what_1 = forward_v3;
-	v3 what_2 = target - position;
-
-	f32 dot = dot_v3(what_1, what_2);
-
-	if (dot < 0.00001f)
-	{
-		return translation_matrix(position);
-	}
-	else
-	{
-		f32 angle = arc_cosine(dot);
-		v3 axis = cross_v3(what_1, what_2);
-		quaternion rotation = axis_angle_quaternion(axis, angle);
-		return translation_matrix(position) * rotation_matrix(rotation);
-	}
-}

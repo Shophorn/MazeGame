@@ -37,6 +37,9 @@ namespace colors
 
 constexpr v4 colour_aqua_blue 		= colour_rgb_255(51, 255, 255);
 
+
+constexpr v4 colour_bright_red 		= {1.0, 0.0, 0.0, 1.0};
+
 constexpr v4 colour_bright_green 	= {0.0, 1.0, 0.0, 1.0};
 constexpr v4 color_dark_green 		= {0, 0.6, 0, 1};
 constexpr v4 color_dark_red 		= {0.6, 0, 0, 1};

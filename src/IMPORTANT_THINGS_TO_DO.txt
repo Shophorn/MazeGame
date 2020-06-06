@@ -108,8 +108,12 @@ TODO:
 			-> may have to do with validation layers
 		Startup time is unacceptably slow
 
+		Stop rendering when not top window
+		Remove unused stuff from pools when reloading shaders
+
 	Make actual functions for adding trees, there is a lot going on already, which calls for trouble
 
+	Fix leaf shadow inconvenience
 
 	New tree rules
 		roots

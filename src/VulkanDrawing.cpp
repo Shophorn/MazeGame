@@ -407,7 +407,9 @@ void FSVULKAN_DRAW_LEAVES(VulkanContext * context, s32 count, m44 const * transf
 	vkCmdBindVertexBuffers(frame->commandBuffers.scene, 0, 1, &context->modelUniformBuffer.buffer, &startUniformBufferOffset);
 
 	// Note(Leo): Fukin cool, instantiation at last :DDDD 4.6.
-	vkCmdDraw(frame->commandBuffers.scene, 8, count, 0, 0);
+	// Note(Leo): This is hardcoded in shaders, we generate vertex data on demand
+	constexpr s32 leafVertexCount = 4;
+	vkCmdDraw(frame->commandBuffers.scene, leafVertexCount, count, 0, 0);
 
 
 	// ------------------------------------------------

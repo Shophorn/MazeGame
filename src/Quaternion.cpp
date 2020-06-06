@@ -2,8 +2,8 @@ struct quaternion
 {
 	union
 	{
-		struct {f32 x, y, z; };
 		v3 vector;
+		struct {f32 x, y, z; };
 	};
 	f32 w;
 };
@@ -34,15 +34,25 @@ bool is_unit_quaternion(quaternion q)
 	return result;
 }
 
-internal quaternion axis_angle_quaternion(v3 axis, f32 angleInRadians)
+internal quaternion axis_angle_quaternion(v3 normalizedAxis, f32 angleInRadians)
 {
-	angleInRadians *= -1;
-	f32 halfAngle = angleInRadians / 2.0f;
+	// TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO 
+	// TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO 
+	// TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO 
+	// TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO 
+	// Todo(Leo): This seems horribly wrong, but as everything breaks when this is
+	// removed, we probably have mitigated this everywhere.
+	angleInRadians 		*= -1;
 
-	quaternion result = {};
 
-	result.w = cosine(halfAngle);
-	result.vector = axis * sine(halfAngle);
+
+	f32 halfAngle 		= angleInRadians / 2.0f;
+
+	quaternion result =
+	{
+		normalizedAxis * sine(halfAngle),
+		cosine(halfAngle)
+	};
 
 	return result;
 }
