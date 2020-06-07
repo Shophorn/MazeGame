@@ -57,6 +57,7 @@ namespace vulkan
 		v4 direction;
 		v4 color;
 		v4 ambient;
+		v4 cameraPosition;
 	};
 	
 	struct ModelUniformBuffer
@@ -322,6 +323,9 @@ struct platform::Graphics
 	VkPipeline 			leavesShadowPipeline;
 	VkPipelineLayout 	leavesShadowPipelineLayout;
 
+	VkPipeline 			skyPipeline;
+	VkPipelineLayout 	skyPipelineLayout;
+
 
 	// Note(Leo): This is a list of functions to call when destroying this.
     using CleanupFunc = void (VulkanContext*);
@@ -508,6 +512,7 @@ internal MaterialHandle fsvulkan_push_material(VulkanContext*, GraphicsPipeline,
 internal void fsvulkan_draw_meshes			(VulkanContext * context, s32 count, m44 const * transforms, MeshHandle, MaterialHandle);
 internal void fsvulkan_draw_screen_rects	(VulkanContext * context, s32 count, ScreenRect const * rects, GuiTextureHandle, v4 color);
 internal void fsvulkan_draw_lines			(VulkanContext*, s32 count, v3 const * points, v4 color);
+internal void fsvulkan_draw_sky				(VulkanContext*, v3 cameraDirection, v3 lightDirection, m44 cameraMatrix);
 
 internal TextureHandle fsvulkan_init_shadow_pass (VulkanContext*);
 
@@ -517,6 +522,7 @@ internal void fsvulkan_initialize_skybox_pipeline(VulkanContext & context);
 internal void fsvulkan_initialize_screen_gui_pipeline(VulkanContext & context);
 internal void fsvulkan_initialize_line_pipeline(VulkanContext & context);
 internal void fsvulkan_initialize_leaves_pipeline(VulkanContext & context);
+internal void fsvulkan_initialize_sky_pipeline(VulkanContext & context);
 
 internal VkDescriptorSet make_material_vk_descriptor_set_2(	VulkanContext *			context,
 															VkDescriptorSetLayout 	descriptorSetLayout,
@@ -544,12 +550,17 @@ internal void fsvulkan_reload_shaders(VulkanContext * context)
 		vkDestroyPipelineLayout(device, context->linePipelineLayout, nullptr);
 		vkDestroyPipeline(device, context->linePipeline, nullptr);
 
+		vkDestroyPipeline(device, context->skyPipeline, nullptr);
+		vkDestroyPipelineLayout(device, context->skyPipelineLayout, nullptr);
+
+
 		fsvulkan_initialize_normal_pipeline(*context);
 		fsvulkan_initialize_animated_pipeline(*context);
 		fsvulkan_initialize_skybox_pipeline(*context);
 		fsvulkan_initialize_screen_gui_pipeline(*context);
 		fsvulkan_initialize_line_pipeline(*context);
 		fsvulkan_initialize_leaves_pipeline(*context);
+		fsvulkan_initialize_sky_pipeline(*context);
 
 		context->shadowMapTexture = make_material_vk_descriptor_set_2( 	context,
 																		context->pipelines[GRAPHICS_PIPELINE_SCREEN_GUI].descriptorSetLayout,
@@ -610,6 +621,7 @@ platform::set_functions(VulkanContext * context, platform::Functions * api)
  	api->draw_meshes 		= fsvulkan_draw_meshes;
  	api->draw_screen_rects	= fsvulkan_draw_screen_rects;
  	api->draw_lines 		= fsvulkan_draw_lines;
+ 	api->draw_sky 			= fsvulkan_draw_sky;
 }
 
 #define WIN_VULKAN_HPP

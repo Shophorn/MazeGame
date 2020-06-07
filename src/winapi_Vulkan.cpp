@@ -873,6 +873,8 @@ winapi::create_vulkan_context(WinAPIWindow * window)
 		fsvulkan_initialize_screen_gui_pipeline(context);
 		fsvulkan_initialize_line_pipeline(context);
 		fsvulkan_initialize_leaves_pipeline(context);
+		fsvulkan_initialize_sky_pipeline(context);
+
 		add_cleanup(&context, [](VulkanContext * context)
 		{
 			VkDevice device = context->device;
@@ -887,6 +889,9 @@ winapi::create_vulkan_context(WinAPIWindow * window)
 			vkDestroyDescriptorSetLayout(device, context->linePipelineDescriptorSetLayout, nullptr);
 			vkDestroyPipelineLayout(device, context->linePipelineLayout, nullptr);
 			vkDestroyPipeline(device, context->linePipeline, nullptr);
+
+			vkDestroyPipelineLayout(device, context->skyPipelineLayout, nullptr);
+			vkDestroyPipeline(device, context->skyPipeline, nullptr);
 		});
 
 		context.shadowMapTexture = make_material_vk_descriptor_set_2( 	&context,

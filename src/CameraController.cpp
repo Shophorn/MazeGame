@@ -138,7 +138,7 @@ struct FreeCameraController
 	f32 tiltAngle;
 };
 
-internal void update_free_camera(FreeCameraController & controller, game::Input const & input)
+internal m44 update_free_camera(FreeCameraController & controller, game::Input const & input)
 {
 	f32 lowMoveSpeed 	= 10;
 	f32 highMoveSpeed	= 100;
@@ -178,4 +178,6 @@ internal void update_free_camera(FreeCameraController & controller, game::Input 
 	
 	controller.position += rightMovement + forwardMovement + upMovement;
 	controller.direction = direction;
+
+	return rotation;
 }

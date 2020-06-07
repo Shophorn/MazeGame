@@ -315,11 +315,13 @@ internal bool32 update_scene_3d(void * scenePtr, MemoryArena & persistentMemory,
 		scene->worldCamera.direction = scene->playerCamera.direction;
 
 		scene->worldCamera.farClipPlane = 1000;
+		
+		// platformApi->draw_sky(platformGraphics, scene->worldCamera.direction,{}, identity_m44);
 	}
 	else
 	{
 		scene->characterInputs[scene->playerInputState.inputArrayIndex] = {};
-		update_free_camera(scene->freeCamera, *input);
+		m44 cameraMatrix = update_free_camera(scene->freeCamera, *input);
 
 		scene->worldCamera.position = scene->freeCamera.position;
 		scene->worldCamera.direction = scene->freeCamera.direction;
@@ -333,8 +335,11 @@ internal bool32 update_scene_3d(void * scenePtr, MemoryArena & persistentMemory,
 		}
 
 		scene->worldCamera.farClipPlane = 2000;
+		
+		// platformApi->draw_sky(platformGraphics, scene->worldCamera.direction,{}, cameraMatrix);
 	}	
 
+	
 	/*
 	RULES:
 		- Seed, water and pot can be carried
@@ -838,7 +843,7 @@ internal bool32 update_scene_3d(void * scenePtr, MemoryArena & persistentMemory,
 
 	update_camera_system(&scene->worldCamera, input, platformGraphics, platformWindow);
 
-	Light light = { .direction 	= normalize_v3({1, -1.2, -3}), 
+	Light light = { .direction 	= normalize_v3({-1, 1.2, -8}), 
 					.color 		= v3{0.95, 0.95, 0.9}};
 	v3 ambient 	= {0.1, 0.1, 0.5};
 	platformApi->update_lighting(platformGraphics, &light, &scene->worldCamera, ambient);
@@ -1157,13 +1162,13 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 		auto tilesNormal 	= load_and_push_texture("assets/textures/tiles_normal.png");
 		auto groundAlbedo 	= load_and_push_texture("assets/textures/ground.png");
 		auto groundNormal 	= load_and_push_texture("assets/textures/ground_normal.png");
-		auto lavaTexture 	= load_and_push_texture("assets/textures/tiles_red.png");
+		auto redTilesAlbedo	= load_and_push_texture("assets/textures/tiles_red.png");
 		auto faceTexture 	= load_and_push_texture("assets/textures/texture.jpg");
 
 
 		materials =
 		{
-			.character 		= push_material(GRAPHICS_PIPELINE_ANIMATED, lavaTexture, neutralBumpTexture, blackTexture),
+			.character 		= push_material(GRAPHICS_PIPELINE_ANIMATED, redTilesAlbedo, tilesNormal, blackTexture),
 			.environment 	= push_material(GRAPHICS_PIPELINE_NORMAL, tilesAlbedo, tilesNormal, blackTexture),
 			.ground 		= push_material(GRAPHICS_PIPELINE_NORMAL, groundAlbedo, groundNormal, blackTexture),
 		};

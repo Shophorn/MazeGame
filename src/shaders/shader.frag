@@ -11,6 +11,7 @@ layout (set = 3, binding = 0) uniform Lighting
 	vec4 direction;
 	vec4 color;
 	vec4 ambient;
+	vec4 cameraPosition;
 } light;
 
 layout(location = 0) in vec3 fragColor;
@@ -28,40 +29,49 @@ const int NORMAL_INDEX = 1;
 const int TEST_MASK_INDEX = 2;
 const int TEXTURE_COUNT = 3;
 
-const int SAMPLER_BIND_ID = 0;
-const int SAMPLER_SET_ID = 1;
 
-layout(	binding = SAMPLER_BIND_ID,	
-		set = SAMPLER_SET_ID
-) uniform sampler2D texSampler[TEXTURE_COUNT];
+layout(binding = 0, set = 1) uniform sampler2D texSampler[TEXTURE_COUNT];
 
 layout(binding = 0, set = 4) uniform sampler2D lightMap;
 
 void main()
 {
-#if 1
 	vec3 lightDir = tbnMatrix * -light.direction.xyz;
 	vec3 normal = texture(texSampler[NORMAL_INDEX], fragTexCoord).xyz * 2.0 - 1.0;
-	// normal.z *= 0.5;
-	// normal.y = -normal.y;
 	normal = normalize(normal);
-#else
-	vec3 lightDir = -light.direction.xyz;
-	vec3 normal = fragNormal;
-#endif
-	// float ldotn = dot(-light.direction.xyz, normal);
+
 	float ldotn = max(0, dot(lightDir, normal));
 
 	float lightIntensity = ldotn;
-	// float lightIntensity = smoothstep(0.2, 0.8, ldotn);
-	// float lightIntensity = smoothstep(-0.05, 0.05, ldotn);
-	// lightIntensity = mix(ldotn, lightIntensity, 0);
-	// float lightIntensity = mix(ldotn, step(0, ldotn), 0.9);
-
 
 	vec3 albedo = texture(texSampler[ALBEDO_INDEX], fragTexCoord).rgb;
-	/// DEBUG ALBEDO
-	// albedo = vec3(0.9,0.9,0.9);
+
+#if 0
+	vec3 ambient 	= light.ambient.rgb;
+	vec3 diffuse 	= ldotn * light.color.rgb;
+
+
+	vec3 viewDirection = normalize(light.cameraPosition.xyz - fragPosition);
+	viewDirection = tbnMatrix * viewDirection;
+
+	// Note(Leo): invert lightdir so that it points on surface and is reflected properly
+	vec3 reflectDirection = reflect(-lightDir, normal);
+
+	float spec = pow(max(0, dot(viewDirection, reflectDirection)), 128);
+	spec *= 0.5;
+	vec3 specular = spec * light.color.rgb;
+
+	vec3 totalLight = ambient + diffuse + spec;
+
+
+
+	outColor.rgb = totalLight * albedo;
+	outColor.a = 1;
+
+	return;
+#endif
+
+
 
 	float lightDepthFromTexture = texture(lightMap, lightCoords.xy).r;
 

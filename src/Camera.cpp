@@ -15,10 +15,10 @@ internal v3 get_up(Camera const *);
 internal v3 get_right(Camera const *);
 
 internal Camera
-make_camera(float fieldOfView, float nearClipPlane, float farClipPlane)
+make_camera(float verticalFieldOfView, float nearClipPlane, float farClipPlane)
 {
 	return {
-		.verticalFieldOfView 	= fieldOfView,
+		.verticalFieldOfView 	= verticalFieldOfView,
 		.nearClipPlane 			= nearClipPlane,
 		.farClipPlane 			= farClipPlane,
 	};
@@ -64,7 +64,6 @@ internal m44 camera_projection_matrix(Camera const * camera)
 	return result;	
 }
 
-// internal m44 camera_view_matrix(Camera const * camera)
 internal m44 camera_view_matrix(v3 position, v3 direction)
 {
 	// Study: https://www.3dgep.com/understanding-the-view-matrix/

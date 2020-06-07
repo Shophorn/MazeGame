@@ -470,6 +470,9 @@ struct EvenMoreArguments
 
 	u32 								vertexAttributeDescriptionCount;
 	VkVertexInputAttributeDescription * vertexAttributeDescriptions;
+
+	u32 					pushConstantRangeCount;
+	VkPushConstantRange * 	pushConstantRanges;
 };
 
 internal FSVulkanPipeline fsvulkan_make_pipeline_WITH_EVEN_MORE_ARGUMENTS(
@@ -480,7 +483,13 @@ internal FSVulkanPipeline fsvulkan_make_pipeline_WITH_EVEN_MORE_ARGUMENTS(
 	EvenMoreArguments const & arguments,
 
 	PipelineOptions options)
-{
+{		
+	// Note(Leo): Deprecated options
+	Assert(options.pushConstantSize == 0 && "Use push constant ranges in 'arguments' instead");
+
+	// ------------------------------------------------------------
+
+
 	BinaryAsset vertexShaderCode    = read_binary_file(vertexShaderPath);
 	BinaryAsset fragmentShaderCode  = read_binary_file(fragmentShaderPath);
 
@@ -642,21 +651,6 @@ internal FSVulkanPipeline fsvulkan_make_pipeline_WITH_EVEN_MORE_ARGUMENTS(
 	auto dynamicState = vulkan_pipelines_internal_::make_dynamic_state(&options, dynamicStatesArray);
 
 	//  LAYOUT -------------------------------------
-	/// PUSH CONSTANTS
-	u32 pushConstantRangeCount = 0;
-	VkPushConstantRange pushConstantRange;
-
-	if (options.pushConstantSize > 0)
-	{
-		pushConstantRange =
-		{
-			.stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
-			.offset     = 0,
-			.size       = options.pushConstantSize,
-		};
-		pushConstantRangeCount = 1;
-	}
-
 
 	u32 layoutSetCount = 0;
 	VkDescriptorSetLayout layoutSets [5];
@@ -703,8 +697,8 @@ internal FSVulkanPipeline fsvulkan_make_pipeline_WITH_EVEN_MORE_ARGUMENTS(
 		.sType                  = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
 		.setLayoutCount         = layoutSetCount,
 		.pSetLayouts            = layoutSets,
-		.pushConstantRangeCount = pushConstantRangeCount,
-		.pPushConstantRanges    = &pushConstantRange,
+		.pushConstantRangeCount = arguments.pushConstantRangeCount,
+		.pPushConstantRanges    = arguments.pushConstantRanges,
 	};
 
 	VkPipelineLayout layout;
@@ -890,9 +884,6 @@ internal void fsvulkan_initialize_line_pipeline(VulkanContext & context)
 		arguments,
 
 		{
-			.pushConstantSize       = sizeof(v4) * 3,
-			.lineWidth              = 2.0f,
-
 			.primitiveType          = VK_PRIMITIVE_TOPOLOGY_LINE_LIST,
 
 			.useVertexInput         = false,
@@ -906,6 +897,43 @@ internal void fsvulkan_initialize_line_pipeline(VulkanContext & context)
 	context.linePipelineLayout 				= TEMP_SOLUTION.pipelineLayout;
 	context.linePipelineDescriptorSetLayout = TEMP_SOLUTION.descriptorSetLayout;
 }
+
+internal void fsvulkan_initialize_sky_pipeline(VulkanContext & context)
+{
+	logSystem(0) << FILE_ADDRESS << "Unused function";
+	// VkPushConstantRange pushConstantRange = { VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m44) };
+
+	// EvenMoreArguments arguments = 
+	// {
+	// 	.pushConstantRangeCount = 1,
+	// 	.pushConstantRanges 	= &pushConstantRange
+	// };
+
+	// FSVulkanPipeline TEMP_SOLUTION = fsvulkan_make_pipeline_WITH_EVEN_MORE_ARGUMENTS(&context,
+	// 	"assets/shaders/sky_quad_vert.spv",
+	// 	"assets/shaders/sky_quad_frag.spv",
+
+	// 	arguments,
+
+	// 	{
+	// 		.primitiveType          = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP,
+	// 		.cullModeFlags 			= VK_CULL_MODE_NONE,
+
+	// 		.enableDepth 			= false,
+	// 		.useVertexInput         = false,
+	// 		.useSceneLayoutSet      = true,
+	// 		.useMaterialLayoutSet   = false,
+	// 		.useModelLayoutSet      = false,
+	// 		.useLighting			= false,
+	// 	}
+	// );
+
+	// vkDestroyDescriptorSetLayout (context.device, TEMP_SOLUTION.descriptorSetLayout, nullptr);
+
+	// context.skyPipeline 					= TEMP_SOLUTION.pipeline;
+	// context.skyPipelineLayout 				= TEMP_SOLUTION.pipelineLayout;
+}
+
 
 internal void fsvulkan_initialize_shadow_pipeline(VulkanContext & context)
 {
@@ -1140,3 +1168,4 @@ internal void fsvulkan_initialize_leaves_shadow_pipeline(VulkanContext & context
 	context.leavesShadowPipeline 		= pipeline;
 	context.leavesShadowPipelineLayout 	= layout;
 }
+

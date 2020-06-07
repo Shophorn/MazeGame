@@ -1,30 +1,30 @@
 import os
 
 # -V means outputting spir-v intermediate binary code
-os.system("glslangValidator -V src/shaders/shader.vert -o assets/shaders/vert.spv")
-os.system("glslangValidator -V src/shaders/shader.frag -o assets/shaders/frag.spv")
-os.system("glslangValidator -V src/shaders/terrain_shader.frag -o assets/shaders/terrain_frag.spv")
-os.system("glslangValidator -V src/shaders/animated_shader.vert -o assets/shaders/animated_vert.spv")
-
-os.system("glslangValidator -V src/shaders/shadow_shader.vert -o assets/shaders/shadow_vert.spv")
-os.system("glslangValidator -V src/shaders/shadow_view.frag -o assets/shaders/shadow_view_frag.spv")
-
-os.system("glslangValidator -V src/shaders/line_shader.vert -o assets/shaders/line_vert.spv")
-os.system("glslangValidator -V src/shaders/line_shader2.vert -o assets/shaders/line_vert2.spv")
-os.system("glslangValidator -V src/shaders/line_shader.frag -o assets/shaders/line_frag.spv")
-
-os.system("glslangValidator -V src/shaders/sky_shader.vert -o assets/shaders/vert_sky.spv")
-os.system("glslangValidator -V src/shaders/sky_shader.frag -o assets/shaders/frag_sky.spv")
-
-os.system("glslangValidator -V src/shaders/gui_shader2.vert -o assets/shaders/gui_vert2.spv")
-os.system("glslangValidator -V src/shaders/gui_shader3.vert -o assets/shaders/gui_vert3.spv")
-os.system("glslangValidator -V src/shaders/gui_shader2.frag -o assets/shaders/gui_frag2.spv")
 
 targets = [
-	("leaves.vert", "leaves_vert.spv"),
-	("leaves.frag", "leaves_frag.spv"),
-	("leaves_shadow.vert", "leaves_shadow_vert.spv"),
-	# ("leaves_shadow.frag", "leaves_shadow_frag.spv")
+	("shader.vert", 			"vert.spv"),
+	("shader.frag", 			"frag.spv"),
+	("terrain_shader.frag", 	"terrain_frag.spv"),
+	("animated_shader.vert", 	"animated_vert.spv"),
+
+	("shadow_shader.vert", 		"shadow_vert.spv"),
+	("shadow_view.frag", 		"shadow_view_frag.spv"),
+
+	("line_shader.vert", 		"line_vert.spv"),
+	("line_shader2.vert", 		"line_vert2.spv"),
+	("line_shader.frag", 		"line_frag.spv"),
+
+	("sky_shader.vert", 		"vert_sky.spv"),
+	("sky_shader.frag", 		"frag_sky.spv"),
+
+	("gui_shader2.vert", 		"gui_vert2.spv"),
+	("gui_shader3.vert", 		"gui_vert3.spv"),
+	("gui_shader2.frag", 		"gui_frag2.spv"),
+
+	("leaves.vert", 			"leaves_vert.spv"),
+	("leaves.frag", 			"leaves_frag.spv"),
+	("leaves_shadow.vert", 		"leaves_shadow_vert.spv"),
 ]
 
 for target in targets:

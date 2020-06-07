@@ -51,9 +51,10 @@ vulkan::update_lighting(VulkanContext * context, Light const * light, Camera con
 	vkMapMemory(context->device, context->sceneUniformBuffer.memory,
 				context->lightingUniformOffset, sizeof(LightingUniformBuffer), 0, (void**)&lightPtr);
 
-	lightPtr->direction    = v3_to_v4(light->direction, 0);
-	lightPtr->color        = v3_to_v4(light->color, 0);
-	lightPtr->ambient      = v3_to_v4(ambient, 0);
+	lightPtr->direction    		= v3_to_v4(light->direction, 0);
+	lightPtr->color        		= v3_to_v4(light->color, 0);
+	lightPtr->ambient      		= v3_to_v4(ambient, 0);
+	lightPtr->cameraPosition 	= v3_to_v4(camera->position, 1);
 
 	vkUnmapMemory(context->device, context->sceneUniformBuffer.memory);
 
@@ -153,7 +154,6 @@ vulkan::prepare_drawing(VulkanContext * context)
 
 	// Note(Leo): We only ever use this pipeline with shadows, so it is sufficient to only bind it once, here.
 	vkCmdBindPipeline(frame->commandBuffers.offscreen, VK_PIPELINE_BIND_POINT_GRAPHICS, context->shadowPass.pipeline);
-
 }
 
 void
@@ -558,7 +558,6 @@ internal void fsvulkan_draw_lines(VulkanContext * context, s32 pointCount, v3 co
 
 	s32 lineCount = pointCount / 2;
 
-	// Note(Leo): we require a little too much memory here, v4s even though we use v3s
 	u64 requiredBufferSize 				= pointCount * sizeof(v3) * 2;
 	requiredBufferSize 					= vulkan::get_aligned_uniform_buffer_size(context, requiredBufferSize);
 
@@ -619,4 +618,20 @@ internal void fsvulkan_draw_screen_rects(VulkanContext * context, s32 count, Scr
 		vkCmdPushConstants( frame->commandBuffers.scene, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(v2) * 4, &rects[i]);
 		vkCmdDraw(frame->commandBuffers.scene, 4, 1, 0, 0);
 	}
+}
+
+internal void fsvulkan_draw_sky(VulkanContext * context, v3 cameraDirection, v3 lightDirection, m44 cameraMatrix)
+{
+	auto * frame = vulkan::get_current_virtual_frame(context);
+
+
+	vkCmdBindPipeline(frame->commandBuffers.scene, VK_PIPELINE_BIND_POINT_GRAPHICS, context->skyPipeline);
+
+	v3 pushConstants [] = {cameraDirection, lightDirection};
+	vkCmdPushConstants(frame->commandBuffers.scene, context->skyPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m44), &cameraMatrix);
+
+	vkCmdBindDescriptorSets(frame->commandBuffers.scene, VK_PIPELINE_BIND_POINT_GRAPHICS,
+							context->skyPipelineLayout, 0, 1, &context->uniformDescriptorSets.camera, 0, nullptr);
+
+	vkCmdDraw(frame->commandBuffers.scene, 4, 1, 0, 0);
 }

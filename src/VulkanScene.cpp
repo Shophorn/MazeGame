@@ -54,10 +54,10 @@ internal MaterialHandle fsvulkan_push_material (VulkanContext *     context,
 	}
 
 	VkDescriptorSet descriptorSet = fsvulkan_make_texture_descriptor_set(   context,
-																	context->pipelines[pipeline].descriptorSetLayout,
-																	context->descriptorPools.material,
-																	textureCount,
-																	imageViews);
+																			context->pipelines[pipeline].descriptorSetLayout,
+																			context->descriptorPools.material,
+																			textureCount,
+																			imageViews);
 
 	s64 index = (s64)context->loadedMaterials.size();
 	context->loadedMaterials.push_back({pipeline, descriptorSet});

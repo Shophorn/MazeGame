@@ -50,6 +50,9 @@ void main ()
 	lightCoords.xy -= 0.5;
 
 	vec4 worldPosition = model.model * vec4(inPosition, 1.0);
+
+	fragPosition = worldPosition.xyz;
+	
 	float distance = length((camera.view * worldPosition).xyz);
 	distance = distance - (shadowDistance - transitionDistance);
 	distance = distance / transitionDistance;

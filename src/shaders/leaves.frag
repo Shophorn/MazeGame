@@ -74,8 +74,8 @@ void main()
 	lightIntensity = lightIntensity * inLight;	
 
 	// Note(Leo): try these two
-	// vec3 lightColor = mix(light.ambient.rgb, light.color.rgb, lightIntensity);
-	vec3 lightColor = light.ambient.rgb + light.color.rgb * lightIntensity;
+	vec3 lightColor = mix(light.ambient.rgb, light.color.rgb, lightIntensity);
+	// vec3 lightColor = light.ambient.rgb + light.color.rgb * lightIntensity;
 	
 	vec3 color = lightColor * albedo;
 
