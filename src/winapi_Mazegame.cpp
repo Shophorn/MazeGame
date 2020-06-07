@@ -369,7 +369,7 @@ Run(HINSTANCE hInstance)
                     break;
 
                 case platform::FRAME_BAD_PROBLEM:
-                    DEBUG_ASSERT(false, "We should not be here, please investigate");
+                    AssertMsg(false, "We should not be here, please investigate");
 
 
             }

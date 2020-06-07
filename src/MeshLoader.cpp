@@ -173,7 +173,7 @@ load_all_transforms_glb(MemoryArena & allocator, GltfFile const & file, char con
 internal Animation
 load_animation_glb(MemoryArena & allocator, GltfFile const & file, char const * animationName)
 {
-	DEBUG_ASSERT(file.json.HasMember("animations"), "No Animations found");
+	AssertMsg(file.json.HasMember("animations"), "No Animations found");
 
 	auto animArray 		= file.json["animations"].GetArray();
 	s32 animationIndex 	= index_by_name(animArray, animationName);
@@ -378,7 +378,7 @@ load_animation_glb(MemoryArena & allocator, GltfFile const & file, char const * 
 
 	logDebug(1) << "Animation loaded, duration: " << result.duration << "\n";
 
-	DEBUG_ASSERT(minTime == 0, "Probably need to implement support animations that do not start at 0");
+	AssertMsg(minTime == 0, "Probably need to implement support animations that do not start at 0");
 
 	return result;
 }
@@ -496,7 +496,7 @@ load_mesh_glb(MemoryArena & allocator, GltfFile const & file, char const * model
 	
 	s32 nodeIndex = index_by_name(nodes, modelName);
 	// Assert(nodeIndex >= 0);
-	DEBUG_ASSERT(nodeIndex >= 0, CStringBuilder("modelName = ") + modelName);
+	AssertMsg(nodeIndex >= 0, CStringBuilder("modelName = ") + modelName);
 
 	Assert(file.json.HasMember("meshes"));
 	Assert(nodes[nodeIndex].HasMember("mesh"));

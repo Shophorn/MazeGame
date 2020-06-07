@@ -75,7 +75,7 @@ vulkan::update_lighting(VulkanContext * context, Light const * light, Camera con
 void
 vulkan::prepare_drawing(VulkanContext * context)
 {
-	DEBUG_ASSERT((context->canDraw == false), "Invalid call to prepare_drawing() when finish_drawing() has not been called.")
+	AssertMsg((context->canDraw == false), "Invalid call to prepare_drawing() when finish_drawing() has not been called.")
 	context->canDraw                    = true;
 
 	context->currentUniformBufferOffset = 0;
@@ -333,6 +333,8 @@ vulkan::record_draw_command(VulkanContext * context, ModelHandle model, m44 tran
 	vkCmdBindVertexBuffers(frame->commandBuffers.scene, 0, 1, &mesh->bufferReference, &mesh->vertexOffset);
 	vkCmdBindIndexBuffer(frame->commandBuffers.scene, mesh->bufferReference, mesh->indexOffset, mesh->indexType);
 
+	Assert(mesh->indexCount > 0);
+
 	vkCmdDrawIndexed(frame->commandBuffers.scene, mesh->indexCount, 1, 0, 0, 0);
 
 	// ------------------------------------------------
@@ -424,7 +426,7 @@ void FSVULKAN_DRAW_LEAVES(VulkanContext * context, s32 count, m44 const * transf
 
 	vkCmdBindVertexBuffers(frame->commandBuffers.offscreen, 0, 1, &context->modelUniformBuffer.buffer, &startUniformBufferOffset);
 
-	vkCmdDraw(frame->commandBuffers.offscreen, 4, count, 0, 0);
+	vkCmdDraw(frame->commandBuffers.offscreen, leafVertexCount, count, 0, 0);
 
 }
 
@@ -493,11 +495,14 @@ void fsvulkan_draw_meshes(VulkanContext * context, s32 count, m44 const * transf
 		context->shadowMapTexture,
 	};
 
+	Assert(mesh->indexCount > 0);
+
 	for (s32 i = 0; i < count; ++i)
 	{
 		vkCmdBindDescriptorSets(frame->commandBuffers.scene, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout,
 								0, array_count(sets), sets,
 								1, &uniformBufferOffsets[i]);
+
 
 		vkCmdDrawIndexed(frame->commandBuffers.scene, mesh->indexCount, 1, 0, 0, 0);
 
@@ -554,7 +559,7 @@ internal void fsvulkan_draw_lines(VulkanContext * context, s32 pointCount, v3 co
 	s32 lineCount = pointCount / 2;
 
 	// Note(Leo): we require a little too much memory here, v4s even though we use v3s
-	u64 requiredBufferSize 				= pointCount * sizeof(v4) * 2;
+	u64 requiredBufferSize 				= pointCount * sizeof(v3) * 2;
 	requiredBufferSize 					= vulkan::get_aligned_uniform_buffer_size(context, requiredBufferSize);
 
 	u64 bufferStartOffset 				= context->currentUniformBufferOffset;
@@ -574,6 +579,8 @@ internal void fsvulkan_draw_lines(VulkanContext * context, s32 pointCount, v3 co
 	vkUnmapMemory(context->device, context->modelUniformBuffer.memory);
 
 	vkCmdBindVertexBuffers(commandBuffer, 0, 1, &context->modelUniformBuffer.buffer, &bufferStartOffset);
+
+	Assert(pointCount > 0);
 
 	vkCmdDraw(commandBuffer, pointCount, 1, 0, 0);
 }

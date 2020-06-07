@@ -198,6 +198,10 @@ struct platform::Graphics
 	VkPhysicalDeviceProperties 		physicalDeviceProperties;
 	VkSurfaceKHR 					surface;
 
+#if FS_VULKAN_USE_VALIDATION
+	VkDebugUtilsMessengerEXT debugMessenger;
+#endif
+
 	struct {
 		VkQueue graphics;
 		VkQueue present;
@@ -380,19 +384,27 @@ namespace vulkan
     internal VkFormat find_supported_depth_format(VkPhysicalDevice physicalDevice);
 	internal u32 find_memory_type ( VkPhysicalDevice physicalDevice, u32 typeFilter, VkMemoryPropertyFlags properties);
 
-	#if MAZEGAME_DEVELOPMENT
+#if FS_VULKAN_USE_VALIDATION
 	constexpr bool32 enableValidationLayers = true;
-	#else
-	constexpr bool32 enableValidationLayers = false;
-	#endif
 
-	constexpr char const * validationLayers[] = {
+	constexpr char const * const validationLayers[] =
+	{
 	    "VK_LAYER_KHRONOS_validation"
 	};
 	constexpr int VALIDATION_LAYERS_COUNT = array_count(validationLayers);
 
-	constexpr char const * deviceExtensions [] = {
-	    VK_KHR_SWAPCHAIN_EXTENSION_NAME
+#else
+	constexpr bool32 enableValidationLayers 	= false;
+
+	constexpr char const ** validationLayers 	= nullptr;
+	constexpr int VALIDATION_LAYERS_COUNT 		= 0;
+
+
+#endif
+
+	constexpr char const * const deviceExtensions [] =
+	{
+	    VK_KHR_SWAPCHAIN_EXTENSION_NAME,
 	};
 	constexpr int DEVICE_EXTENSION_COUNT = array_count(deviceExtensions);
 

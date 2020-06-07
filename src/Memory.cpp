@@ -78,7 +78,7 @@ struct StaticArray
 
 	T & operator [] (u32 index)
 	{
-		DEBUG_ASSERT (index < Count, "Index outside StaticArray bounds");
+		AssertMsg (index < Count, "Index outside StaticArray bounds");
 		return items_[index];
 	}
 };

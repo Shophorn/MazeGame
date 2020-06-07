@@ -64,7 +64,7 @@ namespace winapi
     void
     load_game(Game * game)
     {
-        DEBUG_ASSERT(is_loaded(game) == false, "Game code is already loaded, unload before reloading");
+        AssertMsg(is_loaded(game) == false, "Game code is already loaded, unload before reloading");
 
         CopyFileA(GAMECODE_DLL_FILE_NAME, GAMECODE_DLL_FILE_NAME_TEMP, false);
         game->dllHandle = LoadLibraryA(GAMECODE_DLL_FILE_NAME_TEMP);
@@ -75,7 +75,7 @@ namespace winapi
             game->dllWriteTime  = get_file_write_time(GAMECODE_DLL_FILE_NAME);
         }
 
-        DEBUG_ASSERT(is_loaded(game), "Game not loaded");
+        AssertMsg(is_loaded(game), "Game not loaded");
     }
 
     void

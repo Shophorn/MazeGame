@@ -34,7 +34,8 @@ vulkan::find_supported_format(
 			return *pFormat;
 		}
 	}
-	DEBUG_ASSERT(false, "Failed to find supported format");
+	AssertMsg(false, "Failed to find supported format");
+	return (VkFormat)-1;
 }
 
 internal VkFormat
@@ -65,7 +66,8 @@ vulkan::find_memory_type (VkPhysicalDevice physicalDevice, u32 typeFilter, VkMem
 			return i;
 		}
 	}
-	DEBUG_ASSERT(false, "Failed to find suitable memory type.");
+	AssertMsg(false, "Failed to find suitable memory type.");
+	return -1;
 }   
 
 internal VulkanBufferResource
@@ -402,7 +404,7 @@ internal VkDescriptorSet fsvulkan_make_texture_descriptor_set(  VulkanContext * 
 																VkImageView *         	imageViews)
 {
 	constexpr u32 maxTextures = 10;
-	DEBUG_ASSERT(textureCount < maxTextures, "Too many textures on material");
+	AssertMsg(textureCount < maxTextures, "Too many textures on material");
 
 	VkDescriptorSetAllocateInfo allocateInfo =
 	{ 
@@ -507,12 +509,9 @@ vulkan::make_vk_framebuffer(VkDevice        device,
 		.layers             = 1,
 	};
 
-	VkFramebuffer result;
-	DEBUG_ASSERT(
-		vkCreateFramebuffer(device, &createInfo, nullptr, &result) == VK_SUCCESS,
-		"Failed to create framebuffer");
-
-	return result;
+	VkFramebuffer framebuffer;
+	VULKAN_CHECK(vkCreateFramebuffer(device, &createInfo, nullptr, &framebuffer));
+	return framebuffer;
 }
 
 internal void
@@ -674,7 +673,7 @@ vulkan::cmd_transition_image_layout(
 
 	else
 	{
-		DEBUG_ASSERT(false, "This layout transition is not supported!");
+		AssertMsg(false, "This layout transition is not supported!");
 	}
 
 	VkDependencyFlags dependencyFlags = 0;
@@ -719,6 +718,19 @@ vulkan::make_vk_sampler(VkDevice device, VkSamplerAddressMode addressMode)
 	return result;
 }
 
+#if FS_VULKAN_USE_VALIDATION
+
+VKAPI_ATTR VkBool32 VKAPI_CALL fsvulkan_debug_callback (VkDebugUtilsMessageSeverityFlagBitsEXT 			severity,
+														VkDebugUtilsMessageTypeFlagsEXT					type,
+														const VkDebugUtilsMessengerCallbackDataEXT * 	data,
+														void * 											userData)
+{
+	logVulkan(0) << data->pMessage;
+	return VK_FALSE;
+}
+
+#endif
+
 /* Todo(Leo): this belongs to winapi namespace because it is definetly windows specific.
 Make better separation between windows part of this and vulkan part of this. */
 namespace winapi
@@ -759,6 +771,40 @@ winapi::create_vulkan_context(WinAPIWindow * window)
 
 		context.instance          = create_vk_instance();
 		// TODO(Leo): (if necessary, but at this point) Setup debug callbacks, look vulkan-tutorial.com
+
+		#if FS_VULKAN_USE_VALIDATION
+		{
+
+			VkDebugUtilsMessengerCreateInfoEXT createInfo{};
+			createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+			createInfo.messageSeverity 		= VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT
+											// | VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT
+											| VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT
+											| VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+
+			createInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT
+									| VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT
+									| VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+			createInfo.pfnUserCallback = fsvulkan_debug_callback;
+
+			createInfo.pUserData = nullptr;
+
+			auto debugUtilsCreateFunc = (PFN_vkCreateDebugUtilsMessengerEXT) vkGetInstanceProcAddr(context.instance, "vkCreateDebugUtilsMessengerEXT");
+			debugUtilsCreateFunc(context.instance, &createInfo, nullptr, &context.debugMessenger);
+
+			add_cleanup(&context, [](VulkanContext * context)
+			{
+				auto debugUtilsDestroyFunc = (PFN_vkDestroyDebugUtilsMessengerEXT) vkGetInstanceProcAddr(context->instance, "vkDestroyDebugUtilsMessengerEXT");
+				debugUtilsDestroyFunc(context->instance, context->debugMessenger, nullptr);
+			});
+
+		}
+		#endif
+
+
+
+
+
 		context.surface           = create_vk_surface(context.instance, window);
 		context.physicalDevice    = create_vk_physical_device(context.instance, context.surface);
 		context.device            = create_vk_device(context.physicalDevice, context.surface);
@@ -791,7 +837,7 @@ winapi::create_vulkan_context(WinAPIWindow * window)
 			.flags              = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
 			.queueFamilyIndex   = queueFamilyIndices.graphics,
 		};
-		RELEASE_ASSERT(vkCreateCommandPool(context.device, &poolInfo, nullptr, &context.commandPool) == VK_SUCCESS, "");
+		VULKAN_CHECK(vkCreateCommandPool(context.device, &poolInfo, nullptr, &context.commandPool));
 
 		add_cleanup(&context, [](VulkanContext * context)
 		{
@@ -888,9 +934,8 @@ winapi_vulkan_internal_::add_cleanup(VulkanContext * context, VulkanContext::Cle
 internal VkInstance
 winapi_vulkan_internal_::create_vk_instance()
 {
-	if (vulkan::enableValidationLayers)
+	if constexpr (vulkan::enableValidationLayers)
 	{
-
 		VkLayerProperties availableLayers [50];
 		u32 availableCount = array_count(availableLayers);
 
@@ -926,8 +971,18 @@ winapi_vulkan_internal_::create_vk_instance()
 	instanceInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
 	instanceInfo.pApplicationInfo = &appInfo;
 
-	instanceInfo.enabledExtensionCount = 2;
-	const char * extensions [] = {"VK_KHR_surface", "VK_KHR_win32_surface"}; 
+	const char * const extensions [] =
+	{
+		"VK_KHR_surface",
+		"VK_KHR_win32_surface",
+
+		#if FS_VULKAN_USE_VALIDATION
+
+		VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
+
+		#endif
+	}; 
+	instanceInfo.enabledExtensionCount = array_count(extensions);
 	instanceInfo.ppEnabledExtensionNames = extensions;
 
 	if constexpr (vulkan::enableValidationLayers)
@@ -938,6 +993,7 @@ winapi_vulkan_internal_::create_vk_instance()
 	else
 	{
 		instanceInfo.enabledLayerCount = 0;
+		instanceInfo.ppEnabledLayerNames = nullptr;
 	}
 
 	VkInstance instance;
@@ -1033,7 +1089,7 @@ winapi_vulkan_internal_::create_vk_physical_device(VkInstance vulkanInstance, Vk
 	vkEnumeratePhysicalDevices(vulkanInstance, &deviceCount, devices);
 
 	// Note(Leo): No gpu found at all, or no vulkan supporting gpu
-	RELEASE_ASSERT(deviceCount != 0, "");
+	AssertRelease(deviceCount != 0, "");
 
 	for (s32 i = 0; i < deviceCount; i++)
 	{
@@ -1045,7 +1101,7 @@ winapi_vulkan_internal_::create_vk_physical_device(VkInstance vulkanInstance, Vk
 	}
 
 	// Note(Leo): no suitable GPU device found
-	RELEASE_ASSERT(resultPhysicalDevice != VK_NULL_HANDLE, "");
+	AssertRelease(resultPhysicalDevice != VK_NULL_HANDLE, "");
 	return resultPhysicalDevice;
 }
 
@@ -1089,6 +1145,7 @@ winapi_vulkan_internal_::create_vk_device(VkPhysicalDevice physicalDevice, VkSur
 	else
 	{
 		deviceCreateInfo.enabledLayerCount = 0;
+		deviceCreateInfo.ppEnabledLayerNames = nullptr;
 	}
 
 	VkDevice resultLogicalDevice;
@@ -1435,7 +1492,7 @@ winapi_vulkan_internal_::init_virtual_frames(VulkanContext * context)
 		success = success && vkCreateSemaphore(context->device, &semaphoreInfo, nullptr, &frame.renderFinishedSemaphore) == VK_SUCCESS;
 		success = success && vkCreateFence(context->device, &fenceInfo, nullptr, &frame.inFlightFence) == VK_SUCCESS;
 
-		DEBUG_ASSERT(success, "Failed to create VulkanVirtualFrame");
+		AssertMsg(success, "Failed to create VulkanVirtualFrame");
 	}
 
 	add_cleanup(context, [](VulkanContext * context)
@@ -1535,176 +1592,6 @@ void winapi_vulkan_internal_::init_shadow_pass(VulkanContext * context, u32 widt
 															&context->shadowPass.attachment.view,
 															context->shadowPass.width,
 															context->shadowPass.height);    
-
-/*	{
-		VkShaderModule vertexShaderModule = make_vk_shader_module(read_binary_file("assets/shaders/shadow_vert.spv"), context->device);
-
-		VkPipelineShaderStageCreateInfo shaderStages [] =
-		{
-			{
-				.sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-				.stage  = VK_SHADER_STAGE_VERTEX_BIT,
-				.module = vertexShaderModule,
-				.pName  = "main",
-			},
-		};
-
-		VkPipelineVertexInputStateCreateInfo vertexInputInfo;
-		auto bindingDescription     = vulkan_pipelines_internal_::get_vertex_binding_description();
-		auto attributeDescriptions  = vulkan_pipelines_internal_::get_vertex_attribute_description();
-
-		vertexInputInfo = {
-			.sType                              = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-			.vertexBindingDescriptionCount      = 1,
-			.pVertexBindingDescriptions         = &bindingDescription,
-			.vertexAttributeDescriptionCount    = attributeDescriptions.count(),
-			.pVertexAttributeDescriptions       = &attributeDescriptions[0],
-		};
-
-		VkPrimitiveTopology topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-		VkPipelineInputAssemblyStateCreateInfo inputAssembly = 
-		{
-			.sType                  = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
-			.topology               = topology,
-			.primitiveRestartEnable = VK_FALSE,
-		};
-
-		VkViewport viewport =
-		{
-			.x          = 0.0f,
-			.y          = 0.0f,
-			.width      = (float) context->shadowPass.width,
-			.height     = (float) context->shadowPass.height,
-			.minDepth   = 0.0f,
-			.maxDepth   = 1.0f,
-		};
-
-		VkRect2D scissor =
-		{
-			.offset = {0, 0},
-			.extent = {context->shadowPass.width, context->shadowPass.height},
-		};
-
-		VkPipelineViewportStateCreateInfo viewportState =
-		{
-			.sType          = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
-			.viewportCount  = 1,
-			.pViewports     = &viewport,
-			.scissorCount   = 1,
-			.pScissors      = &scissor,
-		};
-
-		VkCullModeFlags cullMode = VK_CULL_MODE_NONE;
-
-		VkPipelineRasterizationStateCreateInfo rasterizer =
-		{
-			.sType                      = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
-			.depthClampEnable           = VK_FALSE,
-			.rasterizerDiscardEnable    = VK_FALSE,
-			.polygonMode                = VK_POLYGON_MODE_FILL,
-			.cullMode                   = cullMode,
-			.frontFace                  = VK_FRONT_FACE_COUNTER_CLOCKWISE,
-			.depthBiasEnable            = VK_FALSE,
-			.depthBiasConstantFactor    = 0.0f,
-			.depthBiasClamp             = 0.0f,
-			.depthBiasSlopeFactor       = 0.0f,
-			.lineWidth                  = 1.0f,
-		};
-
-		VkPipelineMultisampleStateCreateInfo multisampling =
-		{
-			.sType                  = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
-			.rasterizationSamples   = VK_SAMPLE_COUNT_1_BIT,
-			.sampleShadingEnable    = VK_FALSE,
-			.minSampleShading       = 1.0f,
-			.pSampleMask            = nullptr,
-			.alphaToCoverageEnable  = VK_FALSE,
-			.alphaToOneEnable       = VK_FALSE,
-		};
-
-		VkPipelineColorBlendStateCreateInfo colorBlending =
-		{
-			.sType              = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
-			.logicOpEnable      = VK_FALSE,
-			.logicOp            = VK_LOGIC_OP_COPY,
-			.attachmentCount    = 0,
-			.pAttachments       = nullptr,
-			.blendConstants     = {0, 0, 0, 0},
-		};
-
-		VkPipelineDepthStencilStateCreateInfo depthStencil =
-		{ 
-			.sType              = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
-
-			.depthTestEnable    = VK_TRUE,
-			.depthWriteEnable   = VK_TRUE,
-			.depthCompareOp     = VK_COMPARE_OP_LESS_OR_EQUAL,
-
-			.depthBoundsTestEnable  = VK_FALSE,
-
-			.stencilTestEnable  = VK_FALSE,
-			.front              = {},
-			.back               = {},
-		  
-			.minDepthBounds     = 0.0f,
-			.maxDepthBounds     = 1.0f,
-		};
-
-
-		u32 setLayoutCount = 0;
-		VkDescriptorSetLayout setLayouts [3];
-
-		if (true) { setLayouts[setLayoutCount++] = context->descriptorSetLayouts.camera; }
-		if (true) { setLayouts[setLayoutCount++] = context->descriptorSetLayouts.model; }
-
-		VkPipelineLayoutCreateInfo pipelineLayoutInfo =
-		{
-			.sType                  = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-			.setLayoutCount         = setLayoutCount,
-			.pSetLayouts            = setLayouts,
-			.pushConstantRangeCount = 0,
-			.pPushConstantRanges    = nullptr,
-		};
-
-		VkPipelineLayout layout;
-		VULKAN_CHECK(vkCreatePipelineLayout (context->device, &pipelineLayoutInfo, nullptr, &layout));
-
-		VkGraphicsPipelineCreateInfo pipelineInfo =
-		{
-			.sType                  = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
-			.stageCount             = 1,
-			.pStages                = shaderStages,
-
-			.pVertexInputState      = &vertexInputInfo,
-			.pInputAssemblyState    = &inputAssembly,
-			.pViewportState         = &viewportState,
-			.pRasterizationState    = &rasterizer,
-			.pMultisampleState      = &multisampling,
-			.pDepthStencilState     = &depthStencil,
-			.pColorBlendState       = &colorBlending,
-			.pDynamicState          = nullptr,
-
-			.layout                 = layout,
-			.renderPass             = context->shadowPass.renderPass,
-			.subpass                = 0,
-
-			// Note(Leo): These are for cheaper re-use of pipelines, not used right now.
-			// Study(Leo): Like inheritance??
-			.basePipelineHandle = VK_NULL_HANDLE,
-			.basePipelineIndex = -1,
-		};
-
-
-		VkPipeline pipeline;
-		VULKAN_CHECK(vkCreateGraphicsPipelines(context->device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline));
-
-		// Note: These can only be destroyed AFTER vkCreateGraphicsPipelines
-		// vkDestroyShaderModule(context->device, fragmentShaderModule, nullptr);
-		vkDestroyShaderModule(context->device, vertexShaderModule, nullptr);
-
-		context->shadowPass.pipeline = pipeline;
-		context->shadowPass.layout = layout;
-	}*/
 
 	fsvulkan_initialize_shadow_pipeline(*context);
 	fsvulkan_initialize_leaves_shadow_pipeline(*context);

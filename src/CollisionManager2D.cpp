@@ -40,7 +40,7 @@ struct CollisionManager2D
 
 		for (s32 i = 0; i < colliders.count(); ++i)
 		{
-			DEBUG_ASSERT(colliders[i].transform != nullptr, "Invalid transform passed to Collider2D");
+			AssertMsg(colliders[i].transform != nullptr, "Invalid transform passed to Collider2D");
 
 			switch(colliders[i].tag)
 			{

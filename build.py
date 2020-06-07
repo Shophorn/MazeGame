@@ -10,6 +10,8 @@ import sys
 import psutil
 from datetime import datetime
 
+# from termcolor import cprint
+
 buildTime = datetime.now().strftime("%B %d, %Y, %H:%M:%S")
 buildTime = '\\""{}\\""'.format(buildTime)
 
@@ -49,11 +51,13 @@ print (vulkan_sdk)
 ### CLANG++
 if compiler == 'clang++':
 	# Build settings
+	# flags 		= "-static -std=c++17 -O0"
 	flags 		= "-static -std=c++17 -g -gcodeview -O0"
 	# flags 		= "-static -std=c++17 -O1"
 
-	definitions = [ "-DMAZEGAME_DEVELOPMENT=1",
-					"-DBUILD_DATE_TIME=" + buildTime]
+	definitions = [ "-DMAZEGAME_DEVELOPMENT="		+ str(1),
+					"-DFS_VULKAN_USE_VALIDATION=" 	+ str(1),
+					"-DBUILD_DATE_TIME=" 			+ buildTime]
 	definitions = " ".join(definitions)
 
 	includePath	= "-Iinclude -I{}/Include".format(vulkan_sdk)

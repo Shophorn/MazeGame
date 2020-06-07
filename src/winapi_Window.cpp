@@ -193,14 +193,17 @@ namespace winapi
         auto defaultArrowCursor = MAKEINTRESOURCEW(32512);
         windowClass.hCursor = LoadCursorW(nullptr, defaultArrowCursor);
 
-        RELEASE_ASSERT(RegisterClassW(&windowClass) != 0, "Failed to register window class");
+        if (RegisterClassW(&windowClass) == 0)
+        {
+            AssertRelease(false, "Failed to create window class");
+        }
 
         HWND hwnd = CreateWindowExW (
             0, windowClassName, windowTitle, WS_OVERLAPPEDWINDOW | WS_VISIBLE,
             CW_USEDEFAULT, CW_USEDEFAULT, width, height,
             nullptr, nullptr, winInstance, nullptr);
 
-        RELEASE_ASSERT(hwnd != nullptr, "Failed to create window");
+        AssertRelease(hwnd != nullptr, "Failed to create window");
 
         RECT windowRect;
         GetWindowRect(hwnd, &windowRect);

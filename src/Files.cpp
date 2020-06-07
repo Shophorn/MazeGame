@@ -53,7 +53,7 @@ namespace glTF
 			case COMPONENT_TYPE_FLOAT: 			return 4;
 
 			default:
-				DEBUG_ASSERT(false, "Hello from bad choices department: 'Invalid glTF component type'");
+				AssertMsg(false, "Hello from bad choices department: 'Invalid glTF component type'");
 		}
 	}
 
@@ -140,7 +140,7 @@ read_binary_file(MemoryArena & memoryArena, const char * filename)
 {
 	auto file = std::ifstream (filename, std::ios::in|std::ios::binary);
 
-	DEBUG_ASSERT(file.good(), CStringBuilder("Could not load file: ") + filename);
+	AssertMsg(file.good(), CStringBuilder("Could not load file: ") + filename);
 
 	u64 size 		= get_ifstream_length(file);
 	auto result 	= allocate_array<byte>(memoryArena, size);

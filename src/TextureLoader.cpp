@@ -29,7 +29,7 @@ load_texture_asset(const char * assetPath, MemoryArena * memoryArena)
     s32 width, height, channels;
     stbi_uc * stbi_pixels = stbi_load(assetPath, &width, &height, &channels, STBI_rgb_alpha);
 
-    DEBUG_ASSERT(stbi_pixels != nullptr, assetPath);
+    AssertMsg(stbi_pixels != nullptr, assetPath);
 
     auto begin  = reinterpret_cast<u32*>(stbi_pixels);
     auto end    = begin + (width * height);

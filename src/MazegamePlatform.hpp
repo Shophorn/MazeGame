@@ -26,15 +26,14 @@ Interface definition between Platform and Game.
 	}
 
 	#define Assert(expr) if(!(expr)) { log_assert(FILE_ADDRESS, nullptr, #expr); 			abort(); }
-	#define DEBUG_ASSERT(expr, msg) if(!(expr)) { log_assert(FILE_ADDRESS, msg, #expr); 	abort(); }
+	#define AssertMsg(expr, msg) if(!(expr)) { log_assert(FILE_ADDRESS, msg, #expr); 	abort(); }
 
 	// Note(Leo): Some things need to asserted in production too, this is a reminder for those only.
-	#define RELEASE_ASSERT DEBUG_ASSERT
+	#define AssertRelease AssertMsg
 #else
-
 	#define Assert(expr)
-	#define DEBUG_ASSERT(expr, msg)
-	#define RELEASE_ASSERT DEBUG_ASSERT
+	#define AssertMsg(expr, msg)
+	#define AssertRelease AssertMsg
 
 #endif
 
@@ -235,7 +234,7 @@ namespace game
 				break;
 
 			default:
-				DEBUG_ASSERT(false, "Invalid ButtonState value");
+				AssertMsg(false, "Invalid ButtonState value");
 		}
 
 		return buttonState;
