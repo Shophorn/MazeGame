@@ -142,9 +142,6 @@ namespace platform
 		void (*draw_screen_rects)	(Graphics*, s32 count, ScreenRect const * rects, GuiTextureHandle texture, v4 color);
 		void (*draw_lines)			(Graphics*, s32 pointCount, v3 const * points, v4 color);
 
-		void (*draw_sky) (Graphics*, v3 cameraDirection, v3 lightDirection, m44 cameraMatrix);
-
-
 		// WINDOW FUNCTIONS	
 		u32 (*get_window_width) 		(Window const *);
 		u32 (*get_window_height) 		(Window const *);

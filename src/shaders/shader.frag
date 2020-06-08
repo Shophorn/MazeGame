@@ -14,6 +14,7 @@ layout (set = 3, binding = 0) uniform Lighting
 	vec4 cameraPosition;
 } light;
 
+
 layout(location = 0) in vec3 fragColor;
 layout(location = 1) in vec2 fragTexCoord;
 layout(location = 2) in vec3 fragNormal;
@@ -30,9 +31,15 @@ const int TEST_MASK_INDEX = 2;
 const int TEXTURE_COUNT = 3;
 
 
-layout(binding = 0, set = 1) uniform sampler2D texSampler[TEXTURE_COUNT];
+layout(set = 1, binding = 0) uniform sampler2D texSampler[TEXTURE_COUNT];
+layout(set = 4, binding = 0) uniform sampler2D lightMap;
 
-layout(binding = 0, set = 4) uniform sampler2D lightMap;
+layout (set = 4, binding = 1) uniform MaterialBlock
+{
+	float smoothness;
+	float specularStrength;
+} material;
+
 
 void main()
 {
@@ -42,7 +49,6 @@ void main()
 
 	float ldotn = max(0, dot(lightDir, normal));
 
-	float lightIntensity = ldotn;
 
 	vec3 albedo = texture(texSampler[ALBEDO_INDEX], fragTexCoord).rgb;
 
@@ -71,22 +77,35 @@ void main()
 	return;
 #endif
 
+	float lightIntensity = ldotn;
 
 
 	float lightDepthFromTexture = texture(lightMap, lightCoords.xy).r;
 
 	const float epsilon = 0.0001;
 	float inLight = 1.0 - step(lightDepthFromTexture + epsilon, lightCoords.z) * 0.8;
+	float inLightActual = 1.0 - step(lightDepthFromTexture + epsilon, lightCoords.z);
 
 	// SHADOWS
 	// lightIntensity = min(lightIntensity, inLight);	
 	lightIntensity = lightIntensity * inLight;
 
+	/// SPECULAR
+	float smoothness 		= 0.5;
+	float specularStrength 	= 0.5;
+
+	vec3 viewDirection = normalize(tbnMatrix * (light.cameraPosition.xyz - fragPosition));
+	vec3 reflectDirection = reflect(-lightDir, normal);
+	float spec = max(0, dot (viewDirection, reflectDirection));
+	spec = pow(spec, 256 * smoothness);
+
+	vec3 specularTerm = spec * specularStrength * light.color.rgb * inLightActual;
+
 	// lightIntensity *= 2;
 	vec3 lightColor = mix(light.ambient.rgb, light.color.rgb, lightIntensity);
 	// vec3 lightColor = light.ambient.rgb + light.color.rgb * lightIntensity;
 	
-	vec3 color = lightColor * albedo;
+	vec3 color = lightColor * albedo + specularTerm;
 
 	outColor.rgb = color;
 	outColor.a = 1.0;

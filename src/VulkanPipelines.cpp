@@ -473,6 +473,9 @@ struct EvenMoreArguments
 
 	u32 					pushConstantRangeCount;
 	VkPushConstantRange * 	pushConstantRanges;
+
+	u32 					descriptorSetLayoutCount;
+	VkDescriptorSetLayout * descriptorSetLayouts;
 };
 
 internal FSVulkanPipeline fsvulkan_make_pipeline_WITH_EVEN_MORE_ARGUMENTS(
@@ -488,7 +491,6 @@ internal FSVulkanPipeline fsvulkan_make_pipeline_WITH_EVEN_MORE_ARGUMENTS(
 	Assert(options.pushConstantSize == 0 && "Use push constant ranges in 'arguments' instead");
 
 	// ------------------------------------------------------------
-
 
 	BinaryAsset vertexShaderCode    = read_binary_file(vertexShaderPath);
 	BinaryAsset fragmentShaderCode  = read_binary_file(fragmentShaderPath);
@@ -519,14 +521,11 @@ internal FSVulkanPipeline fsvulkan_make_pipeline_WITH_EVEN_MORE_ARGUMENTS(
 		}
 	};
 
-	VkPipelineVertexInputStateCreateInfo vertexInputInfo =
-	{
-		.sType                              = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-		.vertexBindingDescriptionCount      = arguments.vertexBindingDescriptionCount,
-		.pVertexBindingDescriptions         = arguments.vertexBindingDescriptions,
-		.vertexAttributeDescriptionCount    = arguments.vertexAttributeDescriptionCount,
-		.pVertexAttributeDescriptions       = arguments.vertexAttributeDescriptions,
-	};
+	auto vertexInputInfo = fsvulkan_pipeline_vertex_input_state_create_info(arguments.vertexBindingDescriptionCount,
+																			arguments.vertexBindingDescriptions,
+																			arguments.vertexAttributeDescriptionCount,
+																			arguments.vertexAttributeDescriptions);
+
 
 	VkPipelineInputAssemblyStateCreateInfo inputAssembly = 
 	{
@@ -650,56 +649,10 @@ internal FSVulkanPipeline fsvulkan_make_pipeline_WITH_EVEN_MORE_ARGUMENTS(
 	VkDynamicState dynamicStatesArray[10];
 	auto dynamicState = vulkan_pipelines_internal_::make_dynamic_state(&options, dynamicStatesArray);
 
-	//  LAYOUT -------------------------------------
-
-	u32 layoutSetCount = 0;
-	VkDescriptorSetLayout layoutSets [5];
-
-	auto materialLayout = vulkan::make_material_vk_descriptor_set_layout(context->device, options.textureCount);
-
-	u32 sceneSetIndex = -1;
-	u32 modelSetIndex = -1;
-	u32 materialSetIndex = -1;
-	u32 lightingSetIndex = -1;
-
-	if (options.useSceneLayoutSet)
-	{ 
-		layoutSets[layoutSetCount] = context->descriptorSetLayouts.camera;
-		sceneSetIndex = layoutSetCount;
-		++layoutSetCount;
-	}
-
-	if (options.useMaterialLayoutSet)
-	{ 
-		layoutSets[layoutSetCount] = materialLayout;
-		materialSetIndex = layoutSetCount;
-		++layoutSetCount;
-	}
-	if (options.useModelLayoutSet)
-	{ 
-		layoutSets[layoutSetCount] = context->descriptorSetLayouts.model;
-		modelSetIndex = layoutSetCount;
-		++layoutSetCount;
-	}
-
-	if (options.useLighting)
-	{
-		layoutSets[layoutSetCount] = context->descriptorSetLayouts.lighting;
-		lightingSetIndex = layoutSetCount;
-		++layoutSetCount;
-	
-		layoutSets[layoutSetCount] = context->descriptorSetLayouts.shadowMap;
-		++layoutSetCount;
-	}
-
-	VkPipelineLayoutCreateInfo pipelineLayoutInfo =
-	{
-		.sType                  = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-		.setLayoutCount         = layoutSetCount,
-		.pSetLayouts            = layoutSets,
-		.pushConstantRangeCount = arguments.pushConstantRangeCount,
-		.pPushConstantRanges    = arguments.pushConstantRanges,
-	};
+	auto pipelineLayoutInfo = fsvulkan_pipeline_layout_create_info(	arguments.descriptorSetLayoutCount,
+																	arguments.descriptorSetLayouts,
+																	arguments.pushConstantRangeCount,
+																	arguments.pushConstantRanges);
 
 	VkPipelineLayout layout;
 	VULKAN_CHECK(vkCreatePipelineLayout (context->device, &pipelineLayoutInfo, nullptr, &layout));
@@ -741,7 +694,7 @@ internal FSVulkanPipeline fsvulkan_make_pipeline_WITH_EVEN_MORE_ARGUMENTS(
 	{
 		.pipeline               = pipeline,
 		.pipelineLayout         = layout,
-		.descriptorSetLayout    = materialLayout,
+		// .descriptorSetLayout    = materialLayout,
 		.textureCount           = options.textureCount
 	};
 	return result;
@@ -828,12 +781,26 @@ internal void fsvulkan_initialize_leaves_pipeline(VulkanContext & context)
 		{ 3, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 3 * sizeof(v4)},
 	};
 
+	auto materialLayout = vulkan::make_material_vk_descriptor_set_layout(context.device, 0);
+
+	VkDescriptorSetLayout descriptorSetLayouts[] =
+	{
+		context.descriptorSetLayouts.camera,
+		materialLayout,
+		context.descriptorSetLayouts.model,
+		context.descriptorSetLayouts.lighting,
+		context.descriptorSetLayouts.shadowMap,
+	};
+
 	EvenMoreArguments arguments = 
 	{
 		.vertexBindingDescriptionCount 		= 1,
 		.vertexBindingDescriptions 			= &vertexBindingDescription,
 		.vertexAttributeDescriptionCount 	= 4,
 		.vertexAttributeDescriptions 		= vertexAttributeDescriptions,
+
+		.descriptorSetLayoutCount  	= array_count(descriptorSetLayouts),
+		.descriptorSetLayouts 		= descriptorSetLayouts
 	};
 
 	context.pipelines[GRAPHICS_PIPELINE_LEAVES] = fsvulkan_make_pipeline_WITH_EVEN_MORE_ARGUMENTS(&context,
@@ -847,6 +814,8 @@ internal void fsvulkan_initialize_leaves_pipeline(VulkanContext & context)
 			.cullModeFlags          = VK_CULL_MODE_NONE,
 		}
 	);
+
+	context.pipelines[GRAPHICS_PIPELINE_LEAVES].descriptorSetLayout = materialLayout;
 }
 
 internal void fsvulkan_initialize_line_pipeline(VulkanContext & context)
@@ -874,7 +843,10 @@ internal void fsvulkan_initialize_line_pipeline(VulkanContext & context)
 		.vertexBindingDescriptionCount 		= 1,
 		.vertexBindingDescriptions 			= &vertexBindingDescription,
 		.vertexAttributeDescriptionCount 	= array_count(vertexAttributeDescriptions),
-		.vertexAttributeDescriptions 		= vertexAttributeDescriptions
+		.vertexAttributeDescriptions 		= vertexAttributeDescriptions,
+
+		.descriptorSetLayoutCount 	= 1,
+		.descriptorSetLayouts 		= &context.descriptorSetLayouts.camera,
 	};
 
 	FSVulkanPipeline TEMP_SOLUTION = fsvulkan_make_pipeline_WITH_EVEN_MORE_ARGUMENTS(&context,
@@ -897,43 +869,6 @@ internal void fsvulkan_initialize_line_pipeline(VulkanContext & context)
 	context.linePipelineLayout 				= TEMP_SOLUTION.pipelineLayout;
 	context.linePipelineDescriptorSetLayout = TEMP_SOLUTION.descriptorSetLayout;
 }
-
-internal void fsvulkan_initialize_sky_pipeline(VulkanContext & context)
-{
-	logSystem(0) << FILE_ADDRESS << "Unused function";
-	// VkPushConstantRange pushConstantRange = { VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m44) };
-
-	// EvenMoreArguments arguments = 
-	// {
-	// 	.pushConstantRangeCount = 1,
-	// 	.pushConstantRanges 	= &pushConstantRange
-	// };
-
-	// FSVulkanPipeline TEMP_SOLUTION = fsvulkan_make_pipeline_WITH_EVEN_MORE_ARGUMENTS(&context,
-	// 	"assets/shaders/sky_quad_vert.spv",
-	// 	"assets/shaders/sky_quad_frag.spv",
-
-	// 	arguments,
-
-	// 	{
-	// 		.primitiveType          = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP,
-	// 		.cullModeFlags 			= VK_CULL_MODE_NONE,
-
-	// 		.enableDepth 			= false,
-	// 		.useVertexInput         = false,
-	// 		.useSceneLayoutSet      = true,
-	// 		.useMaterialLayoutSet   = false,
-	// 		.useModelLayoutSet      = false,
-	// 		.useLighting			= false,
-	// 	}
-	// );
-
-	// vkDestroyDescriptorSetLayout (context.device, TEMP_SOLUTION.descriptorSetLayout, nullptr);
-
-	// context.skyPipeline 					= TEMP_SOLUTION.pipeline;
-	// context.skyPipelineLayout 				= TEMP_SOLUTION.pipelineLayout;
-}
-
 
 internal void fsvulkan_initialize_shadow_pipeline(VulkanContext & context)
 {

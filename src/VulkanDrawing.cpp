@@ -619,19 +619,3 @@ internal void fsvulkan_draw_screen_rects(VulkanContext * context, s32 count, Scr
 		vkCmdDraw(frame->commandBuffers.scene, 4, 1, 0, 0);
 	}
 }
-
-internal void fsvulkan_draw_sky(VulkanContext * context, v3 cameraDirection, v3 lightDirection, m44 cameraMatrix)
-{
-	auto * frame = vulkan::get_current_virtual_frame(context);
-
-
-	vkCmdBindPipeline(frame->commandBuffers.scene, VK_PIPELINE_BIND_POINT_GRAPHICS, context->skyPipeline);
-
-	v3 pushConstants [] = {cameraDirection, lightDirection};
-	vkCmdPushConstants(frame->commandBuffers.scene, context->skyPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m44), &cameraMatrix);
-
-	vkCmdBindDescriptorSets(frame->commandBuffers.scene, VK_PIPELINE_BIND_POINT_GRAPHICS,
-							context->skyPipelineLayout, 0, 1, &context->uniformDescriptorSets.camera, 0, nullptr);
-
-	vkCmdDraw(frame->commandBuffers.scene, 4, 1, 0, 0);
-}
