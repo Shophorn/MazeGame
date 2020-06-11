@@ -60,28 +60,20 @@ struct CollisionSystem3D
 
 internal m44 compute_collider_transform(BoxCollider const & collider)
 {
-	m44 transformMatrix = 	translation_matrix(collider.transform->position)
-							* rotation_matrix(collider.transform->rotation)
-							* translation_matrix(collider.center)
-							* rotation_matrix(collider.orientation)
-							* scale_matrix(collider.extents);
-	return transformMatrix;
+	m44 transformMatrix = transform_matrix(collider.transform->position, collider.transform->rotation, {1,1,1});
+	m44 colliderMatrix 	= transform_matrix(collider.center, collider.orientation, collider.extents);
+
+	return transformMatrix * colliderMatrix;
 }
 
 internal m44 compute_inverse_collider_transform(BoxCollider const & collider)
 {
-	v3 inverseScale = { 1.0f / collider.extents.x,
-						1.0f / collider.extents.y,
-						1.0f / collider.extents.z };
+	m44 colliderMatrix = inverse_transform_matrix(collider.center, collider.orientation, collider.extents);
+	m44 transformMatrix = inverse_transform_matrix(collider.transform->position, collider.transform->rotation, {1,1,1});
 
-	m44 inverseColliderTransform = 	scale_matrix(inverseScale)
-									* rotation_matrix(inverse_quaternion(collider.orientation))
-									* translation_matrix(-collider.center)
-									* rotation_matrix(inverse_quaternion(collider.transform->rotation))
-		 							* translation_matrix(-collider.transform->position);
-
-	return inverseColliderTransform;
+	return colliderMatrix * transformMatrix;
 }
+
 
 internal void submit_cylinder_collider(CollisionSystem3D & system, f32 radius, f32 halfHeight, v3 center)
 {

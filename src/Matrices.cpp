@@ -163,3 +163,33 @@ internal m44 transform_matrix(v3 translation, quaternion rotation, v3 scale)
 
 	return result;	
 }
+
+internal m44 inverse_transform_matrix(v3 translation, quaternion rotation, v3 scale)
+{
+	translation = -translation;
+	rotation 	= inverse_quaternion(rotation);
+	scale 		= { 1.0f / scale.x, 1.0f / scale.y, 1.0f / scale.z };
+
+	m44 result 		= scale_matrix(scale)
+					* rotation_matrix(rotation)
+					* translation_matrix(translation);
+
+	// float 	x = rotation.x,
+	// 		y = rotation.y,
+	// 		z = rotation.z,
+	// 		w = rotation.w,
+
+	// 		sx = scale.x,
+	// 		sy = scale.y,
+	// 		sz = scale.z;
+
+	// m44 result =
+	// {
+	// 	sx * (1 - 2*y*y - 2*z*z), 	sx * (2*x*y-2*w*z), 		sx * (2*x*z + 2*w*y),		0,
+	// 	sy * (2*x*y + 2*w*z), 		sy * (1 - 2*x*x - 2*z*z),	sy * (2*y*z - 2*w*x),		0,
+	// 	sz * (2*x*z - 2*w*y),		sz * (2*y*z + 2*w*x),		sz * (1 - 2*x*x - 2*y*y),	0,
+	// 	translation.x,				translation.y,				translation.z,				1
+	// };
+
+	return result;	
+}

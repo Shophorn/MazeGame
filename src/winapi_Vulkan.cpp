@@ -300,6 +300,7 @@ vulkan::make_vk_render_pass(VulkanContext * context, VkFormat format, VkSampleCo
 	using multisampling. After that final image is compiled to 'resolve'
 	attachment that is image from swapchain and present that
 	*/
+
 	attachments[COLOR_ATTACHMENT_ID].format         = format;
 	attachments[COLOR_ATTACHMENT_ID].samples        = msaaSamples;
 	attachments[COLOR_ATTACHMENT_ID].loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;

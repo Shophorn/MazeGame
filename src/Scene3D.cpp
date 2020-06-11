@@ -8,6 +8,8 @@ Scene description for 3d development scene
 #include "PlayerController3rdPerson.cpp"
 #include "FollowerController.cpp"
 
+#include "scene3d_monuments.cpp"
+
 enum CameraMode : s32
 { 
 	CAMERA_MODE_PLAYER, 
@@ -223,33 +225,7 @@ struct Scene3d
 	MeshHandle * 	terrainMeshes;
 	MaterialHandle 	terrainMaterial;
 
-	/// MONUMENTS
-	// s32 			monumentTypeCount;
-	// s32 * 			monumentTypeOffsets;
-	// s32 * 			monumentCounts;
-	// m44 * 			monumentTransforms;
-
-	// MeshHandle 		monumentBaseMesh;
-	// MeshHandle 		monumentArchMesh;
-	// MeshHandle * 	monumentOrnamentMeshes;
-
-	// MaterialHandle 	monumentBaseMaterial;
-	// MaterialHandle 	monumentArchMaterial;
-
-	struct
-	{
-		s32 			typeCount;
-		s32 * 			counts;
-		m44 * 			transforms;
-
-		MeshHandle 		baseMesh;
-		MeshHandle 		archMesh;
-		MeshHandle * 	ornamentMeshes;
-
-		MaterialHandle 	baseMaterial;
-		MaterialHandle 	archMaterial;
-	} monuments;
-
+	Monuments monuments;
 
 	// struct ArrayRenderer
 	// {
@@ -824,19 +800,7 @@ internal bool32 update_scene_3d(void * scenePtr, MemoryArena & persistentMemory,
 			platformApi->draw_meshes(platformGraphics, 1, scene->terrainTransforms + i, scene->terrainMeshes[i], scene->terrainMaterial);
 		}
 
-		auto & monuments = scene->monuments;
-		s32 totalMonumentCount = 0;
-		for (s32 type = 0; type < monuments.typeCount; ++type)
-		{
-			s32 offset = totalMonumentCount;
-			s32 count = monuments.counts[type];
-			totalMonumentCount += count;
-			platformApi->draw_meshes(platformGraphics, count, monuments.transforms + offset, monuments.ornamentMeshes[type], monuments.archMaterial);
-		}
-
-		platformApi->draw_meshes(platformGraphics, totalMonumentCount, scene->monuments.transforms, scene->monuments.archMesh, scene->monuments.archMaterial);
-		platformApi->draw_meshes(platformGraphics, totalMonumentCount, scene->monuments.transforms, scene->monuments.baseMesh, scene->monuments.archMaterial);
-		// platformApi->draw_meshes(platformGraphics, scene->monuments.counts[0], scene->monuments.transforms, scene->monuments.ornamentMeshes[0], scene->monuments.archMaterial);
+		scene3d_draw_monuments(scene->monuments);
 	}
 
 
@@ -884,7 +848,7 @@ internal bool32 update_scene_3d(void * scenePtr, MemoryArena & persistentMemory,
 
 	Light light = { .direction 	= normalize_v3({-1, 1.2, -8}), 
 					.color 		= v3{0.95, 0.95, 0.9}};
-	v3 ambient 	= {0.1, 0.1, 0.5};
+	v3 ambient 	= {0.05, 0.05, 0.3};
 	platformApi->update_lighting(platformGraphics, &light, &scene->worldCamera, ambient);
 
 	for (auto & renderer : scene->renderers)
@@ -1392,9 +1356,9 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 		}
 	}
 
-	scene->worldCamera 				= make_camera(50, 0.1f, 1000.0f);
+	scene->worldCamera 				= make_camera(60, 0.1f, 1000.0f);
 	scene->playerCamera 			= {};
-	scene->playerCamera.baseOffset 	= {0, 0, 1.5f};
+	scene->playerCamera.baseOffset 	= {0, 0, 2};
 	scene->playerCamera.distance 	= 5;
 
 	// Environment
@@ -1495,144 +1459,7 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 		}
 
 
-		{
-
-			auto gltfFile = read_gltf_file(*global_transientMemory, "assets/models/monuments.glb");
-
-			auto archesMeshAsset 	= load_mesh_glb(*global_transientMemory, gltfFile, "monument_arches");
-			auto baseMeshAsset 		= load_mesh_glb(*global_transientMemory, gltfFile, "monument_base");
-			auto ornamentMeshAsset1 = load_mesh_glb(*global_transientMemory, gltfFile, "monument_ornament_01");
-			auto ornamentMeshAsset2 = load_mesh_glb(*global_transientMemory, gltfFile, "monument_ornament_02");
-			auto ornamentMeshAsset3 = load_mesh_glb(*global_transientMemory, gltfFile, "monument_ornament_03");
-
-			auto & monuments = scene->monuments;
-			monuments.typeCount = 3;
-
-			monuments.archMesh = platformApi->push_mesh(platformGraphics, &archesMeshAsset);
-			monuments.baseMesh = platformApi->push_mesh(platformGraphics, &baseMeshAsset);
-
-			monuments.ornamentMeshes = push_memory<MeshHandle>(persistentMemory, monuments.typeCount, ALLOC_NO_CLEAR);
-			monuments.ornamentMeshes[0] = platformApi->push_mesh(platformGraphics, &ornamentMeshAsset1);
-			monuments.ornamentMeshes[1] = platformApi->push_mesh(platformGraphics, &ornamentMeshAsset2);
-			monuments.ornamentMeshes[2] = platformApi->push_mesh(platformGraphics, &ornamentMeshAsset3);
-
-			monuments.archMaterial = materials.environment;
-			monuments.baseMaterial = materials.environment;
-
-			f32 monumentRange 					= 600;
-			f32 halfMonumentRange				= monumentRange / 2;
-			s32 monumentSlotCountPerDirection 	= 20;
-
-			// Note(Leo): this describes the sequence of monuments. Divide by length of sequence, multiply
-			// by number of used slots in sequence
-			s32 monumentXCount = monumentSlotCountPerDirection * 5 / 7;
-			s32 monumentYCount = monumentSlotCountPerDirection * 1 	/ 4;
-
-			s32 totalMonumentCount = monumentXCount * monumentYCount;
-			monuments.transforms = push_memory<m44>(persistentMemory, totalMonumentCount, 0);
-			s32 monumentIndex = 0;
-
-			monuments.counts = push_memory<s32>(persistentMemory, monuments.typeCount, 0);
-			// monuments.counts[0] = totalMonumentCount;
-
-			s32 offsets[3] = {};
-
-			for (s32 y = 0; y < monumentSlotCountPerDirection; ++y)
-			{
-				if ((y % 4) > 0)
-					continue;
-
-				for (s32 x = 0; x < monumentSlotCountPerDirection; ++x)
-				{
-					if ((x % 7) < 2)
-						continue;
-
-					v3 position;
-					position.x = (f32)x / monumentSlotCountPerDirection * monumentRange - halfMonumentRange;
-					position.y = (f32)y / monumentSlotCountPerDirection * monumentRange - halfMonumentRange;
-					position.z = get_terrain_height(&scene->collisionSystem, position.xy);
-
-					s32 typeIndex = RandomRange(0, monuments.typeCount);
-
-					// monuments.transforms[monumentIndex] = translation_matrix(position);
-					m44 transform = translation_matrix(position) * rotation_matrix(axis_angle_quaternion(up_v3, RandomRange(-pi / 6, pi / 6)));
-
-					if (typeIndex == 0)
-					{	
-						monuments.transforms[monumentIndex] = monuments.transforms[offsets[2]];
-						monuments.transforms[offsets[2]] = monuments.transforms[offsets[1]];
-						monuments.transforms[offsets[1]] = transform;
-
-						offsets[1] += 1;
-						offsets[2] += 1;
-					}
-					else if (typeIndex == 1)
-					{
-						monuments.transforms[monumentIndex] = monuments.transforms[offsets[2]];
-						monuments.transforms[offsets[1]] = transform;
-
-						offsets[2] += 1;
-					}
-					else
-					{
-						monuments.transforms[monumentIndex] = transform;
-					}
-
-
-
-					++monumentIndex;
-				}
-			}
-			monuments.counts[2] = totalMonumentCount - offsets[2];
-			monuments.counts[1] = totalMonumentCount - monuments.counts[2] - offsets[1];
-			monuments.counts[0] = totalMonumentCount - monuments.counts[2] - monuments.counts[1];
-
-
-			logDebug(0) << "monumentindex = " << monumentIndex << " / " << totalMonumentCount;
-			Assert(monumentIndex <= totalMonumentCount);
-			// // arches
-			// // ornaments
-			// // base
-
-			// f32 pillarRange 			= 600;
-			// s32 pillarCountPerDirection = 20;
-			// s32 pillarCount 			= pillarCountPerDirection * pillarCountPerDirection;
-
-			// auto pillarMesh 		= load_mesh_glb(*global_transientMemory, read_gltf_file(*global_transientMemory, "assets/models/monuments.glb"), "monument_arches");
-			// // auto pillarMesh 		= load_mesh_glb(*global_transientMemory, read_gltf_file(*global_transientMemory, "assets/models/big_pillar.glb"), "big_pillar");
-			// auto pillarMeshHandle 	= platformApi->push_mesh(platformGraphics, &pillarMesh);
-
-			// for (s32 pillarIndex = 0; pillarIndex < pillarCount; ++pillarIndex)
-			// {
-			// 	// mapSize = 30;
-			// 	s32 gridX = (pillarIndex % pillarCountPerDirection);
-			// 	s32 gridY = (pillarIndex / pillarCountPerDirection);
-
-			// 	if ((gridY % 4) > 0)
-			// 	{
-			// 		continue;
-			// 	}
-
-			// 	if ((gridX % 7) < 2)
-			// 	{
-			// 		continue;
-			// 	}
-
-			// 	f32 x = ((pillarIndex % pillarCountPerDirection) / (f32)pillarCountPerDirection) * pillarRange - pillarRange / 2;
-			// 	f32 y = ((pillarIndex / pillarCountPerDirection) / (f32)pillarCountPerDirection) * pillarRange - pillarRange / 2;
-
-			// 	f32 z = get_terrain_height(&scene->collisionSystem, v2{x, y});
-
-			// 	v3 position = {x, y, z - 1};
-			// 	auto transform = scene->transforms.push_return_pointer({position});
-			// 	transform->rotation = axis_angle_quaternion(up_v3, RandomRange(-pi / 4, pi / 4));
-				
-			// 	auto model = push_model(pillarMeshHandle, materials.environment);
-			// 	scene->renderers.push({transform, model});
-
-			// 	push_box_collider(scene->collisionSystem, v3{2,2,50}, v3{0,0,25}, transform);
-			// }
-		}
+		scene->monuments = scene3d_load_monuments(persistentMemory, materials.environment, scene->collisionSystem);
 
 		// Test robot
 		{

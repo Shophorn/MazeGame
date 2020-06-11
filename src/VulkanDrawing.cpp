@@ -77,9 +77,10 @@ void
 vulkan::prepare_drawing(VulkanContext * context)
 {
 	AssertMsg((context->canDraw == false), "Invalid call to prepare_drawing() when finish_drawing() has not been called.")
-	context->canDraw                    = true;
+	context->canDraw = true;
 
-	context->currentUniformBufferOffset = 0;
+	// context->modelUniformBuffer.used = 0;
+	fsvulkan_reset_uniform_buffer(*context);
 
 	auto * frame = get_current_virtual_frame(context);
 
@@ -278,13 +279,15 @@ vulkan::record_draw_command(VulkanContext * context, ModelHandle model, m44 tran
 	MeshHandle meshHandle           = context->loadedModels[model].mesh;
 	MaterialHandle materialHandle   = context->loadedModels[model].material;
 
-	u32 uniformBufferOffset = context->currentUniformBufferOffset;
-	u32 uniformBufferSize   = get_aligned_uniform_buffer_size(context, sizeof(ModelUniformBuffer));
+	// u32 uniformBufferOffset = context->modelUniformBuffer.used;
+	// u32 uniformBufferSize   = get_aligned_uniform_buffer_size(context, sizeof(ModelUniformBuffer));
+	u32 uniformBufferSize   = sizeof(ModelUniformBuffer);
 
-	context->currentUniformBufferOffset += uniformBufferSize;
+	// context->modelUniformBuffer.used += uniformBufferSize;
 
-	Assert(context->currentUniformBufferOffset <= context->modelUniformBuffer.size);
+	// Assert(context->modelUniformBuffer.used <= context->modelUniformBuffer.size);
 
+	VkDeviceSize uniformBufferOffset = fsvulkan_get_uniform_memory(*context, sizeof(ModelUniformBuffer));
 	ModelUniformBuffer * pBuffer;
 
 	// Optimize(Leo): Just map this once when rendering starts
@@ -323,7 +326,9 @@ vulkan::record_draw_command(VulkanContext * context, ModelHandle model, m44 tran
 	};
 
 	// Note(Leo): this works, because models are only dynamic set
-	u32 dynamicOffsets [] = {uniformBufferOffset};
+
+	Assert(uniformBufferOffset <= max_u32);
+	u32 dynamicOffsets [] = {(u32)uniformBufferOffset};
 
 	vkCmdBindDescriptorSets(frame->commandBuffers.scene, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout,
 							0, array_count(sets), sets,
@@ -359,7 +364,7 @@ vulkan::record_draw_command(VulkanContext * context, ModelHandle model, m44 tran
 								2,
 								shadowSets,
 								1,
-								&uniformBufferOffset);
+								&dynamicOffsets[0]);
 
 		vkCmdDrawIndexed(frame->commandBuffers.offscreen, mesh->indexCount, 1, 0, 0, 0);
 	}
@@ -376,14 +381,15 @@ void FSVULKAN_DRAW_LEAVES(VulkanContext * context, s32 count, m44 const * transf
 
 	// Todo(Leo): Align start of region, not size.
 	// TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
+	// NOTE NOTE NOTE NOTE NOTE NOTE NOTE NOTE NOTE NOTE: Done?
 	// TODO TODO(Leo): THIS MUST BE TRACKED
-	u64 uniformBufferSize 				= vulkan::get_aligned_uniform_buffer_size(context, count * sizeof(m44));
-	u64 startUniformBufferOffset 		= context->currentUniformBufferOffset;
-	u64 totalRequiredMemory 			= uniformBufferSize;
-	context->currentUniformBufferOffset += totalRequiredMemory;
+	u64 uniformBufferSize 				= count * sizeof(m44);
+	u64 startUniformBufferOffset 		= fsvulkan_get_uniform_memory(*context, uniformBufferSize);//context->modelUniformBuffer.used;
+	// u64 totalRequiredMemory 			= uniformBufferSize;
+	// context->modelUniformBuffer.used += totalRequiredMemory;
 
 	m44 * bufferPointer;
-	vkMapMemory(context->device, context->modelUniformBuffer.memory, startUniformBufferOffset, totalRequiredMemory, 0, (void**)&bufferPointer);
+	vkMapMemory(context->device, context->modelUniformBuffer.memory, startUniformBufferOffset, uniformBufferSize, 0, (void**)&bufferPointer);
 	copy_memory(bufferPointer, transforms, count * sizeof(m44));
 	vkUnmapMemory(context->device, context->modelUniformBuffer.memory);
 
@@ -452,22 +458,29 @@ void fsvulkan_draw_meshes(VulkanContext * context, s32 count, m44 const * transf
 	/* Note(Leo): This function does not consider animated skeletons, so we skip those.
 	We assume that shaders use first entry in uniform buffer as transfrom matrix, so it
 	is okay to ignore rest that are unnecessary and just set uniformbuffer offsets properly. */
-	u32 uniformBufferSize 				= vulkan::get_aligned_uniform_buffer_size(context, sizeof(m44));
-	u32 startUniformBufferOffset 		= context->currentUniformBufferOffset;
-	context->currentUniformBufferOffset += count * uniformBufferSize;
+	// u32 uniformBufferSize 				= vulkan::get_aligned_uniform_buffer_size(context, sizeof(m44));
+
+
+	// Todo(Leo): use instantiation, so we do no need to align these twice
+	VkDeviceSize uniformBufferSizePerItem 	= vulkan::get_aligned_uniform_buffer_size(context, sizeof(m44));
+	VkDeviceSize totalUniformBufferSize 	= count * uniformBufferSizePerItem;
+	// u32 startUniformBufferOffset 		= context->modelUniformBuffer.used;
+	// context->modelUniformBuffer.used += count * uniformBufferSize;
+
+	VkDeviceSize uniformBufferOffset = fsvulkan_get_uniform_memory(*context, totalUniformBufferSize);
 
 	u8 * bufferPointer;
-	vkMapMemory(context->device, context->modelUniformBuffer.memory, startUniformBufferOffset, count * uniformBufferSize, 0, (void**)&bufferPointer);
+	vkMapMemory(context->device, context->modelUniformBuffer.memory, uniformBufferOffset, totalUniformBufferSize, 0, (void**)&bufferPointer);
 	for (s32 i = 0; i < count; ++i)
 	{
 		*((m44*)bufferPointer) = transforms[i];
-		bufferPointer += uniformBufferSize;
+		bufferPointer += uniformBufferSizePerItem;
 	}
 	vkUnmapMemory(context->device, context->modelUniformBuffer.memory);
 
 	for(s32 i = 0; i < count; ++i)
 	{
-		uniformBufferOffsets[i] = startUniformBufferOffset + i * uniformBufferSize;
+		uniformBufferOffsets[i] = uniformBufferOffset + i * uniformBufferSizePerItem;
 	}
 
 	VulkanMesh * mesh 			= vulkan::get_loaded_mesh(context, meshHandle);
@@ -496,6 +509,12 @@ void fsvulkan_draw_meshes(VulkanContext * context, s32 count, m44 const * transf
 	};
 
 	Assert(mesh->indexCount > 0);
+
+	f32 smoothness 			= 0.5;
+	f32 specularStrength 	= 0.5;
+	f32 materialBlock [] = {smoothness, specularStrength};
+
+	vkCmdPushConstants(frame->commandBuffers.scene, pipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(materialBlock), materialBlock);
 
 	for (s32 i = 0; i < count; ++i)
 	{
@@ -556,28 +575,30 @@ internal void fsvulkan_draw_lines(VulkanContext * context, s32 pointCount, v3 co
 	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, context->linePipelineLayout,
 							0, 1, &context->uniformDescriptorSets.camera, 0, nullptr);
 
-	s32 lineCount = pointCount / 2;
 
-	u64 requiredBufferSize 				= pointCount * sizeof(v3) * 2;
-	requiredBufferSize 					= vulkan::get_aligned_uniform_buffer_size(context, requiredBufferSize);
+	// u64 requiredBufferSize 				= pointCount * sizeof(v3) * 2;
+	// requiredBufferSize 					= vulkan::get_aligned_uniform_buffer_size(context, requiredBufferSize);
 
-	u64 bufferStartOffset 				= context->currentUniformBufferOffset;
-	context->currentUniformBufferOffset += requiredBufferSize;
+	// u64 vertexBufferOffset 				= context->modelUniformBuffer.used;
+	// context->modelUniformBuffer.used 	+= requiredBufferSize;
+
+	VkDeviceSize vertexBufferSize = pointCount * sizeof(v3) * 2;
+	VkDeviceSize vertexBufferOffset = fsvulkan_get_uniform_memory(*context, vertexBufferSize);
 
 
-	v3 * instanceData;
+	v3 * vertexData;
 	// Todo(Leo): check map results
-	VkResult result = vkMapMemory(context->device, context->modelUniformBuffer.memory, bufferStartOffset, requiredBufferSize, 0, (void**)&instanceData);
+	VkResult result = vkMapMemory(context->device, context->modelUniformBuffer.memory, vertexBufferOffset, vertexBufferSize, 0, (void**)&vertexData);
 
 	for (s32 i = 0; i < pointCount; ++i)
 	{
-		instanceData[i * 2] = points[i];
-		instanceData[i * 2 + 1] = color.rgb;
+		vertexData[i * 2] = points[i];
+		vertexData[i * 2 + 1] = color.rgb;
 	}
 
 	vkUnmapMemory(context->device, context->modelUniformBuffer.memory);
 
-	vkCmdBindVertexBuffers(commandBuffer, 0, 1, &context->modelUniformBuffer.buffer, &bufferStartOffset);
+	vkCmdBindVertexBuffers(commandBuffer, 0, 1, &context->modelUniformBuffer.buffer, &vertexBufferOffset);
 
 	Assert(pointCount > 0);
 
@@ -613,6 +634,8 @@ internal void fsvulkan_draw_screen_rects(VulkanContext * context, s32 count, Scr
 	// Note(Leo): Color does not change, so we update it only once, this will break if we change shader :(
 	vkCmdPushConstants(frame->commandBuffers.scene, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(v2) * 4, sizeof(v4), &color);
 
+
+	// TODO(Leo): Instantiatee!
 	for(s32 i = 0; i < count; ++i)
 	{      
 		vkCmdPushConstants( frame->commandBuffers.scene, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(v2) * 4, &rects[i]);

@@ -157,15 +157,8 @@ get_closest_pixel(TextureAsset * texture, v2 texcoord)
 	return texture->pixels[index];
 }
 
-
-enum struct MaterialType : s32
-{
-	Character,
-	Terrain
-};
-
 struct MaterialAsset
 {
-    GraphicsPipeline pipeline;
+    GraphicsPipeline 	pipeline;
     Array<TextureHandle> textures;
 };

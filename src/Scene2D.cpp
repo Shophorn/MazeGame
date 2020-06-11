@@ -159,7 +159,7 @@ internal void * load_scene_2d(MemoryArena & persistentMemory)
 		auto lavaTexture 	= load_and_push_texture("assets/textures/lava.jpg");
 		auto faceTexture 	= load_and_push_texture("assets/textures/texture.jpg");
 
-		auto push_material = [](MaterialType type, TextureHandle a, TextureHandle b, TextureHandle c) -> MaterialHandle
+		auto push_material = [](TextureHandle a, TextureHandle b, TextureHandle c) -> MaterialHandle
 		{
 			TextureHandle textures [] = {a,b,c};
 			MaterialHandle handle = platformApi->push_material(platformGraphics, GRAPHICS_PIPELINE_NORMAL, 3, textures);
@@ -168,13 +168,11 @@ internal void * load_scene_2d(MemoryArena & persistentMemory)
 
 		materials =
 		{
-			.character 	= push_material(	MaterialType::Character,
-											lavaTexture,
+			.character 	= push_material(	lavaTexture,
 											faceTexture,
 											blackTexture),
 
-			.environment = push_material(	MaterialType::Character,
-											tilesTexture,
+			.environment = push_material(	tilesTexture,
 											blackTexture,
 											blackTexture)
 		};

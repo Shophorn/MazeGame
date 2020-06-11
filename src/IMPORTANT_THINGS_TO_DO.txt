@@ -35,6 +35,24 @@ TREE THINGS
 
 	Toxic soil? 
 
+
+TREE GROWING SIMULATION:
+	Tools:
+		wireframe pipeline
+		sliders
+		input fields
+		Tree scene
+
+	Cleanup:
+		proper trees structure
+
+	Turtle commands grammar
+	Generate mesh from turtle commands
+	Turtle command keyframes
+	Interpolate between keyframes
+	Generate turtle commands with L system
+
+
 WATER RULES:
 	Soil is watered, not trees
 	When water is dropped on ground, it is slowly absorbed, either to list of points or to a pixel/voxel map

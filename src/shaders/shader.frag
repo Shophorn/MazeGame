@@ -34,7 +34,7 @@ const int TEXTURE_COUNT = 3;
 layout(set = 1, binding = 0) uniform sampler2D texSampler[TEXTURE_COUNT];
 layout(set = 4, binding = 0) uniform sampler2D lightMap;
 
-layout (set = 4, binding = 1) uniform MaterialBlock
+layout (push_constant) uniform MaterialBlock
 {
 	float smoothness;
 	float specularStrength;
@@ -50,8 +50,9 @@ void main()
 	float ldotn = max(0, dot(lightDir, normal));
 
 
+	float gamma = 2.2;
 	vec3 albedo = texture(texSampler[ALBEDO_INDEX], fragTexCoord).rgb;
-
+	albedo = pow(albedo, vec3(gamma));	
 #if 0
 	vec3 ambient 	= light.ambient.rgb;
 	vec3 diffuse 	= ldotn * light.color.rgb;
@@ -83,7 +84,7 @@ void main()
 	float lightDepthFromTexture = texture(lightMap, lightCoords.xy).r;
 
 	const float epsilon = 0.0001;
-	float inLight = 1.0 - step(lightDepthFromTexture + epsilon, lightCoords.z) * 0.8;
+	float inLight = 1.0 - step(lightDepthFromTexture + epsilon, lightCoords.z);// * 0.8;
 	float inLightActual = 1.0 - step(lightDepthFromTexture + epsilon, lightCoords.z);
 
 	// SHADOWS
@@ -91,12 +92,19 @@ void main()
 	lightIntensity = lightIntensity * inLight;
 
 	/// SPECULAR
-	float smoothness 		= 0.5;
-	float specularStrength 	= 0.5;
+	float smoothness 		= material.smoothness;
+	float specularStrength 	= material.specularStrength;
 
 	vec3 viewDirection = normalize(tbnMatrix * (light.cameraPosition.xyz - fragPosition));
+
+#if 0
 	vec3 reflectDirection = reflect(-lightDir, normal);
 	float spec = max(0, dot (viewDirection, reflectDirection));
+#endif
+
+	vec3 halfVector = normalize(lightDir + viewDirection);
+	float spec = max(0, dot (halfVector, normal));
+
 	spec = pow(spec, 256 * smoothness);
 
 	vec3 specularTerm = spec * specularStrength * light.color.rgb * inLightActual;
@@ -109,4 +117,7 @@ void main()
 
 	outColor.rgb = color;
 	outColor.a = 1.0;
+
+
+	outColor.rgb = pow(outColor.rgb, vec3(1/gamma));
 }

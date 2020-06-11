@@ -20,11 +20,13 @@ const vec3 bluish = vec3(0.3, 0.62, 0.8);
 const vec3 green = vec3(0.52, 0.7, 0.40);
 const vec3 pinkt = vec3(1.0, 0.7, 0.8);
 
-const vec3 darkerGreen = vec3(0.42, 0.60, 0.35);
-const vec3 lighterGreen = vec3(0.52, 0.75, 0.45);
+const vec3 darkerGreen = vec3(0.32, 0.50, 0.25);
+const vec3 lighterGreen = vec3(0.47, 0.7, 0.4);
 
 void main()
 {
+	const float gamma = 2.2;
+
 	float distanceFromCenter 	= length(fragTexCoord.xy * 2);
 	float opacity 				= step (distanceFromCenter, 1.0);
 
@@ -61,6 +63,7 @@ void main()
 
 	// albedo = mix(vec3(0,0,0), vec3(0,1,1), fragTexCoord.y + 0.5);
 	albedo = mix(darkerGreen, lighterGreen, fragTexCoord.y + 0.5);
+	albedo = pow(albedo, vec3(gamma));
 
 	float lightIntensity = ldotn;
 
@@ -68,7 +71,7 @@ void main()
 	float lightDepthFromTexture = texture(lightMap, lightCoords.xy).r;
 
 	const float shadowBias = 0.0001;
-	float inLight = 1.0 - step(lightDepthFromTexture + shadowBias, lightCoords.z) * 0.8;
+	float inLight = 1.0 - step(lightDepthFromTexture + shadowBias, lightCoords.z);// * 0.8;
 
 	// SHADOWS
 	lightIntensity = lightIntensity * inLight;	
@@ -82,6 +85,7 @@ void main()
 	// color *= step(distanceFromCenter, 1.0);
 	outColor.rgb = color;
 
+	outColor.rgb = pow(outColor.rgb, vec3(1/gamma));
 
 
 	outColor.a 					= 1;

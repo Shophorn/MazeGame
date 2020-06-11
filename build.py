@@ -53,7 +53,7 @@ if compiler == 'clang++':
 	# Build settings
 	# flags 		= "-static -std=c++17 -O0"
 	flags 		= "-static -std=c++17 -g -gcodeview -O0"
-	# flags 		= "-static -std=c++17 -O1"
+	# flags 		= "-static -std=c++17 -O3"
 
 	definitions = [ "-DMAZEGAME_DEVELOPMENT="		+ str(1),
 					"-DFS_VULKAN_USE_VALIDATION=" 	+ str(1),

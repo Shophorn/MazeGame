@@ -234,10 +234,11 @@ Run(HINSTANCE hInstance)
 
     // -------- INITIALIZE NETWORK ---------
     bool32 networkIsRuined = false;
-    WinApiNetwork network = winapi::CreateNetwork();
-    game::Network gameNetwork = {};
-    f64 networkSendDelay     = 1.0 / 20;
-    f64 networkNextSendTime  = 0;
+    // WinApiNetwork network = winapi::CreateNetwork();
+    WinApiNetwork network       = {};
+    game::Network gameNetwork   = {};
+    f64 networkSendDelay        = 1.0 / 20;
+    f64 networkNextSendTime     = 0;
     
     /// --------- INITIALIZE AUDIO ----------------
     WinApiAudio audio = winapi::CreateAudio();

@@ -25,18 +25,24 @@ struct PipelineOptions
 	bool8 enableTransparency 	= false;
 };
 
-namespace vulkan_pipelines_internal_
-{
-	internal VkVertexInputBindingDescription get_vertex_binding_description ();;
-	internal StaticArray<VkVertexInputAttributeDescription, 8> get_vertex_attribute_description();
-
-	internal VkPipelineDynamicStateCreateInfo make_dynamic_state(   PipelineOptions * options,
-																	VkDynamicState(&array)[10]);
-}
 
 // -------------------------------------------------------------------------
 /// GOOD INITIALIZERS
 // Note(Leo): Only expose from these functions properties we are interested to change
+
+constexpr VkVertexInputBindingDescription fsvulkan_defaultVertexBinding = { 0, sizeof(Vertex), VK_VERTEX_INPUT_RATE_VERTEX };
+
+constexpr VkVertexInputAttributeDescription fsvulkan_defaultVertexAttributes [] =
+{
+	{0, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, position)},
+	{1, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, normal)},
+	{2, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, color)},
+	{3, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(Vertex, texCoord)},
+	{4, 0, VK_FORMAT_R32G32B32A32_UINT, offsetof(Vertex, boneIndices)},
+	{5, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(Vertex, boneWeights)},
+	{6, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, tangent)},
+	{7, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, biTangent)},
+};
 
 internal VkPipelineViewportStateCreateInfo
 fsvulkan_pipeline_viewport_state_create_info(u32 viewportCount, VkViewport * pViewports, u32 scissorCount, VkRect2D * pScissors)
@@ -75,8 +81,8 @@ fsvulkan_pipeline_rasterization_state_create_info(VkCullModeFlags cullMode)
 }
 
 internal VkPipelineLayoutCreateInfo
-fsvulkan_pipeline_layout_create_info(	u32 setLayoutCount, VkDescriptorSetLayout * pSetLayouts,
-										u32 pushConstantRangeCount, VkPushConstantRange * pPushConstantRanges)
+fsvulkan_pipeline_layout_create_info(	u32 setLayoutCount, VkDescriptorSetLayout const * pSetLayouts,
+										u32 pushConstantRangeCount, VkPushConstantRange const * pPushConstantRanges)
 {
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo =
 	{
@@ -93,8 +99,8 @@ fsvulkan_pipeline_layout_create_info(	u32 setLayoutCount, VkDescriptorSetLayout 
 }
 
 internal VkPipelineVertexInputStateCreateInfo
-fsvulkan_pipeline_vertex_input_state_create_info(	u32 bindingDescriptionCount, VkVertexInputBindingDescription * bindingDescriptions,
-													u32 attributeDescriptionCount, VkVertexInputAttributeDescription * attributeDescriptions)
+fsvulkan_pipeline_vertex_input_state_create_info(	u32 bindingDescriptionCount, VkVertexInputBindingDescription const * bindingDescriptions,
+													u32 attributeDescriptionCount, VkVertexInputAttributeDescription const * attributeDescriptions)
 {
 	VkPipelineVertexInputStateCreateInfo vertexInputInfo =
 	{
@@ -123,6 +129,36 @@ fsvulkan_pipeline_input_assembly_create_info(VkPrimitiveTopology topology)
 	};
 	
 	return inputAssembly;
+}
+
+internal VkPipelineDynamicStateCreateInfo
+fsvulkan_pipeline_dynamic_state_create_info(u32 dynamicStateCount, VkDynamicState * dynamicStates)
+{
+	VkPipelineDynamicStateCreateInfo createInfo =
+	{
+		.sType              = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
+		.dynamicStateCount  = dynamicStateCount,
+		.pDynamicStates     = dynamicStates,
+	};
+
+	return createInfo;
+}
+
+internal VkPipelineMultisampleStateCreateInfo
+fsvulkan_pipeline_multisample_state_create_info(VkSampleCountFlagBits msaaSamples)
+{
+	VkPipelineMultisampleStateCreateInfo multisampling =
+	{
+		.sType                  = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
+		.rasterizationSamples   = msaaSamples,
+		.sampleShadingEnable    = VK_FALSE,
+		.minSampleShading       = 1.0f,
+		.pSampleMask            = nullptr,
+		.alphaToCoverageEnable  = VK_FALSE,
+		.alphaToOneEnable       = VK_FALSE,
+	};
+
+	return multisampling;
 }
 
 
@@ -167,12 +203,11 @@ internal FSVulkanPipeline fsvulkan_make_pipeline(
 	VkPipelineVertexInputStateCreateInfo vertexInputInfo;
 	if (options.useVertexInput)
 	{
-		auto bindingDescription     = vulkan_pipelines_internal_::get_vertex_binding_description();
-		auto attributeDescriptions  = vulkan_pipelines_internal_::get_vertex_attribute_description();
-		vertexInputInfo = fsvulkan_pipeline_vertex_input_state_create_info(	1, 
+		VkVertexInputBindingDescription bindingDescription = {0, sizeof(Vertex), VK_VERTEX_INPUT_RATE_VERTEX };
+		vertexInputInfo = fsvulkan_pipeline_vertex_input_state_create_info(	1,
 																			&bindingDescription,
-																			attributeDescriptions.count(),
-																			&attributeDescriptions[0]);
+																			array_count(fsvulkan_defaultVertexAttributes),
+																			fsvulkan_defaultVertexAttributes);
 	}
 	else
 	{
@@ -197,20 +232,9 @@ internal FSVulkanPipeline fsvulkan_make_pipeline(
 		.extent = context->drawingResources.extent,
 	};
 
-	auto viewportState = fsvulkan_pipeline_viewport_state_create_info(1, &viewport, 1, &scissor);
-
-	auto rasterizer = fsvulkan_pipeline_rasterization_state_create_info(options.cullModeFlags);
-
-	VkPipelineMultisampleStateCreateInfo multisampling =
-	{
-		.sType                  = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
-		.rasterizationSamples   = context->msaaSamples,
-		.sampleShadingEnable    = VK_FALSE,
-		.minSampleShading       = 1.0f,
-		.pSampleMask            = nullptr,
-		.alphaToCoverageEnable  = VK_FALSE,
-		.alphaToOneEnable       = VK_FALSE,
-	};
+	auto viewportState 	= fsvulkan_pipeline_viewport_state_create_info(1, &viewport, 1, &scissor);
+	auto rasterizer 	= fsvulkan_pipeline_rasterization_state_create_info(options.cullModeFlags);
+	auto multisampling 	= fsvulkan_pipeline_multisample_state_create_info(context->msaaSamples);
 
 	// Note: This attachment is per framebuffer
 	VkPipelineColorBlendAttachmentState colorBlendAttachment =
@@ -273,8 +297,12 @@ internal FSVulkanPipeline fsvulkan_make_pipeline(
 
 
 	//// DYNAMIC STATE
-	VkDynamicState dynamicStatesArray[10];
-	auto dynamicState = vulkan_pipelines_internal_::make_dynamic_state(&options, dynamicStatesArray);
+	VkDynamicState dynamicStatesArray [] =
+	{
+		VK_DYNAMIC_STATE_VIEWPORT,
+		VK_DYNAMIC_STATE_SCISSOR,
+	};
+	auto dynamicState = fsvulkan_pipeline_dynamic_state_create_info(array_count(dynamicStatesArray), dynamicStatesArray);
 
 	//  LAYOUT -------------------------------------
 	/// PUSH CONSTANTS
@@ -381,101 +409,22 @@ internal FSVulkanPipeline fsvulkan_make_pipeline(
 	return result;
 }
 
-internal VkVertexInputBindingDescription
-vulkan_pipelines_internal_::get_vertex_binding_description ()
-{
-	return {
-		.binding    = 0,
-		.stride     = sizeof(Vertex),
-		.inputRate  = VK_VERTEX_INPUT_RATE_VERTEX
-	};
-}
-
-internal StaticArray<VkVertexInputAttributeDescription, 8>
-vulkan_pipelines_internal_::get_vertex_attribute_description()
-{
-	StaticArray<VkVertexInputAttributeDescription, 8> value = {};
-
-	value[0].binding = 0;
-	value[0].location = 0;
-	value[0].format = VK_FORMAT_R32G32B32_SFLOAT;
-	value[0].offset = offsetof(Vertex, position);
-
-	value[1].binding = 0;
-	value[1].location = 1;
-	value[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-	value[1].offset = offsetof(Vertex, normal);
-
-	value[2].binding = 0;
-	value[2].location = 2;
-	value[2].format = VK_FORMAT_R32G32B32_SFLOAT;
-	value[2].offset = offsetof(Vertex, color);  
-
-	value[3].binding = 0;
-	value[3].location = 3;
-	value[3].format = VK_FORMAT_R32G32_SFLOAT;
-	value[3].offset = offsetof(Vertex, texCoord);
-
-	value[4].binding = 0;
-	value[4].location = 4;
-	// Todo(Leo): This does not need to be 32 bit, but I do not yet want to mess around with it.
-	value[4].format = VK_FORMAT_R32G32B32A32_UINT;
-	value[4].offset = offsetof(Vertex, boneIndices);  
-
-	value[5].binding = 0;
-	value[5].location = 5;
-	value[5].format = VK_FORMAT_R32G32B32A32_SFLOAT;
-	value[5].offset = offsetof(Vertex, boneWeights);    
-
-	value[6] =
-	{
-		.location = 6,
-		.binding = 0,
-		.format = VK_FORMAT_R32G32B32_SFLOAT,
-		.offset = offsetof(Vertex, tangent),
-	};
-
-	value[7] =
-	{
-		.location = 7,
-		.binding = 0,
-		.format = VK_FORMAT_R32G32B32_SFLOAT,
-		.offset = offsetof(Vertex, biTangent),
-	};
-
-	return value;
-}   
-
-internal VkPipelineDynamicStateCreateInfo
-vulkan_pipelines_internal_::make_dynamic_state (PipelineOptions * options, VkDynamicState (&array)[10])
-{
-	u32 count = 0;
-	array[count++] = VK_DYNAMIC_STATE_VIEWPORT;
-	array[count++] = VK_DYNAMIC_STATE_SCISSOR;
-
-	return {
-		.sType              = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
-		.dynamicStateCount  = count,
-		.pDynamicStates     = array,
-	};
-}
-
 // Todo(Leo): This is temporary helper here, goal is to remove options and make_pipeline things, 
 // and make a bunch of useful functions that provide initializers and then in actual functions
 // use those to make pipelines.
 struct EvenMoreArguments
 {
-	u32 								vertexBindingDescriptionCount;
-	VkVertexInputBindingDescription * 	vertexBindingDescriptions;
+	u32 									vertexBindingDescriptionCount;
+	VkVertexInputBindingDescription const * vertexBindingDescriptions;
 
-	u32 								vertexAttributeDescriptionCount;
-	VkVertexInputAttributeDescription * vertexAttributeDescriptions;
+	u32 										vertexAttributeDescriptionCount;
+	VkVertexInputAttributeDescription const * 	vertexAttributeDescriptions;
 
-	u32 					pushConstantRangeCount;
-	VkPushConstantRange * 	pushConstantRanges;
+	u32 						pushConstantRangeCount;
+	VkPushConstantRange const * pushConstantRanges;
 
-	u32 					descriptorSetLayoutCount;
-	VkDescriptorSetLayout * descriptorSetLayouts;
+	u32 							descriptorSetLayoutCount;
+	VkDescriptorSetLayout const * 	descriptorSetLayouts;
 };
 
 internal FSVulkanPipeline fsvulkan_make_pipeline_WITH_EVEN_MORE_ARGUMENTS(
@@ -526,14 +475,11 @@ internal FSVulkanPipeline fsvulkan_make_pipeline_WITH_EVEN_MORE_ARGUMENTS(
 																			arguments.vertexAttributeDescriptionCount,
 																			arguments.vertexAttributeDescriptions);
 
+	auto inputAssembly = fsvulkan_pipeline_input_assembly_create_info(options.primitiveType);
 
-	VkPipelineInputAssemblyStateCreateInfo inputAssembly = 
-	{
-		.sType                  = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
-		.topology               = options.primitiveType,
-		.primitiveRestartEnable = VK_FALSE,
-	};
-
+	// TODO(Leo): These are using dynamic state, remove that, since now that pipelines
+	// are created entirely on platform side, reloaaing them is super easy and in final game
+	// we do not expect lot of screen size changing
 	VkViewport viewport =
 	{
 		.x          = 0.0f,
@@ -550,40 +496,9 @@ internal FSVulkanPipeline fsvulkan_make_pipeline_WITH_EVEN_MORE_ARGUMENTS(
 		.extent = context->drawingResources.extent,
 	};
 
-	VkPipelineViewportStateCreateInfo viewportState =
-	{
-		.sType          = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
-		.viewportCount  = 1,
-		.pViewports     = &viewport,
-		.scissorCount   = 1,
-		.pScissors      = &scissor,
-	};
-
-	VkPipelineRasterizationStateCreateInfo rasterizer =
-	{
-		.sType                      = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
-		.depthClampEnable           = VK_FALSE,
-		.rasterizerDiscardEnable    = VK_FALSE,
-		.polygonMode                = VK_POLYGON_MODE_FILL,
-		.cullMode                   = options.cullModeFlags,
-		.frontFace                  = VK_FRONT_FACE_COUNTER_CLOCKWISE,
-		.depthBiasEnable            = VK_FALSE,
-		.depthBiasConstantFactor    = 0.0f,
-		.depthBiasClamp             = 0.0f,
-		.depthBiasSlopeFactor       = 0.0f,
-		.lineWidth                  = options.lineWidth,
-	};
-
-	VkPipelineMultisampleStateCreateInfo multisampling =
-	{
-		.sType                  = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
-		.rasterizationSamples   = context->msaaSamples,
-		.sampleShadingEnable    = VK_FALSE,
-		.minSampleShading       = 1.0f,
-		.pSampleMask            = nullptr,
-		.alphaToCoverageEnable  = VK_FALSE,
-		.alphaToOneEnable       = VK_FALSE,
-	};
+	auto viewportState 	= fsvulkan_pipeline_viewport_state_create_info(1, &viewport, 1, &scissor);
+	auto rasterizer 	= fsvulkan_pipeline_rasterization_state_create_info(options.cullModeFlags);
+	auto multisampling 	= fsvulkan_pipeline_multisample_state_create_info(context->msaaSamples);
 
 	// Note: This attachment is per framebuffer
 	VkPipelineColorBlendAttachmentState colorBlendAttachment =
@@ -646,8 +561,12 @@ internal FSVulkanPipeline fsvulkan_make_pipeline_WITH_EVEN_MORE_ARGUMENTS(
 
 
 	//// DYNAMIC STATE
-	VkDynamicState dynamicStatesArray[10];
-	auto dynamicState = vulkan_pipelines_internal_::make_dynamic_state(&options, dynamicStatesArray);
+	VkDynamicState dynamicStatesArray [] =
+	{
+		VK_DYNAMIC_STATE_VIEWPORT,
+		VK_DYNAMIC_STATE_SCISSOR,
+	};
+	auto dynamicState = fsvulkan_pipeline_dynamic_state_create_info(array_count(dynamicStatesArray), dynamicStatesArray);
 
 	auto pipelineLayoutInfo = fsvulkan_pipeline_layout_create_info(	arguments.descriptorSetLayoutCount,
 																	arguments.descriptorSetLayouts,
@@ -707,15 +626,49 @@ internal FSVulkanPipeline fsvulkan_make_pipeline_WITH_EVEN_MORE_ARGUMENTS(
 
 internal void fsvulkan_initialize_normal_pipeline(VulkanContext & context)
 {
+	auto materialLayout = vulkan::make_material_vk_descriptor_set_layout(context.device, 3);
+
+	VkDescriptorSetLayout descriptorSetLayouts[] =
+	{
+		context.descriptorSetLayouts.camera,
+		materialLayout,
+		context.descriptorSetLayouts.model,
+		context.descriptorSetLayouts.lighting,
+		context.descriptorSetLayouts.shadowMap,
+	};
+
+	VkPushConstantRange pushConstantRange = { VK_SHADER_STAGE_FRAGMENT_BIT, 0, 2 * sizeof(f32) };
+
+	EvenMoreArguments arguments = 
+	{
+		.vertexBindingDescriptionCount 		= 1,
+		.vertexBindingDescriptions 			= &fsvulkan_defaultVertexBinding,
+
+		.vertexAttributeDescriptionCount 	= array_count(fsvulkan_defaultVertexAttributes),
+		.vertexAttributeDescriptions 		= fsvulkan_defaultVertexAttributes,
+
+		.pushConstantRangeCount 	= 1,
+		.pushConstantRanges 		= &pushConstantRange,
+
+		.descriptorSetLayoutCount 	= array_count(descriptorSetLayouts),
+		.descriptorSetLayouts 		= descriptorSetLayouts,
+	};
+
 	// Todo(Leo): do not use make_pipeline(), goal is to get rid of that
-	context.pipelines[GRAPHICS_PIPELINE_NORMAL] = fsvulkan_make_pipeline(
+	// context.pipelines[GRAPHICS_PIPELINE_NORMAL] = fsvulkan_make_pipeline(
+	context.pipelines[GRAPHICS_PIPELINE_NORMAL] = fsvulkan_make_pipeline_WITH_EVEN_MORE_ARGUMENTS(
 		&context,
 		"assets/shaders/vert.spv",
 		"assets/shaders/frag.spv",
+
+		arguments,
+
 		{	
 			.textureCount = 3,
 		}
 	);
+
+	context.pipelines[GRAPHICS_PIPELINE_NORMAL].descriptorSetLayout = materialLayout;
 }
 
 internal void fsvulkan_initialize_animated_pipeline(VulkanContext & context)
@@ -780,7 +733,7 @@ internal void fsvulkan_initialize_leaves_pipeline(VulkanContext & context)
 		{ 2, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 2 * sizeof(v4)},
 		{ 3, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 3 * sizeof(v4)},
 	};
-
+	
 	auto materialLayout = vulkan::make_material_vk_descriptor_set_layout(context.device, 0);
 
 	VkDescriptorSetLayout descriptorSetLayouts[] =
@@ -885,12 +838,11 @@ internal void fsvulkan_initialize_shadow_pipeline(VulkanContext & context)
 	};
 
 	/// VERTEX INPUT STATE
-	auto bindingDescription     = vulkan_pipelines_internal_::get_vertex_binding_description();
-	auto attributeDescriptions  = vulkan_pipelines_internal_::get_vertex_attribute_description();
-	auto vertexInputInfo 		= fsvulkan_pipeline_vertex_input_state_create_info(	1,
-																					&bindingDescription,
-																					attributeDescriptions.count(),
-																					&attributeDescriptions[0]);
+	VkVertexInputBindingDescription bindingDescription = { 0, sizeof(Vertex), VK_VERTEX_INPUT_RATE_VERTEX };
+	auto vertexInputInfo = fsvulkan_pipeline_vertex_input_state_create_info(1,
+																			&bindingDescription,
+																			array_count(fsvulkan_defaultVertexAttributes),
+																			fsvulkan_defaultVertexAttributes);
 
 	/// INPUT ASSEMBLY
 	auto inputAssembly = fsvulkan_pipeline_input_assembly_create_info(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);

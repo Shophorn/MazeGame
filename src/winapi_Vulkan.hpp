@@ -10,6 +10,8 @@ STUDY: https://devblogs.nvidia.com/vulkan-dos-donts/
 
 #ifndef WIN_VULKAN_HPP
 
+using VulkanContext = platform::Graphics;
+
 internal void 
 print_vulkan_assert(LogInput::FileAddress address, VkResult result)
 {
@@ -76,8 +78,8 @@ struct VulkanBufferResource
     VkDeviceMemory memory;
     
     // Todo[memory, vulkan](Leo): IMPORTANT Enforce/track these
-    u64 used;
-    u64 size;
+    VkDeviceSize used;
+    VkDeviceSize size;
 };
 
 struct VulkanQueueFamilyIndices
@@ -103,9 +105,9 @@ struct VulkanQueueFamilyIndices
 
 struct VulkanSwapchainSupportDetails
 {
-    VkSurfaceCapabilitiesKHR capabilities;
+    VkSurfaceCapabilitiesKHR 		capabilities;
     std::vector<VkSurfaceFormatKHR> formats;
-    std::vector<VkPresentModeKHR> presentModes;
+    std::vector<VkPresentModeKHR> 	presentModes;
 };
 
 
@@ -187,9 +189,6 @@ struct VulkanVirtualFrame
 	VkSemaphore    renderFinishedSemaphore;
 	VkFence        inFlightFence; // Todo(Leo): Change to queuesubmitfence or commandbufferfence etc..
 };
-
-
-using VulkanContext = platform::Graphics;
 
 struct platform::Graphics
 {
@@ -330,10 +329,12 @@ struct platform::Graphics
     // u32 currentDrawImageIndex;
     u32 currentDrawFrameIndex;
     bool32 canDraw = false;
-    u32 currentUniformBufferOffset;
+    // u32 currentUniformBufferOffset;
 
     bool32 sceneUnloaded = false;
 };
+
+
 
 // Note(Leo): We are expecting to at some point need to get things from multiple different
 // containers, which is easier with helper function.
@@ -585,6 +586,33 @@ platform::prepare_frame(VulkanContext * context)
 	    default:
 	    	return platform::FRAME_BAD_PROBLEM;
     }
+}
+
+internal VkDeviceSize fsvulkan_get_uniform_memory(VulkanContext & context, VkDeviceSize size)
+{
+	// Note(Leo): offset data for different frames, so we do not overwrite previous frames' data before they are done.
+	// Todo(Leo): make separate buffers for each frame
+	VkDeviceSize frameSize = vulkan::get_aligned_uniform_buffer_size(&context, megabytes(150));
+	VkDeviceSize frameOffset = frameSize * context.virtualFrameIndex;
+
+
+	auto alignment 	= context.physicalDeviceProperties.limits.minUniformBufferOffsetAlignment;
+	size 			= align_up(size, alignment);
+
+	VkDeviceSize currentOffset = context.modelUniformBuffer.used;
+
+	Assert(currentOffset + size <= frameSize && "Trying to use too much memory.");
+	// Assert(currentOffset + size <= context.modelUniformBuffer.size && "Trying to use too much memory.");
+
+	context.modelUniformBuffer.used += size;
+
+
+	return currentOffset + frameOffset;
+};
+
+internal void fsvulkan_reset_uniform_buffer(VulkanContext & context)
+{
+	context.modelUniformBuffer.used = 0;
 }
 
 void
