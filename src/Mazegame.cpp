@@ -37,7 +37,6 @@ namespace colors
 
 constexpr v4 colour_aqua_blue 		= colour_rgb_255(51, 255, 255);
 
-
 constexpr v4 colour_bright_red 		= {1.0, 0.0, 0.0, 1.0};
 
 constexpr v4 colour_bright_green 	= {0.0, 1.0, 0.0, 1.0};
@@ -61,7 +60,6 @@ constexpr v4 color_bump = {0.5, 0.5, 1.0, 0.0};
 #include "Skybox.cpp"
 #include "TerrainGenerator.cpp"
 #include "Collisions3D.cpp"
-
 
 #include "CharacterSystems.cpp"
 #include "CameraController.cpp"
@@ -147,10 +145,6 @@ struct GameState
 	LoadedSceneType loadedSceneType;
 	void * loadedScene;
 
-	// Note(Leo): This MUST return false if it intends to close the scene, and true otherwise
-	using FN_updateScene = bool32(void * scene, game::Input * input);
-	FN_updateScene * updateScene;
-
 	Gui 	gui;
 	bool32 	guiVisible;
 
@@ -220,11 +214,11 @@ bool32 update_game(
 	GameState * state = reinterpret_cast<GameState*>(memory->memory);
 
 	// Note(Leo): Testing out this idea
+	// Note(Leo): So far, so good 12.06.2020
 	global_transientMemory = &state->transientMemoryArena;
 
 	// Note(Leo): Free space for current frame.
 	flush_memory_arena(&state->transientMemoryArena);
-
 
 	if (state->isInitialized == false)
 	{
@@ -236,7 +230,6 @@ bool32 update_game(
 		logWindow.output    = logFile;
 		logSystem.output    = logFile;
 		logNetwork.output   = logFile;
-
 	}
 	
 	bool32 gameIsAlive = true;
@@ -250,13 +243,12 @@ bool32 update_game(
 	{
 		if (state->loadedSceneType == LOADED_SCENE_3D)
 		{
-			sceneIsAlive = update_scene_3d(state->loadedScene, state->persistentMemoryArena, input);
+			sceneIsAlive = update_scene_3d(state->loadedScene, input);
 		}
 		else if (state->loadedSceneType == LOADED_SCENE_2D)
 		{
 			sceneIsAlive = update_scene_2d(state->loadedScene, input);
 		}
-
 	}
 	else
 	{
@@ -283,25 +275,19 @@ bool32 update_game(
 	/* Note(Leo): We MUST currently finish the frame before unloading scene, 
 	because we have at this point issued commands to vulkan command buffers,
 	and we currently have no mechanism to abort those. */
+	// Todo(Leo): We maybe could use onpostrender on this
 	platformApi->finish_frame(graphics);
-
 
 	if(action == ACTION_LOAD_3D_SCENE)
 	{
-		state->loadedScene = load_scene_3d(state->persistentMemoryArena);
-		// state->updateScene = update_scene_3d;
-		state->loadedSceneType = LOADED_SCENE_3D;
+		state->loadedScene 		= load_scene_3d(state->persistentMemoryArena);
+		state->loadedSceneType 	= LOADED_SCENE_3D;
 	}	
 	else if(action == ACTION_LOAD_2D_SCENE)
 	{
-		state->loadedScene = load_scene_2d(state->persistentMemoryArena);
-		// state->updateScene = update_scene_2d;
-		state->loadedSceneType = LOADED_SCENE_2D;
+		state->loadedScene 		= load_scene_2d(state->persistentMemoryArena);
+		state->loadedSceneType 	= LOADED_SCENE_2D;
 	}		
-
-
-
-
 
 	if (sceneIsAlive == false)
 	{

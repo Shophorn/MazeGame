@@ -1,10 +1,8 @@
-// Note(Leo): Using this we don't need to bother to make new rotation each time
-// enum : s32 { ORIENT_2D_XY, ORIENT_2D_XZ, ORIENT_2D_YZ };
-
-
 enum : s32 
 {
-	DEBUG_OFF,
+	DEBUG_ALWAYS = -1,
+
+	DEBUG_OFF = 0,
 	DEBUG_PLAYER,
 	DEBUG_NPC,
 	DEBUG_BACKGROUND,

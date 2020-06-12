@@ -35,6 +35,28 @@ TREE THINGS
 
 	Toxic soil? 
 
+	Old rules for reference:
+		/*
+		RULES:
+			- Seed, water and pot can be carried
+			- Seed can be put into a pot, and never removed
+			- Water can be used once to water a seed or tree
+			- When watered, seed will turn into a tree
+				- if seed is in pot, tree will be in pot
+				- if seed is on ground, tree will be on ground	
+				- also, seed will disappear
+
+			- When watered, tree will grow
+
+			- Tree in pot:
+				- will move with pot
+				- has growth limit
+			- Tree on ground:
+				- cannot be moved
+				- does not have growth limit
+		*/
+
+
 
 TREE GROWING SIMULATION:
 	Tools:

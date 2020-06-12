@@ -193,3 +193,10 @@ internal m44 inverse_transform_matrix(v3 translation, quaternion rotation, v3 sc
 
 	return result;	
 }
+
+internal v3 get_translation(m44 matrix)
+{
+	// Todo(Leo): Learn more about matrices, and maybe just return the last column
+	v3 translation = multiply_point(matrix, {0,0,0});
+	return translation;
+}
