@@ -422,9 +422,9 @@ namespace vulkan
 
 	// HELPER FUNCTIONS
 	internal VulkanQueueFamilyIndices find_queue_families (VkPhysicalDevice device, VkSurfaceKHR surface);
-	internal VkPresentModeKHR choose_surface_present_mode(std::vector<VkPresentModeKHR> & availablePresentModes);
-	internal VulkanSwapchainSupportDetails query_swap_chain_support(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface);
-	internal VkSurfaceFormatKHR choose_swapchain_surface_format(std::vector<VkSurfaceFormatKHR>& availableFormats);
+	// internal VkPresentModeKHR choose_surface_present_mode(std::vector<VkPresentModeKHR> & availablePresentModes);
+	// internal VulkanSwapchainSupportDetails query_swap_chain_support(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface);
+	// internal VkSurfaceFormatKHR choose_swapchain_surface_format(std::vector<VkSurfaceFormatKHR>& availableFormats);
 
     internal inline bool32
     has_stencil_component(VkFormat format)

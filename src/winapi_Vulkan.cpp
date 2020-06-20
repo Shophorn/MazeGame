@@ -139,67 +139,6 @@ vulkan::convert_index_type(IndexType type)
 	};
 }
 
-internal VulkanSwapchainSupportDetails
-vulkan::query_swap_chain_support(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface)
-{
-	VulkanSwapchainSupportDetails result = {};
-
-	vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, surface, &result.capabilities);
-
-	u32 formatCount = 0;
-	vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surface, &formatCount, nullptr);
-	if (formatCount > 0)
-	{
-		result.formats.resize(formatCount);
-		vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surface, &formatCount, result.formats.data());
-	}
-
-	u32 presentModeCount = 0;
-	vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, surface, &presentModeCount, nullptr);
-
-	if (presentModeCount > 0)
-	{
-		result.presentModes.resize(presentModeCount);
-		vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, surface, &presentModeCount, result.presentModes.data());
-	}
-
-	return result;
-}
-
-internal VkSurfaceFormatKHR
-vulkan::choose_swapchain_surface_format(std::vector<VkSurfaceFormatKHR>& availableFormats)
-{
-	constexpr VkFormat preferredFormat = VK_FORMAT_R8G8B8A8_UNORM;
-	constexpr VkColorSpaceKHR preferredColorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
-
-	VkSurfaceFormatKHR result = availableFormats [0];
-	for (s32 i = 0; i < availableFormats.size(); ++i)
-	{
-		if (availableFormats[i].format == preferredFormat && availableFormats[i].colorSpace == preferredColorSpace)
-		{
-			result = availableFormats [i];
-		}   
-	}
-	return result;
-}
-
-internal VkPresentModeKHR
-vulkan::choose_surface_present_mode(std::vector<VkPresentModeKHR> & availablePresentModes)
-{
-	// Todo(Leo): Is it really preferred???
-	constexpr VkPresentModeKHR preferredPresentMode = VK_PRESENT_MODE_MAILBOX_KHR;
-
-	VkPresentModeKHR result = VK_PRESENT_MODE_FIFO_KHR;
-	for (s32 i = 0; i < availablePresentModes.size(); ++i)
-	{
-		if (availablePresentModes[i] == preferredPresentMode)
-		{
-			result = availablePresentModes[i];
-		}
-	}
-	return result;
-}
-
 VulkanQueueFamilyIndices
 vulkan::find_queue_families (VkPhysicalDevice device, VkSurfaceKHR surface)
 {
@@ -1070,7 +1009,7 @@ winapi_vulkan_internal_::create_vk_physical_device(VkInstance vulkanInstance, Vk
 		bool32 swapchainIsOk = false;
 		if (extensionsAreSupported)
 		{
-			VulkanSwapchainSupportDetails swapchainSupport = vulkan::query_swap_chain_support(testDevice, surface);
+			VulkanSwapchainSupportDetails swapchainSupport = fsvulkan_query_swap_chain_support(testDevice, surface);
 			swapchainIsOk = !swapchainSupport.formats.empty() && !swapchainSupport.presentModes.empty();
 		}
 

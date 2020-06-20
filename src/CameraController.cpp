@@ -138,7 +138,7 @@ struct FreeCameraController
 	f32 tiltAngle;
 };
 
-internal m44 update_free_camera(FreeCameraController & controller, game::Input const & input)
+internal m44 update_free_camera(FreeCameraController & controller, game::Input const & input, f32 elapsedTime)
 {
 	f32 lowMoveSpeed 	= 10;
 	f32 highMoveSpeed	= 100;
@@ -147,9 +147,9 @@ internal m44 update_free_camera(FreeCameraController & controller, game::Input c
 	f32 maxTilt 		= 0.4f * tau;
 
 	// Note(Leo): positive rotation is to left, which is opposite of joystick
-	controller.panAngle += -1 * input.look.x * rotateSpeed * input.elapsedTime;
+	controller.panAngle += -1 * input.look.x * rotateSpeed * elapsedTime;
 
-	controller.tiltAngle += -1 * input.look.y * rotateSpeed * input.elapsedTime;
+	controller.tiltAngle += -1 * input.look.y * rotateSpeed * elapsedTime;
 	controller.tiltAngle = math::clamp(controller.tiltAngle, -maxTilt, maxTilt);
 
 	quaternion pan 	= axis_angle_quaternion(up_v3, controller.panAngle);
@@ -165,12 +165,12 @@ internal m44 update_free_camera(FreeCameraController & controller, game::Input c
 	f32 heightValue = math::clamp(controller.position.z, minHeight, maxHeight) / maxHeight;
 	f32 moveSpeed 	= interpolate(lowMoveSpeed, highMoveSpeed, heightValue);
 
-	f32 moveStep 		= moveSpeed * input.elapsedTime;
+	f32 moveStep 		= moveSpeed * elapsedTime;
 	v3 rightMovement 	= right * input.move.x * moveStep;
 	v3 forwardMovement 	= forward * input.move.y * moveStep;
 
 	f32 zInput 		= is_pressed(input.zoomOut) - is_pressed(input.zoomIn);
-	v3 upMovement 	= up_v3 * zInput * zMoveSpeed * input.elapsedTime;
+	v3 upMovement 	= up_v3 * zInput * zMoveSpeed * elapsedTime;
 
 	quaternion tilt = axis_angle_quaternion(right, controller.tiltAngle);
 	m44 rotation 	= rotation_matrix(pan * tilt);

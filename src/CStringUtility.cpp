@@ -46,6 +46,16 @@ cstring_begins_with(char const * cstring, char const * begin)
 	return true;
 }
 
+internal s32 cstring_length(char const * cstring)
+{
+	s32 count = 0;
+	while(*cstring++)
+	{
+		count++;
+	}
+	return count;
+}
+
 template<s32 Capacity = 128>
 struct CStringBuilder
 {

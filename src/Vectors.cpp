@@ -187,6 +187,11 @@ v3 operator * (v3 vec, f32 f)
 	return vec;
 }
 
+v3 operator * (f32 f, v3 vec)
+{
+	return vec * f;
+}
+
 v3 operator *= (v3 vec, f32 f)
 {
 	vec = vec * f;

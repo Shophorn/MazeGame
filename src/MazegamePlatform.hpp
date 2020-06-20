@@ -308,6 +308,11 @@ namespace std
 
 #endif
 
+struct PlatformTime
+{
+	f32 elapsedTime;
+};
+
 using GameUpdateFunc = bool32(	game::Input*,
 								platform::Memory*,
 								game::Network*,

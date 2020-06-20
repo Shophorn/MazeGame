@@ -140,6 +140,25 @@ internal void draw_leaves(Trees & trees)
 	}
 }
 
+internal void draw_leaves(Leaves & leaves)
+{
+	s32 drawCount = math::min(leaves.count, leaves.processCount);
+
+	m44 * leafTransforms = push_memory<m44>(*global_transientMemory, drawCount, ALLOC_NO_CLEAR);
+	for (s32 i = 0; i < drawCount; ++i)
+	{
+		quaternion rotation = axis_angle_quaternion(leaves.axes[i], leaves.rotations[i]);
+		rotation 			= leaves.baseRotations[i] * rotation;
+
+		leafTransforms[i] 	= transform_matrix(	leaves.position + leaves.localPositions[i] * leaves.radius, 
+												rotation,
+												make_uniform_v3(leaves.scales[i] * leaves.leafScale));
+	}
+
+	platformApi->draw_meshes(platformGraphics, drawCount, leafTransforms, {-1}, {-1});
+}
+
+
 internal void update_leaves(Trees & trees, f32 elapsedTime)
 {
 	/// UPDATE LEAVES
@@ -176,6 +195,24 @@ internal void update_leaves(Trees & trees, f32 elapsedTime)
 			{
 				leaves.directions[leafIndex] = -1;
 			}
+		}
+	}
+}
+
+internal void update_leaves(Leaves & leaves, f32 elapsedTime)
+{
+	for (s32 leafIndex = 0; leafIndex < leaves.processCount; ++leafIndex)
+	{
+		leaves.rotations[leafIndex] += leaves.directions[leafIndex] * elapsedTime;
+		constexpr f32 rotationRange = 0.5;
+		// Todo(Leo): make pingpong like functionality and remove direction from Leaves
+		if(leaves.rotations[leafIndex] < -rotationRange)
+		{
+			leaves.directions[leafIndex] = 1;
+		}
+		else if (leaves.rotations[leafIndex] > rotationRange)
+		{
+			leaves.directions[leafIndex] = -1;
 		}
 	}
 }

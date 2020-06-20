@@ -46,6 +46,11 @@ s32 floor_to_s32(f32 f)
     return (s32)floorf(f);
 }
 
+f32 ln(f32 exponent)
+{
+    return std::log(exponent);
+}
+
 f32 log_10(f32 exponent)
 {
     return std::log10(exponent);
@@ -210,8 +215,10 @@ Sign(S value)
     return 0;
 }
 
-internal inline constexpr f32 pi = 3.141592653589793f;
-internal inline constexpr f32 tau = 2 * pi;
+internal constexpr f32 pi = 3.141592653589793f;
+internal constexpr f32 tau = 2 * pi;
+
+internal constexpr f32 π = pi;
 
 constexpr inline f32 to_degrees(f32 radians)
 {

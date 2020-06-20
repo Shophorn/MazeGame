@@ -152,7 +152,7 @@ internal void gui_render_text (char const * text, v2 position, v4 color)
 	s32 charactersPerDirection 	= 10;
 	f32 characterUvSize 		= 1.0f / charactersPerDirection;
 
-	ScreenRect rects [256];
+	ScreenRect rects [512];
 	s32 rectIndex = 0;
 
 	while(*text != 0)

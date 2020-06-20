@@ -27,9 +27,216 @@ enum CarryMode : s32
 	CARRY_SEED,
 };
 
-// ---------------------------------------------------------------------------------------
-// ---------------------------------------------------------------------------------------
-// ---------------------------------------------------------------------------------------
+struct TimedModule
+{
+	char 	letter;
+	float 	age;
+	float 	parameter;
+};
+
+
+struct Module
+{
+	int 	letter;
+	float 	argument;
+};
+
+
+struct LSystem1
+{
+	Module axiom [1] = {{'A', 0.0625f}};
+
+	void generate(Module predecessor, int & wordLength, Module * word)
+	{
+		float angle = pi / 8;
+		float scale = 0.0625f;
+
+		switch(predecessor.letter)
+		{
+			case 'A':
+			{
+				Module production [] = 
+				{
+					{'['},
+						{'&', angle},
+						{'F', scale},
+						{'L'},
+						{'A'},
+					{']'},
+					{'<', 5 * angle},
+					{'['},
+						{'&', angle},
+						{'F', scale},
+						{'L'},
+						{'A'},
+					{']'},
+					{'<', 7 * angle},
+					{'['},
+						{'&', angle},
+						{'F', scale},
+						{'L'},
+						{'A'},
+					{']'},
+				};
+				copy_memory(word + wordLength, production, sizeof(production));
+				wordLength += array_count(production);
+			} break;
+		
+			case 'F':
+			{
+				Module production [] = 
+				{
+					{'S'},
+					{'<', 5 * angle},
+					{'F', scale},
+				};
+				copy_memory(word + wordLength, production, sizeof(production));
+				wordLength += array_count(production);
+			} break;
+
+			case 'S':
+			{
+				Module production [] =
+				{
+					{'F', scale},
+					{'L'},
+				};
+				copy_memory(word + wordLength, production, sizeof(production));
+				wordLength += array_count(production);
+			} break;
+
+			case 'L':
+			{
+				Module production [] =
+				{
+					{'['},
+						{'^', 2 * angle},
+						{'f', scale},
+					{']'},
+				};
+				copy_memory(word + wordLength, production, sizeof(production));
+				wordLength += array_count(production);
+			} break;
+
+			default:
+				word[wordLength] = predecessor;
+				wordLength += 1;
+				break;
+		}
+	}
+};
+
+struct LSystem2
+{
+	static constexpr float r1 = 0.9f;
+	static constexpr float r2 = 0.6f;
+	static constexpr float a0 = π / 4;
+	static constexpr float a2 = π / 4;
+	static constexpr float d = to_radians(137.5);
+	static constexpr float wr = 0.707;
+
+	Module axiom [1] = {{'A', 1.0f}};
+
+	void generate(Module predecessor, int & wordLength, Module * word)
+	{
+		float length = predecessor.argument;
+
+		switch(predecessor.letter)
+		{
+			case 'A':
+			{
+				Module production [] =
+				{
+					{'F', length},
+					{'['},
+						{'&', a0},
+						{'B', length * r2},
+					{']'},
+					{'<', d},
+					{'A', length * r1}
+				};
+				copy_memory(word + wordLength, production, sizeof(production));
+				wordLength += array_count(production);
+			} break;
+		
+			case 'B':
+			{
+				Module production [] =
+				{
+					{'F', length},
+					{'['},
+						{'+', -a2},
+						{'$'},
+						{'C', length * r2},
+					{']'},
+					{'C', length * r1},
+				};
+
+
+				copy_memory(word + wordLength, production, sizeof(production));
+				wordLength += array_count(production);
+			} break;
+
+			case 'C':
+			{
+				Module production [] =
+				{
+					{'F', length},
+					{'['},
+						{'+', a2},
+						{'$'},
+						{'B', length * r2},
+					{']'},
+					{'B', length * r1}
+				};
+				copy_memory(word + wordLength, production, sizeof(production));
+				wordLength += array_count(production);
+			} break;
+
+			default:
+				word[wordLength] = predecessor;
+				wordLength += 1;
+				break;
+		}
+	}
+};
+
+template<typename T>
+struct Stack
+{
+	s32 capacity;
+	s32 count;
+	T * memory;
+
+	void push(T const & value)
+	{
+		Assert(count < capacity);
+
+		memory[count] = value;
+		count += 1;
+	}
+
+	void pop()
+	{
+		Assert(count > 0);
+
+		count -= 1;
+	}
+
+	T & top()
+	{
+		Assert(count > 0);
+
+		return memory[count - 1];
+	}
+};
+
+template<typename T>
+internal Stack<T>allocate_stack(MemoryArena & arena, s32 capacity)
+{
+	Stack<T> stack = { capacity, 0, push_memory<T>(arena, capacity, ALLOC_NO_CLEAR)};
+	return stack;
+}
 
 struct Scene3d
 {
@@ -149,16 +356,54 @@ struct Scene3d
 	// Todo(Leo): this is kinda too hacky
 	constexpr static s32 	timeScaleCount = 3;
 	s32 					timeScaleIndex;
+
+
+	s32 generations 		= 0;
+	s32 previousGenerations = -1;
+
+	s32 lSystemLinePointsCount;
+	v3 * lSystemLinePoints;
+
+	int lSystemWordCapacity;
+	int lSystemWordCount;
+	TimedModule * lSystemWordA;
+	TimedModule * lSystemWordB;
+
+	int timedLSystemLinePointsCount;
+	v3 * timedLSystemLinePoints;
+
+	Leaves lSystemLeaves;
+	float lSystemTime;
 };
 
 internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 {
 	Scene3d * scene = reinterpret_cast<Scene3d*>(scenePtr);
 	
-	
-	f32 const timeScales [scene->timeScaleCount] { 1.0f, 0.1f, 0.5f }; 
-	input->elapsedTime *= timeScales[scene->timeScaleIndex];
+	if (scene->menuView == Scene3d::MENU_OFF)
+	{
+		if (is_clicked(input->up))
+		{
+			scene->generations = math::min(10, scene->generations + 1);
+		}
 
+		if (is_clicked(input->down))
+		{
+			scene->generations = math::max(0, scene->generations - 1);
+		}
+
+	}
+
+	/// ****************************************************************************
+
+	/// TIME
+
+
+	f32 const timeScales [scene->timeScaleCount] { 1.0f, 0.1f, 0.5f }; 
+	f32 scaledTime = input->elapsedTime * timeScales[scene->timeScaleIndex];
+	f32 unscaledTime = input->elapsedTime;
+
+	/// ****************************************************************************
 
 	gui_start(scene->gui, input);
 
@@ -199,7 +444,7 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 	else
 	{
 		scene->characterInputs[scene->playerInputState.inputArrayIndex] = {};
-		m44 cameraMatrix = update_free_camera(scene->freeCamera, *input);
+		m44 cameraMatrix = update_free_camera(scene->freeCamera, *input, unscaledTime);
 
 		scene->worldCamera.position = scene->freeCamera.position;
 		scene->worldCamera.direction = scene->freeCamera.direction;
@@ -306,11 +551,6 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 					{
 						s32 treeIndex = add_new_tree(scene->treesOnGround, scene->seedTransforms[seedIndex].position);
 
-						// s32 leavesIndex 					= scene->leavesCount;
-						// scene->leaves[leavesIndex] 			= make_leaves(persistentMemory);
-						// scene->treesOnGround.leavesIndices[treeIndex] = leavesIndex;
-						// scene->leavesCount 					+= 1;
-
 						scene->currentSeedCount -= 1;
 						scene->seedTransforms[seedIndex] = scene->seedTransforms[scene->currentSeedCount];
 
@@ -329,12 +569,6 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 					if (distanceToPotWithSeed < 0.5f)
 					{
 						s32 newTreeInPotIndex = add_new_tree(scene->treesInPot, scene->potTransforms[potIndex].position);
-
-						// s32 leavesIndex 							= scene->leavesCount;
-						// scene->leaves[leavesIndex] 					= make_leaves(persistentMemory);
-						// scene->treesInPot.leavesIndices[newTreeInPotIndex] 		= leavesIndex;
-						// scene->leavesCount 							+= 1;
-
 
 						/* Note(Leo): this seems to work, we can rely on it for a while, until we make proper hashmaps.
 						It works because there is equal number of pots with trees and trees in pots, naturally, and they
@@ -481,12 +715,12 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 
 	for (auto & randomWalker : scene->randomWalkers)
 	{
-		update_random_walker_input(randomWalker, scene->characterInputs, input->elapsedTime);
+		update_random_walker_input(randomWalker, scene->characterInputs, scaledTime);
 	}
 
 	for (auto & follower : scene->followers)
 	{
-		update_follower_input(follower, scene->characterInputs, input->elapsedTime);
+		update_follower_input(follower, scene->characterInputs, scaledTime);
 	}
 	
 	for (int i = 0; i < 1; ++i)
@@ -495,7 +729,7 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 		update_character_motor(	scene->characterMotors[i],
 								scene->characterInputs[i],
 								scene->collisionSystem,
-								input->elapsedTime,
+								scaledTime,
 								i == scene->playerInputState.inputArrayIndex ? DEBUG_PLAYER : DEBUG_NPC);
 	}
 
@@ -503,7 +737,7 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 	for (s32 i = 0; i < 1; ++i)
 	// for (s32 i = 0; i < scene->skeletonAnimators.count; ++i)
 	{
-		update_skeleton_animator(scene->skeletonAnimators[i], input->elapsedTime);
+		update_skeleton_animator(scene->skeletonAnimators[i], scaledTime);
 	}
 
 	// Rebellious(Leo): stop using systems, and instead just do the stuff you need to >:)
@@ -540,8 +774,8 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 			}
 		};
 
-		grow_trees(scene->treesInPot, 1, input->elapsedTime);
-		grow_trees(scene->treesOnGround, highest_f32, input->elapsedTime);
+		grow_trees(scene->treesInPot, 1, scaledTime);
+		grow_trees(scene->treesOnGround, highest_f32, scaledTime);
 
 		draw_trees(scene->treesInPot);
 		draw_trees(scene->treesOnGround);
@@ -654,14 +888,403 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 								renderer.castShadows, boneTransformMatrices, array_count(boneTransformMatrices));
 	}
 
-	/// DRAW TEST LEAVES
 	// Todo(Leo): leaves are drawn last, so we can bind their shadow pipeline once, and not rebind the normal shadow thing. Fix this unconvenience!
 	{
-		update_leaves(scene->treesInPot, input->elapsedTime);
-		update_leaves(scene->treesOnGround, input->elapsedTime);
+		update_leaves(scene->treesInPot, scaledTime);
+		update_leaves(scene->treesOnGround, scaledTime);
 
 		draw_leaves(scene->treesInPot);
 		draw_leaves(scene->treesOnGround);
+	}
+
+	/// L-System trees
+	if (scene->generations != scene->previousGenerations)
+	{
+		scene->previousGenerations = scene->generations;
+
+
+		// Module axiom = {'A', 1};
+
+		f32 angle 		= pi / 8; 
+		s32 generations = scene->generations;
+		// f32 scale 		= 0.0625;
+		f32 scale 		= 1;
+
+		logDebug(0) << "Generate lsystem, generations: " << generations;
+
+		// --------------------------------------------------------------------------
+
+		s32 bufferCapacity = 10'000'000;
+		Module * wordA = push_memory<Module>(*global_transientMemory, bufferCapacity, ALLOC_NO_CLEAR);
+		Module * wordB = push_memory<Module>(*global_transientMemory, bufferCapacity, ALLOC_NO_CLEAR);
+
+		// LSystem2 system = {};
+		LSystem1 system = {};
+
+		s32 countA = 1;
+		// wordA[0] = axiom;
+		memcpy(wordA, system.axiom, array_count(system.axiom) * sizeof(Module));
+
+		s32 countB = 0;
+
+
+
+		while(generations--)
+		{
+			for (s32 i = 0; i < countA; ++i)
+			{
+				system.generate(wordA[i], countB, wordB);				
+			}
+
+			swap(wordA, wordB);
+			countA = countB;
+			countB = 0; 
+		}
+
+		/// -----------------------------------------------------------------------------
+
+		Module * word = wordA;
+		s32 wordLength 	= countA;
+
+		v3 position = {0, 15, 0};
+		position.z = get_terrain_height(&scene->collisionSystem, position.xy);
+
+		v3 forward = {0, 0, 1};
+
+		struct State
+		{
+			v3 position;
+			v3 forward;
+			v3 right;
+			v3 up;
+		};
+
+		Stack<State> states = allocate_stack<State>(*global_transientMemory, 10000);
+
+		v3 * linePoints = scene->lSystemLinePoints;
+		s32 & pointCount = scene->lSystemLinePointsCount;
+		pointCount = 0;
+
+		states.push({position, {0,0,1}, {1,0,0}, {0,1,0}});
+
+		for (s32 i = 0; i < wordLength; ++i)
+		{
+			switch(word[i].letter)
+			{	
+				case 'F':
+				// Note(Leo): small f usually means move but no draw
+				case 'f':
+				{
+					linePoints[pointCount++]	= states.top().position;
+					states.top().position 		+= states.top().forward * word[i].argument;
+					linePoints[pointCount++]	= states.top().position;
+				} break;
+
+				case '+':
+				{
+					quaternion rotation 	= axis_angle_quaternion(states.top().up, word[i].argument);
+					states.top().forward 	= rotate_v3(rotation, states.top().forward);
+					states.top().right 		= rotate_v3(rotation, states.top().right);
+				} break;
+
+				case '-':
+				{
+					quaternion rotation 	= axis_angle_quaternion(states.top().up, -word[i].argument);
+					states.top().forward 	= rotate_v3(rotation, states.top().forward);
+					states.top().right 		= rotate_v3(rotation, states.top().right);
+				} break;
+
+				case '^':
+				{
+					quaternion rotation 	= axis_angle_quaternion(states.top().right, -word[i].argument);
+					states.top().forward 	= rotate_v3(rotation, states.top().forward);
+					states.top().up 		= rotate_v3(rotation, states.top().up);
+				} break;
+
+				case '&':
+				{
+					quaternion rotation 	= axis_angle_quaternion(states.top().right, word[i].argument);
+					states.top().forward 	= rotate_v3(rotation, states.top().forward);
+					states.top().up 		= rotate_v3(rotation, states.top().up);
+				} break;
+
+				case '<':
+				{
+					quaternion rotation 	= axis_angle_quaternion(states.top().forward, -word[i].argument);
+					states.top().right 		= rotate_v3(rotation, states.top().right);
+					states.top().up 		= rotate_v3(rotation, states.top().up);
+				} break;
+
+				case '>':
+				{
+					quaternion rotation 	= axis_angle_quaternion(states.top().forward, word[i].argument);
+					states.top().right 		= rotate_v3(rotation, states.top().right);
+					states.top().up 		= rotate_v3(rotation, states.top().up);
+				} break;
+
+				case '[':
+					states.push(states.top());
+					break;
+
+				case ']':
+					states.pop();
+					break;
+
+			}
+		}
+
+		// Note(Leo): We won't pop the original state.
+		Assert(states.count == 1 && "All pushes has not been popped");
+	}
+
+	if (scene->lSystemLinePointsCount > 0)
+		debug_draw_lines(scene->lSystemLinePointsCount, scene->lSystemLinePoints, color_dark_green, DEBUG_ALWAYS);
+
+
+	// Timed l-system
+	scene->lSystemTime += scaledTime;
+
+	if (scene->lSystemTime > 0.1f)
+	{
+		float timePassed = scene->lSystemTime;
+
+		scene->lSystemTime = 0;
+
+		TimedModule * aWord = scene->lSystemWordA;
+		TimedModule * bWord = scene->lSystemWordB;
+
+		int aWordLength = scene->lSystemWordCount;
+		int bWordLength = 0;
+
+		if (aWordLength == 0)
+		{
+			TimedModule axiom 	= {'X', 0, 1};
+			aWord[0] 			= axiom;
+			aWordLength 		= 1;
+
+		}
+		scene->lSystemLeaves.processCount = 0;
+
+		float growSpeed = 0.5f;
+		constexpr float terminalAge = 2.0f;
+
+		for (int i = 0; i < aWordLength; ++i)
+		{
+			aWord[i].age += timePassed * growSpeed;
+			
+			switch(aWord[i].letter)
+			{
+				case 'X':
+				{
+					if (aWord[i].age > terminalAge)
+					{
+						TimedModule production [] =
+						{
+							{'F', terminalAge, aWord[i].parameter},
+							{'<', 0, 5 * π/7},
+							{'['},
+								{'&', 0, π/10},
+								{'X', 0, 1},
+							{']'},
+							{'<', 0, 6 * π/7},
+							{'['},
+								{'&', 0, π/10},
+								{'X', 0, 1},
+							{']'},
+							{'<', 0, 4 * π/7},
+							{'['},
+								{'&', 0, π/10},
+								{'X', 0, 0.8f},
+							{']'},
+						};
+
+						Assert(bWordLength + array_count(production) <= scene->lSystemWordCapacity && "LSystem out of memory");
+
+						copy_memory(bWord + bWordLength, production, sizeof(production));
+						bWordLength += array_count(production);
+					}
+					else
+					{
+						TimedModule production [] =
+						{
+							aWord[i],
+							{'L'},
+						};
+
+						Assert(bWordLength + array_count(production) <= scene->lSystemWordCapacity && "LSystem out of memory");
+						
+						copy_memory(bWord + bWordLength, production, sizeof(production));
+						bWordLength += array_count(production);
+					}
+				} break;
+
+				case 'L':
+					break;
+
+				default:
+					Assert(bWordLength + 1 <= scene->lSystemWordCapacity && "LSystem out of memory");
+					bWord[bWordLength++] = aWord[i];
+			}
+		}
+
+		swap(scene->lSystemWordA, scene->lSystemWordB);
+		scene->lSystemWordCount = bWordLength;
+
+		struct TurtleState
+		{
+			v3 position;
+			quaternion orientation;
+		};
+
+		int stateIndex = 0;
+		TurtleState states[1000] = {};
+
+		states[0].position = {0,20, 0};
+		states[0].position.z = get_terrain_height(&scene->collisionSystem, states[0].position.xy);
+
+
+		states[0].orientation = axis_angle_quaternion(right_v3, π/2);
+
+		scene->lSystemLeaves.position = {0,0,0};
+		scene->lSystemLeaves.processCount = 0;
+		scene->lSystemLeaves.radius = 1;
+		scene->lSystemLeaves.leafScale = 1;
+
+
+		int wordCount 		= scene->lSystemWordCount;
+		TimedModule * word 	= scene->lSystemWordA;
+
+		int & linePointsCount = scene->timedLSystemLinePointsCount;
+		linePointsCount = 0;
+		v3 * linePoints 	= scene->timedLSystemLinePoints;
+
+		constexpr float length = 0.2f;
+
+		for (int i = 0; i < wordCount; ++i)
+		{
+			TurtleState & state = states[stateIndex];
+
+			switch(word[i].letter)
+			{
+				case 'F':
+				{
+					v3 forward 						= rotate_v3(state.orientation, forward_v3);
+					linePoints[linePointsCount++] 	= states[stateIndex].position;
+					states[stateIndex].position 	+= forward * ln(word[i].parameter * (word[i].age / terminalAge) * length + 1);
+					linePoints[linePointsCount++] 	= states[stateIndex].position;
+
+				} break;
+
+				case 'X':
+				{
+					v3 forward 						= rotate_v3(state.orientation, forward_v3);
+					linePoints[linePointsCount++] 	= states[stateIndex].position;
+					states[stateIndex].position 	+= forward * ln(word[i].parameter * (word[i].age / terminalAge) * length + 1);
+					linePoints[linePointsCount++] 	= states[stateIndex].position;
+				} break;
+
+				case 'L':
+				{
+					if (scene->lSystemLeaves.processCount >= scene->lSystemLeaves.count)
+						break;
+
+					// push state
+					// tilt down
+					// move up
+					// tilt more down
+					// place leaf
+					// pop state
+					// roll
+					// repeat
+
+
+					{
+						quaternion rotation = state.orientation; 
+						rotation = rotation * axis_angle_quaternion(rotate_v3(rotation,right_v3), π / 3);
+						v3 position = state.position + rotate_v3(rotation, forward_v3) * 0.05f;
+						rotation = rotation * axis_angle_quaternion(rotate_v3(rotation,right_v3), π / 3);
+						rotation = rotation * axis_angle_quaternion(rotate_v3(rotation, forward_v3), π);
+
+						int leafIndex = scene->lSystemLeaves.processCount;
+						scene->lSystemLeaves.processCount += 1;
+
+						scene->lSystemLeaves.localPositions[leafIndex]	= position;
+						scene->lSystemLeaves.baseRotations[leafIndex] 	= rotation;
+						scene->lSystemLeaves.scales[leafIndex] 			= 0.2f;
+						scene->lSystemLeaves.axes[leafIndex]			= rotate_v3(rotation, forward_v3);
+					}
+
+					{
+						quaternion rotation = state.orientation;
+						rotation = rotation * axis_angle_quaternion(rotate_v3(rotation, forward_v3), π); 
+						rotation = rotation * axis_angle_quaternion(rotate_v3(rotation,right_v3), π / 3);
+						v3 position = state.position + rotate_v3(rotation, forward_v3) * 0.05f;
+						rotation = rotation * axis_angle_quaternion(rotate_v3(rotation,right_v3), π / 3);
+						rotation = rotation * axis_angle_quaternion(rotate_v3(rotation, forward_v3), π);
+
+
+						int leafIndex = scene->lSystemLeaves.processCount;
+						scene->lSystemLeaves.processCount += 1;
+
+						scene->lSystemLeaves.localPositions[leafIndex]	= position;
+						scene->lSystemLeaves.baseRotations[leafIndex] 	= rotation;
+						scene->lSystemLeaves.scales[leafIndex] 			= 0.2f;
+						scene->lSystemLeaves.axes[leafIndex]			= rotate_v3(rotation, forward_v3);
+					}
+
+				} break;
+
+				case '+':
+				{
+					v3 up = rotate_v3(state.orientation, up_v3);
+					state.orientation = state.orientation * axis_angle_quaternion(up, word[i].parameter);
+				} break;
+
+				case '<':
+				{
+					v3 forward 			= rotate_v3(state.orientation, forward_v3);
+					state.orientation 	= state.orientation * axis_angle_quaternion(forward, word[i].parameter);
+				} break;
+
+				case '&':
+				{	
+					v3 right 			= rotate_v3(state.orientation, right_v3);
+					state.orientation 	= state.orientation * axis_angle_quaternion(right, word[i].parameter);
+				} break;
+
+				case '[':
+				{
+					states[stateIndex + 1] = states[stateIndex];
+					stateIndex += 1;
+				} break;
+
+				case ']':
+				{
+					stateIndex -= 1;
+				} break;
+
+			}
+		}
+
+		Assert(stateIndex == 0 && "All states have not been popped");
+
+	}
+
+	// Draw every frame anyway
+	{
+		int linePointsCount = scene->timedLSystemLinePointsCount;
+		v3 * linePoints = scene->timedLSystemLinePoints;
+
+		if (linePointsCount > 0)
+		{
+			debug_draw_lines(linePointsCount, linePoints, colour_raw_umber, DEBUG_ALWAYS);
+		}
+
+		if (scene->lSystemLeaves.processCount > 0)
+		{
+			update_leaves(scene->lSystemLeaves, scaledTime);
+			draw_leaves(scene->lSystemLeaves);
+		}
 	}
 
 
@@ -817,7 +1440,7 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 	gui_position({0, 0});
 
 	{
-		s32 elapsedMilliseconds 	= input->elapsedTime * 1000;
+		s32 elapsedMilliseconds 	= scaledTime * 1000;
 		char elapsedTimeCString [] 	= "XXX";
 		elapsedTimeCString[0]		= '0' + elapsedMilliseconds / 100;
 		elapsedTimeCString[1] 		= '0' + ((elapsedMilliseconds / 10) % 10);
@@ -837,6 +1460,8 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 	Scene3d * scene = reinterpret_cast<Scene3d*>(scenePtr);
 	*scene = {};
 
+	scene->generations = 4;
+
 	// ----------------------------------------------------------------------------------
 
 	scene->gui 						= {};
@@ -847,6 +1472,20 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 	scene->gui.font 				= load_font("c:/windows/fonts/arial.ttf");
 	gui_generate_font_material(scene->gui);
 	
+	// ----------------------------------------------------------------------------------
+	
+	s32 bufferCapacity 			= 10'000'000;
+	scene->lSystemLinePoints 	= push_memory<v3>(persistentMemory, bufferCapacity, ALLOC_NO_CLEAR);
+
+	scene->lSystemWordCapacity 	= 1'000'000;
+	scene->lSystemWordCount 	= 0;
+	scene->lSystemWordA 		= push_memory<TimedModule>(persistentMemory, scene->lSystemWordCapacity, ALLOC_NO_CLEAR);
+	scene->lSystemWordB 		= push_memory<TimedModule>(persistentMemory, scene->lSystemWordCapacity, ALLOC_NO_CLEAR);
+
+	scene->lSystemLeaves = make_leaves(persistentMemory, 10000);
+
+	scene->timedLSystemLinePoints = push_memory<v3>(persistentMemory, bufferCapacity, ALLOC_NO_CLEAR);
+
 	// ----------------------------------------------------------------------------------
 
 	// Note(Leo): amounts are SWAG, rethink.
