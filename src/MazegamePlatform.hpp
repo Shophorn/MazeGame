@@ -117,7 +117,7 @@ struct PlatformStereoSoundSample
 };
 
 // Todo(Leo): These buttonstate things are implementation details and may even vary per platform,
-// so consider moving them elsewhere. Maybe only expose is_clicked etc. as variables
+// so consider moving them elsewhere. Maybe only expose is_clicked etc. as
 enum struct ButtonState : s8
 {
 	IsUp,

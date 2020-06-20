@@ -375,7 +375,7 @@ void FSVULKAN_DRAW_LEAVES(VulkanContext * context, s32 count, m44 const * transf
 	Assert(count > 0 && "Vulkan cannot map memory of size 0, and this function should no be called for 0 meshes");
 	Assert(context->canDraw);
 	// Note(Leo): lets keep this sensible
-	Assert(count <= 10000);
+	Assert(count <= 20000);
 
 	VulkanVirtualFrame * frame = vulkan::get_current_virtual_frame(context);
 

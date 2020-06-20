@@ -56,6 +56,16 @@ f32 log_10(f32 exponent)
     return std::log10(exponent);
 }
 
+f32 pow_n(f32 base, f32 power)
+{
+    return std::pow(base, power);
+}
+
+f32 root_n(f32 base, f32 root)
+{
+    return std::pow(base, 1.0f / root);
+}
+
 #include<limits>
 namespace math
 {   
