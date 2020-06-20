@@ -14,7 +14,7 @@ struct PlayerInputState
 void update_player_input(	PlayerInputState & 			playerState,
 							Array<CharacterInput> & 	inputs,
 							Camera & 					playerCamera,
-							game::Input & 				platformInput)
+							PlatformInput const & 		platformInput)
 {
 	v3 viewForward 		= get_forward(&playerCamera);
 	viewForward.z 		= 0;

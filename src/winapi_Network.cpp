@@ -35,10 +35,10 @@ namespace winapi
 	CreateNetwork();
 
 	internal void 
-	NetworkReceive(WinApiNetwork * network, game::NetworkPackage * resultAddress);
+	NetworkReceive(WinApiNetwork * network, PlatformNetworkPackage * resultAddress);
 
 	internal void
-	NetworkSend(WinApiNetwork * network, game::NetworkPackage * packageToSend);
+	NetworkSend(WinApiNetwork * network, PlatformNetworkPackage * packageToSend);
 
 	internal void
 	NetworkListen(WinApiNetwork * network);
@@ -136,7 +136,7 @@ winapi::CreateNetwork()
 }
 
 internal void
-winapi::NetworkSend(WinApiNetwork * network, game::NetworkPackage * packageToSend)
+winapi::NetworkSend(WinApiNetwork * network, PlatformNetworkPackage * packageToSend)
 {
 	if (network->isConnected == false)
 	{
@@ -148,11 +148,11 @@ winapi::NetworkSend(WinApiNetwork * network, game::NetworkPackage * packageToSen
     int RESULT;
 
     char * outData = reinterpret_cast<char *>(packageToSend);
-    RESULT = send(network->connectedSocket, outData, game::NETWORK_PACKAGE_SIZE, 0);
+    RESULT = send(network->connectedSocket, outData, NETWORK_PACKAGE_SIZE, 0);
 }
 
 internal void
-winapi::NetworkReceive(WinApiNetwork * network, game::NetworkPackage * resultAddress)
+winapi::NetworkReceive(WinApiNetwork * network, PlatformNetworkPackage * resultAddress)
 {
 	if (network->isConnected == false)
 	{
@@ -160,10 +160,10 @@ winapi::NetworkReceive(WinApiNetwork * network, game::NetworkPackage * resultAdd
 		return;
 	}
 
-	game::NetworkPackage package;
+	PlatformNetworkPackage package;
    	char * inData = reinterpret_cast<char *>(resultAddress);
-    int RESULT = recv(network->connectedSocket, inData, game::NETWORK_PACKAGE_SIZE, 0);
-    if (RESULT == game::NETWORK_PACKAGE_SIZE)
+    int RESULT = recv(network->connectedSocket, inData, NETWORK_PACKAGE_SIZE, 0);
+    if (RESULT == NETWORK_PACKAGE_SIZE)
     {
         // Note(Leo): this means success
     }

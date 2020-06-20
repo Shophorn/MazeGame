@@ -376,18 +376,18 @@ struct Scene3d
 	float lSystemTime;
 };
 
-internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
+internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, PlatformTime const & time)
 {
 	Scene3d * scene = reinterpret_cast<Scene3d*>(scenePtr);
 	
 	if (scene->menuView == Scene3d::MENU_OFF)
 	{
-		if (is_clicked(input->up))
+		if (is_clicked(input.up))
 		{
 			scene->generations = math::min(10, scene->generations + 1);
 		}
 
-		if (is_clicked(input->down))
+		if (is_clicked(input.down))
 		{
 			scene->generations = math::max(0, scene->generations - 1);
 		}
@@ -400,8 +400,8 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 
 
 	f32 const timeScales [scene->timeScaleCount] { 1.0f, 0.1f, 0.5f }; 
-	f32 scaledTime = input->elapsedTime * timeScales[scene->timeScaleIndex];
-	f32 unscaledTime = input->elapsedTime;
+	f32 scaledTime = time.elapsedTime * timeScales[scene->timeScaleIndex];
+	f32 unscaledTime = time.elapsedTime;
 
 	/// ****************************************************************************
 
@@ -427,14 +427,14 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 		if (scene->menuView == Scene3d::MENU_OFF)
 		{
 			// Todo(Leo): Maybe do submit motor thing, so we can also disable falling etc here
-			update_player_input(scene->playerInputState, scene->characterInputs, scene->worldCamera, *input);
+			update_player_input(scene->playerInputState, scene->characterInputs, scene->worldCamera, input);
 		}
 		else
 		{
 			scene->characterInputs[scene->playerInputState.inputArrayIndex] = {};
 		}
 
-		update_camera_controller(&scene->playerCamera, scene->playerCharacterTransform->position, input);
+		update_camera_controller(&scene->playerCamera, scene->playerCharacterTransform->position, input, scaledTime);
 
 		scene->worldCamera.position = scene->playerCamera.position;
 		scene->worldCamera.direction = scene->playerCamera.direction;
@@ -444,13 +444,13 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 	else
 	{
 		scene->characterInputs[scene->playerInputState.inputArrayIndex] = {};
-		m44 cameraMatrix = update_free_camera(scene->freeCamera, *input, unscaledTime);
+		m44 cameraMatrix = update_free_camera(scene->freeCamera, input, unscaledTime);
 
 		scene->worldCamera.position = scene->freeCamera.position;
 		scene->worldCamera.direction = scene->freeCamera.direction;
 
 		/// Document(Leo): Teleport player
-		if (scene->menuView == Scene3d::MENU_OFF && is_clicked(input->A))
+		if (scene->menuView == Scene3d::MENU_OFF && is_clicked(input.A))
 		{
 			scene->menuView = Scene3d::MENU_CONFIRM_TELEPORT;
 			gui_ignore_input();
@@ -461,7 +461,7 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 	}	
 
 	
-	if ((scene->cameraMode == CAMERA_MODE_PLAYER) && is_clicked(input->Y))
+	if ((scene->cameraMode == CAMERA_MODE_PLAYER) && is_clicked(input.Y))
 	{
 		v2 center = scene->playerCharacterTransform->position.xy;
 
@@ -484,7 +484,7 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 		}
 	}
 
-	if ((scene->cameraMode == CAMERA_MODE_PLAYER) && is_clicked(input->A))
+	if ((scene->cameraMode == CAMERA_MODE_PLAYER) && is_clicked(input.A))
 	{
 		v3 playerPosition = scene->playerCharacterTransform->position;
 		f32 grabDistance = 1.0f;
@@ -860,7 +860,7 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 	*/
 
 
-	update_camera_system(&scene->worldCamera, input, platformGraphics, platformWindow);
+	update_camera_system(&scene->worldCamera, platformGraphics, platformWindow);
 
 	Light light = { .direction 	= normalize_v3({-1, 1.2, -8}), 
 					.color 		= v3{0.95, 0.95, 0.9}};
@@ -1290,7 +1290,7 @@ internal bool32 update_scene_3d(void * scenePtr, game::Input * input)
 
 	// ------------------------------------------------------------------------
 
-	if (is_clicked(input->start))
+	if (is_clicked(input.start))
 	{
 		if (scene->menuView == Scene3d::MENU_OFF)
 		{

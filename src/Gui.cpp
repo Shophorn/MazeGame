@@ -32,7 +32,7 @@ struct Gui
 	f32 padding;
 
 	// Per frame state
-	game::Input 	input;
+	PlatformInput 	input;
 	v2 				currentPosition;
 	s32 			currentSelectableIndex;
 	v2 				screenSize;
@@ -46,7 +46,7 @@ struct Gui
 Gui * global_currentGui = nullptr;
 
 // Maintenance
-internal void gui_start(Gui & gui, game::Input * input);
+internal void gui_start(Gui & gui, PlatformInput const & input);
 internal void gui_end();
 internal void gui_generate_font_material(Gui & gui);
 
@@ -68,23 +68,24 @@ internal void gui_render_text(char const * text, v2 position, v4 color);
   //////////////////////////////////
  ///  GUI IMPLEMENTATION 		///
 //////////////////////////////////
-internal void gui_start(Gui & gui, game::Input * input)
+internal void gui_start(Gui & gui, PlatformInput const & input)
 {
 	Assert(global_currentGui == nullptr);
 
 	global_currentGui 			= &gui;
-	gui.input 					= *input;
+	// Todo(Leo): we currently copy this here, think throgh if it is really necessary
+	gui.input 					= input;
 	gui.currentPosition 		= {0,0};
 	gui.currentSelectableIndex 	= 0;
 
 	if (gui.selectableCountLastFrame > 0)
 	{
-		if (is_clicked(input->down))
+		if (is_clicked(input.down))
 		{
 			gui.selectedIndex += 1;
 			gui.selectedIndex %= gui.selectableCountLastFrame;
 		}
-		if(is_clicked(input->up))
+		if(is_clicked(input.up))
 		{
 			gui.selectedIndex -= 1;
 			if (gui.selectedIndex < 0)
@@ -118,9 +119,7 @@ internal void gui_reset_selection()
 
 internal void gui_ignore_input()
 {
-	f32 elapsedTime 						= global_currentGui->input.elapsedTime;
-	global_currentGui->input 				= {};
-	global_currentGui->input.elapsedTime 	= elapsedTime;
+	global_currentGui->input = {};
 }
 
 internal v2 gui_transform_screen_point (v2 point)

@@ -14,16 +14,16 @@ struct CameraControllerSideScroller
 	f32 relativeZoomSpeed 	= 1.0f;
 
 	void
-	update(game::Input * input)
+	update(PlatformInput const & input, f32 elapsedTime)
 	{
-		if (is_pressed(input->zoomIn))
+		if (is_pressed(input.zoomIn))
 		{
-			distance -= distance * relativeZoomSpeed * input->elapsedTime;
+			distance -= distance * relativeZoomSpeed * elapsedTime;
 			distance = math::max(distance, minDistance);
 		}
-		else if(is_pressed(input->zoomOut))
+		else if(is_pressed(input.zoomOut))
 		{
-			distance += distance * relativeZoomSpeed * input->elapsedTime;
+			distance += distance * relativeZoomSpeed * elapsedTime;
 			distance = math::min(distance, maxDistance);
 		}
 
@@ -37,9 +37,8 @@ struct CameraControllerSideScroller
 
 internal void
 update_camera_system(	Camera * camera,
-						game::Input * input,
-						platform::Graphics * graphics,
-						platform::Window * window)
+						PlatformGraphics * graphics,
+						PlatformWindow * window)
 {
 	/* Note(Leo): Update aspect ratio each frame, in case screen size has changed.
 	This probably costs us less than checking if it has :D */
@@ -69,22 +68,22 @@ struct PlayerCameraController
 };
 
 internal void
-update_camera_controller(PlayerCameraController * controller, v3 targetPosition, game::Input * input)
+update_camera_controller(PlayerCameraController * controller, v3 targetPosition, PlatformInput const & input, f32 elapsedTime)
 {
-	if (is_pressed(input->zoomIn))
+	if (is_pressed(input.zoomIn))
 	{
-		controller->distance -= controller->distance * controller->relativeZoomSpeed * input->elapsedTime;
+		controller->distance -= controller->distance * controller->relativeZoomSpeed * elapsedTime;
 		controller->distance = math::max(controller->distance, controller->minDistance);
 	}
-	else if(is_pressed(input->zoomOut))
+	else if(is_pressed(input.zoomOut))
 	{
-		controller->distance += controller->distance * controller->relativeZoomSpeed * input->elapsedTime;
+		controller->distance += controller->distance * controller->relativeZoomSpeed * elapsedTime;
 		controller->distance = math::min(controller->distance, controller->maxDistance);
 	}
 
-    controller->orbitDegrees += input->look.x * controller->rotateSpeed * input->elapsedTime;
+    controller->orbitDegrees += input.look.x * controller->rotateSpeed * elapsedTime;
     
-    controller->tumbleDegrees += input->look.y * controller->rotateSpeed * input->elapsedTime;
+    controller->tumbleDegrees += input.look.y * controller->rotateSpeed * elapsedTime;
     controller->tumbleDegrees = math::clamp(controller->tumbleDegrees, controller->minTumble, controller->maxTumble);
 
     f32 cameraDistance = controller->distance;
@@ -105,7 +104,7 @@ update_camera_controller(PlayerCameraController * controller, v3 targetPosition,
     v3 targetPosition = target.position + cameraAdvanceVector + cameraOffsetFromTarget;
     */
 
-    f32 trackSpeed = 10 * input->elapsedTime;
+    f32 trackSpeed = 10 * elapsedTime;
     f32 z = interpolate(controller->lastTrackedPosition.z, targetPosition.z, trackSpeed);
 
 
@@ -138,7 +137,7 @@ struct FreeCameraController
 	f32 tiltAngle;
 };
 
-internal m44 update_free_camera(FreeCameraController & controller, game::Input const & input, f32 elapsedTime)
+internal m44 update_free_camera(FreeCameraController & controller, PlatformInput const & input, f32 elapsedTime)
 {
 	f32 lowMoveSpeed 	= 10;
 	f32 highMoveSpeed	= 100;

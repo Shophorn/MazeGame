@@ -10,7 +10,7 @@ STUDY: https://devblogs.nvidia.com/vulkan-dos-donts/
 
 #ifndef WIN_VULKAN_HPP
 
-using VulkanContext = platform::Graphics;
+using VulkanContext = PlatformGraphics;
 
 internal void 
 print_vulkan_assert(LogInput::FileAddress address, VkResult result)
@@ -190,7 +190,7 @@ struct VulkanVirtualFrame
 	VkFence        inFlightFence; // Todo(Leo): Change to queuesubmitfence or commandbufferfence etc..
 };
 
-struct platform::Graphics
+struct PlatformGraphics
 {
 	VkInstance 						instance;
 	VkDevice 						device; // Note(Leo): this is Logical Device.
@@ -455,7 +455,6 @@ namespace vulkan
 
     /// INITIALIZATION CALLS
 	internal void create_drawing_resources		(VulkanContext*, u32 width, u32 height);
-	internal void recreate_drawing_resources 	(VulkanContext*, u32 width, u32 height);
 	internal void destroy_drawing_resources 	(VulkanContext*);					
 
 	/// INTERNAL RESOURCES, CUSTOM
@@ -496,6 +495,9 @@ namespace vulkan
     internal VulkanTexture  make_texture(VulkanContext * context, TextureAsset * asset);
     internal VulkanTexture  make_cubemap(VulkanContext * context, StaticArray<TextureAsset, 6> * assets);        
 }
+
+internal void fsvulkan_recreate_drawing_resources 	(VulkanContext*, u32 width, u32 height);
+
 
 internal VkDescriptorSet fsvulkan_make_texture_descriptor_set(	VulkanContext*,
 																VkDescriptorSetLayout,
@@ -561,8 +563,7 @@ internal void fsvulkan_reload_shaders(VulkanContext * context)
 	};
 }
 
-platform::FrameResult
-platform::prepare_frame(VulkanContext * context)
+internal PlatformGraphicsFrameResult fsvulkan_prepare_frame(VulkanContext * context)
 {
 	VulkanVirtualFrame * frame = vulkan::get_current_virtual_frame(context);
 
@@ -577,14 +578,14 @@ platform::prepare_frame(VulkanContext * context)
     switch(result)
     {
     	case VK_SUCCESS:
-    		return platform::FRAME_OK;
+    		return PGFR_FRAME_OK;
 
 	    case VK_SUBOPTIMAL_KHR:
 	    case VK_ERROR_OUT_OF_DATE_KHR:
-	    	return platform::FRAME_RECREATE;
+	    	return PGFR_FRAME_RECREATE;
 
 	    default:
-	    	return platform::FRAME_BAD_PROBLEM;
+	    	return PGFR_FRAME_BAD_PROBLEM;
     }
 }
 
@@ -615,8 +616,7 @@ internal void fsvulkan_reset_uniform_buffer(VulkanContext & context)
 	context.modelUniformBuffer.used = 0;
 }
 
-void
-platform::set_functions(VulkanContext * context, platform::Functions * api)
+internal void fsvulkan_set_platform_graphics_api(VulkanContext * context, PlatformApi * api)
 {
  	api->push_mesh          = vulkan::push_mesh;
  	api->push_texture       = vulkan::push_texture;

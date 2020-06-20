@@ -245,14 +245,14 @@ s32 previous_keyframe(Array<f32> const & keyframeTimes, f32 time)
 }
 
 internal void
-update_animator_system(game::Input * input, Array<Animator> & animators)
+update_animator_system(PlatformInput const & input, Array<Animator> & animators, f32 elapsedTime)
 {
 	for (auto & animator : animators)
 	{
 		if (animator.animation == nullptr)
 			continue;
 
-		f32 timeStep = animator.playbackSpeed * input->elapsedTime;
+		f32 timeStep = animator.playbackSpeed * elapsedTime;
 		animator.time += timeStep;
 
 		for (auto const & channel : animator.animation->translationChannels)

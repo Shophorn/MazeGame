@@ -78,226 +78,233 @@ struct ScreenRect
 
 constexpr GuiTextureHandle GRAPHICS_RESOURCE_SHADOWMAP_GUI_TEXTURE = {-1};
 
-namespace platform
+
+/// ***********************************************************************
+/// PLATFORM OPAQUE HANDLES
+/* Note(Leo): these are defined in platform layer, and
+can (and are supposed to) be used as opaque handles in
+game layer. */
+
+struct PlatformGraphics;
+struct PlatformWindow;
+// struct PlatformNetwork;
+// struct PlatformAudio;
+
+/// ***********************************************************************
+/// PLATFORM VALUE TYPES
+
+struct PlatformNetworkPackage
 {
-	constexpr s32 maxBonesInSkeleton = 32;
+	v3 			characterPosition;
+	quaternion 	characterRotation;
+};
 
-	enum FrameResult
-	{
-		FRAME_OK,
-		FRAME_RECREATE,
-		FRAME_BAD_PROBLEM,
-	};
-
-	/* 
-	Note(Leo): this is honest forward declaration to couple lines downward
-	Note(Leo): this will not be needed in final game, where game is same
-	executable instead of separate dll like during development.
-	*/
-	struct Functions;
-
-	/* Note(Leo): these are defined in platform layer, and
-	can (and are supposed to) be used as opaque handles in
-	game layer. */
-	struct Graphics;
-
-	// Note(Leo): these are for platform layer only.
-	// Todo(Leo): probably do something else.
-	FrameResult prepare_frame(Graphics*);
-	void set_functions(Graphics*, Functions*);
-
-	struct Window;
-	// struct Network;
-	// struct Audio;
-
-	struct TimePoint
-	{
-		s64 value;
-	};
-
-	struct Functions
-	{
-		// GRAPHICS SCENE FUNCTIONS
-		MeshHandle 	(*push_mesh) 			(Graphics*, MeshAsset * asset);
-		TextureHandle (*push_texture) 		(Graphics*, TextureAsset * asset);
-		TextureHandle (*push_cubemap) 		(Graphics*, StaticArray<TextureAsset, 6> * asset);
-		MaterialHandle (*push_material) 	(Graphics*, GraphicsPipeline, s32 textureCount, TextureHandle * textures);
-		GuiTextureHandle (*push_gui_texture) (Graphics*, TextureAsset * asset);
-
-		// Todo(Leo): Maybe remove 'push_model', we can render also just passing mesh and material handles directly
-		ModelHandle (*push_model) 			(Graphics*, MeshHandle mesh, MaterialHandle material);
-
-		void (*unload_scene) 	(Graphics*);
-		void (*reload_shaders) 	(Graphics*);
+constexpr s32 NETWORK_PACKAGE_SIZE = sizeof(PlatformNetworkPackage);
+static_assert(NETWORK_PACKAGE_SIZE <= 512, "Time to deal with bigger network packages");
 
 
-		// GRAPHICS DRAW FUNCTIONS
-		void (*prepare_frame) 	(Graphics*);
-		void (*finish_frame) 	(Graphics*);
-		void (*update_camera) 	(Graphics*, Camera const *);
-		void (*update_lighting)	(Graphics*, Light const *, Camera const * camera, v3 ambient);
-		void (*draw_model) 		(Graphics*, ModelHandle model, m44 transform, bool32 castShadow, m44 const * bones, u32 boneCount);
-
-		void (*draw_meshes)			(Graphics*, s32 count, m44 const * transforms, MeshHandle mesh, MaterialHandle material);
-		void (*draw_screen_rects)	(Graphics*, s32 count, ScreenRect const * rects, GuiTextureHandle texture, v4 color);
-		void (*draw_lines)			(Graphics*, s32 pointCount, v3 const * points, v4 color);
-
-		// WINDOW FUNCTIONS	
-		u32 (*get_window_width) 		(Window const *);
-		u32 (*get_window_height) 		(Window const *);
-		bool32 (*is_window_fullscreen) 	(Window const *);
-		void (*set_window_fullscreen) 	(Window*, bool32 value);
-
-		// TIME FUNCTIONS
-		TimePoint (*current_time) 	();
-		f64 (*elapsed_seconds)		(TimePoint start, TimePoint end);
-	};
-
-
-	internal bool32
-	all_functions_set(Functions const * functions)
-	{
-		/* Note(Leo): this assumes that sizeof each pointer is same. 
-		This site suggests that it is so, but I'm still not 100% sure.
-		https://docs.oracle.com/cd/E19059-01/wrkshp50/805-4956/6j4mh6goi/index.html */
-
-		using 			function_ptr = void(*)();
-		u32 constexpr 	numFunctions = sizeof(Functions) / sizeof(function_ptr);
-
-		auto * funcArray = reinterpret_cast<function_ptr const *>(functions);
-		for (u32 i = 0; i < numFunctions; ++i)
-		{
-			if (funcArray[i] == nullptr)
-			{
-				logSystem() << FILE_ADDRESS << "Unset function at '" << i << "'\n";
-				return false;
-			}
-		}
-		return true;
-	};
-
-	struct Memory
-	{
-		void * memory;
-		u64 size;
-	};
-
-	struct StereoSoundSample
-	{
-		float left;
-		float right;
-	};
-
-	struct SoundOutput
-	{
-		s32 sampleCount;
-		StereoSoundSample * samples;
-
-		StereoSoundSample * begin() { return samples; }
-		StereoSoundSample * end() { return samples + sampleCount; }
-	};
-}
-
-namespace game
+enum PlatformGraphicsFrameResult
 {
-	enum struct ButtonState : s8
+	PGFR_FRAME_OK,
+	PGFR_FRAME_RECREATE,
+	PGFR_FRAME_BAD_PROBLEM,
+};
+
+struct PlatformStereoSoundSample
+{
+	float left;
+	float right;
+};
+
+// Todo(Leo): These buttonstate things are implementation details and may even vary per platform,
+// so consider moving them elsewhere. Maybe only expose is_clicked etc. as variables
+enum struct ButtonState : s8
+{
+	IsUp,
+	WentDown,
+	WentUp,
+	IsDown
+};
+
+bool32 is_clicked (ButtonState button) { return button == ButtonState::WentDown; } 
+bool32 is_released (ButtonState button) { return button == ButtonState::WentUp; } 
+bool32 is_pressed (ButtonState button) { return (button == ButtonState::IsDown) || (button == ButtonState::WentDown);}
+
+internal ButtonState update_button_state(ButtonState buttonState, bool32 buttonIsPressed)
+{
+	switch(buttonState)
 	{
-		IsUp,
-		WentDown,
-		WentUp,
-		IsDown
-	};
+		case ButtonState::IsUp:
+			buttonState = buttonIsPressed ? ButtonState::WentDown : ButtonState::IsUp;
+			break;
 
-	bool32 is_clicked (ButtonState button) { return button == ButtonState::WentDown; } 
-	bool32 is_released (ButtonState button) { return button == ButtonState::WentUp; } 
-	bool32 is_pressed (ButtonState button) { return (button == ButtonState::IsDown) || (button == ButtonState::WentDown);}
+		case ButtonState::WentDown:
+			buttonState = buttonIsPressed ? ButtonState::IsDown : ButtonState::WentUp;
+			break;
 
-	internal ButtonState
-	update_button_state(ButtonState buttonState, bool32 buttonIsPressed)
-	{
-		switch(buttonState)
-		{
-			case ButtonState::IsUp:
-				buttonState = buttonIsPressed ? ButtonState::WentDown : ButtonState::IsUp;
-				break;
+		case ButtonState::WentUp:
+			buttonState = buttonIsPressed ? ButtonState::WentDown : ButtonState::IsUp;
+			break;
 
-			case ButtonState::WentDown:
-				buttonState = buttonIsPressed ? ButtonState::IsDown : ButtonState::WentUp;
-				break;
+		case ButtonState::IsDown:
+			buttonState = buttonIsPressed ? ButtonState::IsDown : ButtonState::WentUp;
+			break;
 
-			case ButtonState::WentUp:
-				buttonState = buttonIsPressed ? ButtonState::WentDown : ButtonState::IsUp;
-				break;
-
-			case ButtonState::IsDown:
-				buttonState = buttonIsPressed ? ButtonState::IsDown : ButtonState::WentUp;
-				break;
-
-			default:
-				AssertMsg(false, "Invalid ButtonState value");
-		}
-
-		return buttonState;
+		default:
+			AssertMsg(false, "Invalid ButtonState value");
 	}
 
-	struct Input
-	{
-		v2 move;
-		v2 look;
-
-		// Todo(Leo): Do a proper separate mapping struct of meanings of specific buttons
-		ButtonState jump;
-		ButtonState confirm;
-		ButtonState interact;
-
-		// Note(Leo): Nintendo mapping
-		ButtonState X, Y, A, B;
-
-		// Note(Leo): Start and Select as in controller
-		ButtonState start;
-		ButtonState select;
-
-		ButtonState left;
-		ButtonState right;
-		ButtonState down;
-		ButtonState up;
-
-		ButtonState zoomIn;
-		ButtonState zoomOut;
-
-		float elapsedTime;
-	};
-	
-	
-	struct NetworkPackage
-	{
-		v3 characterPosition;
-		quaternion characterRotation;
-	};
-
-	constexpr s32 NETWORK_PACKAGE_SIZE = sizeof(NetworkPackage);
-	static_assert(NETWORK_PACKAGE_SIZE <= 512, "Time to deal with bigger network packages");
-
-	struct Network
-	{
-		bool32 isConnected;
-
-		NetworkPackage inPackage;
-		NetworkPackage outPackage;
-	};
+	return buttonState;
 }
+
+struct PlatformTimePoint
+{
+	s64 value;
+};
+
+/// ***********************************************************************
+/// PLATFORM POINTER TYPES
+
+struct PlatformInput
+{
+	v2 move;
+	v2 look;
+
+	// Todo(Leo): Do a proper separate mapping struct of meanings of specific buttons
+	ButtonState jump;
+	ButtonState confirm;
+	ButtonState interact;
+
+	// Note(Leo): Nintendo mapping
+	ButtonState X, Y, A, B;
+
+	// Note(Leo): Start and Select as in controller
+	ButtonState start;
+	ButtonState select;
+
+	ButtonState left;
+	ButtonState right;
+	ButtonState down;
+	ButtonState up;
+
+	ButtonState zoomIn;
+	ButtonState zoomOut;
+};
+
+struct PlatformTime
+{
+	f32 elapsedTime;
+};
+
+struct PlatformMemory
+{
+	void * memory;
+	u64 size;
+};
+
+struct PlatformNetwork
+{
+	bool32 isConnected;
+
+	PlatformNetworkPackage inPackage;
+	PlatformNetworkPackage outPackage;
+};
+
+struct PlatformSoundOutput
+{
+	s32 sampleCount;
+	PlatformStereoSoundSample * samples;
+
+	PlatformStereoSoundSample * begin() { return samples; }
+	PlatformStereoSoundSample * end() { return samples + sampleCount; }
+};
+
+/// ***********************************************************************
+/// PLATFORM API DESCRIPTION
+
+struct PlatformApi
+{
+	// GRAPHICS SCENE FUNCTIONS
+	MeshHandle 	(*push_mesh) 			(PlatformGraphics*, MeshAsset * asset);
+	TextureHandle (*push_texture) 		(PlatformGraphics*, TextureAsset * asset);
+	TextureHandle (*push_cubemap) 		(PlatformGraphics*, StaticArray<TextureAsset, 6> * asset);
+	MaterialHandle (*push_material) 	(PlatformGraphics*, GraphicsPipeline, s32 textureCount, TextureHandle * textures);
+	GuiTextureHandle (*push_gui_texture) (PlatformGraphics*, TextureAsset * asset);
+
+	// Todo(Leo): Maybe remove 'push_model', we can render also just passing mesh and material handles directly
+	ModelHandle (*push_model) (PlatformGraphics*, MeshHandle mesh, MaterialHandle material);
+
+	void (*unload_scene) 	(PlatformGraphics*);
+	void (*reload_shaders) 	(PlatformGraphics*);
+
+	// GRAPHICS DRAW FUNCTIONS
+	void (*prepare_frame) 	(PlatformGraphics*);
+	void (*finish_frame) 	(PlatformGraphics*);
+	void (*update_camera) 	(PlatformGraphics*, Camera const *);
+	void (*update_lighting)	(PlatformGraphics*, Light const *, Camera const * camera, v3 ambient);
+	void (*draw_model) 		(PlatformGraphics*, ModelHandle model, m44 transform, bool32 castShadow, m44 const * bones, u32 boneCount);
+
+	void (*draw_meshes)			(PlatformGraphics*, s32 count, m44 const * transforms, MeshHandle mesh, MaterialHandle material);
+	void (*draw_screen_rects)	(PlatformGraphics*, s32 count, ScreenRect const * rects, GuiTextureHandle texture, v4 color);
+	void (*draw_lines)			(PlatformGraphics*, s32 pointCount, v3 const * points, v4 color);
+
+	// WINDOW FUNCTIONS	
+	u32 (*get_window_width) 		(PlatformWindow const *);
+	u32 (*get_window_height) 		(PlatformWindow const *);
+	bool32 (*is_window_fullscreen) 	(PlatformWindow const *);
+	void (*set_window_fullscreen) 	(PlatformWindow*, bool32 value);
+
+	// TIME FUNCTIONS
+	PlatformTimePoint (*current_time) 	();
+	f64 (*elapsed_seconds)				(PlatformTimePoint start, PlatformTimePoint end);
+};
+
+internal bool32 platform_all_functions_set(PlatformApi const * api)
+{
+	/* Note(Leo): this assumes that sizeof each pointer is same. 
+	This site suggests that it is so, but I'm still not 100% sure.
+	https://docs.oracle.com/cd/E19059-01/wrkshp50/805-4956/6j4mh6goi/index.html */
+
+	using 			function_ptr = void(*)();
+	u32 constexpr 	numFunctions = sizeof(PlatformApi) / sizeof(function_ptr);
+
+	auto * funcArray = reinterpret_cast<function_ptr const *>(api);
+	for (u32 i = 0; i < numFunctions; ++i)
+	{
+		if (funcArray[i] == nullptr)
+		{
+			logSystem() << FILE_ADDRESS << "Unset function at '" << i << "'\n";
+			return false;
+		}
+	}
+	return true;
+};
+
+using GameUpdateFunc = bool32(	const PlatformInput *,
+								const PlatformTime *,
+								PlatformMemory *,
+								PlatformNetwork *,
+								PlatformSoundOutput*,
+
+								PlatformGraphics *,
+								PlatformWindow *,
+								PlatformApi *,
+
+								std::ofstream * logFile);
+
+
 
 #if MAZEGAME_INCLUDE_STD_IOSTREAM
 namespace std
 {
-	ostream & operator << (ostream & os, game::ButtonState buttonState)
+	ostream & operator << (ostream & os, ButtonState buttonState)
 	{
 		switch (buttonState)
 		{
-			case game::ButtonState::IsUp: 		os << "IsUp"; 		break;
-			case game::ButtonState::WentDown: 	os << "WentDown"; 	break;
-			case game::ButtonState::WentUp: 	os << "WentUp"; 	break;
-			case game::ButtonState::IsDown: 	os << "IsDown"; 	break;
+			case ButtonState::IsUp: 		os << "IsUp"; 		break;
+			case ButtonState::WentDown: 	os << "WentDown"; 	break;
+			case ButtonState::WentUp: 	os << "WentUp"; 	break;
+			case ButtonState::IsDown: 	os << "IsDown"; 	break;
 
 			default: os << "INVALID ButtonState VALUE";
 		}
@@ -307,23 +314,6 @@ namespace std
 }
 
 #endif
-
-struct PlatformTime
-{
-	f32 elapsedTime;
-};
-
-using GameUpdateFunc = bool32(	game::Input*,
-								platform::Memory*,
-								game::Network*,
-								platform::SoundOutput*,
-
-								platform::Graphics*,
-								platform::Window*,
-								platform::Functions*,
-
-								std::ofstream * logFile);
-
 
 
 #define MAZEGAME_PLATFORM_HPP

@@ -1,3 +1,16 @@
+/*
+Leo Tamminen
+
+Audio interface for win32 platform.
+*/
+
+
+/// ***********************************************************************************
+/// API
+
+// Todo(Leo): Do this when better control of audio is required
+// using WinApiAudio = PlatformAudio
+// struct PlatformAudio
 struct WinApiAudio
 {
 	IMMDeviceEnumerator *	pEnumerator;
@@ -11,30 +24,19 @@ struct WinApiAudio
     bool32                  isPlaying;
 };
 
+internal WinApiAudio fswin32_create_audio();          
+internal void fswin32_release_audio (WinApiAudio * audio);
+internal void fswin32_start_playing(WinApiAudio * audio);
+internal void fswin32_stop_playing(WinApiAudio * audio);
+internal void fswin32_get_audio_buffer(WinApiAudio * audio, int * sampleCount, PlatformStereoSoundSample ** samples);
+internal void fswin32_release_audio_buffer(WinApiAudio * audio, int sampleCount);
+
+/// ***********************************************************************************
+/// IMPLEMENTATION
+
 // Note(Leo): REFERENCE_TIME are in units of [100 nanoseconds], use these for conversions
 constexpr s64 REFERENCE_TIMES_PER_SECOND = 10000000;     // seconds to REFERENCE_TIME
 constexpr s64 REFERENCE_TIMES_PER_MILLISECOND = 10000;   // milliseconds to REFERENCE_TIME
-
-namespace winapi
-{
-	internal WinApiAudio
-	CreateAudio();			
-	
-	internal void
-	ReleaseAudio (WinApiAudio * audio);
-
-    internal void
-    StartPlaying(WinApiAudio * audio);
-
-    internal void
-    StopPlaying(WinApiAudio * audio);
-
-    internal void
-    GetAudioBuffer(WinApiAudio * audio, int * sampleCount, platform::StereoSoundSample ** samples);
-
-    internal void
-    ReleaseAudioBuffer(WinApiAudio * audio, int sampleCount);
-}
 
 /* Todo(Leo): copied from web, forgot where, thats why it is UNKNOWN.
 Extracts actual format tag if it is hidden behind WAVEFORMATEXTENSIBLE struct */
@@ -64,8 +66,7 @@ UNKNOWN_GetFormatTag( const WAVEFORMATEX* wfx )
     }
 }
 
-internal WinApiAudio
-winapi::CreateAudio ()
+internal WinApiAudio fswin32_create_audio ()
 {
     const CLSID CLSID_MMDeviceEnumerator =   __uuidof(MMDeviceEnumerator);
     const IID IID_IMMDeviceEnumerator =      __uuidof(IMMDeviceEnumerator);
@@ -112,8 +113,7 @@ winapi::CreateAudio ()
     return audio;
 }
 
-internal void
-winapi::ReleaseAudio(WinApiAudio * audio)
+internal void fswin32_release_audio(WinApiAudio * audio)
 {
     CoTaskMemFree(audio->pFormat);
 
@@ -132,20 +132,17 @@ winapi::ReleaseAudio(WinApiAudio * audio)
     CoUninitialize();
 }
 
-internal void
-winapi::StartPlaying(WinApiAudio * audio)
+internal void fswin32_start_playing(WinApiAudio * audio)
 {
     WinApiLog("Start playing audio", audio->pClient->Start());
 }
 
-internal void
-winapi::StopPlaying(WinApiAudio * audio)
+internal void fswin32_stop_playing(WinApiAudio * audio)
 {
     WinApiLog("Stop playing audio", audio->pClient->Stop());
 }
 
-internal void
-winapi::GetAudioBuffer(WinApiAudio * audio, int * frameCount, platform::StereoSoundSample ** samples)
+internal void fswin32_get_audio_buffer(WinApiAudio * audio, int * frameCount, PlatformStereoSoundSample ** samples)
 {
     u32 currentPadding;
     WinApiLog("Get audio padding", audio->pClient->GetCurrentPadding(&currentPadding));
@@ -157,8 +154,7 @@ winapi::GetAudioBuffer(WinApiAudio * audio, int * frameCount, platform::StereoSo
     *frameCount = framesAvailable;
 }
 
-internal void
-winapi::ReleaseAudioBuffer(WinApiAudio * audio, s32 frameCount)
+internal void fswin32_release_audio_buffer(WinApiAudio * audio, s32 frameCount)
 {
     WinApiLog("Release audio buffer", audio->pRenderClient->ReleaseBuffer(frameCount, 0));
 

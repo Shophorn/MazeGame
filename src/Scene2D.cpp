@@ -33,15 +33,15 @@ struct Scene2d
 	bool32 	guiVisible;
 };
 
-internal bool32 update_scene_2d(void * scenePtr, game::Input * input)
+internal bool32 update_scene_2d(void * scenePtr, PlatformInput const & input, PlatformTime const & time)
 {
 	Scene2d * scene = reinterpret_cast<Scene2d*>(scenePtr);
 
 	scene->collisionManager.do_collisions();
 
 	/// Update Character
-	scene->characterController.update(input, &scene->collisionManager);
-	update_animator_system(input, scene->animatorSystem);
+	scene->characterController.update(input, &scene->collisionManager, time.elapsedTime);
+	update_animator_system(input, scene->animatorSystem, time.elapsedTime);
 
 	  //////////////////////////////
 	 /// 	RENDERING 			///
@@ -52,8 +52,8 @@ internal bool32 update_scene_2d(void * scenePtr, game::Input * input)
 		3. Render animated models
 	*/
 
-	scene->cameraController.update(input);
-    update_camera_system(&scene->worldCamera, input, platformGraphics, platformWindow);
+	scene->cameraController.update(input, time.elapsedTime);
+    update_camera_system(&scene->worldCamera, platformGraphics, platformWindow);
 
 	for (auto & renderer : scene->renderSystem)
 	{
@@ -71,7 +71,7 @@ internal bool32 update_scene_2d(void * scenePtr, game::Input * input)
 
 	bool32 keepScene = true;;
 
-	if (is_clicked(input->start))
+	if (is_clicked(input.start))
 	{
 		if(scene->guiVisible)
 		{

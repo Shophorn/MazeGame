@@ -173,13 +173,12 @@ vulkan::destroy_drawing_resources(VulkanContext * context)
     vkDestroySwapchainKHR(context->device, context->drawingResources.swapchain, nullptr);
 }
 
-internal void
-vulkan::recreate_drawing_resources(VulkanContext * context, u32 width, u32 height)
+internal void fsvulkan_recreate_drawing_resources(VulkanContext * context, u32 width, u32 height)
 {
     vkDeviceWaitIdle(context->device);
 
-    destroy_drawing_resources(context);
-    create_drawing_resources(context, width, height);
+    vulkan::destroy_drawing_resources(context);
+    vulkan::create_drawing_resources(context, width, height);
     
     /* Todo(Leo, 28.5.): We currently have viewport and scissor sizes as dynamic
     things in all pipelines, so we do not need to recreate those. But if we change that,

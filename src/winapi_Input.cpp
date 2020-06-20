@@ -87,7 +87,7 @@ enum {
 };
 
 internal void
-update_controller_input(game::Input * input, XINPUT_STATE * xinput)
+update_controller_input(PlatformInput * input, XINPUT_STATE * xinput)
 {
     input->move = { 
         xinput_convert_joystick_value(xinput->Gamepad.sThumbLX),
@@ -130,7 +130,7 @@ update_controller_input(game::Input * input, XINPUT_STATE * xinput)
 /* Todo(Leo): this may not be thread-safe because windows callbacks can probably come anytime.
 Maybe make 2 structs and toggle between them, so when we start reading, we use the other one for writing*/
 internal void
-update_keyboard_input(game::Input * gameInput, winapi::KeyboardInput * keyboardInput)
+update_keyboard_input(PlatformInput * gameInput, winapi::KeyboardInput * keyboardInput)
 {
     auto bool_to_float = [](bool32 value) { return value ? 1.0f : 0.1f; };
 
@@ -157,7 +157,7 @@ update_keyboard_input(game::Input * gameInput, winapi::KeyboardInput * keyboardI
 }
 
 internal void
-update_unused_input(game::Input * gameInput)
+update_unused_input(PlatformInput * gameInput)
 {
     gameInput->move = {};
     gameInput->look = {};

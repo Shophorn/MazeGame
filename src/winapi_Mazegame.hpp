@@ -99,8 +99,5 @@ namespace winapi
         DWORD xinputLastPacketNumber;
         bool32 xinputIsUsed;
         KeyboardInput keyboardInput;
-
-        // Random??
-        platform::Functions platformFunctions = {};
     };  
 }

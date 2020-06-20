@@ -6,9 +6,9 @@ Leo Tamminen
 #include "MazegamePlatform.hpp"
 #include "Mazegame.hpp"
 
-static platform::Functions * 	platformApi;
-static platform::Graphics * 	platformGraphics;
-static platform::Window * 		platformWindow;
+static PlatformApi * 		platformApi;
+static PlatformGraphics * 	platformGraphics;
+static PlatformWindow * 	platformWindow;
 
 static MemoryArena * global_transientMemory;
 
@@ -118,10 +118,9 @@ AudioClip load_audio_clip(char const * filepath)
 	return clip;
 }
 
-platform::StereoSoundSample
-get_next_sample(AudioClip * clip)
+internal PlatformStereoSoundSample get_next_sample(AudioClip * clip)
 {
-	platform::StereoSoundSample sample = {
+	PlatformStereoSoundSample sample = {
 		.left = clip->file.samples[0][clip->sampleIndex],
 		.right = clip->file.samples[1][clip->sampleIndex]
 	};
@@ -167,7 +166,7 @@ internal Gui make_main_menu_gui(MemoryArena & allocator)
 	return gui;
 }
 
-internal void initialize_game_state(GameState * state, platform::Memory * memory)
+internal void initialize_game_state(GameState * state, PlatformMemory * memory)
 {
 	*state = {};
 
@@ -195,19 +194,21 @@ Todo(Leo): indicate meaning of return value betterly somewhere, I almost forgot 
 */
 extern "C" __declspec(dllexport)  
 bool32 update_game(
-	game::Input * 			input,
-	platform::Memory * 		memory,
-	game::Network *			network,
-	platform::SoundOutput *	soundOutput,
+	PlatformInput const *	input,
+	PlatformTime const *	time,
 
-	platform::Graphics * 	graphics,
-	platform::Window * 		window,
-	platform::Functions * 	functions,
+	PlatformMemory * 		memory,
+	PlatformNetwork *		network,
+	PlatformSoundOutput *	soundOutput,
+
+	PlatformGraphics * 		graphics,
+	PlatformWindow * 		window,
+	PlatformApi * 			api,
 
 	std::ofstream * logFile)
 {
 	// Note(Leo): Set these each frame, they are reset if game is reloaded, and we do not know about that
-	platformApi 		= functions;
+	platformApi 		= api;
 	platformGraphics 	= graphics;
 	platformWindow 		= window;
 
@@ -245,16 +246,16 @@ bool32 update_game(
 	{
 		if (state->loadedSceneType == LOADED_SCENE_3D)
 		{
-			sceneIsAlive = update_scene_3d(state->loadedScene, input);
+			sceneIsAlive = update_scene_3d(state->loadedScene, *input, *time);
 		}
 		else if (state->loadedSceneType == LOADED_SCENE_2D)
 		{
-			sceneIsAlive = update_scene_2d(state->loadedScene, input);
+			sceneIsAlive = update_scene_2d(state->loadedScene, *input, *time);
 		}
 	}
 	else
 	{
-		gui_start(state->gui, input);
+		gui_start(state->gui, *input);
 
 		if(gui_button("3D Scene"))
 		{
@@ -306,13 +307,13 @@ bool32 update_game(
 	// Todo(Leo): These still MAYBE do not belong here
 	if (is_clicked(input->select))
 	{
-		if (functions->is_window_fullscreen(window))
+		if (platformApi->is_window_fullscreen(window))
 		{
-			functions->set_window_fullscreen(window, false);
+			platformApi->set_window_fullscreen(window, false);
 		}
 		else
 		{
-			functions->set_window_fullscreen(window, true);
+			platformApi->set_window_fullscreen(window, true);
 		}
 	}
 

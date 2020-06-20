@@ -30,10 +30,10 @@ struct CharacterControllerSideScroller
 	LadderTriggerFunc * OnTriggerLadder2;
 
 	void
-	update(game::Input * input, CollisionManager2D * collisionManager)
+	update(PlatformInput const & input, CollisionManager2D * collisionManager, f32 elapsedTime)
 	{
-		float moveStep = speed * input->elapsedTime;
-		float xMovement = moveStep * input->move.x;
+		float moveStep = speed * elapsedTime;
+		float xMovement = moveStep * input.move.x;
 
 		// Going Left
 		if (xMovement < 0.0f)
@@ -64,22 +64,22 @@ struct CharacterControllerSideScroller
 		}
 
 
-		zSpeed += -9.81 * input->elapsedTime;
+		zSpeed += -9.81 * elapsedTime;
 
 		if (collider->hasCollision && collider->collision->tag == ColliderTag::Ladder)
 		{
 			zSpeed = 0;			
 		}
 
-		float zMovement = 	moveStep * input->move.y
-							+ zSpeed * input->elapsedTime;
+		float zMovement = 	moveStep * input.move.y
+							+ zSpeed * elapsedTime;
 
 		float skinWidth = 0.01f;
 		v2 downRayOrigin 	= {	transform->position.x, 
 									transform->position.z + skinWidth};
 		v2 downRay 		= {0, zMovement - skinWidth};
 
-		bool32 movingDown = input->move.y > -0.01f;
+		bool32 movingDown = input.move.y > -0.01f;
 		bool32 downRayHit = collisionManager->raycast(downRayOrigin, downRay, movingDown);
 		if (downRayHit)
 		{
@@ -87,7 +87,7 @@ struct CharacterControllerSideScroller
 			zSpeed = math::max(0.0f, zSpeed);
 		}
 
-		if ((math::absolute(zMovement) > math::absolute(xMovement)) && (math::absolute(xMovement / input->elapsedTime) < (0.1f * speed)))
+		if ((math::absolute(zMovement) > math::absolute(xMovement)) && (math::absolute(xMovement / elapsedTime) < (0.1f * speed)))
 		{
 			targetRotationRadians = 0;
 		}
@@ -103,7 +103,7 @@ struct CharacterControllerSideScroller
 
 		if (collider->hasCollision && collider->collision->tag == ColliderTag::Trigger)
 		{
-			if (is_clicked(input->interact))
+			if (is_clicked(input.interact))
 			{
 				(*OnTriggerLadder1)();
 			}
@@ -111,7 +111,7 @@ struct CharacterControllerSideScroller
 
 		if (collider->hasCollision && collider->collision->tag == ColliderTag::Trigger2)
 		{
-			if (is_clicked(input->interact))
+			if (is_clicked(input.interact))
 			{
 				(*OnTriggerLadder2)();
 			}
