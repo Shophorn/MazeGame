@@ -37,6 +37,13 @@ void copy_memory (void * destination, void const * source, u64 byteCount)
 };
 
 template<typename T>
+void copy_structs(T * destination, T const * source, s32 count)
+{
+	static_assert(std::is_trivially_destructible<T>::value);
+	memcpy(destination, source, count * sizeof(T));
+}
+
+template<typename T>
 void fill_array(T * memory, u64 count, T value)
 {
 	T * end = memory + count;
@@ -176,62 +183,33 @@ internal void pop_memory_checkpoint(MemoryArena & arena)
 }
 
 // ---------------------------------------------------------------------------
+// MemoryView is simplest possible dynamic memory container.
 
-/* Note(Leo): This has not yet been needed, but it was fun to write it. We are
-still succesfully using flush_memory_arena()*/
-
-/*
-struct MemoryCheckpoint
+template<typename T>
+struct MemoryView
 {
-	MemoryArena * arena;
-	u64 used;
+	s32 capacity;
+	s32 count;
+	T * data;
 };
 
-MemoryCheckpoint push_checkpoint(MemoryArena & arena)
+template <typename T>
+internal MemoryView<T> push_memory_view(MemoryArena & allocator, s32 capacity)
 {
-	MemoryCheckpoint checkpoint = {&arena, arena.used};
-	return checkpoint;
-}
+	MemoryView<T> result =
+	{
+		capacity,
+		0,
+		push_memory<T>(allocator, capacity, ALLOC_NO_CLEAR)
+	};
+	return result;
+};
 
-void reset_checkpoint(MemoryCheckpoint & checkpoint)
+template <typename T>
+internal s32 memory_view_available(MemoryView<T> const & memoryView)
 {
-	Assert(checkpoint.arena != nullptr);
-
-	checkpoint.arena->used = checkpoint.used;
+	return memoryView.capacity - memoryView.count;
 }
-
-void pop_checkpoint(MemoryCheckpoint & checkpoint)
-{
-	Assert(checkpoint.arena != nullptr);
-
-	checkpoint.arena->used 	= checkpoint.used;
-	checkpoint.arena 		= nullptr;
-	checkpoint.used 		= 0;
-}
-
-
-void test()
-{
-	MemoryCheckpoint checkpoint = {};
-	checkpoint = push_checkpoint(arena);
-
-	// do stuff
-
-	reset_checkpoint(checkpoint);
-
-	// do stuff
-
-	reset_checkpoint(checkpoint);
-
-	// do stuff
-
-	reset_checkpoint(checkpoint);
-
-	// do stuff
-
-	pop_checkpoint(checkpoint);
-}
-*/
 
 // ----------------------------------------------------------------------------
 

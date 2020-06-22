@@ -1,10 +1,10 @@
- /*=============================================================================
+/*=============================================================================
 Leo Tamminen
 
 Implementation of Graphics interface for VulkanContext
 =============================================================================*/
 
-namespace vulkan_scene_internal_
+namespace fsvulkan_resources_internal_
 {
 	internal u32 compute_mip_levels (u32 texWidth, u32 texHeight);
 	internal void cmd_generate_mip_maps(    VkCommandBuffer commandBuffer,
@@ -17,15 +17,14 @@ namespace vulkan_scene_internal_
 											u32 layerCount = 1);
 }
 
-TextureHandle
-vulkan::push_texture (VulkanContext * context, TextureAsset * texture)
+internal TextureHandle fsvulkan_resources_push_texture(VulkanContext * context, TextureAsset * texture)
 {
 	TextureHandle handle = { (s64)context->loadedTextures.size() };
 	context->loadedTextures.push_back(vulkan::make_texture(context, texture));
 	return handle;
 }
 
-internal GuiTextureHandle fsvulkan_push_gui_texture(VulkanContext * context, TextureAsset * asset)
+internal GuiTextureHandle fsvulkan_resources_push_gui_texture(VulkanContext * context, TextureAsset * asset)
 {
 	VulkanTexture texture 			= vulkan::make_texture(context, asset);
 	VkDescriptorSet descriptorSet 	= fsvulkan_make_texture_descriptor_set(	context,	
@@ -38,10 +37,10 @@ internal GuiTextureHandle fsvulkan_push_gui_texture(VulkanContext * context, Tex
 	return {index};
 }
 
-internal MaterialHandle fsvulkan_push_material (VulkanContext *     context,
-												GraphicsPipeline    pipeline,
-												s32                 textureCount,
-												TextureHandle *     textures)
+internal MaterialHandle fsvulkan_resources_push_material (	VulkanContext *     context,
+															GraphicsPipeline    pipeline,
+															s32                 textureCount,
+															TextureHandle *     textures)
 {
 
 	Assert(textureCount == context->pipelines[pipeline].textureCount);
@@ -65,8 +64,7 @@ internal MaterialHandle fsvulkan_push_material (VulkanContext *     context,
 	return {index};
 }
 
-MeshHandle
-vulkan::push_mesh(VulkanContext * context, MeshAsset * mesh)
+internal MeshHandle fsvulkan_resources_push_mesh(VulkanContext * context, MeshAsset * mesh)
 {
 	u64 indexBufferSize  = mesh->indices.count() * sizeof(mesh->indices[0]);
 	u64 vertexBufferSize = mesh->vertices.count() * sizeof(mesh->vertices[0]);
@@ -83,12 +81,12 @@ vulkan::push_mesh(VulkanContext * context, MeshAsset * mesh)
 	memcpy(data, &mesh->vertices[0], vertexBufferSize);
 	vkUnmapMemory(context->device, context->stagingBufferPool.memory);
 
-	VkCommandBuffer commandBuffer = begin_command_buffer(context->device, context->commandPool);
+	VkCommandBuffer commandBuffer = vulkan::begin_command_buffer(context->device, context->commandPool);
 
 	VkBufferCopy copyRegion = { 0, context->staticMeshPool.used, totalBufferSize };
 	vkCmdCopyBuffer(commandBuffer, context->stagingBufferPool.buffer, context->staticMeshPool.buffer, 1, &copyRegion);
 
-	execute_command_buffer(commandBuffer,context->device, context->commandPool, context->queues.graphics);
+	vulkan::execute_command_buffer(commandBuffer,context->device, context->commandPool, context->queues.graphics);
 
 	VulkanMesh model = {};
 
@@ -101,7 +99,7 @@ vulkan::push_mesh(VulkanContext * context, MeshAsset * mesh)
 	context->staticMeshPool.used += totalBufferSize;
 
 	model.indexCount = mesh->indices.count();
-	model.indexType = convert_index_type(mesh->indexType);
+	model.indexType = vulkan::convert_index_type(mesh->indexType);
 
 	u32 modelIndex = context->loadedMeshes.size();
 
@@ -112,8 +110,7 @@ vulkan::push_mesh(VulkanContext * context, MeshAsset * mesh)
 	return resultHandle;
 }
 
-ModelHandle
-vulkan::push_model (VulkanContext * context, MeshHandle mesh, MaterialHandle material)
+internal ModelHandle fsvulkan_resources_push_model (VulkanContext * context, MeshHandle mesh, MaterialHandle material)
 {
 	u32 objectIndex = context->loadedModels.size();
 
@@ -129,16 +126,14 @@ vulkan::push_model (VulkanContext * context, MeshHandle mesh, MaterialHandle mat
 	return resultHandle;    
 }
 
-TextureHandle
-vulkan::push_cubemap(VulkanContext * context, StaticArray<TextureAsset, 6> * assets)
+internal TextureHandle fsvulkan_resources_push_cubemap(VulkanContext * context, StaticArray<TextureAsset, 6> * assets)
 {
 	TextureHandle handle = { (s64)context->loadedTextures.size() };
 	context->loadedTextures.push_back(vulkan::make_cubemap(context, assets));
 	return handle;    
 }
 
-void
-vulkan::unload_scene(VulkanContext * context)
+internal void fsvulkan_resources_unload_resources(VulkanContext * context)
 {
 	vkDeviceWaitIdle(context->device);
 
@@ -173,14 +168,14 @@ vulkan::unload_scene(VulkanContext * context)
 }
 
 internal u32
-vulkan_scene_internal_::compute_mip_levels(u32 texWidth, u32 texHeight)
+fsvulkan_resources_internal_::compute_mip_levels(u32 texWidth, u32 texHeight)
 {
    u32 result = std::floor(std::log2(math::max(texWidth, texHeight))) + 1;
    return result;
 }
 
 internal void
-vulkan_scene_internal_::cmd_generate_mip_maps(  VkCommandBuffer commandBuffer,
+fsvulkan_resources_internal_::cmd_generate_mip_maps(  VkCommandBuffer commandBuffer,
 												VkPhysicalDevice physicalDevice,
 												VkImage image,
 												VkFormat imageFormat,
@@ -270,7 +265,7 @@ vulkan_scene_internal_::cmd_generate_mip_maps(  VkCommandBuffer commandBuffer,
 internal VulkanTexture
 vulkan::make_texture(VulkanContext * context, TextureAsset * asset)
 {
-	using namespace vulkan_scene_internal_;
+	using namespace fsvulkan_resources_internal_;
 
 	u32 width        = asset->width;
 	u32 height       = asset->height;
@@ -408,7 +403,7 @@ internal VulkanTexture
 make_shadow_texture(VulkanContext * context, u32 width, u32 height, VkFormat format)
 {
 	using namespace vulkan;
-	using namespace vulkan_scene_internal_;
+	using namespace fsvulkan_resources_internal_;
 
 	u32 mipLevels   = 1;
 
@@ -514,7 +509,7 @@ make_shadow_texture(VulkanContext * context, u32 width, u32 height, VkFormat for
 internal VulkanTexture
 vulkan::make_cubemap(VulkanContext * context, StaticArray<TextureAsset, 6> * assets)
 {
-	using namespace vulkan_scene_internal_;
+	using namespace fsvulkan_resources_internal_;
 
 	u32 width        = (*assets)[0].width;
 	u32 height       = (*assets)[0].height;

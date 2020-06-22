@@ -48,8 +48,11 @@ internal VkSurfaceFormatKHR fsvulkan_choose_swapchain_surface_format(std::vector
 
 internal VkPresentModeKHR fsvulkan_choose_surface_present_mode(std::vector<VkPresentModeKHR> & availablePresentModes)
 {
-    // Todo(Leo): Is it really preferred???
+    /*
+    Note(Leo): mailbox goes as fast as possible, fifo will wait for vsync, right?
+    */
     constexpr VkPresentModeKHR preferredPresentMode = VK_PRESENT_MODE_MAILBOX_KHR;
+    // constexpr VkPresentModeKHR preferredPresentMode = VK_PRESENT_MODE_FIFO_KHR;
 
     VkPresentModeKHR result = VK_PRESENT_MODE_FIFO_KHR;
     for (s32 i = 0; i < availablePresentModes.size(); ++i)

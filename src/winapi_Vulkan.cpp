@@ -6,10 +6,36 @@ Implementations of vulkan related functions
 #include "winapi_Vulkan.hpp"
 
 #include "VulkanCommandBuffers.cpp"
-#include "VulkanScene.cpp"
-#include "VulkanDrawing.cpp"
 #include "VulkanPipelines.cpp"
 #include "VulkanSwapchain.cpp"
+
+#include "fsvulkan_resources.cpp"
+#include "fsvulkan_drawing.cpp"
+
+internal void fsvulkan_set_platform_graphics_api(VulkanContext * context, PlatformApi * api)
+{
+ 	api->push_mesh          = fsvulkan_resources_push_mesh;
+ 	api->push_texture       = fsvulkan_resources_push_texture;
+ 	api->push_cubemap       = fsvulkan_resources_push_cubemap;
+ 	api->push_material      = fsvulkan_resources_push_material;
+ 	api->push_gui_texture 	= fsvulkan_resources_push_gui_texture;
+ 	api->push_model         = fsvulkan_resources_push_model;
+ 	api->unload_scene       = fsvulkan_resources_unload_resources;
+
+ 	api->reload_shaders 	= fsvulkan_reload_shaders;
+
+ 	api->prepare_frame      	= fsvulkan_drawing_prepare_frame;
+ 	api->finish_frame       	= fsvulkan_drawing_finish_frame;
+ 	api->update_camera      	= fsvulkan_drawing_update_camera;
+ 	api->update_lighting		= fsvulkan_drawing_update_lighting;
+ 	
+ 	api->draw_model         	= fsvulkan_drawing_draw_model;
+ 	api->draw_meshes 			= fsvulkan_drawing_draw_meshes;
+ 	api->draw_screen_rects		= fsvulkan_drawing_draw_screen_rects;
+ 	api->draw_lines 			= fsvulkan_drawing_draw_lines;
+ 	api->draw_procedural_mesh 	= fsvulkan_drawing_draw_procedural_mesh;
+ 	api->draw_leaves 			= fsvulkan_drawing_draw_leaves;
+}
 
 internal VkFormat
 vulkan::find_supported_format(
@@ -850,7 +876,7 @@ winapi::destroy_vulkan_context(VulkanContext * context)
 	// Note(Leo): All draw frame operations are asynchronous, must wait for them to finish
 	vkDeviceWaitIdle(context->device);
 
-	vulkan::unload_scene(context);
+	fsvulkan_resources_unload_resources(context);
 
 	while(context->cleanups.size() > 0)
 	{
@@ -1149,7 +1175,7 @@ winapi_vulkan_internal_::init_memory(VulkanContext * context)
 
 	context->modelUniformBuffer = vulkan::make_buffer_resource(  
 									context, modelUniformBufferSize,
-									VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+									VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
 									VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
 	context->sceneUniformBuffer = vulkan::make_buffer_resource(
@@ -1157,11 +1183,52 @@ winapi_vulkan_internal_::init_memory(VulkanContext * context)
 									VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
 									VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
 
+	{
+		s64 leafBufferSize = megabytes(200);
+
+		VkBufferCreateInfo leafBufferInfo =
+		{ 
+			.sType          = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+			.flags          = 0,
+			.size           = (VkDeviceSize)(leafBufferSize * VIRTUAL_FRAME_COUNT),
+			.usage          = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+			.sharingMode    = VK_SHARING_MODE_EXCLUSIVE,
+		};
+
+		VULKAN_CHECK(vkCreateBuffer(context->device, &leafBufferInfo, nullptr, &context->leafBuffer));
+
+		VkMemoryRequirements memoryRequirements;
+		vkGetBufferMemoryRequirements(context->device, context->leafBuffer, &memoryRequirements);
+
+		VkMemoryAllocateInfo allocateInfo =
+		{
+			.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+			.allocationSize = memoryRequirements.size,
+			.memoryTypeIndex = find_memory_type(context->physicalDevice,
+												memoryRequirements.memoryTypeBits,
+												VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT),
+		};
+
+		/* Todo(Leo): do not actually always use new allocate, but instead allocate
+		once and create allocator to handle multiple items */
+		// VkDeviceMemory memory;
+		VULKAN_CHECK(vkAllocateMemory(context->device, &allocateInfo, nullptr, &context->leafBufferMemory));
+
+		vkBindBufferMemory(context->device, context->leafBuffer, context->leafBufferMemory, 0); 
+
+		context->leafBufferCapacity = leafBufferSize;
+		vkMapMemory(context->device, context->leafBufferMemory, 0, VK_WHOLE_SIZE, 0, &context->persistentMappedLeafBufferMemory);
+	}
+
 	add_cleanup(context, [](VulkanContext * context){
 		vulkan::destroy_buffer_resource(context->device, &context->staticMeshPool);
 		vulkan::destroy_buffer_resource(context->device, &context->stagingBufferPool);
 		vulkan::destroy_buffer_resource(context->device, &context->modelUniformBuffer);
 		vulkan::destroy_buffer_resource(context->device, &context->sceneUniformBuffer);
+
+		vkDestroyBuffer(context->device, context->leafBuffer, nullptr);
+		// Todo(Leo): Is it required to free memory on application exit?
+		vkFreeMemory(context->device, context->leafBufferMemory, nullptr);
 	});
 };
 

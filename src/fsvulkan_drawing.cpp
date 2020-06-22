@@ -4,7 +4,7 @@ shophorn @ internet
 
 Vulkan drawing functions' definitions.
 =============================================================================*/
-namespace vulkan_drawing_internal_
+namespace fsvulkan_drawing_internal_
 {
 	/* Note(Leo): This is EXPERIMENTAL. Idea is that we don't need to always
 	create a new struct, but we can just reuse same. Vulkan functions always want
@@ -15,6 +15,8 @@ namespace vulkan_drawing_internal_
 
 	Returned pointer is only valid until this is called again. Or rather, pointer
 	will stay valid for the duration of thread, but values of struct will not. */
+
+	// TODO(Leo): probably remove....
 
 	thread_local VkCommandBufferInheritanceInfo global_inheritanceInfo_ = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_INHERITANCE_INFO };
 	VkCommandBufferInheritanceInfo const *
@@ -28,15 +30,14 @@ namespace vulkan_drawing_internal_
 	}
 }
 
-void 
-vulkan::update_camera(VulkanContext * context, Camera const * camera)
+internal void fsvulkan_drawing_update_camera(VulkanContext * context, Camera const * camera)
 {
 	// Todo(Leo): alignment
 
 	// Note (Leo): map vulkan memory directly to right type so we can easily avoid one (small) memcpy per frame
-	CameraUniformBuffer * pUbo;
+	vulkan::CameraUniformBuffer * pUbo;
 	vkMapMemory(context->device, context->sceneUniformBuffer.memory,
-				context->cameraUniformOffset, sizeof(CameraUniformBuffer), 0, (void**)&pUbo);
+				context->cameraUniformOffset, sizeof(vulkan::CameraUniformBuffer), 0, (void**)&pUbo);
 
 	pUbo->view 			= camera_view_matrix(camera->position, camera->direction);
 	pUbo->projection 	= camera_projection_matrix(camera);
@@ -44,12 +45,11 @@ vulkan::update_camera(VulkanContext * context, Camera const * camera)
 	vkUnmapMemory(context->device, context->sceneUniformBuffer.memory);
 }
 
-void
-vulkan::update_lighting(VulkanContext * context, Light const * light, Camera const * camera, v3 ambient)
+internal void fsvulkan_drawing_update_lighting(VulkanContext * context, Light const * light, Camera const * camera, v3 ambient)
 {
-	LightingUniformBuffer * lightPtr;
+	vulkan::LightingUniformBuffer * lightPtr;
 	vkMapMemory(context->device, context->sceneUniformBuffer.memory,
-				context->lightingUniformOffset, sizeof(LightingUniformBuffer), 0, (void**)&lightPtr);
+				context->lightingUniformOffset, sizeof(vulkan::LightingUniformBuffer), 0, (void**)&lightPtr);
 
 	lightPtr->direction    		= v3_to_v4(light->direction, 0);
 	lightPtr->color        		= v3_to_v4(light->color, 0);
@@ -62,9 +62,9 @@ vulkan::update_lighting(VulkanContext * context, Light const * light, Camera con
 
 	m44 lightViewProjection = get_light_view_projection (light, camera);
 
-	CameraUniformBuffer * pUbo;
+	vulkan::CameraUniformBuffer * pUbo;
 	vkMapMemory(context->device, context->sceneUniformBuffer.memory,
-				context->cameraUniformOffset, sizeof(CameraUniformBuffer), 0, (void**)&pUbo);
+				context->cameraUniformOffset, sizeof(vulkan::CameraUniformBuffer), 0, (void**)&pUbo);
 
 	pUbo->lightViewProjection 		= lightViewProjection;
 	pUbo->shadowDistance 			= light->shadowDistance;
@@ -73,16 +73,16 @@ vulkan::update_lighting(VulkanContext * context, Light const * light, Camera con
 	vkUnmapMemory(context->device, context->sceneUniformBuffer.memory);
 }
 
-void
-vulkan::prepare_drawing(VulkanContext * context)
+internal void fsvulkan_drawing_prepare_frame(VulkanContext * context)
 {
 	AssertMsg((context->canDraw == false), "Invalid call to prepare_drawing() when finish_drawing() has not been called.")
 	context->canDraw = true;
 
 	// context->modelUniformBuffer.used = 0;
 	fsvulkan_reset_uniform_buffer(*context);
+	context->leafBufferUsed[context->virtualFrameIndex] = 0;
 
-	auto * frame = get_current_virtual_frame(context);
+	auto * frame = vulkan::get_current_virtual_frame(context);
 
 	// Note(Leo): We recreate these everytime we are here.
 	// https://software.intel.com/en-us/articles/api-without-secrets-introduction-to-vulkan-part-4#inpage-nav-5
@@ -97,12 +97,12 @@ vulkan::prepare_drawing(VulkanContext * context)
 		context->drawingResources.imageViews[context->currentDrawFrameIndex],
 	};
 
-	frame->framebuffer = make_vk_framebuffer(   context->device,
-												context->drawingResources.renderPass,
-												array_count(attachments),
-												attachments,
-												context->drawingResources.extent.width,
-												context->drawingResources.extent.height);    
+	frame->framebuffer = vulkan::make_vk_framebuffer(   context->device,
+														context->drawingResources.renderPass,
+														array_count(attachments),
+														attachments,
+														context->drawingResources.extent.width,
+														context->drawingResources.extent.height);    
 
 	VkCommandBufferBeginInfo masterCmdBeginInfo =
 	{
@@ -119,7 +119,7 @@ vulkan::prepare_drawing(VulkanContext * context)
 	{
 		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
 		.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT | VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT,
-		.pInheritanceInfo = vulkan_drawing_internal_::get_vk_command_buffer_inheritance_info(context->drawingResources.renderPass, frame->framebuffer),
+		.pInheritanceInfo = fsvulkan_drawing_internal_::get_vk_command_buffer_inheritance_info(context->drawingResources.renderPass, frame->framebuffer),
 	};
 	VULKAN_CHECK (vkBeginCommandBuffer(frame->commandBuffers.scene, &sceneCmdBeginInfo));
 
@@ -149,7 +149,7 @@ vulkan::prepare_drawing(VulkanContext * context)
 		.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT | VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT,
 
 		// Note(Leo): the pointer in this is actually same as above, but this function call changes values of struct at the other end of pointer.
-		.pInheritanceInfo = vulkan_drawing_internal_::get_vk_command_buffer_inheritance_info(context->shadowPass.renderPass, context->shadowPass.framebuffer),
+		.pInheritanceInfo = fsvulkan_drawing_internal_::get_vk_command_buffer_inheritance_info(context->shadowPass.renderPass, context->shadowPass.framebuffer),
 	};
 	VULKAN_CHECK(vkBeginCommandBuffer(frame->commandBuffers.offscreen, &shadowCmdBeginInfo));
 
@@ -157,13 +157,12 @@ vulkan::prepare_drawing(VulkanContext * context)
 	vkCmdBindPipeline(frame->commandBuffers.offscreen, VK_PIPELINE_BIND_POINT_GRAPHICS, context->shadowPass.pipeline);
 }
 
-void
-vulkan::finish_drawing(VulkanContext * context)
+internal void fsvulkan_drawing_finish_frame(VulkanContext * context)
 {
 	Assert(context->canDraw);
 	context->canDraw = false;
 
-	VulkanVirtualFrame * frame = get_current_virtual_frame(context);
+	VulkanVirtualFrame * frame = vulkan::get_current_virtual_frame(context);
 
 	// SHADOWS RENDER PASS ----------------------------------------------------
 	VULKAN_CHECK(vkEndCommandBuffer(frame->commandBuffers.offscreen));
@@ -255,10 +254,10 @@ vulkan::finish_drawing(VulkanContext * context)
 	VkResult result = vkQueuePresentKHR(context->queues.present, &presentInfo);
 	if (result != VK_SUCCESS)
 	{
-		logVulkan() << FILE_ADDRESS << "Present result = " << to_str(result);
+		logVulkan() << FILE_ADDRESS << "Present result = " << vulkan::to_str(result);
 	}
 
-	advance_virtual_frame(context);
+	vulkan::advance_virtual_frame(context);
 
 	if (context->onPostRender != nullptr)
 	{
@@ -269,8 +268,7 @@ vulkan::finish_drawing(VulkanContext * context)
 }
 
 
-void
-vulkan::record_draw_command(VulkanContext * context, ModelHandle model, m44 transform, bool32 castShadow, m44 const * bones, u32 bonesCount)
+internal void fsvulkan_drawing_draw_model(VulkanContext * context, ModelHandle model, m44 transform, bool32 castShadow, m44 const * bones, u32 bonesCount)
 {
 	Assert(context->canDraw);
 
@@ -279,16 +277,10 @@ vulkan::record_draw_command(VulkanContext * context, ModelHandle model, m44 tran
 	MeshHandle meshHandle           = context->loadedModels[model].mesh;
 	MaterialHandle materialHandle   = context->loadedModels[model].material;
 
-	// u32 uniformBufferOffset = context->modelUniformBuffer.used;
-	// u32 uniformBufferSize   = get_aligned_uniform_buffer_size(context, sizeof(ModelUniformBuffer));
-	u32 uniformBufferSize   = sizeof(ModelUniformBuffer);
+	u32 uniformBufferSize   = sizeof(vulkan::ModelUniformBuffer);
 
-	// context->modelUniformBuffer.used += uniformBufferSize;
-
-	// Assert(context->modelUniformBuffer.used <= context->modelUniformBuffer.size);
-
-	VkDeviceSize uniformBufferOffset = fsvulkan_get_uniform_memory(*context, sizeof(ModelUniformBuffer));
-	ModelUniformBuffer * pBuffer;
+	VkDeviceSize uniformBufferOffset = fsvulkan_get_uniform_memory(*context, sizeof(vulkan::ModelUniformBuffer));
+	vulkan::ModelUniformBuffer * pBuffer;
 
 	// Optimize(Leo): Just map this once when rendering starts
 	vkMapMemory(context->device, context->modelUniformBuffer.memory, uniformBufferOffset, uniformBufferSize, 0, (void**)&pBuffer);
@@ -303,10 +295,10 @@ vulkan::record_draw_command(VulkanContext * context, ModelHandle model, m44 tran
 
 	// ---------------------------------------------------------------
 
-	VulkanVirtualFrame * frame = get_current_virtual_frame(context);
+	VulkanVirtualFrame * frame = vulkan::get_current_virtual_frame(context);
  
-	auto * mesh     = get_loaded_mesh(context, meshHandle);
-	auto * material = get_loaded_material(context, materialHandle);
+	auto * mesh     = vulkan::get_loaded_mesh(context, meshHandle);
+	auto * material = vulkan::get_loaded_material(context, materialHandle);
 
 	Assert(material->pipeline < GRAPHICS_PIPELINE_SCREEN_GUI && "This pipeline does not support mesh rendering");
 
@@ -370,28 +362,41 @@ vulkan::record_draw_command(VulkanContext * context, ModelHandle model, m44 tran
 	}
 }
 
-void FSVULKAN_DRAW_LEAVES(VulkanContext * context, s32 count, m44 const * transforms)
+// internal void * get_leaf_buffer_memory()
+// {
+// 	return context->persistentMappedLeafBufferMemory;
+// }
+
+// internal void fsvulkan_drawing_draw_leaves(VulkanContext * context, s64 count, s64 bufferOffset)
+// {
+// 	// bind camera
+// 	// bind material
+// 	// bind shadows
+// 	// bind lights
+// 	// bind etc.
+
+// 	vkCmdBindVertexBuffers(commandBuffer, 0, 1, context->leafBuffer, bufferOffset);
+// 	vkCmdDraw(commandBuffer, 4, count, 0, 0);
+// }
+
+internal void fsvulkan_drawing_draw_leaves(VulkanContext * context, s32 instanceCount, m44 const * instanceTransforms)
 {
-	Assert(count > 0 && "Vulkan cannot map memory of size 0, and this function should no be called for 0 meshes");
+	Assert(instanceCount > 0 && "Vulkan cannot map memory of size 0, and this function should no be called for 0 meshes");
 	Assert(context->canDraw);
 	// Note(Leo): lets keep this sensible
-	Assert(count <= 20000);
+	Assert(instanceCount <= 20000);
 
-	VulkanVirtualFrame * frame = vulkan::get_current_virtual_frame(context);
+	VulkanVirtualFrame * frame 	= vulkan::get_current_virtual_frame(context);
+	s64 frameOffset 			= context->leafBufferCapacity * context->virtualFrameIndex;
+	u64 instanceBufferOffset 	= frameOffset + context->leafBufferUsed[context->virtualFrameIndex];
 
-	// Todo(Leo): Align start of region, not size.
-	// TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
-	// NOTE NOTE NOTE NOTE NOTE NOTE NOTE NOTE NOTE NOTE: Done?
-	// TODO TODO(Leo): THIS MUST BE TRACKED
-	u64 uniformBufferSize 				= count * sizeof(m44);
-	u64 startUniformBufferOffset 		= fsvulkan_get_uniform_memory(*context, uniformBufferSize);//context->modelUniformBuffer.used;
-	// u64 totalRequiredMemory 			= uniformBufferSize;
-	// context->modelUniformBuffer.used += totalRequiredMemory;
+	u64 instanceBufferSize 		= instanceCount * sizeof(m44);
+	context->leafBufferUsed[context->virtualFrameIndex] += instanceBufferSize;
 
-	m44 * bufferPointer;
-	vkMapMemory(context->device, context->modelUniformBuffer.memory, startUniformBufferOffset, uniformBufferSize, 0, (void**)&bufferPointer);
-	copy_memory(bufferPointer, transforms, count * sizeof(m44));
-	vkUnmapMemory(context->device, context->modelUniformBuffer.memory);
+	Assert(context->leafBufferUsed[context->virtualFrameIndex] <= context->leafBufferCapacity);
+
+	void * bufferPointer = (u8*)context->persistentMappedLeafBufferMemory + instanceBufferOffset;
+	copy_memory(bufferPointer, instanceTransforms, instanceCount * sizeof(m44));
 
 	VkPipeline pipeline 			= context->pipelines[GRAPHICS_PIPELINE_LEAVES].pipeline;
 	VkPipelineLayout pipelineLayout = context->pipelines[GRAPHICS_PIPELINE_LEAVES].pipelineLayout;
@@ -412,15 +417,15 @@ void FSVULKAN_DRAW_LEAVES(VulkanContext * context, s32 count, m44 const * transf
 							4, 1, &context->shadowMapTexture,
 							0, nullptr);
 
-	vkCmdBindVertexBuffers(frame->commandBuffers.scene, 0, 1, &context->modelUniformBuffer.buffer, &startUniformBufferOffset);
+	vkCmdBindVertexBuffers(frame->commandBuffers.scene, 0, 1, &context->leafBuffer, &instanceBufferOffset);
 
 	// Note(Leo): Fukin cool, instantiation at last :DDDD 4.6.
 	// Note(Leo): This is hardcoded in shaders, we generate vertex data on demand
 	constexpr s32 leafVertexCount = 4;
-	vkCmdDraw(frame->commandBuffers.scene, leafVertexCount, count, 0, 0);
+	vkCmdDraw(frame->commandBuffers.scene, leafVertexCount, instanceCount, 0, 0);
 
-
-	// ------------------------------------------------
+	// ************************************************
+	// SHADOWS
 
 	VkPipeline shadowPipeline 				= context->leavesShadowPipeline;
 	VkPipelineLayout shadowPipelineLayout 	= context->leavesShadowPipelineLayout;
@@ -430,22 +435,13 @@ void FSVULKAN_DRAW_LEAVES(VulkanContext * context, s32 count, m44 const * transf
 	vkCmdBindDescriptorSets(frame->commandBuffers.offscreen, VK_PIPELINE_BIND_POINT_GRAPHICS, shadowPipelineLayout,
 							0, 1, &context->uniformDescriptorSets.camera, 0, nullptr);
 
-	vkCmdBindVertexBuffers(frame->commandBuffers.offscreen, 0, 1, &context->modelUniformBuffer.buffer, &startUniformBufferOffset);
+	vkCmdBindVertexBuffers(frame->commandBuffers.offscreen, 0, 1, &context->leafBuffer, &instanceBufferOffset);
 
-	vkCmdDraw(frame->commandBuffers.offscreen, leafVertexCount, count, 0, 0);
-
+	vkCmdDraw(frame->commandBuffers.offscreen, leafVertexCount, instanceCount, 0, 0);
 }
 
-
-void fsvulkan_draw_meshes(VulkanContext * context, s32 count, m44 const * transforms, MeshHandle meshHandle, MaterialHandle materialHandle)
+internal void fsvulkan_drawing_draw_meshes(VulkanContext * context, s32 count, m44 const * transforms, MeshHandle meshHandle, MaterialHandle materialHandle)
 {
-	if (materialHandle < 0)
-	{
-		FSVULKAN_DRAW_LEAVES(context, count, transforms);
-		return;
-	}
-
-
 	Assert(count > 0 && "Vulkan cannot map memory of size 0, and this function should no be called for 0 meshes");
 	Assert(context->canDraw);
 
@@ -559,12 +555,106 @@ void fsvulkan_draw_meshes(VulkanContext * context, s32 count, m44 const * transf
 	} 
 }
 
-internal void fsvulkan_draw_lines(VulkanContext * context, s32 pointCount, v3 const * points, v4 color)
+internal void fsvulkan_drawing_draw_procedural_mesh(VulkanContext * context,
+													s32 vertexCount, Vertex const * vertices,
+													s32 indexCount, u16 const * indices,
+													m44 transform, MaterialHandle materialHandle)
 {
-	// /*
-	// vulkan bufferless drawing
-	// https://www.saschawillems.de/blog/2016/08/13/vulkan-tutorial-on-rendering-a-fullscreen-quad-without-buffers/
-	// */
+	// Note(Leo): call prepare_drawing() first
+	Assert(context->canDraw);
+	Assert(vertexCount > 0);
+	Assert(indexCount > 0);
+
+	auto * frame = vulkan::get_current_virtual_frame(context);
+
+
+	VkCommandBuffer commandBuffer 	= vulkan::get_current_virtual_frame(context)->commandBuffers.scene;
+
+	VulkanMaterial * material 		= vulkan::get_loaded_material(context, materialHandle);
+	VkPipeline pipeline 			= context->pipelines[material->pipeline].pipeline;
+	VkPipelineLayout pipelineLayout = context->pipelines[material->pipeline].pipelineLayout;
+
+	VkDeviceSize uniformBufferOffset = fsvulkan_get_uniform_memory(*context, sizeof(vulkan::ModelUniformBuffer));
+	vulkan::ModelUniformBuffer * pBuffer;
+
+	// Optimize(Leo): Just map this once when rendering starts
+	vkMapMemory(context->device, context->modelUniformBuffer.memory, uniformBufferOffset, sizeof(vulkan::ModelUniformBuffer), 0, (void**)&pBuffer);
+	
+	pBuffer->localToWorld = transform;
+	pBuffer->isAnimated = 0;
+
+	vkUnmapMemory(context->device, context->modelUniformBuffer.memory);
+
+	VkDescriptorSet sets [] =
+	{   
+		context->uniformDescriptorSets.camera,
+		material->descriptorSet,
+		context->uniformDescriptorSets.model,
+		context->uniformDescriptorSets.lighting,
+		context->shadowMapTexture,
+	};
+
+	u32 uniformBufferOffsets [] = {(u32)uniformBufferOffset};
+
+	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+	vkCmdBindDescriptorSets(frame->commandBuffers.scene, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout,
+						0, array_count(sets), sets,
+						1, &uniformBufferOffsets[0]);
+
+
+	Vertex * vertexData;
+	VkDeviceSize vertexBufferSize = vertexCount * sizeof(Vertex);
+	VkDeviceSize vertexBufferOffset = fsvulkan_get_uniform_memory(*context, vertexBufferSize);
+
+	// Todo(Leo): check map results
+	VkResult result = vkMapMemory(context->device, context->modelUniformBuffer.memory, vertexBufferOffset, vertexBufferSize, 0, (void**)&vertexData);
+
+	copy_memory(vertexData, vertices, sizeof(Vertex) * vertexCount);
+
+	vkUnmapMemory(context->device, context->modelUniformBuffer.memory);
+
+	u16 * indexData;
+	VkDeviceSize indexBufferSize = indexCount * sizeof(u16);
+	VkDeviceSize indexBufferOffset = fsvulkan_get_uniform_memory(*context, indexBufferSize);
+
+	VULKAN_CHECK(vkMapMemory(context->device, context->modelUniformBuffer.memory, indexBufferOffset, indexBufferSize, 0, (void**)&indexData));
+
+	copy_memory(indexData, indices, sizeof(u16) *indexCount);
+
+	vkUnmapMemory(context->device, context->modelUniformBuffer.memory);
+
+
+	vkCmdBindVertexBuffers(commandBuffer, 0, 1, &context->modelUniformBuffer.buffer, &vertexBufferOffset);
+	vkCmdBindIndexBuffer(commandBuffer, context->modelUniformBuffer.buffer, indexBufferOffset, VK_INDEX_TYPE_UINT16);
+
+	vkCmdDrawIndexed(commandBuffer, indexCount, 1, 0, 0, 0);
+
+	// ****************************************************************
+	/// SHADOWS
+
+	vkCmdBindVertexBuffers(frame->commandBuffers.offscreen, 0, 1, &context->modelUniformBuffer.buffer, &vertexBufferOffset);
+	vkCmdBindIndexBuffer(frame->commandBuffers.offscreen, context->modelUniformBuffer.buffer, indexBufferOffset, VK_INDEX_TYPE_UINT16);
+
+	VkDescriptorSet shadowSets [] =
+	{
+		context->uniformDescriptorSets.camera,
+		context->uniformDescriptorSets.model,
+	};
+
+	vkCmdBindDescriptorSets(frame->commandBuffers.offscreen,
+							VK_PIPELINE_BIND_POINT_GRAPHICS,
+							context->shadowPass.layout,
+							0,
+							2,
+							shadowSets,
+							1,
+							uniformBufferOffsets);
+
+	vkCmdDrawIndexed(frame->commandBuffers.offscreen, indexCount, 1, 0, 0, 0);
+}
+
+internal void fsvulkan_drawing_draw_lines(VulkanContext * context, s32 pointCount, v3 const * points, v4 color)
+{
 
 	// Note(Leo): call prepare_drawing() first
 	Assert(context->canDraw);
@@ -575,14 +665,7 @@ internal void fsvulkan_draw_lines(VulkanContext * context, s32 pointCount, v3 co
 	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, context->linePipelineLayout,
 							0, 1, &context->uniformDescriptorSets.camera, 0, nullptr);
 
-
-	// u64 requiredBufferSize 				= pointCount * sizeof(v3) * 2;
-	// requiredBufferSize 					= vulkan::get_aligned_uniform_buffer_size(context, requiredBufferSize);
-
-	// u64 vertexBufferOffset 				= context->modelUniformBuffer.used;
-	// context->modelUniformBuffer.used 	+= requiredBufferSize;
-
-	VkDeviceSize vertexBufferSize = pointCount * sizeof(v3) * 2;
+	VkDeviceSize vertexBufferSize 	= pointCount * sizeof(v3) * 2;
 	VkDeviceSize vertexBufferOffset = fsvulkan_get_uniform_memory(*context, vertexBufferSize);
 
 
@@ -605,8 +688,13 @@ internal void fsvulkan_draw_lines(VulkanContext * context, s32 pointCount, v3 co
 	vkCmdDraw(commandBuffer, pointCount, 1, 0, 0);
 }
 
-internal void fsvulkan_draw_screen_rects(VulkanContext * context, s32 count, ScreenRect const * rects, GuiTextureHandle textureHandle, v4 color)
+internal void fsvulkan_drawing_draw_screen_rects(VulkanContext * context, s32 count, ScreenRect const * rects, GuiTextureHandle textureHandle, v4 color)
 {
+	// /*
+	// vulkan bufferless drawing
+	// https://www.saschawillems.de/blog/2016/08/13/vulkan-tutorial-on-rendering-a-fullscreen-quad-without-buffers/
+	// */
+
 	auto * frame = vulkan::get_current_virtual_frame(context);
 
 	VkPipeline 			pipeline;

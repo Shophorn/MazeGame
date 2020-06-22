@@ -118,28 +118,6 @@ internal Leaves make_leaves(MemoryArena & allocator, s32 count)
 	return leaves;
 }
 
-internal void draw_leaves(Trees & trees)
-{
-	for (s32 leavesIndex = 0; leavesIndex < trees.count; ++leavesIndex)
-	{
-		Leaves & leaves = trees.leaves[leavesIndex]; 
-		s32 drawCount 	= leaves.processCount;
-
-		m44 * leafTransforms = push_memory<m44>(*global_transientMemory, drawCount, ALLOC_NO_CLEAR);
-		for (s32 i = 0; i < drawCount; ++i)
-		{
-			quaternion rotation = axis_angle_quaternion(leaves.axes[i], leaves.rotations[i]);
-			rotation 			= leaves.baseRotations[i] * rotation;
-
-			leafTransforms[i] 	= transform_matrix(	leaves.position + leaves.localPositions[i] * leaves.radius, 
-													rotation,
-													make_uniform_v3(leaves.scales[i] * leaves.leafScale));
-		}
-
-		platformApi->draw_meshes(platformGraphics, drawCount, leafTransforms, {-1}, {-1});
-	}
-}
-
 internal void draw_leaves(Leaves & leaves)
 {
 	s32 drawCount = math::min(leaves.count, leaves.processCount);
@@ -155,9 +133,32 @@ internal void draw_leaves(Leaves & leaves)
 												make_uniform_v3(leaves.scales[i] * leaves.leafScale));
 	}
 
-	platformApi->draw_meshes(platformGraphics, drawCount, leafTransforms, {-1}, {-1});
+	platformApi->draw_leaves(platformGraphics, drawCount, leafTransforms);
 }
 
+internal void draw_leaves(Trees & trees)
+{
+	for (s32 leavesIndex = 0; leavesIndex < trees.count; ++leavesIndex)
+	{
+		draw_leaves(trees.leaves[leavesIndex]);
+
+		// Leaves & leaves = trees.leaves[leavesIndex]; 
+		// s32 drawCount 	= leaves.processCount;
+
+		// m44 * leafTransforms = push_memory<m44>(*global_transientMemory, drawCount, ALLOC_NO_CLEAR);
+		// for (s32 i = 0; i < drawCount; ++i)
+		// {
+		// 	quaternion rotation = axis_angle_quaternion(leaves.axes[i], leaves.rotations[i]);
+		// 	rotation 			= leaves.baseRotations[i] * rotation;
+
+		// 	leafTransforms[i] 	= transform_matrix(	leaves.position + leaves.localPositions[i] * leaves.radius, 
+		// 											rotation,
+		// 											make_uniform_v3(leaves.scales[i] * leaves.leafScale));
+		// }
+
+		// platformApi->draw_leaves(platformGraphics, drawCount, leafTransforms);
+	}
+}
 
 internal void update_leaves(Trees & trees, f32 elapsedTime)
 {
@@ -282,7 +283,6 @@ internal void grow_trees(Trees & trees, f32 maxGrowth, f32 elapsedTime)
 	}
 }
 
-
 struct TimedModule
 {
 	char 	letter;
@@ -302,24 +302,32 @@ struct TimedLSystem
 	v3 			position;
 	quaternion 	rotation;
 
-	s32 	linePointsCapacity;
-	s32 	linePointsCount;
-	v3 * 	linePoints;
+	f32 totalAge;
+	f32 maxAge;
+
+	// Dynamic mesh
+	MemoryView<u16> 	indices;
+	MemoryView<Vertex> 	vertices;
 };
 
 internal void advance_lsystem_time(TimedLSystem & lSystem, f32 timePassed)
 {
-	TimedModule * aWord = lSystem.aWord;
-	TimedModule * bWord = lSystem.bWord;
+	if (lSystem.totalAge > lSystem.maxAge)
+	{
+		return;
+	}
 
-	int aWordLength = lSystem.wordCount;
-	int bWordLength = 0;
+	lSystem.totalAge += timePassed;
 
-	constexpr float growSpeed = 0.05f;
+	TimedModule * aWord 			= lSystem.aWord;
+	MemoryView<TimedModule> bWord 	= {lSystem.wordCapacity, 0, lSystem.bWord};
+
+	constexpr float growSpeed 	= 0.5f;
+	// constexpr float growSpeed 	= 0.0f;
 	constexpr float terminalAge = 1.0f;
-	constexpr float angle = π / 8;
+	constexpr float angle 		= π / 8;
 
-	for (int i = 0; i < aWordLength; ++i)
+	for (int i = 0; i < lSystem.wordCount; ++i)
 	{
 		aWord[i].age += timePassed * growSpeed;
 		
@@ -352,25 +360,26 @@ internal void advance_lsystem_time(TimedLSystem & lSystem, f32 timePassed)
 						// count here = 16
 					};
 
-					Assert(bWordLength + array_count(production) <= lSystem.wordCapacity && "LSystem out of memory");
-					copy_memory(bWord + bWordLength, production, sizeof(production));
+					Assert(memory_view_available(bWord) >= array_count(production));
 
 					s32 count = random_choice() ? 11 : 16; 
+					copy_structs(bWord.data + bWord.count, production, count);
+					bWord.count += count;
 
-					bWordLength += count;
+
 				}
 				else
 				{
 					TimedModule production [] =
 					{
 						aWord[i],
-						{'L'},
+						{'L', 0, random_range(0.4f, 0.6f)},
 					};
 
-					Assert(bWordLength + array_count(production) <= lSystem.wordCapacity && "LSystem out of memory");
+					Assert(memory_view_available(bWord) >= array_count(production));
 					
-					copy_memory(bWord + bWordLength, production, sizeof(production));
-					bWordLength += array_count(production);
+					copy_structs(bWord.data + bWord.count, production, array_count(production));
+					bWord.count += array_count(production);
 				}
 			} break;
 
@@ -378,13 +387,13 @@ internal void advance_lsystem_time(TimedLSystem & lSystem, f32 timePassed)
 				break;
 
 			default:
-				Assert(bWordLength + 1 <= lSystem.wordCapacity && "LSystem out of memory");
-				bWord[bWordLength++] = aWord[i];
+				Assert(memory_view_available(bWord) > 0);
+				bWord.data[bWord.count++] = aWord[i];
 		}
 	}
 
 	swap(lSystem.aWord, lSystem.bWord);
-	lSystem.wordCount = bWordLength;
+	lSystem.wordCount = bWord.count;
 }
 
 internal void update_lsystem_mesh(TimedLSystem & lSystem, Leaves & leaves)
@@ -412,8 +421,11 @@ internal void update_lsystem_mesh(TimedLSystem & lSystem, Leaves & leaves)
 	int wordCount 		= lSystem.wordCount;
 	TimedModule * word 	= lSystem.aWord;
 
-	// Note(Leo): Wrap this stuff to a stack, so we get easiness for free
-	Stack<v3> linePoints = {lSystem.linePointsCapacity, 0, lSystem.linePoints};
+	lSystem.vertices.count = 0;
+	lSystem.indices.count = 0;
+
+	float widthGrowFactor = 0.03f;
+	constexpr float terminalAge = 1.0f;
 
 	for (int i = 0; i < wordCount; ++i)
 	{
@@ -423,19 +435,88 @@ internal void update_lsystem_mesh(TimedLSystem & lSystem, Leaves & leaves)
 		{
 			case 'F':
 			{
-				v3 forward 		= rotate_v3(state.orientation, forward_v3);
-				linePoints.push(state.position);
+				v3 forward 				= rotate_v3(state.orientation, forward_v3);
+				u16 vertexOffsetBefore 	= lSystem.vertices.count;
+				f32 width 				= word[i].age * widthGrowFactor;
+
+				m44 transform = transform_matrix(state.position, identity_quaternion, {width, width, 1});
+
+				Assert(memory_view_available(lSystem.vertices) >= 8);
+				s32 & v = lSystem.vertices.count;
+
+				lSystem.vertices.data[v++] = {multiply_point(transform, {-0.5, -0.5, 0})};
+				lSystem.vertices.data[v++] = {multiply_point(transform, { 0.5, -0.5, 0})};
+				lSystem.vertices.data[v++] = {multiply_point(transform, { 0.5,  0.5, 0})};
+				lSystem.vertices.data[v++] = {multiply_point(transform, {-0.5,  0.5, 0})};
+
 				state.position 	+= forward * word[i].parameter;
-				linePoints.push(state.position);
+
+				// Note(Leo): Draw upper end slightly thinner, so it matches the following 'X' module
+				width 			= (word[i].age - terminalAge) * widthGrowFactor;
+				transform 		= transform_matrix(state.position, identity_quaternion, {width, width, 1});
+
+				lSystem.vertices.data[v++] = {multiply_point(transform, {-0.5, -0.5, 0})};
+				lSystem.vertices.data[v++] = {multiply_point(transform, { 0.5, -0.5, 0})};
+				lSystem.vertices.data[v++] = {multiply_point(transform, { 0.5,  0.5, 0})};
+				lSystem.vertices.data[v++] = {multiply_point(transform, {-0.5,  0.5, 0})};
+
+				constexpr u16 indices [] = 
+				{
+					0, 1, 4, 4, 1, 5,
+					1, 2, 5, 5, 2, 6,
+					2, 3, 6, 6, 3, 7,
+					3, 0, 7, 7, 0, 4,
+				};
+				Assert(memory_view_available(lSystem.indices) >= array_count(indices));
+
+				for(u16 index : indices)
+				{
+					lSystem.indices.data[lSystem.indices.count++] = index + vertexOffsetBefore;
+				}
 
 			} break;
 
 			case 'X':
 			{
-				v3 forward 		= rotate_v3(state.orientation, forward_v3);
-				linePoints.push(state.position);
+				Assert(memory_view_available(lSystem.vertices) >= 8);
+
+				v3 forward 				= rotate_v3(state.orientation, forward_v3);
+				u16 vertexOffsetBefore 	= lSystem.vertices.count;
+
+				f32 width 				= word[i].age * widthGrowFactor;
+				m44 transform 			= transform_matrix(state.position, identity_quaternion, {width, width, 1});
+
+				s32 & v = lSystem.vertices.count;
+
+				lSystem.vertices.data[v++] = {multiply_point(transform, {-0.5, -0.5, 0})};
+				lSystem.vertices.data[v++] = {multiply_point(transform, { 0.5, -0.5, 0})};
+				lSystem.vertices.data[v++] = {multiply_point(transform, { 0.5,  0.5, 0})};
+				lSystem.vertices.data[v++] = {multiply_point(transform, {-0.5,  0.5, 0})};
+
 				state.position 	+= forward * word[i].parameter * word[i].age;
-				linePoints.push(state.position);
+				
+				width 		= (word[i].age / 2) *widthGrowFactor;
+				transform 	= transform_matrix(state.position, identity_quaternion, {width, width, 1});
+
+				lSystem.vertices.data[v++] = {multiply_point(transform, {-0.5, -0.5, 0})};
+				lSystem.vertices.data[v++] = {multiply_point(transform, { 0.5, -0.5, 0})};
+				lSystem.vertices.data[v++] = {multiply_point(transform, { 0.5,  0.5, 0})};
+				lSystem.vertices.data[v++] = {multiply_point(transform, {-0.5,  0.5, 0})};
+
+				constexpr u16 indices [] = 
+				{
+					0, 1, 4, 4, 1, 5,
+					1, 2, 5, 5, 2, 6,
+					2, 3, 6, 6, 3, 7,
+					3, 0, 7, 7, 0, 4,
+				};
+				Assert(memory_view_available(lSystem.indices) >= array_count(indices));
+
+				for(u16 index : indices)
+				{
+					lSystem.indices.data[lSystem.indices.count++] = index + vertexOffsetBefore;
+				}
+
 			} break;
 
 			case 'L':
@@ -455,7 +536,7 @@ internal void update_lsystem_mesh(TimedLSystem & lSystem, Leaves & leaves)
 
 					leaves.localPositions[leafIndex]	= position;
 					leaves.baseRotations[leafIndex] 	= rotation;
-					leaves.scales[leafIndex] 			= 0.2f;
+					leaves.scales[leafIndex] 			= word[i].parameter;
 					leaves.axes[leafIndex]				= rotate_v3(rotation, forward_v3);
 				}
 
@@ -473,7 +554,7 @@ internal void update_lsystem_mesh(TimedLSystem & lSystem, Leaves & leaves)
 
 					leaves.localPositions[leafIndex]	= position;
 					leaves.baseRotations[leafIndex] 	= rotation;
-					leaves.scales[leafIndex] 			= 0.2f;
+					leaves.scales[leafIndex] 			= word[i].parameter;
 					leaves.axes[leafIndex]				= rotate_v3(rotation, forward_v3);
 				}
 
@@ -511,7 +592,6 @@ internal void update_lsystem_mesh(TimedLSystem & lSystem, Leaves & leaves)
 
 	}
 
-	lSystem.linePointsCount = linePoints.count;
 	Assert(stateIndex == 0 && "All states have not been popped");
 }
 
@@ -524,13 +604,15 @@ internal TimedLSystem make_lsystem(MemoryArena & allocator, s32 linePointsCapaci
 	lSystem.aWord 		= push_memory<TimedModule>(allocator, lSystem.wordCapacity, ALLOC_NO_CLEAR);
 	lSystem.bWord 		= push_memory<TimedModule>(allocator, lSystem.wordCapacity, ALLOC_NO_CLEAR);
 
-	lSystem.linePointsCapacity 	= linePointsCapacity;
-	lSystem.linePointsCount 	= 0;
-	lSystem.linePoints 			= push_memory<v3>(allocator, lSystem.linePointsCapacity, ALLOC_NO_CLEAR);
-
 	TimedModule axiom 	= {'X', 0, 0.7};
 	lSystem.aWord[0] 	= axiom;
 	lSystem.wordCount	= 1;
+
+	lSystem.vertices 	= push_memory_view<Vertex>(allocator, linePointsCapacity);
+	lSystem.indices 	= push_memory_view<u16>(allocator, linePointsCapacity);
+
+	lSystem.totalAge 	= 0;
+	lSystem.maxAge 		= 20;
 
 	return lSystem;
 }

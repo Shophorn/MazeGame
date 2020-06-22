@@ -332,6 +332,13 @@ struct PlatformGraphics
     // u32 currentUniformBufferOffset;
 
     bool32 sceneUnloaded = false;
+
+    VkBuffer 		leafBuffer;
+    VkDeviceMemory 	leafBufferMemory;
+    VkDeviceSize 	leafBufferCapacity;
+    VkDeviceSize 	leafBufferUsed[VIRTUAL_FRAME_COUNT];
+    void * 			persistentMappedLeafBufferMemory;
+
 };
 
 
@@ -422,9 +429,6 @@ namespace vulkan
 
 	// HELPER FUNCTIONS
 	internal VulkanQueueFamilyIndices find_queue_families (VkPhysicalDevice device, VkSurfaceKHR surface);
-	// internal VkPresentModeKHR choose_surface_present_mode(std::vector<VkPresentModeKHR> & availablePresentModes);
-	// internal VulkanSwapchainSupportDetails query_swap_chain_support(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface);
-	// internal VkSurfaceFormatKHR choose_swapchain_surface_format(std::vector<VkSurfaceFormatKHR>& availableFormats);
 
     internal inline bool32
     has_stencil_component(VkFormat format)
@@ -478,20 +482,6 @@ namespace vulkan
 	internal VkImageView 			make_vk_image_view(VkDevice device, VkImage image, u32 mipLevels, VkFormat format, VkImageAspectFlags aspectFlags);
 	internal VkSampler				make_vk_sampler(VkDevice, VkSamplerAddressMode);
 
-	/// DRAWING, VulkanDrawing.cpp
-	internal void prepare_drawing			(VulkanContext*);
-	internal void finish_drawing 			(VulkanContext*);
-    internal void update_camera				(VulkanContext*, Camera const *);
-    internal void update_lighting			(VulkanContext*, Light const *, Camera const *, v3 ambient);
-	internal void record_draw_command 		(VulkanContext*, ModelHandle handle, m44 transform, bool32 castShadow, m44 const * bones, u32 bonesCount);
-
-    internal TextureHandle  push_texture (VulkanContext * context, TextureAsset * texture);
-    internal MaterialHandle push_material (VulkanContext * context, MaterialAsset * asset);
-    internal MeshHandle     push_mesh(VulkanContext * context, MeshAsset * mesh);
-    internal ModelHandle    push_model (VulkanContext * context, MeshHandle mesh, MaterialHandle material);
-    internal TextureHandle  push_cubemap(VulkanContext * context, StaticArray<TextureAsset, 6> * assets);
-    internal void           unload_scene(VulkanContext * context);
-    
     internal VulkanTexture  make_texture(VulkanContext * context, TextureAsset * asset);
     internal VulkanTexture  make_cubemap(VulkanContext * context, StaticArray<TextureAsset, 6> * assets);        
 }
@@ -505,12 +495,8 @@ internal VkDescriptorSet fsvulkan_make_texture_descriptor_set(	VulkanContext*,
 																s32 			textureCount,
 																VkImageView * 	textures);
 
-internal GuiTextureHandle fsvulkan_push_gui_texture(VulkanContext * context, TextureAsset * asset);
-internal MaterialHandle fsvulkan_push_material(VulkanContext*, GraphicsPipeline, s32 textureCount, TextureHandle * textures);
-
-internal void fsvulkan_draw_meshes			(VulkanContext * context, s32 count, m44 const * transforms, MeshHandle, MaterialHandle);
-internal void fsvulkan_draw_screen_rects	(VulkanContext * context, s32 count, ScreenRect const * rects, GuiTextureHandle, v4 color);
-internal void fsvulkan_draw_lines			(VulkanContext*, s32 count, v3 const * points, v4 color);
+internal GuiTextureHandle fsvulkan_resources_push_gui_texture(VulkanContext * context, TextureAsset * asset);
+internal MaterialHandle fsvulkan_resources_push_material(VulkanContext*, GraphicsPipeline, s32 textureCount, TextureHandle * textures);
 
 internal TextureHandle fsvulkan_init_shadow_pass (VulkanContext*);
 
@@ -567,7 +553,7 @@ internal PlatformGraphicsFrameResult fsvulkan_prepare_frame(VulkanContext * cont
 {
 	VulkanVirtualFrame * frame = vulkan::get_current_virtual_frame(context);
 
-    vkWaitForFences(context->device, 1, &frame->inFlightFence, VK_TRUE, VULKAN_NO_TIME_OUT);
+    VULKAN_CHECK(vkWaitForFences(context->device, 1, &frame->inFlightFence, VK_TRUE, VULKAN_NO_TIME_OUT));
 
     VkResult result = vkAcquireNextImageKHR(context->device,
                                             context->drawingResources.swapchain,
@@ -596,14 +582,12 @@ internal VkDeviceSize fsvulkan_get_uniform_memory(VulkanContext & context, VkDev
 	VkDeviceSize frameSize = vulkan::get_aligned_uniform_buffer_size(&context, megabytes(150));
 	VkDeviceSize frameOffset = frameSize * context.virtualFrameIndex;
 
-
 	auto alignment 	= context.physicalDeviceProperties.limits.minUniformBufferOffsetAlignment;
 	size 			= align_up(size, alignment);
 
 	VkDeviceSize currentOffset = context.modelUniformBuffer.used;
 
 	Assert(currentOffset + size <= frameSize && "Trying to use too much memory.");
-	// Assert(currentOffset + size <= context.modelUniformBuffer.size && "Trying to use too much memory.");
 
 	context.modelUniformBuffer.used += size;
 
@@ -613,31 +597,10 @@ internal VkDeviceSize fsvulkan_get_uniform_memory(VulkanContext & context, VkDev
 
 internal void fsvulkan_reset_uniform_buffer(VulkanContext & context)
 {
+	/// TODO(Leo): This is used incorrectly. We should zero some other value, since this buffer is in 
+	// practice split to three or two parts, but currently we use this same 'used' value to track each.
+	// It luckily works because they are not accessed at same times.
 	context.modelUniformBuffer.used = 0;
-}
-
-internal void fsvulkan_set_platform_graphics_api(VulkanContext * context, PlatformApi * api)
-{
- 	api->push_mesh          = vulkan::push_mesh;
- 	api->push_texture       = vulkan::push_texture;
- 	api->push_cubemap       = vulkan::push_cubemap;
- 	api->push_material      = fsvulkan_push_material;
-
- 	api->push_gui_texture 	= fsvulkan_push_gui_texture;
-
- 	api->push_model         = vulkan::push_model;
- 	api->unload_scene       = vulkan::unload_scene;
- 	api->reload_shaders 	= fsvulkan_reload_shaders;
-
- 	api->prepare_frame      = vulkan::prepare_drawing;
- 	api->finish_frame       = vulkan::finish_drawing;
- 	api->update_camera      = vulkan::update_camera;
- 	api->update_lighting	= vulkan::update_lighting;
- 	api->draw_model         = vulkan::record_draw_command;
-
- 	api->draw_meshes 		= fsvulkan_draw_meshes;
- 	api->draw_screen_rects	= fsvulkan_draw_screen_rects;
- 	api->draw_lines 		= fsvulkan_draw_lines;
 }
 
 #define WIN_VULKAN_HPP

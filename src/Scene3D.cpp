@@ -4,70 +4,6 @@ shophorn @ internet
 
 Scene description for 3d development scene
 =============================================================================*/
-template<typename T>
-struct Stack
-{
-	s32 capacity;
-	s32 count;
-	T * memory;
-
-	void push(T const & value)
-	{
-		Assert(count < capacity);
-
-		memory[count] = value;
-		count += 1;
-	}
-
-	void pop()
-	{
-		Assert(count > 0);
-		count -= 1;
-	}
-
-	T & top()
-	{
-		Assert(count > 0);
-		return memory[count - 1];
-	}
-
-	static_assert(std::is_trivially_destructible_v<T>);
-};
-
-template<typename T>
-internal Stack<T>allocate_stack(MemoryArena & arena, s32 capacity)
-{
-	Stack<T> stack = { capacity, 0, push_memory<T>(arena, capacity, ALLOC_NO_CLEAR)};
-	return stack;
-}
-
-template<typename T>
-struct Array2
-{
-	s32 capacity;
-	s32 count;
-	T * memory;
-
-	void push(T const & value)
-	{
-		Assert(count < capacity);
-
-		memory[count] = value;
-		count += 1;
-	}
-
-	T & operator[] (s32 index)
-	{
-		Assert(index < count);
-		return memory[index];
-	}
-
-	T const & operator[] (s32 index) const
-	{
-		Assert (index < count);
-		return memory[index];
-	}
-};
 
 #include "CharacterMotor.cpp"
 #include "PlayerController3rdPerson.cpp"
@@ -91,7 +27,6 @@ enum CarryMode : s32
 	CARRY_WATER,
 	CARRY_SEED,
 };
-
 
 struct Scene3d
 {
@@ -713,24 +648,20 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 								renderer.castShadows, boneTransformMatrices, array_count(boneTransformMatrices));
 	}
 
-	// Todo(Leo): leaves are drawn last, so we can bind their shadow pipeline once, and not rebind the normal shadow thing. Fix this unconvenience!
-	{
-		update_leaves(scene->treesInPot, scaledTime);
-		update_leaves(scene->treesOnGround, scaledTime);
-
-		draw_leaves(scene->treesInPot);
-		draw_leaves(scene->treesOnGround);
-	}
-
 	// Timed L-System
 	{
+		local_persist s32 updatedLSystemIndex = -1;
+		updatedLSystemIndex += 1;
+		updatedLSystemIndex %= scene->lSystemCount;
+
 		for (int i = 0; i <scene->lSystemCount; ++i)
 		{
+
 			TimedLSystem & lSystem 		= scene->lSystems[i];
 			Leaves & leaves 			= scene->lSystemLeavess[i];
 
 			lSystem.timeSinceLastUpdate += scaledTime;
-			if (lSystem.timeSinceLastUpdate > 0.1f)
+			if (i == updatedLSystemIndex)
 			{
 				float timePassed = lSystem.timeSinceLastUpdate;
 
@@ -739,26 +670,48 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 				advance_lsystem_time(lSystem, timePassed);
 				update_lsystem_mesh(lSystem, leaves);
 			}
+		}
 
-			// Draw every frame anyway
+
+		for (int i = 0; i <scene->lSystemCount; ++i)
+		{
+			TimedLSystem & lSystem 		= scene->lSystems[i];
+			Leaves & leaves 			= scene->lSystemLeavess[i];
+
+
+			if (lSystem.vertices.count > 0 && lSystem.indices.count > 0)
 			{
-				int linePointsCount = lSystem.linePointsCount;
-				v3 * linePoints = lSystem.linePoints;
-
-				if (linePointsCount > 0)
-				{
-					debug_draw_lines(linePointsCount, linePoints, colour_raw_umber, DEBUG_ALWAYS);
-				}
-
-				if (leaves.processCount > 0)
-				{
-					update_leaves(leaves, scaledTime);
-					draw_leaves(leaves);
-				}
+				platformApi->draw_procedural_mesh(	platformGraphics,
+													lSystem.vertices.count, lSystem.vertices.data, 
+													lSystem.indices.count, lSystem.indices.data,
+													identity_m44,
+													scene->seedMaterial);
 			}
+		}
+
+		for (int i = 0; i <scene->lSystemCount; ++i)
+		{
+			TimedLSystem & lSystem 		= scene->lSystems[i];
+			Leaves & leaves 			= scene->lSystemLeavess[i];
+
+			if (leaves.processCount > 0)
+			{
+				update_leaves(leaves, scaledTime);
+				draw_leaves(leaves);
+			}
+
 		}
 	}
 
+	// Todo(Leo): leaves are drawn last, so we can bind their shadow pipeline once, and not rebind the normal shadow thing. Fix this unconvenience!
+	// Todo(Leo): This works ok currently, but do fix this, maybe do a proper command buffer for these
+	{
+		update_leaves(scene->treesInPot, scaledTime);
+		update_leaves(scene->treesOnGround, scaledTime);
+
+		draw_leaves(scene->treesInPot);
+		draw_leaves(scene->treesOnGround);
+	}
 
 	// ------------------------------------------------------------------------
 
@@ -1540,7 +1493,7 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 		scene->lSystems[i].position.z 	= get_terrain_height(&scene->collisionSystem, scene->lSystems[i].position.xy);
 		scene->lSystems[i].rotation 	= axis_angle_quaternion(right_v3, π/2);
 
-		scene->lSystemLeavess[i] 		= make_leaves(persistentMemory, 20000);
+		scene->lSystemLeavess[i] 		= make_leaves(persistentMemory, 4000);
 	}
 
 	// ----------------------------------------------------------------------------------

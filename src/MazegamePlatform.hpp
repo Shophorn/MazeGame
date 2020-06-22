@@ -247,6 +247,11 @@ struct PlatformApi
 	void (*draw_meshes)			(PlatformGraphics*, s32 count, m44 const * transforms, MeshHandle mesh, MaterialHandle material);
 	void (*draw_screen_rects)	(PlatformGraphics*, s32 count, ScreenRect const * rects, GuiTextureHandle texture, v4 color);
 	void (*draw_lines)			(PlatformGraphics*, s32 pointCount, v3 const * points, v4 color);
+	void (*draw_procedural_mesh)(	PlatformGraphics*,
+									s32 vertexCount, Vertex const * vertices,
+									s32 indexCount, u16 const * indices,
+									m44 transform, MaterialHandle material);
+	void (*draw_leaves)			(PlatformGraphics*, s32 count, m44 const * transforms);
 
 	// WINDOW FUNCTIONS	
 	u32 (*get_window_width) 		(PlatformWindow const *);
