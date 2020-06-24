@@ -54,13 +54,17 @@ struct Scene3d
 	s32 potsWithSeedCount;
 	s32 totalPotsCount;
 
-	static constexpr s32 waterCapacity = 100;
-	Transform3D waterTransforms[waterCapacity];
-	s32	waterCount;
+	Waters waters;
+	static constexpr f32 fullWaterLevel = 1;
 
-	static constexpr s32 seedCapacity = 20;
-	Transform3D	seedTransforms[seedCapacity];
-	s32 currentSeedCount;
+
+	s32 			seedCapacity;
+	s32 			seedCount;
+	Transform3D * 	seedTransforms;
+	f32 * 			seedWaterLevels;
+	// static constexpr s32 seedCapacity = 20;
+	// Transform3D	seedTransforms[seedCapacity];
+	// s32 currentSeedCount;
 
 	Trees treesOnGround;
 	Trees treesInPot;
@@ -103,17 +107,6 @@ struct Scene3d
 	MeshHandle * 	terrainMeshes;
 	MaterialHandle 	terrainMaterial;
 
-	// struct ArrayRenderer
-	// {
-	// 	s32 			count;
-	// 	Transform3D * 	transforms;
-	// 	MeshHandle 		mesh;
-	// 	MaterialHandle 	material;
-	// };
-
-	// ArrayRenderer stoneWalls;
-	// ArrayRenderer buildings;
-
 	// Other actors
 	static constexpr s32 followerCapacity = 30;
 	FollowerController followers[followerCapacity];
@@ -147,15 +140,70 @@ struct Scene3d
 	constexpr static s32 	timeScaleCount = 3;
 	s32 					timeScaleIndex;
 
-	s32 lSystemCount;
-	TimedLSystem * lSystems;
-	Leaves * lSystemLeavess;
+	s32 			lSystemCapacity;
+	s32 			lSystemCount;
+	TimedLSystem * 	lSystems;
+	Leaves * 		lSystemLeavess;
 };
 
 internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, PlatformTime const & time)
 {
 	Scene3d * scene = reinterpret_cast<Scene3d*>(scenePtr);
 	
+	/// ****************************************************************************
+
+	/// DEFINE UPDATE FUNCTIONS
+	// Timed L-System
+	auto get_water = [	carryState 			= scene->playerCarryState,
+						carriedItemIndex 	= scene->carriedItemIndex]
+					(Waters & waters, v3 position, f32 distanceThreshold, f32 requestedAmount) -> f32
+	{	
+		s32 closestIndex;
+		f32 closestDistance = highest_f32;
+
+		for (s32 i = 0; i < waters.count; ++i)
+		{
+			if (carriedItemIndex == i && carryState == CARRY_WATER)
+			{
+				continue;
+			}
+
+			f32 distance = magnitude_v3(waters.transforms[i].position - position);
+			if (distance < closestDistance)
+			{
+				closestDistance = distance;
+				closestIndex 	= i;
+			}
+		}
+
+		float amount = 0;
+
+		if (closestDistance < distanceThreshold)
+		{
+			waters.levels[closestIndex] -= requestedAmount;
+			if (waters.levels[closestIndex] < 0)
+			{
+				waters.count -= 1;
+				waters.transforms[closestIndex] 	= waters.transforms[waters.count];
+				waters.levels[closestIndex] 		= waters.levels[waters.count];
+			}
+
+			amount = requestedAmount;
+		}
+
+		return amount;
+	};
+
+	auto add_l_system_tree = [	&lSystemCount 	= scene->lSystemCount,
+								lSystems 		= scene->lSystems]
+							(v3 position)
+	{
+		s32 index 					= lSystemCount;
+		lSystemCount 				+= 1;
+		lSystems[index].position 	= position;
+		lSystems[index].rotation 	= axis_angle_quaternion(right_v3, π/2);
+	};
+
 	/// ****************************************************************************
 	/// TIME
 
@@ -223,24 +271,31 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 	
 	if ((scene->cameraMode == CAMERA_MODE_PLAYER) && is_clicked(input.Y))
 	{
+		Waters & waters = scene->waters;
+
 		v2 center = scene->playerCharacterTransform->position.xy;
 
 		s32 spawnCount = 10;
-		spawnCount = math::min(spawnCount, scene->waterCapacity - scene->waterCount);
+		spawnCount = math::min(spawnCount, waters.capacity - waters.count);
 
 		for (s32 i = 0; i < spawnCount; ++i)
 		{
 			f32 distance 	= RandomRange(1, 5);
-			f32 angle 		= RandomRange(0, 2 * pi);
+			f32 angle 		= RandomRange(0, 2 * π);
 
 			f32 x = cosine(angle) * distance;
 			f32 y = sine(angle) * distance;
 
 			v3 position = { x + center.x, y + center.y, 0 };
-				position.z = get_terrain_height(&scene->collisionSystem, position.xy);
+			position.z = get_terrain_height(&scene->collisionSystem, position.xy);
 
-			scene->waterTransforms[scene->waterCount].position = position;
-			++scene->waterCount;
+			waters.transforms[waters.count].position = position;
+			waters.transforms[waters.count].rotation = identity_quaternion;
+			waters.transforms[waters.count].scale = {1,1,1};
+
+			waters.levels[waters.count] = scene->fullWaterLevel;
+
+			waters.count += 1;
 		}
 	}
 
@@ -265,9 +320,9 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 					}
 				}
 
-				for (s32 i = 0; i < scene->waterCount; ++i)
+				for (s32 i = 0; i < scene->waters.count; ++i)
 				{
-					if(magnitude_v3(playerPosition - scene->waterTransforms[i].position) < grabDistance)
+					if(magnitude_v3(playerPosition - scene->waters.transforms[i].position) < grabDistance)
 					{
 						scene->playerCarryState = CARRY_WATER;
 						scene->carriedItemIndex = i;
@@ -275,7 +330,7 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 					}
 				}
 
-				for (s32 i = 0; i < scene->currentSeedCount; ++i)
+				for (s32 i = 0; i < scene->seedCount; ++i)
 				{
 					if (magnitude_v3(playerPosition - scene->seedTransforms[i].position) < grabDistance)
 					{
@@ -297,28 +352,28 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 				
 			case CARRY_WATER:
 			{
-				Transform3D & waterTransform = scene->waterTransforms[scene->carriedItemIndex];
+				Transform3D & waterTransform = scene->waters.transforms[scene->carriedItemIndex];
 
 				scene->playerCarryState = CARRY_NONE;
 				waterTransform.position.z = get_terrain_height(&scene->collisionSystem, waterTransform.position.xy);
 
-				/// LOOK FOR NEARBY SEEDS ON GROUND
-				for (s32 seedIndex = 0; seedIndex < scene->currentSeedCount; ++seedIndex)
-				{
-					// Todo(Leo): Once we have some benchmarking, test if this was faster with all distances computed before
-					f32 distanceToSeed = magnitude_v3(waterTransform.position - scene->seedTransforms[seedIndex].position);
-					if (distanceToSeed < 0.5f)
-					{
-						s32 treeIndex = add_new_tree(scene->treesOnGround, scene->seedTransforms[seedIndex].position);
+				// /// LOOK FOR NEARBY SEEDS ON GROUND
+				// for (s32 seedIndex = 0; seedIndex < scene->seedCount; ++seedIndex)
+				// {
+				// 	// Todo(Leo): Once we have some benchmarking, test if this was faster with all distances computed before
+				// 	f32 distanceToSeed = magnitude_v3(waterTransform.position - scene->seedTransforms[seedIndex].position);
+				// 	if (distanceToSeed < 0.5f)
+				// 	{
+				// 		s32 treeIndex = add_new_tree(scene->treesOnGround, scene->seedTransforms[seedIndex].position);
 
-						scene->currentSeedCount -= 1;
-						scene->seedTransforms[seedIndex] = scene->seedTransforms[scene->currentSeedCount];
+				// 		scene->seedCount -= 1;
+				// 		scene->seedTransforms[seedIndex] = scene->seedTransforms[scene->seedCount];
 
-						scene->waterCount -= 1;
-						scene->waterTransforms[scene->carriedItemIndex] = scene->waterTransforms[scene->waterCount]; 
-						break;
-					}
-				}
+				// 		scene->waters.count -= 1;
+				// 		scene->waters.transforms[scene->carriedItemIndex] = scene->waters.transforms[scene->waters.count]; 
+				// 		break;
+				// 	}
+				// }
 
 				/// LOOK FOR NEARBY SEEDS IN POTS
 				s32 startPotWithSeed = scene->potsWithTreeCount;
@@ -341,8 +396,8 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 						scene->potsWithTreeCount 	+= 1;
 						scene->potsWithSeedCount 	-= 1;
 
-						scene->waterCount -= 1;
-						scene->waterTransforms[scene->carriedItemIndex] = scene->waterTransforms[scene->waterCount]; 
+						scene->waters.count -= 1;
+						scene->waters.transforms[scene->carriedItemIndex] = scene->waters.transforms[scene->waters.count]; 
 
 						break;
 					}
@@ -357,8 +412,8 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 					{
 						scene->treesInPot.waterinesss[treeIndex] += 0.5f;
 
-						scene->waterCount -= 1;
-						scene->waterTransforms[scene->carriedItemIndex] = scene->waterTransforms[scene->waterCount];
+						scene->waters.count -= 1;
+						scene->waters.transforms[scene->carriedItemIndex] = scene->waters.transforms[scene->waters.count];
 
 						break;
 					}
@@ -374,8 +429,8 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 					{
 						scene->treesOnGround.waterinesss[treeIndex] += 0.5f;
 
-						scene->waterCount -= 1;
-						scene->waterTransforms[scene->carriedItemIndex] = scene->waterTransforms[scene->waterCount];
+						scene->waters.count -= 1;
+						scene->waters.transforms[scene->carriedItemIndex] = scene->waters.transforms[scene->waters.count];
 
 						break;
 					}
@@ -397,8 +452,8 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 						++scene->potsWithSeedCount;
 
-						scene->currentSeedCount -= 1;
-						scene->seedTransforms[scene->carriedItemIndex] = scene->seedTransforms[scene->currentSeedCount];
+						scene->seedCount -= 1;
+						scene->seedTransforms[scene->carriedItemIndex] = scene->seedTransforms[scene->seedCount];
 
 						break;
 					}
@@ -419,8 +474,8 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 			break;
 
 		case CARRY_WATER:
-			scene->waterTransforms[scene->carriedItemIndex].position = carriedPosition;
-			scene->waterTransforms[scene->carriedItemIndex].rotation = carriedRotation;
+			scene->waters.transforms[scene->carriedItemIndex].position = carriedPosition;
+			scene->waters.transforms[scene->carriedItemIndex].rotation = carriedRotation;
 			break;
 
 		case CARRY_SEED:
@@ -439,6 +494,36 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 		scene->treesInPot.transforms[i].rotation = scene->potTransforms[i].rotation;
 	}
 	
+	/// UPDATE SEEDS
+	{
+		constexpr f32 seedWaterDistanceThreshold 	= 0.4f;
+		constexpr f32 seedWaterDrainSpeed 			= 0.5;
+		constexpr f32 seedFullWaterLevel 			= 0.5f;
+	
+		for (s32 i = 0; i < scene->seedCount; ++i)
+		{
+			f32 waterAmount = get_water(scene->waters, scene->seedTransforms[i].position, seedWaterDistanceThreshold, scaledTime * seedWaterDrainSpeed);
+			scene->seedWaterLevels[i] += waterAmount;
+
+			if (scene->seedWaterLevels[i] > seedFullWaterLevel)
+			{
+				add_l_system_tree(scene->seedTransforms[i].position);
+
+				scene->seedCount -= 1;
+				scene->seedTransforms[i] = scene->seedTransforms[scene->seedCount];
+				scene->seedWaterLevels[i] = scene->seedWaterLevels[scene->seedCount];
+
+				debug_draw_circle_xy(scene->seedTransforms[i].position + v3{0,0,0.1f}, seedWaterDistanceThreshold, colour_bright_green, DEBUG_NPC);
+			}
+			else
+			{
+				debug_draw_circle_xy(scene->seedTransforms[i].position + v3{0,0,0.1f}, seedWaterDistanceThreshold, colour_bright_red, DEBUG_NPC);
+			}
+
+		}
+
+	}
+
 	// -----------------------------------------------------------------------------------------------------------
 
 	// Todo(Leo): Rather use something like submit_collider() with what every collider can decide themselves, if they want to
@@ -502,25 +587,27 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 	// Rebellious(Leo): stop using systems, and instead just do the stuff you need to >:)
 	/// DRAW UNUSED WATER
-	if (scene->waterCount > 0)
+	if (scene->waters.count > 0)
 	{
-		m44 * waterTransforms = push_memory<m44>(*global_transientMemory, scene->waterCount, ALLOC_NO_CLEAR);
-		for (s32 i = 0; i < scene->waterCount; ++i)
+		m44 * waterTransforms = push_memory<m44>(*global_transientMemory, scene->waters.count, ALLOC_NO_CLEAR);
+		for (s32 i = 0; i < scene->waters.count; ++i)
 		{
-			waterTransforms[i] = transform_matrix(scene->waterTransforms[i]);
+			waterTransforms[i] = transform_matrix(	scene->waters.transforms[i].position,
+													scene->waters.transforms[i].rotation,
+													make_uniform_v3(scene->waters.levels[i] / scene->fullWaterLevel));
 		}
-		platformApi->draw_meshes(platformGraphics, scene->waterCount, waterTransforms, scene->dropMesh, scene->waterDropMaterial);
+		platformApi->draw_meshes(platformGraphics, scene->waters.count, waterTransforms, scene->dropMesh, scene->waterDropMaterial);
 	}
 	
 	/// DRAW UNUSED SEEDS
-	if(scene->currentSeedCount)
+	if(scene->seedCount)
 	{
-		m44 * seedTransforms = push_memory<m44>(*global_transientMemory, scene->currentSeedCount, ALLOC_NO_CLEAR);
-		for (s32 i = 0; i < scene->currentSeedCount; ++i)
+		m44 * seedTransforms = push_memory<m44>(*global_transientMemory, scene->seedCount, ALLOC_NO_CLEAR);
+		for (s32 i = 0; i < scene->seedCount; ++i)
 		{
 			seedTransforms[i] = transform_matrix(scene->seedTransforms[i]);
 		}
-		platformApi->draw_meshes(platformGraphics, scene->currentSeedCount, seedTransforms, scene->dropMesh, scene->seedMaterial);
+		platformApi->draw_meshes(platformGraphics, scene->seedCount, seedTransforms, scene->dropMesh, scene->seedMaterial);
 	}
 
 	/// UPDATE TREES
@@ -648,27 +735,40 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 								renderer.castShadows, boneTransformMatrices, array_count(boneTransformMatrices));
 	}
 
-	// Timed L-System
 	{
 		local_persist s32 updatedLSystemIndex = -1;
 		updatedLSystemIndex += 1;
-		updatedLSystemIndex %= scene->lSystemCount;
+		if (updatedLSystemIndex > scene->lSystemCount)
+		{
+			updatedLSystemIndex = 0;
+		}
 
 		for (int i = 0; i <scene->lSystemCount; ++i)
 		{
+			f32 waterDistanceThreshold = 1;
+
 
 			TimedLSystem & lSystem 		= scene->lSystems[i];
 			Leaves & leaves 			= scene->lSystemLeavess[i];
 
+			debug_draw_circle_xy(lSystem.position + v3{0,0,1}, waterDistanceThreshold, colour_aqua_blue, DEBUG_NPC);
+
+			if (lSystem.totalAge > lSystem.maxAge)
+			{
+				continue;
+			}
+
 			lSystem.timeSinceLastUpdate += scaledTime;
 			if (i == updatedLSystemIndex)
 			{
-				float timePassed = lSystem.timeSinceLastUpdate;
-
+				float timePassed 			= lSystem.timeSinceLastUpdate;
 				lSystem.timeSinceLastUpdate = 0;
 
-				advance_lsystem_time(lSystem, timePassed);
-				update_lsystem_mesh(lSystem, leaves);
+				if (get_water(scene->waters, lSystem.position, waterDistanceThreshold, 0.5 * scaledTime) > 0)
+				{
+					advance_lsystem_time(lSystem, scene->waters, timePassed);
+					update_lsystem_mesh(lSystem, leaves);
+				}
 			}
 		}
 
@@ -677,7 +777,6 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 		{
 			TimedLSystem & lSystem 		= scene->lSystems[i];
 			Leaves & leaves 			= scene->lSystemLeavess[i];
-
 
 			if (lSystem.vertices.count > 0 && lSystem.indices.count > 0)
 			{
@@ -703,6 +802,7 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 		}
 	}
 
+	// Todo(Leo): leaves are drawn last, so we can bind their shadow pipeline once, and not rebind the normal shadow thing. Fix this unconvenience!
 	// Todo(Leo): leaves are drawn last, so we can bind their shadow pipeline once, and not rebind the normal shadow thing. Fix this unconvenience!
 	// Todo(Leo): This works ok currently, but do fix this, maybe do a proper command buffer for these
 	{
@@ -1334,32 +1434,40 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 			MeshAsset dropMeshAsset = load_mesh_glb(*global_transientMemory, sceneryFile, "water_drop");
 			scene->dropMesh 		= platformApi->push_mesh(platformGraphics, &dropMeshAsset);
 
-			TextureHandle waterTextures [] = {waterTextureHandle, neutralBumpTexture, blackTexture};
-			scene->waterDropMaterial = platformApi->push_material(platformGraphics, GRAPHICS_PIPELINE_NORMAL, 3, waterTextures);
+			TextureHandle waterTextures [] 	= {waterTextureHandle, neutralBumpTexture, blackTexture};
+			scene->waterDropMaterial 		= platformApi->push_material(platformGraphics, GRAPHICS_PIPELINE_NORMAL, 3, waterTextures);
 
-			s32 waterStartCount = 20;
-			Assert(waterStartCount <= scene->waterCapacity);
+			scene->waters.capacity 		= 200;
+			scene->waters.count 		= 20;
+			scene->waters.transforms 	= push_memory<Transform3D>(persistentMemory, scene->waters.capacity, 0);
+			scene->waters.levels 		= push_memory<f32>(persistentMemory, scene->waters.capacity, 0);
 
-			scene->waterCount = waterStartCount;
-			for (s32 i = 0; i < scene->waterCount; ++i)
+			for (s32 i = 0; i < scene->waters.count; ++i)
 			{
 				v3 position = {RandomRange(-50, 50), RandomRange(-50, 50)};
 				position.z 	= get_terrain_height(&scene->collisionSystem, position.xy);
 
-				scene->waterTransforms[i] = { .position = position };
+				scene->waters.transforms[i] 	= { .position = position };
+				scene->waters.levels[i] 		= scene->fullWaterLevel;
 			}
 
 			TextureHandle seedTextures [] = {seedTextureHandle, neutralBumpTexture, blackTexture};
 			scene->seedMaterial = platformApi->push_material(platformGraphics, GRAPHICS_PIPELINE_NORMAL, 3, seedTextures);
 
-			scene->currentSeedCount = scene->seedCapacity;
-			for(s32 i = 0; i < scene->seedCapacity; ++i)
+
+			scene->seedCapacity 	= 100;
+			scene->seedCount 		= 20;
+			scene->seedTransforms 	= push_memory<Transform3D>(persistentMemory, scene->seedCapacity, ALLOC_NO_CLEAR);
+			scene->seedWaterLevels 	= push_memory<f32>(persistentMemory, scene->seedCapacity, ALLOC_NO_CLEAR);
+			for(s32 i = 0; i < scene->seedCount; ++i)
 			{
 				scene->seedTransforms[i] = identity_transform;
 
 				v3 position = {RandomRange(-50, 50), RandomRange(-50, 50), 0};
 				position.z = get_terrain_height(&scene->collisionSystem, position.xy);
 				scene->seedTransforms[i].position = position;
+
+				scene->seedWaterLevels[i] = 0;
 			}
 		}
 
@@ -1479,21 +1587,23 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 
 	// ----------------------------------------------------------------------------------
 	
-	scene->lSystemCount 	= 10;
-	scene->lSystems 		= push_memory<TimedLSystem>(persistentMemory, scene->lSystemCount, ALLOC_NO_CLEAR);
-	scene->lSystemLeavess 	= push_memory<Leaves>(persistentMemory, scene->lSystemCount, ALLOC_NO_CLEAR);
+	scene->lSystemCapacity 	= 100;
+	scene->lSystemCount 	= 0;
+	scene->lSystems 		= push_memory<TimedLSystem>(persistentMemory, scene->lSystemCapacity, ALLOC_NO_CLEAR);
+	scene->lSystemLeavess 	= push_memory<Leaves>(persistentMemory, scene->lSystemCapacity, ALLOC_NO_CLEAR);
 
-	s32 lSystemWordCapacity 	= 100'000;
-	s32 lSystemLinesCapacity 	= 50'000;
+	// for (int i = 0; i < scene->lSystemCount; ++i)
+	// {
+	// 	scene->lSystems[i] 				= make_lsystem(persistentMemory);
+	// 	scene->lSystems[i].position 	= {10.0f * i, 20, 0};
+	// 	scene->lSystems[i].position.z 	= get_terrain_height(&scene->collisionSystem, scene->lSystems[i].position.xy);
+	// 	scene->lSystems[i].rotation 	= axis_angle_quaternion(right_v3, π/2);
+	// }
 
-	for (int i = 0; i < scene->lSystemCount; ++i)
+	for (int i = 0; i < scene->lSystemCapacity; ++i)
 	{
-		scene->lSystems[i] 				= make_lsystem(persistentMemory, lSystemLinesCapacity, lSystemWordCapacity);
-		scene->lSystems[i].position 	= {10.0f * i, 20, 0};
-		scene->lSystems[i].position.z 	= get_terrain_height(&scene->collisionSystem, scene->lSystems[i].position.xy);
-		scene->lSystems[i].rotation 	= axis_angle_quaternion(right_v3, π/2);
-
-		scene->lSystemLeavess[i] 		= make_leaves(persistentMemory, 4000);
+		scene->lSystems[i]= make_lsystem(persistentMemory);
+		scene->lSystemLeavess[i] = make_leaves(persistentMemory, 4000);
 	}
 
 	// ----------------------------------------------------------------------------------

@@ -141,22 +141,6 @@ internal void draw_leaves(Trees & trees)
 	for (s32 leavesIndex = 0; leavesIndex < trees.count; ++leavesIndex)
 	{
 		draw_leaves(trees.leaves[leavesIndex]);
-
-		// Leaves & leaves = trees.leaves[leavesIndex]; 
-		// s32 drawCount 	= leaves.processCount;
-
-		// m44 * leafTransforms = push_memory<m44>(*global_transientMemory, drawCount, ALLOC_NO_CLEAR);
-		// for (s32 i = 0; i < drawCount; ++i)
-		// {
-		// 	quaternion rotation = axis_angle_quaternion(leaves.axes[i], leaves.rotations[i]);
-		// 	rotation 			= leaves.baseRotations[i] * rotation;
-
-		// 	leafTransforms[i] 	= transform_matrix(	leaves.position + leaves.localPositions[i] * leaves.radius, 
-		// 											rotation,
-		// 											make_uniform_v3(leaves.scales[i] * leaves.leafScale));
-		// }
-
-		// platformApi->draw_leaves(platformGraphics, drawCount, leafTransforms);
 	}
 }
 
@@ -218,9 +202,6 @@ internal void update_leaves(Leaves & leaves, f32 elapsedTime)
 	}
 }
 
-// Note(Leo): wild idea to emulate implicit this-pointer in regular member functions
-#define IMPORT_TREES(treesInstance) s32 & count = (treesInstance).count;
-
 internal Trees allocate_trees(MemoryArena & allocator, s32 capacity)
 {
 	Trees trees 		= {};
@@ -242,8 +223,6 @@ internal Trees allocate_trees(MemoryArena & allocator, s32 capacity)
 // Note(Leo): return tree index
 internal s32 add_new_tree(Trees & trees, v3 position)
 {
-	// IMPORT_TREES(trees);
-
 	Assert(trees.count <= trees.capacity);
 
 	s32 index = trees.count;
@@ -255,7 +234,6 @@ internal s32 add_new_tree(Trees & trees, v3 position)
 	// Note(Leo): we assume that tree was created with a drop of water
 	trees.waterinesss[index] 	= 0.5f;
 	trees.growths[index] 		= 0;
-	// trees.leavesIndices[index] 	= 0;
 
 	trees.count += 1;
 	return index;
@@ -310,12 +288,17 @@ struct TimedLSystem
 	MemoryView<Vertex> 	vertices;
 };
 
-internal void advance_lsystem_time(TimedLSystem & lSystem, f32 timePassed)
+struct Waters
 {
-	if (lSystem.totalAge > lSystem.maxAge)
-	{
-		return;
-	}
+	s32 			capacity;
+	s32 			count;
+	Transform3D * 	transforms;
+	f32	* 			levels;
+};
+
+internal void advance_lsystem_time(TimedLSystem & lSystem, Waters & waters, f32 timePassed)
+{
+	f32 waterDistanceThreshold = 1;
 
 	lSystem.totalAge += timePassed;
 
@@ -365,8 +348,6 @@ internal void advance_lsystem_time(TimedLSystem & lSystem, f32 timePassed)
 					s32 count = random_choice() ? 11 : 16; 
 					copy_structs(bWord.data + bWord.count, production, count);
 					bWord.count += count;
-
-
 				}
 				else
 				{
@@ -530,6 +511,8 @@ internal void update_lsystem_mesh(TimedLSystem & lSystem, Leaves & leaves)
 					v3 position 		= state.position + rotate_v3(rotation, forward_v3) * 0.05f;
 					rotation 			= rotation * axis_angle_quaternion(rotate_v3(rotation,right_v3), π / 3);
 					rotation 			= rotation * axis_angle_quaternion(rotate_v3(rotation, forward_v3), π);
+					
+					rotation 			= normalize_quaternion(rotation);
 
 					int leafIndex 		= leaves.processCount;
 					leaves.processCount += 1;
@@ -542,12 +525,13 @@ internal void update_lsystem_mesh(TimedLSystem & lSystem, Leaves & leaves)
 
 				{
 					quaternion rotation = state.orientation;
-					rotation = rotation * axis_angle_quaternion(rotate_v3(rotation, forward_v3), π); 
-					rotation = rotation * axis_angle_quaternion(rotate_v3(rotation,right_v3), π / 3);
-					v3 position = state.position + rotate_v3(rotation, forward_v3) * 0.05f;
-					rotation = rotation * axis_angle_quaternion(rotate_v3(rotation,right_v3), π / 3);
-					rotation = rotation * axis_angle_quaternion(rotate_v3(rotation, forward_v3), π);
+					rotation 			= rotation * axis_angle_quaternion(rotate_v3(rotation, forward_v3), π); 
+					rotation 			= rotation * axis_angle_quaternion(rotate_v3(rotation,right_v3), π / 3);
+					v3 position 		= state.position + rotate_v3(rotation, forward_v3) * 0.05f;
+					rotation 			= rotation * axis_angle_quaternion(rotate_v3(rotation,right_v3), π / 3);
+					rotation 			= rotation * axis_angle_quaternion(rotate_v3(rotation, forward_v3), π);
 
+					rotation 			= normalize_quaternion(rotation);
 
 					int leafIndex = leaves.processCount;
 					leaves.processCount += 1;
@@ -595,24 +579,28 @@ internal void update_lsystem_mesh(TimedLSystem & lSystem, Leaves & leaves)
 	Assert(stateIndex == 0 && "All states have not been popped");
 }
 
-internal TimedLSystem make_lsystem(MemoryArena & allocator, s32 linePointsCapacity, s32 wordCapacity)
+internal TimedLSystem make_lsystem(MemoryArena & allocator)
 {
-	TimedLSystem lSystem = {};
+	s32 wordCapacity 	= 100'000;
+	s32 indexCapacity 	= 75'000;
+	s32 vertexCapacity	= 25'000;
 
-	lSystem.wordCapacity = wordCapacity;
-	lSystem.wordCount 	= 0;
-	lSystem.aWord 		= push_memory<TimedModule>(allocator, lSystem.wordCapacity, ALLOC_NO_CLEAR);
-	lSystem.bWord 		= push_memory<TimedModule>(allocator, lSystem.wordCapacity, ALLOC_NO_CLEAR);
+	TimedLSystem lSystem 	= {};
 
-	TimedModule axiom 	= {'X', 0, 0.7};
-	lSystem.aWord[0] 	= axiom;
-	lSystem.wordCount	= 1;
+	lSystem.wordCapacity 	= wordCapacity;
+	lSystem.wordCount 		= 0;
+	lSystem.aWord 			= push_memory<TimedModule>(allocator, lSystem.wordCapacity, ALLOC_NO_CLEAR);
+	lSystem.bWord 			= push_memory<TimedModule>(allocator, lSystem.wordCapacity, ALLOC_NO_CLEAR);
 
-	lSystem.vertices 	= push_memory_view<Vertex>(allocator, linePointsCapacity);
-	lSystem.indices 	= push_memory_view<u16>(allocator, linePointsCapacity);
+	TimedModule axiom 		= {'X', 0, 0.7};
+	lSystem.aWord[0] 		= axiom;
+	lSystem.wordCount		= 1;
 
-	lSystem.totalAge 	= 0;
-	lSystem.maxAge 		= 20;
+	lSystem.vertices 		= push_memory_view<Vertex>(allocator, vertexCapacity);
+	lSystem.indices 		= push_memory_view<u16>(allocator, indexCapacity);
+
+	lSystem.totalAge 		= 0;
+	lSystem.maxAge 			= 15;
 
 	return lSystem;
 }
