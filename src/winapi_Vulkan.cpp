@@ -1129,10 +1129,12 @@ winapi_vulkan_internal_::get_max_usable_msaa_samplecount(VkPhysicalDevice physic
 	VkPhysicalDeviceProperties physicalDeviceProperties;
 	vkGetPhysicalDeviceProperties(physicalDevice, &physicalDeviceProperties);
 
-	VkSampleCountFlags counts = math::min(
-			physicalDeviceProperties.limits.framebufferColorSampleCounts,
-			physicalDeviceProperties.limits.framebufferDepthSampleCounts
-		);
+	auto colorSampleCounts = physicalDeviceProperties.limits.framebufferColorSampleCounts;
+	auto depthSampleCounts = physicalDeviceProperties.limits.framebufferDepthSampleCounts;
+
+	VkSampleCountFlags counts = colorSampleCounts < depthSampleCounts ?
+								colorSampleCounts :
+								depthSampleCounts;
 
 	VkSampleCountFlagBits result;
 

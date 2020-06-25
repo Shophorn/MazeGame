@@ -50,12 +50,12 @@ internal float
 xinput_convert_joystick_value(s16 value)
 {
     float deadZone = 0.2f;
-    float result = static_cast<float>(value) / math::highest_value<s16>;
+    float result = static_cast<float>(value) / max_value_s16;
 
-    float sign = Sign(result);
+    float sign = sign_f32(result);
     result *= sign; // cheap abs()
     result -= deadZone;
-    result = math::max(0.0f, result);
+    result = max_f32(0.0f, result);
     result /= (1.0f - deadZone);
     result *= sign;
 
@@ -68,10 +68,10 @@ xinput_is_used(winapi::State * winState, XINPUT_STATE * xinputState)
     bool32 used = (xinputState->Gamepad.wButtons != 0)
                 || (xinputState->Gamepad.bLeftTrigger != 0)
                 || (xinputState->Gamepad.bRightTrigger != 0)
-                || (math::absolute(xinput_convert_joystick_value(xinputState->Gamepad.sThumbLX)) > 0.0f)
-                || (math::absolute(xinput_convert_joystick_value(xinputState->Gamepad.sThumbLY)) > 0.0f)
-                || (math::absolute(xinput_convert_joystick_value(xinputState->Gamepad.sThumbRX)) > 0.0f)
-                || (math::absolute(xinput_convert_joystick_value(xinputState->Gamepad.sThumbRY)) > 0.0f);
+                || (abs_f32(xinput_convert_joystick_value(xinputState->Gamepad.sThumbLX)) > 0.0f)
+                || (abs_f32(xinput_convert_joystick_value(xinputState->Gamepad.sThumbLY)) > 0.0f)
+                || (abs_f32(xinput_convert_joystick_value(xinputState->Gamepad.sThumbRX)) > 0.0f)
+                || (abs_f32(xinput_convert_joystick_value(xinputState->Gamepad.sThumbRY)) > 0.0f);
 
     used = used || winState->xinputLastPacketNumber != xinputState->dwPacketNumber;
     winState->xinputLastPacketNumber = xinputState->dwPacketNumber;

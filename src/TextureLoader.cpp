@@ -63,7 +63,7 @@ load_font(char const * fontFilePath)
     s32 characterSize = 64;
 
     s32 characterCount = lastCharacter - firstCharacter;
-    s32 charactersPerDirection = math::ceil_to_s32(math::square_root((f32)characterCount));
+    s32 charactersPerDirection = (s32)ceil_f32(square_root_f32((f32)characterCount));
 
     s32 width = characterSize * charactersPerDirection;
     s32 height = characterSize * charactersPerDirection;

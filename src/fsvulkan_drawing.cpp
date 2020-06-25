@@ -319,7 +319,7 @@ internal void fsvulkan_drawing_draw_model(VulkanContext * context, ModelHandle m
 
 	// Note(Leo): this works, because models are only dynamic set
 
-	Assert(uniformBufferOffset <= max_u32);
+	Assert(uniformBufferOffset <= max_value_u32);
 	u32 dynamicOffsets [] = {(u32)uniformBufferOffset};
 
 	vkCmdBindDescriptorSets(frame->commandBuffers.scene, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout,

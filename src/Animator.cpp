@@ -200,10 +200,10 @@ make_animation (Array<TranslationChannel> translationChannels, Array<RotationCha
 {
 	f32 duration = 0;
 	for (auto const & channel : translationChannels)
-		duration = math::max(duration, channel.times.last());
+		duration = max_f32(duration, channel.times.last());
 
 	for (auto const & channel : rotationChannels)
-		duration = math::max(duration, channel.times.last());
+		duration = max_f32(duration, channel.times.last());
 
 	Animation animation =
 	{
@@ -338,7 +338,7 @@ void update_skeleton_animator(SkeletonAnimator & animator, f32 elapsedTime)
 
 	// Note(Leo): random amount to prevent us getting somewhere where floating point accuracy becomes problem
 	constexpr f32 resetIntervalSeconds 	= 60; 
-	animator.animationTime 				= modulo(animator.animationTime + elapsedTime, resetIntervalSeconds);
+	animator.animationTime 				= mod_f32(animator.animationTime + elapsedTime, resetIntervalSeconds);
 
 	// ------------------------------------------------------------------------
 	/* Note(Leo): We parse current animation situation beforehand. We get somewhat
@@ -370,7 +370,7 @@ void update_skeleton_animator(SkeletonAnimator & animator, f32 elapsedTime)
 		}
 
 		f32 duration 	= animations[animationIndex]->duration;
-		f32 time 		= modulo(animator.animationTime, duration);
+		f32 time 		= mod_f32(animator.animationTime, duration);
 		f32 weight 		= weights[animationIndex];
 
 		for (auto const & channel : animations[animationIndex]->translationChannels)

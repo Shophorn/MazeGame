@@ -32,6 +32,7 @@ enum CarryMode : s32
 
 struct Scene3d
 {
+	// Todo(Leo): Remove these
 	Array<Transform3D> 			transforms;
 
 	Array<SkeletonAnimator> 	skeletonAnimators;	
@@ -49,6 +50,9 @@ struct Scene3d
 
 	PlayerInputState 			playerInputState;
 	Transform3D * 				playerCharacterTransform;
+
+	// ---------------------------------------
+	// POTS
 
 	s32 potCapacity;
 
@@ -69,11 +73,7 @@ struct Scene3d
 	MeshHandle 		potMesh;
 	MaterialHandle 	potMaterial;
 
-	// static constexpr s32 potCapacity = 10;
-	// Transform3D potTransforms[potCapacity];
-	// s32 potsWithTreeCount;
-	// s32 potsWithSeedCount;
-	// s32 totalPotsCount;
+	// ---------------------------------------
 
 	Waters waters;
 	static constexpr f32 fullWaterLevel = 1;
@@ -82,10 +82,6 @@ struct Scene3d
 	s32 			seedCount;
 	Transform3D * 	seedTransforms;
 	f32 * 			seedWaterLevels;
-
-
-	Trees treesOnGround;
-	Trees treesInPot;
 
 	Monuments monuments;
 
@@ -160,6 +156,10 @@ struct Scene3d
 	s32 			lSystemCount;
 	TimedLSystem * 	lSystems;
 	Leaves * 		lSystemLeavess;
+
+	s32 			lSystemsInPotCount;
+	TimedLSystem * 	lSystemsInPot;
+	Leaves * 		lSystemsInPotLeavess;
 };
 
 internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, PlatformTime const & time)
@@ -209,15 +209,31 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 		return amount;
 	};
 
+	auto get_water_from_pot = [](f32 * potWaterLevels, s32 index, f32 amount) -> f32
+	{
+		amount = min_f32(amount, potWaterLevels[index]);
+		potWaterLevels[index] -= amount;
+		return amount;
+	};
+
 	auto add_l_system_tree = [	&lSystemCount 	= scene->lSystemCount,
 								lSystems 		= scene->lSystems]
 							(v3 position)
 	{
-		s32 index 					= lSystemCount;
-		lSystemCount 				+= 1;
-		lSystems[index].position 	= position;
-		lSystems[index].rotation 	= axis_angle_quaternion(right_v3, π/2);
+		lSystems[lSystemCount].position 	= position;
+		lSystems[lSystemCount].rotation 	= identity_quaternion;
+		lSystemCount 						+= 1;
 	};
+
+	auto add_l_system_tree_in_pot = [	&lSystemCount 	= scene->lSystemsInPotCount,
+										lSystems 		= scene->lSystemsInPot]
+										(v3 position)
+	{
+		lSystems[lSystemCount].position 	= position;
+		lSystems[lSystemCount].rotation 	= identity_quaternion;
+		lSystemCount 						+= 1;
+	};
+
 
 	/// ****************************************************************************
 	/// TIME
@@ -233,15 +249,6 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 	/* Sadly, we need to draw skybox before game logic, because otherwise
 	debug lines would be hidden. This can be fixed though, just make debug pipeline similar to shadows. */ 
 	platformApi->draw_model(platformGraphics, scene->skybox, identity_m44, false, nullptr, 0);
-
-	/*
-	1. update input
-	2. update animation controller
-	3. update animator
-	4. update animated renderer
-	5. draw
-	
-	*/
 
 	// Game Logic section
 	if(scene->cameraMode == CAMERA_MODE_PLAYER)
@@ -290,7 +297,7 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 		v2 center = scene->playerCharacterTransform->position.xy;
 
 		s32 spawnCount = 10;
-		spawnCount = math::min(spawnCount, waters.capacity - waters.count);
+		spawnCount = min_f32(spawnCount, waters.capacity - waters.count);
 
 		for (s32 i = 0; i < spawnCount; ++i)
 		{
@@ -364,8 +371,6 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 					= get_terrain_height(&scene->collisionSystem, scene->potSeedTransforms[scene->carriedItemIndex].position.xy);
 				break;
 	
-
-
 			case CARRY_WATER:
 			{
 				Transform3D & waterTransform = scene->waters.transforms[scene->carriedItemIndex];
@@ -373,100 +378,43 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 				scene->playerCarryState = CARRY_NONE;
 				waterTransform.position.z = get_terrain_height(&scene->collisionSystem, waterTransform.position.xy);
 
-				// /// LOOK FOR NEARBY SEEDS ON GROUND
-				// for (s32 seedIndex = 0; seedIndex < scene->seedCount; ++seedIndex)
-				// {
-				// 	// Todo(Leo): Once we have some benchmarking, test if this was faster with all distances computed before
-				// 	f32 distanceToSeed = magnitude_v3(waterTransform.position - scene->seedTransforms[seedIndex].position);
-				// 	if (distanceToSeed < 0.5f)
-				// 	{
-				// 		s32 treeIndex = add_new_tree(scene->treesOnGround, scene->seedTransforms[seedIndex].position);
-
-				// 		scene->seedCount -= 1;
-				// 		scene->seedTransforms[seedIndex] = scene->seedTransforms[scene->seedCount];
-
-				// 		scene->waters.count -= 1;
-				// 		scene->waters.transforms[scene->carriedItemIndex] = scene->waters.transforms[scene->waters.count]; 
-				// 		break;
-				// 	}
-				// }
-
-				/// LOOK FOR NEARBY SEEDS IN POTS
-				// s32 startPotWithSeed = scene->potsWithTreeCount;
-				// s32 endPotWithSeed = scene->potsWithTreeCount + scene->potsWithSeedCount;
-				// for (s32 potIndex = startPotWithSeed; potIndex < endPotWithSeed; ++potIndex)
-				// {
-				// 	f32 distanceToPotWithSeed = magnitude_v3(waterTransform.position - scene->potTransforms[potIndex].position);
-				// 	if (distanceToPotWithSeed < 0.5f)
-				// 	{
-				// 		s32 newTreeInPotIndex = add_new_tree(scene->treesInPot, scene->potTransforms[potIndex].position);
-
-				// 		 Note(Leo): this seems to work, we can rely on it for a while, until we make proper hashmaps.
-				// 		It works because there is equal number of pots with trees and trees in pots, naturally, and they
-				// 		both are stored in order of introduction at the beningning of their storing arrays. Kinda wild. 
-				// 		Assert(newTreeInPotIndex == potIndex);
-
-
-				// 		swap(scene->potTransforms[startPotWithSeed], scene->potTransforms[potIndex]);
-
-				// 		scene->potsWithTreeCount 	+= 1;
-				// 		scene->potsWithSeedCount 	-= 1;
-
-				// 		scene->waters.count -= 1;
-				// 		scene->waters.transforms[scene->carriedItemIndex] = scene->waters.transforms[scene->waters.count]; 
-
-				// 		break;
-				// 	}
-				// }
-
-				/// LOOK FOR NEARBY TREES IN POTS
-
-				// for (s32 treeIndex = 0; treeIndex < scene->treesInPot.count; ++treeIndex)
-				// {
-				// 	f32 distanceToTreeInPot = magnitude_v3(waterTransform.position - scene->treesInPot.transforms[treeIndex].position);
-				// 	if (distanceToTreeInPot < 0.5f)
-				// 	{
-				// 		scene->treesInPot.waterinesss[treeIndex] += 0.5f;
-
-				// 		scene->waters.count -= 1;
-				// 		scene->waters.transforms[scene->carriedItemIndex] = scene->waters.transforms[scene->waters.count];
-
-				// 		break;
-				// 	}
-				// }
+				constexpr f32 waterSnapDistance 	= 0.5f;
+				constexpr f32 smallPotMaxWaterLevel = 1.0f;
 
 				f32 droppedWaterLevel = scene->waters.levels[scene->carriedItemIndex];
+
 				for (s32 i = 0; i < scene->potSeedCount; ++i)
 				{
 					f32 distance = magnitude_v3(scene->potSeedTransforms[i].position - waterTransform.position);
-					constexpr f32 waterSnapDistance 	= 0.5f;
-					constexpr f32 smallPotMaxWaterLevel = 1.0f;
 					if (distance < waterSnapDistance)
 					{
 						scene->potSeedWaterLevels[i] += droppedWaterLevel;
-						scene->potSeedWaterLevels[i] = math::min(scene->potSeedWaterLevels[i] + droppedWaterLevel, smallPotMaxWaterLevel);
+						scene->potSeedWaterLevels[i] = min_f32(scene->potSeedWaterLevels[i] + droppedWaterLevel, smallPotMaxWaterLevel);
 
 						scene->waters.count -= 1;
 						scene->waters.transforms[scene->carriedItemIndex] 	= scene->waters.transforms[scene->waters.count];
 						scene->waters.levels[scene->carriedItemIndex] 		= scene->waters.levels[scene->waters.count];
+
+						break;
 					}
 				}
-				
-				// /// LOOK FOR NEARBY TREES ON GROUND
-				// for (s32 treeIndex = 0; treeIndex < scene->treesOnGround.count; ++treeIndex)
-				// {
-				// 	f32 distanceToTreeOnGround = magnitude_v3(waterTransform.position - scene->treesOnGround.transforms[treeIndex].position);
-				// 	f32 distanceThreshold = scene->treesOnGround.growths[treeIndex] * Trees::waterAcceptDistance;
-				// 	if (distanceToTreeOnGround < distanceThreshold)
-				// 	{
-				// 		scene->treesOnGround.waterinesss[treeIndex] += 0.5f;
 
-				// 		scene->waters.count -= 1;
-				// 		scene->waters.transforms[scene->carriedItemIndex] = scene->waters.transforms[scene->waters.count];
+				for (s32 i = 0; i < scene->potTreeCount; ++i)
+				{
+					f32 distance = magnitude_v3(scene->potTreeTransforms[i].position - waterTransform.position);
+					if (distance < waterSnapDistance)
+					{
+						scene->potTreeWaterLevels[i] += droppedWaterLevel;
+						scene->potTreeWaterLevels[i] = min_f32(scene->potTreeWaterLevels[i] + droppedWaterLevel, smallPotMaxWaterLevel);
 
-				// 		break;
-				// 	}
-				// }
+						scene->waters.count -= 1;
+						scene->waters.transforms[scene->carriedItemIndex] 	= scene->waters.transforms[scene->waters.count];
+						scene->waters.levels[scene->carriedItemIndex] 		= scene->waters.levels[scene->waters.count];
+
+						break;	
+					}
+				}
+
 
 			} break;
 
@@ -534,10 +482,10 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 	}
 
 	/// UPDATE TREES IN POTS POSITIONS
-	for (s32 i = 0; i < scene->treesInPot.count; ++i)
+	for (s32 i = 0; i < scene->lSystemsInPotCount; ++i)
 	{
-		scene->treesInPot.transforms[i].position = multiply_point(transform_matrix(scene->potTreeTransforms[i]), v3{0, 0, 0.25});
-		scene->treesInPot.transforms[i].rotation = scene->potTreeTransforms[i].rotation;
+		scene->lSystemsInPot[i].position = multiply_point(transform_matrix(scene->potTreeTransforms[i]), v3{0, 0, 0.25});
+		scene->lSystemsInPot[i].rotation = scene->potTreeTransforms[i].rotation;
 	}
 	
 	/// UPDATE SEEDS
@@ -574,14 +522,14 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 		for (s32 i = 0; i < scene->potSeedCount; ++i)
 		{
 			f32 requestedWaterAmount 		= seedWaterDrainSpeed * scaledTime;
-			f32 acquiredWaterAmount 		= math::min(scene->potSeedWaterLevels[i], requestedWaterAmount);
+			f32 acquiredWaterAmount 		= min_f32(scene->potSeedWaterLevels[i], requestedWaterAmount);
 			scene->potSeedWaterLevels[i] 	-= acquiredWaterAmount;
 			scene->seedsInPotWaterLevels[i] += acquiredWaterAmount;
 
 			if (scene->seedsInPotWaterLevels[i] > seedFullWaterLevel)
 			{
 				// Todo(Leo): separate trees in pot and on ground
-				add_l_system_tree(scene->potSeedTransforms[i].position);
+				add_l_system_tree_in_pot(scene->potSeedTransforms[i].position);
 
 				scene->potTreeTransforms[scene->potTreeCount] = scene->potSeedTransforms[i];
 				scene->potTreeCount += 1;
@@ -608,25 +556,7 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 		constexpr f32 baseRadius = 0.12;
 		constexpr f32 baseHeight = 2;
-		// s32 totalTreeCount = scene->treesInPotCount + scene->treesOnGroundCount;
-		
-		for (s32 i = 0; i < scene->treesInPot.count; ++i)
-		{
-			f32 radius 		= scene->treesInPot.growths[i] * baseRadius;
-			f32 halfHeight 	= (scene->treesInPot.growths[i] * baseHeight) / 2;
-			v3 center 		= scene->treesInPot.transforms[i].position + v3{0, 0, halfHeight};
 
-			submit_cylinder_collider(scene->collisionSystem, radius, halfHeight, center);
-		}
-
-		for (s32 i = 0; i < scene->treesOnGround.count; ++i)
-		{
-			f32 radius = scene->treesOnGround.growths[i] * baseRadius;
-			f32 halfHeight = (scene->treesOnGround.growths[i] * baseHeight) / 2;
-			v3 center = scene->treesOnGround.transforms[i].position + v3{0, 0, halfHeight};
-
-			submit_cylinder_collider(scene->collisionSystem, radius, halfHeight, center);
-		}
 	}
 
 	for (auto & randomWalker : scene->randomWalkers)
@@ -679,25 +609,6 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 			seedTransforms[i] = transform_matrix(scene->seedTransforms[i]);
 		}
 		platformApi->draw_meshes(platformGraphics, scene->seedCount, seedTransforms, scene->dropMesh, scene->seedMaterial);
-	}
-
-	/// UPDATE TREES
-	{
-
-		auto draw_trees = [](Trees & trees)
-		{
-			for (s32 i = 0; i < trees.count; ++i)
-			{
-				platformApi->draw_model(platformGraphics, trees.model, transform_matrix(trees.transforms[i]), true, nullptr, 0);
-			}
-		};
-
-		grow_trees(scene->treesInPot, 1, scaledTime);
-		grow_trees(scene->treesOnGround, highest_f32, scaledTime);
-
-		draw_trees(scene->treesInPot);
-		draw_trees(scene->treesOnGround);
-
 	}
 
 	/// DRAW POTS
@@ -816,77 +727,98 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 	/// UPDATE LSYSTEM TREES
 	{
-		local_persist s32 updatedLSystemIndex = -1;
-		updatedLSystemIndex += 1;
-		updatedLSystemIndex %= 10;
+		// TODO(Leo): This is stupid, the two use cases are too different, and we have to capture too much stuff :(
 
-		for (int i = 0; i <scene->lSystemCount; ++i)
+		local_persist s32 persist_updatedLSystemIndex = -1;
+		persist_updatedLSystemIndex += 1;
+		persist_updatedLSystemIndex %= 10;
+		s32 updatedLSystemIndex = persist_updatedLSystemIndex;
+
+		auto update_lsystem = [	&waters 			= scene->waters,
+								potTreeWaterLevels 	= scene->potTreeWaterLevels,
+								get_water, 
+								get_water_from_pot,
+								updatedLSystemIndex,
+								scaledTime]
+							(s32 count, TimedLSystem * lSystems, Leaves * leavess, bool isInPot)
 		{
-			f32 waterDistanceThreshold = 1;
-
-			TimedLSystem & lSystem 		= scene->lSystems[i];
-			Leaves & leaves 			= scene->lSystemLeavess[i];
-
-			debug_draw_circle_xy(lSystem.position + v3{0,0,1}, waterDistanceThreshold, colour_aqua_blue, DEBUG_NPC);
-
-			if (lSystem.totalAge > lSystem.maxAge)
+			for (int i = 0; i < count; ++i)
 			{
-				continue;
-			}
+				leavess[i].position = lSystems[i].position;
+				leavess[i].rotation = lSystems[i].rotation;
 
-			lSystem.timeSinceLastUpdate += scaledTime;
-			if ((i % 10) == updatedLSystemIndex)
-			{
-				float timePassed 			= lSystem.timeSinceLastUpdate;
-				lSystem.timeSinceLastUpdate = 0;
 
-				if (get_water(scene->waters, lSystem.position, waterDistanceThreshold, 0.5 * scaledTime) > 0)
+				f32 waterDistanceThreshold = 1;
+				debug_draw_circle_xy(lSystems[i].position + v3{0,0,1}, waterDistanceThreshold, colour_aqua_blue, DEBUG_NPC);
+
+				if (lSystems[i].totalAge > lSystems[i].maxAge)
 				{
-					advance_lsystem_time(lSystem, scene->waters, timePassed);
-					update_lsystem_mesh(lSystem, leaves);
+					continue;
+				}
+
+				lSystems[i].timeSinceLastUpdate += scaledTime;
+				if ((i % 10) == updatedLSystemIndex)
+				{
+					float timePassed 			= lSystems[i].timeSinceLastUpdate;
+					lSystems[i].timeSinceLastUpdate = 0;
+
+					constexpr f32 treeWaterDrainSpeed = 0.5f;
+
+					f32 waterLevel = 	isInPot ?
+										get_water_from_pot(potTreeWaterLevels, i, treeWaterDrainSpeed * scaledTime) : 
+										get_water (waters, lSystems[i].position, waterDistanceThreshold, treeWaterDrainSpeed * scaledTime);
+
+					if (waterLevel > 0)
+					{
+						advance_lsystem_time(lSystems[i], waters, timePassed);
+						update_lsystem_mesh(lSystems[i], leavess[i]);
+					}
+				}
+
+			}			
+		};
+
+		update_lsystem(scene->lSystemCount, scene->lSystems, scene->lSystemLeavess, false);
+		update_lsystem(scene->lSystemsInPotCount, scene->lSystemsInPot, scene->lSystemsInPotLeavess, true);
+
+		auto draw_l_system_trees = [material = scene->seedMaterial](s32 count, TimedLSystem * lSystems)
+		{
+			for (s32 i = 0; i < count; ++i)
+			{
+				if (lSystems[i].vertices.count > 0 && lSystems[i].indices.count > 0)
+				{
+					platformApi->draw_procedural_mesh( 	platformGraphics,
+														lSystems[i].vertices.count, lSystems[i].vertices.data,
+														lSystems[i].indices.count, lSystems[i].indices.data,
+														transform_matrix(lSystems[i].position, lSystems[i].rotation, make_uniform_v3(1)),
+														material);
 				}
 			}
-		}
+		};
 
-
-		for (int i = 0; i <scene->lSystemCount; ++i)
-		{
-			TimedLSystem & lSystem 		= scene->lSystems[i];
-			Leaves & leaves 			= scene->lSystemLeavess[i];
-
-			if (lSystem.vertices.count > 0 && lSystem.indices.count > 0)
-			{
-				platformApi->draw_procedural_mesh(	platformGraphics,
-													lSystem.vertices.count, lSystem.vertices.data, 
-													lSystem.indices.count, lSystem.indices.data,
-													identity_m44,
-													scene->seedMaterial);
-			}
-		}
-
-		for (int i = 0; i <scene->lSystemCount; ++i)
-		{
-			TimedLSystem & lSystem 		= scene->lSystems[i];
-			Leaves & leaves 			= scene->lSystemLeavess[i];
-
-			if (leaves.processCount > 0)
-			{
-				update_leaves(leaves, scaledTime);
-				draw_leaves(leaves);
-			}
-
-		}
+		draw_l_system_trees(scene->lSystemCount, scene->lSystems);		
+		draw_l_system_trees(scene->lSystemsInPotCount, scene->lSystemsInPot);		
 	}
 
+	/// DRAW LEAVES FOR BOTH LSYSTEM ARRAYS IN THE END BECAUSE OF LEAF SHDADOW INCONVENIENCE
+	// Todo(Leo): leaves are drawn last, so we can bind their shadow pipeline once, and not rebind the normal shadow thing. Fix this unconvenience!
 	// Todo(Leo): leaves are drawn last, so we can bind their shadow pipeline once, and not rebind the normal shadow thing. Fix this unconvenience!
 	// Todo(Leo): leaves are drawn last, so we can bind their shadow pipeline once, and not rebind the normal shadow thing. Fix this unconvenience!
 	// Todo(Leo): This works ok currently, but do fix this, maybe do a proper command buffer for these
 	{
-		update_leaves(scene->treesInPot, scaledTime);
-		update_leaves(scene->treesOnGround, scaledTime);
+		auto draw_l_system_tree_leaves = [scaledTime](s32 count, Leaves * leavess)
+		{
+			for (s32 i = 0; i < count; ++i)
+			{
+				if (leavess[i].count > 0)
+				{
+					draw_leaves(leavess[i], scaledTime);
+				}
+			}
+		};
 
-		draw_leaves(scene->treesInPot);
-		draw_leaves(scene->treesOnGround);
+		draw_l_system_tree_leaves(scene->lSystemCount, scene->lSystemLeavess);
+		draw_l_system_tree_leaves(scene->lSystemsInPotCount, scene->lSystemsInPotLeavess);
 	}
 
 	// ------------------------------------------------------------------------
@@ -1505,22 +1437,6 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 				push_cylinder_collider(scene->collisionSystem, 0.6, colliderHeight, v3{0,0,colliderHeight / 2}, transform);
 			}
 
-			// ----------------------------------------------------------------	
-
-			{
-				auto treeAlbedo 	= load_and_push_texture("assets/textures/tree.png");
-				auto treeNormal 	= load_and_push_texture("assets/textures/tree_normal.png");
-				auto treeMaterial 	= push_material(GRAPHICS_PIPELINE_NORMAL, treeAlbedo, treeNormal, blackTexture);
-				auto treeMeshAsset 	= load_mesh_glb(*global_transientMemory, sceneryFile, "tree");
-				auto treeMesh 		= platformApi->push_mesh(platformGraphics, &treeMeshAsset);
-				auto treeModel 		= push_model(treeMesh, treeMaterial);
-
-				scene->treesInPot 		= allocate_trees(persistentMemory, 100);
-				scene->treesInPot.model = treeModel;
-
-				scene->treesOnGround 		= allocate_trees(persistentMemory, 100);
-				scene->treesOnGround.model 	= treeModel;
-			}
 
 			// ----------------------------------------------------------------	
 
@@ -1548,8 +1464,8 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 			scene->seedMaterial = platformApi->push_material(platformGraphics, GRAPHICS_PIPELINE_NORMAL, 3, seedTextures);
 
 
-			scene->seedCapacity 	= 100;
-			scene->seedCount 		= 50;
+			scene->seedCapacity 	= 50;
+			scene->seedCount 		= 20;
 			scene->seedTransforms 	= push_memory<Transform3D>(persistentMemory, scene->seedCapacity, ALLOC_NO_CLEAR);
 			scene->seedWaterLevels 	= push_memory<f32>(persistentMemory, scene->seedCapacity, ALLOC_NO_CLEAR);
 			for(s32 i = 0; i < scene->seedCount; ++i)
@@ -1680,15 +1596,22 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 
 	// ----------------------------------------------------------------------------------
 	
-	scene->lSystemCapacity 	= 100;
+	scene->lSystemCapacity 	= 60;
 	scene->lSystemCount 	= 0;
 	scene->lSystems 		= push_memory<TimedLSystem>(persistentMemory, scene->lSystemCapacity, ALLOC_NO_CLEAR);
 	scene->lSystemLeavess 	= push_memory<Leaves>(persistentMemory, scene->lSystemCapacity, ALLOC_NO_CLEAR);
 
+	scene->lSystemsInPotCount 	= 0;
+	scene->lSystemsInPot 		= push_memory<TimedLSystem>(persistentMemory, scene->lSystemCapacity, ALLOC_NO_CLEAR);
+	scene->lSystemsInPotLeavess = push_memory<Leaves>(persistentMemory, scene->lSystemCapacity, ALLOC_NO_CLEAR);
+
 	for (int i = 0; i < scene->lSystemCapacity; ++i)
 	{
-		scene->lSystems[i]= make_lsystem(persistentMemory);
-		scene->lSystemLeavess[i] = make_leaves(persistentMemory, 4000);
+		scene->lSystems[i]			= make_lsystem(persistentMemory);
+		scene->lSystemLeavess[i] 	= make_leaves(persistentMemory, 4000);
+	
+		scene->lSystemsInPot[i]			= make_lsystem(persistentMemory);
+		scene->lSystemsInPotLeavess[i] 	= make_leaves(persistentMemory, 4000);
 	}
 
 	Assert(scene->lSystemCapacity >= scene->seedCapacity && "Not enough space for trees for all seeds.");

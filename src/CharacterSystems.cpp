@@ -15,7 +15,7 @@ struct CharacterControllerSideScroller
 	// Properties
 	float speed 			= 10;
 	float collisionRadius 	= 0.3f;
-	float rotationSpeed		= 2 * pi;
+	float rotationSpeed		= 2 * π;
 
 	// State
 	float zSpeed;
@@ -44,9 +44,9 @@ struct CharacterControllerSideScroller
 			bool32 leftRayHit 		= collisionManager->raycast(leftRayOrigin, leftRay, false);
 
 			if (leftRayHit)
-				xMovement = math::max(0.0f, xMovement);
+				xMovement = max_f32(0.0f, xMovement);
 
-			targetRotationRadians = pi / 2.0f;
+			targetRotationRadians = π / 2.0f;
 		}
 
 		// Going Right
@@ -58,9 +58,9 @@ struct CharacterControllerSideScroller
 			bool32 rightRayHit		= collisionManager->raycast(rightRayOrigin, rightRay, false); 
 
 			if (rightRayHit)
-				xMovement = math::min(0.0f, xMovement);
+				xMovement = min_f32(0.0f, xMovement);
 
-			targetRotationRadians = -pi / 2.0f;
+			targetRotationRadians = -π / 2.0f;
 		}
 
 
@@ -83,17 +83,17 @@ struct CharacterControllerSideScroller
 		bool32 downRayHit = collisionManager->raycast(downRayOrigin, downRay, movingDown);
 		if (downRayHit)
 		{
-			zMovement = math::max(0.0f, zMovement);
-			zSpeed = math::max(0.0f, zSpeed);
+			zMovement = max_f32(0.0f, zMovement);
+			zSpeed = max_f32(0.0f, zSpeed);
 		}
 
-		if ((math::absolute(zMovement) > math::absolute(xMovement)) && (math::absolute(xMovement / elapsedTime) < (0.1f * speed)))
+		if ((abs_f32(zMovement) > abs_f32(xMovement)) && (abs_f32(xMovement / elapsedTime) < (0.1f * speed)))
 		{
 			targetRotationRadians = 0;
 		}
 
 		currentRotationRadians = interpolate(currentRotationRadians, targetRotationRadians, 0.4f);
-		if (math::absolute(currentRotationRadians - targetRotationRadians) > (0.1 * pi))
+		if (abs_f32(currentRotationRadians - targetRotationRadians) > (0.1 * π))
 		{
 			xMovement = 0;
 		}

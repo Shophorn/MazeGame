@@ -20,7 +20,7 @@ quaternion operator * (quaternion lhs, quaternion rhs);
 
 f32 magnitude_quaternion (quaternion q)
 {
-	return math::square_root(q.x*q.x + q.y*q.y + q.z*q.z + q.w*q.w);
+	return square_root_f32(q.x*q.x + q.y*q.y + q.z*q.z + q.w*q.w);
 }
 
 f32 square_magnitude_quaternion (quaternion q)
@@ -30,7 +30,8 @@ f32 square_magnitude_quaternion (quaternion q)
 
 bool is_unit_quaternion(quaternion q)
 {
-	bool result = math::close_enough_small(square_magnitude_quaternion(q), 1.0f);
+	// TODO(Leo): is this good epsilon for this kind of thing?
+	bool result = abs_f32(square_magnitude_quaternion(q) - 1.0f) < 0.00001f;
 	return result;
 }
 

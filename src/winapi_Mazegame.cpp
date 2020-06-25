@@ -15,9 +15,9 @@ Windows platform layer for mazegame
 #define VK_USE_PLATFORM_WIN32_KHR
 #include <vulkan/vulkan.h>
 
+// Todo(Leo): Get rid of these :)
 #include <vector>
 #include <fstream>
-#include <chrono>
 
 // TODO(Leo): Make sure that arrays for getting extensions ana layers are large enough
 // TOdo(Leo): Combine to fewer functions and remove throws, but return specific enum value instead
@@ -123,62 +123,6 @@ Run(HINSTANCE hInstance)
 
 	// ---------- INITIALIZE PLATFORM ------------
 	PlatformWindow window = fswin32_make_window(hInstance, 960, 540);
-
-
-	/// --------- TIMING ---------------------------
-	auto startTimeMark       = std::chrono::high_resolution_clock::now();
-	f64 lastFrameStartTime   = 0;
-
-	f64 targetFrameTime;
-	u32 deviceMinSchedulerGranularity;
-	{
-		TIMECAPS timeCaps;
-		timeGetDevCaps(&timeCaps, sizeof(timeCaps));
-		deviceMinSchedulerGranularity = timeCaps.wPeriodMin;
-
-		// TODO(LEO): Make proper settings :)
-		/* NOTE(Leo): Change to lower framerate if on battery. My development
-		laptop at least changes to slower processing speed when not on power,
-		though this probably depends on power settings. These are just some
-		arbitrary values that happen to work on development laptop. */
-		SYSTEM_POWER_STATUS powerStatus;
-		GetSystemPowerStatus (&powerStatus);
-
-		f64 targetFrameTimeYesPower = 60;
-		f64 targetFrameTimeNoPower = 30;
-
-		constexpr BYTE AC_ONLINE = 1;
-		f64 targetFrameTimeThreshold = (powerStatus.ACLineStatus == AC_ONLINE) ? targetFrameTimeYesPower : targetFrameTimeNoPower;
-
-		if (powerStatus.ACLineStatus == AC_ONLINE)
-		{
-			logSystem() << "Power detected";
-		}
-		else
-		{
-			logSystem() << "No power detected";
-		}
-
-		s32 gameUpdateRate = targetFrameTimeThreshold;
-		{
-			HDC deviceContext = GetDC(window.hwnd);
-			int monitorRefreshRate = GetDeviceCaps(deviceContext, VREFRESH);
-			ReleaseDC(window.hwnd, deviceContext);
-
-			if (monitorRefreshRate > 1)
-			{  
-				gameUpdateRate = monitorRefreshRate;
-
-				while((gameUpdateRate / 2.0f) > targetFrameTimeThreshold)
-				{
-					gameUpdateRate /= 2.0f;
-				}
-			}
-		}
-		targetFrameTime = 1.0f / gameUpdateRate;
-		
-		logSystem() << "Target frame time = " << targetFrameTime << ", (fps = " << 1.0 / targetFrameTime << ")";
-	}
 	
 	VulkanContext vulkanContext = winapi::create_vulkan_context(&window);
 	HWNDUserPointer userPointer = 
@@ -253,19 +197,12 @@ Run(HINSTANCE hInstance)
 	bool gameIsRunning = true;
 	PlatformInput platformInput = {};
 
+	/// --------- TIMING ---------------------------
 	PlatformTimePoint frameFlipTime;
 	f64 lastFrameElapsedSeconds;
 
-	f64 approxAvgFrameTime      = targetFrameTime;
-	f64 approxAvgFrameTimeAlpha = 0.5;
-
 	while(gameIsRunning)
 	{
-		/// ----- START TIME -----
-		// TODO(Leo): Remove chrono and use windows specific thing
-		auto currentTimeMark = std::chrono::high_resolution_clock::now();
-		f64 frameStartTime = std::chrono::duration<f64, std::chrono::seconds::period>(currentTimeMark - startTimeMark).count();
-
 		/// ----- RELOAD GAME CODE -----
 		FILETIME dllLatestWriteTime = get_file_write_time(GAMECODE_DLL_FILE_NAME);
 		if (CompareFileTime(&dllLatestWriteTime, &game.dllWriteTime) > 0)
@@ -385,42 +322,40 @@ Run(HINSTANCE hInstance)
 
 		// ----- POST-UPDATE NETWORK PASS ------
 		// TODO[network](Leo): Now that we have fixed frame rate, we should count frames passed instead of time
-		if (network.isConnected && frameStartTime > networkNextSendTime)
-		{
-			networkNextSendTime = frameStartTime + networkSendDelay;
-			winapi::NetworkSend(&network, &platformNetwork.outPackage);
-		}
-
-
-		/// ----- WAIT FOR TARGET FRAMETIME -----
+		// if (network.isConnected && frameStartTime > networkNextSendTime)
 		// {
-		//     auto currentTimeMark = std::chrono::high_resolution_clock::now();
-		//     f64 currentTimeSeconds = std::chrono::duration<f64, std::chrono::seconds::period>(currentTimeMark - startTimeMark).count();
-
-		//     f64 elapsedSeconds = currentTimeSeconds - frameStartTime;
-		//     f64 timeToSleepSeconds = targetFrameTime - elapsedSeconds;
-
-		//     // logConsole(0) << "Frametime " << elapsedSeconds;
-
-		//      TODO[time](Leo): It seems okay to sleep 0 milliseconds in case the time to sleep ends up being
-		//     less than 1 millisecond on floating point representation. Also we may want to do a busy loop over
-		//     remainder time after sleep. This is due to windows scheduler granularity, that is at best on 
-		//     one millisecond scale. 
-		//     if (timeToSleepSeconds > 0)
-		//     {
-		//         DWORD timeToSleepMilliSeconds = static_cast<DWORD>(1000 * timeToSleepSeconds);
-		//         logDebug() << "Sleep for " << timeToSleepMilliSeconds << " ms\n";
-		//         Sleep(timeToSleepMilliSeconds);
-
-		//     }
+		// 	networkNextSendTime = frameStartTime + networkSendDelay;
+		// 	winapi::NetworkSend(&network, &platformNetwork.outPackage);
 		// }
+
+
 		// ----- MEASURE ELAPSED TIME ----- 
 		{
 			PlatformTimePoint now   = fswin32_current_time();
 			lastFrameElapsedSeconds = fswin32_elapsed_seconds(frameFlipTime, now);
+
+		#if 1
+			// Restrict framerate so we do not burn our computer
+			f32 targetFrameTime2 = 1.0f / 30;
+
+			s32 targetMilliseconds = (s32)(targetFrameTime2 * 1000);  
+			s32 elapsedMilliseconds = (s32)(lastFrameElapsedSeconds * 1000);
+
+			s32 millisecondsToSleep = targetMilliseconds - elapsedMilliseconds;
+
+			if (millisecondsToSleep > 2)
+			{
+				timeBeginPeriod(1);
+				Sleep(millisecondsToSleep);
+				timeEndPeriod(1);
+			}
+
+			now   					= fswin32_current_time();
+			lastFrameElapsedSeconds = fswin32_elapsed_seconds(frameFlipTime, now);
+		#endif
 			frameFlipTime           = now;
 
-			approxAvgFrameTime = interpolate(approxAvgFrameTime, lastFrameElapsedSeconds, approxAvgFrameTimeAlpha);
+			// approxAvgFrameTime = interpolate(approxAvgFrameTime, lastFrameElapsedSeconds, approxAvgFrameTimeAlpha);
 			// logConsole(0) << approxAvgFrameTime;
 		}
 	}
@@ -433,19 +368,12 @@ Run(HINSTANCE hInstance)
 	fswin32_stop_playing(&audio);
 	fswin32_release_audio(&audio);
 	winapi::CloseNetwork(&network);
-#if 0
-	ImGui_ImplVulkan_Shutdown();
-#endif
+
 	winapi::destroy_vulkan_context(&vulkanContext);
 
 	/// ----- Cleanup Windows
 	{
 		// Note(Leo): Windows will mostly clean up after us once process exits :)
-
-
-		/* TODO(Leo): If there are multiple of these it means we had crash previously
-		and want to reset this. This should be handled betterly though.... :( */
-		timeEndPeriod(deviceMinSchedulerGranularity);
 		logWindow(0) << "shut down\n";
 	}
 

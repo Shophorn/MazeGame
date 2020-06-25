@@ -19,12 +19,12 @@ struct CameraControllerSideScroller
 		if (is_pressed(input.zoomIn))
 		{
 			distance -= distance * relativeZoomSpeed * elapsedTime;
-			distance = math::max(distance, minDistance);
+			distance = max_f32(distance, minDistance);
 		}
 		else if(is_pressed(input.zoomOut))
 		{
 			distance += distance * relativeZoomSpeed * elapsedTime;
-			distance = math::min(distance, maxDistance);
+			distance = min_f32(distance, maxDistance);
 		}
 
 		v3 direction = forward_v3;
@@ -73,18 +73,18 @@ update_camera_controller(PlayerCameraController * controller, v3 targetPosition,
 	if (is_pressed(input.zoomIn))
 	{
 		controller->distance -= controller->distance * controller->relativeZoomSpeed * elapsedTime;
-		controller->distance = math::max(controller->distance, controller->minDistance);
+		controller->distance = max_f32(controller->distance, controller->minDistance);
 	}
 	else if(is_pressed(input.zoomOut))
 	{
 		controller->distance += controller->distance * controller->relativeZoomSpeed * elapsedTime;
-		controller->distance = math::min(controller->distance, controller->maxDistance);
+		controller->distance = min_f32(controller->distance, controller->maxDistance);
 	}
 
     controller->orbitDegrees += input.look.x * controller->rotateSpeed * elapsedTime;
     
     controller->tumbleDegrees += input.look.y * controller->rotateSpeed * elapsedTime;
-    controller->tumbleDegrees = math::clamp(controller->tumbleDegrees, controller->minTumble, controller->maxTumble);
+    controller->tumbleDegrees = clamp_f32(controller->tumbleDegrees, controller->minTumble, controller->maxTumble);
 
     f32 cameraDistance = controller->distance;
     f32 cameraHorizontalDistance = cosine(to_radians(controller->tumbleDegrees)) * cameraDistance;
@@ -126,7 +126,7 @@ update_camera_controller(PlayerCameraController * controller, v3 targetPosition,
 	controller->position = trackedPosition + controller->baseOffset + localPosition;
 	controller->direction = -normalize_v3(localPosition);
 
-	Assert(math::distance(square_magnitude_v3(controller->direction), 1.0f) < 0.00001f);
+	Assert(abs_f32(square_magnitude_v3(controller->direction) - 1.0f) < 0.00001f);
 }
 
 struct FreeCameraController
@@ -142,14 +142,14 @@ internal m44 update_free_camera(FreeCameraController & controller, PlatformInput
 	f32 lowMoveSpeed 	= 10;
 	f32 highMoveSpeed	= 100;
 	f32 zMoveSpeed 		= 25;
-	f32 rotateSpeed 	= pi;
-	f32 maxTilt 		= 0.4f * tau;
+	f32 rotateSpeed 	= π;
+	f32 maxTilt 		= 0.45f * π;
 
 	// Note(Leo): positive rotation is to left, which is opposite of joystick
 	controller.panAngle += -1 * input.look.x * rotateSpeed * elapsedTime;
 
 	controller.tiltAngle += -1 * input.look.y * rotateSpeed * elapsedTime;
-	controller.tiltAngle = math::clamp(controller.tiltAngle, -maxTilt, maxTilt);
+	controller.tiltAngle = clamp_f32(controller.tiltAngle, -maxTilt, maxTilt);
 
 	quaternion pan 	= axis_angle_quaternion(up_v3, controller.panAngle);
 	m44 panMatrix 	= rotation_matrix(pan);
@@ -161,7 +161,7 @@ internal m44 update_free_camera(FreeCameraController & controller, PlatformInput
 
 	constexpr f32 minHeight = 10;
 	constexpr f32 maxHeight = 50;
-	f32 heightValue = math::clamp(controller.position.z, minHeight, maxHeight) / maxHeight;
+	f32 heightValue = clamp_f32(controller.position.z, minHeight, maxHeight) / maxHeight;
 	f32 moveSpeed 	= interpolate(lowMoveSpeed, highMoveSpeed, heightValue);
 
 	f32 moveStep 		= moveSpeed * elapsedTime;

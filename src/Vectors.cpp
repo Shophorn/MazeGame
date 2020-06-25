@@ -12,13 +12,13 @@ TODO(Leo):
 // Note(Leo): testing out conceptual idea that scalars are just 1d vectors
 f32 normalize_v1(f32 f)
 {
-	f = f / math::absolute(f);
+	f = f / abs_f32(f);
 	return f;
 }
 
 f32 magnitude_v1(f32 f)
 {
-	f = math::absolute(f);
+	f = abs_f32(f);
 	return f;
 }
 
@@ -86,7 +86,7 @@ f32 dot_v2(v2 a, v2 b)
 
 f32 magnitude_v2(v2 v)
 {
-	f32 m = math::square_root(v.x * v.x + v.y * v.y);
+	f32 m = square_root_f32(v.x * v.x + v.y * v.y);
 	return m;
 }
 
@@ -206,7 +206,7 @@ v3 operator / (v3 vec, f32 f)
 	return vec;
 }
 
-v3 operator - (v3 vec)
+constexpr v3 operator - (v3 vec)
 {
 	vec.x = -vec.x;
 	vec.y = -vec.y;
@@ -216,17 +216,13 @@ v3 operator - (v3 vec)
 
 f32 magnitude_v3(v3 v)
 {
-	using namespace math;
-
-	f32 m = square_root(pow2(v.x) + pow2(v.y) + pow2(v.z));
+	f32 m = square_root_f32(square_f32(v.x) + square_f32(v.y) + square_f32(v.z));
 	return m;
 }
 
 f32 square_magnitude_v3(v3 v)
 {
-	using namespace math;
-
-	f32 sqrMagnitude = pow2(v.x) + pow2(v.y) + pow2(v.z);
+	f32 sqrMagnitude = square_f32(v.x) + square_f32(v.y) + square_f32(v.z);
 	return sqrMagnitude;
 }
 
@@ -273,11 +269,11 @@ f32 angle_v3(v3 from, v3 to)
 {
 	// Note(Leo): copied from unity3d vector.cs...
 
-	f32 denominator = math::square_root(square_magnitude_v3(from) * square_magnitude_v3(to));
+	f32 denominator = square_root_f32(square_magnitude_v3(from) * square_magnitude_v3(to));
 	if (denominator < v3_sqr_epsilon)
 		return 0.0f;
 
-	f32 dot = math::clamp(dot_v3(from, to) / denominator, -1.0f, 1.0f);
+	f32 dot = clamp_f32(dot_v3(from, to) / denominator, -1.0f, 1.0f);
 	f32 angle = arc_cosine(dot);
 	return angle;
 }

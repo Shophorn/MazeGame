@@ -20,11 +20,11 @@ get_height_at(HeightMap * map, v2 worldScalePosition)
 {
 	v2 gridSpacePosition = worldScalePosition * (map->gridSize / map->worldSize);
 
-	s32 x0 		= floor_to<s32>(gridSpacePosition.x);
+	s32 x0 		= (s32)floor_f32(gridSpacePosition.x);
 	s32 x1 		= x0 + 1;
 	f32 xFraction = gridSpacePosition.x - x0;
 
-	s32 y0 		= floor_to<s32>(gridSpacePosition.y);
+	s32 y0 		= (s32)floor_f32(gridSpacePosition.y);
 	s32 y1 		= y0 + 1;
 	f32 yFraction = gridSpacePosition.y - y0;
 
@@ -74,11 +74,11 @@ make_heightmap(MemoryArena * memory, TextureAsset * texture, u32 gridSize, f32 w
 			v2 pixelCoord 	= {	x * textureScale * (texture->width - 1),
 									y * textureScale * (texture->height - 1)};
 
-			u32 u0 		= floor_to<u32>(pixelCoord.x);
+			u32 u0 		= (u32)floor_f32(pixelCoord.x);
 			u32 u1 		= u0 + 1;
 			f32 uFraction = pixelCoord.x - u0;
 			
-			u32 v0 		= floor_to<u32>(pixelCoord.y);
+			u32 v0 		= (u32)floor_f32(pixelCoord.y);
 			u32 v1 		= v0 + 1;
 			f32 vFraction	= pixelCoord.y - v0;
 
@@ -155,7 +155,7 @@ internal void mesh_generate_tangents(MeshAsset & mesh)
 
 internal void mesh_generate_normals (MeshAsset & mesh)
 {
-	Assert(mesh.indices.count() <= max_u32);
+	Assert(mesh.indices.count() <= max_value_u32);
 
 	u32 vertexCount = mesh.vertices.count();
 	u32 indexCount 	= mesh.indices.count();
@@ -280,8 +280,8 @@ internal MeshAsset generate_terrain(MemoryArena * 	memory,
 
 	auto get_clamped_height = [heightMap](u32 x, u32 y) -> f32
 	{
-		x = math::clamp(x, 0u, heightMap->gridSize - 1);
-		y = math::clamp(y, 0u, heightMap->gridSize - 1);
+		x = clamp_f32(x, 0u, heightMap->gridSize - 1);
+		y = clamp_f32(y, 0u, heightMap->gridSize - 1);
 
 		u32 valueIndex = x + y * heightMap->gridSize;
 		f32 result = interpolate(	heightMap->minHeight,

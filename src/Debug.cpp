@@ -82,7 +82,7 @@ void debug_draw_circle_xy(v3 position, f32 radius, v4 color, s32 level)
 	s32 pointCount = array_count(points);
 	s32 lineCount = pointCount / 2;
 
-	f32 angle = tau / lineCount;
+	f32 angle = 2 * π / lineCount;
 
 	for (s32 line = 0; line < lineCount; ++line)
 	{
@@ -205,7 +205,7 @@ void debug_draw_vector(v3 position, v3 vector, v4 color, s32 level)
 
 	f32 size 		= 0.1f; 
 	f32 length 		= magnitude_v3(vector);
-	size 			= math::min(size, length / 2);
+	size 			= min_f32(size, length / 2);
 
 	v3 binormal 	= cross_v3(vector, up_v3);
 	v3 up 			= normalize_v3(cross_v3(vector, binormal));

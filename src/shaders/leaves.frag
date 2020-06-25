@@ -57,8 +57,8 @@ void main()
 	// float ldotn = dot(lightDir, normal);
 	float ldotn = (dot(lightDir, normal));
 
-	// ldotn = abs(ldotn);
-	ldotn = max(0, ldotn);
+	ldotn = abs(ldotn);
+	// ldotn = max(0, ldotn);
 	vec3 albedo = green;
 
 	// albedo = mix(vec3(0,0,0), vec3(0,1,1), fragTexCoord.y + 0.5);

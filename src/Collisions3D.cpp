@@ -200,8 +200,8 @@ internal bool32 ray_box_collisions(	Array<StaticBoxCollider> & colliders,
 			continue;
 		}			
 
-		f32 distanceToMin = math::max(xDistanceToMin, yDistanceToMin);
-		f32 distanceToMax = math::min(xDistanceToMax, yDistanceToMax);
+		f32 distanceToMin = max_f32(xDistanceToMin, yDistanceToMin);
+		f32 distanceToMax = min_f32(xDistanceToMax, yDistanceToMax);
 		
 
 		if ((distanceToMin > zDistanceToMax) || (zDistanceToMin > distanceToMax))
@@ -210,8 +210,8 @@ internal bool32 ray_box_collisions(	Array<StaticBoxCollider> & colliders,
 			continue;
 		}			
 
-		distanceToMin = math::max(distanceToMin, zDistanceToMin);
-		distanceToMax = math::min(distanceToMax, zDistanceToMax);
+		distanceToMin = max_f32(distanceToMin, zDistanceToMin);
+		distanceToMax = min_f32(distanceToMax, zDistanceToMax);
 
 		if (0.00001f < distanceToMin && distanceToMin < colliderSpaceRayLength)
 		{
@@ -231,15 +231,15 @@ internal bool32 ray_box_collisions(	Array<StaticBoxCollider> & colliders,
 					// Note(Leo): Find maximum since biggest af smallest is the distance of hit
 					if (xDistanceToMin > yDistanceToMin && xDistanceToMin > zDistanceToMin)
 					{
-						outResult->hitNormal = {-Sign(colliderSpaceRayDirection.x), 0, 0};
+						outResult->hitNormal = {-sign_f32(colliderSpaceRayDirection.x), 0, 0};
 					}
 					else if (yDistanceToMin > zDistanceToMin)
 					{
-						outResult->hitNormal = {0, -Sign(colliderSpaceRayDirection.y), 0};
+						outResult->hitNormal = {0, -sign_f32(colliderSpaceRayDirection.y), 0};
 					}
 					else
 					{
-						outResult->hitNormal = {0, 0, -Sign(colliderSpaceRayDirection.z)};
+						outResult->hitNormal = {0, 0, -sign_f32(colliderSpaceRayDirection.z)};
 					}
 
 					outResult->hitPosition 	= 	colliderSpaceRayStart
@@ -272,8 +272,6 @@ internal bool32 ray_cylinder_collisions (s32 count, BETTER_CylinderCollider * co
 	{
 		auto & collider = colliders[i];
 
-		using namespace math;
-
 		v3 const center = collider.center;
 		v3 const p = ray.start - center;
 		v3 const v = ray.direction;
@@ -282,7 +280,7 @@ internal bool32 ray_cylinder_collisions (s32 count, BETTER_CylinderCollider * co
 		f32 vt0 = (halfHeight - p.z) / v.z;
 		f32 vt1 = (-halfHeight - p.z) / v.z;
 
-		f32 vtMin = math::min(vt0, vt1);
+		f32 vtMin = min_f32(vt0, vt1);
 
 		if (vtMin > 0.00001f && vtMin < ray.length)
 		{
@@ -305,19 +303,19 @@ internal bool32 ray_cylinder_collisions (s32 count, BETTER_CylinderCollider * co
 
 		// Quadratic form for ray stuff
 		// Note(Leo): these seem like dot products
-		f32 a = pow2(v.x) + pow2(v.y);
+		f32 a = square_f32(v.x) + square_f32(v.y);
 		f32 b = 2 * (p.x * v.x + p.y * v.y);
-		f32 c = pow2(p.x) + pow2(p.y);
+		f32 c = square_f32(p.x) + square_f32(p.y);
 
 
 		// Undefined
-		if (math::absolute(a) < 0.00001f)
+		if (abs_f32(a) < 0.00001f)
 		{
 			continue;
 		}
 
 		// We are looking solutions for r2, not 0
-		f32 cr2 = c - pow2(collider.radius);
+		f32 cr2 = c - square_f32(collider.radius);
 
 		// discriminant
 		f32 D = b * b - 4 * a * cr2;
@@ -329,11 +327,11 @@ internal bool32 ray_cylinder_collisions (s32 count, BETTER_CylinderCollider * co
 			continue;
 		}
 
-		f32 sqrtD = math::square_root(D);
+		f32 sqrtD = square_root_f32(D);
 		f32 ht0 = (-b - sqrtD) / (2 * a);
 		f32 ht1 = (-b + sqrtD) / (2 * a);
 
-		f32 ht = math::min(ht0, ht1);
+		f32 ht = min_f32(ht0, ht1);
 
 		if (ht > 0.00001f && ht < ray.length)
 		{

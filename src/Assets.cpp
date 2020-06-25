@@ -150,8 +150,8 @@ internal constexpr v4 colour_rgb_alpha(v3 rgb, f32 alpha)
 internal Pixel
 get_closest_pixel(TextureAsset * texture, v2 texcoord)
 {
-	u32 u = round_to<u32>(texture->width * texcoord.x) % texture->width;
-	u32 v = round_to<u32>(texture->height * texcoord.y) % texture->height;
+	u32 u = (u32)round_f32(texture->width * texcoord.x) % texture->width;
+	u32 v = (u32)round_f32(texture->height * texcoord.y) % texture->height;
 
 	s64 index = u + v * texture->width;
 	return texture->pixels[index];

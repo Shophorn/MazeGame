@@ -44,7 +44,7 @@ constexpr v4 colour_bright_blue 	= {0.0, 0.0, 1.0, 1.0};
 constexpr v4 colour_bright_green 	= {0.0, 1.0, 0.0, 1.0};
 constexpr v4 color_dark_green 		= {0, 0.6, 0, 1};
 constexpr v4 color_dark_red 		= {0.6, 0, 0, 1};
-constexpr v4 color_bright_yellow 	= {1.0, 1.0, 0.0, 1.0};
+constexpr v4 colour_bright_yellow 	= {1.0, 1.0, 0.0, 1.0};
 constexpr v4 color_bright_purple 	= {1, 0, 1, 1};
 constexpr v4 color_muted_purple 	= {0.8, 0.2, 0.8, 1};
 

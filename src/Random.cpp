@@ -21,7 +21,7 @@ u32 xor128()
 internal f32 random_value()
 {
 	f32 value 	= static_cast<f32>(xor128());
-	f32 max 		= static_cast<f32>(math::highest_value<u32>);
+	f32 max 		= static_cast<f32>(max_value_u32);
 	f32 result 	= value / max;
 
 	return result;	
@@ -36,7 +36,7 @@ internal f32 random_range(f32 min, f32 max)
 {
 	AssertMsg (min <= max, "'min' must be smaller than 'max'");
 
-	f32 value = static_cast<f32>(xor128()) / static_cast<f32>(math::highest_value<u32>);
+	f32 value = static_cast<f32>(xor128()) / static_cast<f32>(max_value_u32);
 	f32 range = max - min;
 	f32 result = min + (value * range);
 

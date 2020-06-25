@@ -32,7 +32,7 @@ static void check_vk_result(VkResult result)
 constexpr s32 VIRTUAL_FRAME_COUNT = 3;
 
 
-constexpr u64 VULKAN_NO_TIME_OUT = math::highest_value<u64>;
+constexpr u64 VULKAN_NO_TIME_OUT = max_value_u64;
 constexpr f32 VULKAN_MAX_LOD_FLOAT = 100.0f;
 
 constexpr s32 VULKAN_MAX_MODEL_COUNT = 2000;

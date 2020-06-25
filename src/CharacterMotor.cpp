@@ -9,12 +9,12 @@ f32 move_towards(f32 target, f32 elapsedTime, BufferedPercent & buffer)
 	if (target < buffer.current)
 	{
 		buffer.current -= elapsedTime / buffer.duration;
-		buffer.current = math::max(target, buffer.current);
+		buffer.current = max_f32(target, buffer.current);
 	}
 	else if (target > buffer.current)
 	{
 		buffer.current += elapsedTime / buffer.duration;
-		buffer.current = math::min(target, buffer.current);
+		buffer.current = min_f32(target, buffer.current);
 	}
 
 	return buffer.current;
@@ -100,7 +100,7 @@ update_character_motor( CharacterMotor & 	motor,
 	if (square_magnitude_v3(inputVector) > v3_sqr_epsilon)
 	{
 		f32 angle = v2_signed_angle(inputVector.xy, forward.xy);
-		rightInput = math::clamp(angle, -1.0f, 1.0f);
+		rightInput = clamp_f32(angle, -1.0f, 1.0f);
 	}
 
 	debug_draw_axes(translation_matrix({0,0,2}) * transform_matrix(*motor.transform), 0.3f, debugLevel);
@@ -175,12 +175,12 @@ update_character_motor( CharacterMotor & 	motor,
 	if (speed > motor.currentSpeed)
 	{
 		motor.currentSpeed += motor.acceleration * elapsedTime;
-		motor.currentSpeed = math::min(motor.currentSpeed, speed);
+		motor.currentSpeed = min_f32(motor.currentSpeed, speed);
 	}
 	else if (speed < motor.currentSpeed)
 	{
 		motor.currentSpeed += motor.deceleration * elapsedTime;
-		motor.currentSpeed = math::max(motor.currentSpeed, speed);
+		motor.currentSpeed = max_f32(motor.currentSpeed, speed);
 	}
 
 	speed = motor.currentSpeed;
@@ -192,14 +192,12 @@ update_character_motor( CharacterMotor & 	motor,
 	{
 		if (motor.landingTimer > 0)
 		{
-			using namespace math;
-
-			motor.landingTimer = math::max(motor.landingTimer -elapsedTime, 0.0f);
+			motor.landingTimer = max_f32(motor.landingTimer -elapsedTime, 0.0f);
 
 			// Note(Leo): this is basically a relative time passed, to be used in other evaluations too
-			// landingValue = motor.landingDepth * (1 - smooth((motor.landingDuration - motor.landingTimer) / motor.landingDuration));
+			// landingValue = motor.landingDepth * (1 - mathfun_smooth_f32((motor.landingDuration - motor.landingTimer) / motor.landingDuration));
 
-			crouchWeightFromLanding = smooth(1.0f - absolute((motor.landingDuration - (2 * motor.landingTimer)) / motor.landingDuration));
+			crouchWeightFromLanding = mathfun_smooth_f32(1.0f - abs_f32((motor.landingDuration - (2 * motor.landingTimer)) / motor.landingDuration));
 			crouchWeightFromLanding *= motor.landingDepth;
 		}
 		else
@@ -220,7 +218,7 @@ update_character_motor( CharacterMotor & 	motor,
 		f32 sineStep 	= 2.0f / (rayCount - 1);
 
 		f32 skinwidth = 0.01f;
-		rayStartPositions[0] = rotate_v3(direction * (motor.collisionRadius - skinwidth), up, pi / 2.0f);
+		rayStartPositions[0] = rotate_v3(direction * (motor.collisionRadius - skinwidth), up, π / 2.0f);
 		for (int i = 1; i < rayCount; ++i)
 		{
 			f32 sine 		= -1.0f + (i - 1) * sineStep;
@@ -254,7 +252,7 @@ update_character_motor( CharacterMotor & 	motor,
 				rayDebugHitPoints[rayDebugHitCount + 1] = start + direction;
 				rayDebugHitCount += 2;
 
-				debug_draw_vector(currentResult.hitPosition, currentResult.hitNormal, color_bright_yellow, debugLevel);
+				debug_draw_vector(currentResult.hitPosition, currentResult.hitNormal, colour_bright_yellow, debugLevel);
 			}
 			else
 			{
@@ -279,7 +277,7 @@ update_character_motor( CharacterMotor & 	motor,
 
 			for (s32 i = 0; i < rayHitCount; ++i)
 			{
-				f32 projectionLength 	= math::min(0.0f, dot_v3(movement, rayHitResults[i].hitNormal));
+				f32 projectionLength 	= min_f32(0.0f, dot_v3(movement, rayHitResults[i].hitNormal));
 				v3 projection 			= rayHitResults[i].hitNormal * projectionLength;
 				movement 				-= projection;
 			}
@@ -303,13 +301,11 @@ update_character_motor( CharacterMotor & 	motor,
 	{
 		if(motor.jumpTimer > 0)
 		{
-			using namespace math;
-
 			motor.jumpTimer -= elapsedTime;
-			motor.jumpTimer = math::max(motor.jumpTimer - elapsedTime, 0.0f);
+			motor.jumpTimer = max_f32(motor.jumpTimer - elapsedTime, 0.0f);
 
 			// Note(Leo): Sorry future me, math is fun :D If this is confusing try plotting it in desmos.com
-			crouchWeightFromJumping = smooth(1.0f - absolute((-2 * motor.jumpTimer + motor.jumpDuration) / motor.jumpDuration));
+			crouchWeightFromJumping = mathfun_smooth_f32(1.0f - abs_f32((-2 * motor.jumpTimer + motor.jumpDuration) / motor.jumpDuration));
 		}
 		else
 		{
@@ -330,17 +326,17 @@ update_character_motor( CharacterMotor & 	motor,
 		f32 groundRaySkinWidth 	= 0.1f;
 		v3 groundRayStart 		= motor.transform->position + v3{0,0,groundRaySkinWidth};
 		v3 groundRayDirection 	= -up_v3;
-		f32 groundRayLength 	= groundRaySkinWidth + math::max(0.1f, math::absolute(motor.zSpeed));
+		f32 groundRayLength 	= groundRaySkinWidth + max_f32(0.1f, abs_f32(motor.zSpeed));
 
 		RaycastResult rayResult;
 		if (raycast_3d(&collisionSystem, groundRayStart, groundRayDirection, groundRayLength, &rayResult))
 		{
 			// Notice: Only store more dramatic state
-			groundHeight 	= math::max(groundHeight, rayResult.hitPosition.z);
+			groundHeight 	= max_f32(groundHeight, rayResult.hitPosition.z);
 			grounded 		= grounded || motor.transform->position.z < (groundThreshold + groundHeight);
 
 			debug_draw_line(motor.transform->position, rayResult.hitPosition, color_dark_red, debugLevel);
-			debug_draw_cross_xy(motor.transform->position, 0.3, color_bright_yellow, debugLevel);
+			debug_draw_cross_xy(motor.transform->position, 0.3, colour_bright_yellow, debugLevel);
 			debug_draw_cross_xy(rayResult.hitPosition, 0.3, color_bright_purple, debugLevel);
 		}
 		else
@@ -365,9 +361,9 @@ update_character_motor( CharacterMotor & 	motor,
 
 	if (startLanding)
 	{
-		motor.landingDepth = (math::absolute(motor.zSpeed) - motor.minLandingDepthZSpeed)
+		motor.landingDepth = (abs_f32(motor.zSpeed) - motor.minLandingDepthZSpeed)
 									/ (motor.maxLandingDepthZSpeed - motor.minLandingDepthZSpeed);
-		motor.landingDepth = math::clamp(motor.landingDepth, 0.0f, 1.0f);
+		motor.landingDepth = clamp_f32(motor.landingDepth, 0.0f, 1.0f);
 
 		motor.landingDuration = motor.maxlandingDuration * motor.landingDepth;
 		motor.landingTimer = motor.landingDuration;
@@ -382,7 +378,7 @@ update_character_motor( CharacterMotor & 	motor,
 	}
 	else
 	{
-		motor.zSpeed = math::max(0.0f, motor.zSpeed);
+		motor.zSpeed = max_f32(0.0f, motor.zSpeed);
         motor.transform->position.z = groundHeight;
 	}
 
@@ -423,8 +419,8 @@ update_character_motor( CharacterMotor & 	motor,
 		override_weight(CROUCH, crouchValue * crouchOverridePowerForAnimation);
 	}
 
-	override_weight(FALL, math::smooth(motor.fallPercent.current));
-	override_weight(JUMP, math::smooth(motor.jumpPercent.current));
-	override_weight(CROUCH, math::max(crouchWeightFromJumping, crouchWeightFromLanding));
+	override_weight(FALL, mathfun_smooth_f32(motor.fallPercent.current));
+	override_weight(JUMP, mathfun_smooth_f32(motor.jumpPercent.current));
+	override_weight(CROUCH, max_f32(crouchWeightFromJumping, crouchWeightFromLanding));
 	
 } // update_character()

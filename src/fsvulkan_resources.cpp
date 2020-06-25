@@ -170,7 +170,7 @@ internal void fsvulkan_resources_unload_resources(VulkanContext * context)
 internal u32
 fsvulkan_resources_internal_::compute_mip_levels(u32 texWidth, u32 texHeight)
 {
-   u32 result = std::floor(std::log2(math::max(texWidth, texHeight))) + 1;
+   u32 result = floor_f32(std::log2(max_f32(texWidth, texHeight))) + 1;
    return result;
 }
 

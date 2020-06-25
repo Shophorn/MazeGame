@@ -213,8 +213,8 @@ load_animation_glb(MemoryArena & allocator, GltfFile const & file, char const * 
 	result.translationChannels 	= allocate_array<TranslationChannel>(allocator, translationChannelCount);
 	result.rotationChannels 	= allocate_array<RotationChannel>(allocator, rotationChannelCount);
 
-	float minTime = math::highest_value<float>;
-	float maxTime = math::lowest_value<float>;
+	float minTime = highest_f32;
+	float maxTime = lowest_f32;
 
 	for (auto const & jsonChannel : jsonChannels)
 	{
@@ -224,8 +224,8 @@ load_animation_glb(MemoryArena & allocator, GltfFile const & file, char const * 
 		int inputAccessor 	= samplers[samplerIndex]["input"].GetInt();
 		int outputAccessor 	= samplers[samplerIndex]["output"].GetInt();
 
-		minTime = math::min(minTime, accessors[inputAccessor]["min"][0].GetFloat());
-		maxTime = math::max(maxTime, accessors[inputAccessor]["max"][0].GetFloat());
+		minTime = min_f32(minTime, accessors[inputAccessor]["min"][0].GetFloat());
+		maxTime = max_f32(maxTime, accessors[inputAccessor]["max"][0].GetFloat());
 
 
 		// ------------------------------------------------------------------------------
@@ -554,7 +554,7 @@ load_mesh_glb(MemoryArena & allocator, GltfFile const & file, char const * model
 	v3 const * normals 		= get_buffer_start<v3>(file, normalAccessor);
 	v2 const * texcoords 	= get_buffer_start<v2>(file, texcoordAccessor);
 
-	Assert(vertexCount < math::highest_value<u16> && "We need more indices!");
+	Assert(vertexCount < max_value_u16 && "We need more indices!");
 
 	for (u16 vertexIndex = 0; vertexIndex < vertexCount; ++vertexIndex)
 	{
