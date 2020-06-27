@@ -6,9 +6,9 @@ Implementations of vulkan related functions
 #include "winapi_Vulkan.hpp"
 
 #include "VulkanCommandBuffers.cpp"
-#include "VulkanPipelines.cpp"
 #include "VulkanSwapchain.cpp"
 
+#include "fsvulkan_pipelines.cpp"
 #include "fsvulkan_resources.cpp"
 #include "fsvulkan_drawing.cpp"
 
@@ -200,23 +200,6 @@ vulkan::find_queue_families (VkPhysicalDevice device, VkSurfaceKHR surface)
 	return result;
 }
 
-VkShaderModule
-vulkan::make_vk_shader_module(BinaryAsset code, VkDevice logicalDevice)
-{
-	VkShaderModuleCreateInfo createInfo = {};
-	createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-	createInfo.codeSize = code.size();
-	createInfo.pCode = reinterpret_cast<u32 *>(code.data());
-
-	VkShaderModule result;
-	if (vkCreateShaderModule (logicalDevice, &createInfo, nullptr, &result) != VK_SUCCESS)
-	{
-		throw std::runtime_error("failed to create shader module");
-	}
-
-	return result;
-}
-
 internal VkImageView
 vulkan::make_vk_image_view(
 	VkDevice logicalDevice,
@@ -337,32 +320,6 @@ vulkan::make_vk_render_pass(VulkanContext * context, VkFormat format, VkSampleCo
 	return resultRenderPass;
 }
 
-internal VkDescriptorSetLayout
-vulkan::make_material_vk_descriptor_set_layout(VkDevice device, u32 textureCount)
-{
-	VkDescriptorSetLayoutBinding binding = 
-	{
-		.binding             = 0,
-		.descriptorType      = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-		.descriptorCount     = textureCount,
-		.stageFlags          = VK_SHADER_STAGE_FRAGMENT_BIT,
-		.pImmutableSamplers  = nullptr,
-	};
-
-	VkDescriptorSetLayoutCreateInfo layoutCreateInfo =
-	{ 
-		.sType          = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-		.bindingCount   = 1,
-		.pBindings      = &binding,
-	};
-
-	VkDescriptorSetLayout resultDescriptorSetLayout;
-	VULKAN_CHECK(vkCreateDescriptorSetLayout(device, &layoutCreateInfo, nullptr, &resultDescriptorSetLayout));
-	
-	return resultDescriptorSetLayout;
-}
-
-
 internal VkDescriptorSet fsvulkan_make_texture_descriptor_set(  VulkanContext *         context,
 																VkDescriptorSetLayout   descriptorSetLayout,
 																VkDescriptorPool 		descriptorPool,
@@ -371,6 +328,11 @@ internal VkDescriptorSet fsvulkan_make_texture_descriptor_set(  VulkanContext * 
 {
 	constexpr u32 maxTextures = 10;
 	AssertMsg(textureCount < maxTextures, "Too many textures on material");
+
+	Assert(textureCount == 0 || imageViews != nullptr);
+
+	// Todo(Leo): this function is worse than it should, since we implicitly expect a valid descriptorsetlayout
+	Assert(descriptorSetLayout != VK_NULL_HANDLE);
 
 	VkDescriptorSetAllocateInfo allocateInfo =
 	{ 
@@ -383,30 +345,33 @@ internal VkDescriptorSet fsvulkan_make_texture_descriptor_set(  VulkanContext * 
 	VkDescriptorSet resultSet;
 	VULKAN_CHECK(vkAllocateDescriptorSets(context->device, &allocateInfo, &resultSet));
 
-	VkDescriptorImageInfo samplerInfos [maxTextures];
-	for (s32 i = 0; i < textureCount; ++i)
+	if (textureCount > 0)
 	{
-		samplerInfos[i] = 
+		VkDescriptorImageInfo samplerInfos [maxTextures];
+		for (s32 i = 0; i < textureCount; ++i)
 		{
-			.sampler        = context->textureSampler,
-			.imageView      = imageViews[i],
-			.imageLayout    = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+			samplerInfos[i] = 
+			{
+				.sampler        = context->textureSampler,
+				.imageView      = imageViews[i],
+				.imageLayout    = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+			};
+		}
+
+		VkWriteDescriptorSet writing =
+		{  
+			.sType              = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+			.dstSet             = resultSet,
+			.dstBinding         = 0,
+			.dstArrayElement    = 0,
+			.descriptorCount    = (u32)textureCount,
+			.descriptorType     = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+			.pImageInfo         = samplerInfos,
 		};
+
+		// Note(Leo): Two first are write info, two latter are copy info
+		vkUpdateDescriptorSets(context->device, 1, &writing, 0, nullptr);
 	}
-
-	VkWriteDescriptorSet writing =
-	{  
-		.sType              = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-		.dstSet             = resultSet,
-		.dstBinding         = 0,
-		.dstArrayElement    = 0,
-		.descriptorCount    = (u32)textureCount,
-		.descriptorType     = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-		.pImageInfo         = samplerInfos,
-	};
-
-	// Note(Leo): Two first are write info, two latter are copy info
-	vkUpdateDescriptorSets(context->device, 1, &writing, 0, nullptr);
 
 	return resultSet;
 }
@@ -851,7 +816,6 @@ winapi::create_vulkan_context(WinAPIWindow * window)
 				vkDestroyPipeline(device, context->pipelines[i].pipeline, nullptr);				
 			}
 
-			vkDestroyDescriptorSetLayout(device, context->linePipelineDescriptorSetLayout, nullptr);
 			vkDestroyPipelineLayout(device, context->linePipelineLayout, nullptr);
 			vkDestroyPipeline(device, context->linePipeline, nullptr);
 		});
@@ -1296,6 +1260,7 @@ allocate_vk_descriptor_set(VkDevice device, VkDescriptorPool pool, VkDescriptorS
 		.descriptorPool     = pool,
 		.descriptorSetCount = 1,
 	  
+	  	// TODO(Leo): Stop doing this, just pass the pointer to this function
 		// Todo(Leo): is this okay, quick google did not tell..
 		.pSetLayouts        = &layout,
 	};

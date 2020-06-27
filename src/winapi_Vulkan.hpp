@@ -60,6 +60,7 @@ namespace vulkan
 		v4 color;
 		v4 ambient;
 		v4 cameraPosition;
+		f32 skyColor;
 	};
 	
 	struct ModelUniformBuffer
@@ -317,7 +318,6 @@ struct PlatformGraphics
 
 	VkPipeline 				linePipeline;
 	VkPipelineLayout 		linePipelineLayout;
-	VkDescriptorSetLayout 	linePipelineDescriptorSetLayout;
 
 	VkPipeline 			leavesShadowPipeline;
 	VkPipelineLayout 	leavesShadowPipelineLayout;
@@ -472,10 +472,8 @@ namespace vulkan
 
 	/// INTERNAL RESOURCES, VULKAN TYPES
     internal VkRenderPass 			make_vk_render_pass(VulkanContext*, VkFormat format, VkSampleCountFlagBits msaaSamples);
-	internal VkDescriptorSetLayout 	make_material_vk_descriptor_set_layout(VkDevice device, u32 textureCount);
 
 	internal VkFramebuffer 			make_vk_framebuffer(VkDevice, VkRenderPass, u32 attachmentCount, VkImageView * attachments, u32 width, u32 height);
-	internal VkShaderModule 		make_vk_shader_module(BinaryAsset file, VkDevice logicalDevice);
 	internal VkImage 				make_vk_image(	VulkanContext*, u32 width, u32 height, u32 mipLevels, VkFormat format,
 											    	VkImageTiling tiling, VkImageUsageFlags usage,
 											    	VkSampleCountFlagBits msaaSamples);
@@ -529,7 +527,6 @@ internal void fsvulkan_reload_shaders(VulkanContext * context)
 			vkDestroyPipeline(device, context->pipelines[i].pipeline, nullptr);				
 		}
 
-		vkDestroyDescriptorSetLayout(device, context->linePipelineDescriptorSetLayout, nullptr);
 		vkDestroyPipelineLayout(device, context->linePipelineLayout, nullptr);
 		vkDestroyPipeline(device, context->linePipeline, nullptr);
 

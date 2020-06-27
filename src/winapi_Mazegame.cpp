@@ -66,7 +66,7 @@ global_variable int globalXinputControllerIndex;
 // Todo(Leo): Vulkan implementation depends on this, not cool
 using BinaryAsset = std::vector<u8>;
 BinaryAsset
-read_binary_file (const char * fileName)
+BAD_read_binary_file (const char * fileName)
 {
 	std::ifstream file (fileName, std::ios::ate | std::ios::binary);
 
@@ -342,6 +342,11 @@ Run(HINSTANCE hInstance)
 			s32 elapsedMilliseconds = (s32)(lastFrameElapsedSeconds * 1000);
 
 			s32 millisecondsToSleep = targetMilliseconds - elapsedMilliseconds;
+
+		#if 1
+			// Todo(leo): This for debugger also, it seems to get stuck on sleep on first round
+			millisecondsToSleep = min_s32(millisecondsToSleep, 100);
+		#endif
 
 			if (millisecondsToSleep > 2)
 			{

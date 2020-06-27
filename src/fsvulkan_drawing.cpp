@@ -55,6 +55,7 @@ internal void fsvulkan_drawing_update_lighting(VulkanContext * context, Light co
 	lightPtr->color        		= v3_to_v4(light->color, 0);
 	lightPtr->ambient      		= v3_to_v4(ambient, 0);
 	lightPtr->cameraPosition 	= v3_to_v4(camera->position, 1);
+	lightPtr->skyColor 			= light->skyColorSelection;
 
 	vkUnmapMemory(context->device, context->sceneUniformBuffer.memory);
 
@@ -566,7 +567,6 @@ internal void fsvulkan_drawing_draw_procedural_mesh(VulkanContext * context,
 	Assert(indexCount > 0);
 
 	auto * frame = vulkan::get_current_virtual_frame(context);
-
 
 	VkCommandBuffer commandBuffer 	= vulkan::get_current_virtual_frame(context)->commandBuffers.scene;
 

@@ -46,17 +46,17 @@ internal MaterialHandle fsvulkan_resources_push_material (	VulkanContext *     c
 	Assert(textureCount == context->pipelines[pipeline].textureCount);
 	Assert(textureCount <= 10);
 
-	VkImageView imageViews [10];
+	VkImageView textureImageViews [10];
 	for (s32 i = 0; i < textureCount; ++i)
 	{
-		imageViews[i] = vulkan::get_loaded_texture(context, textures[i])->view;
+		textureImageViews[i] = vulkan::get_loaded_texture(context, textures[i])->view;
 	}
 
 	VkDescriptorSet descriptorSet = fsvulkan_make_texture_descriptor_set(   context,
 																			context->pipelines[pipeline].descriptorSetLayout,
 																			context->descriptorPools.material,
 																			textureCount,
-																			imageViews);
+																			textureImageViews);
 
 	s64 index = (s64)context->loadedMaterials.size();
 	context->loadedMaterials.push_back({pipeline, descriptorSet});
@@ -556,10 +556,7 @@ vulkan::make_cubemap(VulkanContext * context, StaticArray<TextureAsset, 6> * ass
 	VkDeviceMemory resultImageMemory = {};
 
 	// Note(Leo): some image formats may not be supported
-	if (vkCreateImage(context->device, &imageInfo, nullptr, &resultImage) != VK_SUCCESS)
-	{
-		throw std::runtime_error ("Failed to create image");
-	}
+	VULKAN_CHECK(vkCreateImage(context->device, &imageInfo, nullptr, &resultImage));
 
 	VkMemoryRequirements memoryRequirements;
 	vkGetImageMemoryRequirements (context->device, resultImage, &memoryRequirements);
@@ -573,10 +570,7 @@ vulkan::make_cubemap(VulkanContext * context, StaticArray<TextureAsset, 6> * ass
 														VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT),
 	};
 
-	if (vkAllocateMemory(context->device, &allocateInfo, nullptr, &resultImageMemory) != VK_SUCCESS)
-	{
-		throw std::runtime_error("Failed to allocate image memory");
-	}
+	VULKAN_CHECK(vkAllocateMemory(context->device, &allocateInfo, nullptr, &resultImageMemory));
 
 	vkBindImageMemory(context->device, resultImage, resultImageMemory, 0);   
 
@@ -649,10 +643,7 @@ vulkan::make_cubemap(VulkanContext * context, StaticArray<TextureAsset, 6> * ass
 	};
 
 	VkImageView resultView = {};
-	if (vkCreateImageView(context->device, &imageViewInfo, nullptr, &resultView) != VK_SUCCESS)
-	{
-		throw std::runtime_error ("Failed to create image view");
-	}
+	VULKAN_CHECK(vkCreateImageView(context->device, &imageViewInfo, nullptr, &resultView));
 
 	VulkanTexture resultTexture =
 	{

@@ -111,8 +111,8 @@ internal void * load_scene_2d(MemoryArena & persistentMemory)
 
 	scene->gui 						= {};
 	scene->gui.textSize 			= 40;
-	scene->gui.textColor 			= colors::white;
-	scene->gui.selectedTextColor 	= colors::mutedRed;
+	scene->gui.textColor 			= colour_white;
+	scene->gui.selectedTextColor 	= colour_muted_red;
 	scene->gui.padding 				= 10;
 	scene->gui.font = load_font("c:/windows/fonts/arial.ttf");
 	gui_generate_font_material(scene->gui);

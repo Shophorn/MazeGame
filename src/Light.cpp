@@ -11,6 +11,8 @@ struct Light
 
 	f32 shadowDistance;
 	f32 shadowTransitionDistance;
+
+	f32 skyColorSelection;
 };
 
 

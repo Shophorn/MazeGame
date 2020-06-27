@@ -77,6 +77,16 @@ f32 max_f32(f32 a, f32 b)
     return (a > b) ? a : b;
 }
 
+s32 min_s32(s32 a, s32 b)
+{
+    return (a < b) ? a : b;
+}
+
+s32 max_s32(s32 a, s32 b)
+{
+    return (a > b) ? a : b;
+}
+
 inline f32 clamp_f32(f32 value, f32 min, f32 max)
 {
     value = value < min ? min : value;

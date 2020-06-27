@@ -12,51 +12,63 @@ layout(	binding = SAMPLER_BIND_ID, set = SAMPLER_SET_ID) uniform samplerCube tex
 layout (set = 3, binding = 0) uniform Lighting
 {
 	vec4 direction;
-	vec4 color;
-	vec4 ambient;
-} light;
+	vec4 ignored_color;
+	vec4 ignored_ambient;
+	vec4 ignored_cameraPosition;
+	float skyColourSelection;
+} lightInput;
 
-vec3 evaluateSkyLight (float dot)
+const uint maxGradient = 5;
+
+const uint niceSkyGradientCount = 4;
+const vec4 niceSkyGradient [maxGradient] =
 {
-	const uint gradientCount = 6;
-	const vec3 gradientValues [gradientCount] =
-	{
-		vec3(0.43 / 2.55, 0.3/2.55, 0.98/2.55),
-		vec3(0.43 / 2.55, 0.3/2.55, 0.98/2.55),
-		vec3(0.4, 0.9, 1.0),
-		vec3(0.8, 0.99, 1.0),
-		vec3(1,1,1),
-		vec3(1,1,1),
-	};
+	vec4(0.43 / 2.55, 0.3/2.55, 0.98/2.55,  0.1),
+	vec4(0.4, 0.9, 1.0,						0.3),
+	vec4(0.8, 0.99, 1.0,					0.99),
+	vec4(1,1,1, 							0.999),
+	vec4(0),
+};
 
-	const float gradientPositions [gradientCount] =
-	{
-		0.0,
-	 	0.1,
-	 	0.3,
-	 	0.99,
-	 	0.999,
-	 	1.0,
-	};
+const uint meanSkyGradientCount = 5;
+const vec4 meanSkyGradient [maxGradient] =
+{
+	vec4(0,0,0,  			0.1),
+	vec4(0.8, 0.1, 0.05,	0.3),
+	vec4(0.8, 0.1, 0.05,	0.7),
+	vec4(1.0, 0.95, 0.8,	0.99),
+	vec4(1,1,1, 			0.999),
+};
 
-	for(int i = 1; i < gradientCount; ++i)
+vec3 evaluateSkyLight (uint count, vec4 gradient[maxGradient], float time)
+{
+
+	if(time < gradient[0].w)
+		return gradient[0].rgb;
+
+	if(time > gradient[count -1].w)
+		return gradient[count - 1].rgb;
+
+	for(int i = 1; i < count; ++i)
 	{
-		if (dot < gradientPositions[i])
+		if (time < gradient[i].w)
 		{
-			float t = (dot - gradientPositions[i - 1]) / (gradientPositions[i] - gradientPositions[i - 1]);
-			return mix(gradientValues[i - 1], gradientValues[i], t);
+			float t = (time - gradient[i - 1].w) / (gradient[i].w - gradient[i - 1].w);
+			return mix(gradient[i - 1].rgb, gradient[i].rgb, t);
 		}
 	}
 }
 
 void main()
 {
-	vec3 light = -normalize(light.direction.xyz);
+	vec3 light = -normalize(lightInput.direction.xyz);
 	vec3 normal = normalize(fragTexCoord);
 	float d = dot(light, normal);
 
 	d = (d + 1) / 2;
-	vec3 color = evaluateSkyLight(d);
+	vec3 color = mix(	evaluateSkyLight(niceSkyGradientCount, niceSkyGradient, d),
+						evaluateSkyLight(meanSkyGradientCount, meanSkyGradient, d),
+						lightInput.skyColourSelection);
 
 	outColor.rgb 	= color;
 	outColor.a 		= 1.0;

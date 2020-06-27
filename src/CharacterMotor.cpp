@@ -262,9 +262,9 @@ update_character_motor( CharacterMotor & 	motor,
 			}
 
 		if (rayDebugHitCount > 0)
-			debug_draw_lines(rayDebugHitCount, rayDebugHitPoints, colors::brightRed, debugLevel);
+			debug_draw_lines(rayDebugHitCount, rayDebugHitPoints, colour_bright_red, debugLevel);
 		if (rayDebugMissCount > 0)
-			debug_draw_lines(rayDebugMissCount, rayDebugMissPoints, colors::mutedGreen, debugLevel);
+			debug_draw_lines(rayDebugMissCount, rayDebugMissPoints, colour_muted_green, debugLevel);
 		}
 
 		if (rayHitCount == 0)
@@ -335,9 +335,9 @@ update_character_motor( CharacterMotor & 	motor,
 			groundHeight 	= max_f32(groundHeight, rayResult.hitPosition.z);
 			grounded 		= grounded || motor.transform->position.z < (groundThreshold + groundHeight);
 
-			debug_draw_line(motor.transform->position, rayResult.hitPosition, color_dark_red, debugLevel);
+			debug_draw_line(motor.transform->position, rayResult.hitPosition, colour_dark_red, debugLevel);
 			debug_draw_cross_xy(motor.transform->position, 0.3, colour_bright_yellow, debugLevel);
-			debug_draw_cross_xy(rayResult.hitPosition, 0.3, color_bright_purple, debugLevel);
+			debug_draw_cross_xy(rayResult.hitPosition, 0.3, colour_bright_purple, debugLevel);
 		}
 		else
 		{
@@ -374,7 +374,7 @@ update_character_motor( CharacterMotor & 	motor,
 
 	if ((motor.transform->position.z > groundHeight))
 	{	
-		motor.zSpeed += physics::gravityAcceleration * elapsedTime;
+		motor.zSpeed += physics_gravity_acceleration * elapsedTime;
 	}
 	else
 	{

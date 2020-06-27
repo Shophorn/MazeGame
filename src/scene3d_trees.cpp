@@ -6,11 +6,11 @@ Trees and leaves.
 
 struct Leaves
 {
-	s32 		capacity;
-	s32 		count;
+	s32 			capacity;
+	s32 			count;
 
-	v3 			position;
-	quaternion 	rotation;
+	v3 				position;
+	quaternion 		rotation;
 
 	// Todo(Leo): maybe put these into a struct
 	v3 * 			localPositions;
@@ -124,25 +124,29 @@ internal void advance_lsystem_time(TimedLSystem & lSystem, Waters & waters, f32 
 						{'['},
 							{'&', 0, angle},
 							{'X', 0, random_range(0.6f, 1.0f)},
+							{'L', 0, random_range(0.25f, 0.4f)},
 						{']'},
 						{'<', 0, 6 * π/7},
 						{'['},
 							{'&', 0, angle},
 							{'X', 0, random_range(0.6f, 1.0f)},
+							{'L', 0, random_range(0.25f, 0.4f)},
 						{']'},
-						// count here = 11
+						// count here = 13
 
 						{'<', 0, 4 * π/7},
 						{'['},
 							{'&', 0, angle},
 							{'X', 0, random_range(0.6f, 1.0f)},
+							{'L', 0, random_range(0.25f, 0.4f)},
 						{']'},
-						// count here = 16
+						// count here = 20
 					};
 
 					Assert(memory_view_available(bWord) >= array_count(production));
 
-					s32 count = random_choice() ? 11 : 16; 
+					// Note(Leo) Important: these values must be manually copied from above array
+					s32 count = random_choice() ? 13 : 20; 
 					copy_structs(bWord.data + bWord.count, production, count);
 					bWord.count += count;
 				}
@@ -151,7 +155,7 @@ internal void advance_lsystem_time(TimedLSystem & lSystem, Waters & waters, f32 
 					TimedModule production [] =
 					{
 						aWord[i],
-						{'L', 0, random_range(0.4f, 0.6f)},
+						{'L', 0, random_range(0.25f, 0.4f)},
 					};
 
 					Assert(memory_view_available(bWord) >= array_count(production));
@@ -217,26 +221,26 @@ internal void update_lsystem_mesh(TimedLSystem & lSystem, Leaves & leaves)
 				u16 vertexOffsetBefore 	= lSystem.vertices.count;
 				f32 width 				= word[i].age * widthGrowFactor;
 
-				m44 transform = transform_matrix(state.position, identity_quaternion, {width, width, 1});
+				m44 transform = transform_matrix(state.position, state.orientation, {width, width, 1});
 
 				Assert(memory_view_available(lSystem.vertices) >= 8);
 				s32 & v = lSystem.vertices.count;
 
-				lSystem.vertices.data[v++] = {multiply_point(transform, {-0.5, -0.5, 0})};
-				lSystem.vertices.data[v++] = {multiply_point(transform, { 0.5, -0.5, 0})};
-				lSystem.vertices.data[v++] = {multiply_point(transform, { 0.5,  0.5, 0})};
-				lSystem.vertices.data[v++] = {multiply_point(transform, {-0.5,  0.5, 0})};
+				lSystem.vertices.data[v++] = {multiply_point(transform, {-0.5, -0.5, 0}), normalize_v3(multiply_direction(transform, {-0.5, -0.5, 0})), {1,1,1}, {0,0}};
+				lSystem.vertices.data[v++] = {multiply_point(transform, { 0.5, -0.5, 0}), normalize_v3(multiply_direction(transform, { 0.5, -0.5, 0})), {1,1,1}, {0.25,0}};
+				lSystem.vertices.data[v++] = {multiply_point(transform, { 0.5,  0.5, 0}), normalize_v3(multiply_direction(transform, { 0.5,  0.5, 0})), {1,1,1}, {0.5,0}};
+				lSystem.vertices.data[v++] = {multiply_point(transform, {-0.5,  0.5, 0}), normalize_v3(multiply_direction(transform, {-0.5,  0.5, 0})), {1,1,1}, {0.75,0}};
 
 				state.position 	+= forward * word[i].parameter;
 
 				// Note(Leo): Draw upper end slightly thinner, so it matches the following 'X' module
 				width 			= (word[i].age - terminalAge) * widthGrowFactor;
-				transform 		= transform_matrix(state.position, identity_quaternion, {width, width, 1});
+				transform 		= transform_matrix(state.position, state.orientation, {width, width, 1});
 
-				lSystem.vertices.data[v++] = {multiply_point(transform, {-0.5, -0.5, 0})};
-				lSystem.vertices.data[v++] = {multiply_point(transform, { 0.5, -0.5, 0})};
-				lSystem.vertices.data[v++] = {multiply_point(transform, { 0.5,  0.5, 0})};
-				lSystem.vertices.data[v++] = {multiply_point(transform, {-0.5,  0.5, 0})};
+				lSystem.vertices.data[v++] = {multiply_point(transform, {-0.5, -0.5, 0}), normalize_v3(multiply_direction(transform, {-0.5, -0.5, 0})), {1,1,1}, {0,1}};
+				lSystem.vertices.data[v++] = {multiply_point(transform, { 0.5, -0.5, 0}), normalize_v3(multiply_direction(transform, { 0.5, -0.5, 0})), {1,1,1}, {0.25,1}};
+				lSystem.vertices.data[v++] = {multiply_point(transform, { 0.5,  0.5, 0}), normalize_v3(multiply_direction(transform, { 0.5,  0.5, 0})), {1,1,1}, {0.5,1}};
+				lSystem.vertices.data[v++] = {multiply_point(transform, {-0.5,  0.5, 0}), normalize_v3(multiply_direction(transform, {-0.5,  0.5, 0})), {1,1,1}, {0.75,1}};
 
 				constexpr u16 indices [] = 
 				{
@@ -262,24 +266,24 @@ internal void update_lsystem_mesh(TimedLSystem & lSystem, Leaves & leaves)
 				u16 vertexOffsetBefore 	= lSystem.vertices.count;
 
 				f32 width 				= word[i].age * widthGrowFactor;
-				m44 transform 			= transform_matrix(state.position, identity_quaternion, {width, width, 1});
+				m44 transform 			= transform_matrix(state.position, state.orientation, {width, width, 1});
 
 				s32 & v = lSystem.vertices.count;
 
-				lSystem.vertices.data[v++] = {multiply_point(transform, {-0.5, -0.5, 0})};
-				lSystem.vertices.data[v++] = {multiply_point(transform, { 0.5, -0.5, 0})};
-				lSystem.vertices.data[v++] = {multiply_point(transform, { 0.5,  0.5, 0})};
-				lSystem.vertices.data[v++] = {multiply_point(transform, {-0.5,  0.5, 0})};
+				lSystem.vertices.data[v++] = {multiply_point(transform, {-0.5, -0.5, 0}), normalize_v3(multiply_direction(transform, {-0.5, -0.5, 0})), {1,1,1}, {0,0}};
+				lSystem.vertices.data[v++] = {multiply_point(transform, { 0.5, -0.5, 0}), normalize_v3(multiply_direction(transform, { 0.5, -0.5, 0})), {1,1,1}, {0.25,0}};
+				lSystem.vertices.data[v++] = {multiply_point(transform, { 0.5,  0.5, 0}), normalize_v3(multiply_direction(transform, { 0.5,  0.5, 0})), {1,1,1}, {0.5,0}};
+				lSystem.vertices.data[v++] = {multiply_point(transform, {-0.5,  0.5, 0}), normalize_v3(multiply_direction(transform, {-0.5,  0.5, 0})), {1,1,1}, {0.75,0}};
 
 				state.position 	+= forward * word[i].parameter * word[i].age;
 				
 				width 		= (word[i].age / 2) *widthGrowFactor;
-				transform 	= transform_matrix(state.position, identity_quaternion, {width, width, 1});
+				transform 	= transform_matrix(state.position, state.orientation, {width, width, 1});
 
-				lSystem.vertices.data[v++] = {multiply_point(transform, {-0.5, -0.5, 0})};
-				lSystem.vertices.data[v++] = {multiply_point(transform, { 0.5, -0.5, 0})};
-				lSystem.vertices.data[v++] = {multiply_point(transform, { 0.5,  0.5, 0})};
-				lSystem.vertices.data[v++] = {multiply_point(transform, {-0.5,  0.5, 0})};
+				lSystem.vertices.data[v++] = {multiply_point(transform, {-0.5, -0.5, 0}), normalize_v3(multiply_direction(transform, {-0.5, -0.5, 0})), {1,1,1}, {0,1}};
+				lSystem.vertices.data[v++] = {multiply_point(transform, { 0.5, -0.5, 0}), normalize_v3(multiply_direction(transform, { 0.5, -0.5, 0})), {1,1,1}, {0.25,1}};
+				lSystem.vertices.data[v++] = {multiply_point(transform, { 0.5,  0.5, 0}), normalize_v3(multiply_direction(transform, { 0.5,  0.5, 0})), {1,1,1}, {0.5,1}};
+				lSystem.vertices.data[v++] = {multiply_point(transform, {-0.5,  0.5, 0}), normalize_v3(multiply_direction(transform, {-0.5,  0.5, 0})), {1,1,1}, {0.75,1}};
 
 				constexpr u16 indices [] = 
 				{
@@ -375,6 +379,11 @@ internal void update_lsystem_mesh(TimedLSystem & lSystem, Leaves & leaves)
 	}
 
 	Assert(stateIndex == 0 && "All states have not been popped");
+
+	if (lSystem.totalAge > 0 && leaves.count == 0)
+	{
+		return;
+	}
 }
 
 internal TimedLSystem make_lsystem(MemoryArena & allocator)

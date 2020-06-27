@@ -12,43 +12,29 @@ static PlatformWindow * 	platformWindow;
 
 static MemoryArena * global_transientMemory;
 
-namespace physics
-{
-	constexpr f32 gravityAcceleration = -9.81;
-}
+constexpr f32 physics_gravity_acceleration = -9.81;
 
-namespace colors
-{
-	constexpr v4 brightRed 		= {1.0, 0.0, 0.0, 1.0};
-	constexpr v4 brightGreen 	= {0.0, 1.0, 0.0, 1.0};
-	constexpr v4 brightBlue 	= {0.0, 0.0, 1.0, 1.0};
-	constexpr v4 brightYellow 	= {1.0, 1.0, 0.0, 1.0};
-
-	constexpr v4 mutedRed 		= {0.8, 0.2, 0.3, 1.0};
-	constexpr v4 mutedGreen 	= {0.2, 0.8, 0.3, 1.0};
-	constexpr v4 mutedBlue 		= {0.2, 0.3, 0.8, 1.0};
-	constexpr v4 mutedYellow 	= {0.8, 0.8, 0.2, 1.0};
-
-	constexpr v4 white 			= {1,1,1,1};
-	constexpr v4 lightGray 		= {0.8, 0.8, 0.8, 1};
-	constexpr v4 darkGray 		= {0.3, 0.3, 0.3, 1};
-	constexpr v4 black 			= {0,0,0,1};
-}
+constexpr v4 colour_white 			= {1,1,1,1};
 
 constexpr v4 colour_aqua_blue 		= colour_rgb_255(51, 255, 255);
 constexpr v4 colour_raw_umber 		= colour_rgb_255(130, 102, 68);
 
 constexpr v4 colour_bright_red 		= {1.0, 0.0, 0.0, 1.0};
 constexpr v4 colour_bright_blue 	= {0.0, 0.0, 1.0, 1.0};
-
 constexpr v4 colour_bright_green 	= {0.0, 1.0, 0.0, 1.0};
-constexpr v4 color_dark_green 		= {0, 0.6, 0, 1};
-constexpr v4 color_dark_red 		= {0.6, 0, 0, 1};
 constexpr v4 colour_bright_yellow 	= {1.0, 1.0, 0.0, 1.0};
-constexpr v4 color_bright_purple 	= {1, 0, 1, 1};
-constexpr v4 color_muted_purple 	= {0.8, 0.2, 0.8, 1};
+constexpr v4 colour_bright_purple 	= {1, 0, 1, 1};
 
-constexpr v4 color_bump = {0.5, 0.5, 1.0, 0.0};
+constexpr v4 colour_dark_green 		= {0, 0.6, 0, 1};
+constexpr v4 colour_dark_red 		= {0.6, 0, 0, 1};
+
+constexpr v4 colour_bump 			= {0.5, 0.5, 1.0, 0.0};
+
+constexpr v4 colour_muted_red 		= {0.8, 0.2, 0.3, 1.0};
+constexpr v4 colour_muted_green 	= {0.2, 0.8, 0.3, 1.0};
+constexpr v4 colour_muted_blue 		= {0.2, 0.3, 0.8, 1.0};
+constexpr v4 colour_muted_yellow 	= {0.8, 0.8, 0.2, 1.0};
+constexpr v4 color_muted_purple 	= {0.8, 0.2, 0.8, 1};
 
 #include "Debug.cpp"
 
@@ -155,12 +141,12 @@ struct GameState
 
 internal Gui make_main_menu_gui(MemoryArena & allocator)
 {
-	Gui gui 		= {};
-	gui.textSize 	= 40;
-	gui.textColor 	= colors::white;
-	gui.selectedTextColor = colors::mutedBlue;
-	gui.padding 	= 10;
-	gui.font 		= load_font("c:/windows/fonts/arial.ttf");
+	Gui gui 				= {};
+	gui.textSize 			= 40;
+	gui.textColor 			= colour_white;
+	gui.selectedTextColor 	= colour_muted_blue;
+	gui.padding 			= 10;
+	gui.font 				= load_font("c:/windows/fonts/arial.ttf");
 	gui_generate_font_material(gui);
 
 	return gui;

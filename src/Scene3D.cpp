@@ -119,6 +119,10 @@ struct Scene3d
 	MeshHandle * 	terrainMeshes;
 	MaterialHandle 	terrainMaterial;
 
+	m44 			seaTransform;
+	MeshHandle 		seaMesh;
+	MaterialHandle 	seaMaterial;
+
 	// Other actors
 	static constexpr s32 followerCapacity = 30;
 	FollowerController followers[followerCapacity];
@@ -160,6 +164,8 @@ struct Scene3d
 	s32 			lSystemsInPotCount;
 	TimedLSystem * 	lSystemsInPot;
 	Leaves * 		lSystemsInPotLeavess;
+
+	MaterialHandle 	lSystemTreeMaterial;
 };
 
 internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, PlatformTime const & time)
@@ -289,6 +295,22 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 		scene->worldCamera.farClipPlane = 2000;
 	}	
 
+	/// *******************************************************************************************
+
+	update_camera_system(&scene->worldCamera, platformGraphics, platformWindow);
+
+	Light light = { .direction 	= normalize_v3({-1, 1.2, -8}), 
+					.color 		= v3{0.95, 0.95, 0.9}};
+	v3 ambient 	= {0.05, 0.05, 0.3};
+
+	constexpr f32 minPlayerDistance = 350;
+	constexpr f32 maxPlayerDistance = 355;
+	f32 playerDistance 				= magnitude_v2(scene->playerCharacterTransform->position.xy);
+	light.skyColorSelection 		= clamp_f32((playerDistance - minPlayerDistance) / (maxPlayerDistance - minPlayerDistance), 0, 1);
+
+	platformApi->update_lighting(platformGraphics, &light, &scene->worldCamera, ambient);
+
+	/// *******************************************************************************************
 	
 	if ((scene->cameraMode == CAMERA_MODE_PLAYER) && is_clicked(input.Y))
 	{
@@ -534,8 +556,10 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 				scene->potTreeTransforms[scene->potTreeCount] = scene->potSeedTransforms[i];
 				scene->potTreeCount += 1;
 
+				// Todo(Leo): There is duplicate information here...
 				scene->potSeedCount -= 1;
 				scene->potSeedTransforms[i] 	= scene->potSeedTransforms[scene->potSeedCount];
+				scene->potSeedWaterLevels[i] 	= scene->potSeedWaterLevels[scene->potSeedCount];
 				scene->seedsInPotWaterLevels[i] = scene->seedsInPotWaterLevels[scene->potSeedCount];
 			}
 
@@ -553,6 +577,21 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 	{
 		// Todo(Leo): Maybe make something like that these would have predetermined range, that is only updated when
 		// tree has grown a certain amount or somthing. These are kinda semi-permanent by nature.
+
+		auto submit_cylinder_colliders = [&collisionSystem = scene->collisionSystem](f32 radius, f32 halfHeight, s32 count, Transform3D * transforms)
+		{
+			for (s32 i = 0; i < count; ++i)
+			{
+				submit_cylinder_collider(collisionSystem, radius, halfHeight, transforms[i].position + v3{0,0,halfHeight});
+			}
+		};
+
+		f32 smallPotColliderRadius = 0.3;
+		f32 smallPotColliderHeight = 0.58;
+		f32 smallPotHalfHeight = smallPotColliderHeight / 2;
+		submit_cylinder_colliders(smallPotColliderRadius, smallPotHalfHeight, scene->potEmptyCount, scene->potEmptyTransforms);
+		submit_cylinder_colliders(smallPotColliderRadius, smallPotHalfHeight, scene->potSeedCount, scene->potSeedTransforms);
+		submit_cylinder_colliders(smallPotColliderRadius, smallPotHalfHeight, scene->potTreeCount, scene->potTreeTransforms);
 
 		constexpr f32 baseRadius = 0.12;
 		constexpr f32 baseHeight = 2;
@@ -654,6 +693,8 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 			platformApi->draw_meshes(platformGraphics, 1, scene->terrainTransforms + i, scene->terrainMeshes[i], scene->terrainMaterial);
 		}
 
+		platformApi->draw_meshes(platformGraphics, 1, &scene->seaTransform, scene->seaMesh, scene->seaMaterial);
+
 		scene3d_draw_monuments(scene->monuments);
 	}
 
@@ -662,12 +703,12 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 	{
 		for (auto const & collider : scene->collisionSystem.precomputedBoxColliders)
 		{
-			debug_draw_box(collider.transform, colors::mutedGreen, DEBUG_BACKGROUND);
+			debug_draw_box(collider.transform, colour_muted_green, DEBUG_BACKGROUND);
 		}
 
 		for (auto const & collider : scene->collisionSystem.staticBoxColliders)
 		{
-			debug_draw_box(collider.transform, color_dark_green, DEBUG_BACKGROUND);
+			debug_draw_box(collider.transform, colour_dark_green, DEBUG_BACKGROUND);
 		}
 
 		for (auto const & collider : scene->collisionSystem.precomputedCylinderColliders)
@@ -682,7 +723,7 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 			debug_draw_circle_xy(collider.center + v3{0, 0, collider.halfHeight}, collider.radius, colour_bright_green, DEBUG_BACKGROUND);
 		}
 
-		debug_draw_circle_xy(scene->playerCharacterTransform->position + v3{0,0,0.7}, 0.25f, colors::brightGreen, DEBUG_PLAYER);
+		debug_draw_circle_xy(scene->playerCharacterTransform->position + v3{0,0,0.7}, 0.25f, colour_bright_green, DEBUG_PLAYER);
 	}
 
 	  //////////////////////////////
@@ -695,14 +736,6 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 		2. Render normal models
 		3. Render animated models
 	*/
-
-
-	update_camera_system(&scene->worldCamera, platformGraphics, platformWindow);
-
-	Light light = { .direction 	= normalize_v3({-1, 1.2, -8}), 
-					.color 		= v3{0.95, 0.95, 0.9}};
-	v3 ambient 	= {0.05, 0.05, 0.3};
-	platformApi->update_lighting(platformGraphics, &light, &scene->worldCamera, ambient);
 
 	for (auto & renderer : scene->renderers)
 	{
@@ -781,12 +814,15 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 		update_lsystem(scene->lSystemCount, scene->lSystems, scene->lSystemLeavess, false);
 		update_lsystem(scene->lSystemsInPotCount, scene->lSystemsInPot, scene->lSystemsInPotLeavess, true);
 
-		auto draw_l_system_trees = [material = scene->seedMaterial](s32 count, TimedLSystem * lSystems)
+		auto draw_l_system_trees = [material = scene->lSystemTreeMaterial](s32 count, TimedLSystem * lSystems)
 		{
 			for (s32 i = 0; i < count; ++i)
 			{
 				if (lSystems[i].vertices.count > 0 && lSystems[i].indices.count > 0)
 				{
+					mesh_generate_tangents(	lSystems[i].vertices.count, lSystems[i].vertices.data,
+											lSystems[i].indices.count, lSystems[i].indices.data);
+
 					platformApi->draw_procedural_mesh( 	platformGraphics,
 														lSystems[i].vertices.count, lSystems[i].vertices.data,
 														lSystems[i].indices.count, lSystems[i].indices.data,
@@ -798,6 +834,28 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 		draw_l_system_trees(scene->lSystemCount, scene->lSystems);		
 		draw_l_system_trees(scene->lSystemsInPotCount, scene->lSystemsInPot);		
+
+
+
+		if (scene->lSystemCount > 0)
+		{
+			auto & lSystem = scene->lSystems[0];
+			s32 vertexCount = lSystem.vertices.count;
+
+			v3 * points = push_memory<v3>(*global_transientMemory, vertexCount * 2, ALLOC_NO_CLEAR);
+
+			for (s32 i = 0; i < vertexCount; ++i)
+			{
+				points [i * 2] = lSystem.vertices.data[i].position + lSystem.position;
+				points [i * 2 + 1] = lSystem.vertices.data[i].position + lSystem.position + lSystem.vertices.data[i].normal * 0.4f;
+			}
+
+
+			if (vertexCount > 0)
+			{
+				debug_draw_lines(vertexCount * 2, points, colour_bright_green, DEBUG_PLAYER);
+			}
+		}
 	}
 
 	/// DRAW LEAVES FOR BOTH LSYSTEM ARRAYS IN THE END BECAUSE OF LEAF SHDADOW INCONVENIENCE
@@ -997,8 +1055,8 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 
 	scene->gui 						= {};
 	scene->gui.textSize 			= 40;
-	scene->gui.textColor 			= colors::white;
-	scene->gui.selectedTextColor 	= colors::mutedRed;
+	scene->gui.textColor 			= colour_white;
+	scene->gui.selectedTextColor 	= colour_muted_red;
 	scene->gui.padding 				= 10;
 	scene->gui.font 				= load_font("c:/windows/fonts/arial.ttf");
 	gui_generate_font_material(scene->gui);
@@ -1045,7 +1103,7 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 
 	TextureAsset whiteTextureAsset 			= make_texture_asset(allocate_array<u32>(*global_transientMemory, {0xffffffff}), 1, 1, 4);
 	TextureAsset blackTextureAsset	 		= make_texture_asset(allocate_array<u32>(*global_transientMemory, {0xff000000}), 1, 1, 4);
-	TextureAsset neutralBumpTextureAsset 	= make_texture_asset(allocate_array<u32>(*global_transientMemory, {color_rgba_32(color_bump)}), 1, 1, 4);
+	TextureAsset neutralBumpTextureAsset 	= make_texture_asset(allocate_array<u32>(*global_transientMemory, {color_rgba_32(colour_bump)}), 1, 1, 4);
 	TextureAsset waterBlueTextureAsset 		= make_texture_asset(allocate_array<u32>(*global_transientMemory, {0xffffdb00}), 1, 1, 4);
 	TextureAsset seedBrownTextureAsset 		= make_texture_asset(allocate_array<u32>(*global_transientMemory, {0xff003399}), 1, 1, 4);
 
@@ -1082,17 +1140,17 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 		// Note(Leo): internet told us vulkan(or glsl) cubemap face order is as follows:
 		// (+X,-X,+Y,-Y,+Z,-Z).
 		// ... seems to wrock
-		StaticArray<TextureAsset,6> skyboxTextureAssets =
-		{
-			load_texture_asset("assets/textures/miramar_rt.png", global_transientMemory),
-			load_texture_asset("assets/textures/miramar_lf.png", global_transientMemory),
-			load_texture_asset("assets/textures/miramar_ft.png", global_transientMemory),
-			load_texture_asset("assets/textures/miramar_bk.png", global_transientMemory),
-			load_texture_asset("assets/textures/miramar_up.png", global_transientMemory),
-			load_texture_asset("assets/textures/miramar_dn.png", global_transientMemory),
-		};
-		auto skyboxTexture 	= platformApi->push_cubemap(platformGraphics, &skyboxTextureAssets);
-		materials.sky 		= platformApi->push_material(platformGraphics, GRAPHICS_PIPELINE_SKYBOX, 1, &skyboxTexture);
+		// StaticArray<TextureAsset,6> skyboxTextureAssets =
+		// {
+		// 	load_texture_asset("assets/textures/miramar_rt.png", global_transientMemory),
+		// 	load_texture_asset("assets/textures/miramar_lf.png", global_transientMemory),
+		// 	load_texture_asset("assets/textures/miramar_ft.png", global_transientMemory),
+		// 	load_texture_asset("assets/textures/miramar_bk.png", global_transientMemory),
+		// 	load_texture_asset("assets/textures/miramar_up.png", global_transientMemory),
+		// 	load_texture_asset("assets/textures/miramar_dn.png", global_transientMemory),
+		// };
+		// auto skyboxTexture 	= platformApi->push_cubemap(platformGraphics, &skyboxTextureAssets);
+		materials.sky 		= platformApi->push_material(platformGraphics, GRAPHICS_PIPELINE_SKYBOX, 0, nullptr);
 	}
 
 	auto push_model = [](MeshHandle mesh, MaterialHandle material) -> ModelHandle
@@ -1266,24 +1324,23 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 
 	// Environment
 	{
-		// constexpr f32 depth = 500;
-		// constexpr f32 width = 500;
-		f32 mapSize 		= 1200;
-		f32 terrainHeight 	= 50;
-		// f32 terrainHeight 	= 0;
 		{
-			// Note(Leo): this is maximum size we support with u16 mesh vertex indices
+			constexpr f32 mapSize 		= 1200;
+			constexpr f32 minTerrainElevation = -5;
+			constexpr f32 maxTerrainElevation = 50;
 
-			s32 chunkCountPerDirection 	= 10;
+			// Note(Leo): this is maximum size we support with u16 mesh vertex indices
 			s32 chunkResolution			= 128;
+			
+			s32 chunkCountPerDirection 	= 10;
 			f32 chunkSize 				= 1.0f / chunkCountPerDirection;
 			f32 chunkWorldSize 			= chunkSize * mapSize;
 
 			push_memory_checkpoint(*global_transientMemory);
 
 			s32 heightmapResolution = 1024;
-			auto heightmapTexture 	= load_texture_asset("assets/textures/heightmap.png", global_transientMemory);
-			auto heightmap 			= make_heightmap(&persistentMemory, &heightmapTexture, heightmapResolution, mapSize, -terrainHeight / 2, terrainHeight / 2);
+			auto heightmapTexture 	= load_texture_asset("assets/textures/heightmap_island.png", global_transientMemory);
+			auto heightmap 			= make_heightmap(&persistentMemory, &heightmapTexture, heightmapResolution, mapSize, minTerrainElevation, maxTerrainElevation);
 
 			pop_memory_checkpoint(*global_transientMemory);
 
@@ -1293,19 +1350,24 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 			scene->terrainMeshes 		= push_memory<MeshHandle>(persistentMemory, terrainCount, ALLOC_NO_CLEAR);
 			scene->terrainMaterial 		= materials.ground;
 
-			for (s32 i = 0; i < terrainCount; ++i)
+			/// GENERATE GROUND MESH
 			{
-				s32 x = i % chunkCountPerDirection;
-				s32 y = i / chunkCountPerDirection;
-
-				v2 position = { x * chunkSize, y * chunkSize };
-				v2 size 	= { chunkSize, chunkSize };
-
 				push_memory_checkpoint(*global_transientMemory);
+			
+				for (s32 i = 0; i < terrainCount; ++i)
+				{
+					s32 x = i % chunkCountPerDirection;
+					s32 y = i / chunkCountPerDirection;
 
-				auto groundMeshAsset 	= generate_terrain(*global_transientMemory, heightmap, position, size, chunkResolution, 10);
-				scene->terrainMeshes[i] = platformApi->push_mesh(platformGraphics, &groundMeshAsset);
+					v2 position = { x * chunkSize, y * chunkSize };
+					v2 size 	= { chunkSize, chunkSize };
 
+
+					auto groundMeshAsset 	= generate_terrain(*global_transientMemory, heightmap, position, size, chunkResolution, 10);
+					scene->terrainMeshes[i] = platformApi->push_mesh(platformGraphics, &groundMeshAsset);
+
+				}
+			
 				pop_memory_checkpoint(*global_transientMemory);
 			}
 
@@ -1325,6 +1387,27 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 
 			scene->collisionSystem.terrainCollider 	= std::move(heightmap);
 			scene->collisionSystem.terrainTransform = transform;
+
+
+			MeshAsset seaMeshAsset = {};
+			{
+				seaMeshAsset.vertices = allocate_array<Vertex>(*global_transientMemory, 
+				{
+					{-0.5, -0.5, 0, 0, 0, 1, 1,1,1, 0, 0},
+					{ 0.5, -0.5, 0, 0, 0, 1, 1,1,1, 1, 0},
+					{-0.5,  0.5, 0, 0, 0, 1, 1,1,1, 0, 1},
+					{ 0.5,  0.5, 0, 0, 0, 1, 1,1,1, 1, 1},
+				});
+				seaMeshAsset.indices = allocate_array<u16>(*global_transientMemory,
+				{
+					0, 1, 2, 2, 1, 3
+				});
+				seaMeshAsset.indexType = IndexType::UInt16;
+			}
+			mesh_generate_tangents(seaMeshAsset);
+			scene->seaMesh 			= platformApi->push_mesh(platformGraphics, &seaMeshAsset);
+			scene->seaMaterial 		= push_material(GRAPHICS_PIPELINE_NORMAL, waterTextureHandle, neutralBumpTexture, blackTexture);
+			scene->seaTransform 	= transform_matrix({0,0,0}, identity_quaternion, {mapSize, mapSize, 1});
 		}
 
 		{
@@ -1414,9 +1497,6 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 				v3 position 					= {15, i * 5.0f, 0};
 				position.z 						= get_terrain_height(&scene->collisionSystem, position.xy);
 				scene->potEmptyTransforms[i]	= { .position = position };
-
-				f32 colliderHeight = 0.58;
-				push_cylinder_collider(scene->collisionSystem, 0.3, colliderHeight, v3{0,0,colliderHeight / 2}, &scene->potEmptyTransforms[i]);
 			}
 
 			// ----------------------------------------------------------------	
@@ -1604,6 +1684,8 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 	scene->lSystemsInPotCount 	= 0;
 	scene->lSystemsInPot 		= push_memory<TimedLSystem>(persistentMemory, scene->lSystemCapacity, ALLOC_NO_CLEAR);
 	scene->lSystemsInPotLeavess = push_memory<Leaves>(persistentMemory, scene->lSystemCapacity, ALLOC_NO_CLEAR);
+
+	scene->lSystemTreeMaterial = scene->seedMaterial;
 
 	for (int i = 0; i < scene->lSystemCapacity; ++i)
 	{

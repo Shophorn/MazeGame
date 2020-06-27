@@ -30,20 +30,13 @@ void main()
 	float distanceFromCenter 	= length(fragTexCoord.xy * 2);
 	float opacity 				= step (distanceFromCenter, 1.0);
 
-	const float a = 0.2;
+	const float angle = 0.2;
 
 	float x = fragTexCoord.x * 2;
 	float y = fragTexCoord.y * 2;
-	// float op2 = step (x, a * y + a);
-	// float op3 = step (-a * y -a, x);
 
-	float op2 = a * y + a;
-	float op3 = -a * y -a;
-
-	if (x > op3 && x < op2)
-	{
-		opacity = 0;
-	}
+	float op2 = angle * y + angle;
+	opacity *= step(abs(op2), abs(x));
 
 	if (opacity < 0.5)
 	{
@@ -70,7 +63,7 @@ void main()
 
 	float lightDepthFromTexture = texture(lightMap, lightCoords.xy).r;
 
-	const float shadowBias = 0.0001;
+	const float shadowBias = 0.001;
 	float inLight = 1.0 - step(lightDepthFromTexture + shadowBias, lightCoords.z);// * 0.8;
 
 	// SHADOWS

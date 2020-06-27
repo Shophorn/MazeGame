@@ -38,10 +38,14 @@ const vec3 vertexPositions [vertexCount] =
 
 const vec3 vertexNormals[vertexCount] =
 {
-	normalize(vec3(-0.2, -0.3, 0.5)),
-	normalize(vec3( 0.2, -0.3, 0.5)),
-	normalize(vec3(-0.2, 0.3, 0.5)),
-	normalize(vec3( 0.2, 0.3, 0.5)),
+	vec3(0,0,1),
+	vec3(0,0,1),
+	vec3(0,0,1),
+	vec3(0,0,1),
+	// normalize(vec3(-0.2, -0.3, 0.5)),
+	// normalize(vec3( 0.2, -0.3, 0.5)),
+	// normalize(vec3(-0.2, 0.3, 0.5)),
+	// normalize(vec3( 0.2, 0.3, 0.5)),
 };	
 
 void main ()

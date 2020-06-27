@@ -58,8 +58,8 @@ internal void gui_ignore_input();
 // Widgets
 internal bool gui_button(char const * label);
 internal void gui_text(char const * label);
-internal void gui_image(GuiTextureHandle texture, v2 size, v4 colour = colors::white);
-internal void gui_background_image(GuiTextureHandle, s32 rows, v4 colour = colors::white);
+internal void gui_image(GuiTextureHandle texture, v2 size, v4 colour = colour_white);
+internal void gui_background_image(GuiTextureHandle, s32 rows, v4 colour = colour_white);
 
 // Internal
 internal void gui_render_texture(TextureHandle texture, ScreenRect rect);
