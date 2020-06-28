@@ -29,7 +29,7 @@ internal GuiTextureHandle fsvulkan_resources_push_gui_texture(VulkanContext * co
 	VulkanTexture texture 			= vulkan::make_texture(context, asset);
 	VkDescriptorSet descriptorSet 	= fsvulkan_make_texture_descriptor_set(	context,	
 																			context->pipelines[GRAPHICS_PIPELINE_SCREEN_GUI].descriptorSetLayout,
-																			context->descriptorPools.material,
+																			context->materialDescriptorPool,
 																			1, &texture.view);
 	s64 index = context->loadedGuiTextures.size();
 	context->loadedGuiTextures.push_back({texture, descriptorSet});
@@ -54,7 +54,7 @@ internal MaterialHandle fsvulkan_resources_push_material (	VulkanContext *     c
 
 	VkDescriptorSet descriptorSet = fsvulkan_make_texture_descriptor_set(   context,
 																			context->pipelines[pipeline].descriptorSetLayout,
-																			context->descriptorPools.material,
+																			context->materialDescriptorPool,
 																			textureCount,
 																			textureImageViews);
 
@@ -155,7 +155,7 @@ internal void fsvulkan_resources_unload_resources(VulkanContext * context)
 	context->loadedGuiTextures.resize(0);
 
 	// Materials
-	vkResetDescriptorPool(context->device, context->descriptorPools.material, 0);   
+	vkResetDescriptorPool(context->device, context->materialDescriptorPool, 0);   
 	context->loadedMaterials.resize(0);
 
 	// Rendered objects

@@ -20,15 +20,8 @@ print_vulkan_assert(LogInput::FileAddress address, VkResult result)
 
 #define VULKAN_CHECK(result) if (result != VK_SUCCESS) { print_vulkan_assert(FILE_ADDRESS, result); abort();}
 
-static void check_vk_result(VkResult result)
-{
-	VULKAN_CHECK(result);
-	    // if (err == 0) return;
-	    // printf("VkResult %d\n", err);
-	    // if (err < 0)
-	    //     abort();
-}
-
+// Note(Leo): Play with these later in development, when we have closer to final contents
+// constexpr s32 VIRTUAL_FRAME_COUNT = 2;
 constexpr s32 VIRTUAL_FRAME_COUNT = 3;
 
 
@@ -41,10 +34,11 @@ constexpr s32 VULKAN_MAX_MATERIAL_COUNT = 100;
 
 constexpr VkSampleCountFlagBits VULKAN_MAX_MSAA_SAMPLE_COUNT = VK_SAMPLE_COUNT_2_BIT;
 
-// Note(Leo): these need to align properly
 
 namespace vulkan
 {
+	// Note(Leo): these need to align properly
+	// Study(Leo): these need to align properly
 	struct CameraUniformBuffer
 	{
 		alignas(16) m44 view;
@@ -83,6 +77,9 @@ struct VulkanBufferResource
     VkDeviceSize size;
 };
 
+// Todo(Leo): these should be local variables in initialization function
+// struct VulkanQueueFamilyIndices
+// struct VulkanSwapchainSupportDetails
 struct VulkanQueueFamilyIndices
 {
     u32 graphics;
@@ -214,37 +211,32 @@ struct PlatformGraphics
     VulkanVirtualFrame virtualFrames [VIRTUAL_FRAME_COUNT];
     u32 virtualFrameIndex = 0;
 
-    struct
-    {
-    	VkDescriptorPool uniform;
-    	VkDescriptorPool material;
+    VkDescriptorPool 		uniformDescriptorPool;
+    VkDescriptorPool 		materialDescriptorPool;
 
-    	// Note(Leo): these are not cleared on unload
-    	VkDescriptorPool persistent;
-    } descriptorPools;
+	// Note(Leo): these are not cleared on unload
+    VkDescriptorPool		persistentDescriptorPool;
 
-    struct
-    {
-    	VkDescriptorSetLayout camera;
-    	VkDescriptorSetLayout model;
-    	VkDescriptorSetLayout lighting;
-    	VkDescriptorSetLayout shadowMap;
-    } descriptorSetLayouts;
 
-    struct
-    {
-   	 	VkDescriptorSet camera;
-	    VkDescriptorSet model;
-   	 	VkDescriptorSet lighting;
-   	 	VkDescriptorSet lightCamera;
-    } uniformDescriptorSets;
+    VkDescriptorSetLayout 	modelDescriptorSetLayout;
+    VkDescriptorSet 		modelDescriptorSet;
 
-	VkDescriptorSet shadowMapDescriptorSet;
+	VkDescriptorSetLayout 	cameraDescriptorSetLayout;
+    VkDescriptorSet 		cameraDescriptorSet[VIRTUAL_FRAME_COUNT];
+    
+	VkDescriptorSetLayout 	lightingDescriptorSetLayout;
+    VkDescriptorSet 		lightingDescriptorSet[VIRTUAL_FRAME_COUNT];
+	
+	VkDescriptorSetLayout 	shadowMapDescriptorSetLayout;
+	VkDescriptorSet 		shadowMapDescriptorSet;
 
     // Todo(Leo): set these dynamically
-    u32 cameraUniformOffset = 0;
-    u32 lightingUniformOffset = 256;
-    u32 lightCameraUniformOffset = 512;
+    constexpr static VkDeviceSize cameraUniformOffset 			= 0;
+    constexpr static VkDeviceSize lightingUniformOffset 		= 256;
+    constexpr static VkDeviceSize sceneUniformBufferFrameOffset = 1024;
+
+    static_assert(sizeof(vulkan::CameraUniformBuffer) <= 256);
+    static_assert(sizeof(vulkan::LightingUniformBuffer) <= 256);
 
     // Uncategorized
 	VkCommandPool 			commandPool;
@@ -291,9 +283,9 @@ struct PlatformGraphics
 
 	} shadowPass;
 
+	// Todo(Leo): This is stupid, just use bool, we only have one use case, probably never have a ton, so just add more bools
 	using PostRenderFunc = void(VulkanContext*);
 	PostRenderFunc * onPostRender;
-
 
     VulkanBufferResource stagingBufferPool;
     VulkanBufferResource staticMeshPool;
@@ -308,6 +300,8 @@ struct PlatformGraphics
 	std::vector<VulkanMaterial>	loadedMaterials;
 	std::vector<VulkanModel>	loadedModels;
 
+	// Note(Leo): Guitextures are separeate becauses they are essentially texture AND material
+	// since they are used alone. We should maybe just use normal materials. I don't know yet.
 	std::vector<VulkanGuiTexture> 	loadedGuiTextures;
 	std::vector<VulkanTexture> 		loadedGuiTexturesTextures;
 	std::vector<VkDescriptorSet> 	loadedGuiTexturesDescriptorSets;
@@ -326,10 +320,8 @@ struct PlatformGraphics
     using CleanupFunc = void (VulkanContext*);
 	std::vector<CleanupFunc*> cleanups = {};
 
-    // u32 currentDrawImageIndex;
     u32 currentDrawFrameIndex;
     bool32 canDraw = false;
-    // u32 currentUniformBufferOffset;
 
     bool32 sceneUnloaded = false;
 
@@ -338,9 +330,7 @@ struct PlatformGraphics
     VkDeviceSize 	leafBufferCapacity;
     VkDeviceSize 	leafBufferUsed[VIRTUAL_FRAME_COUNT];
     void * 			persistentMappedLeafBufferMemory;
-
 };
-
 
 
 // Note(Leo): We are expecting to at some point need to get things from multiple different
@@ -350,16 +340,10 @@ internal VulkanGuiTexture & fsvulkan_get_loaded_gui_texture (VulkanContext & con
 	return context.loadedGuiTextures[id];
 }
 
-
 namespace vulkan
 {
-	internal void
-	advance_virtual_frame(VulkanContext * context)
-	{
-		context->virtualFrameIndex += 1;
-		context->virtualFrameIndex %= VIRTUAL_FRAME_COUNT;
-	}
 
+	// TODo(Leo): inline in render function
 	internal inline VulkanVirtualFrame *
 	get_current_virtual_frame(VulkanContext * context)
 	{
@@ -384,6 +368,7 @@ namespace vulkan
 		return &context->loadedMeshes[handle];
 	}
 
+	// Todo(Leo): inline in init function
     internal VkFormat find_supported_format(    VkPhysicalDevice physicalDevice,
                                                 s32 candidateCount,
                                                 VkFormat * pCandidates,
@@ -391,6 +376,15 @@ namespace vulkan
                                                 VkFormatFeatureFlags requestedFeatures);
     internal VkFormat find_supported_depth_format(VkPhysicalDevice physicalDevice);
 	internal u32 find_memory_type ( VkPhysicalDevice physicalDevice, u32 typeFilter, VkMemoryPropertyFlags properties);
+
+	internal VulkanQueueFamilyIndices find_queue_families (VkPhysicalDevice device, VkSurfaceKHR surface);
+
+    internal inline bool32
+    has_stencil_component(VkFormat format)
+    {
+        bool32 result = (format == VK_FORMAT_D32_SFLOAT_S8_UINT) || (format == VK_FORMAT_D24_UNORM_S8_UINT);
+        return result;
+    }
 
 #if FS_VULKAN_USE_VALIDATION
 	constexpr bool32 enableValidationLayers = true;
@@ -416,33 +410,14 @@ namespace vulkan
 	};
 	constexpr int DEVICE_EXTENSION_COUNT = array_count(deviceExtensions);
 
-    constexpr s32 MAX_LOADED_TEXTURES = 100;
 
-    enum : u32
-    {
-    	SHADER_LIGHTING_SET = 3
-    };
+	// Todo(Leo): This needs to be enforced
+    constexpr s32 MAX_LOADED_TEXTURES = 100;
 
 
     // Todo(Leo): this is internal to the some place
 	internal VkIndexType convert_index_type(IndexType);
 
-	// HELPER FUNCTIONS
-	internal VulkanQueueFamilyIndices find_queue_families (VkPhysicalDevice device, VkSurfaceKHR surface);
-
-    internal inline bool32
-    has_stencil_component(VkFormat format)
-    {
-        bool32 result = (format == VK_FORMAT_D32_SFLOAT_S8_UINT) || (format == VK_FORMAT_D24_UNORM_S8_UINT);
-        return result;
-    }
-
-    internal inline VkDeviceSize
-    get_aligned_uniform_buffer_size(VulkanContext * context, VkDeviceSize size)
-    {
-    	auto alignment = context->physicalDeviceProperties.limits.minUniformBufferOffsetAlignment;
-    	return align_up(size, alignment);
-    } 
 
     internal VkCommandBuffer begin_command_buffer(VkDevice, VkCommandPool);
     internal void execute_command_buffer(VkCommandBuffer, VkDevice, VkCommandPool, VkQueue);
@@ -540,7 +515,7 @@ internal void fsvulkan_reload_shaders(VulkanContext * context)
 		context->shadowMapTexture = make_material_vk_descriptor_set_2( 	context,
 																		context->pipelines[GRAPHICS_PIPELINE_SCREEN_GUI].descriptorSetLayout,
 																		context->shadowPass.attachment.view,
-																		context->descriptorPools.persistent,
+																		context->persistentDescriptorPool,
 																		context->shadowPass.sampler,
 																		VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 	};
@@ -572,33 +547,7 @@ internal PlatformGraphicsFrameResult fsvulkan_prepare_frame(VulkanContext * cont
     }
 }
 
-internal VkDeviceSize fsvulkan_get_uniform_memory(VulkanContext & context, VkDeviceSize size)
-{
-	// Note(Leo): offset data for different frames, so we do not overwrite previous frames' data before they are done.
-	// Todo(Leo): make separate buffers for each frame
-	VkDeviceSize frameSize = vulkan::get_aligned_uniform_buffer_size(&context, megabytes(150));
-	VkDeviceSize frameOffset = frameSize * context.virtualFrameIndex;
 
-	auto alignment 	= context.physicalDeviceProperties.limits.minUniformBufferOffsetAlignment;
-	size 			= align_up(size, alignment);
-
-	VkDeviceSize currentOffset = context.modelUniformBuffer.used;
-
-	Assert(currentOffset + size <= frameSize && "Trying to use too much memory.");
-
-	context.modelUniformBuffer.used += size;
-
-
-	return currentOffset + frameOffset;
-};
-
-internal void fsvulkan_reset_uniform_buffer(VulkanContext & context)
-{
-	/// TODO(Leo): This is used incorrectly. We should zero some other value, since this buffer is in 
-	// practice split to three or two parts, but currently we use this same 'used' value to track each.
-	// It luckily works because they are not accessed at same times.
-	context.modelUniformBuffer.used = 0;
-}
 
 #define WIN_VULKAN_HPP
 #endif

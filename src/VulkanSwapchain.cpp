@@ -50,9 +50,10 @@ internal VkPresentModeKHR fsvulkan_choose_surface_present_mode(std::vector<VkPre
 {
     /*
     Note(Leo): mailbox goes as fast as possible, fifo will wait for vsync, right?
+    Mailbox causes tearing, on my computer at least.
     */
-    constexpr VkPresentModeKHR preferredPresentMode = VK_PRESENT_MODE_MAILBOX_KHR;
-    // constexpr VkPresentModeKHR preferredPresentMode = VK_PRESENT_MODE_FIFO_KHR;
+    // constexpr VkPresentModeKHR preferredPresentMode = VK_PRESENT_MODE_MAILBOX_KHR;
+    constexpr VkPresentModeKHR preferredPresentMode = VK_PRESENT_MODE_FIFO_KHR;
 
     VkPresentModeKHR result = VK_PRESENT_MODE_FIFO_KHR;
     for (s32 i = 0; i < availablePresentModes.size(); ++i)
@@ -134,7 +135,7 @@ vulkan::create_drawing_resources(VulkanContext * context, u32 width, u32 height)
     resources->imageFormat = surfaceFormat.format;
 
 
-    // Bug(Leo): following imageCount variable is reusing one from previous definition, maybe bug
+    // TODO(Leo): following imageCount variable is reusing one from previous definition, maybe bug
     // Note(Leo): Swapchain images are not created, they are gotten from api
     vkGetSwapchainImagesKHR(context->device, resources->swapchain, &imageCount, nullptr);
     resources->images.resize (imageCount);

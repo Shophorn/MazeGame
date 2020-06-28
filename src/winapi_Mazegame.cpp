@@ -345,6 +345,7 @@ Run(HINSTANCE hInstance)
 
 		#if 1
 			// Todo(leo): This for debugger also, it seems to get stuck on sleep on first round
+			// Also application itself...
 			millisecondsToSleep = min_s32(millisecondsToSleep, 100);
 		#endif
 

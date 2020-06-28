@@ -17,7 +17,6 @@ namespace fsvulkan_drawing_internal_
 	will stay valid for the duration of thread, but values of struct will not. */
 
 	// TODO(Leo): probably remove....
-
 	thread_local VkCommandBufferInheritanceInfo global_inheritanceInfo_ = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_INHERITANCE_INFO };
 	VkCommandBufferInheritanceInfo const *
 
@@ -30,14 +29,53 @@ namespace fsvulkan_drawing_internal_
 	}
 }
 
+internal VkDeviceSize
+fsvulkan_get_aligned_uniform_buffer_size(VulkanContext * context, VkDeviceSize size)
+{
+	auto alignment = context->physicalDeviceProperties.limits.minUniformBufferOffsetAlignment;
+	return align_up(size, alignment);
+} 
+
+
+internal VkDeviceSize fsvulkan_get_uniform_memory(VulkanContext & context, VkDeviceSize size)
+{
+	// Note(Leo): offset data for different frames, so we do not overwrite previous frames' data before they are done.
+	// Todo(Leo): make separate buffers for each frame
+	VkDeviceSize frameSize = fsvulkan_get_aligned_uniform_buffer_size(&context, megabytes(150));
+	VkDeviceSize frameOffset = frameSize * context.virtualFrameIndex;
+
+	auto alignment 	= context.physicalDeviceProperties.limits.minUniformBufferOffsetAlignment;
+	size 			= align_up(size, alignment);
+
+	VkDeviceSize currentOffset = context.modelUniformBuffer.used;
+
+	Assert(currentOffset + size <= frameSize && "Trying to use too much memory.");
+
+	context.modelUniformBuffer.used += size;
+
+	return currentOffset + frameOffset;
+};
+
+internal void fsvulkan_reset_uniform_buffer(VulkanContext & context)
+{
+	/// TODO(Leo): This is used incorrectly. We should zero some other value, since this buffer is in 
+	// practice split to three or two parts, but currently we use this same 'used' value to track each.
+	// It luckily works because they are not accessed at same times.
+	context.modelUniformBuffer.used = 0;
+}
+
 internal void fsvulkan_drawing_update_camera(VulkanContext * context, Camera const * camera)
 {
 	// Todo(Leo): alignment
 
 	// Note (Leo): map vulkan memory directly to right type so we can easily avoid one (small) memcpy per frame
 	vulkan::CameraUniformBuffer * pUbo;
-	vkMapMemory(context->device, context->sceneUniformBuffer.memory,
-				context->cameraUniformOffset, sizeof(vulkan::CameraUniformBuffer), 0, (void**)&pUbo);
+	vkMapMemory(context->device,
+				context->sceneUniformBuffer.memory,
+				context->cameraUniformOffset + context->sceneUniformBufferFrameOffset * context->virtualFrameIndex,
+				sizeof(vulkan::CameraUniformBuffer),
+				0,
+				(void**)&pUbo);
 
 	pUbo->view 			= camera_view_matrix(camera->position, camera->direction);
 	pUbo->projection 	= camera_projection_matrix(camera);
@@ -48,8 +86,11 @@ internal void fsvulkan_drawing_update_camera(VulkanContext * context, Camera con
 internal void fsvulkan_drawing_update_lighting(VulkanContext * context, Light const * light, Camera const * camera, v3 ambient)
 {
 	vulkan::LightingUniformBuffer * lightPtr;
-	vkMapMemory(context->device, context->sceneUniformBuffer.memory,
-				context->lightingUniformOffset, sizeof(vulkan::LightingUniformBuffer), 0, (void**)&lightPtr);
+	vkMapMemory(context->device,
+				context->sceneUniformBuffer.memory,
+				context->lightingUniformOffset + context->sceneUniformBufferFrameOffset * context->virtualFrameIndex,
+				sizeof(vulkan::LightingUniformBuffer),
+				0, (void**)&lightPtr);
 
 	lightPtr->direction    		= v3_to_v4(light->direction, 0);
 	lightPtr->color        		= v3_to_v4(light->color, 0);
@@ -64,8 +105,11 @@ internal void fsvulkan_drawing_update_lighting(VulkanContext * context, Light co
 	m44 lightViewProjection = get_light_view_projection (light, camera);
 
 	vulkan::CameraUniformBuffer * pUbo;
-	vkMapMemory(context->device, context->sceneUniformBuffer.memory,
-				context->cameraUniformOffset, sizeof(vulkan::CameraUniformBuffer), 0, (void**)&pUbo);
+	vkMapMemory(context->device,
+				context->sceneUniformBuffer.memory,
+				context->cameraUniformOffset + context->sceneUniformBufferFrameOffset * context->virtualFrameIndex,
+				sizeof(vulkan::CameraUniformBuffer),
+				0, (void**)&pUbo);
 
 	pUbo->lightViewProjection 		= lightViewProjection;
 	pUbo->shadowDistance 			= light->shadowDistance;
@@ -154,7 +198,7 @@ internal void fsvulkan_drawing_prepare_frame(VulkanContext * context)
 	};
 	VULKAN_CHECK(vkBeginCommandBuffer(frame->commandBuffers.offscreen, &shadowCmdBeginInfo));
 
-	// Note(Leo): We only ever use this pipeline with shadows, so it is sufficient to only bind it once, here.
+	// Note(Leo): We only ever use this one pipeline with shadows, so it is sufficient to only bind it once, here.
 	vkCmdBindPipeline(frame->commandBuffers.offscreen, VK_PIPELINE_BIND_POINT_GRAPHICS, context->shadowPass.pipeline);
 }
 
@@ -258,7 +302,11 @@ internal void fsvulkan_drawing_finish_frame(VulkanContext * context)
 		logVulkan() << FILE_ADDRESS << "Present result = " << vulkan::to_str(result);
 	}
 
-	vulkan::advance_virtual_frame(context);
+	/// ADVANCE VIRTUAL FRAME INDEX
+	{
+		context->virtualFrameIndex += 1;
+		context->virtualFrameIndex %= VIRTUAL_FRAME_COUNT;
+	}
 
 	if (context->onPostRender != nullptr)
 	{
@@ -311,15 +359,14 @@ internal void fsvulkan_drawing_draw_model(VulkanContext * context, ModelHandle m
 	
 	VkDescriptorSet sets [] =
 	{   
-		context->uniformDescriptorSets.camera,
+		context->cameraDescriptorSet[context->virtualFrameIndex],
 		material->descriptorSet,
-		context->uniformDescriptorSets.model,
-		context->uniformDescriptorSets.lighting,
+		context->modelDescriptorSet,
+		context->lightingDescriptorSet[context->virtualFrameIndex],
 		context->shadowMapTexture,
 	};
 
 	// Note(Leo): this works, because models are only dynamic set
-
 	Assert(uniformBufferOffset <= max_value_u32);
 	u32 dynamicOffsets [] = {(u32)uniformBufferOffset};
 
@@ -346,8 +393,8 @@ internal void fsvulkan_drawing_draw_model(VulkanContext * context, ModelHandle m
 
 		VkDescriptorSet shadowSets [] =
 		{
-			context->uniformDescriptorSets.camera,
-			context->uniformDescriptorSets.model,
+			context->cameraDescriptorSet[context->virtualFrameIndex],
+			context->modelDescriptorSet,
 		};
 
 		vkCmdBindDescriptorSets(frame->commandBuffers.offscreen,
@@ -407,11 +454,11 @@ internal void fsvulkan_drawing_draw_leaves(VulkanContext * context, s32 instance
 	// Todo(Leo): These can be bound once per frame, they do not change
 	// Todo(Leo): Except that they need to be bound per pipeline, maybe unless selected binding etc. are identical
 	vkCmdBindDescriptorSets(frame->commandBuffers.scene, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout,
-							0, 1, &context->uniformDescriptorSets.camera,
+							0, 1, &context->cameraDescriptorSet[context->virtualFrameIndex],
 							0, nullptr);
 
 	vkCmdBindDescriptorSets(frame->commandBuffers.scene, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout,
-							3, 1, &context->uniformDescriptorSets.lighting,
+							3, 1, &context->lightingDescriptorSet[context->virtualFrameIndex],
 							0, nullptr);
 
 	vkCmdBindDescriptorSets(frame->commandBuffers.scene, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout,
@@ -434,7 +481,7 @@ internal void fsvulkan_drawing_draw_leaves(VulkanContext * context, s32 instance
 	vkCmdBindPipeline(frame->commandBuffers.offscreen, VK_PIPELINE_BIND_POINT_GRAPHICS, shadowPipeline);
 
 	vkCmdBindDescriptorSets(frame->commandBuffers.offscreen, VK_PIPELINE_BIND_POINT_GRAPHICS, shadowPipelineLayout,
-							0, 1, &context->uniformDescriptorSets.camera, 0, nullptr);
+							0, 1, &context->cameraDescriptorSet[context->virtualFrameIndex], 0, nullptr);
 
 	vkCmdBindVertexBuffers(frame->commandBuffers.offscreen, 0, 1, &context->leafBuffer, &instanceBufferOffset);
 
@@ -455,14 +502,9 @@ internal void fsvulkan_drawing_draw_meshes(VulkanContext * context, s32 count, m
 	/* Note(Leo): This function does not consider animated skeletons, so we skip those.
 	We assume that shaders use first entry in uniform buffer as transfrom matrix, so it
 	is okay to ignore rest that are unnecessary and just set uniformbuffer offsets properly. */
-	// u32 uniformBufferSize 				= vulkan::get_aligned_uniform_buffer_size(context, sizeof(m44));
-
-
 	// Todo(Leo): use instantiation, so we do no need to align these twice
-	VkDeviceSize uniformBufferSizePerItem 	= vulkan::get_aligned_uniform_buffer_size(context, sizeof(m44));
+	VkDeviceSize uniformBufferSizePerItem 	= fsvulkan_get_aligned_uniform_buffer_size(context, sizeof(m44));
 	VkDeviceSize totalUniformBufferSize 	= count * uniformBufferSizePerItem;
-	// u32 startUniformBufferOffset 		= context->modelUniformBuffer.used;
-	// context->modelUniformBuffer.used += count * uniformBufferSize;
 
 	VkDeviceSize uniformBufferOffset = fsvulkan_get_uniform_memory(*context, totalUniformBufferSize);
 
@@ -488,7 +530,6 @@ internal void fsvulkan_drawing_draw_meshes(VulkanContext * context, s32 count, m
 	VkPipeline pipeline = context->pipelines[material->pipeline].pipeline;
 	VkPipelineLayout pipelineLayout = context->pipelines[material->pipeline].pipelineLayout;
 
-
 	// Bind mesh to normal draw buffer
 	vkCmdBindVertexBuffers(frame->commandBuffers.scene, 0, 1, &mesh->bufferReference, &mesh->vertexOffset);
 	vkCmdBindIndexBuffer(frame->commandBuffers.scene, mesh->bufferReference, mesh->indexOffset, mesh->indexType);
@@ -498,10 +539,10 @@ internal void fsvulkan_drawing_draw_meshes(VulkanContext * context, s32 count, m
 
 	VkDescriptorSet sets [] =
 	{   
-		context->uniformDescriptorSets.camera,
+		context->cameraDescriptorSet[context->virtualFrameIndex],
 		material->descriptorSet,
-		context->uniformDescriptorSets.model,
-		context->uniformDescriptorSets.lighting,
+		context->modelDescriptorSet,
+		context->lightingDescriptorSet[context->virtualFrameIndex],
 		context->shadowMapTexture,
 	};
 
@@ -536,8 +577,8 @@ internal void fsvulkan_drawing_draw_meshes(VulkanContext * context, s32 count, m
 
 		VkDescriptorSet shadowSets [] =
 		{
-			context->uniformDescriptorSets.camera,
-			context->uniformDescriptorSets.model,
+			context->cameraDescriptorSet[context->virtualFrameIndex],
+			context->modelDescriptorSet,
 		};
 
 		for (s32 i = 0; i < count; ++i)
@@ -587,10 +628,10 @@ internal void fsvulkan_drawing_draw_procedural_mesh(VulkanContext * context,
 
 	VkDescriptorSet sets [] =
 	{   
-		context->uniformDescriptorSets.camera,
+		context->cameraDescriptorSet[context->virtualFrameIndex],
 		material->descriptorSet,
-		context->uniformDescriptorSets.model,
-		context->uniformDescriptorSets.lighting,
+		context->modelDescriptorSet,
+		context->lightingDescriptorSet[context->virtualFrameIndex],
 		context->shadowMapTexture,
 	};
 
@@ -637,8 +678,8 @@ internal void fsvulkan_drawing_draw_procedural_mesh(VulkanContext * context,
 
 	VkDescriptorSet shadowSets [] =
 	{
-		context->uniformDescriptorSets.camera,
-		context->uniformDescriptorSets.model,
+		context->cameraDescriptorSet[context->virtualFrameIndex],
+		context->modelDescriptorSet,
 	};
 
 	vkCmdBindDescriptorSets(frame->commandBuffers.offscreen,
@@ -663,7 +704,7 @@ internal void fsvulkan_drawing_draw_lines(VulkanContext * context, s32 pointCoun
 
 	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, context->linePipeline);
 	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, context->linePipelineLayout,
-							0, 1, &context->uniformDescriptorSets.camera, 0, nullptr);
+							0, 1, &context->cameraDescriptorSet[context->virtualFrameIndex], 0, nullptr);
 
 	VkDeviceSize vertexBufferSize 	= pointCount * sizeof(v3) * 2;
 	VkDeviceSize vertexBufferOffset = fsvulkan_get_uniform_memory(*context, vertexBufferSize);

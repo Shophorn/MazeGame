@@ -376,11 +376,11 @@ internal void fsvulkan_initialize_normal_pipeline(VulkanContext & context)
 
 	VkDescriptorSetLayout descriptorSetLayouts[] =
 	{
-		context.descriptorSetLayouts.camera,
+		context.cameraDescriptorSetLayout,
 		materialLayout,
-		context.descriptorSetLayouts.model,
-		context.descriptorSetLayouts.lighting,
-		context.descriptorSetLayouts.shadowMap,
+		context.modelDescriptorSetLayout,
+		context.lightingDescriptorSetLayout,
+		context.shadowMapDescriptorSetLayout,
 	};
 	// TODO(Leo): this was maybe stupid idea, this is material block, and we are going to use
 	// textures for this probably
@@ -445,11 +445,11 @@ internal void fsvulkan_initialize_animated_pipeline(VulkanContext & context)
 
 	VkDescriptorSetLayout descriptorSetLayouts[] =
 	{
-		context.descriptorSetLayouts.camera,
+		context.cameraDescriptorSetLayout,
 		materialLayout,
-		context.descriptorSetLayouts.model,
-		context.descriptorSetLayouts.lighting,
-		context.descriptorSetLayouts.shadowMap,
+		context.modelDescriptorSetLayout,
+		context.lightingDescriptorSetLayout,
+		context.shadowMapDescriptorSetLayout,
 	};
 	// TODO(Leo): this was maybe stupid idea, this is material block, and we are going to use
 	// textures for this probably
@@ -514,11 +514,11 @@ internal void fsvulkan_initialize_skybox_pipeline(VulkanContext & context)
 
 	VkDescriptorSetLayout descriptorSetLayouts[] =
 	{
-		context.descriptorSetLayouts.camera,
+		context.cameraDescriptorSetLayout,
 		materialLayout,
-		context.descriptorSetLayouts.model,
-		context.descriptorSetLayouts.lighting,
-		context.descriptorSetLayouts.shadowMap,
+		context.modelDescriptorSetLayout,
+		context.lightingDescriptorSetLayout,
+		context.shadowMapDescriptorSetLayout,
 	};
 
 	auto pipelineLayoutCreateInfo = fsvulkan_pipeline_layout_create_info(array_count(descriptorSetLayouts), descriptorSetLayouts, 0, nullptr);
@@ -663,11 +663,11 @@ internal void fsvulkan_initialize_leaves_pipeline(VulkanContext & context)
 
 	VkDescriptorSetLayout descriptorSetLayouts[] =
 	{
-		context.descriptorSetLayouts.camera,
+		context.cameraDescriptorSetLayout,
 		materialLayout,
-		context.descriptorSetLayouts.model,
-		context.descriptorSetLayouts.lighting,
-		context.descriptorSetLayouts.shadowMap,
+		context.modelDescriptorSetLayout,
+		context.lightingDescriptorSetLayout,
+		context.shadowMapDescriptorSetLayout,
 	};
 
 	auto pipelineLayoutCreateInfo = fsvulkan_pipeline_layout_create_info(array_count(descriptorSetLayouts), descriptorSetLayouts, 0, nullptr);
@@ -760,7 +760,7 @@ internal void fsvulkan_initialize_line_pipeline(VulkanContext & context)
 	auto colorBlendState 	= fsvulkan_pipeline_color_blend_state_create_info	(1, &fsvulkan_default_pipeline_color_blend_attachment_state);
 	auto dynamicState 		= fsvulkan_pipeline_dynamic_state_create_info		(array_count(fsvulkan_default_dynamic_states), fsvulkan_default_dynamic_states);
 
-	auto pipelineLayoutCreateInfo = fsvulkan_pipeline_layout_create_info(1, &context.descriptorSetLayouts.camera, 0, nullptr);
+	auto pipelineLayoutCreateInfo = fsvulkan_pipeline_layout_create_info(1, &context.cameraDescriptorSetLayout, 0, nullptr);
 
 	VULKAN_CHECK(vkCreatePipelineLayout (context.device, &pipelineLayoutCreateInfo, nullptr, &context.linePipelineLayout));
 
@@ -813,8 +813,8 @@ internal void fsvulkan_initialize_shadow_pipeline(VulkanContext & context)
 
 	VkDescriptorSetLayout setLayouts [] =
 	{
-		context.descriptorSetLayouts.camera,
-		context.descriptorSetLayouts.model,
+		context.cameraDescriptorSetLayout,
+		context.modelDescriptorSetLayout,
 	};
 
 	auto pipelineLayoutInfo = fsvulkan_pipeline_layout_create_info(array_count(setLayouts), setLayouts, 0, nullptr);
@@ -844,7 +844,7 @@ internal void fsvulkan_initialize_shadow_pipeline(VulkanContext & context)
 
 internal void fsvulkan_initialize_leaves_shadow_pipeline(VulkanContext & context)
 {
-	auto pipelineLayoutInfo = fsvulkan_pipeline_layout_create_info(1, &context.descriptorSetLayouts.camera, 0, nullptr);
+	auto pipelineLayoutInfo = fsvulkan_pipeline_layout_create_info(1, &context.cameraDescriptorSetLayout, 0, nullptr);
 	VULKAN_CHECK(vkCreatePipelineLayout (context.device, &pipelineLayoutInfo, nullptr, &context.leavesShadowPipelineLayout));
 
 	/// ----------------------------------------------------------------------------------------------
