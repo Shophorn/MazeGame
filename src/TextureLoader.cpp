@@ -23,17 +23,17 @@ make_texture_asset(Array<u32> pixels, s32 width, s32 height, s32 channels)
     return result;
 }
 
-internal TextureAsset
-load_texture_asset(const char * assetPath, MemoryArena * memoryArena)
+// Todo(Leo): Make stb here use our allocator, OR use this only in asset cooker
+internal TextureAsset load_texture_asset(MemoryArena & allocator, const char * filename)
 {
     s32 width, height, channels;
-    stbi_uc * stbi_pixels = stbi_load(assetPath, &width, &height, &channels, STBI_rgb_alpha);
+    stbi_uc * stbi_pixels = stbi_load(filename, &width, &height, &channels, STBI_rgb_alpha);
 
-    AssertMsg(stbi_pixels != nullptr, assetPath);
+    AssertMsg(stbi_pixels != nullptr, filename);
 
     auto begin  = reinterpret_cast<u32*>(stbi_pixels);
     auto end    = begin + (width * height);
-    auto pixels = allocate_array<u32>(*memoryArena, begin, end);
+    auto pixels = allocate_array<u32>(allocator, begin, end);
 
     auto result = make_texture_asset(std::move(pixels), width, height, 4);
 
@@ -49,8 +49,9 @@ load_texture_asset(const char * assetPath, MemoryArena * memoryArena)
 
 #undef assert
 
-internal Font
-load_font(char const * fontFilePath)
+// Todo(Leo): This is not optimal, because it pushes font texture directly to
+// platform, which is against convention elsewhere
+internal Font load_font(char const * fontFilePath)
 {
     Array<byte> fontFile = read_binary_file(*global_transientMemory, fontFilePath);
 

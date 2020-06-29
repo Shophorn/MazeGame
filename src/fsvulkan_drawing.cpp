@@ -761,13 +761,12 @@ internal void fsvulkan_drawing_draw_screen_rects(VulkanContext * context, s32 co
 							0, nullptr);
 
 	// Note(Leo): Color does not change, so we update it only once, this will break if we change shader :(
-	vkCmdPushConstants(frame->commandBuffers.scene, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, sizeof(v2) * 4, sizeof(v4), &color);
-
+	vkCmdPushConstants(frame->commandBuffers.scene, pipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 64, sizeof(v4), &color);
 
 	// TODO(Leo): Instantiatee!
 	for(s32 i = 0; i < count; ++i)
 	{      
-		vkCmdPushConstants( frame->commandBuffers.scene, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(v2) * 4, &rects[i]);
+		vkCmdPushConstants( frame->commandBuffers.scene, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(ScreenRect), &rects[i]);
 		vkCmdDraw(frame->commandBuffers.scene, 4, 1, 0, 0);
 	}
 }

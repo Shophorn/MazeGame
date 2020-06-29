@@ -16,6 +16,14 @@ and defining with fully qualified name, but I am currently experimenting with
 more C-like coding style. 22.5.2020 */
 // BEGIN_C_BLOCK
 
+struct GuiDrawCall
+{
+	s32 				count;	
+	ScreenRect * 		rects;
+	GuiTextureHandle	texture;
+	v4 					color;
+};
+
 struct Gui
 {
 	// References
@@ -41,13 +49,23 @@ struct Gui
 	// Per visible period state
 	s32 			selectedIndex;
 	s32 			selectableCountLastFrame;
+
+	GuiTextureHandle	panelTexture;
+	bool32 				isPanelActive;
+
+	v4 				panelColor;
+	v2 				panelPosition;
+	v2 				panelSize;
+	s32 			panelDrawCallCapacity;
+	s32 			panelDrawCallCount;
+	GuiDrawCall * 	panelDrawCalls;
 };
 
 Gui * global_currentGui = nullptr;
 
 // Maintenance
-internal void gui_start(Gui & gui, PlatformInput const & input);
-internal void gui_end();
+internal void gui_start_frame(Gui & gui, PlatformInput const & input);
+internal void gui_end_frame();
 internal void gui_generate_font_material(Gui & gui);
 
 // Control
@@ -59,7 +77,6 @@ internal void gui_ignore_input();
 internal bool gui_button(char const * label);
 internal void gui_text(char const * label);
 internal void gui_image(GuiTextureHandle texture, v2 size, v4 colour = colour_white);
-internal void gui_background_image(GuiTextureHandle, s32 rows, v4 colour = colour_white);
 
 // Internal
 internal void gui_render_texture(TextureHandle texture, ScreenRect rect);
@@ -68,7 +85,7 @@ internal void gui_render_text(char const * text, v2 position, v4 color);
   //////////////////////////////////
  ///  GUI IMPLEMENTATION 		///
 //////////////////////////////////
-internal void gui_start(Gui & gui, PlatformInput const & input)
+internal void gui_start_frame(Gui & gui, PlatformInput const & input)
 {
 	Assert(global_currentGui == nullptr);
 
@@ -101,7 +118,7 @@ internal void gui_start(Gui & gui, PlatformInput const & input)
 	gui.screenSizeRatio = gui.screenSize.x / gui.referenceScreenSize.x;
 }
 
-internal void gui_end()
+internal void gui_end_frame()
 {
 	global_currentGui->selectableCountLastFrame = global_currentGui->currentSelectableIndex;
 	global_currentGui = nullptr;
@@ -152,11 +169,11 @@ internal void gui_render_text (char const * text, v2 position, v4 color)
 	f32 characterUvSize 		= 1.0f / charactersPerDirection;
 
 	ScreenRect rects [512];
-	s32 rectIndex = 0;
+	s32 rectCount = 0;
 
 	while(*text != 0)
 	{
-		Assert(rectIndex < array_count(rects) && "Too little room for such a long text");
+		Assert(rectCount < array_count(rects) && "Too little room for such a long text");
 
 		if (*text == ' ')
 		{
@@ -171,7 +188,7 @@ internal void gui_render_text (char const * text, v2 position, v4 color)
 		// Todo(Leo): also consider glyph's actual height
 		v2 glyphSize 		= {gui.font.characterWidths[index] * size, size};
 
-		rects[rectIndex] = 
+		rects[rectCount] = 
 		{
 			.position 	= gui_transform_screen_point(glyphStart),
 			.size 		= gui_transform_screen_size(glyphSize),
@@ -179,13 +196,120 @@ internal void gui_render_text (char const * text, v2 position, v4 color)
 			.uvSize 	= gui.font.uvPositionsAndSizes[index].zw,
 		};
 
-		++rectIndex;
+		++rectCount;
 
 		position.x += size * gui.font.advanceWidths[index];
 		++text;
 	}
-	platformApi->draw_screen_rects(platformGraphics, rectIndex, rects, gui.font.atlasTexture, color);
+	platformApi->draw_screen_rects(platformGraphics, rectCount, rects, gui.font.atlasTexture, color);
 };
+
+internal void gui_panel_add_text_draw_call(char const * text, v4 color)
+{
+	Gui & gui = *global_currentGui;
+
+	Assert(gui.isPanelActive == true);
+	Assert(gui.panelDrawCallCount < gui.panelDrawCallCapacity);
+
+	f32 size 					= gui.textSize;
+	s32 firstCharacter 			= ' ';
+	s32 charactersPerDirection 	= 10;
+	f32 characterUvSize 		= 1.0f / charactersPerDirection;
+
+	v2 position = gui.panelPosition;
+	position.x 	+= gui.padding;
+	position.y 	+= gui.panelSize.y;
+
+	f32 panelWidth = gui.padding;
+
+	s32 rectCapacity 	= 256;
+	s32 rectCount 		= 0;
+	ScreenRect * rects 	= push_memory<ScreenRect>(*global_transientMemory, rectCapacity, ALLOC_NO_CLEAR);
+
+	while(*text != 0)
+	{
+		Assert(rectCount < rectCapacity && "Too little room for such a long text");
+
+		if (*text == ' ')
+		{
+			position.x += size * gui.font.spaceWidth;
+			panelWidth += size * gui.font.spaceWidth;
+			++text;
+			continue;
+		}
+
+		s32 index = *text - firstCharacter;
+		v2 glyphStart 		= {position.x + gui.font.leftSideBearings[index], position.y};
+
+		// Todo(Leo): also consider glyph's actual height
+		v2 glyphSize 		= {gui.font.characterWidths[index] * size, size};
+
+		rects[rectCount] = 
+		{
+			.position 	= gui_transform_screen_point(glyphStart),
+			.size 		= gui_transform_screen_size(glyphSize),
+			.uvPosition = gui.font.uvPositionsAndSizes[index].xy,
+			.uvSize 	= gui.font.uvPositionsAndSizes[index].zw,
+		};
+
+		++rectCount;
+
+		position.x += size * gui.font.advanceWidths[index];
+		panelWidth += size * gui.font.advanceWidths[index];
+		++text;
+	}
+
+	gui.panelDrawCalls[gui.panelDrawCallCount] 	= {rectCount, rects, gui.font.atlasTexture, color};
+	gui.panelDrawCallCount 						+= 1;
+
+	gui.panelSize.x = max_f32(gui.panelSize.x, panelWidth + gui.padding);
+	gui.panelSize.y += gui.textSize + gui.padding;
+}
+
+internal void gui_start_panel(char const * label, v4 color)
+{
+	Gui & gui = *global_currentGui;
+
+	Assert(gui.isPanelActive == false);
+	Assert(global_transientMemory->checkpoint == 0);
+
+	gui.isPanelActive 	= true;
+	gui.panelColor 		= color;
+	gui.panelPosition 	= gui.currentPosition;
+	gui.panelSize 		= {gui.padding, gui.padding};
+
+	gui.panelDrawCallCapacity 	= 100;
+	gui.panelDrawCallCount 		= 0;
+	gui.panelDrawCalls 			= push_memory<GuiDrawCall>(*global_transientMemory, gui.panelDrawCallCapacity, ALLOC_NO_CLEAR);
+
+	gui_panel_add_text_draw_call(label, gui.textColor);
+}
+
+internal void gui_end_panel()
+{
+	Gui & gui = *global_currentGui;
+
+	Assert(gui.isPanelActive == true);
+	Assert(global_transientMemory->checkpoint == 0);
+
+	gui.isPanelActive = false;
+
+	v2 panelPosition = gui_transform_screen_point(gui.panelPosition);
+
+	ScreenRect panelRects [] =
+	{
+		{panelPosition,	gui_transform_screen_size(gui.panelSize),	{0,0},	{1,1}},
+		{panelPosition,	gui_transform_screen_size({gui.panelSize.x, gui.padding + gui.textSize + gui.padding}),	{0,0},	{1,1}}
+	};
+
+	platformApi->draw_screen_rects(platformGraphics, 2, panelRects, gui.panelTexture, gui.panelColor);
+
+	for (s32 i = 0; i < gui.panelDrawCallCount; ++i)
+	{
+		auto & call = gui.panelDrawCalls[i];
+		platformApi->draw_screen_rects(platformGraphics, call.count, call.rects, call.texture, call.color);
+	}
+}
 
 internal bool gui_button(char const * label)
 {
@@ -194,7 +318,15 @@ internal bool gui_button(char const * label)
 	bool isSelected = (gui.currentSelectableIndex == gui.selectedIndex);
 	++gui.currentSelectableIndex;
 
-	gui_render_text(label, gui.currentPosition, isSelected ? gui.selectedTextColor : gui.textColor);
+	if(gui.isPanelActive)
+	{
+		gui_panel_add_text_draw_call(label, isSelected ? gui.selectedTextColor : gui.textColor);
+	}
+	else
+	{
+		gui_render_text(label, gui.currentPosition, isSelected ? gui.selectedTextColor : gui.textColor);
+	}
+
 	gui.currentPosition.y += gui.textSize + gui.padding;
 
 	bool result = isSelected && is_clicked(gui.input.confirm);
@@ -205,7 +337,15 @@ internal void gui_text(char const * text)
 {
 	Gui & gui = *global_currentGui;
 
-	gui_render_text(text, gui.currentPosition, gui.textColor);
+	if(gui.isPanelActive)
+	{
+		gui_panel_add_text_draw_call(text, gui.textColor);
+	}
+	else
+	{
+		gui_render_text(text, gui.currentPosition, gui.textColor);
+	}
+
 	gui.currentPosition.y += gui.textSize + gui.padding;
 }
 

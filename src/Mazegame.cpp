@@ -241,7 +241,7 @@ bool32 update_game(
 	}
 	else
 	{
-		gui_start(state->gui, *input);
+		gui_start_frame(state->gui, *input);
 
 		if(gui_button("3D Scene"))
 		{
@@ -258,7 +258,7 @@ bool32 update_game(
 			gameIsAlive = false;
 		}	
 
-		gui_end();
+		gui_end_frame();
 	}
 
 	/* Note(Leo): We MUST currently finish the frame before unloading scene, 

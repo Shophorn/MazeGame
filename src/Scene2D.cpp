@@ -86,7 +86,7 @@ internal bool32 update_scene_2d(void * scenePtr, PlatformInput const & input, Pl
 
 	if (scene->guiVisible)
 	{
-		gui_start(scene->gui, input);
+		gui_start_frame(scene->gui, input);
 
 		if (gui_button("Continue"))
 		{
@@ -98,7 +98,7 @@ internal bool32 update_scene_2d(void * scenePtr, PlatformInput const & input, Pl
 			keepScene = false;
 		}
 
-		gui_end();
+		gui_end_frame();
 	}
 
 	return keepScene;
@@ -148,9 +148,9 @@ internal void * load_scene_2d(MemoryArena & persistentMemory)
 		TextureHandle whiteTexture = platformApi->push_texture(platformGraphics, &whiteTextureAsset);
 		TextureHandle blackTexture = platformApi->push_texture(platformGraphics, &blackTextureAsset);
 
-		auto load_and_push_texture = [](const char * path) -> TextureHandle
+		auto load_and_push_texture = [](const char * filename) -> TextureHandle
 		{
-			auto asset = load_texture_asset(path, global_transientMemory);
+			auto asset = load_texture_asset(*global_transientMemory, filename);
 			auto result = platformApi->push_texture(platformGraphics, &asset);
 			return result;
 		};

@@ -576,10 +576,13 @@ internal void fsvulkan_initialize_screen_gui_pipeline(VulkanContext & context)
 	auto materialLayout = fsvulkan_make_material_descriptor_set_layout(context.device, 1);
 
 	// Note(Leo): 4 v2s for coordinates and uv, v4 for color
-	u32 pushConstantSize 					= sizeof(v2) * 4 + sizeof(v4);
-	VkPushConstantRange pushConstantRange 	= { VK_SHADER_STAGE_VERTEX_BIT, 0, pushConstantSize };
+	VkPushConstantRange pushConstantRanges [] = 
+	{ 
+		{VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(ScreenRect)},
+		{VK_SHADER_STAGE_FRAGMENT_BIT, 64, sizeof(v4)},
+	};
 
-	auto pipelineLayoutCreateInfo 			= fsvulkan_pipeline_layout_create_info(1, &materialLayout, 1, &pushConstantRange);
+	auto pipelineLayoutCreateInfo 			= fsvulkan_pipeline_layout_create_info(1, &materialLayout, array_count(pushConstantRanges), pushConstantRanges);
 	VULKAN_CHECK(vkCreatePipelineLayout (context.device, &pipelineLayoutCreateInfo, nullptr, &context.pipelines[GRAPHICS_PIPELINE_SCREEN_GUI].pipelineLayout));
 
 	// ---------------------------------------------------------------------------------------------------------------------------
