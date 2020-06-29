@@ -155,7 +155,7 @@ map::GenerateMap(MemoryArena & memoryArena, map::CreateInfo & info)
 	{
 		for (s32 x = 0; x < map.cellCountPerDirection; ++x)
 		{
-			map.Cell(x, y) = RandomValue() < 0.5f ? 0 : 1;
+			map.Cell(x, y) = random_value() < 0.5f ? 0 : 1;
 		}
 	}
 	return map;

@@ -43,14 +43,18 @@ internal f32 random_range(f32 min, f32 max)
 	return result;    
 }
 
-internal f32
-RandomValue()
+internal v3 random_inside_unit_square()
 {
-	return random_value();
+	v3 result = {random_range(0,1), random_range(0,1), 0};
+	return result;
 }
 
-internal f32
-RandomRange(f32 min, f32 max)
+// internal v3 random_inside_circle()
+// {
+
+// }
+
+internal f32 RandomRange(f32 min, f32 max)
 {
 	return random_range(min, max);
 }

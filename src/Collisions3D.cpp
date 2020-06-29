@@ -134,13 +134,18 @@ internal void push_cylinder_collider ( 	CollisionSystem3D & system,
 	system.cylinderColliders.push({radius, height, center, transform});
 }
 
-internal f32
-get_terrain_height(CollisionSystem3D * system, v2 position)
+internal f32 get_terrain_height(CollisionSystem3D & system, v2 position)
 {
-	position.x -= system->terrainTransform->position.x;
-	position.y -= system->terrainTransform->position.y;
-	f32 value = get_height_at(&system->terrainCollider, position);
+	position.x -= system.terrainTransform->position.x;
+	position.y -= system.terrainTransform->position.y;
+	f32 value = get_height_at(&system.terrainCollider, position);
 	return value;
+}
+
+/// TODO(Leo): just delete this
+internal f32 get_terrain_height(CollisionSystem3D * system, v2 position)
+{
+	return get_terrain_height(*system, position);
 }
 
 internal bool32 ray_box_collisions(	Array<StaticBoxCollider> & colliders,

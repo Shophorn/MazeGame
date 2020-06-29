@@ -93,6 +93,9 @@ struct TimedLSystem
 	MemoryView<u16> 	indices;
 	MemoryView<Vertex> 	vertices;
 
+	MeshHandle			seedMesh;
+	MaterialHandle 		seedMaterial;
+
 	void(*advance)		(TimedLSystem & lSystem, Waters & waters, f32 timePassed);
 	void(*update_mesh)	(TimedLSystem & lSystem, Leaves & leaves);
 };

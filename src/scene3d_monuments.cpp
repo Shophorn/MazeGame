@@ -71,14 +71,14 @@ internal Monuments scene3d_load_monuments(MemoryArena & persistentMemory, Materi
 			v3 position;
 			position.x = (f32)x / monumentSlotCountPerDirection * monumentRange - halfMonumentRange;
 			position.y = (f32)y / monumentSlotCountPerDirection * monumentRange - halfMonumentRange;
-			position.z = get_terrain_height(&collisionSystem, position.xy);
+			position.z = get_terrain_height(collisionSystem, position.xy);
 
-			quaternion rotation = axis_angle_quaternion(up_v3, RandomRange(-π / 8, π / 8));
+			quaternion rotation = axis_angle_quaternion(up_v3, random_range(-π / 8, π / 8));
 
 			m44 transform 			= translation_matrix(position) * rotation_matrix(rotation);
 			m44 inverseTransform 	= inverse_transform_matrix(position, rotation, {1,1,1}); 
 
-			s32 typeIndex = RandomRange(0, ornamentTypeCount);
+			s32 typeIndex = random_range(0, ornamentTypeCount);
 			
 			if (typeIndex == 0)
 			{	

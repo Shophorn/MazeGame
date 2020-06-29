@@ -67,6 +67,8 @@ internal void fswin32_set_window_fullscreen(WinAPIWindow * window, bool32 setFul
         LONG heigth = monitorInfo.rcMonitor.bottom - top;
         SetWindowPos(window->hwnd, HWND_TOP, left, top, width, heigth, SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
 
+        ShowCursor(false);
+
         window->isFullscreen = true;
     }
 
@@ -77,7 +79,10 @@ internal void fswin32_set_window_fullscreen(WinAPIWindow * window, bool32 setFul
         SetWindowPos(   window->hwnd, NULL, 0, 0, 0, 0,
                         SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
 
+        ShowCursor(true);
+
         window->isFullscreen = false;
+
     }
 }
 

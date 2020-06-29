@@ -318,7 +318,7 @@ update_character_motor( CharacterMotor & 	motor,
 
 
 	f32 groundThreshold = 0.01f;
-	f32 groundHeight 	= get_terrain_height(&collisionSystem, motor.transform->position.xy);
+	f32 groundHeight 	= get_terrain_height(collisionSystem, motor.transform->position.xy);
 	bool32 grounded 	= motor.transform->position.z < (groundThreshold + groundHeight);
 
 	// CHECK COLLISION WITH OTHER COLLIDERS TOO

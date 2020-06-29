@@ -24,7 +24,7 @@ FollowerController make_follower_controller(Transform3D * 	transform,
 											s32 			motorInputIndex)
 {
 	FollowerController controller = {transform, targetTransform, motorInputIndex};
-	controller.nextJumpTimeTimer = RandomRange(0, controller.jumpTimeInterval);
+	controller.nextJumpTimeTimer = random_range(0, controller.jumpTimeInterval);
 	return controller;
 }
 
@@ -145,7 +145,7 @@ void update_random_walker_input(RandomWalkController & controller,
 		controller.waitTimer -= elapsedTime;
 		if (controller.waitTimer < 0)
 		{
-			controller.targetPosition = { RandomRange(-99, 99), RandomRange(-99, 99)};
+			controller.targetPosition = { random_range(-99, 99), random_range(-99, 99)};
 			controller.isWaiting = false;
 		}
 
