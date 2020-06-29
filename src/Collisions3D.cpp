@@ -142,12 +142,6 @@ internal f32 get_terrain_height(CollisionSystem3D & system, v2 position)
 	return value;
 }
 
-/// TODO(Leo): just delete this
-internal f32 get_terrain_height(CollisionSystem3D * system, v2 position)
-{
-	return get_terrain_height(*system, position);
-}
-
 internal bool32 ray_box_collisions(	Array<StaticBoxCollider> & colliders,
 									v3 rayStart,
 									v3 normalizedRayDirection,

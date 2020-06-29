@@ -83,8 +83,8 @@ struct TimedLSystem
 
 	f32 			timeSinceLastUpdate;
 
-	v3 			position;
-	quaternion 	rotation;
+	v3 				position;
+	quaternion 		rotation;
 
 	f32 totalAge;
 	f32 maxAge;
@@ -396,9 +396,12 @@ internal void update_lsystem_mesh(TimedLSystem & lSystem, Leaves & leaves)
 
 internal TimedLSystem make_lsystem(MemoryArena & allocator)
 {
-	s32 wordCapacity 	= 100'000;
-	s32 indexCapacity 	= 75'000;
-	s32 vertexCapacity	= 25'000;
+	// Note(Leo): These are good for now, but they can and should be measured more
+	// precisely for each individual type of tree.
+	// Note(Leo): Also max age should be considered
+	s32 wordCapacity 		= 50'000;
+	s32 indexCapacity 		= 45'000;
+	s32 vertexCapacity		= 15'000;
 
 	TimedLSystem lSystem 	= {};
 
@@ -421,6 +424,27 @@ internal TimedLSystem make_lsystem(MemoryArena & allocator)
 }
 
 /*
+
+A: apex
+L: leaf
+S: stem
+//B: also stem, but no leaves
+
+A 		-> SLA 
+S 		-> S
+L(t) : t < 1 -> L(t + n)
+L(t) : t > 1 -> -
+
+0: A
+1: SLA
+2: SLSLA
+3: SLSLSLA
+
+
+
+-------------------------------------------------
+
+
 
 A: apex
 B: branch
@@ -450,7 +474,285 @@ internal void advance_lsystem_time_tree2(TimedLSystem & lSystem, Waters & waters
 	MemoryView<TimedModule> bWord 	= {lSystem.wordCapacity, 0, lSystem.bWord};
 
 	constexpr float growSpeed 	= 0.5f;
-	// constexpr float growSpeed 	= 0.0f;
+	constexpr float terminalAge = 1.0f;
+	constexpr float angle 		= π / 8;
+
+	for (int i = 0; i < lSystem.wordCount; ++i)
+	{
+		aWord[i].age += timePassed * growSpeed;
+		
+		switch(aWord[i].letter)
+		{
+			case 'A':
+			{
+				if(aWord[i].age > terminalAge)
+				{
+					TimedModule production [] = 
+					{
+						{'S', 0, aWord[i].parameter},
+						{'L', 0, 1},
+						{'A', 0, aWord[i].parameter}
+					};
+
+					s32 count = array_count(production);
+					Assert(memory_view_available(bWord) >= count);
+					copy_structs(bWord.data + bWord.count, production, count);
+					bWord.count += count;
+				}
+				else
+				{
+					Assert(memory_view_available(bWord) >= 1);
+					bWord.data[bWord.count++] = aWord[i];
+				}
+			} break;
+
+			case 'L':
+			{
+				if (aWord[i].age > 4 * terminalAge)
+				{
+					// old leaves go away
+				}
+				else
+				{
+					Assert(memory_view_available(bWord) >= 1);
+					bWord.data[bWord.count++] = aWord[i];
+				}
+			} break;
+
+			default:
+				Assert(memory_view_available(bWord) >= 1);
+				bWord.data[bWord.count++] = aWord[i];
+				break;
+		}
+	}
+
+	swap(lSystem.aWord, lSystem.bWord);
+	lSystem.wordCount = bWord.count;
+}
+
+internal void update_lsystem_mesh_tree2(TimedLSystem & lSystem, Leaves & leaves)
+{
+	constexpr v3 lSystemRight 	= right_v3;
+	constexpr v3 lSystemForward = up_v3;
+	constexpr v3 lSystemUp 		= -forward_v3;
+
+	leaves.count = 0;
+
+	struct TurtleState
+	{
+		v3 			position;
+		quaternion 	orientation;
+	};
+
+	int stateIndex 				= 0;
+	TurtleState states[1000] 	= {};
+ 
+	states[0].position 		= {};
+	states[0].orientation 	= identity_quaternion;
+
+	leaves.count = 0;
+
+	int wordCount 		= lSystem.wordCount;
+	TimedModule * word 	= lSystem.aWord;
+
+	lSystem.vertices.count = 0;
+	lSystem.indices.count = 0;
+
+	float widthGrowFactor = 0.03f;
+	constexpr float terminalAge = 1.0f;
+
+	for (int i = 0; i < wordCount; ++i)
+	{
+		TurtleState & state = states[stateIndex];
+
+		switch(word[i].letter)
+		{
+			case 'S':
+			{
+				v3 forward 				= rotate_v3(state.orientation, lSystemForward);
+				u16 vertexOffsetBefore 	= lSystem.vertices.count;
+				f32 width 				= word[i].age * widthGrowFactor;
+
+				m44 transform = transform_matrix(state.position, state.orientation, {width, width, 1});
+
+				Assert(memory_view_available(lSystem.vertices) >= 8);
+				s32 & v = lSystem.vertices.count;
+
+				lSystem.vertices.data[v++] = {multiply_point(transform, {-0.5, -0.5, 0}), normalize_v3(multiply_direction(transform, {-0.5, -0.5, 0})), {1,1,1}, {0,0}};
+				lSystem.vertices.data[v++] = {multiply_point(transform, { 0.5, -0.5, 0}), normalize_v3(multiply_direction(transform, { 0.5, -0.5, 0})), {1,1,1}, {0.25,0}};
+				lSystem.vertices.data[v++] = {multiply_point(transform, { 0.5,  0.5, 0}), normalize_v3(multiply_direction(transform, { 0.5,  0.5, 0})), {1,1,1}, {0.5,0}};
+				lSystem.vertices.data[v++] = {multiply_point(transform, {-0.5,  0.5, 0}), normalize_v3(multiply_direction(transform, {-0.5,  0.5, 0})), {1,1,1}, {0.75,0}};
+
+				f32 clampedAge = clamp_f32(word[i].age, 0, 1);
+				state.position 	+= forward * word[i].parameter * clampedAge;
+
+				// Note(Leo): Draw upper end slightly thinner, so it matches the following 'X' module
+				width 			= (word[i].age - terminalAge) * widthGrowFactor;
+				transform 		= transform_matrix(state.position, state.orientation, {width, width, 1});
+
+				lSystem.vertices.data[v++] = {multiply_point(transform, {-0.5, -0.5, 0}), normalize_v3(multiply_direction(transform, {-0.5, -0.5, 0})), {1,1,1}, {0,1}};
+				lSystem.vertices.data[v++] = {multiply_point(transform, { 0.5, -0.5, 0}), normalize_v3(multiply_direction(transform, { 0.5, -0.5, 0})), {1,1,1}, {0.25,1}};
+				lSystem.vertices.data[v++] = {multiply_point(transform, { 0.5,  0.5, 0}), normalize_v3(multiply_direction(transform, { 0.5,  0.5, 0})), {1,1,1}, {0.5,1}};
+				lSystem.vertices.data[v++] = {multiply_point(transform, {-0.5,  0.5, 0}), normalize_v3(multiply_direction(transform, {-0.5,  0.5, 0})), {1,1,1}, {0.75,1}};
+
+				constexpr u16 indices [] = 
+				{
+					0, 1, 4, 4, 1, 5,
+					1, 2, 5, 5, 2, 6,
+					2, 3, 6, 6, 3, 7,
+					3, 0, 7, 7, 0, 4,
+				};
+				Assert(memory_view_available(lSystem.indices) >= array_count(indices));
+
+				for(u16 index : indices)
+				{
+					lSystem.indices.data[lSystem.indices.count++] = index + vertexOffsetBefore;
+				}
+
+			} break;
+
+			// case 'A':
+			// case 'S':
+			// {
+			// 	Assert(memory_view_available(lSystem.vertices) >= 8);
+
+			// 	v3 forward 				= rotate_v3(state.orientation, lSystemForward);
+			// 	u16 vertexOffsetBefore 	= lSystem.vertices.count;
+
+			// 	f32 width 				= word[i].age * widthGrowFactor;
+			// 	m44 transform 			= transform_matrix(state.position, state.orientation, {width, width, 1});
+
+			// 	s32 & v = lSystem.vertices.count;
+
+			// 	lSystem.vertices.data[v++] = {multiply_point(transform, {-0.5, -0.5, 0}), normalize_v3(multiply_direction(transform, {-0.5, -0.5, 0})), {1,1,1}, {0,0}};
+			// 	lSystem.vertices.data[v++] = {multiply_point(transform, { 0.5, -0.5, 0}), normalize_v3(multiply_direction(transform, { 0.5, -0.5, 0})), {1,1,1}, {0.25,0}};
+			// 	lSystem.vertices.data[v++] = {multiply_point(transform, { 0.5,  0.5, 0}), normalize_v3(multiply_direction(transform, { 0.5,  0.5, 0})), {1,1,1}, {0.5,0}};
+			// 	lSystem.vertices.data[v++] = {multiply_point(transform, {-0.5,  0.5, 0}), normalize_v3(multiply_direction(transform, {-0.5,  0.5, 0})), {1,1,1}, {0.75,0}};
+
+			// 	state.position 	+= forward * word[i].parameter * word[i].age;
+				
+			// 	width 		= (word[i].age / 2) *widthGrowFactor;
+			// 	transform 	= transform_matrix(state.position, state.orientation, {width, width, 1});
+
+			// 	lSystem.vertices.data[v++] = {multiply_point(transform, {-0.5, -0.5, 0}), normalize_v3(multiply_direction(transform, {-0.5, -0.5, 0})), {1,1,1}, {0,1}};
+			// 	lSystem.vertices.data[v++] = {multiply_point(transform, { 0.5, -0.5, 0}), normalize_v3(multiply_direction(transform, { 0.5, -0.5, 0})), {1,1,1}, {0.25,1}};
+			// 	lSystem.vertices.data[v++] = {multiply_point(transform, { 0.5,  0.5, 0}), normalize_v3(multiply_direction(transform, { 0.5,  0.5, 0})), {1,1,1}, {0.5,1}};
+			// 	lSystem.vertices.data[v++] = {multiply_point(transform, {-0.5,  0.5, 0}), normalize_v3(multiply_direction(transform, {-0.5,  0.5, 0})), {1,1,1}, {0.75,1}};
+
+			// 	constexpr u16 indices [] = 
+			// 	{
+			// 		0, 1, 4, 4, 1, 5,
+			// 		1, 2, 5, 5, 2, 6,
+			// 		2, 3, 6, 6, 3, 7,
+			// 		3, 0, 7, 7, 0, 4,
+			// 	};
+			// 	Assert(memory_view_available(lSystem.indices) >= array_count(indices));
+
+			// 	for(u16 index : indices)
+			// 	{
+			// 		lSystem.indices.data[lSystem.indices.count++] = index + vertexOffsetBefore;
+			// 	}
+
+			// } break;
+
+			case 'L':
+			{
+				Assert(leaves.count + 2 < leaves.capacity);
+
+				f32 clampedAge = clamp_f32(word[i].age, 0, 1);
+
+				{
+					quaternion rotation = state.orientation; 
+					rotation 			= rotation * axis_angle_quaternion(rotate_v3(rotation,lSystemRight), -π / 6);
+					v3 position 		= state.position + rotate_v3(rotation, lSystemForward) * 0.05f;
+					
+					rotation 			= normalize_quaternion(rotation);
+
+					int leafIndex 		= leaves.count;
+					leaves.count += 1;
+
+					leaves.localPositions[leafIndex]	= position;
+					leaves.localRotations[leafIndex] 	= rotation;
+					leaves.localScales[leafIndex] 		= word[i].parameter * clampedAge;
+					
+					// Note(Leo): Use normal forward here, since it refers to leaf's own space
+					leaves.swayAxes[leafIndex]			= rotate_v3(rotation, forward_v3);
+					leaves.swayPositions[leafIndex] 	= random_value() * 100;	
+				}
+
+				{
+					quaternion rotation = state.orientation;
+					rotation 			= rotation * axis_angle_quaternion(rotate_v3(rotation, lSystemForward), π); 
+					rotation 			= rotation * axis_angle_quaternion(rotate_v3(rotation,lSystemRight), -π / 6);
+					v3 position 		= state.position + rotate_v3(rotation, lSystemForward) * 0.05f;
+
+					rotation 			= normalize_quaternion(rotation);
+
+					int leafIndex = leaves.count;
+					leaves.count += 1;
+
+					leaves.localPositions[leafIndex]	= position;
+					leaves.localRotations[leafIndex] 	= rotation;
+					leaves.localScales[leafIndex] 		= word[i].parameter * clampedAge;
+					
+					// Note(Leo): Use normal forward here, since it refers to leaf's own space
+					leaves.swayAxes[leafIndex]			= rotate_v3(rotation, forward_v3);
+					leaves.swayPositions[leafIndex]		= random_value() * 100;
+				}
+
+			} break;
+
+			case '+':
+			{
+				v3 up = rotate_v3(state.orientation, lSystemUp);
+				state.orientation = state.orientation * axis_angle_quaternion(up, word[i].parameter);
+			} break;
+
+			case '<':
+			{
+				v3 forward 			= rotate_v3(state.orientation, lSystemForward);
+				state.orientation 	= state.orientation * axis_angle_quaternion(forward, word[i].parameter);
+			} break;
+
+			case '&':
+			{	
+				v3 right 			= rotate_v3(state.orientation, lSystemRight);
+				state.orientation 	= state.orientation * axis_angle_quaternion(right, word[i].parameter);
+			} break;
+
+			case '[':
+			{
+				states[stateIndex + 1] = states[stateIndex];
+				stateIndex += 1;
+			} break;
+
+			case ']':
+			{
+				stateIndex -= 1;
+			} break;
+		}
+
+	}
+
+	Assert(stateIndex == 0 && "All states have not been popped");
+
+	if (lSystem.totalAge > 0 && leaves.count == 0)
+	{
+		return;
+	}
+}
+
+/*
+internal void advance_lsystem_time_tree2(TimedLSystem & lSystem, Waters & waters, f32 timePassed)
+{
+	f32 waterDistanceThreshold = 1;
+
+	lSystem.totalAge += timePassed;
+
+	TimedModule * aWord 			= lSystem.aWord;
+	MemoryView<TimedModule> bWord 	= {lSystem.wordCapacity, 0, lSystem.bWord};
+
+	constexpr float growSpeed 	= 0.5f;
 	constexpr float terminalAge = 1.0f;
 	constexpr float angle 		= π / 8;
 
@@ -728,7 +1030,7 @@ internal void update_lsystem_mesh_tree2(TimedLSystem & lSystem, Leaves & leaves)
 		return;
 	}
 }
-
+*/
 
 /*
 struct LSystem1

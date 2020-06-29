@@ -53,8 +53,3 @@ internal v3 random_inside_unit_square()
 // {
 
 // }
-
-internal f32 RandomRange(f32 min, f32 max)
-{
-	return random_range(min, max);
-}

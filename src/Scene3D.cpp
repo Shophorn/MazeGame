@@ -23,17 +23,14 @@ enum CameraMode : s32
 enum CarryMode : s32
 { 	
 	CARRY_NONE,
-	CARRY_POT_EMPTY,
-	CARRY_POT_TREE,
-	CARRY_POT_SEED,
+	CARRY_POT,
 	CARRY_WATER,
-	CARRY_SEED,
 	CARRY_TREE,
 };
 
 struct Scene3d
 {
-	// Todo(Leo): Remove these
+	// Todo(Leo): Remove these "component" arrays, they are stupidly generic solution, that hide away actual data location, at least the way they are now used
 	Array<Transform3D> 			transforms;
 
 	Array<SkeletonAnimator> 	skeletonAnimators;	
@@ -53,26 +50,6 @@ struct Scene3d
 	Transform3D * 				playerCharacterTransform;
 
 	// ---------------------------------------
-	/// POTS
-
-	s32 potCapacity;
-
-	s32 potEmptyCount;
-	s32 potTreeCount;
-	s32 potSeedCount;
-
-	Transform3D * potEmptyTransforms;
-	Transform3D * potTreeTransforms;
-	Transform3D * potSeedTransforms;
-
-	f32 * potEmptyWaterLevels;
-	f32 * potTreeWaterLevels;
-	f32 * potSeedWaterLevels;
-
-	MeshHandle 		potMesh;
-	MaterialHandle 	potMaterial;
-
-	// ---------------------------------------
 
 	static constexpr f32 fullWaterLevel = 1;
 	Waters 			waters;
@@ -80,22 +57,17 @@ struct Scene3d
 	MaterialHandle 	waterMaterial;
 
 	// ---------------------------------------
-	/// SEEDS
-	
-	s32 			seedCapacity;
-	s32 			seedCount;
-	Transform3D * 	seedTransforms;
-	f32 * 			seedWaterLevels;
+	/// POTS
 
-	s32 			seedsInPotCount;
-	Transform3D	* 	seedsInPotTransforms;
-	f32 *			seedsInPotWaterLevels;
+	s32 			potCapacity;
+	s32 			potEmptyCount;
+	Transform3D * 	potEmptyTransforms;
+	f32 * 			potEmptyWaterLevels;
 
-	MeshHandle 		seedMesh;
-	MaterialHandle 	seedMaterial;
+	MeshHandle 		potMesh;
+	MaterialHandle 	potMaterial;
 
 	// ---------------------------------------
-
 	/// TREES
 
 	s32 			lSystemCapacity;
@@ -106,6 +78,7 @@ struct Scene3d
 	s32 			lSystemsInPotCount;
 	TimedLSystem * 	lSystemsInPot;
 	Leaves * 		lSystemsInPotLeavess;
+	s32 * 			lSystemsInPotPotIndices;
 
 	MaterialHandle 	lSystemTreeMaterial;
 	
@@ -190,7 +163,7 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 	
 	/// ****************************************************************************
 	/// DEFINE UPDATE FUNCTIONS
-
+	// Todo(Leo): Get water functions are used in one place only, inline them
 	auto get_water = [	carryState 			= scene->playerCarryState,
 						carriedItemIndex 	= scene->carriedItemIndex]
 					(Waters & waters, v3 position, f32 distanceThreshold, f32 requestedAmount) -> f32
@@ -237,25 +210,6 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 		potWaterLevels[index] -= amount;
 		return amount;
 	};
-
-	auto add_l_system_tree = [	&lSystemCount 	= scene->lSystemCount,
-								lSystems 		= scene->lSystems]
-							(v3 position)
-	{
-		lSystems[lSystemCount].position 	= position;
-		lSystems[lSystemCount].rotation 	= identity_quaternion;
-		lSystemCount 						+= 1;
-	};
-
-	auto add_l_system_tree_in_pot = [	&lSystemCount 	= scene->lSystemsInPotCount,
-										lSystems 		= scene->lSystemsInPot]
-										(v3 position)
-	{
-		lSystems[lSystemCount].position 	= position;
-		lSystems[lSystemCount].rotation 	= identity_quaternion;
-		lSystemCount 						+= 1;
-	};
-
 
 	/// ****************************************************************************
 	/// TIME
@@ -328,6 +282,8 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 	/// *******************************************************************************************
 	
+
+	/// SPAWN WATER
 	if ((scene->cameraMode == CAMERA_MODE_PLAYER) && is_clicked(input.Y))
 	{
 		Waters & waters = scene->waters;
@@ -358,6 +314,7 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 		}
 	}
 
+	/// PICKUP OR DROP
 	if ((scene->cameraMode == CAMERA_MODE_PLAYER) && is_clicked(input.A))
 	{
 		v3 playerPosition = scene->playerCharacterTransform->position;
@@ -383,11 +340,8 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 					}
 				};
 
-				check_pickup(scene->potEmptyCount, scene->potEmptyTransforms, CARRY_POT_EMPTY);
-				check_pickup(scene->potTreeCount, scene->potTreeTransforms, CARRY_POT_TREE);
-				check_pickup(scene->potSeedCount, scene->potSeedTransforms, CARRY_POT_SEED);
+				check_pickup(scene->potEmptyCount, scene->potEmptyTransforms, CARRY_POT);
 				check_pickup(scene->waters.count, scene->waters.transforms, CARRY_WATER);
-				check_pickup(scene->seedCount, scene->seedTransforms, CARRY_SEED);
 
 				for (s32 i = 0; i < scene->lSystemCount; ++i)
 				{
@@ -407,22 +361,10 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 			} break;
 
-			case CARRY_POT_EMPTY:
+			case CARRY_POT:
 				scene->playerCarryState = CARRY_NONE;
 				scene->potEmptyTransforms[scene->carriedItemIndex].position.z
 					= get_terrain_height(scene->collisionSystem, scene->potEmptyTransforms[scene->carriedItemIndex].position.xy);
-				break;
-	
-			case CARRY_POT_TREE:
-				scene->playerCarryState = CARRY_NONE;
-				scene->potTreeTransforms[scene->carriedItemIndex].position.z
-					= get_terrain_height(scene->collisionSystem, scene->potTreeTransforms[scene->carriedItemIndex].position.xy);
-				break;
-	
-			case CARRY_POT_SEED:
-				scene->playerCarryState = CARRY_NONE;
-				scene->potSeedTransforms[scene->carriedItemIndex].position.z
-					= get_terrain_height(scene->collisionSystem, scene->potSeedTransforms[scene->carriedItemIndex].position.xy);
 				break;
 	
 			case CARRY_WATER:
@@ -437,29 +379,13 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 				f32 droppedWaterLevel = scene->waters.levels[scene->carriedItemIndex];
 
-				for (s32 i = 0; i < scene->potSeedCount; ++i)
+				for (s32 i = 0; i < scene->potEmptyCount; ++i)
 				{
-					f32 distance = magnitude_v3(scene->potSeedTransforms[i].position - waterTransform.position);
+					f32 distance = magnitude_v3(scene->potEmptyTransforms[i].position - waterTransform.position);
 					if (distance < waterSnapDistance)
 					{
-						scene->potSeedWaterLevels[i] += droppedWaterLevel;
-						scene->potSeedWaterLevels[i] = min_f32(scene->potSeedWaterLevels[i] + droppedWaterLevel, smallPotMaxWaterLevel);
-
-						scene->waters.count -= 1;
-						scene->waters.transforms[scene->carriedItemIndex] 	= scene->waters.transforms[scene->waters.count];
-						scene->waters.levels[scene->carriedItemIndex] 		= scene->waters.levels[scene->waters.count];
-
-						break;
-					}
-				}
-
-				for (s32 i = 0; i < scene->potTreeCount; ++i)
-				{
-					f32 distance = magnitude_v3(scene->potTreeTransforms[i].position - waterTransform.position);
-					if (distance < waterSnapDistance)
-					{
-						scene->potTreeWaterLevels[i] += droppedWaterLevel;
-						scene->potTreeWaterLevels[i] = min_f32(scene->potTreeWaterLevels[i] + droppedWaterLevel, smallPotMaxWaterLevel);
+						scene->potEmptyWaterLevels[i] += droppedWaterLevel;
+						scene->potEmptyWaterLevels[i] = min_f32(scene->potEmptyWaterLevels[i] + droppedWaterLevel, smallPotMaxWaterLevel);
 
 						scene->waters.count -= 1;
 						scene->waters.transforms[scene->carriedItemIndex] 	= scene->waters.transforms[scene->waters.count];
@@ -472,48 +398,29 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 			} break;
 
-			case CARRY_SEED:
-			{
-				scene->playerCarryState = CARRY_NONE;
-				scene->seedTransforms[scene->carriedItemIndex].position.z = get_terrain_height(scene->collisionSystem, scene->seedTransforms[scene->carriedItemIndex].position.xy);
-
-				for (s32 i = 0; i < scene->potEmptyCount; ++i)
-				{
-					f32 distance = magnitude_v3(scene->potEmptyTransforms[i].position - scene->seedTransforms[scene->carriedItemIndex].position);
-					if(distance < 0.5f)
-					{
-						/* Note(Leo): copy empty pot's transform into tree pots' array. Then pop pot from
-						empty list and seed from seed list */
-
-						// push pot into seed pots
-						// todo(LEo): remove
-						scene->potSeedTransforms[scene->potSeedCount] = scene->potEmptyTransforms[i];
-						scene->potSeedCount += 1;
-
-						// pop empty pot
-						scene->potEmptyCount -=1;
-						scene->potEmptyTransforms[i] = scene->potEmptyTransforms[scene->potEmptyCount];
-
-						// push seed into pot seeds
-						scene->seedsInPotTransforms[scene->seedsInPotCount] = scene->seedTransforms[scene->carriedItemIndex];
-						scene->seedsInPotWaterLevels[scene->seedsInPotCount] = scene->seedWaterLevels[scene->carriedItemIndex];
-						scene->seedsInPotCount += 1;
-
-						// pop carried seed from ground seeds
-						scene->seedCount -= 1;
-						scene->seedTransforms[scene->carriedItemIndex] = scene->seedTransforms[scene->seedCount];
-						scene->seedWaterLevels[scene->carriedItemIndex] = scene->seedWaterLevels[scene->seedCount];
-
-						break;
-					}
-
-				}
-			} break;
-
 			case CARRY_TREE:
 			{
 				scene->playerCarryState = CARRY_NONE;
 				scene->lSystems[scene->carriedItemIndex].position.z = get_terrain_height(scene->collisionSystem, scene->lSystems[scene->carriedItemIndex].position.xy);
+
+				constexpr f32 treeSnapDistance = 0.5f;
+
+				for (s32 potIndex = 0; potIndex < scene->potEmptyCount; ++potIndex)
+				{
+					f32 distance = magnitude_v3(scene->potEmptyTransforms[potIndex].position - scene->lSystems[scene->carriedItemIndex].position);
+					if (distance < treeSnapDistance)
+					{
+						scene->lSystemsInPot[scene->lSystemsInPotCount] 			= scene->lSystems[scene->carriedItemIndex];
+						scene->lSystemsInPotLeavess[scene->lSystemsInPotCount]		= scene->lSystemLeavess[scene->carriedItemIndex];
+						scene->lSystemsInPotPotIndices[scene->lSystemsInPotCount]	= potIndex;
+						scene->lSystemsInPotCount 									+= 1;
+
+						scene->lSystemCount 							-= 1;
+						scene->lSystems[scene->carriedItemIndex] 		= scene->lSystems[scene->lSystemCount];
+						scene->lSystemLeavess[scene->carriedItemIndex] 	= scene->lSystemLeavess[scene->lSystemCount];
+
+					}
+				}
 
 			} break;
 		}
@@ -524,29 +431,14 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 	quaternion carriedRotation = scene->playerCharacterTransform->rotation;
 	switch(scene->playerCarryState)
 	{
-		case CARRY_POT_EMPTY:
+		case CARRY_POT:
 			scene->potEmptyTransforms[scene->carriedItemIndex].position = carriedPosition;
 			scene->potEmptyTransforms[scene->carriedItemIndex].rotation = carriedRotation;
-			break;
-
-		case CARRY_POT_TREE:
-			scene->potTreeTransforms[scene->carriedItemIndex].position = carriedPosition;
-			scene->potTreeTransforms[scene->carriedItemIndex].rotation = carriedRotation;
-			break;
-
-		case CARRY_POT_SEED:
-			scene->potSeedTransforms[scene->carriedItemIndex].position = carriedPosition;
-			scene->potSeedTransforms[scene->carriedItemIndex].rotation = carriedRotation;
 			break;
 
 		case CARRY_WATER:
 			scene->waters.transforms[scene->carriedItemIndex].position = carriedPosition;
 			scene->waters.transforms[scene->carriedItemIndex].rotation = carriedRotation;
-			break;
-
-		case CARRY_SEED:
-			scene->seedTransforms[scene->carriedItemIndex].position = carriedPosition;
-			scene->seedTransforms[scene->carriedItemIndex].rotation = carriedRotation;
 			break;
 
 		case CARRY_TREE:
@@ -561,73 +453,11 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 	/// UPDATE TREES IN POTS POSITIONS
 	for (s32 i = 0; i < scene->lSystemsInPotCount; ++i)
 	{
-		scene->lSystemsInPot[i].position = multiply_point(transform_matrix(scene->potTreeTransforms[i]), v3{0, 0, 0.25});
-		scene->lSystemsInPot[i].rotation = scene->potTreeTransforms[i].rotation;
+		s32 potIndex = scene->lSystemsInPotPotIndices[i];
+		scene->lSystemsInPot[i].position = multiply_point(transform_matrix(scene->potEmptyTransforms[potIndex]), v3{0, 0, 0.25});
+		scene->lSystemsInPot[i].rotation = scene->potEmptyTransforms[potIndex].rotation;
 	}
 	
-	/// UPDATE SEEDS IN POT POSITIONS
-	for(s32 i = 0; i < scene->seedsInPotCount; ++i)
-	{
-		scene->seedsInPotTransforms[i].position = multiply_point(transform_matrix(scene->potSeedTransforms[i]), v3{0,0,0.1f});
-		scene->seedsInPotTransforms[i].rotation = scene->potSeedTransforms[i].rotation;
-	}
-
-	/// UPDATE SEEDS
-	{
-		constexpr f32 seedWaterDistanceThreshold 	= 0.4f;
-		constexpr f32 seedWaterDrainSpeed 			= 0.5;
-		constexpr f32 seedFullWaterLevel 			= 0.5f;
-	
-		for (s32 i = 0; i < scene->seedCount; ++i)
-		{
-			f32 waterAmount = get_water(scene->waters,
-										scene->seedTransforms[i].position,
-										seedWaterDistanceThreshold,
-										scaledTime * seedWaterDrainSpeed);
-			scene->seedWaterLevels[i] += waterAmount;
-
-			if (scene->seedWaterLevels[i] > seedFullWaterLevel)
-			{
-				add_l_system_tree(scene->seedTransforms[i].position);
-
-				scene->seedCount -= 1;
-				scene->seedTransforms[i] = scene->seedTransforms[scene->seedCount];
-				scene->seedWaterLevels[i] = scene->seedWaterLevels[scene->seedCount];
-
-				debug_draw_circle_xy(scene->seedTransforms[i].position + v3{0,0,0.1f}, seedWaterDistanceThreshold, colour_bright_green, DEBUG_NPC);
-			}
-			else
-			{
-				debug_draw_circle_xy(scene->seedTransforms[i].position + v3{0,0,0.1f}, seedWaterDistanceThreshold, colour_bright_red, DEBUG_NPC);
-			}
-
-		}
-
-		for (s32 i = 0; i < scene->potSeedCount; ++i)
-		{
-			f32 requestedWaterAmount 		= seedWaterDrainSpeed * scaledTime;
-			f32 acquiredWaterAmount 		= min_f32(scene->potSeedWaterLevels[i], requestedWaterAmount);
-			scene->potSeedWaterLevels[i] 	-= acquiredWaterAmount;
-			scene->seedsInPotWaterLevels[i] += acquiredWaterAmount;
-
-			if (scene->seedsInPotWaterLevels[i] > seedFullWaterLevel)
-			{
-				// Todo(Leo): separate trees in pot and on ground
-				add_l_system_tree_in_pot(scene->potSeedTransforms[i].position);
-
-				scene->potTreeTransforms[scene->potTreeCount] = scene->potSeedTransforms[i];
-				scene->potTreeCount += 1;
-
-				// Todo(Leo): There is duplicate information here...
-				scene->potSeedCount -= 1;
-				scene->potSeedTransforms[i] 	= scene->potSeedTransforms[scene->potSeedCount];
-				scene->potSeedWaterLevels[i] 	= scene->potSeedWaterLevels[scene->potSeedCount];
-				scene->seedsInPotWaterLevels[i] = scene->seedsInPotWaterLevels[scene->potSeedCount];
-			}
-
-		}
-	}
-
 	// -----------------------------------------------------------------------------------------------------------
 
 	// Todo(Leo): Rather use something like submit_collider() with what every collider can decide themselves, if they want to
@@ -651,8 +481,6 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 		f32 smallPotColliderHeight = 0.58;
 		f32 smallPotHalfHeight = smallPotColliderHeight / 2;
 		submit_cylinder_colliders(smallPotColliderRadius, smallPotHalfHeight, scene->potEmptyCount, scene->potEmptyTransforms);
-		submit_cylinder_colliders(smallPotColliderRadius, smallPotHalfHeight, scene->potSeedCount, scene->potSeedTransforms);
-		submit_cylinder_colliders(smallPotColliderRadius, smallPotHalfHeight, scene->potTreeCount, scene->potTreeTransforms);
 
 		constexpr f32 baseRadius = 0.12;
 		constexpr f32 baseHeight = 2;
@@ -699,46 +527,14 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 		platformApi->draw_meshes(platformGraphics, scene->waters.count, waterTransforms, scene->waterMesh, scene->waterMaterial);
 	}
 	
-	/// DRAW UNUSED SEEDS
-	if(scene->seedCount)
-	{
-		m44 * seedTransforms = push_memory<m44>(*global_transientMemory, scene->seedCount, ALLOC_NO_CLEAR);
-		for (s32 i = 0; i < scene->seedCount; ++i)
-		{
-			seedTransforms[i] = transform_matrix(scene->seedTransforms[i]);
-		}
-		platformApi->draw_meshes(platformGraphics, scene->seedCount, seedTransforms, scene->seedMesh, scene->seedMaterial);
-	}
-
 	/// DRAW POTS
 	{
-		auto append_matrices = [](s32 count, Transform3D const * transforms, m44 * targetMatrices)
+		m44 * potTransformMatrices = push_memory<m44>(*global_transientMemory, scene->potEmptyCount, ALLOC_NO_CLEAR);
+		for(s32 i = 0; i < scene->potEmptyCount; ++i)
 		{
-			for (s32 i = 0; i < count; ++i)
-			{
-				targetMatrices[i] = transform_matrix(transforms[i]);
-			}
-		};
-
-		s32 totalPotCount = scene->potEmptyCount + scene->potTreeCount + scene->potSeedCount;
-		m44 * potTransformMatrices = push_memory<m44>(*global_transientMemory, totalPotCount, ALLOC_NO_CLEAR);
-
-		append_matrices(scene->potEmptyCount, scene->potEmptyTransforms, potTransformMatrices);
-		append_matrices(scene->potTreeCount, scene->potTreeTransforms, potTransformMatrices + scene->potEmptyCount);
-		append_matrices(scene->potSeedCount, scene->potSeedTransforms, potTransformMatrices + scene->potEmptyCount + scene->potTreeCount);
-
-		platformApi->draw_meshes(platformGraphics, totalPotCount, potTransformMatrices, scene->potMesh, scene->potMaterial);
-	}
-
-	/// DRAW SEEDS INSIDE POTS
-	if (scene->potSeedCount > 0)
-	{
-		m44 * seedTransformMatrices = push_memory<m44>(*global_transientMemory, scene->potSeedCount, ALLOC_NO_CLEAR);
-		for (s32 i = 0; i < scene->potSeedCount; ++i)
-		{
-			seedTransformMatrices[i] = transform_matrix(scene->seedsInPotTransforms[i]);
+			potTransformMatrices[i] = transform_matrix(scene->potEmptyTransforms[i]);
 		}
-		platformApi->draw_meshes(platformGraphics, scene->potSeedCount, seedTransformMatrices, scene->seedMesh, scene->seedMaterial);
+		platformApi->draw_meshes(platformGraphics, scene->potEmptyCount, potTransformMatrices, scene->potMesh, scene->potMaterial);
 	}
 
 	/// DRAW STATIC SCENERY
@@ -827,8 +623,9 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 		persist_updatedLSystemIndex %= 10;
 		s32 updatedLSystemIndex = persist_updatedLSystemIndex;
 
-		auto update_lsystem = [	&waters 			= scene->waters,
-								potTreeWaterLevels 	= scene->potTreeWaterLevels,
+		auto update_lsystem = [	&waters 				= scene->waters,
+								potEmptyWaterLevels 	= scene->potEmptyWaterLevels,
+								lSystemsInPotPotIndices = scene->lSystemsInPotPotIndices,
 								get_water, 
 								get_water_from_pot,
 								updatedLSystemIndex,
@@ -858,7 +655,7 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 					constexpr f32 treeWaterDrainSpeed = 0.5f;
 
 					f32 waterLevel = 	isInPot ?
-										get_water_from_pot(potTreeWaterLevels, i, treeWaterDrainSpeed * scaledTime) : 
+										get_water_from_pot(potEmptyWaterLevels, lSystemsInPotPotIndices[i], treeWaterDrainSpeed * scaledTime) : 
 										get_water (waters, lSystems[i].position, waterDistanceThreshold, treeWaterDrainSpeed * scaledTime);
 
 					if (waterLevel > 0)
@@ -874,10 +671,7 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 		update_lsystem(scene->lSystemCount, scene->lSystems, scene->lSystemLeavess, false);
 		update_lsystem(scene->lSystemsInPotCount, scene->lSystemsInPot, scene->lSystemsInPotLeavess, true);
 
-		auto draw_l_system_trees = [material 		= scene->lSystemTreeMaterial,
-									seedMesh 		= scene->seedMesh,
-									seedMaterial 	= scene->seedMaterial]
-									(s32 count, TimedLSystem * lSystems)
+		auto draw_l_system_trees = [material = scene->lSystemTreeMaterial] (s32 count, TimedLSystem * lSystems)
 		{
 			for (s32 i = 0; i < count; ++i)
 			{
@@ -1154,6 +948,7 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 
 	// ----------------------------------------------------------------------------------
 
+	// TODO(Leo): these should probably all go away
 	// Note(Leo): amounts are SWAG, rethink.
 	scene->transforms 			= allocate_array<Transform3D>(persistentMemory, 1200);
 	scene->skeletonAnimators 	= allocate_array<SkeletonAnimator>(persistentMemory, 600);
@@ -1413,15 +1208,11 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 	scene->playerCamera.baseOffset 	= {0, 0, 2};
 	scene->playerCamera.distance 	= 5;
 
-	// TODO(Leo): fukin häx
-	MeshHandle seedMesh1;
-	MeshHandle seedMesh2;
-
-	MaterialHandle seedMaterial1;
-	MaterialHandle seedMaterial2;
+	auto sceneryFile 		= read_gltf_file(*global_transientMemory, "assets/models/scenery.glb");
 
 	// Environment
 	{
+		/// GROUND AND TERRAIN
 		{
 			constexpr f32 mapSize 		= 1200;
 			constexpr f32 minTerrainElevation = -5;
@@ -1508,6 +1299,7 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 			scene->seaTransform 	= transform_matrix({0,0,0}, identity_quaternion, {mapSize, mapSize, 1});
 		}
 
+		/// TOTEMS
 		{
 			auto totemMesh 			= load_mesh_glb(*global_transientMemory, read_gltf_file(*global_transientMemory, "assets/models/totem.glb"), "totem");
 			auto totemMeshHandle 	= platformApi->push_mesh(platformGraphics, &totemMesh);
@@ -1530,8 +1322,8 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 								transform);
 		}
 
+		/// INVISIBLE TEST COLLIDER
 		{
-			// test collider
 			Transform3D * transform = scene->transforms.push_return_pointer({});
 			transform->position = {21, 15};
 			transform->position.z = get_terrain_height(scene->collisionSystem, {20, 20});
@@ -1542,10 +1334,9 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 								transform);
 		}
 
-
 		scene->monuments = scene3d_load_monuments(persistentMemory, materials.environment, scene->collisionSystem);
 
-		// Test robot
+		// TEST ROBOT
 		{
 			v3 position 			= {21, 10, 0};
 			position.z 				= get_terrain_height(scene->collisionSystem, position.xy);
@@ -1564,29 +1355,15 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 		}
 
 		/// SMALL SCENERY OBJECTS
-		{
-			auto sceneryFile 		= read_gltf_file(*global_transientMemory, "assets/models/scenery.glb");
-			
+		{			
 			auto smallPotMeshAsset 	= load_mesh_glb(*global_transientMemory, sceneryFile, "small_pot");
 			scene->potMesh 			= platformApi->push_mesh(platformGraphics, &smallPotMeshAsset);
 			scene->potMaterial 		= materials.environment;
 
-			scene->potCapacity 		= 10;
-
+			scene->potCapacity 			= 10;
+			scene->potEmptyCount 		= scene->potCapacity;
 			scene->potEmptyTransforms 	= push_memory<Transform3D>(persistentMemory, scene->potCapacity, ALLOC_NO_CLEAR);
-			scene->potSeedTransforms 	= push_memory<Transform3D>(persistentMemory, scene->potCapacity, ALLOC_NO_CLEAR);
-			scene->potTreeTransforms 	= push_memory<Transform3D>(persistentMemory, scene->potCapacity, ALLOC_NO_CLEAR);
-
 			scene->potEmptyWaterLevels 	= push_memory<f32>(persistentMemory, scene->potCapacity, 0);
-			scene->potTreeWaterLevels 	= push_memory<f32>(persistentMemory, scene->potCapacity, 0);
-			scene->potSeedWaterLevels 	= push_memory<f32>(persistentMemory, scene->potCapacity, 0);
-
-			scene->seedsInPotWaterLevels = push_memory<f32>(persistentMemory, scene->potCapacity, 0);
-
-
-			scene->potEmptyCount = scene->potCapacity;
-			scene->potTreeCount = 0;
-			scene->potSeedCount = 0;
 
 			for(s32 i = 0; i < scene->potCapacity; ++i)
 			{
@@ -1639,43 +1416,7 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 				}
 			}
 
-			/// SEEDS
-			{
-				MeshAsset seedMeshAsset = load_mesh_glb(*global_transientMemory, sceneryFile, "acorn");
-				scene->seedMesh = platformApi->push_mesh(platformGraphics, &seedMeshAsset);
 
-				TextureAsset seedAlbedoAsset 	= load_texture_asset(*global_transientMemory, "assets/textures/Acorn_albedo.png");
-				TextureHandle seedAlbedo 		= platformApi->push_texture(platformGraphics, &seedAlbedoAsset);
-				TextureHandle seedTextures [] 	= {seedAlbedo, neutralBumpTexture, blackTexture};
-				scene->seedMaterial 			= platformApi->push_material(platformGraphics, GRAPHICS_PIPELINE_NORMAL, 3, seedTextures);
-
-				scene->seedCapacity 	= 0;
-				scene->seedCount 		= 0;
-				scene->seedTransforms 	= push_memory<Transform3D>(persistentMemory, scene->seedCapacity, ALLOC_NO_CLEAR);
-				scene->seedWaterLevels 	= push_memory<f32>(persistentMemory, scene->seedCapacity, ALLOC_NO_CLEAR);
-
-				scene->seedsInPotCount 			= 0;
-				scene->seedsInPotTransforms 	= push_memory<Transform3D>(persistentMemory, scene->seedCapacity, ALLOC_NO_CLEAR);
-				scene->seedsInPotWaterLevels 	= push_memory<f32>(persistentMemory, scene->seedCapacity, ALLOC_NO_CLEAR);
-
-				for(s32 i = 0; i < scene->seedCount; ++i)
-				{
-					scene->seedTransforms[i] = identity_transform;
-
-					v3 position = {random_range(-50, 50), random_range(-50, 50), 0};
-					position.z = get_terrain_height(scene->collisionSystem, position.xy);
-					scene->seedTransforms[i].position = position;
-
-					scene->seedWaterLevels[i] = 0;
-				}
-
-				// TODO(Leo): This is häx
-				seedMesh1 = scene->seedMesh;
-				seedMesh2 = scene->waterMesh;
-
-				seedMaterial1 = scene->seedMaterial;
-				seedMaterial2 = scene->seedMaterial;
-			}
 		}
 
 		/// BIG SCENERY THINGS
@@ -1797,14 +1538,38 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 
 	/// LSYSTEM TREES	
 	{
+		// TODO(Leo): fukin häx
+		MeshHandle seedMesh1;
+		MeshHandle seedMesh2;
+
+		MaterialHandle seedMaterial1;
+		MaterialHandle seedMaterial2;
+
+		/// SEEDS
+		{
+			MeshAsset seedMeshAsset 		= load_mesh_glb(*global_transientMemory, sceneryFile, "acorn");
+			seedMesh1 						= platformApi->push_mesh(platformGraphics, &seedMeshAsset);
+			seedMesh2 						= scene->waterMesh;
+
+			TextureAsset seedAlbedoAsset 	= load_texture_asset(*global_transientMemory, "assets/textures/Acorn_albedo.png");
+			TextureHandle seedAlbedo 		= platformApi->push_texture(platformGraphics, &seedAlbedoAsset);
+			TextureHandle seedTextures [] 	= {seedAlbedo, neutralBumpTexture, blackTexture};
+
+			seedMaterial1 					= platformApi->push_material(platformGraphics, GRAPHICS_PIPELINE_NORMAL, 3, seedTextures);
+			seedMaterial2 					= seedMaterial1;
+		}
+
+
+		// Todo(Leo): This is kinda lie, we allocate double amount.
 		scene->lSystemCapacity 	= 60;
 		scene->lSystemCount 	= 20;
-		scene->lSystems 		= push_memory<TimedLSystem>(persistentMemory, scene->lSystemCapacity, 0);
-		scene->lSystemLeavess 	= push_memory<Leaves>(persistentMemory, scene->lSystemCapacity, 0);
+		scene->lSystems 		= push_memory<TimedLSystem>(persistentMemory, scene->lSystemCapacity, ALLOC_NO_CLEAR);
+		scene->lSystemLeavess 	= push_memory<Leaves>(persistentMemory, scene->lSystemCapacity, ALLOC_NO_CLEAR);
 
-		scene->lSystemsInPotCount 	= 0;
-		scene->lSystemsInPot 		= push_memory<TimedLSystem>(persistentMemory, scene->lSystemCapacity, 0);
-		scene->lSystemsInPotLeavess = push_memory<Leaves>(persistentMemory, scene->lSystemCapacity, 0);
+		scene->lSystemsInPotCount 		= 0;
+		scene->lSystemsInPot 			= push_memory<TimedLSystem>(persistentMemory, scene->lSystemCapacity, ALLOC_NO_CLEAR);
+		scene->lSystemsInPotLeavess 	= push_memory<Leaves>(persistentMemory, scene->lSystemCapacity, ALLOC_NO_CLEAR);
+		scene->lSystemsInPotPotIndices 	= push_memory<s32>(persistentMemory, scene->lSystemCapacity, ALLOC_NO_CLEAR);
 
 		// Todo(Leo): textures are copied too many times: from file to stb, from stb to TextureAsset, from TextureAsset to graphics.
 		TextureAsset albedo = load_texture_asset(*global_transientMemory, "assets/textures/Acorn_albedo.png");
@@ -1828,17 +1593,11 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 		{
 			scene->lSystems[i]			= make_lsystem(persistentMemory);
 			scene->lSystemLeavess[i] 	= make_leaves(persistentMemory, 4000);
-		
-			scene->lSystemsInPot[i]			= make_lsystem(persistentMemory);
-			scene->lSystemsInPotLeavess[i] 	= make_leaves(persistentMemory, 4000);
-
+	
 			if ((i % 2) == 0)
 			{
 				scene->lSystems[i].advance 		= advance_lsystem_time;
 				scene->lSystems[i].update_mesh 	= update_lsystem_mesh;
-
-				scene->lSystemsInPot[i].advance 		= advance_lsystem_time;
-				scene->lSystemsInPot[i].update_mesh 	= update_lsystem_mesh;
 
 				scene->lSystems[i].seedMesh 	= tree1SeedMesh;
 				scene->lSystems[i].seedMaterial = tree1SeedMaterial;
@@ -1848,10 +1607,6 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 				scene->lSystems[i].aWord[0]		= {'A', 0, 1};
 				scene->lSystems[i].advance 		= advance_lsystem_time_tree2;
 				scene->lSystems[i].update_mesh 	= update_lsystem_mesh_tree2;
-
-				scene->lSystemsInPot[i].aWord[0] 		= {'A', 0, 1};
-				scene->lSystemsInPot[i].advance 		= advance_lsystem_time_tree2;
-				scene->lSystemsInPot[i].update_mesh 	= update_lsystem_mesh_tree2;
 
 				scene->lSystems[i].seedMesh 	= tree2SeedMesh;
 				scene->lSystems[i].seedMaterial = tree1SeedMaterial;
@@ -1868,8 +1623,6 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 
 			logDebug(0) << position;
 		}
-
-		Assert(scene->lSystemCapacity >= scene->seedCapacity && "Not enough space for trees for all seeds.");
 	}
 
 	// ----------------------------------------------------------------------------------
