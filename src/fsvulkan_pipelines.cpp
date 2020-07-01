@@ -88,6 +88,10 @@ constexpr VkPipelineColorBlendAttachmentState fsvulkan_default_pipeline_color_bl
 								| VK_COLOR_COMPONENT_A_BIT,
 };
 
+constexpr VkColorComponentFlags fsvulkan_all_colors =	VK_COLOR_COMPONENT_R_BIT 
+														| VK_COLOR_COMPONENT_G_BIT 
+														| VK_COLOR_COMPONENT_B_BIT 
+														| VK_COLOR_COMPONENT_A_BIT;
 
 internal VkPipelineShaderStageCreateInfo
 fsvulkan_pipeline_shader_stage_create_info (VkShaderStageFlagBits 	stage,
@@ -310,485 +314,513 @@ These are default values, so those that are not needed can just be left away (ex
 
 //////////////////////////////////////////////////////////////////////////////////////
 
-internal FSVulkanPipeline fsvulkan_make_pipeline_WITH_EVEN_MORE_ARGUMENTS(
-	VulkanContext * context,
-
-	u32 											stageCount,
-	VkPipelineShaderStageCreateInfo const * 		stages,
-
-	VkPipelineVertexInputStateCreateInfo const * 	vertexInputState,
-	VkPipelineInputAssemblyStateCreateInfo const * 	inputAssemblyState,
-	VkPipelineViewportStateCreateInfo const *		viewportState,
-	VkPipelineRasterizationStateCreateInfo const * 	rasterizationState,
-	VkPipelineMultisampleStateCreateInfo const *	multisampleState,
-	VkPipelineDepthStencilStateCreateInfo const * 	depthStencilState,
-	VkPipelineColorBlendStateCreateInfo const * 	colorBlendState,
-	VkPipelineDynamicStateCreateInfo const * 		dynamicState,
-
-	VkPipelineLayout layout)
-{		
-
-	VkGraphicsPipelineCreateInfo pipelineInfo =
-	{
-		.sType                  = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
-		.stageCount             = stageCount,
-		.pStages                = stages,
-
-		// Note(Leo): Are these The Fixed-Function Stages?
-		.pVertexInputState      = vertexInputState,
-		.pInputAssemblyState    = inputAssemblyState,
-		.pViewportState         = viewportState,
-		.pRasterizationState    = rasterizationState,
-		.pMultisampleState      = multisampleState,   
-		.pDepthStencilState     = depthStencilState,
-		.pColorBlendState       = colorBlendState,
-		.pDynamicState          = dynamicState,
-
-		.layout                 = layout,
-		.renderPass             = context->drawingResources.renderPass,
-		.subpass                = 0,
-
-		// Note(Leo): These are for cheaper re-use of pipelines, not used right now.
-		// Study(Leo): Like inheritance??
-		.basePipelineHandle = VK_NULL_HANDLE,
-		.basePipelineIndex = 0,
-	};
-
-	VkPipeline pipeline;
-	VULKAN_CHECK(vkCreateGraphicsPipelines(context->device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline));
-
-
-	FSVulkanPipeline result = 
-	{
-		.pipeline               = pipeline,
-		.pipelineLayout         = layout,
-		// .descriptorSetLayout    = materialLayout,
-		// .textureCount           = options.textureCount
-	};
-	return result;
-}
-
-//////////////////////////////////////////////////////////////////////////////////////
-
-internal void fsvulkan_initialize_normal_pipeline(VulkanContext & context)
+internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 {
-	auto materialLayout = fsvulkan_make_material_descriptor_set_layout(context.device, 3);
-
-	VkDescriptorSetLayout descriptorSetLayouts[] =
+	/// GRAPHICS_PIPELINE_NORMAL
 	{
-		context.cameraDescriptorSetLayout,
-		materialLayout,
-		context.modelDescriptorSetLayout,
-		context.lightingDescriptorSetLayout,
-		context.shadowMapDescriptorSetLayout,
-	};
-	// TODO(Leo): this was maybe stupid idea, this is material block, and we are going to use
-	// textures for this probably
-	VkPushConstantRange pushConstantRange = { VK_SHADER_STAGE_FRAGMENT_BIT, 0, 2 * sizeof(f32) };
+		auto materialLayout = fsvulkan_make_material_descriptor_set_layout(context.device, 3);
 
-	auto pipelineLayoutCreateInfo = fsvulkan_pipeline_layout_create_info(	array_count(descriptorSetLayouts), descriptorSetLayouts,
-																			1, &pushConstantRange);
+		VkDescriptorSetLayout descriptorSetLayouts[] =
+		{
+			context.cameraDescriptorSetLayout,
+			materialLayout,
+			context.modelDescriptorSetLayout,
+			context.lightingDescriptorSetLayout,
+			context.shadowMapDescriptorSetLayout,
+		};
+		// TODO(Leo): this was maybe stupid idea, this is material block, and we are going to use
+		// textures for this probably
+		VkPushConstantRange pushConstantRange = { VK_SHADER_STAGE_FRAGMENT_BIT, 0, 2 * sizeof(f32) };
 
-	VULKAN_CHECK(vkCreatePipelineLayout (context.device, &pipelineLayoutCreateInfo, nullptr, &context.pipelines[GRAPHICS_PIPELINE_NORMAL].pipelineLayout));
+		auto pipelineLayoutCreateInfo = fsvulkan_pipeline_layout_create_info(	array_count(descriptorSetLayouts), descriptorSetLayouts,
+																				1, &pushConstantRange);
 
-	VkShaderModule vertexShaderModule 	= fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/vert.spv"));
-	VkShaderModule fragmentShaderModule = fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/frag.spv"));
+		VULKAN_CHECK(vkCreatePipelineLayout (context.device, &pipelineLayoutCreateInfo, nullptr, &context.pipelines[GRAPHICS_PIPELINE_NORMAL].pipelineLayout));
 
-	VkPipelineShaderStageCreateInfo shaderStages [] =
+		VkShaderModule vertexShaderModule 	= fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/vert.spv"));
+		VkShaderModule fragmentShaderModule = fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/frag.spv"));
+
+		VkPipelineShaderStageCreateInfo shaderStages [] =
+		{
+			fsvulkan_pipeline_shader_stage_create_info(VK_SHADER_STAGE_VERTEX_BIT, vertexShaderModule, "main"),
+			fsvulkan_pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, fragmentShaderModule, "main"),
+		};
+
+		auto vertexInputState 	= fsvulkan_pipeline_vertex_input_state_create_info	(1, &fsvulkan_defaultVertexBinding,
+																					array_count(fsvulkan_defaultVertexAttributes), fsvulkan_defaultVertexAttributes);
+		auto inputAssemblyState = fsvulkan_pipeline_input_assembly_create_info		(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+		auto viewportState 		= fsvulkan_pipeline_viewport_state_create_info		(1, &fsvulkan_zero_viewport, 1, &fsvulkan_zero_scissor);
+		auto rasterizationState = fsvulkan_pipeline_rasterization_state_create_info	(VK_CULL_MODE_BACK_BIT);
+		auto multisampleState 	= fsvulkan_pipeline_multisample_state_create_info	(context.msaaSamples);
+		auto depthStencilState 	= fsvulkan_pipeline_depth_stencil_create_info		(VK_TRUE, VK_TRUE);
+		auto colorBlendState 	= fsvulkan_pipeline_color_blend_state_create_info	(1, &fsvulkan_default_pipeline_color_blend_attachment_state);
+		auto dynamicState 		= fsvulkan_pipeline_dynamic_state_create_info		(array_count(fsvulkan_default_dynamic_states), fsvulkan_default_dynamic_states);
+
+
+		VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo =
+		{
+			.sType 					= VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+			.stageCount 			= array_count(shaderStages),
+			.pStages 				= shaderStages,
+
+			.pVertexInputState 		= &vertexInputState,
+			.pInputAssemblyState 	= &inputAssemblyState,
+			.pViewportState 		= &viewportState,
+			.pRasterizationState 	= &rasterizationState,
+			.pMultisampleState 		= &multisampleState,
+			.pDepthStencilState 	= &depthStencilState,
+			.pColorBlendState 		= &colorBlendState,
+			.pDynamicState 			= &dynamicState,
+			
+			.layout 				= context.pipelines[GRAPHICS_PIPELINE_NORMAL].pipelineLayout,
+			.renderPass 			= context.drawingResources.renderPass,
+		};
+
+		vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &context.pipelines[GRAPHICS_PIPELINE_NORMAL].pipeline);
+
+		context.pipelines[GRAPHICS_PIPELINE_NORMAL].descriptorSetLayout = materialLayout;
+		context.pipelines[GRAPHICS_PIPELINE_NORMAL].textureCount 		= 3;
+
+		vkDestroyShaderModule(context.device, fragmentShaderModule, nullptr);
+		vkDestroyShaderModule(context.device, vertexShaderModule, nullptr);
+	}
+
+	/// GRAPHICS_PIPELINE_ANIMATED
 	{
-		fsvulkan_pipeline_shader_stage_create_info(VK_SHADER_STAGE_VERTEX_BIT, vertexShaderModule, "main"),
-		fsvulkan_pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, fragmentShaderModule, "main"),
-	};
+		auto materialLayout = fsvulkan_make_material_descriptor_set_layout(context.device, 3);
 
-	auto vertexInputState 	= fsvulkan_pipeline_vertex_input_state_create_info	(1, &fsvulkan_defaultVertexBinding,
-																				array_count(fsvulkan_defaultVertexAttributes), fsvulkan_defaultVertexAttributes);
-	auto inputAssemblyState = fsvulkan_pipeline_input_assembly_create_info		(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
-	auto viewportState 		= fsvulkan_pipeline_viewport_state_create_info		(1, &fsvulkan_zero_viewport, 1, &fsvulkan_zero_scissor);
-	auto rasterizationState = fsvulkan_pipeline_rasterization_state_create_info	(VK_CULL_MODE_BACK_BIT);
-	auto multisampleState 	= fsvulkan_pipeline_multisample_state_create_info	(context.msaaSamples);
-	auto depthStencilState 	= fsvulkan_pipeline_depth_stencil_create_info		(VK_TRUE, VK_TRUE);
-	auto colorBlendState 	= fsvulkan_pipeline_color_blend_state_create_info	(1, &fsvulkan_default_pipeline_color_blend_attachment_state);
-	auto dynamicState 		= fsvulkan_pipeline_dynamic_state_create_info		(array_count(fsvulkan_default_dynamic_states), fsvulkan_default_dynamic_states);
+		VkDescriptorSetLayout descriptorSetLayouts[] =
+		{
+			context.cameraDescriptorSetLayout,
+			materialLayout,
+			context.modelDescriptorSetLayout,
+			context.lightingDescriptorSetLayout,
+			context.shadowMapDescriptorSetLayout,
+		};
+		// TODO(Leo): this was maybe stupid idea, this is material block, and we are going to use
+		// textures for this probably
+		VkPushConstantRange pushConstantRange = { VK_SHADER_STAGE_FRAGMENT_BIT, 0, 2 * sizeof(f32) };
+
+		auto pipelineLayoutCreateInfo = fsvulkan_pipeline_layout_create_info(	array_count(descriptorSetLayouts), descriptorSetLayouts,
+																				1, &pushConstantRange);
+
+		VULKAN_CHECK(vkCreatePipelineLayout (context.device, &pipelineLayoutCreateInfo, nullptr, &context.pipelines[GRAPHICS_PIPELINE_ANIMATED].pipelineLayout));
+
+		VkShaderModule vertexShaderModule 	= fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/animated_vert.spv"));
+		VkShaderModule fragmentShaderModule = fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/frag.spv"));
+
+		VkPipelineShaderStageCreateInfo shaderStages [] =
+		{
+			fsvulkan_pipeline_shader_stage_create_info(VK_SHADER_STAGE_VERTEX_BIT, vertexShaderModule, "main"),
+			fsvulkan_pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, fragmentShaderModule, "main"),
+		};
+
+		auto vertexInputState 	= fsvulkan_pipeline_vertex_input_state_create_info	(1, &fsvulkan_defaultVertexBinding,
+																					array_count(fsvulkan_defaultVertexAttributes), fsvulkan_defaultVertexAttributes);
+		auto inputAssemblyState = fsvulkan_pipeline_input_assembly_create_info		(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+		auto viewportState 		= fsvulkan_pipeline_viewport_state_create_info		(1, &fsvulkan_zero_viewport, 1, &fsvulkan_zero_scissor);
+		auto rasterizationState = fsvulkan_pipeline_rasterization_state_create_info	(VK_CULL_MODE_BACK_BIT);
+		auto multisampleState 	= fsvulkan_pipeline_multisample_state_create_info	(context.msaaSamples);
+		auto depthStencilState 	= fsvulkan_pipeline_depth_stencil_create_info		(VK_TRUE, VK_TRUE);
+		auto colorBlendState 	= fsvulkan_pipeline_color_blend_state_create_info	(1, &fsvulkan_default_pipeline_color_blend_attachment_state);
+		auto dynamicState 		= fsvulkan_pipeline_dynamic_state_create_info		(array_count(fsvulkan_default_dynamic_states), fsvulkan_default_dynamic_states);
 
 
-	VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo =
+		VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo =
+		{
+			.sType 					= VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+			.stageCount 			= array_count(shaderStages),
+			.pStages 				= shaderStages,
+
+			.pVertexInputState 		= &vertexInputState,
+			.pInputAssemblyState 	= &inputAssemblyState,
+			.pViewportState 		= &viewportState,
+			.pRasterizationState 	= &rasterizationState,
+			.pMultisampleState 		= &multisampleState,
+			.pDepthStencilState 	= &depthStencilState,
+			.pColorBlendState 		= &colorBlendState,
+			.pDynamicState 			= &dynamicState,
+			
+			.layout 				= context.pipelines[GRAPHICS_PIPELINE_ANIMATED].pipelineLayout,
+			.renderPass 			= context.drawingResources.renderPass,
+		};
+
+		vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &context.pipelines[GRAPHICS_PIPELINE_ANIMATED].pipeline);
+
+		context.pipelines[GRAPHICS_PIPELINE_ANIMATED].descriptorSetLayout = materialLayout;
+		context.pipelines[GRAPHICS_PIPELINE_ANIMATED].textureCount 		= 3;
+
+		vkDestroyShaderModule(context.device, fragmentShaderModule, nullptr);
+		vkDestroyShaderModule(context.device, vertexShaderModule, nullptr);
+	}
+
+	/// GRAPHICS_PIPELINE_SKYBOX
 	{
-		.sType 					= VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
-		.stageCount 			= array_count(shaderStages),
-		.pStages 				= shaderStages,
+		auto materialLayout = fsvulkan_make_material_descriptor_set_layout(context.device, 0);
 
-		.pVertexInputState 		= &vertexInputState,
-		.pInputAssemblyState 	= &inputAssemblyState,
-		.pViewportState 		= &viewportState,
-		.pRasterizationState 	= &rasterizationState,
-		.pMultisampleState 		= &multisampleState,
-		.pDepthStencilState 	= &depthStencilState,
-		.pColorBlendState 		= &colorBlendState,
-		.pDynamicState 			= &dynamicState,
+		VkDescriptorSetLayout descriptorSetLayouts[] =
+		{
+			context.cameraDescriptorSetLayout,
+			materialLayout,
+			context.modelDescriptorSetLayout,
+			context.lightingDescriptorSetLayout,
+			context.shadowMapDescriptorSetLayout,
+		};
+
+		auto pipelineLayoutCreateInfo = fsvulkan_pipeline_layout_create_info(array_count(descriptorSetLayouts), descriptorSetLayouts, 0, nullptr);
+		VULKAN_CHECK(vkCreatePipelineLayout (context.device, &pipelineLayoutCreateInfo, nullptr, &context.pipelines[GRAPHICS_PIPELINE_SKYBOX].pipelineLayout));
+
+		// --------------------------------------------------------------------------------------------
+
+		VkShaderModule vertexShaderModule 	= fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/vert_sky.spv"));
+		VkShaderModule fragmentShaderModule = fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/frag_sky.spv"));
+
+		VkPipelineShaderStageCreateInfo shaderStages [] =
+		{
+			fsvulkan_pipeline_shader_stage_create_info(VK_SHADER_STAGE_VERTEX_BIT, vertexShaderModule, "main"),
+			fsvulkan_pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, fragmentShaderModule, "main"),
+		};
+
+		auto vertexInputState 	= fsvulkan_pipeline_vertex_input_state_create_info	(1, &fsvulkan_defaultVertexBinding,
+																					array_count(fsvulkan_defaultVertexAttributes), fsvulkan_defaultVertexAttributes);
+		auto inputAssemblyState = fsvulkan_pipeline_input_assembly_create_info		(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+		auto viewportState 		= fsvulkan_pipeline_viewport_state_create_info		(1, &fsvulkan_zero_viewport, 1, &fsvulkan_zero_scissor);
+		auto rasterizationState = fsvulkan_pipeline_rasterization_state_create_info	(VK_CULL_MODE_NONE);
+		auto multisampleState 	= fsvulkan_pipeline_multisample_state_create_info	(context.msaaSamples);
+		auto depthStencilState 	= fsvulkan_pipeline_depth_stencil_create_info		(VK_FALSE, VK_FALSE);
+		auto colorBlendState 	= fsvulkan_pipeline_color_blend_state_create_info	(1, &fsvulkan_default_pipeline_color_blend_attachment_state);
+		auto dynamicState 		= fsvulkan_pipeline_dynamic_state_create_info		(array_count(fsvulkan_default_dynamic_states), fsvulkan_default_dynamic_states);
+
+		VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo =
+		{
+			.sType 					= VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+			.stageCount 			= array_count(shaderStages),
+			.pStages 				= shaderStages,
+			.pVertexInputState 		= &vertexInputState,
+			.pInputAssemblyState 	= &inputAssemblyState,
+			.pViewportState 		= &viewportState,
+			.pRasterizationState 	= &rasterizationState,
+			.pMultisampleState 		= &multisampleState,
+			.pDepthStencilState 	= &depthStencilState,
+			.pColorBlendState 		= &colorBlendState,
+			.pDynamicState 			= &dynamicState,
+			.layout 				= context.pipelines[GRAPHICS_PIPELINE_SKYBOX].pipelineLayout,
+			.renderPass 			= context.drawingResources.renderPass,
+		};
+
+		vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &context.pipelines[GRAPHICS_PIPELINE_SKYBOX].pipeline);
+
+		context.pipelines[GRAPHICS_PIPELINE_SKYBOX].descriptorSetLayout = materialLayout;
+		context.pipelines[GRAPHICS_PIPELINE_SKYBOX].textureCount 		= 0;
+
+		vkDestroyShaderModule(context.device, fragmentShaderModule, nullptr);
+		vkDestroyShaderModule(context.device, vertexShaderModule, nullptr);
+	}
+
+	/// GRAPHICS_PIPELINE_SCREEN_GUI
+	{
+		auto materialLayout = fsvulkan_make_material_descriptor_set_layout(context.device, 1);
+
+		// Note(Leo): 4 v2s for coordinates and uv, v4 for color
+		VkPushConstantRange pushConstantRanges [] = 
+		{ 
+			{VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(ScreenRect)},
+			{VK_SHADER_STAGE_FRAGMENT_BIT, 64, sizeof(v4)},
+		};
+
+		auto pipelineLayoutCreateInfo 			= fsvulkan_pipeline_layout_create_info(1, &materialLayout, array_count(pushConstantRanges), pushConstantRanges);
+		VULKAN_CHECK(vkCreatePipelineLayout (context.device, &pipelineLayoutCreateInfo, nullptr, &context.pipelines[GRAPHICS_PIPELINE_SCREEN_GUI].pipelineLayout));
+
+		// ---------------------------------------------------------------------------------------------------------------------------
+
+		VkShaderModule vertexShaderModule 	= fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/gui_vert3.spv"));
+		VkShaderModule fragmentShaderModule = fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/gui_frag2.spv"));
+
+		VkPipelineShaderStageCreateInfo shaderStages [] =
+		{
+			fsvulkan_pipeline_shader_stage_create_info(VK_SHADER_STAGE_VERTEX_BIT, vertexShaderModule, "main"),
+			fsvulkan_pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, fragmentShaderModule, "main"),
+		};
+
+		auto vertexInputState 		= fsvulkan_pipeline_vertex_input_state_create_info	(	0, nullptr, 0, nullptr);
+		auto inputAssemblyState 	= fsvulkan_pipeline_input_assembly_create_info		(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP);
+		auto viewportState 			= fsvulkan_pipeline_viewport_state_create_info		(1, &fsvulkan_zero_viewport, 1, &fsvulkan_zero_scissor);
+		auto rasterizationState 	= fsvulkan_pipeline_rasterization_state_create_info	(VK_CULL_MODE_NONE);
+		auto multisampleState 		= fsvulkan_pipeline_multisample_state_create_info	(context.msaaSamples);
+		auto depthStencilState 		= fsvulkan_pipeline_depth_stencil_create_info		(VK_FALSE, VK_FALSE);
+
+		VkPipelineColorBlendAttachmentState colorBlendAttachment = 
+		{
+			.blendEnable            = VK_TRUE,
+			.srcColorBlendFactor    = VK_BLEND_FACTOR_SRC_ALPHA,
+			.dstColorBlendFactor    = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+			.colorBlendOp           = VK_BLEND_OP_ADD,
+
+			.srcAlphaBlendFactor    = VK_BLEND_FACTOR_SRC_ALPHA,
+			.dstAlphaBlendFactor    = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+
+			// Note(Leo): For some reason this was subtract, I can't remember why, but it seemed to have worked like add.
+			// .alphaBlendOp           = VK_BLEND_OP_SUBTRACT, 
+			.alphaBlendOp           = VK_BLEND_OP_ADD, 
+
+			.colorWriteMask         = fsvulkan_all_colors,
+		};
+		auto colorBlendState 		= fsvulkan_pipeline_color_blend_state_create_info(1, &colorBlendAttachment);
+
+		auto dynamicState 			= fsvulkan_pipeline_dynamic_state_create_info(array_count(fsvulkan_default_dynamic_states), fsvulkan_default_dynamic_states);
+
+		VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo =
+		{
+			.sType 					= VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+			.stageCount 			= array_count(shaderStages),
+			.pStages 				= shaderStages,
+			.pVertexInputState 		= &vertexInputState,
+			.pInputAssemblyState 	= &inputAssemblyState,
+			.pViewportState 		= &viewportState,
+			.pRasterizationState 	= &rasterizationState,
+			.pMultisampleState 		= &multisampleState,
+			.pDepthStencilState 	= &depthStencilState,
+			.pColorBlendState 		= &colorBlendState,
+			.pDynamicState 			= &dynamicState,
+			.layout 				= context.pipelines[GRAPHICS_PIPELINE_SCREEN_GUI].pipelineLayout,
+			.renderPass 			= context.drawingResources.renderPass,
+		};
+
+		vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &context.pipelines[GRAPHICS_PIPELINE_SCREEN_GUI].pipeline);
+
+		context.pipelines[GRAPHICS_PIPELINE_SCREEN_GUI].descriptorSetLayout = materialLayout;
+		context.pipelines[GRAPHICS_PIPELINE_SCREEN_GUI].textureCount 		= 1;
+
+		vkDestroyShaderModule(context.device, fragmentShaderModule, nullptr);
+		vkDestroyShaderModule(context.device, vertexShaderModule, nullptr);
+	}
+
+	/// GRAPHICS_PIPELINE_LEAVES
+	{
+		VkVertexInputBindingDescription vertexBindingDescription = { 0, sizeof(m44), VK_VERTEX_INPUT_RATE_INSTANCE };
+
+		// Note(Leo): Input is 4x4 matrix, it is described as 4 4d vectors
+		VkVertexInputAttributeDescription vertexAttributeDescriptions [4] =
+		{
+			{ 0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 0 * sizeof(v4)},
+			{ 1, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 1 * sizeof(v4)},
+			{ 2, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 2 * sizeof(v4)},
+			{ 3, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 3 * sizeof(v4)},
+		};
 		
-		.layout 				= context.pipelines[GRAPHICS_PIPELINE_NORMAL].pipelineLayout,
-		.renderPass 			= context.drawingResources.renderPass,
-	};
+		auto materialLayout = fsvulkan_make_material_descriptor_set_layout(context.device, 0);
 
-	vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &context.pipelines[GRAPHICS_PIPELINE_NORMAL].pipeline);
+		VkDescriptorSetLayout descriptorSetLayouts[] =
+		{
+			context.cameraDescriptorSetLayout,
+			materialLayout,
+			context.modelDescriptorSetLayout,
+			context.lightingDescriptorSetLayout,
+			context.shadowMapDescriptorSetLayout,
+		};
 
-	context.pipelines[GRAPHICS_PIPELINE_NORMAL].descriptorSetLayout = materialLayout;
-	context.pipelines[GRAPHICS_PIPELINE_NORMAL].textureCount 		= 3;
+		auto pipelineLayoutCreateInfo = fsvulkan_pipeline_layout_create_info(array_count(descriptorSetLayouts), descriptorSetLayouts, 0, nullptr);
+		VULKAN_CHECK(vkCreatePipelineLayout (context.device, &pipelineLayoutCreateInfo, nullptr, &context.pipelines[GRAPHICS_PIPELINE_LEAVES].pipelineLayout));
 
-	vkDestroyShaderModule(context.device, fragmentShaderModule, nullptr);
-	vkDestroyShaderModule(context.device, vertexShaderModule, nullptr);
-}
+		VkShaderModule vertexShaderModule 	= fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/leaves_vert.spv"));
+		VkShaderModule fragmentShaderModule = fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/leaves_frag.spv"));
 
-internal void fsvulkan_initialize_animated_pipeline(VulkanContext & context)
-{
-	auto materialLayout = fsvulkan_make_material_descriptor_set_layout(context.device, 3);
+		VkPipelineShaderStageCreateInfo shaderStages [] =
+		{
+			fsvulkan_pipeline_shader_stage_create_info(VK_SHADER_STAGE_VERTEX_BIT, vertexShaderModule, "main"),
+			fsvulkan_pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, fragmentShaderModule, "main"),
+		};
 
-	VkDescriptorSetLayout descriptorSetLayouts[] =
+		auto vertexInputState 	= fsvulkan_pipeline_vertex_input_state_create_info	(1, & vertexBindingDescription,
+																					array_count(vertexAttributeDescriptions), vertexAttributeDescriptions);
+		auto inputAssemblyState	= fsvulkan_pipeline_input_assembly_create_info		(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP);
+		auto viewportState 		= fsvulkan_pipeline_viewport_state_create_info		(1, &fsvulkan_zero_viewport, 1, &fsvulkan_zero_scissor);
+		auto rasterizationState = fsvulkan_pipeline_rasterization_state_create_info	(VK_CULL_MODE_NONE);
+		auto multisampleState 	= fsvulkan_pipeline_multisample_state_create_info	(context.msaaSamples);
+		auto depthStencilState 	= fsvulkan_pipeline_depth_stencil_create_info		(VK_TRUE, VK_TRUE);
+		auto colorBlendState 	= fsvulkan_pipeline_color_blend_state_create_info	(1, &fsvulkan_default_pipeline_color_blend_attachment_state);
+		auto dynamicState 		= fsvulkan_pipeline_dynamic_state_create_info		(array_count(fsvulkan_default_dynamic_states), fsvulkan_default_dynamic_states);
+
+
+		VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo =
+		{
+			.sType 					= VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+			.stageCount 			= array_count(shaderStages),
+			.pStages 				= shaderStages,
+			.pVertexInputState 		= &vertexInputState,
+			.pInputAssemblyState 	= &inputAssemblyState,
+			.pViewportState 		= &viewportState,
+			.pRasterizationState 	= &rasterizationState,
+			.pMultisampleState 		= &multisampleState,
+			.pDepthStencilState 	= &depthStencilState,
+			.pColorBlendState 		= &colorBlendState,
+			.pDynamicState 			= &dynamicState,
+			.layout 				= context.pipelines[GRAPHICS_PIPELINE_LEAVES].pipelineLayout,
+			.renderPass 			= context.drawingResources.renderPass,
+		};
+
+		vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &context.pipelines[GRAPHICS_PIPELINE_LEAVES].pipeline);
+
+		context.pipelines[GRAPHICS_PIPELINE_LEAVES].descriptorSetLayout = materialLayout;
+		context.pipelines[GRAPHICS_PIPELINE_LEAVES].textureCount 		= 1;
+
+		// Note(Leo): Always remember to destroy these :)
+		vkDestroyShaderModule(context.device, fragmentShaderModule, nullptr);
+		vkDestroyShaderModule(context.device, vertexShaderModule, nullptr);	
+	}
+
+	/// GRAPHICS_PIPELINE_WATER
 	{
-		context.cameraDescriptorSetLayout,
-		materialLayout,
-		context.modelDescriptorSetLayout,
-		context.lightingDescriptorSetLayout,
-		context.shadowMapDescriptorSetLayout,
-	};
-	// TODO(Leo): this was maybe stupid idea, this is material block, and we are going to use
-	// textures for this probably
-	VkPushConstantRange pushConstantRange = { VK_SHADER_STAGE_FRAGMENT_BIT, 0, 2 * sizeof(f32) };
+		auto materialLayout = fsvulkan_make_material_descriptor_set_layout(context.device, 3);
 
-	auto pipelineLayoutCreateInfo = fsvulkan_pipeline_layout_create_info(	array_count(descriptorSetLayouts), descriptorSetLayouts,
-																			1, &pushConstantRange);
+		VkDescriptorSetLayout descriptorSetLayouts[] =
+		{
+			context.cameraDescriptorSetLayout,
+			materialLayout,
+			context.modelDescriptorSetLayout,
+			context.lightingDescriptorSetLayout,
+			context.shadowMapDescriptorSetLayout,
+		};
+		// TODO(Leo): this was maybe stupid idea, this is material block, and we are going to use
+		// textures for this probably
+		VkPushConstantRange pushConstantRange = { VK_SHADER_STAGE_FRAGMENT_BIT, 0, 2 * sizeof(f32) };
 
-	VULKAN_CHECK(vkCreatePipelineLayout (context.device, &pipelineLayoutCreateInfo, nullptr, &context.pipelines[GRAPHICS_PIPELINE_ANIMATED].pipelineLayout));
+		auto pipelineLayoutCreateInfo = fsvulkan_pipeline_layout_create_info(	array_count(descriptorSetLayouts), descriptorSetLayouts,
+																				1, &pushConstantRange);
 
-	VkShaderModule vertexShaderModule 	= fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/animated_vert.spv"));
-	VkShaderModule fragmentShaderModule = fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/frag.spv"));
+		VULKAN_CHECK(vkCreatePipelineLayout (context.device, &pipelineLayoutCreateInfo, nullptr, &context.pipelines[GRAPHICS_PIPELINE_WATER].pipelineLayout));
 
-	VkPipelineShaderStageCreateInfo shaderStages [] =
+		VkShaderModule vertexShaderModule 	= fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/vert.spv"));
+		VkShaderModule fragmentShaderModule = fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/frag.spv"));
+
+		VkPipelineShaderStageCreateInfo shaderStages [] =
+		{
+			fsvulkan_pipeline_shader_stage_create_info(VK_SHADER_STAGE_VERTEX_BIT, vertexShaderModule, "main"),
+			fsvulkan_pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, fragmentShaderModule, "main"),
+		};
+
+		auto vertexInputState 	= fsvulkan_pipeline_vertex_input_state_create_info	(1, &fsvulkan_defaultVertexBinding,
+																					array_count(fsvulkan_defaultVertexAttributes), fsvulkan_defaultVertexAttributes);
+		auto inputAssemblyState = fsvulkan_pipeline_input_assembly_create_info		(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+		auto viewportState 		= fsvulkan_pipeline_viewport_state_create_info		(1, &fsvulkan_zero_viewport, 1, &fsvulkan_zero_scissor);
+		auto rasterizationState = fsvulkan_pipeline_rasterization_state_create_info	(VK_CULL_MODE_BACK_BIT);
+		auto multisampleState 	= fsvulkan_pipeline_multisample_state_create_info	(context.msaaSamples);
+		auto depthStencilState 	= fsvulkan_pipeline_depth_stencil_create_info		(VK_TRUE, VK_FALSE);
+
+		VkPipelineColorBlendAttachmentState colorBlendAttachment = 
+		{
+			.blendEnable            = VK_TRUE,
+			.srcColorBlendFactor    = VK_BLEND_FACTOR_SRC_ALPHA,
+			.dstColorBlendFactor    = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+			.colorBlendOp           = VK_BLEND_OP_ADD,
+
+			.srcAlphaBlendFactor    = VK_BLEND_FACTOR_SRC_ALPHA,
+			.dstAlphaBlendFactor    = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+			.alphaBlendOp           = VK_BLEND_OP_ADD, 
+
+			.colorWriteMask         = fsvulkan_all_colors
+		};
+
+		auto colorBlendState 	= fsvulkan_pipeline_color_blend_state_create_info	(1, &colorBlendAttachment);
+		auto dynamicState 		= fsvulkan_pipeline_dynamic_state_create_info		(array_count(fsvulkan_default_dynamic_states), fsvulkan_default_dynamic_states);
+
+
+		VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo =
+		{
+			.sType 					= VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+			.stageCount 			= array_count(shaderStages),
+			.pStages 				= shaderStages,
+
+			.pVertexInputState 		= &vertexInputState,
+			.pInputAssemblyState 	= &inputAssemblyState,
+			.pViewportState 		= &viewportState,
+			.pRasterizationState 	= &rasterizationState,
+			.pMultisampleState 		= &multisampleState,
+			.pDepthStencilState 	= &depthStencilState,
+			.pColorBlendState 		= &colorBlendState,
+			.pDynamicState 			= &dynamicState,
+			
+			.layout 				= context.pipelines[GRAPHICS_PIPELINE_WATER].pipelineLayout,
+			.renderPass 			= context.drawingResources.renderPass,
+		};
+
+		vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &context.pipelines[GRAPHICS_PIPELINE_WATER].pipeline);
+
+		context.pipelines[GRAPHICS_PIPELINE_WATER].descriptorSetLayout = materialLayout;
+		context.pipelines[GRAPHICS_PIPELINE_WATER].textureCount 		= 3;
+
+		vkDestroyShaderModule(context.device, fragmentShaderModule, nullptr);
+		vkDestroyShaderModule(context.device, vertexShaderModule, nullptr);
+	}
+
+
+	/// INTERNAL LINE PIPELINE
 	{
-		fsvulkan_pipeline_shader_stage_create_info(VK_SHADER_STAGE_VERTEX_BIT, vertexShaderModule, "main"),
-		fsvulkan_pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, fragmentShaderModule, "main"),
-	};
+		/*
+		Document(Leo): Lines are drawn by building line lists on demand. List
+		are build on uniform/vertex buffer dynamically.
+		*/
 
-	auto vertexInputState 	= fsvulkan_pipeline_vertex_input_state_create_info	(1, &fsvulkan_defaultVertexBinding,
-																				array_count(fsvulkan_defaultVertexAttributes), fsvulkan_defaultVertexAttributes);
-	auto inputAssemblyState = fsvulkan_pipeline_input_assembly_create_info		(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
-	auto viewportState 		= fsvulkan_pipeline_viewport_state_create_info		(1, &fsvulkan_zero_viewport, 1, &fsvulkan_zero_scissor);
-	auto rasterizationState = fsvulkan_pipeline_rasterization_state_create_info	(VK_CULL_MODE_BACK_BIT);
-	auto multisampleState 	= fsvulkan_pipeline_multisample_state_create_info	(context.msaaSamples);
-	auto depthStencilState 	= fsvulkan_pipeline_depth_stencil_create_info		(VK_TRUE, VK_TRUE);
-	auto colorBlendState 	= fsvulkan_pipeline_color_blend_state_create_info	(1, &fsvulkan_default_pipeline_color_blend_attachment_state);
-	auto dynamicState 		= fsvulkan_pipeline_dynamic_state_create_info		(array_count(fsvulkan_default_dynamic_states), fsvulkan_default_dynamic_states);
+		VkVertexInputBindingDescription vertexBindingDescription = 
+		{
+			.binding 	= 0,
+			.stride 	= 2 * sizeof(v3),
+			.inputRate 	= VK_VERTEX_INPUT_RATE_VERTEX,
+		};
 
+		VkVertexInputAttributeDescription vertexAttributeDescriptions [] =
+		{
+			{0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0},
+			{1, 0, VK_FORMAT_R32G32B32_SFLOAT, sizeof(v3)},
+		};
 
-	VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo =
-	{
-		.sType 					= VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
-		.stageCount 			= array_count(shaderStages),
-		.pStages 				= shaderStages,
+		// Note(Leo): Always remember to destroy these :)
+		VkShaderModule vertexShaderModule 	= fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/line_vert.spv"));
+		VkShaderModule fragmentShaderModule = fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/line_frag.spv"));
 
-		.pVertexInputState 		= &vertexInputState,
-		.pInputAssemblyState 	= &inputAssemblyState,
-		.pViewportState 		= &viewportState,
-		.pRasterizationState 	= &rasterizationState,
-		.pMultisampleState 		= &multisampleState,
-		.pDepthStencilState 	= &depthStencilState,
-		.pColorBlendState 		= &colorBlendState,
-		.pDynamicState 			= &dynamicState,
-		
-		.layout 				= context.pipelines[GRAPHICS_PIPELINE_ANIMATED].pipelineLayout,
-		.renderPass 			= context.drawingResources.renderPass,
-	};
+		VkPipelineShaderStageCreateInfo shaderStages [] =
+		{
+			fsvulkan_pipeline_shader_stage_create_info(VK_SHADER_STAGE_VERTEX_BIT, vertexShaderModule, "main"),
+			fsvulkan_pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, fragmentShaderModule, "main"),
+		};
 
-	vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &context.pipelines[GRAPHICS_PIPELINE_ANIMATED].pipeline);
+		auto vertexInputState = fsvulkan_pipeline_vertex_input_state_create_info	(1, &vertexBindingDescription,
+																					array_count(vertexAttributeDescriptions), vertexAttributeDescriptions);
+		auto inputAssemblyState = fsvulkan_pipeline_input_assembly_create_info		(VK_PRIMITIVE_TOPOLOGY_LINE_LIST);
+		auto viewportState 		= fsvulkan_pipeline_viewport_state_create_info		(1, &fsvulkan_zero_viewport, 1, &fsvulkan_zero_scissor);
+		auto rasterizationState = fsvulkan_pipeline_rasterization_state_create_info	(VK_CULL_MODE_NONE);
+		auto multisampleState 	= fsvulkan_pipeline_multisample_state_create_info	(context.msaaSamples);
+		auto depthStencilState 	= fsvulkan_pipeline_depth_stencil_create_info		(VK_TRUE, VK_TRUE);
+		auto colorBlendState 	= fsvulkan_pipeline_color_blend_state_create_info	(1, &fsvulkan_default_pipeline_color_blend_attachment_state);
+		auto dynamicState 		= fsvulkan_pipeline_dynamic_state_create_info		(array_count(fsvulkan_default_dynamic_states), fsvulkan_default_dynamic_states);
 
-	context.pipelines[GRAPHICS_PIPELINE_ANIMATED].descriptorSetLayout = materialLayout;
-	context.pipelines[GRAPHICS_PIPELINE_ANIMATED].textureCount 		= 3;
+		auto pipelineLayoutCreateInfo = fsvulkan_pipeline_layout_create_info(1, &context.cameraDescriptorSetLayout, 0, nullptr);
 
-	vkDestroyShaderModule(context.device, fragmentShaderModule, nullptr);
-	vkDestroyShaderModule(context.device, vertexShaderModule, nullptr);
-}
+		VULKAN_CHECK(vkCreatePipelineLayout (context.device, &pipelineLayoutCreateInfo, nullptr, &context.linePipelineLayout));
 
-internal void fsvulkan_initialize_skybox_pipeline(VulkanContext & context)
-{
-	auto materialLayout = fsvulkan_make_material_descriptor_set_layout(context.device, 0);
+		VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo =
+		{
+			.sType 					= VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+			.stageCount 			= array_count(shaderStages),
+			.pStages 				= shaderStages,
+			.pVertexInputState 		= &vertexInputState,
+			.pInputAssemblyState 	= &inputAssemblyState,
+			.pViewportState 		= &viewportState,
+			.pRasterizationState 	= &rasterizationState,
+			.pMultisampleState 		= &multisampleState,
+			.pDepthStencilState 	= &depthStencilState,
+			.pColorBlendState 		= &colorBlendState,
+			.pDynamicState 			= &dynamicState,
+			.layout 				= context.linePipelineLayout,
+			.renderPass 			= context.drawingResources.renderPass,
+		};
 
-	VkDescriptorSetLayout descriptorSetLayouts[] =
-	{
-		context.cameraDescriptorSetLayout,
-		materialLayout,
-		context.modelDescriptorSetLayout,
-		context.lightingDescriptorSetLayout,
-		context.shadowMapDescriptorSetLayout,
-	};
+		vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &context.linePipeline);
 
-	auto pipelineLayoutCreateInfo = fsvulkan_pipeline_layout_create_info(array_count(descriptorSetLayouts), descriptorSetLayouts, 0, nullptr);
-	VULKAN_CHECK(vkCreatePipelineLayout (context.device, &pipelineLayoutCreateInfo, nullptr, &context.pipelines[GRAPHICS_PIPELINE_SKYBOX].pipelineLayout));
-
-	// --------------------------------------------------------------------------------------------
-
-	VkShaderModule vertexShaderModule 	= fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/vert_sky.spv"));
-	VkShaderModule fragmentShaderModule = fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/frag_sky.spv"));
-
-	VkPipelineShaderStageCreateInfo shaderStages [] =
-	{
-		fsvulkan_pipeline_shader_stage_create_info(VK_SHADER_STAGE_VERTEX_BIT, vertexShaderModule, "main"),
-		fsvulkan_pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, fragmentShaderModule, "main"),
-	};
-
-	auto vertexInputState 	= fsvulkan_pipeline_vertex_input_state_create_info	(1, &fsvulkan_defaultVertexBinding,
-																				array_count(fsvulkan_defaultVertexAttributes), fsvulkan_defaultVertexAttributes);
-	auto inputAssemblyState = fsvulkan_pipeline_input_assembly_create_info		(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
-	auto viewportState 		= fsvulkan_pipeline_viewport_state_create_info		(1, &fsvulkan_zero_viewport, 1, &fsvulkan_zero_scissor);
-	auto rasterizationState = fsvulkan_pipeline_rasterization_state_create_info	(VK_CULL_MODE_NONE);
-	auto multisampleState 	= fsvulkan_pipeline_multisample_state_create_info	(context.msaaSamples);
-	auto depthStencilState 	= fsvulkan_pipeline_depth_stencil_create_info		(VK_FALSE, VK_FALSE);
-	auto colorBlendState 	= fsvulkan_pipeline_color_blend_state_create_info	(1, &fsvulkan_default_pipeline_color_blend_attachment_state);
-	auto dynamicState 		= fsvulkan_pipeline_dynamic_state_create_info		(array_count(fsvulkan_default_dynamic_states), fsvulkan_default_dynamic_states);
-
-	VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo =
-	{
-		.sType 					= VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
-		.stageCount 			= array_count(shaderStages),
-		.pStages 				= shaderStages,
-		.pVertexInputState 		= &vertexInputState,
-		.pInputAssemblyState 	= &inputAssemblyState,
-		.pViewportState 		= &viewportState,
-		.pRasterizationState 	= &rasterizationState,
-		.pMultisampleState 		= &multisampleState,
-		.pDepthStencilState 	= &depthStencilState,
-		.pColorBlendState 		= &colorBlendState,
-		.pDynamicState 			= &dynamicState,
-		.layout 				= context.pipelines[GRAPHICS_PIPELINE_SKYBOX].pipelineLayout,
-		.renderPass 			= context.drawingResources.renderPass,
-	};
-
-	vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &context.pipelines[GRAPHICS_PIPELINE_SKYBOX].pipeline);
-
-	context.pipelines[GRAPHICS_PIPELINE_SKYBOX].descriptorSetLayout = materialLayout;
-	context.pipelines[GRAPHICS_PIPELINE_SKYBOX].textureCount 		= 0;
-
-	vkDestroyShaderModule(context.device, fragmentShaderModule, nullptr);
-	vkDestroyShaderModule(context.device, vertexShaderModule, nullptr);
-}
-
-internal void fsvulkan_initialize_screen_gui_pipeline(VulkanContext & context)
-{
-	auto materialLayout = fsvulkan_make_material_descriptor_set_layout(context.device, 1);
-
-	// Note(Leo): 4 v2s for coordinates and uv, v4 for color
-	VkPushConstantRange pushConstantRanges [] = 
-	{ 
-		{VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(ScreenRect)},
-		{VK_SHADER_STAGE_FRAGMENT_BIT, 64, sizeof(v4)},
-	};
-
-	auto pipelineLayoutCreateInfo 			= fsvulkan_pipeline_layout_create_info(1, &materialLayout, array_count(pushConstantRanges), pushConstantRanges);
-	VULKAN_CHECK(vkCreatePipelineLayout (context.device, &pipelineLayoutCreateInfo, nullptr, &context.pipelines[GRAPHICS_PIPELINE_SCREEN_GUI].pipelineLayout));
-
-	// ---------------------------------------------------------------------------------------------------------------------------
-
-	VkShaderModule vertexShaderModule 	= fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/gui_vert3.spv"));
-	VkShaderModule fragmentShaderModule = fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/gui_frag2.spv"));
-
-	VkPipelineShaderStageCreateInfo shaderStages [] =
-	{
-		fsvulkan_pipeline_shader_stage_create_info(VK_SHADER_STAGE_VERTEX_BIT, vertexShaderModule, "main"),
-		fsvulkan_pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, fragmentShaderModule, "main"),
-	};
-
-	auto vertexInputState 		= fsvulkan_pipeline_vertex_input_state_create_info	(	0, nullptr, 0, nullptr);
-	auto inputAssemblyState 	= fsvulkan_pipeline_input_assembly_create_info		(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP);
-	auto viewportState 			= fsvulkan_pipeline_viewport_state_create_info		(1, &fsvulkan_zero_viewport, 1, &fsvulkan_zero_scissor);
-	auto rasterizationState 	= fsvulkan_pipeline_rasterization_state_create_info	(VK_CULL_MODE_NONE);
-	auto multisampleState 		= fsvulkan_pipeline_multisample_state_create_info	(context.msaaSamples);
-	auto depthStencilState 		= fsvulkan_pipeline_depth_stencil_create_info		(VK_FALSE, VK_FALSE);
-
-	VkPipelineColorBlendAttachmentState colorBlendAttachment = 
-	{
-		.blendEnable            = VK_TRUE,
-		.srcColorBlendFactor    = VK_BLEND_FACTOR_SRC_ALPHA,
-		.dstColorBlendFactor    = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-		.colorBlendOp           = VK_BLEND_OP_ADD,
-
-		.srcAlphaBlendFactor    = VK_BLEND_FACTOR_SRC_ALPHA,
-		.dstAlphaBlendFactor    = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-		.alphaBlendOp           = VK_BLEND_OP_SUBTRACT, 
-
-		.colorWriteMask         = VK_COLOR_COMPONENT_R_BIT 
-									| VK_COLOR_COMPONENT_G_BIT 
-									| VK_COLOR_COMPONENT_B_BIT 
-									| VK_COLOR_COMPONENT_A_BIT,
-	};
-	auto colorBlendState 		= fsvulkan_pipeline_color_blend_state_create_info(1, &colorBlendAttachment);
-
-	auto dynamicState 			= fsvulkan_pipeline_dynamic_state_create_info(array_count(fsvulkan_default_dynamic_states), fsvulkan_default_dynamic_states);
-
-	VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo =
-	{
-		.sType 					= VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
-		.stageCount 			= array_count(shaderStages),
-		.pStages 				= shaderStages,
-		.pVertexInputState 		= &vertexInputState,
-		.pInputAssemblyState 	= &inputAssemblyState,
-		.pViewportState 		= &viewportState,
-		.pRasterizationState 	= &rasterizationState,
-		.pMultisampleState 		= &multisampleState,
-		.pDepthStencilState 	= &depthStencilState,
-		.pColorBlendState 		= &colorBlendState,
-		.pDynamicState 			= &dynamicState,
-		.layout 				= context.pipelines[GRAPHICS_PIPELINE_SCREEN_GUI].pipelineLayout,
-		.renderPass 			= context.drawingResources.renderPass,
-	};
-
-	vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &context.pipelines[GRAPHICS_PIPELINE_SCREEN_GUI].pipeline);
-
-	context.pipelines[GRAPHICS_PIPELINE_SCREEN_GUI].descriptorSetLayout = materialLayout;
-	context.pipelines[GRAPHICS_PIPELINE_SCREEN_GUI].textureCount 		= 1;
-
-	vkDestroyShaderModule(context.device, fragmentShaderModule, nullptr);
-	vkDestroyShaderModule(context.device, vertexShaderModule, nullptr);
-}
-
-internal void fsvulkan_initialize_leaves_pipeline(VulkanContext & context)
-{
-	VkVertexInputBindingDescription vertexBindingDescription = { 0, sizeof(m44), VK_VERTEX_INPUT_RATE_INSTANCE };
-
-	// Note(Leo): Input is 4x4 matrix, it is described as 4 4d vectors
-	VkVertexInputAttributeDescription vertexAttributeDescriptions [4] =
-	{
-		{ 0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 0 * sizeof(v4)},
-		{ 1, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 1 * sizeof(v4)},
-		{ 2, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 2 * sizeof(v4)},
-		{ 3, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 3 * sizeof(v4)},
-	};
-	
-	auto materialLayout = fsvulkan_make_material_descriptor_set_layout(context.device, 0);
-
-	VkDescriptorSetLayout descriptorSetLayouts[] =
-	{
-		context.cameraDescriptorSetLayout,
-		materialLayout,
-		context.modelDescriptorSetLayout,
-		context.lightingDescriptorSetLayout,
-		context.shadowMapDescriptorSetLayout,
-	};
-
-	auto pipelineLayoutCreateInfo = fsvulkan_pipeline_layout_create_info(array_count(descriptorSetLayouts), descriptorSetLayouts, 0, nullptr);
-	VULKAN_CHECK(vkCreatePipelineLayout (context.device, &pipelineLayoutCreateInfo, nullptr, &context.pipelines[GRAPHICS_PIPELINE_LEAVES].pipelineLayout));
-
-	VkShaderModule vertexShaderModule 	= fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/leaves_vert.spv"));
-	VkShaderModule fragmentShaderModule = fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/leaves_frag.spv"));
-
-	VkPipelineShaderStageCreateInfo shaderStages [] =
-	{
-		fsvulkan_pipeline_shader_stage_create_info(VK_SHADER_STAGE_VERTEX_BIT, vertexShaderModule, "main"),
-		fsvulkan_pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, fragmentShaderModule, "main"),
-	};
-
-	auto vertexInputState 	= fsvulkan_pipeline_vertex_input_state_create_info	(1, & vertexBindingDescription,
-																				array_count(vertexAttributeDescriptions), vertexAttributeDescriptions);
-	auto inputAssemblyState	= fsvulkan_pipeline_input_assembly_create_info		(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP);
-	auto viewportState 		= fsvulkan_pipeline_viewport_state_create_info		(1, &fsvulkan_zero_viewport, 1, &fsvulkan_zero_scissor);
-	auto rasterizationState = fsvulkan_pipeline_rasterization_state_create_info	(VK_CULL_MODE_NONE);
-	auto multisampleState 	= fsvulkan_pipeline_multisample_state_create_info	(context.msaaSamples);
-	auto depthStencilState 	= fsvulkan_pipeline_depth_stencil_create_info		(VK_TRUE, VK_TRUE);
-	auto colorBlendState 	= fsvulkan_pipeline_color_blend_state_create_info	(1, &fsvulkan_default_pipeline_color_blend_attachment_state);
-	auto dynamicState 		= fsvulkan_pipeline_dynamic_state_create_info		(array_count(fsvulkan_default_dynamic_states), fsvulkan_default_dynamic_states);
-
-
-	VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo =
-	{
-		.sType 					= VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
-		.stageCount 			= array_count(shaderStages),
-		.pStages 				= shaderStages,
-		.pVertexInputState 		= &vertexInputState,
-		.pInputAssemblyState 	= &inputAssemblyState,
-		.pViewportState 		= &viewportState,
-		.pRasterizationState 	= &rasterizationState,
-		.pMultisampleState 		= &multisampleState,
-		.pDepthStencilState 	= &depthStencilState,
-		.pColorBlendState 		= &colorBlendState,
-		.pDynamicState 			= &dynamicState,
-		.layout 				= context.pipelines[GRAPHICS_PIPELINE_LEAVES].pipelineLayout,
-		.renderPass 			= context.drawingResources.renderPass,
-	};
-
-	vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &context.pipelines[GRAPHICS_PIPELINE_LEAVES].pipeline);
-
-	context.pipelines[GRAPHICS_PIPELINE_LEAVES].descriptorSetLayout = materialLayout;
-	context.pipelines[GRAPHICS_PIPELINE_LEAVES].textureCount 		= 1;
-
-	// Note(Leo): Always remember to destroy these :)
-	vkDestroyShaderModule(context.device, fragmentShaderModule, nullptr);
-	vkDestroyShaderModule(context.device, vertexShaderModule, nullptr);	
-}
-
-internal void fsvulkan_initialize_line_pipeline(VulkanContext & context)
-{
-	/*
-	Document(Leo): Lines are drawn by building line lists on demand. List
-	are build on uniform/vertex buffer dynamically.
-	*/
-
-	VkVertexInputBindingDescription vertexBindingDescription = 
-	{
-		.binding 	= 0,
-		.stride 	= 2 * sizeof(v3),
-		.inputRate 	= VK_VERTEX_INPUT_RATE_VERTEX,
-	};
-
-	VkVertexInputAttributeDescription vertexAttributeDescriptions [] =
-	{
-		{0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0},
-		{1, 0, VK_FORMAT_R32G32B32_SFLOAT, sizeof(v3)},
-	};
-
-	// Note(Leo): Always remember to destroy these :)
-	VkShaderModule vertexShaderModule 	= fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/line_vert.spv"));
-	VkShaderModule fragmentShaderModule = fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/line_frag.spv"));
-
-	VkPipelineShaderStageCreateInfo shaderStages [] =
-	{
-		fsvulkan_pipeline_shader_stage_create_info(VK_SHADER_STAGE_VERTEX_BIT, vertexShaderModule, "main"),
-		fsvulkan_pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, fragmentShaderModule, "main"),
-	};
-
-	auto vertexInputState = fsvulkan_pipeline_vertex_input_state_create_info	(1, &vertexBindingDescription,
-																				array_count(vertexAttributeDescriptions), vertexAttributeDescriptions);
-	auto inputAssemblyState = fsvulkan_pipeline_input_assembly_create_info		(VK_PRIMITIVE_TOPOLOGY_LINE_LIST);
-	auto viewportState 		= fsvulkan_pipeline_viewport_state_create_info		(1, &fsvulkan_zero_viewport, 1, &fsvulkan_zero_scissor);
-	auto rasterizationState = fsvulkan_pipeline_rasterization_state_create_info	(VK_CULL_MODE_NONE);
-	auto multisampleState 	= fsvulkan_pipeline_multisample_state_create_info	(context.msaaSamples);
-	auto depthStencilState 	= fsvulkan_pipeline_depth_stencil_create_info		(VK_TRUE, VK_TRUE);
-	auto colorBlendState 	= fsvulkan_pipeline_color_blend_state_create_info	(1, &fsvulkan_default_pipeline_color_blend_attachment_state);
-	auto dynamicState 		= fsvulkan_pipeline_dynamic_state_create_info		(array_count(fsvulkan_default_dynamic_states), fsvulkan_default_dynamic_states);
-
-	auto pipelineLayoutCreateInfo = fsvulkan_pipeline_layout_create_info(1, &context.cameraDescriptorSetLayout, 0, nullptr);
-
-	VULKAN_CHECK(vkCreatePipelineLayout (context.device, &pipelineLayoutCreateInfo, nullptr, &context.linePipelineLayout));
-
-	VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo =
-	{
-		.sType 					= VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
-		.stageCount 			= array_count(shaderStages),
-		.pStages 				= shaderStages,
-		.pVertexInputState 		= &vertexInputState,
-		.pInputAssemblyState 	= &inputAssemblyState,
-		.pViewportState 		= &viewportState,
-		.pRasterizationState 	= &rasterizationState,
-		.pMultisampleState 		= &multisampleState,
-		.pDepthStencilState 	= &depthStencilState,
-		.pColorBlendState 		= &colorBlendState,
-		.pDynamicState 			= &dynamicState,
-		.layout 				= context.linePipelineLayout,
-		.renderPass 			= context.drawingResources.renderPass,
-	};
-
-	vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &context.linePipeline);
-
-	// Note(Leo): Always remember to destroy these :)
-	vkDestroyShaderModule(context.device, fragmentShaderModule, nullptr);
-	vkDestroyShaderModule(context.device, vertexShaderModule, nullptr);	
+		// Note(Leo): Always remember to destroy these :)
+		vkDestroyShaderModule(context.device, fragmentShaderModule, nullptr);
+		vkDestroyShaderModule(context.device, vertexShaderModule, nullptr);	
+	}
 }
 
 internal void fsvulkan_initialize_shadow_pipeline(VulkanContext & context)

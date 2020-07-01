@@ -58,30 +58,26 @@ struct Scene3d
 
 	// ---------------------------------------
 	/// POTS
+		s32 			potCapacity;
+		s32 			potEmptyCount;
+		Transform3D * 	potEmptyTransforms;
+		f32 * 			potEmptyWaterLevels;
 
-	s32 			potCapacity;
-	s32 			potEmptyCount;
-	Transform3D * 	potEmptyTransforms;
-	f32 * 			potEmptyWaterLevels;
-
-	MeshHandle 		potMesh;
-	MaterialHandle 	potMaterial;
-
+		MeshHandle 		potMesh;
+		MaterialHandle 	potMaterial;
 	// ---------------------------------------
 	/// TREES
+		s32 			lSystemCapacity;
+		s32 			lSystemCount;
+		TimedLSystem * 	lSystems;
+		Leaves * 		lSystemLeavess;
 
-	s32 			lSystemCapacity;
-	s32 			lSystemCount;
-	TimedLSystem * 	lSystems;
-	Leaves * 		lSystemLeavess;
+		s32 			lSystemsInPotCount;
+		TimedLSystem * 	lSystemsInPot;
+		Leaves * 		lSystemsInPotLeavess;
+		s32 * 			lSystemsInPotPotIndices;
 
-	s32 			lSystemsInPotCount;
-	TimedLSystem * 	lSystemsInPot;
-	Leaves * 		lSystemsInPotLeavess;
-	s32 * 			lSystemsInPotPotIndices;
-
-	MaterialHandle 	lSystemTreeMaterial;
-	
+		MaterialHandle 	lSystemTreeMaterial;
 	// ------------------------------------------------------
 
 	Monuments monuments;
@@ -513,19 +509,6 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 	{
 		update_skeleton_animator(scene->skeletonAnimators[i], scaledTime);
 	}
-
-	/// DRAW UNUSED WATER
-	if (scene->waters.count > 0)
-	{
-		m44 * waterTransforms = push_memory<m44>(*global_transientMemory, scene->waters.count, ALLOC_NO_CLEAR);
-		for (s32 i = 0; i < scene->waters.count; ++i)
-		{
-			waterTransforms[i] = transform_matrix(	scene->waters.transforms[i].position,
-													scene->waters.transforms[i].rotation,
-													make_uniform_v3(scene->waters.levels[i] / scene->fullWaterLevel));
-		}
-		platformApi->draw_meshes(platformGraphics, scene->waters.count, waterTransforms, scene->waterMesh, scene->waterMaterial);
-	}
 	
 	/// DRAW POTS
 	{
@@ -649,18 +632,18 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 				lSystems[i].timeSinceLastUpdate += scaledTime;
 				if ((i % 10) == updatedLSystemIndex)
 				{
-					float timePassed 			= lSystems[i].timeSinceLastUpdate;
+					float timePassed 				= lSystems[i].timeSinceLastUpdate;
 					lSystems[i].timeSinceLastUpdate = 0;
 
 					constexpr f32 treeWaterDrainSpeed = 0.5f;
 
 					f32 waterLevel = 	isInPot ?
-										get_water_from_pot(potEmptyWaterLevels, lSystemsInPotPotIndices[i], treeWaterDrainSpeed * scaledTime) : 
-										get_water (waters, lSystems[i].position, waterDistanceThreshold, treeWaterDrainSpeed * scaledTime);
+										get_water_from_pot(potEmptyWaterLevels, lSystemsInPotPotIndices[i], treeWaterDrainSpeed * timePassed) : 
+										get_water (waters, lSystems[i].position, waterDistanceThreshold, treeWaterDrainSpeed * timePassed);
 
 					if (waterLevel > 0)
 					{
-						lSystems[i].advance(lSystems[i], waters, timePassed);
+						lSystems[i].advance(lSystems[i], timePassed);
 						lSystems[i].update_mesh(lSystems[i], leavess[i]);
 					}
 				}
@@ -743,7 +726,21 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 		}
 	}
 
+	/// DRAW UNUSED WATER
+	if (scene->waters.count > 0)
+	{
+		m44 * waterTransforms = push_memory<m44>(*global_transientMemory, scene->waters.count, ALLOC_NO_CLEAR);
+		for (s32 i = 0; i < scene->waters.count; ++i)
+		{
+			waterTransforms[i] = transform_matrix(	scene->waters.transforms[i].position,
+													scene->waters.transforms[i].rotation,
+													make_uniform_v3(scene->waters.levels[i] / scene->fullWaterLevel));
+		}
+		platformApi->draw_meshes(platformGraphics, scene->waters.count, waterTransforms, scene->waterMesh, scene->waterMaterial);
+	}
+
 	/// DRAW LEAVES FOR BOTH LSYSTEM ARRAYS IN THE END BECAUSE OF LEAF SHDADOW INCONVENIENCE
+	// Todo(Leo): leaves are drawn last, so we can bind their shadow pipeline once, and not rebind the normal shadow thing. Fix this unconvenience!
 	// Todo(Leo): leaves are drawn last, so we can bind their shadow pipeline once, and not rebind the normal shadow thing. Fix this unconvenience!
 	// Todo(Leo): leaves are drawn last, so we can bind their shadow pipeline once, and not rebind the normal shadow thing. Fix this unconvenience!
 	// Todo(Leo): leaves are drawn last, so we can bind their shadow pipeline once, and not rebind the normal shadow thing. Fix this unconvenience!
@@ -990,7 +987,7 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 	TextureAsset whiteTextureAsset 			= make_texture_asset(allocate_array<u32>(*global_transientMemory, {0xffffffff}), 1, 1, 4);
 	TextureAsset blackTextureAsset	 		= make_texture_asset(allocate_array<u32>(*global_transientMemory, {0xff000000}), 1, 1, 4);
 	TextureAsset neutralBumpTextureAsset 	= make_texture_asset(allocate_array<u32>(*global_transientMemory, {color_rgba_32(colour_bump)}), 1, 1, 4);
-	TextureAsset waterBlueTextureAsset 		= make_texture_asset(allocate_array<u32>(*global_transientMemory, {0xffffdb00}), 1, 1, 4);
+	TextureAsset waterBlueTextureAsset 		= make_texture_asset(allocate_array<u32>(*global_transientMemory, {colour_rgb_alpha_32(colour_aqua_blue.rgb,0.7)}), 1, 1, 4);
 	TextureAsset seedBrownTextureAsset 		= make_texture_asset(allocate_array<u32>(*global_transientMemory, {0xff003399}), 1, 1, 4);
 
 	TextureHandle whiteTexture 			= platformApi->push_texture(platformGraphics, &whiteTextureAsset);
@@ -1399,7 +1396,7 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 				scene->waterMesh 		= platformApi->push_mesh(platformGraphics, &dropMeshAsset);
 
 				TextureHandle waterTextures [] 	= {waterTextureHandle, neutralBumpTexture, blackTexture};
-				scene->waterMaterial 		= platformApi->push_material(platformGraphics, GRAPHICS_PIPELINE_NORMAL, 3, waterTextures);
+				scene->waterMaterial 		= platformApi->push_material(platformGraphics, GRAPHICS_PIPELINE_WATER, 3, waterTextures);
 
 				scene->waters.capacity 		= 200;
 				scene->waters.count 		= 20;
@@ -1604,6 +1601,7 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 			}
 			else
 			{
+				scene->lSystems[i].maxAge		= 50;
 				scene->lSystems[i].aWord[0]		= {'A', 0, 1};
 				scene->lSystems[i].advance 		= advance_lsystem_time_tree2;
 				scene->lSystems[i].update_mesh 	= update_lsystem_mesh_tree2;
@@ -1626,7 +1624,6 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 	}
 
 	// ----------------------------------------------------------------------------------
-
 
 	logSystem(0) << "Scene3d loaded, " << used_percent(*global_transientMemory) * 100 << "% of transient memory used.";
 	logSystem(0) << "Scene3d loaded, " << used_percent(persistentMemory) * 100 << "% of persistent memory used.";

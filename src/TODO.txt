@@ -1,0 +1,14 @@
+better tree 2
+	also better model for its seed
+
+test leaf textures
+
+sky turns red depending on distance from trees
+
+save file
+main menu image
+
+cameraworks
+
+different tree colours per area
+sky editor, or at least sky "editor"

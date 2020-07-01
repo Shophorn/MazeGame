@@ -135,7 +135,7 @@ internal u32 color_rgba_32(v4 color)
 	return pixel;
 }
 
-internal constexpr v4 colour_rgb_255(u8 r, u8 g, u8 b)
+internal constexpr v4 colour_v4_from_rgb_255(u8 r, u8 g, u8 b)
 {
 	v4 colour = {r / 255.0f, g / 255.0f, b / 255.0f, 1.0f};
 	return colour;
@@ -145,6 +145,11 @@ internal constexpr v4 colour_rgb_alpha(v3 rgb, f32 alpha)
 {
 	v4 colour = {rgb.x, rgb.y, rgb.z, alpha};
 	return colour;
+}
+
+internal u32 colour_rgb_alpha_32(v3 colour, f32 alpha)
+{
+	return color_rgba_32(colour_rgb_alpha(colour, alpha));
 }
 
 internal Pixel

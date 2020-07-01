@@ -16,8 +16,8 @@ constexpr f32 physics_gravity_acceleration = -9.81;
 
 constexpr v4 colour_white 			= {1,1,1,1};
 
-constexpr v4 colour_aqua_blue 		= colour_rgb_255(51, 255, 255);
-constexpr v4 colour_raw_umber 		= colour_rgb_255(130, 102, 68);
+constexpr v4 colour_aqua_blue 		= colour_v4_from_rgb_255(51, 255, 255);
+constexpr v4 colour_raw_umber 		= colour_v4_from_rgb_255(130, 102, 68);
 
 constexpr v4 colour_bright_red 		= {1.0, 0.0, 0.0, 1.0};
 constexpr v4 colour_bright_blue 	= {0.0, 0.0, 1.0, 1.0};

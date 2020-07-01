@@ -798,12 +798,7 @@ winapi::create_vulkan_context(WinAPIWindow * window)
 		
 		init_shadow_pass(&context, 1024 * 4, 1024 * 4);
 
-		fsvulkan_initialize_normal_pipeline(context);
-		fsvulkan_initialize_animated_pipeline(context);
-		fsvulkan_initialize_skybox_pipeline(context);
-		fsvulkan_initialize_screen_gui_pipeline(context);
-		fsvulkan_initialize_line_pipeline(context);
-		fsvulkan_initialize_leaves_pipeline(context);
+		fsvulkan_initialize_pipelines(context);
 
 		add_cleanup(&context, [](VulkanContext * context)
 		{

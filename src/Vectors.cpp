@@ -278,12 +278,12 @@ f32 angle_v3(v3 from, v3 to)
 	return angle;
 }
 
-// // Todo(Leo): Not tested...
-// f32 v3_signed_angle(v3 from, v3 to, v3 normalizedReferenceUp)
-// {
-// 	f32 angle = arctan2(dot_v3(cross_v3(from, to), normalizedReferenceUp), dot_v3(from, to));
-// 	return angle;
-// }
+f32 signed_angle_v3(v3 from, v3 to, v3 axis)
+{
+	f32 unsignedAngle 	= angle_v3(from, to);
+	f32 sign 			= dot_v3(axis, cross_v3(from, to));
+	return unsignedAngle * sign;
+}
 
 
 v3 make_uniform_v3(f32 value)

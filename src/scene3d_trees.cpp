@@ -58,12 +58,6 @@ internal void draw_leaves(Leaves & leaves, f32 elapsedTime)
 	platformApi->draw_leaves(platformGraphics, drawCount, leafTransforms);
 }
 
-struct TimedModule
-{
-	char 	letter;
-	float 	age;
-	float 	parameter;
-};
 
 struct Waters
 {
@@ -73,13 +67,19 @@ struct Waters
 	f32	* 			levels;
 };
 
+struct Module
+{
+	char 	letter;
+	float 	age;
+	float 	parameter;
+};
 
 struct TimedLSystem
 {
 	s32 			wordCapacity;
 	s32 			wordCount;
-	TimedModule * 	aWord;
-	TimedModule * 	bWord;
+	Module * 	aWord;
+	Module * 	bWord;
 
 	f32 			timeSinceLastUpdate;
 
@@ -96,19 +96,18 @@ struct TimedLSystem
 	MeshHandle			seedMesh;
 	MaterialHandle 		seedMaterial;
 
-	void(*advance)		(TimedLSystem & lSystem, Waters & waters, f32 timePassed);
+	void(*advance)		(TimedLSystem & lSystem, f32 timePassed);
 	void(*update_mesh)	(TimedLSystem & lSystem, Leaves & leaves);
 };
 
-
-internal void advance_lsystem_time(TimedLSystem & lSystem, Waters & waters, f32 timePassed)
+internal void advance_lsystem_time(TimedLSystem & lSystem, f32 timePassed)
 {
 	f32 waterDistanceThreshold = 1;
 
 	lSystem.totalAge += timePassed;
 
-	TimedModule * aWord 			= lSystem.aWord;
-	MemoryView<TimedModule> bWord 	= {lSystem.wordCapacity, 0, lSystem.bWord};
+	Module * aWord 			= lSystem.aWord;
+	MemoryView<Module> bWord 	= {lSystem.wordCapacity, 0, lSystem.bWord};
 
 	constexpr float growSpeed 	= 0.5f;
 	// constexpr float growSpeed 	= 0.0f;
@@ -125,7 +124,7 @@ internal void advance_lsystem_time(TimedLSystem & lSystem, Waters & waters, f32 
 			{
 				if (aWord[i].age > terminalAge)
 				{
-					TimedModule production [] =
+					Module production [] =
 					{
 						{'F', terminalAge, aWord[i].parameter * terminalAge},
 						{'<', 0, 5 * π/7},
@@ -160,7 +159,7 @@ internal void advance_lsystem_time(TimedLSystem & lSystem, Waters & waters, f32 
 				}
 				else
 				{
-					TimedModule production [] =
+					Module production [] =
 					{
 						aWord[i],
 						{'L', 0, random_range(0.25f, 0.4f)},
@@ -209,7 +208,7 @@ internal void update_lsystem_mesh(TimedLSystem & lSystem, Leaves & leaves)
 	leaves.count = 0;
 
 	int wordCount 		= lSystem.wordCount;
-	TimedModule * word 	= lSystem.aWord;
+	Module * word 	= lSystem.aWord;
 
 	lSystem.vertices.count = 0;
 	lSystem.indices.count = 0;
@@ -407,10 +406,10 @@ internal TimedLSystem make_lsystem(MemoryArena & allocator)
 
 	lSystem.wordCapacity 	= wordCapacity;
 	lSystem.wordCount 		= 0;
-	lSystem.aWord 			= push_memory<TimedModule>(allocator, lSystem.wordCapacity, ALLOC_NO_CLEAR);
-	lSystem.bWord 			= push_memory<TimedModule>(allocator, lSystem.wordCapacity, ALLOC_NO_CLEAR);
+	lSystem.aWord 			= push_memory<Module>(allocator, lSystem.wordCapacity, ALLOC_NO_CLEAR);
+	lSystem.bWord 			= push_memory<Module>(allocator, lSystem.wordCapacity, ALLOC_NO_CLEAR);
 
-	TimedModule axiom 		= {'X', 0, 0.7};
+	Module axiom 		= {'X', 0, 0.7};
 	lSystem.aWord[0] 		= axiom;
 	lSystem.wordCount		= 1;
 
@@ -433,18 +432,15 @@ S: stem
 A 		-> SLA 
 S 		-> S
 L(t) : t < 1 -> L(t + n)
-L(t) : t > 1 -> -
+L(t) : t > 1 : chance(0.1) -> [B]
+L(t) : t > 1 : chance(1.0) -> -
 
 0: A
 1: SLA
 2: SLSLA
 3: SLSLSLA
 
-
-
 -------------------------------------------------
-
-
 
 A: apex
 B: branch
@@ -463,19 +459,62 @@ L -> -
 2:		F(2)[B(1)L]F(1)[B(0)L]A(0.5)L 
 
 */
-
-internal void advance_lsystem_time_tree2(TimedLSystem & lSystem, Waters & waters, f32 timePassed)
+namespace LSystemAlphabetTree2
 {
+	// Todo(Leo): Combine function below, so we can just define this inside it, 
+	// no namespace needed.
+
+	// Todo(Leo): specific char assignments are only to cope with existing code,
+	// that may have already defined some, and we want to see that there is no conflict
+	// They can be removed then.
+
+	enum : char
+	{
+		APEX 		= 'A',
+		STEM 		= 'S',
+		LEAF 		= 'L',
+		BRANCH_APEX = 'B',
+		BRANCH_LEAF = 'K',
+		// BRANCH      = 'C',
+
+		// Todo(Leo): check proper terminology from abop.pdf
+		ROLL = '<',
+		TILT = '&',
+		TURN = '+',
+
+		PUSH = '[',
+		POP = ']'
+	};
+}
+
+internal void advance_lsystem_time_tree2(TimedLSystem & lSystem, f32 timePassed)
+{
+	using namespace LSystemAlphabetTree2;
+
 	f32 waterDistanceThreshold = 1;
 
 	lSystem.totalAge += timePassed;
 
-	TimedModule * aWord 			= lSystem.aWord;
-	MemoryView<TimedModule> bWord 	= {lSystem.wordCapacity, 0, lSystem.bWord};
+	Module * aWord 			= lSystem.aWord;
+	MemoryView<Module> bWord 	= {lSystem.wordCapacity, 0, lSystem.bWord};
 
 	constexpr float growSpeed 	= 0.5f;
 	constexpr float terminalAge = 1.0f;
 	constexpr float angle 		= π / 8;
+
+	auto insert_module = [&bWord](Module module)
+	{
+		Assert(memory_view_available(bWord) >= 1);
+		bWord.data[bWord.count] = module;
+		bWord.count 			+= 1;
+	};
+
+	auto insert_modules = [&bWord](s32 count, Module * word)
+	{
+		Assert(memory_view_available(bWord) >= count);
+		copy_structs(bWord.data + bWord.count, word, count);
+		bWord.count += count;
+	};
 
 	for (int i = 0; i < lSystem.wordCount; ++i)
 	{
@@ -483,45 +522,105 @@ internal void advance_lsystem_time_tree2(TimedLSystem & lSystem, Waters & waters
 		
 		switch(aWord[i].letter)
 		{
-			case 'A':
+			case APEX:
 			{
 				if(aWord[i].age > terminalAge)
 				{
-					TimedModule production [] = 
+					Module p [] =
 					{
-						{'S', 0, aWord[i].parameter},
-						{'L', 0, 1},
-						{'A', 0, aWord[i].parameter}
+						{ STEM, 0, aWord[i].parameter},
+						{ LEAF, 0, 1},
+						{ ROLL, 0, 3*π/4 },
+						{ APEX, 0, aWord[i].parameter}
 					};
-
-					s32 count = array_count(production);
-					Assert(memory_view_available(bWord) >= count);
-					copy_structs(bWord.data + bWord.count, production, count);
-					bWord.count += count;
+					insert_modules(array_count(p), p);
 				}
 				else
 				{
-					Assert(memory_view_available(bWord) >= 1);
-					bWord.data[bWord.count++] = aWord[i];
+					insert_module(aWord[i]);
 				}
 			} break;
 
-			case 'L':
+			case BRANCH_APEX:
 			{
-				if (aWord[i].age > 4 * terminalAge)
+				if (aWord[i].age > terminalAge)
 				{
-					// old leaves go away
+					if (aWord[i].parameter > 0)
+					{
+						Module p [] =
+						{
+							{ STEM, 		0, 1 },
+							{ BRANCH_LEAF, 	0, aWord[i].parameter - 1 },
+							{ ROLL, 		0, π},
+							{ BRANCH_APEX,	0, aWord[i].parameter - 1 },
+
+						};	
+						insert_modules(array_count(p), p);
+					}
 				}
 				else
 				{
-					Assert(memory_view_available(bWord) >= 1);
-					bWord.data[bWord.count++] = aWord[i];
+					insert_module(aWord[i]);
+				}
+
+			} break;
+
+			case LEAF:
+			{
+				if (aWord[i].age > 3 * terminalAge)
+				{
+					// old leaves go away
+					// if (random_value() < 0.5)
+					{
+						Module production [] =
+						{
+							{'['},
+								{ TILT, 		0, π/3 },
+								{ BRANCH_APEX, 	0, 4 },
+							{']'},
+						};					
+						insert_modules(array_count(production), production);
+					}
+				}
+				else
+				{
+					insert_module(aWord[i]);
+				}
+			} break;
+
+			case BRANCH_LEAF:
+			{
+				if(aWord[i].age > 2 * terminalAge)
+				{
+					Module p [] =
+					{
+						{ PUSH },
+							{ TURN, 0, π/3},
+							{ BRANCH_APEX, 0, aWord[i].parameter },
+						{ POP }
+					};
+					insert_modules(array_count(p), p);
+				}
+				else
+				{
+					insert_module(aWord[i]);
+				}
+			} break;
+
+			case STEM:
+			{
+				if (aWord[i].age > 4 * terminalAge)
+				{
+
+				}
+				else
+				{
+					insert_module(aWord[i]);
 				}
 			} break;
 
 			default:
-				Assert(memory_view_available(bWord) >= 1);
-				bWord.data[bWord.count++] = aWord[i];
+				insert_module(aWord[i]);
 				break;
 		}
 	}
@@ -532,6 +631,8 @@ internal void advance_lsystem_time_tree2(TimedLSystem & lSystem, Waters & waters
 
 internal void update_lsystem_mesh_tree2(TimedLSystem & lSystem, Leaves & leaves)
 {
+	using namespace LSystemAlphabetTree2;
+
 	constexpr v3 lSystemRight 	= right_v3;
 	constexpr v3 lSystemForward = up_v3;
 	constexpr v3 lSystemUp 		= -forward_v3;
@@ -553,7 +654,7 @@ internal void update_lsystem_mesh_tree2(TimedLSystem & lSystem, Leaves & leaves)
 	leaves.count = 0;
 
 	int wordCount 		= lSystem.wordCount;
-	TimedModule * word 	= lSystem.aWord;
+	Module * word 	= lSystem.aWord;
 
 	lSystem.vertices.count = 0;
 	lSystem.indices.count = 0;
@@ -567,6 +668,7 @@ internal void update_lsystem_mesh_tree2(TimedLSystem & lSystem, Leaves & leaves)
 
 		switch(word[i].letter)
 		{
+			case 'B':
 			case 'S':
 			{
 				v3 forward 				= rotate_v3(state.orientation, lSystemForward);
@@ -655,7 +757,8 @@ internal void update_lsystem_mesh_tree2(TimedLSystem & lSystem, Leaves & leaves)
 
 			// } break;
 
-			case 'L':
+			case LEAF:
+			case BRANCH_LEAF:
 			{
 				Assert(leaves.count + 2 < leaves.capacity);
 
@@ -673,7 +776,7 @@ internal void update_lsystem_mesh_tree2(TimedLSystem & lSystem, Leaves & leaves)
 
 					leaves.localPositions[leafIndex]	= position;
 					leaves.localRotations[leafIndex] 	= rotation;
-					leaves.localScales[leafIndex] 		= word[i].parameter * clampedAge;
+					leaves.localScales[leafIndex] 		= clampedAge;
 					
 					// Note(Leo): Use normal forward here, since it refers to leaf's own space
 					leaves.swayAxes[leafIndex]			= rotate_v3(rotation, forward_v3);
@@ -693,7 +796,7 @@ internal void update_lsystem_mesh_tree2(TimedLSystem & lSystem, Leaves & leaves)
 
 					leaves.localPositions[leafIndex]	= position;
 					leaves.localRotations[leafIndex] 	= rotation;
-					leaves.localScales[leafIndex] 		= word[i].parameter * clampedAge;
+					leaves.localScales[leafIndex] 		= clampedAge;
 					
 					// Note(Leo): Use normal forward here, since it refers to leaf's own space
 					leaves.swayAxes[leafIndex]			= rotate_v3(rotation, forward_v3);
@@ -749,8 +852,8 @@ internal void advance_lsystem_time_tree2(TimedLSystem & lSystem, Waters & waters
 
 	lSystem.totalAge += timePassed;
 
-	TimedModule * aWord 			= lSystem.aWord;
-	MemoryView<TimedModule> bWord 	= {lSystem.wordCapacity, 0, lSystem.bWord};
+	Module * aWord 			= lSystem.aWord;
+	MemoryView<Module> bWord 	= {lSystem.wordCapacity, 0, lSystem.bWord};
 
 	constexpr float growSpeed 	= 0.5f;
 	constexpr float terminalAge = 1.0f;
@@ -766,7 +869,7 @@ internal void advance_lsystem_time_tree2(TimedLSystem & lSystem, Waters & waters
 			{
 				if(aWord[i].age > terminalAge)
 				{
-					TimedModule production [] = 
+					Module production [] = 
 					{
 						{'F', terminalAge, aWord[i].parameter},
 						{'['},
@@ -786,7 +889,7 @@ internal void advance_lsystem_time_tree2(TimedLSystem & lSystem, Waters & waters
 				}
 				else
 				{
-					TimedModule production [] =
+					Module production [] =
 					{
 						aWord[i],
 						{'L', 0, random_range(0.25f, 0.4f)},
@@ -845,7 +948,7 @@ internal void update_lsystem_mesh_tree2(TimedLSystem & lSystem, Leaves & leaves)
 	leaves.count = 0;
 
 	int wordCount 		= lSystem.wordCount;
-	TimedModule * word 	= lSystem.aWord;
+	Module * word 	= lSystem.aWord;
 
 	lSystem.vertices.count = 0;
 	lSystem.indices.count = 0;

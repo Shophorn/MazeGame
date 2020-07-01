@@ -473,12 +473,13 @@ internal MaterialHandle fsvulkan_resources_push_material(VulkanContext*, Graphic
 
 internal TextureHandle fsvulkan_init_shadow_pass (VulkanContext*);
 
-internal void fsvulkan_initialize_normal_pipeline(VulkanContext & context);
-internal void fsvulkan_initialize_animated_pipeline(VulkanContext & context);
-internal void fsvulkan_initialize_skybox_pipeline(VulkanContext & context);
-internal void fsvulkan_initialize_screen_gui_pipeline(VulkanContext & context);
-internal void fsvulkan_initialize_line_pipeline(VulkanContext & context);
-internal void fsvulkan_initialize_leaves_pipeline(VulkanContext & context);
+internal void fsvulkan_initialize_pipelines(VulkanContext&);
+// internal void fsvulkan_initialize_normal_pipeline(VulkanContext & context);
+// internal void fsvulkan_initialize_animated_pipeline(VulkanContext & context);
+// internal void fsvulkan_initialize_skybox_pipeline(VulkanContext & context);
+// internal void fsvulkan_initialize_screen_gui_pipeline(VulkanContext & context);
+// internal void fsvulkan_initialize_line_pipeline(VulkanContext & context);
+// internal void fsvulkan_initialize_leaves_pipeline(VulkanContext & context);
 
 internal VkDescriptorSet make_material_vk_descriptor_set_2(	VulkanContext *			context,
 															VkDescriptorSetLayout 	descriptorSetLayout,
@@ -505,12 +506,7 @@ internal void fsvulkan_reload_shaders(VulkanContext * context)
 		vkDestroyPipelineLayout(device, context->linePipelineLayout, nullptr);
 		vkDestroyPipeline(device, context->linePipeline, nullptr);
 
-		fsvulkan_initialize_normal_pipeline(*context);
-		fsvulkan_initialize_animated_pipeline(*context);
-		fsvulkan_initialize_skybox_pipeline(*context);
-		fsvulkan_initialize_screen_gui_pipeline(*context);
-		fsvulkan_initialize_line_pipeline(*context);
-		fsvulkan_initialize_leaves_pipeline(*context);
+		fsvulkan_initialize_pipelines(*context);
 
 		context->shadowMapTexture = make_material_vk_descriptor_set_2( 	context,
 																		context->pipelines[GRAPHICS_PIPELINE_SCREEN_GUI].descriptorSetLayout,

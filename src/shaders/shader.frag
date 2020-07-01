@@ -51,7 +51,8 @@ void main()
 
 
 	float gamma = 2.2;
-	vec3 albedo = texture(texSampler[ALBEDO_INDEX], fragTexCoord).rgb;
+	vec4 tex = texture(texSampler[ALBEDO_INDEX], fragTexCoord);
+	vec3 albedo = tex.rgb;
 	albedo = pow(albedo, vec3(gamma));	
 #if 0
 	vec3 ambient 	= light.ambient.rgb;
@@ -116,7 +117,7 @@ void main()
 	vec3 color = lightColor * albedo + specularTerm;
 
 	outColor.rgb = color;
-	outColor.a = 1.0;
+	outColor.a = tex.a;
 
 
 	outColor.rgb = pow(outColor.rgb, vec3(1/gamma));
