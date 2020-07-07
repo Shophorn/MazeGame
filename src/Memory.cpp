@@ -64,9 +64,12 @@ T convert_bytes(byte const * bytes, u64 offset)
 template<typename T>
 void swap(T & a, T & b)
 {
-	T temp = a;
-	a = b;
-	b = temp;
+	static_assert(std::is_trivially_constructible<T>::value);
+	static_assert(std::is_trivially_destructible<T>::value);
+
+	T temp 	= a;
+	a 		= b;
+	b 		= temp;
 }
 
 // ----------------------------------------------------------------------------

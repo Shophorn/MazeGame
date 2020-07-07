@@ -113,6 +113,9 @@ f32 mathfun_pingpong_f32(f32 value, f32 length)
 
 internal constexpr f32 π = 3.141592653589793f;
 
+// TODO(Leo): Look for constexpr implementations...
+// https://github.com/Morwenn/static_math
+
 inline f32 sine (f32 value)
 {
     f32 result = sinf(value);

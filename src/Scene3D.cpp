@@ -1602,7 +1602,7 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 			else
 			{
 				scene->lSystems[i].maxAge		= 50;
-				scene->lSystems[i].aWord[0]		= {'A', 0, 1};
+				scene->lSystems[i].aWord[0]		= {'A', 0, 0};
 				scene->lSystems[i].advance 		= advance_lsystem_time_tree2;
 				scene->lSystems[i].update_mesh 	= update_lsystem_mesh_tree2;
 
