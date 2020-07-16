@@ -31,6 +31,8 @@ staging buffer and actual vertex buffer. https://vulkan-tutorial.com/en/Vertex_b
 
 #include "MazegamePlatform.hpp"
 
+
+/// PLATFORM TIME IMPLEMENTATION
 PlatformTimePoint fswin32_current_time () 
 {
 	LARGE_INTEGER t;
@@ -52,6 +54,72 @@ f64 fswin32_elapsed_seconds(PlatformTimePoint start, PlatformTimePoint end)
 
 	f64 seconds = (f64)(end.value - start.value) / frequency;
 	return seconds;
+}
+
+/// PLATFORM FILE IMPLEMENTATION
+PlatformFileHandle fswin32_open_file(char const * filename, FileMode fileMode)
+{
+	DWORD access;
+	if(fileMode == FILE_MODE_READ)
+	{
+		access = GENERIC_READ;
+	}
+	else if (fileMode == FILE_MODE_WRITE)
+	{
+		access = GENERIC_WRITE;
+	}
+
+	// Todo(Leo): check lpSecurityAttributes
+	HANDLE file = CreateFileA(	filename,
+								access,
+								0,
+								nullptr,
+								OPEN_ALWAYS,
+								FILE_ATTRIBUTE_NORMAL,
+								nullptr);
+
+	SetFilePointer((HANDLE)file, 0, nullptr, FILE_BEGIN);
+
+	if (fileMode == FILE_MODE_WRITE)
+	{
+		SetEndOfFile((HANDLE)file);
+	}
+
+	PlatformFileHandle result 	= (PlatformFileHandle)file;
+	return result;
+
+}
+
+void fswin32_close_file(PlatformFileHandle file)
+{
+	CloseHandle((HANDLE)file);
+}
+
+void fswin32_set_file_position(PlatformFileHandle file, s32 location)
+{
+	SetFilePointer((HANDLE)file, location, nullptr, FILE_BEGIN);
+}
+
+s32 fswin32_get_file_position(PlatformFileHandle file)
+{
+	DWORD position = SetFilePointer((HANDLE)file, 0, nullptr, FILE_CURRENT);
+	return (s32)position;
+}
+
+void fswin32_write_file (PlatformFileHandle file, s32 count, void * memory)
+{
+	DWORD bytesWritten;
+	WriteFile((HANDLE)file, memory, count, &bytesWritten, nullptr);
+
+	SetFilePointer((HANDLE)file, count, nullptr, FILE_CURRENT);
+}
+
+void fswin32_read_file (PlatformFileHandle file, s32 count, void * memory)
+{
+	DWORD bytesRead;
+	ReadFile((HANDLE)file, memory, count, &bytesRead, nullptr);
+
+	SetFilePointer((HANDLE)file, count, nullptr, FILE_CURRENT);
 }
 
 
@@ -146,6 +214,13 @@ Run(HINSTANCE hInstance)
 
 		platformApi.current_time 	= fswin32_current_time;
 		platformApi.elapsed_seconds = fswin32_elapsed_seconds;
+
+		platformApi.open_file 			= fswin32_open_file;
+		platformApi.close_file 			= fswin32_close_file;
+		platformApi.set_file_position 	= fswin32_set_file_position;
+		platformApi.get_file_position 	= fswin32_get_file_position;
+		platformApi.write_file 			= fswin32_write_file;
+		platformApi.read_file 			= fswin32_read_file;
 
 		Assert(platform_all_functions_set(&platformApi));
 	}

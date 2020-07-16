@@ -1,11 +1,18 @@
 #version 450
 
-layout (set = 3, binding = 0) uniform Lighting
+layout (set = 1, binding = 0) uniform Lighting
 {
 	vec4 direction;
 	vec4 color;
 	vec4 ambient;
 } light;
+
+layout(binding = 0, set = 2) uniform sampler2D lightMap;
+
+layout(push_constant) uniform Block
+{
+	int colourIndex;
+} colourIndex;
 
 layout(location = 0) in vec2 fragTexCoord;
 layout(location = 1) in vec3 fragNormal;
@@ -13,7 +20,22 @@ layout(location = 2) in vec4 lightCoords;
 
 layout(location = 0) out vec4 outColor;
 
-layout(binding = 0, set = 4) uniform sampler2D lightMap;
+
+const vec3 darkerColours [] =
+{
+	vec3(0.2, 0.05, 0.4),
+	vec3(0.2, 0.32, 0.5),
+	vec3(0.32, 0.50, 0.25),
+	vec3(0.8, 0.5, 0.6),
+};
+
+const vec3 lighterColours [] = 
+{
+	vec3(0.62, 0.3, 0.8),
+	vec3(0.3, 0.62, 0.8),
+	vec3(0.47, 0.7, 0.40),
+	vec3(1.0, 0.7, 0.8),
+};
 
 const vec3 putple = vec3(0.62, 0.3, 0.8);
 const vec3 bluish = vec3(0.3, 0.62, 0.8);
@@ -55,7 +77,10 @@ void main()
 	vec3 albedo = green;
 
 	// albedo = mix(vec3(0,0,0), vec3(0,1,1), fragTexCoord.y + 0.5);
-	albedo = mix(darkerGreen, lighterGreen, fragTexCoord.y + 0.5);
+	// albedo = mix(darkerGreen, lighterGreen, fragTexCoord.y + 0.5);
+	albedo = mix(	darkerColours[colourIndex.colourIndex],
+					lighterColours[colourIndex.colourIndex],
+					fragTexCoord.y + 0.5);
 	albedo = pow(albedo, vec3(gamma));
 
 	float lightIntensity = ldotn;

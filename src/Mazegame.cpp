@@ -224,7 +224,7 @@ bool32 update_game(
 	bool32 gameIsAlive = true;
 	bool32 sceneIsAlive = true;
 
-	enum { ACTION_NONE, ACTION_LOAD_3D_SCENE, ACTION_LOAD_2D_SCENE, ACTION_QUIT } action = ACTION_NONE;
+	enum { ACTION_NONE, ACTION_NEW_GAME, ACTION_LOAD_GAME, ACTION_LOAD_2D_SCENE, ACTION_QUIT } action = ACTION_NONE;
 
 	platformApi->prepare_frame(graphics);
 
@@ -243,9 +243,14 @@ bool32 update_game(
 	{
 		gui_start_frame(state->gui, *input);
 
-		if(gui_button("3D Scene"))
+		if(gui_button("New Game"))
 		{
-			action = ACTION_LOAD_3D_SCENE;
+			action = ACTION_NEW_GAME;
+		}
+
+		if (gui_button("Load Game"))
+		{
+			action = ACTION_LOAD_GAME;
 		}
 
 		if (gui_button("2D Scene"))
@@ -267,11 +272,18 @@ bool32 update_game(
 	// Todo(Leo): We maybe could use onpostrender on this
 	platformApi->finish_frame(graphics);
 
-	if(action == ACTION_LOAD_3D_SCENE)
+	if(action == ACTION_NEW_GAME)
 	{
-		state->loadedScene 		= load_scene_3d(state->persistentMemoryArena);
+		state->loadedScene 		= load_scene_3d(state->persistentMemoryArena, nullptr);
 		state->loadedSceneType 	= LOADED_SCENE_3D;
 	}	
+	else if (action == ACTION_LOAD_GAME)
+	{
+		PlatformFileHandle saveFile = platformApi->open_file("save_game.fssave", FILE_MODE_READ);
+		state->loadedScene 			= load_scene_3d(state->persistentMemoryArena, saveFile);
+		state->loadedSceneType 		= LOADED_SCENE_3D;
+		platformApi->close_file(saveFile);
+	}
 	else if(action == ACTION_LOAD_2D_SCENE)
 	{
 		state->loadedScene 		= load_scene_2d(state->persistentMemoryArena);

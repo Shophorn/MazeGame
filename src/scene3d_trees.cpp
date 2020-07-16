@@ -12,6 +12,8 @@ struct Leaves
 	v3 				position;
 	quaternion 		rotation;
 
+	s32 			colourIndex;
+
 	// Todo(Leo): maybe put these into a struct
 	v3 * 			localPositions;
 	quaternion * 	localRotations;
@@ -55,7 +57,7 @@ internal void draw_leaves(Leaves & leaves, f32 elapsedTime)
 		leafTransforms[i] 		= transform_matrix(	position, rotation,	scale);
 	}
 
-	platformApi->draw_leaves(platformGraphics, drawCount, leafTransforms);
+	platformApi->draw_leaves(platformGraphics, drawCount, leafTransforms, leaves.colourIndex);
 }
 
 
@@ -74,17 +76,25 @@ struct Module
 	float 	parameter;
 };
 
+enum TreeType
+{
+	TREE_1,
+	TREE_2,
+};
+
 struct TimedLSystem
 {
 	s32 			wordCapacity;
 	s32 			wordCount;
-	Module * 	aWord;
-	Module * 	bWord;
+	Module * 		aWord;
+	Module * 		bWord;
 
 	f32 			timeSinceLastUpdate;
 
 	v3 				position;
 	quaternion 		rotation;
+
+	TreeType		type;
 
 	f32 totalAge;
 	f32 maxAge;
@@ -95,9 +105,6 @@ struct TimedLSystem
 
 	MeshHandle			seedMesh;
 	MaterialHandle 		seedMaterial;
-
-	void(*advance)		(TimedLSystem & lSystem, f32 timePassed);
-	void(*update_mesh)	(TimedLSystem & lSystem, Leaves & leaves);
 };
 
 // Note(Leo): We can use this instead of separate lambda in each function

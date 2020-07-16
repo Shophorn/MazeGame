@@ -597,6 +597,18 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 
 	/// GRAPHICS_PIPELINE_LEAVES
 	{
+		VkDescriptorSetLayout descriptorSetLayouts[] =
+		{
+			context.cameraDescriptorSetLayout,
+			context.lightingDescriptorSetLayout,
+			context.shadowMapDescriptorSetLayout,
+		};
+
+		VkPushConstantRange pushConstantRange = {VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(s32)};
+
+		auto pipelineLayoutCreateInfo = fsvulkan_pipeline_layout_create_info(array_count(descriptorSetLayouts), descriptorSetLayouts, 1, &pushConstantRange);
+		VULKAN_CHECK(vkCreatePipelineLayout (context.device, &pipelineLayoutCreateInfo, nullptr, &context.pipelines[GRAPHICS_PIPELINE_LEAVES].pipelineLayout));
+
 		VkVertexInputBindingDescription vertexBindingDescription = { 0, sizeof(m44), VK_VERTEX_INPUT_RATE_INSTANCE };
 
 		// Note(Leo): Input is 4x4 matrix, it is described as 4 4d vectors
@@ -608,20 +620,6 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 			{ 3, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 3 * sizeof(v4)},
 		};
 		
-		auto materialLayout = fsvulkan_make_material_descriptor_set_layout(context.device, 0);
-
-		VkDescriptorSetLayout descriptorSetLayouts[] =
-		{
-			context.cameraDescriptorSetLayout,
-			materialLayout,
-			context.modelDescriptorSetLayout,
-			context.lightingDescriptorSetLayout,
-			context.shadowMapDescriptorSetLayout,
-		};
-
-		auto pipelineLayoutCreateInfo = fsvulkan_pipeline_layout_create_info(array_count(descriptorSetLayouts), descriptorSetLayouts, 0, nullptr);
-		VULKAN_CHECK(vkCreatePipelineLayout (context.device, &pipelineLayoutCreateInfo, nullptr, &context.pipelines[GRAPHICS_PIPELINE_LEAVES].pipelineLayout));
-
 		VkShaderModule vertexShaderModule 	= fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/leaves_vert.spv"));
 		VkShaderModule fragmentShaderModule = fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/leaves_frag.spv"));
 
@@ -640,7 +638,6 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 		auto depthStencilState 	= fsvulkan_pipeline_depth_stencil_create_info		(VK_TRUE, VK_TRUE);
 		auto colorBlendState 	= fsvulkan_pipeline_color_blend_state_create_info	(1, &fsvulkan_default_pipeline_color_blend_attachment_state);
 		auto dynamicState 		= fsvulkan_pipeline_dynamic_state_create_info		(array_count(fsvulkan_default_dynamic_states), fsvulkan_default_dynamic_states);
-
 
 		VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo =
 		{
@@ -661,7 +658,7 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 
 		vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &context.pipelines[GRAPHICS_PIPELINE_LEAVES].pipeline);
 
-		context.pipelines[GRAPHICS_PIPELINE_LEAVES].descriptorSetLayout = materialLayout;
+		// context.pipelines[GRAPHICS_PIPELINE_LEAVES].descriptorSetLayout = materialLayout;
 		context.pipelines[GRAPHICS_PIPELINE_LEAVES].textureCount 		= 1;
 
 		// Note(Leo): Always remember to destroy these :)
@@ -752,7 +749,6 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 		vkDestroyShaderModule(context.device, fragmentShaderModule, nullptr);
 		vkDestroyShaderModule(context.device, vertexShaderModule, nullptr);
 	}
-
 
 	/// INTERNAL LINE PIPELINE
 	{

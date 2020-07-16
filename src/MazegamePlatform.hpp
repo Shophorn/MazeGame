@@ -91,6 +91,14 @@ struct PlatformWindow;
 // struct PlatformNetwork;
 // struct PlatformAudio;
 
+enum FileMode 
+{
+	FILE_MODE_READ,
+	FILE_MODE_WRITE,
+};
+
+using PlatformFileHandle = void*;
+
 /// ***********************************************************************
 /// PLATFORM VALUE TYPES
 
@@ -252,7 +260,7 @@ struct PlatformApi
 									s32 vertexCount, Vertex const * vertices,
 									s32 indexCount, u16 const * indices,
 									m44 transform, MaterialHandle material);
-	void (*draw_leaves)			(PlatformGraphics*, s32 count, m44 const * transforms);
+	void (*draw_leaves)			(PlatformGraphics*, s32 count, m44 const * transforms, s32 colourIndex);
 
 	// WINDOW FUNCTIONS	
 	u32 (*get_window_width) 		(PlatformWindow const *);
@@ -263,6 +271,14 @@ struct PlatformApi
 	// TIME FUNCTIONS
 	PlatformTimePoint (*current_time) 	();
 	f64 (*elapsed_seconds)				(PlatformTimePoint start, PlatformTimePoint end);
+
+	// FILE FUNCTIONS
+	PlatformFileHandle (*open_file)	(char const * filename, FileMode filemode);
+	void (*close_file)				(PlatformFileHandle);
+	void (*set_file_position)		(PlatformFileHandle, s32 position);
+	s32 (*get_file_position)		(PlatformFileHandle);
+	void (*write_file) 				(PlatformFileHandle, s32 count, void * memory);
+	void (*read_file) 				(PlatformFileHandle, s32 count, void * memory);
 };
 
 internal bool32 platform_all_functions_set(PlatformApi const * api)

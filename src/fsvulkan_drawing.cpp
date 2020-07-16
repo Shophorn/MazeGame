@@ -427,7 +427,7 @@ internal void fsvulkan_drawing_draw_model(VulkanContext * context, ModelHandle m
 // 	vkCmdDraw(commandBuffer, 4, count, 0, 0);
 // }
 
-internal void fsvulkan_drawing_draw_leaves(VulkanContext * context, s32 instanceCount, m44 const * instanceTransforms)
+internal void fsvulkan_drawing_draw_leaves(VulkanContext * context, s32 instanceCount, m44 const * instanceTransforms, s32 colourIndex)
 {
 	Assert(instanceCount > 0 && "Vulkan cannot map memory of size 0, and this function should no be called for 0 meshes");
 	Assert(context->canDraw);
@@ -451,6 +451,8 @@ internal void fsvulkan_drawing_draw_leaves(VulkanContext * context, s32 instance
 	
 	vkCmdBindPipeline(frame->commandBuffers.scene, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 
+	// Note(Leo): These todos are not so relevant anymore, I decided to make a single collective rendering function, that
+	// is not so much separated from graphics api layer, so while points remain valid, the situation has changed.
 	// Todo(Leo): These can be bound once per frame, they do not change
 	// Todo(Leo): Except that they need to be bound per pipeline, maybe unless selected binding etc. are identical
 	vkCmdBindDescriptorSets(frame->commandBuffers.scene, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout,
@@ -458,12 +460,14 @@ internal void fsvulkan_drawing_draw_leaves(VulkanContext * context, s32 instance
 							0, nullptr);
 
 	vkCmdBindDescriptorSets(frame->commandBuffers.scene, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout,
-							3, 1, &context->lightingDescriptorSet[context->virtualFrameIndex],
+							1, 1, &context->lightingDescriptorSet[context->virtualFrameIndex],
 							0, nullptr);
 
 	vkCmdBindDescriptorSets(frame->commandBuffers.scene, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout,
-							4, 1, &context->shadowMapTexture,
+							2, 1, &context->shadowMapTexture,
 							0, nullptr);
+
+	vkCmdPushConstants(frame->commandBuffers.scene, pipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(s32), &colourIndex);
 
 	vkCmdBindVertexBuffers(frame->commandBuffers.scene, 0, 1, &context->leafBuffer, &instanceBufferOffset);
 

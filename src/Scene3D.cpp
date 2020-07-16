@@ -56,8 +56,7 @@ struct Scene3d
 	MeshHandle 		waterMesh;
 	MaterialHandle 	waterMaterial;
 
-	// ---------------------------------------
-	/// POTS
+	/// POTS -----------------------------------
 		s32 			potCapacity;
 		s32 			potEmptyCount;
 		Transform3D * 	potEmptyTransforms;
@@ -65,17 +64,13 @@ struct Scene3d
 
 		MeshHandle 		potMesh;
 		MaterialHandle 	potMaterial;
-	// ---------------------------------------
-	/// TREES
+
+	/// TREES ------------------------------------
 		s32 			lSystemCapacity;
 		s32 			lSystemCount;
 		TimedLSystem * 	lSystems;
 		Leaves * 		lSystemLeavess;
-
-		s32 			lSystemsInPotCount;
-		TimedLSystem * 	lSystemsInPot;
-		Leaves * 		lSystemsInPotLeavess;
-		s32 * 			lSystemsInPotPotIndices;
+		s32 * 			lSystemsPotIndices;
 
 		MaterialHandle 	lSystemTreeMaterial;
 	// ------------------------------------------------------
@@ -152,6 +147,52 @@ struct Scene3d
 	constexpr static s32 	timeScaleCount = 3;
 	s32 					timeScaleIndex;
 };
+
+struct Scene3dSaveLoad
+{
+	s32 playerLocation;
+	s32 watersLocation;
+	s32 treesLocation;
+};
+
+internal void write_save_file(Scene3d * scene)
+{
+	auto file = platformApi->open_file("save_game.fssave", FILE_MODE_WRITE);
+
+	// Note(Leo): as we go, set values to this struct, and write this to file last.
+	Scene3dSaveLoad save;
+	platformApi->set_file_position(file, sizeof(save));
+
+	save.playerLocation = platformApi->get_file_position(file);
+	platformApi->write_file(file, sizeof(Transform3D), scene->playerCharacterTransform);
+
+	save.watersLocation = platformApi->get_file_position(file);
+	platformApi->write_file(file, sizeof(scene->waters.capacity),				&scene->waters.capacity);
+	platformApi->write_file(file, sizeof(scene->waters.count), 					&scene->waters.count);
+	platformApi->write_file(file, scene->waters.count * sizeof(Transform3D), 	scene->waters.transforms);
+	platformApi->write_file(file, scene->waters.count * sizeof(f32),			scene->waters.levels);
+
+	save.treesLocation = platformApi->get_file_position(file);
+	platformApi->write_file(file, sizeof(scene->lSystemCapacity), &scene->lSystemCapacity);
+	platformApi->write_file(file, sizeof(scene->lSystemCount), &scene->lSystemCount);
+	for (s32 i = 0; i < scene->lSystemCount; ++i)
+	{
+		platformApi->write_file(file, sizeof(scene->lSystems[i].wordCapacity), &scene->lSystems[i].wordCapacity);
+		platformApi->write_file(file, sizeof(scene->lSystems[i].wordCount), &scene->lSystems[i].wordCount);
+		platformApi->write_file(file, sizeof(Module) * scene->lSystems[i].wordCount, scene->lSystems[i].aWord);
+		platformApi->write_file(file, sizeof(scene->lSystems[i].timeSinceLastUpdate), &scene->lSystems[i].timeSinceLastUpdate);
+		platformApi->write_file(file, sizeof(scene->lSystems[i].position), &scene->lSystems[i].position);
+		platformApi->write_file(file, sizeof(scene->lSystems[i].rotation), &scene->lSystems[i].rotation);
+		platformApi->write_file(file, sizeof(scene->lSystems[i].type), &scene->lSystems[i].type);
+		platformApi->write_file(file, sizeof(scene->lSystems[i].totalAge), &scene->lSystems[i].totalAge);
+		platformApi->write_file(file, sizeof(scene->lSystems[i].maxAge), &scene->lSystems[i].maxAge);
+	}
+
+	platformApi->set_file_position(file, 0);
+	platformApi->write_file(file, sizeof(save), &save);
+
+	platformApi->close_file(file);
+}
 
 internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, PlatformTime const & time)
 {
@@ -347,6 +388,11 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 						continue;
 					}
 
+					if (scene->lSystemsPotIndices[i] >= 0)
+					{
+						continue;
+					}
+
 					f32 distanceToLSystemTree = magnitude_v3(lSystem.position - scene->playerCharacterTransform->position);
 					if(distanceToLSystemTree < grabDistance)
 					{
@@ -406,14 +452,17 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 					f32 distance = magnitude_v3(scene->potEmptyTransforms[potIndex].position - scene->lSystems[scene->carriedItemIndex].position);
 					if (distance < treeSnapDistance)
 					{
-						scene->lSystemsInPot[scene->lSystemsInPotCount] 			= scene->lSystems[scene->carriedItemIndex];
-						scene->lSystemsInPotLeavess[scene->lSystemsInPotCount]		= scene->lSystemLeavess[scene->carriedItemIndex];
-						scene->lSystemsInPotPotIndices[scene->lSystemsInPotCount]	= potIndex;
-						scene->lSystemsInPotCount 									+= 1;
+						scene->lSystemsPotIndices[scene->carriedItemIndex] = potIndex;
 
-						scene->lSystemCount 							-= 1;
-						scene->lSystems[scene->carriedItemIndex] 		= scene->lSystems[scene->lSystemCount];
-						scene->lSystemLeavess[scene->carriedItemIndex] 	= scene->lSystemLeavess[scene->lSystemCount];
+
+						// scene->lSystemsInPot[scene->lSystemsInPotCount] 			= scene->lSystems[scene->carriedItemIndex];
+						// scene->lSystemsInPotLeavess[scene->lSystemsInPotCount]		= scene->lSystemLeavess[scene->carriedItemIndex];
+						// scene->lSystemsInPotPotIndices[scene->lSystemsInPotCount]	= potIndex;
+						// scene->lSystemsInPotCount 									+= 1;
+
+						// scene->lSystemCount 							-= 1;
+						// scene->lSystems[scene->carriedItemIndex] 		= scene->lSystems[scene->lSystemCount];
+						// scene->lSystemLeavess[scene->carriedItemIndex] 	= scene->lSystemLeavess[scene->lSystemCount];
 
 					}
 				}
@@ -447,11 +496,14 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 	}
 
 	/// UPDATE TREES IN POTS POSITIONS
-	for (s32 i = 0; i < scene->lSystemsInPotCount; ++i)
+	for (s32 i = 0; i < scene->lSystemCount; ++i)
 	{
-		s32 potIndex = scene->lSystemsInPotPotIndices[i];
-		scene->lSystemsInPot[i].position = multiply_point(transform_matrix(scene->potEmptyTransforms[potIndex]), v3{0, 0, 0.25});
-		scene->lSystemsInPot[i].rotation = scene->potEmptyTransforms[potIndex].rotation;
+		if (scene->lSystemsPotIndices[i] > 0)
+		{
+			s32 potIndex = scene->lSystemsPotIndices[i];
+			scene->lSystems[i].position = multiply_point(transform_matrix(scene->potEmptyTransforms[potIndex]), v3{0,0,0.25});
+			scene->lSystems[i].rotation = scene->potEmptyTransforms[potIndex].rotation;
+		}
 	}
 	
 	// -----------------------------------------------------------------------------------------------------------
@@ -608,18 +660,47 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 		auto update_lsystem = [	&waters 				= scene->waters,
 								potEmptyWaterLevels 	= scene->potEmptyWaterLevels,
-								lSystemsInPotPotIndices = scene->lSystemsInPotPotIndices,
+								lSystemsPotIndices 		= scene->lSystemsPotIndices,
+								// lSystemsInPotPotIndices = scene->lSystemsInPotPotIndices,
 								get_water, 
 								get_water_from_pot,
 								updatedLSystemIndex,
 								scaledTime]
-							(s32 count, TimedLSystem * lSystems, Leaves * leavess, bool isInPot)
+							(s32 count, TimedLSystem * lSystems, Leaves * leavess)// bool isInPot)
 		{
+
 			for (int i = 0; i < count; ++i)
 			{
+				bool isInPot = lSystemsPotIndices[i] > 0;
+
 				leavess[i].position = lSystems[i].position;
 				leavess[i].rotation = lSystems[i].rotation;
 
+				{
+					v3 position = leavess[i].position;
+					if (position.x < 0)
+					{
+						if (position.y < 0)
+						{
+							leavess[i].colourIndex = 0;
+						}
+						else
+						{
+							leavess[i].colourIndex = 1;
+						}
+					}
+					else
+					{
+						if (position.y < 0)
+						{
+							leavess[i].colourIndex = 2;
+						}
+						else
+						{
+							leavess[i].colourIndex = 3;
+						}
+					}
+				}
 
 				f32 waterDistanceThreshold = 1;
 				debug_draw_circle_xy(lSystems[i].position + v3{0,0,1}, waterDistanceThreshold, colour_aqua_blue, DEBUG_NPC);
@@ -638,21 +719,28 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 					constexpr f32 treeWaterDrainSpeed = 0.5f;
 
 					f32 waterLevel = 	isInPot ?
-										get_water_from_pot(potEmptyWaterLevels, lSystemsInPotPotIndices[i], treeWaterDrainSpeed * timePassed) : 
+										get_water_from_pot(potEmptyWaterLevels, lSystemsPotIndices[i], treeWaterDrainSpeed * timePassed) : 
 										get_water (waters, lSystems[i].position, waterDistanceThreshold, treeWaterDrainSpeed * timePassed);
 
 					if (waterLevel > 0)
 					{
-						lSystems[i].advance(lSystems[i], timePassed);
-						lSystems[i].update_mesh(lSystems[i], leavess[i]);
+						if (lSystems[i].type == TREE_1)
+						{
+							advance_lsystem_time(lSystems[i], timePassed);
+							update_lsystem_mesh(lSystems[i], leavess[i]);
+						}
+						else if(lSystems[i].type == TREE_2)
+						{
+							advance_lsystem_time_tree2(lSystems[i], timePassed);
+							update_lsystem_mesh_tree2(lSystems[i], leavess[i]);
+						}
 					}
 				}
 
 			}			
 		};
 
-		update_lsystem(scene->lSystemCount, scene->lSystems, scene->lSystemLeavess, false);
-		update_lsystem(scene->lSystemsInPotCount, scene->lSystemsInPot, scene->lSystemsInPotLeavess, true);
+		update_lsystem(scene->lSystemCount, scene->lSystems, scene->lSystemLeavess);
 
 		auto draw_l_system_trees = [material = scene->lSystemTreeMaterial] (s32 count, TimedLSystem * lSystems)
 		{
@@ -672,6 +760,7 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 														material);
 				}
 
+				// Todo(Leo): this is not maybe so nice anymore
 				constexpr s32 randomTreeAgeToStopDrawingSeed = 1;
 				if (lSystems[i].totalAge < randomTreeAgeToStopDrawingSeed)
 				{
@@ -681,7 +770,6 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 		};
 
 		draw_l_system_trees(scene->lSystemCount, scene->lSystems);		
-		draw_l_system_trees(scene->lSystemsInPotCount, scene->lSystemsInPot);		
 
 		for (s32 i = 0; i < scene->lSystemCount; ++i)
 		{
@@ -692,18 +780,6 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 				platformApi->draw_meshes(platformGraphics, 1, &transform, scene->lSystems[i].seedMesh, scene->lSystems[i].seedMaterial);
 			}
 		}
-
-		for (s32 i = 0; i < scene->lSystemsInPotCount; ++i)
-		{
-			m44 transform = transform_matrix(scene->lSystemsInPot[i].position, scene->lSystemsInPot[i].rotation, make_uniform_v3(1));
-			constexpr s32 randomTreeAgeToStopDrawingSeed = 1;
-			if (scene->lSystemsInPot[i].totalAge < randomTreeAgeToStopDrawingSeed)
-			{
-				platformApi->draw_meshes(platformGraphics, 1, &transform, scene->lSystemsInPot[i].seedMesh, scene->lSystemsInPot[i].seedMaterial);
-			}
-		}
-
-
 
 		if (scene->lSystemCount > 0)
 		{
@@ -759,7 +835,6 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 		};
 
 		draw_l_system_tree_leaves(scene->lSystemCount, scene->lSystemLeavess);
-		draw_l_system_tree_leaves(scene->lSystemsInPotCount, scene->lSystemsInPotLeavess);
 	}
 
 	// ------------------------------------------------------------------------
@@ -873,6 +948,11 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 				scene->timeScaleIndex %= scene->timeScaleCount;
 			}
 
+			if (gui_button("Save Game"))
+			{
+				write_save_file(scene);
+			}
+
 			if (gui_button("Exit Scene"))
 			{
 				scene->menuView = Scene3d::MENU_CONFIRM_EXIT;
@@ -924,8 +1004,17 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 	return keepScene;
 }
 
-void * load_scene_3d(MemoryArena & persistentMemory)
+void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle saveFile)
 {
+	Scene3dSaveLoad save;
+	if (saveFile != nullptr)
+	{
+		logDebug(0) << "Loading saved game";
+
+		platformApi->set_file_position(saveFile, 0);
+		platformApi->read_file(saveFile, sizeof(save), &save);
+	}
+
 	void * scenePtr = allocate(persistentMemory, sizeof(Scene3d), 0);
 	Scene3d * scene = reinterpret_cast<Scene3d*>(scenePtr);
 	*scene = {};
@@ -1067,6 +1156,16 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 
 		Transform3D * playerTransform 	= scene->transforms.push_return_pointer({10, 0, 5});
 		scene->playerCharacterTransform = playerTransform;
+
+		if (saveFile != nullptr)
+		{
+			logDebug(0) << "player position = " << playerTransform->position;
+
+			platformApi->set_file_position(saveFile, save.playerLocation);
+			platformApi->read_file(saveFile, sizeof(Transform3D), playerTransform);
+			
+			logDebug(0) << "player position = " << playerTransform->position;
+		}
 
 		s32 motorIndex = scene->characterMotors.count();
 		scene->playerInputState.inputArrayIndex = motorIndex;
@@ -1398,18 +1497,33 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 				TextureHandle waterTextures [] 	= {waterTextureHandle, neutralBumpTexture, blackTexture};
 				scene->waterMaterial 		= platformApi->push_material(platformGraphics, GRAPHICS_PIPELINE_WATER, 3, waterTextures);
 
-				scene->waters.capacity 		= 200;
-				scene->waters.count 		= 20;
-				scene->waters.transforms 	= push_memory<Transform3D>(persistentMemory, scene->waters.capacity, 0);
-				scene->waters.levels 		= push_memory<f32>(persistentMemory, scene->waters.capacity, 0);
-
-				for (s32 i = 0; i < scene->waters.count; ++i)
+				if (saveFile != nullptr)
 				{
-					v3 position = {random_range(-50, 50), random_range(-50, 50)};
-					position.z 	= get_terrain_height(scene->collisionSystem, position.xy);
+					platformApi->set_file_position(saveFile, save.watersLocation);
+					platformApi->read_file(saveFile, sizeof(scene->waters.capacity), &scene->waters.capacity);
+					platformApi->read_file(saveFile, sizeof(scene->waters.count), &scene->waters.count);
 
-					scene->waters.transforms[i] 	= { .position = position };
-					scene->waters.levels[i] 		= scene->fullWaterLevel;
+					scene->waters.transforms 	= push_memory<Transform3D>(persistentMemory, scene->waters.capacity, 0);
+					scene->waters.levels 		= push_memory<f32>(persistentMemory, scene->waters.capacity, 0);
+
+					platformApi->read_file(saveFile, sizeof(scene->waters.transforms[0]) * scene->waters.count, scene->waters.transforms);					
+					platformApi->read_file(saveFile, sizeof(scene->waters.levels[0]) * scene->waters.count, scene->waters.levels);					
+				}
+				else
+				{				
+					scene->waters.capacity 		= 200;
+					scene->waters.count 		= 20;
+					scene->waters.transforms 	= push_memory<Transform3D>(persistentMemory, scene->waters.capacity, 0);
+					scene->waters.levels 		= push_memory<f32>(persistentMemory, scene->waters.capacity, 0);
+
+					for (s32 i = 0; i < scene->waters.count; ++i)
+					{
+						v3 position = {random_range(-50, 50), random_range(-50, 50)};
+						position.z 	= get_terrain_height(scene->collisionSystem, position.xy);
+
+						scene->waters.transforms[i] 	= { .position = position };
+						scene->waters.levels[i] 		= scene->fullWaterLevel;
+					}
 				}
 			}
 
@@ -1535,6 +1649,7 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 
 	/// LSYSTEM TREES	
 	{
+		// Todo(Leo): I forgot this. what does this comment mean?
 		// TODO(Leo): fukin häx
 		MeshHandle seedMesh1;
 		MeshHandle seedMesh2;
@@ -1556,18 +1671,6 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 			seedMaterial2 					= seedMaterial1;
 		}
 
-
-		// Todo(Leo): This is kinda lie, we allocate double amount.
-		scene->lSystemCapacity 	= 60;
-		scene->lSystemCount 	= 20;
-		scene->lSystems 		= push_memory<TimedLSystem>(persistentMemory, scene->lSystemCapacity, ALLOC_NO_CLEAR);
-		scene->lSystemLeavess 	= push_memory<Leaves>(persistentMemory, scene->lSystemCapacity, ALLOC_NO_CLEAR);
-
-		scene->lSystemsInPotCount 		= 0;
-		scene->lSystemsInPot 			= push_memory<TimedLSystem>(persistentMemory, scene->lSystemCapacity, ALLOC_NO_CLEAR);
-		scene->lSystemsInPotLeavess 	= push_memory<Leaves>(persistentMemory, scene->lSystemCapacity, ALLOC_NO_CLEAR);
-		scene->lSystemsInPotPotIndices 	= push_memory<s32>(persistentMemory, scene->lSystemCapacity, ALLOC_NO_CLEAR);
-
 		// Todo(Leo): textures are copied too many times: from file to stb, from stb to TextureAsset, from TextureAsset to graphics.
 		TextureAsset albedo = load_texture_asset(*global_transientMemory, "assets/textures/Acorn_albedo.png");
 		TextureAsset normal = load_texture_asset(*global_transientMemory, "assets/textures/ground_normal.png");
@@ -1586,40 +1689,99 @@ void * load_scene_3d(MemoryArena & persistentMemory)
 		MaterialHandle tree1SeedMaterial = seedMaterial1;
 		MaterialHandle tree2SeedMaterial = seedMaterial2;
 
-		for (int i = 0; i < scene->lSystemCapacity; ++i)
+
+		if (saveFile != nullptr)
 		{
-			scene->lSystems[i]			= make_lsystem(persistentMemory);
-			scene->lSystemLeavess[i] 	= make_leaves(persistentMemory, 4000);
-	
-			if ((i % 2) == 0)
-			{
-				scene->lSystems[i].advance 		= advance_lsystem_time;
-				scene->lSystems[i].update_mesh 	= update_lsystem_mesh;
+			platformApi->set_file_position(saveFile, save.treesLocation);
+			
+			platformApi->read_file(saveFile, sizeof(scene->lSystemCapacity), &scene->lSystemCapacity);
+			platformApi->read_file(saveFile, sizeof(scene->lSystemCount), &scene->lSystemCount);
 
-				scene->lSystems[i].seedMesh 	= tree1SeedMesh;
-				scene->lSystems[i].seedMaterial = tree1SeedMaterial;
-			}
-			else
-			{
-				scene->lSystems[i].maxAge		= 50;
-				scene->lSystems[i].aWord[0]		= {'A', 0, 0};
-				scene->lSystems[i].advance 		= advance_lsystem_time_tree2;
-				scene->lSystems[i].update_mesh 	= update_lsystem_mesh_tree2;
+			scene->lSystems 			= push_memory<TimedLSystem>(persistentMemory, scene->lSystemCapacity, ALLOC_NO_CLEAR);
+			scene->lSystemLeavess 		= push_memory<Leaves>(persistentMemory, scene->lSystemCapacity, ALLOC_NO_CLEAR);
+			scene->lSystemsPotIndices 	= push_memory<s32>(persistentMemory, scene->lSystemCapacity, ALLOC_NO_CLEAR);
 
-				scene->lSystems[i].seedMesh 	= tree2SeedMesh;
-				scene->lSystems[i].seedMaterial = tree1SeedMaterial;
-			}
+			for (s32 i = 0; i < scene->lSystemCapacity; ++i)
+			{
+				platformApi->read_file(saveFile, sizeof(scene->lSystems[i].wordCapacity), &scene->lSystems[i].wordCapacity);
+				platformApi->read_file(saveFile, sizeof(scene->lSystems[i].wordCount), &scene->lSystems[i].wordCount);
+
+				scene->lSystems[i].aWord = push_memory<Module>(persistentMemory, scene->lSystems[i].wordCapacity, ALLOC_NO_CLEAR);
+				scene->lSystems[i].bWord = push_memory<Module>(persistentMemory, scene->lSystems[i].wordCapacity, ALLOC_NO_CLEAR);
+				platformApi->read_file(saveFile, sizeof(Module) * scene->lSystems[i].wordCount, scene->lSystems[i].aWord);
+
+				platformApi->read_file(saveFile, sizeof(scene->lSystems[i].timeSinceLastUpdate), &scene->lSystems[i].timeSinceLastUpdate);
+				platformApi->read_file(saveFile, sizeof(scene->lSystems[i].position), &scene->lSystems[i].position);
+				platformApi->read_file(saveFile, sizeof(scene->lSystems[i].rotation), &scene->lSystems[i].rotation);
+				platformApi->read_file(saveFile, sizeof(scene->lSystems[i].type), &scene->lSystems[i].type);
+				platformApi->read_file(saveFile, sizeof(scene->lSystems[i].totalAge), &scene->lSystems[i].totalAge);
+				platformApi->read_file(saveFile, sizeof(scene->lSystems[i].maxAge), &scene->lSystems[i].maxAge);
+
+				scene->lSystems[i].vertices = push_memory_view<Vertex>(persistentMemory, 15'000);
+				scene->lSystems[i].indices = push_memory_view<u16>(persistentMemory, 45'000);
+
+				scene->lSystemsPotIndices[i] = -1;
+				scene->lSystemLeavess[i] 	= make_leaves(persistentMemory, 4000);
+
+				if (scene->lSystems[i].type == TREE_1)
+				{
+					scene->lSystems[i].seedMesh 	= tree1SeedMesh;
+					scene->lSystems[i].seedMaterial = tree1SeedMaterial;
+
+					update_lsystem_mesh(scene->lSystems[i], scene->lSystemLeavess[i]);
+				}
+				else if (scene->lSystems[i].type == TREE_2)
+				{
+					scene->lSystems[i].seedMesh 	= tree2SeedMesh;
+					scene->lSystems[i].seedMaterial = tree1SeedMaterial;
+					
+					update_lsystem_mesh_tree2(scene->lSystems[i], scene->lSystemLeavess[i]);
+				}
+			}	
+
 		}
-
-		for (s32 i = 0; i < scene->lSystemCount; ++i)
+		else
 		{
-			v3 position 				= random_inside_unit_square() * 20 - v3{10, 10, 0};
-			position.z 					= get_terrain_height(scene->collisionSystem, position.xy);
-			scene->lSystems[i].position = position;
-			scene->lSystems[i].rotation = identity_quaternion;
+			scene->lSystemCapacity 		= 20;
+			scene->lSystemCount 		= 20;
+			scene->lSystems 			= push_memory<TimedLSystem>(persistentMemory, scene->lSystemCapacity, ALLOC_NO_CLEAR);
+			scene->lSystemLeavess 		= push_memory<Leaves>(persistentMemory, scene->lSystemCapacity, ALLOC_NO_CLEAR);
+			scene->lSystemsPotIndices 	= push_memory<s32>(persistentMemory, scene->lSystemCapacity, ALLOC_NO_CLEAR);
+
+			for (int i = 0; i < scene->lSystemCapacity; ++i)
+			{
+				scene->lSystems[i]			= make_lsystem(persistentMemory);
+				scene->lSystemLeavess[i] 	= make_leaves(persistentMemory, 4000);
+		
+				if (i < scene->lSystemCapacity / 2)
+				{
+					scene->lSystems[i].type 		= TREE_1;
+					scene->lSystems[i].seedMesh 	= tree1SeedMesh;
+					scene->lSystems[i].seedMaterial = tree1SeedMaterial;
+				}
+				else
+				{
+					scene->lSystems[i].type 		= TREE_2;
+					scene->lSystems[i].maxAge		= 50;
+					scene->lSystems[i].aWord[0]		= {'A', 0, 0};
+
+					scene->lSystems[i].seedMesh 	= tree2SeedMesh;
+					scene->lSystems[i].seedMaterial = tree1SeedMaterial;
+				}
+
+				scene->lSystemsPotIndices[i] = -1;
+			}
+
+			for (s32 i = 0; i < scene->lSystemCount; ++i)
+			{
+				v3 position 				= random_inside_unit_square() * 20 - v3{10, 10, 0};
+				position.z 					= get_terrain_height(scene->collisionSystem, position.xy);
+				scene->lSystems[i].position = position;
+				scene->lSystems[i].rotation = identity_quaternion;
 
 
-			logDebug(0) << position;
+				logDebug(0) << position;
+			}
 		}
 	}
 
