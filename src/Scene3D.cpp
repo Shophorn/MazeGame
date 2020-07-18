@@ -58,9 +58,9 @@ struct Scene3d
 
 	/// POTS -----------------------------------
 		s32 			potCapacity;
-		s32 			potEmptyCount;
-		Transform3D * 	potEmptyTransforms;
-		f32 * 			potEmptyWaterLevels;
+		s32 			potCount;
+		Transform3D * 	potTransforms;
+		f32 * 			potWaterLevels;
 
 		MeshHandle 		potMesh;
 		MaterialHandle 	potMaterial;
@@ -78,7 +78,6 @@ struct Scene3d
 	Monuments monuments;
 
 	// ------------------------------------------------------
-
 
 	s32 playerCarryState;
 	s32 carriedItemIndex;
@@ -153,7 +152,32 @@ struct Scene3dSaveLoad
 	s32 playerLocation;
 	s32 watersLocation;
 	s32 treesLocation;
+	s32 potsLocation;
 };
+
+template <typename T>
+internal inline void file_write_struct(PlatformFileHandle file, T * value)
+{
+	platformApi->write_file(file, sizeof(T), value);
+}
+
+template <typename T>
+internal inline void file_write_memory(PlatformFileHandle file, s32 count, T * memory)
+{
+	platformApi->write_file(file, sizeof(T) * count, memory);
+}
+
+template <typename T>
+internal inline void file_read_struct(PlatformFileHandle file, T * value)
+{
+	platformApi->read_file(file, sizeof(T), value);
+}
+
+template <typename T>
+internal inline void file_read_memory(PlatformFileHandle file, s32 count, T * memory)
+{
+	platformApi->read_file(file, sizeof(T) * count, memory);
+}
 
 internal void write_save_file(Scene3d * scene)
 {
@@ -167,29 +191,38 @@ internal void write_save_file(Scene3d * scene)
 	platformApi->write_file(file, sizeof(Transform3D), scene->playerCharacterTransform);
 
 	save.watersLocation = platformApi->get_file_position(file);
-	platformApi->write_file(file, sizeof(scene->waters.capacity),				&scene->waters.capacity);
-	platformApi->write_file(file, sizeof(scene->waters.count), 					&scene->waters.count);
-	platformApi->write_file(file, scene->waters.count * sizeof(Transform3D), 	scene->waters.transforms);
-	platformApi->write_file(file, scene->waters.count * sizeof(f32),			scene->waters.levels);
+	file_write_struct(file, &scene->waters.capacity);
+	file_write_struct(file,	&scene->waters.count);
+	file_write_memory(file, scene->waters.count, scene->waters.transforms);
+	file_write_memory(file, scene->waters.count, scene->waters.levels);
 
 	save.treesLocation = platformApi->get_file_position(file);
-	platformApi->write_file(file, sizeof(scene->lSystemCapacity), &scene->lSystemCapacity);
-	platformApi->write_file(file, sizeof(scene->lSystemCount), &scene->lSystemCount);
+	file_write_struct(file, &scene->lSystemCapacity);
+	file_write_struct(file, &scene->lSystemCount);
 	for (s32 i = 0; i < scene->lSystemCount; ++i)
 	{
-		platformApi->write_file(file, sizeof(scene->lSystems[i].wordCapacity), &scene->lSystems[i].wordCapacity);
-		platformApi->write_file(file, sizeof(scene->lSystems[i].wordCount), &scene->lSystems[i].wordCount);
-		platformApi->write_file(file, sizeof(Module) * scene->lSystems[i].wordCount, scene->lSystems[i].aWord);
-		platformApi->write_file(file, sizeof(scene->lSystems[i].timeSinceLastUpdate), &scene->lSystems[i].timeSinceLastUpdate);
-		platformApi->write_file(file, sizeof(scene->lSystems[i].position), &scene->lSystems[i].position);
-		platformApi->write_file(file, sizeof(scene->lSystems[i].rotation), &scene->lSystems[i].rotation);
-		platformApi->write_file(file, sizeof(scene->lSystems[i].type), &scene->lSystems[i].type);
-		platformApi->write_file(file, sizeof(scene->lSystems[i].totalAge), &scene->lSystems[i].totalAge);
-		platformApi->write_file(file, sizeof(scene->lSystems[i].maxAge), &scene->lSystems[i].maxAge);
+		file_write_struct(file, &scene->lSystems[i].wordCapacity);
+		file_write_struct(file, &scene->lSystems[i].wordCount);
+
+		file_write_memory(file, scene->lSystems[i].wordCount, scene->lSystems[i].aWord);
+
+		file_write_struct(file, &scene->lSystems[i].timeSinceLastUpdate);
+		file_write_struct(file, &scene->lSystems[i].position);
+		file_write_struct(file, &scene->lSystems[i].rotation);
+		file_write_struct(file, &scene->lSystems[i].type);
+		file_write_struct(file, &scene->lSystems[i].totalAge);
+		file_write_struct(file, &scene->lSystems[i].maxAge);
 	}
+	file_write_memory(file, scene->lSystemCount, scene->lSystemsPotIndices);
+
+	save.potsLocation = platformApi->get_file_position(file);
+	file_write_struct(file, &scene->potCapacity);
+	file_write_struct(file, &scene->potCount);
+	file_write_memory(file, scene->potCount, scene->potTransforms);
+	file_write_memory(file, scene->potCount, scene->potWaterLevels);
 
 	platformApi->set_file_position(file, 0);
-	platformApi->write_file(file, sizeof(save), &save);
+	file_write_memory(file, 1, &save);
 
 	platformApi->close_file(file);
 }
@@ -257,7 +290,7 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 	/// ****************************************************************************
 
-	gui_start_frame(scene->gui, input);
+	gui_start_frame(scene->gui, input, unscaledTime);
 
 	/* Sadly, we need to draw skybox before game logic, because otherwise
 	debug lines would be hidden. This can be fixed though, just make debug pipeline similar to shadows. */ 
@@ -310,10 +343,34 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 					.color 		= v3{0.95, 0.95, 0.9}};
 	v3 ambient 	= {0.05, 0.05, 0.3};
 
-	constexpr f32 minPlayerDistance = 350;
-	constexpr f32 maxPlayerDistance = 355;
-	f32 playerDistance 				= magnitude_v2(scene->playerCharacterTransform->position.xy);
-	light.skyColorSelection 		= clamp_f32((playerDistance - minPlayerDistance) / (maxPlayerDistance - minPlayerDistance), 0, 1);
+
+	{
+		float playerDistanceFromClosestTree = highest_f32;
+		for (s32 i = 0; i < scene->lSystemCount; ++i)
+		{
+			if (scene->lSystems[i].totalAge < 0.0001f)
+			{
+				continue;
+			}
+
+			constexpr f32 treeRadiusRatio = 0.2;
+			f32 treeRadius = scene->lSystems[i].totalAge * treeRadiusRatio;
+
+			debug_draw_circle_xy(scene->lSystems[i].position + v3{0,0,0.2}, treeRadius, colour_bright_green, DEBUG_NPC);
+
+			f32 distanceFromTree 			= magnitude_v3(scene->playerCharacterTransform->position - scene->lSystems[i].position) - treeRadius;
+			playerDistanceFromClosestTree 	= min_f32(playerDistanceFromClosestTree, distanceFromTree);
+		}
+
+		constexpr f32 minPlayerDistance = 0;
+		constexpr f32 maxPlayerDistance = 5;
+
+		// f32 playerDistance 				= magnitude_v2(scene->playerCharacterTransform->position.xy);
+		light.skyColorSelection 		= clamp_f32((playerDistanceFromClosestTree - minPlayerDistance) / (maxPlayerDistance - minPlayerDistance), 0, 1);
+
+	}
+
+
 
 	platformApi->update_lighting(platformGraphics, &light, &scene->worldCamera, ambient);
 
@@ -377,7 +434,7 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 					}
 				};
 
-				check_pickup(scene->potEmptyCount, scene->potEmptyTransforms, CARRY_POT);
+				check_pickup(scene->potCount, scene->potTransforms, CARRY_POT);
 				check_pickup(scene->waters.count, scene->waters.transforms, CARRY_WATER);
 
 				for (s32 i = 0; i < scene->lSystemCount; ++i)
@@ -405,8 +462,8 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 			case CARRY_POT:
 				scene->playerCarryState = CARRY_NONE;
-				scene->potEmptyTransforms[scene->carriedItemIndex].position.z
-					= get_terrain_height(scene->collisionSystem, scene->potEmptyTransforms[scene->carriedItemIndex].position.xy);
+				scene->potTransforms[scene->carriedItemIndex].position.z
+					= get_terrain_height(scene->collisionSystem, scene->potTransforms[scene->carriedItemIndex].position.xy);
 				break;
 	
 			case CARRY_WATER:
@@ -421,13 +478,13 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 				f32 droppedWaterLevel = scene->waters.levels[scene->carriedItemIndex];
 
-				for (s32 i = 0; i < scene->potEmptyCount; ++i)
+				for (s32 i = 0; i < scene->potCount; ++i)
 				{
-					f32 distance = magnitude_v3(scene->potEmptyTransforms[i].position - waterTransform.position);
+					f32 distance = magnitude_v3(scene->potTransforms[i].position - waterTransform.position);
 					if (distance < waterSnapDistance)
 					{
-						scene->potEmptyWaterLevels[i] += droppedWaterLevel;
-						scene->potEmptyWaterLevels[i] = min_f32(scene->potEmptyWaterLevels[i] + droppedWaterLevel, smallPotMaxWaterLevel);
+						scene->potWaterLevels[i] += droppedWaterLevel;
+						scene->potWaterLevels[i] = min_f32(scene->potWaterLevels[i] + droppedWaterLevel, smallPotMaxWaterLevel);
 
 						scene->waters.count -= 1;
 						scene->waters.transforms[scene->carriedItemIndex] 	= scene->waters.transforms[scene->waters.count];
@@ -447,23 +504,12 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 				constexpr f32 treeSnapDistance = 0.5f;
 
-				for (s32 potIndex = 0; potIndex < scene->potEmptyCount; ++potIndex)
+				for (s32 potIndex = 0; potIndex < scene->potCount; ++potIndex)
 				{
-					f32 distance = magnitude_v3(scene->potEmptyTransforms[potIndex].position - scene->lSystems[scene->carriedItemIndex].position);
+					f32 distance = magnitude_v3(scene->potTransforms[potIndex].position - scene->lSystems[scene->carriedItemIndex].position);
 					if (distance < treeSnapDistance)
 					{
 						scene->lSystemsPotIndices[scene->carriedItemIndex] = potIndex;
-
-
-						// scene->lSystemsInPot[scene->lSystemsInPotCount] 			= scene->lSystems[scene->carriedItemIndex];
-						// scene->lSystemsInPotLeavess[scene->lSystemsInPotCount]		= scene->lSystemLeavess[scene->carriedItemIndex];
-						// scene->lSystemsInPotPotIndices[scene->lSystemsInPotCount]	= potIndex;
-						// scene->lSystemsInPotCount 									+= 1;
-
-						// scene->lSystemCount 							-= 1;
-						// scene->lSystems[scene->carriedItemIndex] 		= scene->lSystems[scene->lSystemCount];
-						// scene->lSystemLeavess[scene->carriedItemIndex] 	= scene->lSystemLeavess[scene->lSystemCount];
-
 					}
 				}
 
@@ -477,8 +523,8 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 	switch(scene->playerCarryState)
 	{
 		case CARRY_POT:
-			scene->potEmptyTransforms[scene->carriedItemIndex].position = carriedPosition;
-			scene->potEmptyTransforms[scene->carriedItemIndex].rotation = carriedRotation;
+			scene->potTransforms[scene->carriedItemIndex].position = carriedPosition;
+			scene->potTransforms[scene->carriedItemIndex].rotation = carriedRotation;
 			break;
 
 		case CARRY_WATER:
@@ -501,8 +547,8 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 		if (scene->lSystemsPotIndices[i] > 0)
 		{
 			s32 potIndex = scene->lSystemsPotIndices[i];
-			scene->lSystems[i].position = multiply_point(transform_matrix(scene->potEmptyTransforms[potIndex]), v3{0,0,0.25});
-			scene->lSystems[i].rotation = scene->potEmptyTransforms[potIndex].rotation;
+			scene->lSystems[i].position = multiply_point(transform_matrix(scene->potTransforms[potIndex]), v3{0,0,0.25});
+			scene->lSystems[i].rotation = scene->potTransforms[potIndex].rotation;
 		}
 	}
 	
@@ -528,7 +574,7 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 		f32 smallPotColliderRadius = 0.3;
 		f32 smallPotColliderHeight = 0.58;
 		f32 smallPotHalfHeight = smallPotColliderHeight / 2;
-		submit_cylinder_colliders(smallPotColliderRadius, smallPotHalfHeight, scene->potEmptyCount, scene->potEmptyTransforms);
+		submit_cylinder_colliders(smallPotColliderRadius, smallPotHalfHeight, scene->potCount, scene->potTransforms);
 
 		constexpr f32 baseRadius = 0.12;
 		constexpr f32 baseHeight = 2;
@@ -564,12 +610,13 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 	
 	/// DRAW POTS
 	{
-		m44 * potTransformMatrices = push_memory<m44>(*global_transientMemory, scene->potEmptyCount, ALLOC_NO_CLEAR);
-		for(s32 i = 0; i < scene->potEmptyCount; ++i)
+		// Todo(Leo): store these as matrices, we can easily retrieve position (that is needed somwhere) from that too.
+		m44 * potTransformMatrices = push_memory<m44>(*global_transientMemory, scene->potCount, ALLOC_NO_CLEAR);
+		for(s32 i = 0; i < scene->potCount; ++i)
 		{
-			potTransformMatrices[i] = transform_matrix(scene->potEmptyTransforms[i]);
+			potTransformMatrices[i] = transform_matrix(scene->potTransforms[i]);
 		}
-		platformApi->draw_meshes(platformGraphics, scene->potEmptyCount, potTransformMatrices, scene->potMesh, scene->potMaterial);
+		platformApi->draw_meshes(platformGraphics, scene->potCount, potTransformMatrices, scene->potMesh, scene->potMaterial);
 	}
 
 	/// DRAW STATIC SCENERY
@@ -659,7 +706,7 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 		s32 updatedLSystemIndex = persist_updatedLSystemIndex;
 
 		auto update_lsystem = [	&waters 				= scene->waters,
-								potEmptyWaterLevels 	= scene->potEmptyWaterLevels,
+								potWaterLevels 	= scene->potWaterLevels,
 								lSystemsPotIndices 		= scene->lSystemsPotIndices,
 								// lSystemsInPotPotIndices = scene->lSystemsInPotPotIndices,
 								get_water, 
@@ -719,7 +766,7 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 					constexpr f32 treeWaterDrainSpeed = 0.5f;
 
 					f32 waterLevel = 	isInPot ?
-										get_water_from_pot(potEmptyWaterLevels, lSystemsPotIndices[i], treeWaterDrainSpeed * timePassed) : 
+										get_water_from_pot(potWaterLevels, lSystemsPotIndices[i], treeWaterDrainSpeed * timePassed) : 
 										get_water (waters, lSystems[i].position, waterDistanceThreshold, treeWaterDrainSpeed * timePassed);
 
 					if (waterLevel > 0)
@@ -854,7 +901,7 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 	bool32 keepScene = true;
 	
-	v4 menuColor = colour_rgb_alpha(colour_raw_umber.rgb, 0.5);
+	v4 menuColor = colour_rgb_alpha(colour_bright_blue.rgb, 0.5);
 	switch(scene->menuView)
 	{	
 		case Scene3d::MENU_OFF:
@@ -1012,7 +1059,7 @@ void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle saveFile
 		logDebug(0) << "Loading saved game";
 
 		platformApi->set_file_position(saveFile, 0);
-		platformApi->read_file(saveFile, sizeof(save), &save);
+		file_read_struct(saveFile, &save);
 	}
 
 	void * scenePtr = allocate(persistentMemory, sizeof(Scene3d), 0);
@@ -1027,7 +1074,6 @@ void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle saveFile
 	scene->gui.selectedTextColor 	= colour_muted_red;
 	scene->gui.padding 				= 10;
 	scene->gui.font 				= load_font("c:/windows/fonts/arial.ttf");
-	gui_generate_font_material(scene->gui);
 
 	TextureAsset guiTextureAsset 	= make_texture_asset(allocate_array<u32>(*global_transientMemory, {0xffffffff}), 1, 1, 4);
 	scene->gui.panelTexture			= platformApi->push_gui_texture(platformGraphics, &guiTextureAsset);
@@ -1162,7 +1208,7 @@ void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle saveFile
 			logDebug(0) << "player position = " << playerTransform->position;
 
 			platformApi->set_file_position(saveFile, save.playerLocation);
-			platformApi->read_file(saveFile, sizeof(Transform3D), playerTransform);
+			file_read_struct(saveFile, playerTransform);
 			
 			logDebug(0) << "player position = " << playerTransform->position;
 		}
@@ -1456,16 +1502,31 @@ void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle saveFile
 			scene->potMesh 			= platformApi->push_mesh(platformGraphics, &smallPotMeshAsset);
 			scene->potMaterial 		= materials.environment;
 
-			scene->potCapacity 			= 10;
-			scene->potEmptyCount 		= scene->potCapacity;
-			scene->potEmptyTransforms 	= push_memory<Transform3D>(persistentMemory, scene->potCapacity, ALLOC_NO_CLEAR);
-			scene->potEmptyWaterLevels 	= push_memory<f32>(persistentMemory, scene->potCapacity, 0);
-
-			for(s32 i = 0; i < scene->potCapacity; ++i)
+			if (saveFile != nullptr)
 			{
-				v3 position 					= {15, i * 5.0f, 0};
-				position.z 						= get_terrain_height(scene->collisionSystem, position.xy);
-				scene->potEmptyTransforms[i]	= { .position = position };
+				platformApi->set_file_position(saveFile, save.potsLocation);
+				file_read_struct(saveFile, &scene->potCapacity);
+				file_read_struct(saveFile, &scene->potCount);
+
+				scene->potTransforms = push_memory<Transform3D>(persistentMemory, scene->potCapacity, ALLOC_NO_CLEAR);
+				scene->potWaterLevels = push_memory<f32>(persistentMemory, scene->potCapacity, ALLOC_NO_CLEAR);
+
+				file_read_memory(saveFile, scene->potCount, scene->potTransforms);
+				file_read_memory(saveFile, scene->potCount, scene->potWaterLevels);
+			}
+			else
+			{
+				scene->potCapacity 			= 10;
+				scene->potCount 		= scene->potCapacity;
+				scene->potTransforms 	= push_memory<Transform3D>(persistentMemory, scene->potCapacity, ALLOC_NO_CLEAR);
+				scene->potWaterLevels 	= push_memory<f32>(persistentMemory, scene->potCapacity, 0);
+
+				for(s32 i = 0; i < scene->potCapacity; ++i)
+				{
+					v3 position 					= {15, i * 5.0f, 0};
+					position.z 						= get_terrain_height(scene->collisionSystem, position.xy);
+					scene->potTransforms[i]	= { .position = position };
+				}
 			}
 
 			// ----------------------------------------------------------------	
@@ -1689,13 +1750,20 @@ void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle saveFile
 		MaterialHandle tree1SeedMaterial = seedMaterial1;
 		MaterialHandle tree2SeedMaterial = seedMaterial2;
 
+		MaterialHandle leavesMaterial;
+		{
+			auto leafTextureAsset 	= load_texture_asset(*global_transientMemory, "assets/textures/leaf_mask.png");
+			auto leavesTexture 		= platformApi->push_texture(platformGraphics, &leafTextureAsset);
+			leavesMaterial 			= platformApi->push_material(platformGraphics, GRAPHICS_PIPELINE_LEAVES, 1, &leavesTexture);
+		}
+
 
 		if (saveFile != nullptr)
 		{
 			platformApi->set_file_position(saveFile, save.treesLocation);
 			
-			platformApi->read_file(saveFile, sizeof(scene->lSystemCapacity), &scene->lSystemCapacity);
-			platformApi->read_file(saveFile, sizeof(scene->lSystemCount), &scene->lSystemCount);
+			file_read_struct(saveFile, &scene->lSystemCapacity);
+			file_read_struct(saveFile, &scene->lSystemCount);
 
 			scene->lSystems 			= push_memory<TimedLSystem>(persistentMemory, scene->lSystemCapacity, ALLOC_NO_CLEAR);
 			scene->lSystemLeavess 		= push_memory<Leaves>(persistentMemory, scene->lSystemCapacity, ALLOC_NO_CLEAR);
@@ -1703,25 +1771,26 @@ void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle saveFile
 
 			for (s32 i = 0; i < scene->lSystemCapacity; ++i)
 			{
-				platformApi->read_file(saveFile, sizeof(scene->lSystems[i].wordCapacity), &scene->lSystems[i].wordCapacity);
-				platformApi->read_file(saveFile, sizeof(scene->lSystems[i].wordCount), &scene->lSystems[i].wordCount);
+				file_read_struct(saveFile, &scene->lSystems[i].wordCapacity);
+				file_read_struct(saveFile, &scene->lSystems[i].wordCount);
 
 				scene->lSystems[i].aWord = push_memory<Module>(persistentMemory, scene->lSystems[i].wordCapacity, ALLOC_NO_CLEAR);
 				scene->lSystems[i].bWord = push_memory<Module>(persistentMemory, scene->lSystems[i].wordCapacity, ALLOC_NO_CLEAR);
-				platformApi->read_file(saveFile, sizeof(Module) * scene->lSystems[i].wordCount, scene->lSystems[i].aWord);
+				file_read_memory(saveFile, scene->lSystems[i].wordCount, scene->lSystems[i].aWord);
 
-				platformApi->read_file(saveFile, sizeof(scene->lSystems[i].timeSinceLastUpdate), &scene->lSystems[i].timeSinceLastUpdate);
-				platformApi->read_file(saveFile, sizeof(scene->lSystems[i].position), &scene->lSystems[i].position);
-				platformApi->read_file(saveFile, sizeof(scene->lSystems[i].rotation), &scene->lSystems[i].rotation);
-				platformApi->read_file(saveFile, sizeof(scene->lSystems[i].type), &scene->lSystems[i].type);
-				platformApi->read_file(saveFile, sizeof(scene->lSystems[i].totalAge), &scene->lSystems[i].totalAge);
-				platformApi->read_file(saveFile, sizeof(scene->lSystems[i].maxAge), &scene->lSystems[i].maxAge);
+				file_read_struct(saveFile, &scene->lSystems[i].timeSinceLastUpdate);
+				file_read_struct(saveFile, &scene->lSystems[i].position);
+				file_read_struct(saveFile, &scene->lSystems[i].rotation);
+				file_read_struct(saveFile, &scene->lSystems[i].type);
+				file_read_struct(saveFile, &scene->lSystems[i].totalAge);
+				file_read_struct(saveFile, &scene->lSystems[i].maxAge);
 
 				scene->lSystems[i].vertices = push_memory_view<Vertex>(persistentMemory, 15'000);
 				scene->lSystems[i].indices = push_memory_view<u16>(persistentMemory, 45'000);
 
-				scene->lSystemsPotIndices[i] = -1;
-				scene->lSystemLeavess[i] 	= make_leaves(persistentMemory, 4000);
+				// scene->lSystemsPotIndices[i] = -1;
+				scene->lSystemLeavess[i] = make_leaves(persistentMemory, 4000);
+				scene->lSystemLeavess[i].material = leavesMaterial;
 
 				if (scene->lSystems[i].type == TREE_1)
 				{
@@ -1738,6 +1807,7 @@ void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle saveFile
 					update_lsystem_mesh_tree2(scene->lSystems[i], scene->lSystemLeavess[i]);
 				}
 			}	
+			file_read_memory(saveFile, scene->lSystemCount, scene->lSystemsPotIndices);
 
 		}
 		else
@@ -1751,7 +1821,10 @@ void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle saveFile
 			for (int i = 0; i < scene->lSystemCapacity; ++i)
 			{
 				scene->lSystems[i]			= make_lsystem(persistentMemory);
+				
 				scene->lSystemLeavess[i] 	= make_leaves(persistentMemory, 4000);
+				scene->lSystemLeavess[i].material = leavesMaterial;
+
 		
 				if (i < scene->lSystemCapacity / 2)
 				{

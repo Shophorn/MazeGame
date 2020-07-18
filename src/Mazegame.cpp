@@ -132,8 +132,9 @@ struct GameState
 	LoadedSceneType loadedSceneType;
 	void * loadedScene;
 
-	Gui 	gui;
-	bool32 	guiVisible;
+	Gui 				gui;
+	bool32 				guiVisible;
+	GuiTextureHandle 	backgroundImage;
 
 	// Todo(Leo): move to scene
 	AudioClip backgroundAudio;
@@ -144,10 +145,12 @@ internal Gui make_main_menu_gui(MemoryArena & allocator)
 	Gui gui 				= {};
 	gui.textSize 			= 40;
 	gui.textColor 			= colour_white;
-	gui.selectedTextColor 	= colour_muted_blue;
+	gui.selectedTextColor 	= colour_muted_red;
 	gui.padding 			= 10;
 	gui.font 				= load_font("c:/windows/fonts/arial.ttf");
-	gui_generate_font_material(gui);
+
+	TextureAsset guiTextureAsset 	= make_texture_asset(allocate_array<u32>(*global_transientMemory, {0xffffffff}), 1, 1, 4);
+	gui.panelTexture				= platformApi->push_gui_texture(platformGraphics, &guiTextureAsset);
 
 	return gui;
 }
@@ -168,7 +171,10 @@ internal void initialize_game_state(GameState * state, PlatformMemory * memory)
 
 	state->backgroundAudio = load_audio_clip("assets/sounds/Wind-Mark_DiAngelo-1940285615.wav");
 
-	state->gui = make_main_menu_gui(state->persistentMemoryArena);
+	state->gui 					= make_main_menu_gui(state->persistentMemoryArena);
+	auto backGroundImageAsset 	= load_texture_asset(*global_transientMemory, "assets/textures/NighestNouKeyArt.png");
+	state->backgroundImage		= platformApi->push_gui_texture(platformGraphics, &backGroundImageAsset);
+
 
 	state->isInitialized = true;
 }
@@ -241,17 +247,31 @@ bool32 update_game(
 	}
 	else
 	{
-		gui_start_frame(state->gui, *input);
+		gui_start_frame(state->gui, *input, time->elapsedTime);
+
+		gui_position({0,0});
+		gui_image(state->backgroundImage, {1920, 1080}, {1,1,1,1});
+
+
+		gui_position({870, 500});
+
+		local_persist v4 guiPanelColor = colour_rgb_alpha(colour_bright_blue.rgb, 0.5);
+
+		gui_start_panel(GUI_NO_TITLE, guiPanelColor);
 
 		if(gui_button("New Game"))
 		{
 			action = ACTION_NEW_GAME;
 		}
 
+		local_persist f32 testSliderValue = 8;
+		guiPanelColor.r = gui_float_slider("Test Value", guiPanelColor.r, 0, 1);
+
 		if (gui_button("Load Game"))
 		{
 			action = ACTION_LOAD_GAME;
 		}
+
 
 		if (gui_button("2D Scene"))
 		{
@@ -262,6 +282,11 @@ bool32 update_game(
 		{
 			gameIsAlive = false;
 		}	
+
+		
+		gui_end_panel();
+
+		// gui_position({100, 100});
 
 		gui_end_frame();
 	}
@@ -299,7 +324,10 @@ bool32 update_game(
 		state->loadedSceneType 	= LOADED_SCENE_NONE;
 
 		// Todo(Leo): this is a hack, unload_scene also unloads main gui, which is rather unwanted...
-		state->gui = make_main_menu_gui(state->persistentMemoryArena);	
+		state->gui 					= make_main_menu_gui(state->persistentMemoryArena);	
+		auto backGroundImageAsset 	= load_texture_asset(*global_transientMemory, "assets/textures/NighestNouKeyArt.png");
+		state->backgroundImage		= platformApi->push_gui_texture(platformGraphics, &backGroundImageAsset);
+
 	}
 
 	// Todo(Leo): These still MAYBE do not belong here

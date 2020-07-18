@@ -1,14 +1,25 @@
-better tree 2
-	also better model for its seed
+rename vulkans to fsculan
 
-test leaf textures
-
-sky turns red depending on distance from trees
-
-save file
-main menu image
 
 cameraworks
 
-different tree colours per area
+better tree 2
+	also better model for its seed
+
 sky editor, or at least sky "editor"
+	as described by campo santo blog post
+	-> gui slider
+
+	-> own gui view
+		-> colour and size for:
+			- sky gradient
+			- 
+
+	-> save settings to file
+
+
+DONE: save file
+DONE: different tree colours per area
+DONE: sky turns red depending on distance from trees
+DONE: main menu image
+DONE: test leaf textures

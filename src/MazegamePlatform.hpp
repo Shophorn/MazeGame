@@ -260,7 +260,7 @@ struct PlatformApi
 									s32 vertexCount, Vertex const * vertices,
 									s32 indexCount, u16 const * indices,
 									m44 transform, MaterialHandle material);
-	void (*draw_leaves)			(PlatformGraphics*, s32 count, m44 const * transforms, s32 colourIndex);
+	void (*draw_leaves)			(PlatformGraphics*, s32 count, m44 const * transforms, s32 colourIndex, MaterialHandle material);
 
 	// WINDOW FUNCTIONS	
 	u32 (*get_window_width) 		(PlatformWindow const *);

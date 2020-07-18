@@ -597,11 +597,14 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 
 	/// GRAPHICS_PIPELINE_LEAVES
 	{
+		auto materialLayout = fsvulkan_make_material_descriptor_set_layout(context.device, 1);
+
 		VkDescriptorSetLayout descriptorSetLayouts[] =
 		{
 			context.cameraDescriptorSetLayout,
 			context.lightingDescriptorSetLayout,
 			context.shadowMapDescriptorSetLayout,
+			materialLayout,
 		};
 
 		VkPushConstantRange pushConstantRange = {VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(s32)};
@@ -658,7 +661,7 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 
 		vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &context.pipelines[GRAPHICS_PIPELINE_LEAVES].pipeline);
 
-		// context.pipelines[GRAPHICS_PIPELINE_LEAVES].descriptorSetLayout = materialLayout;
+		context.pipelines[GRAPHICS_PIPELINE_LEAVES].descriptorSetLayout = materialLayout;
 		context.pipelines[GRAPHICS_PIPELINE_LEAVES].textureCount 		= 1;
 
 		// Note(Leo): Always remember to destroy these :)
@@ -875,7 +878,16 @@ internal void fsvulkan_initialize_shadow_pipeline(VulkanContext & context)
 
 internal void fsvulkan_initialize_leaves_shadow_pipeline(VulkanContext & context)
 {
-	auto pipelineLayoutInfo = fsvulkan_pipeline_layout_create_info(1, &context.cameraDescriptorSetLayout, 0, nullptr);
+	VkDescriptorSetLayout textureMaskLayout = fsvulkan_make_material_descriptor_set_layout(context.device, 1);
+	context.leavesShadowMaskDescriptorSetLayout = textureMaskLayout;
+
+	VkDescriptorSetLayout descriptorSetLayouts [] =
+	{
+		context.cameraDescriptorSetLayout,
+		textureMaskLayout,
+	};
+
+	auto pipelineLayoutInfo = fsvulkan_pipeline_layout_create_info(array_count(descriptorSetLayouts), descriptorSetLayouts, 0, nullptr);
 	VULKAN_CHECK(vkCreatePipelineLayout (context.device, &pipelineLayoutInfo, nullptr, &context.leavesShadowPipelineLayout));
 
 	/// ----------------------------------------------------------------------------------------------
@@ -907,7 +919,7 @@ internal void fsvulkan_initialize_leaves_shadow_pipeline(VulkanContext & context
 	VkRect2D scissor 		= {{0,0}, {context.shadowPass.width, context.shadowPass.height}};
 	auto viewportState 		= fsvulkan_pipeline_viewport_state_create_info									(1, &viewport, 1, &scissor);
 
-	auto rasterizationState 		= fsvulkan_pipeline_rasterization_state_create_info								(VK_CULL_MODE_NONE);
+	auto rasterizationState = fsvulkan_pipeline_rasterization_state_create_info								(VK_CULL_MODE_NONE);
 	auto multisampleState 	= fsvulkan_pipeline_multisample_state_create_info								(VK_SAMPLE_COUNT_1_BIT);
 	auto depthStencilState 	= fsvulkan_pipeline_depth_stencil_create_info									(VK_TRUE, VK_TRUE);
 	auto colorBlendingState	= fsvulkan_pipeline_color_blend_state_create_info								(0, nullptr);

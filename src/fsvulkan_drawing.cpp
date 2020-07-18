@@ -127,7 +127,7 @@ internal void fsvulkan_drawing_prepare_frame(VulkanContext * context)
 	fsvulkan_reset_uniform_buffer(*context);
 	context->leafBufferUsed[context->virtualFrameIndex] = 0;
 
-	auto * frame = vulkan::get_current_virtual_frame(context);
+	auto * frame = fsvulkan_get_current_virtual_frame(context);
 
 	// Note(Leo): We recreate these everytime we are here.
 	// https://software.intel.com/en-us/articles/api-without-secrets-introduction-to-vulkan-part-4#inpage-nav-5
@@ -207,7 +207,7 @@ internal void fsvulkan_drawing_finish_frame(VulkanContext * context)
 	Assert(context->canDraw);
 	context->canDraw = false;
 
-	VulkanVirtualFrame * frame = vulkan::get_current_virtual_frame(context);
+	VulkanVirtualFrame * frame = fsvulkan_get_current_virtual_frame(context);
 
 	// SHADOWS RENDER PASS ----------------------------------------------------
 	VULKAN_CHECK(vkEndCommandBuffer(frame->commandBuffers.offscreen));
@@ -344,10 +344,10 @@ internal void fsvulkan_drawing_draw_model(VulkanContext * context, ModelHandle m
 
 	// ---------------------------------------------------------------
 
-	VulkanVirtualFrame * frame = vulkan::get_current_virtual_frame(context);
+	VulkanVirtualFrame * frame = fsvulkan_get_current_virtual_frame(context);
  
-	auto * mesh     = vulkan::get_loaded_mesh(context, meshHandle);
-	auto * material = vulkan::get_loaded_material(context, materialHandle);
+	auto * mesh     = fsvulkan_get_loaded_mesh(context, meshHandle);
+	auto * material = fsvulkan_get_loaded_material(context, materialHandle);
 
 	Assert(material->pipeline < GRAPHICS_PIPELINE_SCREEN_GUI && "This pipeline does not support mesh rendering");
 
@@ -427,14 +427,18 @@ internal void fsvulkan_drawing_draw_model(VulkanContext * context, ModelHandle m
 // 	vkCmdDraw(commandBuffer, 4, count, 0, 0);
 // }
 
-internal void fsvulkan_drawing_draw_leaves(VulkanContext * context, s32 instanceCount, m44 const * instanceTransforms, s32 colourIndex)
+internal void fsvulkan_drawing_draw_leaves(	VulkanContext * context,
+											s32 instanceCount,
+											m44 const * instanceTransforms,
+											s32 colourIndex,
+											MaterialHandle materialHandle)
 {
 	Assert(instanceCount > 0 && "Vulkan cannot map memory of size 0, and this function should no be called for 0 meshes");
 	Assert(context->canDraw);
 	// Note(Leo): lets keep this sensible
 	Assert(instanceCount <= 20000);
 
-	VulkanVirtualFrame * frame 	= vulkan::get_current_virtual_frame(context);
+	VulkanVirtualFrame * frame 	= fsvulkan_get_current_virtual_frame(context);
 	s64 frameOffset 			= context->leafBufferCapacity * context->virtualFrameIndex;
 	u64 instanceBufferOffset 	= frameOffset + context->leafBufferUsed[context->virtualFrameIndex];
 
@@ -467,6 +471,9 @@ internal void fsvulkan_drawing_draw_leaves(VulkanContext * context, s32 instance
 							2, 1, &context->shadowMapTexture,
 							0, nullptr);
 
+	VkDescriptorSet materialDescriptorSet = fsvulkan_get_loaded_material(context, materialHandle)->descriptorSet;
+	vkCmdBindDescriptorSets(frame->commandBuffers.scene, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 3, 1, &materialDescriptorSet, 0, nullptr);
+
 	vkCmdPushConstants(frame->commandBuffers.scene, pipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(s32), &colourIndex);
 
 	vkCmdBindVertexBuffers(frame->commandBuffers.scene, 0, 1, &context->leafBuffer, &instanceBufferOffset);
@@ -487,6 +494,9 @@ internal void fsvulkan_drawing_draw_leaves(VulkanContext * context, s32 instance
 	vkCmdBindDescriptorSets(frame->commandBuffers.offscreen, VK_PIPELINE_BIND_POINT_GRAPHICS, shadowPipelineLayout,
 							0, 1, &context->cameraDescriptorSet[context->virtualFrameIndex], 0, nullptr);
 
+	vkCmdBindDescriptorSets(frame->commandBuffers.offscreen, VK_PIPELINE_BIND_POINT_GRAPHICS, shadowPipelineLayout,
+							1, 1, &materialDescriptorSet, 0, nullptr);
+
 	vkCmdBindVertexBuffers(frame->commandBuffers.offscreen, 0, 1, &context->leafBuffer, &instanceBufferOffset);
 
 	vkCmdDraw(frame->commandBuffers.offscreen, leafVertexCount, instanceCount, 0, 0);
@@ -497,7 +507,7 @@ internal void fsvulkan_drawing_draw_meshes(VulkanContext * context, s32 count, m
 	Assert(count > 0 && "Vulkan cannot map memory of size 0, and this function should no be called for 0 meshes");
 	Assert(context->canDraw);
 
-	VulkanVirtualFrame * frame = vulkan::get_current_virtual_frame(context);
+	VulkanVirtualFrame * frame = fsvulkan_get_current_virtual_frame(context);
 
 	// Todo(Leo): We should instead allocate these from transient memory, but we currently can't access to it from platform layer.
 	Assert(count <= 1000);
@@ -526,8 +536,8 @@ internal void fsvulkan_drawing_draw_meshes(VulkanContext * context, s32 count, m
 		uniformBufferOffsets[i] = uniformBufferOffset + i * uniformBufferSizePerItem;
 	}
 
-	VulkanMesh * mesh 			= vulkan::get_loaded_mesh(context, meshHandle);
-	VulkanMaterial * material 	= vulkan::get_loaded_material(context, materialHandle);
+	VulkanMesh * mesh 			= fsvulkan_get_loaded_mesh(context, meshHandle);
+	VulkanMaterial * material 	= fsvulkan_get_loaded_material(context, materialHandle);
 
 	Assert(material->pipeline < GRAPHICS_PIPELINE_SCREEN_GUI && "This pipeline does not support mesh rendering");
 
@@ -611,11 +621,11 @@ internal void fsvulkan_drawing_draw_procedural_mesh(VulkanContext * context,
 	Assert(vertexCount > 0);
 	Assert(indexCount > 0);
 
-	auto * frame = vulkan::get_current_virtual_frame(context);
+	auto * frame = fsvulkan_get_current_virtual_frame(context);
 
-	VkCommandBuffer commandBuffer 	= vulkan::get_current_virtual_frame(context)->commandBuffers.scene;
+	VkCommandBuffer commandBuffer 	= fsvulkan_get_current_virtual_frame(context)->commandBuffers.scene;
 
-	VulkanMaterial * material 		= vulkan::get_loaded_material(context, materialHandle);
+	VulkanMaterial * material 		= fsvulkan_get_loaded_material(context, materialHandle);
 	VkPipeline pipeline 			= context->pipelines[material->pipeline].pipeline;
 	VkPipelineLayout pipelineLayout = context->pipelines[material->pipeline].pipelineLayout;
 
@@ -704,7 +714,7 @@ internal void fsvulkan_drawing_draw_lines(VulkanContext * context, s32 pointCoun
 	// Note(Leo): call prepare_drawing() first
 	Assert(context->canDraw);
 
-	VkCommandBuffer commandBuffer = vulkan::get_current_virtual_frame(context)->commandBuffers.scene;
+	VkCommandBuffer commandBuffer = fsvulkan_get_current_virtual_frame(context)->commandBuffers.scene;
 
 	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, context->linePipeline);
 	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, context->linePipelineLayout,
@@ -740,7 +750,7 @@ internal void fsvulkan_drawing_draw_screen_rects(VulkanContext * context, s32 co
 	// https://www.saschawillems.de/blog/2016/08/13/vulkan-tutorial-on-rendering-a-fullscreen-quad-without-buffers/
 	// */
 
-	auto * frame = vulkan::get_current_virtual_frame(context);
+	auto * frame = fsvulkan_get_current_virtual_frame(context);
 
 	VkPipeline 			pipeline;
 	VkPipelineLayout 	pipelineLayout;

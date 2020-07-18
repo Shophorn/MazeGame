@@ -5,8 +5,6 @@ File things.
 =============================================================================*/
 #include <fstream>
 
-
-
 namespace glTF
 {
 	// https://github.com/KhronosGroup/glTF/tree/master/specification/2.0

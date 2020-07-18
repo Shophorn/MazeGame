@@ -313,8 +313,9 @@ struct PlatformGraphics
 	VkPipeline 				linePipeline;
 	VkPipelineLayout 		linePipelineLayout;
 
-	VkPipeline 			leavesShadowPipeline;
-	VkPipelineLayout 	leavesShadowPipelineLayout;
+	VkPipeline 				leavesShadowPipeline;
+	VkPipelineLayout 		leavesShadowPipelineLayout;
+	VkDescriptorSetLayout 	leavesShadowMaskDescriptorSetLayout;
 
 	// Note(Leo): This is a list of functions to call when destroying this.
     using CleanupFunc = void (VulkanContext*);
@@ -335,56 +336,47 @@ struct PlatformGraphics
 
 // Note(Leo): We are expecting to at some point need to get things from multiple different
 // containers, which is easier with helper function.
+// Todo(Leo): any case, think through these at some point
+
 internal VulkanGuiTexture & fsvulkan_get_loaded_gui_texture (VulkanContext & context, GuiTextureHandle id)
 {
 	return context.loadedGuiTextures[id];
 }
 
+
+// TODo(Leo): inline in render function
+internal inline VulkanVirtualFrame *
+fsvulkan_get_current_virtual_frame(VulkanContext * context)
+{
+	return &context->virtualFrames[context->virtualFrameIndex];
+}
+
+internal inline VulkanTexture *
+fsvulkan_get_loaded_texture(VulkanContext * context, TextureHandle handle)
+{
+    return &context->loadedTextures[handle];
+}
+
+internal inline VulkanMaterial *
+fsvulkan_get_loaded_material(VulkanContext * context, MaterialHandle handle)
+{
+	return &context->loadedMaterials[handle];
+}
+
+internal inline VulkanMesh *
+fsvulkan_get_loaded_mesh(VulkanContext * context, MeshHandle handle)
+{
+	return &context->loadedMeshes[handle];
+}
+
 namespace vulkan
 {
-
-	// TODo(Leo): inline in render function
-	internal inline VulkanVirtualFrame *
-	get_current_virtual_frame(VulkanContext * context)
-	{
-		return &context->virtualFrames[context->virtualFrameIndex];
-	}
-
-	internal inline VulkanTexture *
-	get_loaded_texture(VulkanContext * context, TextureHandle handle)
-	{
-	    return &context->loadedTextures[handle];
-	}
-
-	internal inline VulkanMaterial *
-	get_loaded_material(VulkanContext * context, MaterialHandle handle)
-	{
-		return &context->loadedMaterials[handle];
-	}
-
-	internal inline VulkanMesh *
-	get_loaded_mesh(VulkanContext * context, MeshHandle handle)
-	{
-		return &context->loadedMeshes[handle];
-	}
-
 	// Todo(Leo): inline in init function
-    internal VkFormat find_supported_format(    VkPhysicalDevice physicalDevice,
-                                                s32 candidateCount,
-                                                VkFormat * pCandidates,
-                                                VkImageTiling requestedTiling,
-                                                VkFormatFeatureFlags requestedFeatures);
     internal VkFormat find_supported_depth_format(VkPhysicalDevice physicalDevice);
 	internal u32 find_memory_type ( VkPhysicalDevice physicalDevice, u32 typeFilter, VkMemoryPropertyFlags properties);
 
 	internal VulkanQueueFamilyIndices find_queue_families (VkPhysicalDevice device, VkSurfaceKHR surface);
 
-    internal inline bool32
-    has_stencil_component(VkFormat format)
-    {
-        bool32 result = (format == VK_FORMAT_D32_SFLOAT_S8_UINT) || (format == VK_FORMAT_D24_UNORM_S8_UINT);
-        return result;
-    }
 
 #if FS_VULKAN_USE_VALIDATION
 	constexpr bool32 enableValidationLayers = true;
@@ -414,36 +406,8 @@ namespace vulkan
 	// Todo(Leo): This needs to be enforced
     constexpr s32 MAX_LOADED_TEXTURES = 100;
 
-
-    // Todo(Leo): this is internal to the some place
-	internal VkIndexType convert_index_type(IndexType);
-
-
-    internal VkCommandBuffer begin_command_buffer(VkDevice, VkCommandPool);
-    internal void execute_command_buffer(VkCommandBuffer, VkDevice, VkCommandPool, VkQueue);
-	internal void cmd_transition_image_layout(	VkCommandBuffer commandBuffer,
-											    VkDevice        device,
-											    VkQueue         graphicsQueue,
-											    VkImage         image,
-											    VkFormat        format,
-											    u32             mipLevels,
-											    VkImageLayout   oldLayout,
-											    VkImageLayout   newLayout,
-											    u32             layerCount = 1);
-
-
-    /// INITIALIZATION CALLS
-	internal void create_drawing_resources		(VulkanContext*, u32 width, u32 height);
-	internal void destroy_drawing_resources 	(VulkanContext*);					
-
 	/// INTERNAL RESOURCES, CUSTOM
 	internal void destroy_texture 		(VulkanContext*, VulkanTexture * texture);
-
-	internal VulkanBufferResource make_buffer_resource(	VulkanContext*,
-														VkDeviceSize size,
-														VkBufferUsageFlags usage,
-														VkMemoryPropertyFlags memoryProperties);
-	internal void destroy_buffer_resource(VkDevice device, VulkanBufferResource * resource);
 
 	/// INTERNAL RESOURCES, VULKAN TYPES
     internal VkRenderPass 			make_vk_render_pass(VulkanContext*, VkFormat format, VkSampleCountFlagBits msaaSamples);
@@ -453,33 +417,14 @@ namespace vulkan
 											    	VkImageTiling tiling, VkImageUsageFlags usage,
 											    	VkSampleCountFlagBits msaaSamples);
 	internal VkImageView 			make_vk_image_view(VkDevice device, VkImage image, u32 mipLevels, VkFormat format, VkImageAspectFlags aspectFlags);
-	internal VkSampler				make_vk_sampler(VkDevice, VkSamplerAddressMode);
-
-    internal VulkanTexture  make_texture(VulkanContext * context, TextureAsset * asset);
-    internal VulkanTexture  make_cubemap(VulkanContext * context, StaticArray<TextureAsset, 6> * assets);        
+	internal VkSampler				make_vk_sampler(VkDevice, VkSamplerAddressMode);   
 }
-
-internal void fsvulkan_recreate_drawing_resources 	(VulkanContext*, u32 width, u32 height);
-
 
 internal VkDescriptorSet fsvulkan_make_texture_descriptor_set(	VulkanContext*,
 																VkDescriptorSetLayout,
 																VkDescriptorPool,
 																s32 			textureCount,
 																VkImageView * 	textures);
-
-internal GuiTextureHandle fsvulkan_resources_push_gui_texture(VulkanContext * context, TextureAsset * asset);
-internal MaterialHandle fsvulkan_resources_push_material(VulkanContext*, GraphicsPipeline, s32 textureCount, TextureHandle * textures);
-
-internal TextureHandle fsvulkan_init_shadow_pass (VulkanContext*);
-
-internal void fsvulkan_initialize_pipelines(VulkanContext&);
-// internal void fsvulkan_initialize_normal_pipeline(VulkanContext & context);
-// internal void fsvulkan_initialize_animated_pipeline(VulkanContext & context);
-// internal void fsvulkan_initialize_skybox_pipeline(VulkanContext & context);
-// internal void fsvulkan_initialize_screen_gui_pipeline(VulkanContext & context);
-// internal void fsvulkan_initialize_line_pipeline(VulkanContext & context);
-// internal void fsvulkan_initialize_leaves_pipeline(VulkanContext & context);
 
 internal VkDescriptorSet make_material_vk_descriptor_set_2(	VulkanContext *			context,
 															VkDescriptorSetLayout 	descriptorSetLayout,
@@ -488,60 +433,8 @@ internal VkDescriptorSet make_material_vk_descriptor_set_2(	VulkanContext *			co
 															VkSampler 				sampler,
 															VkImageLayout 			layout);
 
-internal void fsvulkan_reload_shaders(VulkanContext * context)
-{
-	system("compile-shaders.py");
 
-	context->onPostRender = [](VulkanContext * context)
-	{
-		VkDevice device = context->device;
 
-		for (s32 i = 0; i < GRAPHICS_PIPELINE_COUNT; ++i)
-		{
-			vkDestroyDescriptorSetLayout(device, context->pipelines[i].descriptorSetLayout, nullptr);
-			vkDestroyPipelineLayout(device, context->pipelines[i].pipelineLayout, nullptr);
-			vkDestroyPipeline(device, context->pipelines[i].pipeline, nullptr);				
-		}
-
-		vkDestroyPipelineLayout(device, context->linePipelineLayout, nullptr);
-		vkDestroyPipeline(device, context->linePipeline, nullptr);
-
-		fsvulkan_initialize_pipelines(*context);
-
-		context->shadowMapTexture = make_material_vk_descriptor_set_2( 	context,
-																		context->pipelines[GRAPHICS_PIPELINE_SCREEN_GUI].descriptorSetLayout,
-																		context->shadowPass.attachment.view,
-																		context->persistentDescriptorPool,
-																		context->shadowPass.sampler,
-																		VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-	};
-}
-
-internal PlatformGraphicsFrameResult fsvulkan_prepare_frame(VulkanContext * context)
-{
-	VulkanVirtualFrame * frame = vulkan::get_current_virtual_frame(context);
-
-    VULKAN_CHECK(vkWaitForFences(context->device, 1, &frame->inFlightFence, VK_TRUE, VULKAN_NO_TIME_OUT));
-
-    VkResult result = vkAcquireNextImageKHR(context->device,
-                                            context->drawingResources.swapchain,
-                                            VULKAN_NO_TIME_OUT,//MaxValue<u64>,
-                                            frame->imageAvailableSemaphore,
-                                            VK_NULL_HANDLE,
-                                            &context->currentDrawFrameIndex);
-    switch(result)
-    {
-    	case VK_SUCCESS:
-    		return PGFR_FRAME_OK;
-
-	    case VK_SUBOPTIMAL_KHR:
-	    case VK_ERROR_OUT_OF_DATE_KHR:
-	    	return PGFR_FRAME_RECREATE;
-
-	    default:
-	    	return PGFR_FRAME_BAD_PROBLEM;
-    }
-}
 
 
 

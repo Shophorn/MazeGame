@@ -1,7 +1,7 @@
 /*
 Leo Tamminen
 
-Trees and leaves.
+Trees and leaves. And L-Systems.
 */
 
 struct Leaves
@@ -21,6 +21,8 @@ struct Leaves
 
 	f32 * 			swayPositions;
 	v3 * 			swayAxes;
+
+	MaterialHandle	material;
 };
  
 internal Leaves make_leaves(MemoryArena & allocator, s32 capacity)
@@ -57,7 +59,7 @@ internal void draw_leaves(Leaves & leaves, f32 elapsedTime)
 		leafTransforms[i] 		= transform_matrix(	position, rotation,	scale);
 	}
 
-	platformApi->draw_leaves(platformGraphics, drawCount, leafTransforms, leaves.colourIndex);
+	platformApi->draw_leaves(platformGraphics, drawCount, leafTransforms, leaves.colourIndex, leaves.material);
 }
 
 

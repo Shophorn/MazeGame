@@ -86,7 +86,7 @@ internal bool32 update_scene_2d(void * scenePtr, PlatformInput const & input, Pl
 
 	if (scene->guiVisible)
 	{
-		gui_start_frame(scene->gui, input);
+		gui_start_frame(scene->gui, input, time.elapsedTime);
 
 		if (gui_button("Continue"))
 		{
@@ -115,7 +115,6 @@ internal void * load_scene_2d(MemoryArena & persistentMemory)
 	scene->gui.selectedTextColor 	= colour_muted_red;
 	scene->gui.padding 				= 10;
 	scene->gui.font = load_font("c:/windows/fonts/arial.ttf");
-	gui_generate_font_material(scene->gui);
 
 	scene->transformStorage = allocate_array<Transform3D>(persistentMemory, 100);
 	scene->renderSystem 	= allocate_array<Renderer>(persistentMemory, 100);

@@ -1,8 +1,19 @@
+
+// Todo(Leo): this is not nice yet :(
+namespace vulkan
+{
+    /// INITIALIZATION CALLS
+    internal void create_drawing_resources      (VulkanContext*, u32 width, u32 height);
+    internal void destroy_drawing_resources     (VulkanContext*);                   
+}
+
+
 namespace vulkan_swapchain_internal_
 {
     using namespace vulkan;
     internal void create_attachments(VulkanContext * context);
 }
+
 
 internal VulkanSwapchainSupportDetails fsvulkan_query_swap_chain_support(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface)
 {

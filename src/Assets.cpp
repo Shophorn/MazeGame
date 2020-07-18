@@ -152,6 +152,15 @@ internal u32 colour_rgb_alpha_32(v3 colour, f32 alpha)
 	return color_rgba_32(colour_rgb_alpha(colour, alpha));
 }
 
+internal v4 colour_multiply(v4 a, v4 b)
+{
+	a = {	a.r * b.r,
+			a.g * b.g,
+			a.b * b.b,
+			a.a * b.a};
+	return a;
+}
+
 internal Pixel
 get_closest_pixel(TextureAsset * texture, v2 texcoord)
 {

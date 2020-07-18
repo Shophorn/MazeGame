@@ -3,14 +3,72 @@ Leo Tamminen
 
 Implementations of vulkan related functions
 =============================================================================*/
-#include "winapi_Vulkan.hpp"
+#include "fsvulkan.hpp"
 
+// Todo(Leo): these are getting old..
 #include "VulkanCommandBuffers.cpp"
 #include "VulkanSwapchain.cpp"
 
 #include "fsvulkan_pipelines.cpp"
 #include "fsvulkan_resources.cpp"
 #include "fsvulkan_drawing.cpp"
+
+
+// Todo(Leo): this is weird, it doesnt feel at home here.
+internal PlatformGraphicsFrameResult fsvulkan_prepare_frame(VulkanContext * context)
+{
+	VulkanVirtualFrame * frame = fsvulkan_get_current_virtual_frame(context);
+
+    VULKAN_CHECK(vkWaitForFences(context->device, 1, &frame->inFlightFence, VK_TRUE, VULKAN_NO_TIME_OUT));
+
+    VkResult result = vkAcquireNextImageKHR(context->device,
+                                            context->drawingResources.swapchain,
+                                            VULKAN_NO_TIME_OUT,//MaxValue<u64>,
+                                            frame->imageAvailableSemaphore,
+                                            VK_NULL_HANDLE,
+                                            &context->currentDrawFrameIndex);
+    switch(result)
+    {
+    	case VK_SUCCESS:
+    		return PGFR_FRAME_OK;
+
+	    case VK_SUBOPTIMAL_KHR:
+	    case VK_ERROR_OUT_OF_DATE_KHR:
+	    	return PGFR_FRAME_RECREATE;
+
+	    default:
+	    	return PGFR_FRAME_BAD_PROBLEM;
+    }
+}
+
+internal void fsvulkan_reload_shaders(VulkanContext * context)
+{
+	system("compile-shaders.py");
+
+	context->onPostRender = [](VulkanContext * context)
+	{
+		VkDevice device = context->device;
+
+		for (s32 i = 0; i < GRAPHICS_PIPELINE_COUNT; ++i)
+		{
+			vkDestroyDescriptorSetLayout(device, context->pipelines[i].descriptorSetLayout, nullptr);
+			vkDestroyPipelineLayout(device, context->pipelines[i].pipelineLayout, nullptr);
+			vkDestroyPipeline(device, context->pipelines[i].pipeline, nullptr);				
+		}
+
+		vkDestroyPipelineLayout(device, context->linePipelineLayout, nullptr);
+		vkDestroyPipeline(device, context->linePipeline, nullptr);
+
+		fsvulkan_initialize_pipelines(*context);
+
+		context->shadowMapTexture = make_material_vk_descriptor_set_2( 	context,
+																		context->pipelines[GRAPHICS_PIPELINE_SCREEN_GUI].descriptorSetLayout,
+																		context->shadowPass.attachment.view,
+																		context->persistentDescriptorPool,
+																		context->shadowPass.sampler,
+																		VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	};
+}
 
 internal void fsvulkan_set_platform_graphics_api(VulkanContext * context, PlatformApi * api)
 {
@@ -38,7 +96,7 @@ internal void fsvulkan_set_platform_graphics_api(VulkanContext * context, Platfo
 }
 
 internal VkFormat
-vulkan::find_supported_format(
+BAD_VULKAN_find_supported_format(
 	VkPhysicalDevice physicalDevice,
 	s32 candidateCount,
 	VkFormat * pCandidates,
@@ -71,7 +129,7 @@ vulkan::find_supported_depth_format(VkPhysicalDevice physicalDevice)
 							VK_FORMAT_D32_SFLOAT_S8_UINT,
 							VK_FORMAT_D24_UNORM_S8_UINT };
 	s32 formatCount = 3;
-	VkFormat result = find_supported_format(
+	VkFormat result = BAD_VULKAN_find_supported_format(
 						physicalDevice, formatCount, formats, VK_IMAGE_TILING_OPTIMAL, 
 						VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
 	return result;
@@ -97,7 +155,7 @@ vulkan::find_memory_type (VkPhysicalDevice physicalDevice, u32 typeFilter, VkMem
 }   
 
 internal VulkanBufferResource
-vulkan::make_buffer_resource(
+BAD_VULKAN_make_buffer_resource(
 	VulkanContext *         context,
 	VkDeviceSize            size,
 	VkBufferUsageFlags      usage,
@@ -122,7 +180,7 @@ vulkan::make_buffer_resource(
 	{
 		.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
 		.allocationSize = memoryRequirements.size,
-		.memoryTypeIndex = find_memory_type(context->physicalDevice,
+		.memoryTypeIndex = vulkan::find_memory_type(context->physicalDevice,
 											memoryRequirements.memoryTypeBits,
 											memoryProperties),
 	};
@@ -143,26 +201,10 @@ vulkan::make_buffer_resource(
 }
 
 internal void
-vulkan::destroy_buffer_resource(VkDevice logicalDevice, VulkanBufferResource * resource)
+BAD_VULKAN_destroy_buffer_resource(VkDevice logicalDevice, VulkanBufferResource * resource)
 {
 	vkDestroyBuffer(logicalDevice, resource->buffer, nullptr);
 	vkFreeMemory(logicalDevice, resource->memory, nullptr);
-}
-
-internal VkIndexType
-vulkan::convert_index_type(IndexType type)
-{
-	switch (type)
-	{
-		case IndexType::UInt16:
-			return VK_INDEX_TYPE_UINT16;
-
-		case IndexType::UInt32:
-			return VK_INDEX_TYPE_UINT32;
-
-		default:
-			return VK_INDEX_TYPE_NONE_NV;
-	};
 }
 
 VulkanQueueFamilyIndices
@@ -487,134 +529,6 @@ vulkan::make_vk_image( VulkanContext * context,
 	return resultImage;
 }
 
-// Change image layout from stored pixel array layout to device optimal layout
-internal void
-vulkan::cmd_transition_image_layout(
-	VkCommandBuffer commandBuffer,
-	VkDevice        device,
-	VkQueue         graphicsQueue,
-	VkImage         image,
-	VkFormat        format,
-	u32             mipLevels,
-	VkImageLayout   oldLayout,
-	VkImageLayout   newLayout,
-	u32             layerCount)
-{
-	VkImageMemoryBarrier barrier = { VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER };
-	barrier.oldLayout = oldLayout; // Note(Leo): Can be VK_IMAGE_LAYOUT_UNDEFINED if we dont care??
-	barrier.newLayout = newLayout;
-
-	/* Note(Leo): these are used if we are to change queuefamily ownership.
-	Otherwise must be set to 'VK_QUEUE_FAMILY_IGNORED' */
-	barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-	barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-
-	barrier.image = image;
-
-	if (newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL || newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL)
-	{
-		barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-		if (vulkan::has_stencil_component(format))
-		{
-			barrier.subresourceRange.aspectMask |= VK_IMAGE_ASPECT_STENCIL_BIT;
-		}
-	}
-	else
-	{
-		barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	}
-
-	barrier.subresourceRange.baseMipLevel = 0;
-	barrier.subresourceRange.levelCount = mipLevels;
-	barrier.subresourceRange.baseArrayLayer = 0;
-	barrier.subresourceRange.layerCount = layerCount;
-
-	VkPipelineStageFlags sourceStage;
-	VkPipelineStageFlags destinationStage;
-
-	/* Todo(Leo): This is ultimate stupid, we rely on knowing all this based
-	on two variables, instead rather pass more arguments, or struct, or a 
-	index to lookup table or a struct from that lookup table.
-
-	This function should at most handle the command buffer part instead of
-	quessing omitted values.
-	*/
-
-	if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED 
-		&& newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
-	{
-		barrier.srcAccessMask = 0;
-		barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-
-		sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-		destinationStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
-	}
-	else if (oldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL 
-			&& newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
-	{
-		barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-		barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-
-		sourceStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
-		destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-	}
-
-	else if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED 
-			&& newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
-	{
-		barrier.srcAccessMask = 0;
-		barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-
-		sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-		destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-	}
-	else if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED
-			&& newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL)
-	{
-		barrier.srcAccessMask = 0;
-		barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-
-		sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-		destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-
-	}
-	// DEPTH IMAGE
-	else if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED
-			&& newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
-	{
-		barrier.srcAccessMask = 0;
-		barrier.dstAccessMask =  VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT 
-								| VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-
-		sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-		destinationStage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-	}
-	// COLOR IMAGE
-	else if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED
-			&& newLayout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL)
-	{
-		barrier.srcAccessMask = 0;
-		barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT
-								| VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
-
-		sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-		destinationStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-	}
-
-
-	else
-	{
-		AssertMsg(false, "This layout transition is not supported!");
-	}
-
-	VkDependencyFlags dependencyFlags = 0;
-	vkCmdPipelineBarrier(   commandBuffer,
-							sourceStage, destinationStage,
-							dependencyFlags,
-							0, nullptr,
-							0, nullptr,
-							1, &barrier);
-}
 
 VkSampler
 vulkan::make_vk_sampler(VkDevice device, VkSamplerAddressMode addressMode)
@@ -1124,22 +1038,22 @@ winapi_vulkan_internal_::init_memory(VulkanContext * context)
 	u64 guiUniformBufferSize     = megabytes(100);
 
 	// TODO[MEMORY] (Leo): This will need guarding against multithreads once we get there
-	context->staticMeshPool = vulkan::make_buffer_resource(  
+	context->staticMeshPool = BAD_VULKAN_make_buffer_resource(  
 									context, staticMeshPoolSize,
 									VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
 									VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-	context->stagingBufferPool = vulkan::make_buffer_resource(  
+	context->stagingBufferPool = BAD_VULKAN_make_buffer_resource(  
 									context, stagingBufferPoolSize,
 									VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
 									VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
-	context->modelUniformBuffer = vulkan::make_buffer_resource(  
+	context->modelUniformBuffer = BAD_VULKAN_make_buffer_resource(  
 									context, modelUniformBufferSize,
 									VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
 									VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
-	context->sceneUniformBuffer = vulkan::make_buffer_resource(
+	context->sceneUniformBuffer = BAD_VULKAN_make_buffer_resource(
 									context, sceneUniformBufferSize,
 									VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
 									VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
@@ -1182,10 +1096,10 @@ winapi_vulkan_internal_::init_memory(VulkanContext * context)
 	}
 
 	add_cleanup(context, [](VulkanContext * context){
-		vulkan::destroy_buffer_resource(context->device, &context->staticMeshPool);
-		vulkan::destroy_buffer_resource(context->device, &context->stagingBufferPool);
-		vulkan::destroy_buffer_resource(context->device, &context->modelUniformBuffer);
-		vulkan::destroy_buffer_resource(context->device, &context->sceneUniformBuffer);
+		BAD_VULKAN_destroy_buffer_resource(context->device, &context->staticMeshPool);
+		BAD_VULKAN_destroy_buffer_resource(context->device, &context->stagingBufferPool);
+		BAD_VULKAN_destroy_buffer_resource(context->device, &context->modelUniformBuffer);
+		BAD_VULKAN_destroy_buffer_resource(context->device, &context->sceneUniformBuffer);
 
 		vkDestroyBuffer(context->device, context->leafBuffer, nullptr);
 		// Todo(Leo): Is it required to free memory on application exit?
@@ -1587,7 +1501,9 @@ void winapi_vulkan_internal_::init_shadow_pass(VulkanContext * context, u32 widt
 		vkDestroyPipelineLayout(context->device, context->shadowPass.layout, nullptr);
 		vkDestroyDescriptorSetLayout(context->device, context->shadowMapDescriptorSetLayout, nullptr);
 
+		vkDestroyDescriptorSetLayout(context->device, context->leavesShadowMaskDescriptorSetLayout, nullptr);
 		vkDestroyPipeline(device, context->leavesShadowPipeline, nullptr);
 		vkDestroyPipelineLayout(device, context->leavesShadowPipelineLayout, nullptr);
+
 	});
 }

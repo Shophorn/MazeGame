@@ -8,6 +8,7 @@ layout (set = 1, binding = 0) uniform Lighting
 } light;
 
 layout(binding = 0, set = 2) uniform sampler2D lightMap;
+layout(binding = 0, set = 3) uniform sampler2D maskTexture;
 
 layout(push_constant) uniform Block
 {
@@ -49,6 +50,8 @@ void main()
 {
 	const float gamma = 2.2;
 
+	#if 0
+
 	float distanceFromCenter 	= length(fragTexCoord.xy * 2);
 	float opacity 				= step (distanceFromCenter, 1.0);
 
@@ -59,6 +62,10 @@ void main()
 
 	float op2 = angle * y + angle;
 	opacity *= step(abs(op2), abs(x));
+	#else
+
+	float opacity = texture(maskTexture, fragTexCoord).r;
+ 	#endif
 
 	if (opacity < 0.5)
 	{

@@ -41,6 +41,8 @@ struct Gui
 
 	// Per frame state
 	PlatformInput 	input;
+	f32 			elapsedTime;
+
 	v2 				currentPosition;
 	s32 			currentSelectableIndex;
 	v2 				screenSize;
@@ -59,14 +61,16 @@ struct Gui
 	s32 			panelDrawCallCapacity;
 	s32 			panelDrawCallCount;
 	GuiDrawCall * 	panelDrawCalls;
+	bool32 			panelHasTitle;
 };
+
+char const * const GUI_NO_TITLE = "GUI_NO_TITLE";
 
 Gui * global_currentGui = nullptr;
 
 // Maintenance
-internal void gui_start_frame(Gui & gui, PlatformInput const & input);
+internal void gui_start_frame(Gui & gui, PlatformInput const & input, f32 elapsedTime);
 internal void gui_end_frame();
-internal void gui_generate_font_material(Gui & gui);
 
 // Control
 internal void gui_position(v2 position);
@@ -77,6 +81,7 @@ internal void gui_ignore_input();
 internal bool gui_button(char const * label);
 internal void gui_text(char const * label);
 internal void gui_image(GuiTextureHandle texture, v2 size, v4 colour = colour_white);
+internal f32 gui_float_slider(char const * label, f32 currentValue, f32 minValue, f32 maxValue);
 
 // Internal
 internal void gui_render_texture(TextureHandle texture, ScreenRect rect);
@@ -85,7 +90,7 @@ internal void gui_render_text(char const * text, v2 position, v4 color);
   //////////////////////////////////
  ///  GUI IMPLEMENTATION 		///
 //////////////////////////////////
-internal void gui_start_frame(Gui & gui, PlatformInput const & input)
+internal void gui_start_frame(Gui & gui, PlatformInput const & input, f32 elapsedTime)
 {
 	Assert(global_currentGui == nullptr);
 
@@ -94,6 +99,8 @@ internal void gui_start_frame(Gui & gui, PlatformInput const & input)
 	gui.input 					= input;
 	gui.currentPosition 		= {0,0};
 	gui.currentSelectableIndex 	= 0;
+
+	gui.elapsedTime 			= elapsedTime;
 
 	if (gui.selectableCountLastFrame > 0)
 	{
@@ -204,7 +211,7 @@ internal void gui_render_text (char const * text, v2 position, v4 color)
 	platformApi->draw_screen_rects(platformGraphics, rectCount, rects, gui.font.atlasTexture, color);
 };
 
-internal void gui_panel_add_text_draw_call(char const * text, v4 color)
+internal f32 gui_panel_add_text_draw_call(char const * text, v4 color)
 {
 	Gui & gui = *global_currentGui;
 
@@ -220,7 +227,7 @@ internal void gui_panel_add_text_draw_call(char const * text, v4 color)
 	position.x 	+= gui.padding;
 	position.y 	+= gui.panelSize.y;
 
-	f32 panelWidth = gui.padding;
+	f32 textWidth = gui.padding;
 
 	s32 rectCapacity 	= 256;
 	s32 rectCount 		= 0;
@@ -233,7 +240,7 @@ internal void gui_panel_add_text_draw_call(char const * text, v4 color)
 		if (*text == ' ')
 		{
 			position.x += size * gui.font.spaceWidth;
-			panelWidth += size * gui.font.spaceWidth;
+			textWidth += size * gui.font.spaceWidth;
 			++text;
 			continue;
 		}
@@ -255,15 +262,17 @@ internal void gui_panel_add_text_draw_call(char const * text, v4 color)
 		++rectCount;
 
 		position.x += size * gui.font.advanceWidths[index];
-		panelWidth += size * gui.font.advanceWidths[index];
+		textWidth += size * gui.font.advanceWidths[index];
 		++text;
 	}
 
 	gui.panelDrawCalls[gui.panelDrawCallCount] 	= {rectCount, rects, gui.font.atlasTexture, color};
 	gui.panelDrawCallCount 						+= 1;
 
-	gui.panelSize.x = max_f32(gui.panelSize.x, panelWidth + gui.padding);
+	gui.panelSize.x = max_f32(gui.panelSize.x, textWidth + gui.padding);
 	gui.panelSize.y += gui.textSize + gui.padding;
+
+	return textWidth;
 }
 
 internal void gui_start_panel(char const * label, v4 color)
@@ -282,7 +291,15 @@ internal void gui_start_panel(char const * label, v4 color)
 	gui.panelDrawCallCount 		= 0;
 	gui.panelDrawCalls 			= push_memory<GuiDrawCall>(*global_transientMemory, gui.panelDrawCallCapacity, ALLOC_NO_CLEAR);
 
-	gui_panel_add_text_draw_call(label, gui.textColor);
+	if (label == GUI_NO_TITLE)
+	{
+		gui.panelHasTitle = false;
+	}
+	else
+	{
+		gui.panelHasTitle = true;
+		gui_panel_add_text_draw_call(label, gui.textColor);
+	}
 }
 
 internal void gui_end_panel()
@@ -299,10 +316,13 @@ internal void gui_end_panel()
 	ScreenRect panelRects [] =
 	{
 		{panelPosition,	gui_transform_screen_size(gui.panelSize),	{0,0},	{1,1}},
-		{panelPosition,	gui_transform_screen_size({gui.panelSize.x, gui.padding + gui.textSize + gui.padding}),	{0,0},	{1,1}}
+		{panelPosition,	gui_transform_screen_size({gui.panelSize.x, gui.padding + gui.textSize + gui.padding}),	{0,0},	{1,1}},
 	};
 
-	platformApi->draw_screen_rects(platformGraphics, 2, panelRects, gui.panelTexture, gui.panelColor);
+	// Note(Leo): If we do have title, we draw another rect to highlight it. (It becomes darker, since total alpha is more)
+	s32 backrgroundDrawCount = gui.panelHasTitle ? 2 : 1;
+
+	platformApi->draw_screen_rects(platformGraphics, backrgroundDrawCount, panelRects, gui.panelTexture, gui.panelColor);
 
 	for (s32 i = 0; i < gui.panelDrawCallCount; ++i)
 	{
@@ -365,6 +385,120 @@ internal void gui_image(GuiTextureHandle texture, v2 size, v4 colour)
 	platformApi->draw_screen_rects(platformGraphics, 1, &rect, texture, colour);
 }
 
+internal f32 gui_float_slider(char const * label, f32 currentValue, f32 minValue, f32 maxValue)
+{
+	Gui & gui = *global_currentGui;
+
+	constexpr f32  sliderMoveSpeed = 1.0;
+
+	bool isSelected = (gui.currentSelectableIndex == gui.selectedIndex);
+	++gui.currentSelectableIndex;
+
+	if (isSelected)
+	{
+		if (is_pressed(gui.input.left))
+		{
+			currentValue -= sliderMoveSpeed * gui.elapsedTime * (maxValue - minValue);
+		}
+
+		if (is_pressed(gui.input.right))
+		{
+			currentValue += sliderMoveSpeed * gui.elapsedTime * (maxValue - minValue);
+		}
+	}
+
+	v2 position;
+	f32 labelTextWidth;
+	if(gui.isPanelActive)
+	{
+		// Todo(Leo): This is a lie, it also contains padding, 18.07.2020
+		labelTextWidth = gui_panel_add_text_draw_call(label, isSelected ? gui.selectedTextColor : gui.textColor);
+
+		position = gui.panelPosition;
+
+	
+		position.x 	+= labelTextWidth + gui.padding;
+		position.y 	+= gui.panelSize.y - gui.padding - gui.textSize;
+	}
+	else
+	{
+		gui_render_text(label, gui.currentPosition, isSelected ? gui.selectedTextColor : gui.textColor);
+
+		gui.currentPosition.y += gui.padding;
+
+		position = gui.currentPosition;
+	}
+
+	currentValue = clamp_f32(currentValue, minValue, maxValue);
+
+	constexpr float sliderWidth = 200;
+	constexpr float sliderHeight = 10;
+
+	constexpr float handleWidth = 20;
+	constexpr float handleHeight = 35;
+
+	float sliderRectX = position.x;
+	float sliderRectY = position.y + (gui.textSize / 2) - (sliderHeight / 2);
+	float sliderRectW = sliderWidth;
+	float sliderRectH = sliderHeight;
+
+	float handlePositionTime = (currentValue - minValue) / (maxValue - minValue); 
+	float handleRectX = position.x + (sliderWidth - handleWidth) * handlePositionTime;
+	float handleRectY = position.y + (gui.textSize / 2) - (handleHeight / 2);
+	float handleRectW = handleWidth;
+	float handleRectH = handleHeight;
+
+	if (gui.isPanelActive)
+	{
+		// gui.panelSize.y += gui.textSize;
+		// gui.panelSize.y += gui.padding;
+
+		gui.panelSize.x = max_f32(gui.panelSize.x, labelTextWidth + sliderWidth + 2 * gui.padding);
+	}
+	else
+	{
+		gui.currentPosition.y += gui.textSize;
+		gui.currentPosition.y += gui.padding;		
+	}
+
+	ScreenRect sliderRect =
+	{ 
+		gui_transform_screen_point({sliderRectX, sliderRectY}),
+		gui_transform_screen_size({sliderRectW, sliderRectH}),
+		{0, 0},
+		{1, 1},
+	};
+
+	ScreenRect handleRect =
+	{
+		gui_transform_screen_point({handleRectX, handleRectY}),
+		gui_transform_screen_size({handleRectW, handleRectH}),
+		{0, 0},
+		{1, 1}
+	};
+
+	v4 railColour = colour_multiply({0.3, 0.3, 0.3, 0.6}, isSelected ? gui.selectedTextColor : gui.textColor);
+	v4 handleColour = colour_multiply({0.8, 0.8, 0.8, 1.0}, isSelected ? gui.selectedTextColor : gui.textColor);
+
+	if (gui.isPanelActive)
+	{
+		ScreenRect * rects = push_memory<ScreenRect>(*global_transientMemory, 2, ALLOC_NO_CLEAR);
+		rects[0] = sliderRect;
+		rects[1] = handleRect;
+
+		gui.panelDrawCalls[gui.panelDrawCallCount] 		= {1, &rects[0], gui.panelTexture, railColour};
+		gui.panelDrawCalls[gui.panelDrawCallCount + 1] 	= {1, &rects[1]	, gui.panelTexture, handleColour};
+		gui.panelDrawCallCount += 2;
+	}
+	else
+	{
+		platformApi->draw_screen_rects(platformGraphics, 1, &sliderRect, gui.panelTexture, railColour);
+		platformApi->draw_screen_rects(platformGraphics, 1, &handleRect, gui.panelTexture, handleColour);
+	}
+
+	return currentValue;
+}
+
 internal void gui_background_image(GuiTextureHandle texture, s32 rows, v4 colour)
 {	
 	Gui & gui = *global_currentGui;
@@ -380,15 +514,6 @@ internal void gui_background_image(GuiTextureHandle texture, s32 rows, v4 colour
 	ScreenRect rect = {position, size, {0, 0}, {1, 1}};
 
 	platformApi->draw_screen_rects(platformGraphics, 1, &rect, texture, colour);
-}
-
-internal void gui_generate_font_material(Gui & gui)
-{
-	// Todo(Leo): We need something like this, but this won't work since TextureHandles do have default index -1, 
-	// but if we have allocted this in array etc, it may not have been initialized to it properly...
-	Assert(gui.font.atlasTexture >= 0);
-	// gui.fontMaterial = platformApi->push_material(platformGraphics, GRAPHICS_PIPELINE_SCREEN_GUI, 1, &gui.font.atlasTexture);
-	// gui.fontTexture = platformApi->push_material(platformGraphics, )
 }
 
 // END_C_BLOCK

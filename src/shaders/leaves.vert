@@ -22,10 +22,16 @@ const uint vertexCount = 4;
 
 const vec2 vertexTexcoords [vertexCount] =
 {
-	vec2 (-0.5, -0.5),
-	vec2 ( 0.5, -0.5),
-	vec2 (-0.5,  0.5),
-	vec2 ( 0.5,  0.5),
+	// Todo(Leo): This is inverted and it might be bad. I suspect it is due to stb image loading images "wrong" way :)
+	vec2 (0, 1),
+	vec2 (1, 1),
+	vec2 (0, 0),
+	vec2 (1, 0),
+
+	// vec2 (-0.5, -0.5),
+	// vec2 ( 0.5, -0.5),
+	// vec2 (-0.5,  0.5),
+	// vec2 ( 0.5,  0.5),
 };
 
 const vec3 vertexPositions [vertexCount] =

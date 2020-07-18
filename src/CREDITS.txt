@@ -2,6 +2,7 @@ CREDITS
 
 People, whose work has helped or even enabled me to do this stuff
 
+Handmade Hero
 ThinMatrix -> Karl
 Sascha Willems
 vulkan-tutorial.org?

@@ -22,10 +22,10 @@ const vec3 vertexPositions [vertexCount] =
 
 const vec2 vertexTexcoords [vertexCount] =
 {
-	vec2 (-0.5, -0.5),
-	vec2 ( 0.5, -0.5),
-	vec2 (-0.5,  0.5),
-	vec2 ( 0.5,  0.5),
+	vec2 (0, 0),
+	vec2 (1, 0),
+	vec2 (0, 1),
+	vec2 (1, 1),
 };
 
 void main ()
