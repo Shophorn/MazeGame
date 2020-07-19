@@ -113,6 +113,7 @@ struct VulkanTexture
 {
 	VkImage 		image;
 	VkImageView 	view;
+	VkSampler 		sampler;
 
 	// TODO(Leo): totally not allocate like this, we need texture pool
 	VkDeviceMemory memory;
@@ -242,6 +243,7 @@ struct PlatformGraphics
 	VkCommandPool 			commandPool;
     VkSampleCountFlagBits 	msaaSamples;
     VkSampler 				textureSampler;			
+    VkSampler 				clampSampler;			
 
     /* Note(Leo): color and depth images for initial writing. These are
     afterwards resolved to actual framebufferimage */
@@ -417,14 +419,8 @@ namespace vulkan
 											    	VkImageTiling tiling, VkImageUsageFlags usage,
 											    	VkSampleCountFlagBits msaaSamples);
 	internal VkImageView 			make_vk_image_view(VkDevice device, VkImage image, u32 mipLevels, VkFormat format, VkImageAspectFlags aspectFlags);
-	internal VkSampler				make_vk_sampler(VkDevice, VkSamplerAddressMode);   
+	// internal VkSampler				make_vk_sampler(VkDevice, VkSamplerAddressMode);   
 }
-
-internal VkDescriptorSet fsvulkan_make_texture_descriptor_set(	VulkanContext*,
-																VkDescriptorSetLayout,
-																VkDescriptorPool,
-																s32 			textureCount,
-																VkImageView * 	textures);
 
 internal VkDescriptorSet make_material_vk_descriptor_set_2(	VulkanContext *			context,
 															VkDescriptorSetLayout 	descriptorSetLayout,

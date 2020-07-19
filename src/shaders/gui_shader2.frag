@@ -18,6 +18,6 @@ void main()
 	outColor.rgb 	= color.color.rgb * tex.rgb;
 	outColor.a 		= color.color.a * tex.a;
 
-	float gamma = 2.2;
-	outColor.rgb = pow(outColor.rgb, vec3(1/gamma));
+	// float gamma = 2.2;
+	// outColor.rgb = pow(outColor.rgb, vec3(1/gamma));
 }

@@ -28,6 +28,69 @@ enum CarryMode : s32
 	CARRY_TREE,
 };
 
+internal TextureAsset generate_gradient(MemoryArena & allocator, int colourCount, v4 * colours, f32 * times, s32 pixelCount)
+{
+	Array<u32> pixels = allocate_array<u32>(allocator, pixelCount, ALLOC_FILL | ALLOC_NO_CLEAR);
+
+	s32 pixelIndex 	= 0;
+	s32 colourIndex = 0;
+	f32 time 		= 0;
+
+	// Note(Leo): there is one pixel more than steps, steps are in between
+	f32 timeStep 	= 1.0f / (pixelCount - 1);
+
+	while(pixelIndex < pixelCount && time < times[0])
+	{
+		pixels[pixelIndex] = colour_rgba_u32(colours[0]);
+		
+		logDebug(0) << "First, " << pixelIndex << ", " << colours[0] << ", " << (pixels[pixelIndex]);
+
+		pixelIndex += 1;
+
+		time += timeStep;
+	}
+
+	colourIndex = 1;
+
+	while(pixelIndex < pixelCount && time < times[colourCount - 1])
+	{
+		while (time > times[colourIndex])
+		{
+			colourIndex += 1;
+		}
+
+		v4 previousColour 	= colours[colourIndex - 1];
+		v4 nextColour 		= colours[colourIndex];
+
+		f32 previousTime 	= times[colourIndex - 1];
+		f32 nextTime 		= times[colourIndex];
+
+		float relativeTime = (time - previousTime) / (nextTime - previousTime);
+
+		Assert(relativeTime <= 1);
+
+		v4 colour = v4_lerp(previousColour, nextColour, relativeTime);
+
+		pixels[pixelIndex] = colour_rgba_u32(v4_lerp(previousColour, nextColour, relativeTime));
+		logDebug(0) << "second, relativeTime: " << relativeTime << ", time: " << time << ", " << colourIndex << ", " << colour << "," << (pixels[pixelIndex]);
+
+		pixelIndex += 1;	
+		time += timeStep;
+	}
+
+	while(pixelIndex < pixelCount)
+	{
+		pixels[pixelIndex] = colour_rgba_u32(colours[colourCount - 1]);
+		logDebug(0) << "LAst, " << pixelIndex << ", " << colours[colourCount - 1] << ", " << (pixels[pixelIndex]);
+		pixelIndex += 1;
+
+		time += timeStep;
+	}
+
+	TextureAsset result = { std::move(pixels), pixelCount, 1, 4 };
+	return result;
+}
+
 struct Scene3d
 {
 	// Todo(Leo): Remove these "component" arrays, they are stupidly generic solution, that hide away actual data location, at least the way they are now used
@@ -135,6 +198,8 @@ struct Scene3d
 		MENU_MAIN,
 		MENU_CONFIRM_EXIT,
 		MENU_CONFIRM_TELEPORT,
+		MENU_EDIT_SKY,
+		MENU_SAVE_COMPLETE,
 	};
 
 	MenuView menuView;
@@ -369,7 +434,6 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 		light.skyColorSelection 		= clamp_f32((playerDistanceFromClosestTree - minPlayerDistance) / (maxPlayerDistance - minPlayerDistance), 0, 1);
 
 	}
-
 
 
 	platformApi->update_lighting(platformGraphics, &light, &scene->worldCamera, ambient);
@@ -901,7 +965,8 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 	bool32 keepScene = true;
 	
-	v4 menuColor = colour_rgb_alpha(colour_bright_blue.rgb, 0.5);
+	v4 menuColor = colour_white;
+	// v4 menuColor = colour_rgb_alpha(colour_bright_blue.rgb, 0.5);
 	switch(scene->menuView)
 	{	
 		case Scene3d::MENU_OFF:
@@ -997,7 +1062,17 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 			if (gui_button("Save Game"))
 			{
+				// Todo(Leo): Show some response
 				write_save_file(scene);
+
+				scene->menuView = Scene3d::MENU_SAVE_COMPLETE;
+				gui_reset_selection();
+			}
+
+			if (gui_button("Edit Sky"))
+			{
+				scene->menuView = Scene3d::MENU_EDIT_SKY;
+				gui_reset_selection();
 			}
 
 			if (gui_button("Exit Scene"))
@@ -1010,6 +1085,21 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 		} break;
 	
+		case Scene3d::MENU_SAVE_COMPLETE:
+		{
+			gui_position({850, 400});
+			gui_start_panel("Game Saved!", menuColor);
+
+			if (gui_button("Ok"))
+			{
+				scene->menuView = Scene3d::MENU_MAIN;
+				gui_reset_selection();
+			}
+
+			gui_end_panel();
+
+		} break;
+
 		case Scene3d::MENU_CONFIRM_TELEPORT:
 		{
 			gui_position({800, 300});
@@ -1029,6 +1119,23 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 			}
 
 			gui_end_panel();
+		} break;
+
+		case Scene3d::MENU_EDIT_SKY:
+		{
+			gui_position({100, 100});
+
+			gui_start_panel("Edit Sky", menuColor);
+
+
+
+			if (gui_button("Back"))
+			{
+				scene->menuView = Scene3d::MENU_MAIN;
+			}
+
+			gui_end_panel();
+
 		} break;
 	}
 
@@ -1075,7 +1182,16 @@ void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle saveFile
 	scene->gui.padding 				= 10;
 	scene->gui.font 				= load_font("c:/windows/fonts/arial.ttf");
 
-	TextureAsset guiTextureAsset 	= make_texture_asset(allocate_array<u32>(*global_transientMemory, {0xffffffff}), 1, 1, 4);
+	// TextureAsset guiTextureAsset 	= make_texture_asset(allocate_array<u32>(*global_transientMemory, {0xffffffff}), 1, 1, 4);
+	v4 guiGradientColours [] =
+	{
+		{1,0,0,1},
+		{1,0,1,1},
+		{0,0,1,1},
+	};
+	f32 guiGradientTimes [] = {0, 0.5, 1};
+
+	TextureAsset guiTextureAsset 	= generate_gradient(*global_transientMemory, 3, guiGradientColours, guiGradientTimes, 32);
 	scene->gui.panelTexture			= platformApi->push_gui_texture(platformGraphics, &guiTextureAsset);
 
 	// ----------------------------------------------------------------------------------
@@ -1121,7 +1237,7 @@ void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle saveFile
 
 	TextureAsset whiteTextureAsset 			= make_texture_asset(allocate_array<u32>(*global_transientMemory, {0xffffffff}), 1, 1, 4);
 	TextureAsset blackTextureAsset	 		= make_texture_asset(allocate_array<u32>(*global_transientMemory, {0xff000000}), 1, 1, 4);
-	TextureAsset neutralBumpTextureAsset 	= make_texture_asset(allocate_array<u32>(*global_transientMemory, {color_rgba_32(colour_bump)}), 1, 1, 4);
+	TextureAsset neutralBumpTextureAsset 	= make_texture_asset(allocate_array<u32>(*global_transientMemory, {colour_rgba_u32(colour_bump)}), 1, 1, 4);
 	TextureAsset waterBlueTextureAsset 		= make_texture_asset(allocate_array<u32>(*global_transientMemory, {colour_rgb_alpha_32(colour_aqua_blue.rgb,0.7)}), 1, 1, 4);
 	TextureAsset seedBrownTextureAsset 		= make_texture_asset(allocate_array<u32>(*global_transientMemory, {0xff003399}), 1, 1, 4);
 
@@ -1155,20 +1271,37 @@ void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle saveFile
 			.ground 		= push_material(GRAPHICS_PIPELINE_NORMAL, groundAlbedo, groundNormal, blackTexture),
 		};
 		
-		// Note(Leo): internet told us vulkan(or glsl) cubemap face order is as follows:
-		// (+X,-X,+Y,-Y,+Z,-Z).
-		// ... seems to wrock
-		// StaticArray<TextureAsset,6> skyboxTextureAssets =
-		// {
-		// 	load_texture_asset("assets/textures/miramar_rt.png", global_transientMemory),
-		// 	load_texture_asset("assets/textures/miramar_lf.png", global_transientMemory),
-		// 	load_texture_asset("assets/textures/miramar_ft.png", global_transientMemory),
-		// 	load_texture_asset("assets/textures/miramar_bk.png", global_transientMemory),
-		// 	load_texture_asset("assets/textures/miramar_up.png", global_transientMemory),
-		// 	load_texture_asset("assets/textures/miramar_dn.png", global_transientMemory),
-		// };
-		// auto skyboxTexture 	= platformApi->push_cubemap(platformGraphics, &skyboxTextureAssets);
-		materials.sky 		= platformApi->push_material(platformGraphics, GRAPHICS_PIPELINE_SKYBOX, 0, nullptr);
+		{
+			v4 niceSkyGradientColors [] =
+			{
+				{0.43f / 2.55f, 0.3f/2.55f, 0.98f/2.55f, 	1.0},
+				{0.4, 0.9, 1.0,								1.0},
+				{0.8, 0.99, 1.0,							1.0},
+				{1,1,1, 									1.0},
+			};
+			f32 niceSkyGradientTimes [] 		= {0.1, 0.3, 0.9, 0.99};
+
+			TextureAsset niceSkyGradientAsset 	= generate_gradient(*global_transientMemory, 4, niceSkyGradientColors, niceSkyGradientTimes, 128);
+			niceSkyGradientAsset.addressMode 	= TEXTURE_ADDRESS_MODE_CLAMP;
+			auto niceSkyGradient				= platformApi->push_texture(platformGraphics, &niceSkyGradientAsset);
+
+			v4 meanSkyGradientColors [] =
+			{
+				{0,0,0,  			1.0},
+				{0.8, 0.1, 0.05,	1.0},
+				{0.8, 0.1, 0.05,	1.0},
+				{1.0, 0.95, 0.8,	1.0},
+				{1,1,1, 			1.0},
+			};
+			f32 meanSkyGradientTimes [] 		= {0.1, 0.3, 0.7, 0.9, 0.99};
+			TextureAsset meanSkyGradientAsset 	= generate_gradient(*global_transientMemory, 5, meanSkyGradientColors, meanSkyGradientTimes, 128);
+			meanSkyGradientAsset.addressMode 	= TEXTURE_ADDRESS_MODE_CLAMP;
+			auto meanSkyGradientTexture			= platformApi->push_texture(platformGraphics, &meanSkyGradientAsset);
+
+			TextureHandle skyGradientTextures [] = {niceSkyGradient, meanSkyGradientTexture};
+
+			materials.sky 					= platformApi->push_material(platformGraphics, GRAPHICS_PIPELINE_SKYBOX, 2, skyGradientTextures);
+		}
 	}
 
 	auto push_model = [](MeshHandle mesh, MaterialHandle material) -> ModelHandle
@@ -1183,8 +1316,6 @@ void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle saveFile
 		auto meshHandle = platformApi->push_mesh(platformGraphics, &meshAsset);
 		scene->skybox 	= push_model(meshHandle, materials.sky);
 	}
-
-
 
 	// Characters
 	{

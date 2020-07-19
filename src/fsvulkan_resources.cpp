@@ -17,6 +17,63 @@ namespace fsvulkan_resources_internal_
 											u32 layerCount = 1);
 }
 
+internal VkDescriptorSet fsvulkan_make_texture_descriptor_set(  VulkanContext *         context,
+																VkDescriptorSetLayout   descriptorSetLayout,
+																VkDescriptorPool 		descriptorPool,
+																s32                     textureCount,
+																VkImageView *         	imageViews,
+																VkSampler * 			samplers)
+{
+	constexpr u32 maxTextures = 10;
+	AssertMsg(textureCount < maxTextures, "Too many textures on material");
+
+	Assert(textureCount == 0 || imageViews != nullptr);
+
+	// Todo(Leo): this function is worse than it should, since we implicitly expect a valid descriptorsetlayout
+	Assert(descriptorSetLayout != VK_NULL_HANDLE);
+
+	VkDescriptorSetAllocateInfo allocateInfo =
+	{ 
+		.sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+		.descriptorPool     = descriptorPool,
+		.descriptorSetCount = 1,
+		.pSetLayouts        = &descriptorSetLayout
+	};
+
+	VkDescriptorSet resultSet;
+	VULKAN_CHECK(vkAllocateDescriptorSets(context->device, &allocateInfo, &resultSet));
+
+	if (textureCount > 0)
+	{
+		VkDescriptorImageInfo samplerInfos [maxTextures];
+		for (s32 i = 0; i < textureCount; ++i)
+		{
+			samplerInfos[i] = 
+			{
+				.sampler        = samplers[i],
+				.imageView      = imageViews[i],
+				.imageLayout    = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+			};
+		}
+
+		VkWriteDescriptorSet writing =
+		{  
+			.sType              = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+			.dstSet             = resultSet,
+			.dstBinding         = 0,
+			.dstArrayElement    = 0,
+			.descriptorCount    = (u32)textureCount,
+			.descriptorType     = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+			.pImageInfo         = samplerInfos,
+		};
+
+		// Note(Leo): Two first are write info, two latter are copy info
+		vkUpdateDescriptorSets(context->device, 1, &writing, 0, nullptr);
+	}
+
+	return resultSet;
+}
+
 internal VulkanTexture
 BAD_VULKAN_make_texture(VulkanContext * context, TextureAsset * asset)
 {
@@ -69,7 +126,6 @@ BAD_VULKAN_make_texture(VulkanContext * context, TextureAsset * asset)
 
 	VULKAN_CHECK(vkAllocateMemory(context->device, &allocateInfo, nullptr, &resultImageMemory));
    
-
 	vkBindImageMemory(context->device, resultImage, resultImageMemory, 0);   
 
 	/* Note(Leo):
@@ -149,6 +205,7 @@ BAD_VULKAN_make_texture(VulkanContext * context, TextureAsset * asset)
 	{
 		.image      = resultImage,
 		.view       = resultView,
+		.sampler 	= asset->addressMode == TEXTURE_ADDRESS_MODE_WRAP ? context->textureSampler : context->clampSampler,
 		.memory     = resultImageMemory,
 	};
 	return resultTexture;
@@ -331,7 +388,7 @@ internal GuiTextureHandle fsvulkan_resources_push_gui_texture(VulkanContext * co
 	VkDescriptorSet descriptorSet 	= fsvulkan_make_texture_descriptor_set(	context,	
 																			context->pipelines[GRAPHICS_PIPELINE_SCREEN_GUI].descriptorSetLayout,
 																			context->materialDescriptorPool,
-																			1, &texture.view);
+																			1, &texture.view, &context->clampSampler);
 	s64 index = context->loadedGuiTextures.size();
 	context->loadedGuiTextures.push_back({texture, descriptorSet});
 
@@ -348,16 +405,19 @@ internal MaterialHandle fsvulkan_resources_push_material (	VulkanContext *     c
 	Assert(textureCount <= 10);
 
 	VkImageView textureImageViews [10];
+	VkSampler 	samplers [10];
 	for (s32 i = 0; i < textureCount; ++i)
 	{
 		textureImageViews[i] = fsvulkan_get_loaded_texture(context, textures[i])->view;
+		samplers[i] = fsvulkan_get_loaded_texture(context, textures[i])->sampler;
 	}
 
 	VkDescriptorSet descriptorSet = fsvulkan_make_texture_descriptor_set(   context,
 																			context->pipelines[pipeline].descriptorSetLayout,
 																			context->materialDescriptorPool,
 																			textureCount,
-																			textureImageViews);
+																			textureImageViews,
+																			samplers);
 
 	s64 index = (s64)context->loadedMaterials.size();
 	context->loadedMaterials.push_back({pipeline, descriptorSet});
@@ -670,3 +730,8 @@ make_shadow_texture(VulkanContext * context, u32 width, u32 height, VkFormat for
 	return resultTexture;
 }
 
+internal void fsvulkan_resources_update_texture(VulkanContext * context, TextureHandle textureHandle, TextureAsset * asset)
+{
+	vulkan::destroy_texture(context, &context->loadedTextures[textureHandle]);
+	context->loadedTextures[textureHandle] = BAD_VULKAN_make_texture(context, asset);
+}

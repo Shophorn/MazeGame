@@ -86,32 +86,26 @@ make_mesh_asset(Array<Vertex> vertices, Array<u16> indices)
 	return result;
 }
 
-using Pixel = u32;
+// using u32 = u32;
+
+enum : s32
+{
+	TEXTURE_ADDRESS_MODE_WRAP,
+	TEXTURE_ADDRESS_MODE_CLAMP,
+};
 
 struct TextureAsset
 {
-	Array<Pixel> pixels;
+	Array<u32> pixels;
 
 	s32 	width;
 	s32 	height;
 	s32 	channels;
+
+	s32 	addressMode;
 };
 
-inline float
-get_red(Pixel color)
-{
-	u32 value = (color & 0x00ff0000) >> 16;
-	return (float)value / 255.0f; 
-}
-
-inline float
-get_green(Pixel color)
-{
-	u32 value = (color & 0x0000ff00) >> 8;
-	return (float)value / 255.0f; 
-}
-
-inline Pixel 
+inline u32 
 get_pixel(TextureAsset * texture, u32 x, u32 y)
 {
 	AssertMsg(x < texture->width && y < texture->height, "Invalid pixel coordinates!");
@@ -126,13 +120,27 @@ value_to_byte(float value)
 	return (u8)(value * 255);
 }
 
-internal u32 color_rgba_32(v4 color)
+internal u32 colour_rgba_u32(v4 color)
 {
-	u32 pixel = (u32)value_to_byte(color.a) << 24
-				| (u32)value_to_byte(color.b) << 16
-				| (u32)value_to_byte(color.g) << 8
-				| (u32)value_to_byte(color.r);
+	u32 pixel = ((u32)(color.r * 255))
+				| (((u32)(color.g * 255)) << 8)
+				| (((u32)(color.b * 255)) << 16)
+				| (((u32)(color.a * 255)) << 24);
 	return pixel;
+}
+
+internal v4 colour_rgba_v4(u32 pixel)
+{
+	v4 colour =
+	{
+		(f32)((u8)pixel) / 255.0f,
+		(f32)((u8)(pixel >> 8)) / 255.0f,
+		(f32)((u8)(pixel >> 16)) / 255.0f,
+		(f32)((u8)(pixel >> 24)) / 255.0f,
+	};
+
+	logDebug(0) << "colour_rgba_v4(): " << pixel << ", " << colour;
+	return colour;
 }
 
 internal constexpr v4 colour_v4_from_rgb_255(u8 r, u8 g, u8 b)
@@ -149,7 +157,7 @@ internal constexpr v4 colour_rgb_alpha(v3 rgb, f32 alpha)
 
 internal u32 colour_rgb_alpha_32(v3 colour, f32 alpha)
 {
-	return color_rgba_32(colour_rgb_alpha(colour, alpha));
+	return colour_rgba_u32(colour_rgb_alpha(colour, alpha));
 }
 
 internal v4 colour_multiply(v4 a, v4 b)
@@ -161,7 +169,7 @@ internal v4 colour_multiply(v4 a, v4 b)
 	return a;
 }
 
-internal Pixel
+internal u32
 get_closest_pixel(TextureAsset * texture, v2 texcoord)
 {
 	u32 u = (u32)round_f32(texture->width * texcoord.x) % texture->width;

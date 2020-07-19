@@ -456,7 +456,8 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 
 	/// GRAPHICS_PIPELINE_SKYBOX
 	{
-		auto materialLayout = fsvulkan_make_material_descriptor_set_layout(context.device, 0);
+		constexpr s32 gradientTextureCount = 2;
+		auto materialLayout = fsvulkan_make_material_descriptor_set_layout(context.device, gradientTextureCount);
 
 		VkDescriptorSetLayout descriptorSetLayouts[] =
 		{
@@ -511,7 +512,7 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 		vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &context.pipelines[GRAPHICS_PIPELINE_SKYBOX].pipeline);
 
 		context.pipelines[GRAPHICS_PIPELINE_SKYBOX].descriptorSetLayout = materialLayout;
-		context.pipelines[GRAPHICS_PIPELINE_SKYBOX].textureCount 		= 0;
+		context.pipelines[GRAPHICS_PIPELINE_SKYBOX].textureCount 		= gradientTextureCount;
 
 		vkDestroyShaderModule(context.device, fragmentShaderModule, nullptr);
 		vkDestroyShaderModule(context.device, vertexShaderModule, nullptr);

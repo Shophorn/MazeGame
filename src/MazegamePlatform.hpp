@@ -240,6 +240,9 @@ struct PlatformApi
 	MaterialHandle (*push_material) 	(PlatformGraphics*, GraphicsPipeline, s32 textureCount, TextureHandle * textures);
 	GuiTextureHandle (*push_gui_texture) (PlatformGraphics*, TextureAsset * asset);
 
+	// Note(Leo): this may be needed for development only, should it be handled differently
+	void (*update_texture) (PlatformGraphics*, TextureHandle, TextureAsset*);
+
 	// Todo(Leo): Maybe remove 'push_model', we can render also just passing mesh and material handles directly
 	ModelHandle (*push_model) (PlatformGraphics*, MeshHandle mesh, MaterialHandle material);
 

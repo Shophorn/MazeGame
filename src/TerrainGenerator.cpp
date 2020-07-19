@@ -63,7 +63,7 @@ make_heightmap(MemoryArena * memory, TextureAsset * texture, u32 gridSize, f32 w
 	auto get_value = [texture](u32 u, u32 v) -> f32
 	{
 		auto pixel 	= get_pixel(texture, u, v);
-		f32 red 	= get_red(pixel);
+		f32 red 	= ((0x00ff0000 & pixel) >> 16) / 255.0f;
 		return red;
 	};
 

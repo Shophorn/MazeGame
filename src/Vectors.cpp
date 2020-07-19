@@ -292,15 +292,6 @@ v3 make_uniform_v3(f32 value)
 	return result;
 }
 
-#if MAZEGAME_INCLUDE_STD_IOSTREAM
-
-std::ostream & operator << (std::ostream & os, v3 vec)
-{
-	os << "(" << vec.x << "," << vec.y << "," << vec.z << ")";
-	return os;
-}
-
-#endif
 
 // ----------- v4 ----------------
 
@@ -337,3 +328,34 @@ v4 v3_to_v4(v3 vec, f32 w)
 	v4 result = {vec.x, vec.y, vec.z, w};
 	return result;
 }
+
+v4 v4_lerp(v4 const & a, v4 const & b, float t)
+{
+	// Todo(Leo): simd
+	f32 omt = 1.0f - t;
+	v4 result =
+	{
+		omt * a.x + t * b.x,
+		omt * a.y + t * b.y,
+		omt * a.z + t * b.z,
+		omt * a.w + t * b.w,
+	};
+	return result;
+}
+
+
+#if MAZEGAME_INCLUDE_STD_IOSTREAM
+
+std::ostream & operator << (std::ostream & os, v3 vec)
+{
+	os << "(" << vec.x << "," << vec.y << "," << vec.z << ")";
+	return os;
+}
+
+std::ostream & operator << (std::ostream & os, v4 vec)
+{
+	os << "(" << vec.x << "," << vec.y << "," << vec.z << "," << vec.w << ")";
+	return os;
+}
+
+#endif

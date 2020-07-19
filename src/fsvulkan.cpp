@@ -80,6 +80,8 @@ internal void fsvulkan_set_platform_graphics_api(VulkanContext * context, Platfo
  	api->push_model         = fsvulkan_resources_push_model;
  	api->unload_scene       = fsvulkan_resources_unload_resources;
 
+ 	api->update_texture		= fsvulkan_resources_update_texture;
+
  	api->reload_shaders 	= fsvulkan_reload_shaders;
 
  	api->prepare_frame      	= fsvulkan_drawing_prepare_frame;
@@ -362,62 +364,6 @@ vulkan::make_vk_render_pass(VulkanContext * context, VkFormat format, VkSampleCo
 	return resultRenderPass;
 }
 
-internal VkDescriptorSet fsvulkan_make_texture_descriptor_set(  VulkanContext *         context,
-																VkDescriptorSetLayout   descriptorSetLayout,
-																VkDescriptorPool 		descriptorPool,
-																s32                     textureCount,
-																VkImageView *         	imageViews)
-{
-	constexpr u32 maxTextures = 10;
-	AssertMsg(textureCount < maxTextures, "Too many textures on material");
-
-	Assert(textureCount == 0 || imageViews != nullptr);
-
-	// Todo(Leo): this function is worse than it should, since we implicitly expect a valid descriptorsetlayout
-	Assert(descriptorSetLayout != VK_NULL_HANDLE);
-
-	VkDescriptorSetAllocateInfo allocateInfo =
-	{ 
-		.sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-		.descriptorPool     = descriptorPool,
-		.descriptorSetCount = 1,
-		.pSetLayouts        = &descriptorSetLayout
-	};
-
-	VkDescriptorSet resultSet;
-	VULKAN_CHECK(vkAllocateDescriptorSets(context->device, &allocateInfo, &resultSet));
-
-	if (textureCount > 0)
-	{
-		VkDescriptorImageInfo samplerInfos [maxTextures];
-		for (s32 i = 0; i < textureCount; ++i)
-		{
-			samplerInfos[i] = 
-			{
-				.sampler        = context->textureSampler,
-				.imageView      = imageViews[i],
-				.imageLayout    = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-			};
-		}
-
-		VkWriteDescriptorSet writing =
-		{  
-			.sType              = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-			.dstSet             = resultSet,
-			.dstBinding         = 0,
-			.dstArrayElement    = 0,
-			.descriptorCount    = (u32)textureCount,
-			.descriptorType     = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-			.pImageInfo         = samplerInfos,
-		};
-
-		// Note(Leo): Two first are write info, two latter are copy info
-		vkUpdateDescriptorSets(context->device, 1, &writing, 0, nullptr);
-	}
-
-	return resultSet;
-}
-
 internal VkDescriptorSet
 make_material_vk_descriptor_set_2(
 	VulkanContext *			context,
@@ -531,7 +477,7 @@ vulkan::make_vk_image( VulkanContext * context,
 
 
 VkSampler
-vulkan::make_vk_sampler(VkDevice device, VkSamplerAddressMode addressMode)
+BAD_VULKAN_make_vk_sampler(VkDevice device, VkSamplerAddressMode addressMode)
 {
 	VkSamplerCreateInfo samplerInfo =
 	{ 
@@ -698,10 +644,12 @@ winapi::create_vulkan_context(WinAPIWindow * window)
 		init_persistent_descriptor_pool (&context, 20, 20);
 		init_virtual_frames (&context);
 	
-		context.textureSampler = vulkan::make_vk_sampler(context.device, VK_SAMPLER_ADDRESS_MODE_REPEAT);
+		context.textureSampler = BAD_VULKAN_make_vk_sampler(context.device, VK_SAMPLER_ADDRESS_MODE_REPEAT);
+		context.clampSampler = BAD_VULKAN_make_vk_sampler(context.device, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE);
 		add_cleanup(&context, [](VulkanContext * context)
 		{
 			vkDestroySampler(context->device, context->textureSampler, nullptr);
+			vkDestroySampler(context->device, context->clampSampler, nullptr);
 		});
 
 		vulkan::create_drawing_resources(&context, window->width, window->height);
@@ -1391,7 +1339,7 @@ void winapi_vulkan_internal_::init_shadow_pass(VulkanContext * context, u32 widt
 	context->shadowPass.height = height;
 
 	context->shadowPass.attachment  = make_shadow_texture(context, context->shadowPass.width, context->shadowPass.height, format);
-	context->shadowPass.sampler     = make_vk_sampler(context->device, VK_SAMPLER_ADDRESS_MODE_REPEAT);
+	context->shadowPass.sampler     = BAD_VULKAN_make_vk_sampler(context->device, VK_SAMPLER_ADDRESS_MODE_REPEAT);
 
 	VkAttachmentDescription attachment =
 	{
