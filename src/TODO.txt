@@ -2,7 +2,8 @@ sky editor, or at least sky "editor"
 	as described by campo santo blog post
 	-> gui slider
 	-> gradient texture generation
-
+	-> collabsible gui thing
+	-> slider but with plus and minus buttons
 
 	-> own gui view
 		-> colour and size for:

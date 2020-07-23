@@ -602,6 +602,7 @@ load_mesh_glb(MemoryArena & allocator, GltfFile const & file, char const * model
 
 	// ----------------------------------------------------------------------------------
 
+	// Todo(Leo): We have a function for this, use that
 	s32 triangleCount = indexCount / 3;
 	v3 * vertexTangents = push_memory<v3>(*global_transientMemory, vertexCount, 0);
 	

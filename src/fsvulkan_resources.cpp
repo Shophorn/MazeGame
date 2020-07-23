@@ -427,18 +427,28 @@ internal MaterialHandle fsvulkan_resources_push_material (	VulkanContext *     c
 
 internal MeshHandle fsvulkan_resources_push_mesh(VulkanContext * context, MeshAsset * mesh)
 {
+	// Todo(Leo): this is messy af
+	// at least map staging buffer persitently
+
+
 	u64 indexBufferSize  = mesh->indices.count() * sizeof(mesh->indices[0]);
 	u64 vertexBufferSize = mesh->vertices.count() * sizeof(mesh->vertices[0]);
 
-	u64 totalBufferSize  = indexBufferSize + vertexBufferSize;
+	// Todo(Leo): Currently we align on 4 on both indices and vertices, indices maybe wouldn't need to,
+	// and vertices maybe have something else sometimes.
+	u64 alignedIndexBufferSize = align_up(indexBufferSize, 4);
+	u64 alignedVertexBufferSize = align_up(vertexBufferSize, 4);
+
+	u64 totalBufferSize = alignedIndexBufferSize + alignedVertexBufferSize;
 
 	u64 indexOffset = 0;
-	u64 vertexOffset = indexBufferSize;
+	u64 vertexOffset = alignedIndexBufferSize;
 
 	u8 * data;
 	vkMapMemory(context->device, context->stagingBufferPool.memory, 0, totalBufferSize, 0, (void**)&data);
 	memcpy(data, &mesh->indices[0], indexBufferSize);
-	data += indexBufferSize;
+
+	data += vertexOffset;
 	memcpy(data, &mesh->vertices[0], vertexBufferSize);
 	vkUnmapMemory(context->device, context->stagingBufferPool.memory);
 

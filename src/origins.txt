@@ -1,0 +1,20 @@
+long time ago, some race habitet the planet. the race was space travel capable
+and eventually left the planet behind, having depleted the planets natural resources.
+some time later, some other race appeared on the planet. they were vastly different,
+like monsters to previous humanoid like creatures, and therefore had no need of any
+infrasttructure left behind by previous inhabitants. as their number grew, they began
+to clear things of the first race. as they evolved on the depleted planet, they had
+no need for "nature" as it might be understood, instead preferring the barren desolate
+wastes. one of the things they have not yet have removed, is a space elevator. somehow
+they have understood its meaning, and any space travellers that land on the planet are
+transported to its vicinity.
+
+this is where game happens
+
+--------------------------------------------------------------------------------------
+
+goal is to power the space elevator. elevator uses natural energy from crystal trees that
+player must grow. different areas in game can grow different colours of trees, and for
+each of those areas player needs to grow a crystal tree. thing is, player does not know
+which areas do what colour, and must grow other trees to find out. also, the crystal trees'
+seeds are not easy to come by.

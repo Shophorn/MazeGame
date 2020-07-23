@@ -129,3 +129,59 @@ internal Font load_font(char const * fontFilePath)
 
     return result;
 }
+
+internal TextureAsset generate_gradient(MemoryArena & allocator, int colourCount, v4 * colours, f32 * times, s32 pixelCount)
+{
+    Array<u32> pixels = allocate_array<u32>(allocator, pixelCount, ALLOC_FILL | ALLOC_NO_CLEAR);
+
+    s32 pixelIndex  = 0;
+    s32 colourIndex = 0;
+    f32 time        = 0;
+
+    // Note(Leo): there is one pixel more than steps, steps are in between
+    f32 timeStep    = 1.0f / (pixelCount - 1);
+
+    while(pixelIndex < pixelCount && time < times[0])
+    {
+        pixels[pixelIndex] = colour_rgba_u32(colours[0]);
+        pixelIndex += 1;
+        time += timeStep;
+    }
+
+    colourIndex = 1;
+
+    while(pixelIndex < pixelCount && time < times[colourCount - 1])
+    {
+        while (time > times[colourIndex])
+        {
+            colourIndex += 1;
+        }
+
+        v4 previousColour   = colours[colourIndex - 1];
+        v4 nextColour       = colours[colourIndex];
+
+        f32 previousTime    = times[colourIndex - 1];
+        f32 nextTime        = times[colourIndex];
+
+        float relativeTime = (time - previousTime) / (nextTime - previousTime);
+
+        Assert(relativeTime <= 1);
+
+        v4 colour = v4_lerp(previousColour, nextColour, relativeTime);
+
+        pixels[pixelIndex] = colour_rgba_u32(v4_lerp(previousColour, nextColour, relativeTime));
+
+        pixelIndex += 1;    
+        time += timeStep;
+    }
+
+    while(pixelIndex < pixelCount)
+    {
+        pixels[pixelIndex] = colour_rgba_u32(colours[colourCount - 1]);
+        pixelIndex += 1;
+        time += timeStep;
+    }
+
+    TextureAsset result = { std::move(pixels), pixelCount, 1, 4 };
+    return result;
+}

@@ -12,6 +12,8 @@ Scene description for 3d development scene
 #include "scene3d_monuments.cpp"
 #include "scene3d_trees.cpp"
 
+#include "metaballs.cpp"
+
 enum CameraMode : s32
 { 
 	CAMERA_MODE_PLAYER, 
@@ -27,69 +29,6 @@ enum CarryMode : s32
 	CARRY_WATER,
 	CARRY_TREE,
 };
-
-internal TextureAsset generate_gradient(MemoryArena & allocator, int colourCount, v4 * colours, f32 * times, s32 pixelCount)
-{
-	Array<u32> pixels = allocate_array<u32>(allocator, pixelCount, ALLOC_FILL | ALLOC_NO_CLEAR);
-
-	s32 pixelIndex 	= 0;
-	s32 colourIndex = 0;
-	f32 time 		= 0;
-
-	// Note(Leo): there is one pixel more than steps, steps are in between
-	f32 timeStep 	= 1.0f / (pixelCount - 1);
-
-	while(pixelIndex < pixelCount && time < times[0])
-	{
-		pixels[pixelIndex] = colour_rgba_u32(colours[0]);
-		
-		logDebug(0) << "First, " << pixelIndex << ", " << colours[0] << ", " << (pixels[pixelIndex]);
-
-		pixelIndex += 1;
-
-		time += timeStep;
-	}
-
-	colourIndex = 1;
-
-	while(pixelIndex < pixelCount && time < times[colourCount - 1])
-	{
-		while (time > times[colourIndex])
-		{
-			colourIndex += 1;
-		}
-
-		v4 previousColour 	= colours[colourIndex - 1];
-		v4 nextColour 		= colours[colourIndex];
-
-		f32 previousTime 	= times[colourIndex - 1];
-		f32 nextTime 		= times[colourIndex];
-
-		float relativeTime = (time - previousTime) / (nextTime - previousTime);
-
-		Assert(relativeTime <= 1);
-
-		v4 colour = v4_lerp(previousColour, nextColour, relativeTime);
-
-		pixels[pixelIndex] = colour_rgba_u32(v4_lerp(previousColour, nextColour, relativeTime));
-		logDebug(0) << "second, relativeTime: " << relativeTime << ", time: " << time << ", " << colourIndex << ", " << colour << "," << (pixels[pixelIndex]);
-
-		pixelIndex += 1;	
-		time += timeStep;
-	}
-
-	while(pixelIndex < pixelCount)
-	{
-		pixels[pixelIndex] = colour_rgba_u32(colours[colourCount - 1]);
-		logDebug(0) << "LAst, " << pixelIndex << ", " << colours[colourCount - 1] << ", " << (pixels[pixelIndex]);
-		pixelIndex += 1;
-
-		time += timeStep;
-	}
-
-	TextureAsset result = { std::move(pixels), pixelCount, 1, 4 };
-	return result;
-}
 
 struct Scene3d
 {
@@ -135,10 +74,17 @@ struct Scene3d
 		Leaves * 		lSystemLeavess;
 		s32 * 			lSystemsPotIndices;
 
-		MaterialHandle 	lSystemTreeMaterial;
+		// MaterialHandle 	lSystemTreeMaterial;
+		MaterialHandle treeMaterials[TREE_TYPE_COUNT];
+
+		MaterialHandle crystalTreeMaterials	[4];
 	// ------------------------------------------------------
 
 	Monuments monuments;
+
+	Transform3D 	castleTransform;
+	MeshHandle 		castleMesh;
+	MaterialHandle 	castleMaterial;
 
 	// ------------------------------------------------------
 
@@ -175,6 +121,14 @@ struct Scene3d
 	m44 			seaTransform;
 	MeshHandle 		seaMesh;
 	MaterialHandle 	seaMaterial;
+
+	// ----------------------------------------------------------
+	
+	m44 			metaballTransform;
+	MeshHandle 		metaballMesh;
+	MaterialHandle 	metaballMaterial;
+
+	// ----------------------------------------------------------
 
 	// Other actors
 	static constexpr s32 followerCapacity = 30;
@@ -643,6 +597,17 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 		constexpr f32 baseRadius = 0.12;
 		constexpr f32 baseHeight = 2;
 
+		{
+			f32 castleColliderHeight = 0.01;
+			f32 castleColliderRadius = 20;
+		
+			Transform3D castleColliderTransform = scene->castleTransform;
+			f32 castleColliderHalfHeight 		= castleColliderHeight / 2;
+			castleColliderTransform.position.z -= castleColliderHalfHeight;
+
+			submit_cylinder_colliders(castleColliderRadius, castleColliderHalfHeight, 1, &castleColliderTransform);
+		}
+
 	}
 
 	for (auto & randomWalker : scene->randomWalkers)
@@ -739,6 +704,17 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 		3. Render animated models
 	*/
 
+	{
+		m44 castleTransformMatrix = transform_matrix(scene->castleTransform);
+		platformApi->draw_meshes(platformGraphics, 1, &castleTransformMatrix, scene->castleMesh, scene->castleMaterial);
+	}
+
+	{
+		v3 position = multiply_point(scene->metaballTransform, {0,0,0});
+		debug_draw_circle_xy(position, 4, {1,0,1,1}, DEBUG_ALWAYS);
+		platformApi->draw_meshes(platformGraphics, 1, &scene->metaballTransform, scene->metaballMesh, scene->metaballMaterial);
+	}
+
 	for (auto & renderer : scene->renderers)
 	{
 		platformApi->draw_model(platformGraphics, renderer.model,
@@ -764,6 +740,12 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 	{
 		// TODO(Leo): This is stupid, the two use cases are too different, and we have to capture too much stuff :(
 
+		auto get_region_colour_index = [](v2 position) -> s32
+		{
+			// Todo(Leo): sample from some kind of map
+			return (s32)((position.y < 0) + 2 * (position.x < 0));
+		};
+
 		local_persist s32 persist_updatedLSystemIndex = -1;
 		persist_updatedLSystemIndex += 1;
 		persist_updatedLSystemIndex %= 10;
@@ -773,6 +755,7 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 								potWaterLevels 	= scene->potWaterLevels,
 								lSystemsPotIndices 		= scene->lSystemsPotIndices,
 								// lSystemsInPotPotIndices = scene->lSystemsInPotPotIndices,
+								get_region_colour_index,
 								get_water, 
 								get_water_from_pot,
 								updatedLSystemIndex,
@@ -784,34 +767,9 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 			{
 				bool isInPot = lSystemsPotIndices[i] > 0;
 
-				leavess[i].position = lSystems[i].position;
-				leavess[i].rotation = lSystems[i].rotation;
-
-				{
-					v3 position = leavess[i].position;
-					if (position.x < 0)
-					{
-						if (position.y < 0)
-						{
-							leavess[i].colourIndex = 0;
-						}
-						else
-						{
-							leavess[i].colourIndex = 1;
-						}
-					}
-					else
-					{
-						if (position.y < 0)
-						{
-							leavess[i].colourIndex = 2;
-						}
-						else
-						{
-							leavess[i].colourIndex = 3;
-						}
-					}
-				}
+				leavess[i].position 	= lSystems[i].position;
+				leavess[i].rotation 	= lSystems[i].rotation;
+				leavess[i].colourIndex 	= get_region_colour_index(leavess[i].position.xy);
 
 				f32 waterDistanceThreshold = 1;
 				debug_draw_circle_xy(lSystems[i].position + v3{0,0,1}, waterDistanceThreshold, colour_aqua_blue, DEBUG_NPC);
@@ -835,16 +793,25 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 					if (waterLevel > 0)
 					{
-						if (lSystems[i].type == TREE_1)
+						if (lSystems[i].type == TREE_TYPE_1)
 						{
 							advance_lsystem_time(lSystems[i], timePassed);
 							update_lsystem_mesh(lSystems[i], leavess[i]);
 						}
-						else if(lSystems[i].type == TREE_2)
+						else if(lSystems[i].type == TREE_TYPE_2)
 						{
 							advance_lsystem_time_tree2(lSystems[i], timePassed);
 							update_lsystem_mesh_tree2(lSystems[i], leavess[i]);
 						}
+						else if (lSystems[i].type == TREE_TYPE_CRYSTAL)
+						{
+							advance_lsystem_time_tree2(lSystems[i], timePassed);
+							update_lsystem_mesh_tree2(lSystems[i], leavess[i]);
+						}
+
+						mesh_generate_tangents(	lSystems[i].vertices.count, lSystems[i].vertices.data,
+												lSystems[i].indices.count, lSystems[i].indices.data);
+
 					}
 				}
 
@@ -853,7 +820,10 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 		update_lsystem(scene->lSystemCount, scene->lSystems, scene->lSystemLeavess);
 
-		auto draw_l_system_trees = [material = scene->lSystemTreeMaterial] (s32 count, TimedLSystem * lSystems)
+		auto draw_l_system_trees = [&materials 				= scene->treeMaterials, 
+									&crystalTreeMaterials 	= scene->crystalTreeMaterials,
+									get_region_colour_index] 
+									(s32 count, TimedLSystem * lSystems)
 		{
 			for (s32 i = 0; i < count; ++i)
 			{
@@ -861,8 +831,17 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 				if (lSystems[i].vertices.count > 0 && lSystems[i].indices.count > 0)
 				{
-					mesh_generate_tangents(	lSystems[i].vertices.count, lSystems[i].vertices.data,
-											lSystems[i].indices.count, lSystems[i].indices.data);
+
+					MaterialHandle material;
+					if (lSystems[i].type == TREE_TYPE_CRYSTAL)
+					{
+						s32 colourIndex = get_region_colour_index(lSystems[i].position.xy);
+						material 		= crystalTreeMaterials[colourIndex];
+					}
+					else
+					{
+						material = materials[lSystems[i].type];
+					}
 
 					platformApi->draw_procedural_mesh( 	platformGraphics,
 														lSystems[i].vertices.count, lSystems[i].vertices.data,
@@ -965,8 +944,7 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 	bool32 keepScene = true;
 	
-	v4 menuColor = colour_white;
-	// v4 menuColor = colour_rgb_alpha(colour_bright_blue.rgb, 0.5);
+	v4 menuColor = colour_rgb_alpha(colour_bright_blue.rgb, 0.5);
 	switch(scene->menuView)
 	{	
 		case Scene3d::MENU_OFF:
@@ -1182,16 +1160,7 @@ void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle saveFile
 	scene->gui.padding 				= 10;
 	scene->gui.font 				= load_font("c:/windows/fonts/arial.ttf");
 
-	// TextureAsset guiTextureAsset 	= make_texture_asset(allocate_array<u32>(*global_transientMemory, {0xffffffff}), 1, 1, 4);
-	v4 guiGradientColours [] =
-	{
-		{1,0,0,1},
-		{1,0,1,1},
-		{0,0,1,1},
-	};
-	f32 guiGradientTimes [] = {0, 0.5, 1};
-
-	TextureAsset guiTextureAsset 	= generate_gradient(*global_transientMemory, 3, guiGradientColours, guiGradientTimes, 32);
+	TextureAsset guiTextureAsset 	= make_texture_asset(allocate_array<u32>(*global_transientMemory, {0xffffffff}), 1, 1, 4);
 	scene->gui.panelTexture			= platformApi->push_gui_texture(platformGraphics, &guiTextureAsset);
 
 	// ----------------------------------------------------------------------------------
@@ -1724,6 +1693,32 @@ void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle saveFile
 
 		/// BIG SCENERY THINGS
 		{
+			/// CASTLE THING IN THE SKY
+			{
+				auto file = read_gltf_file(*global_transientMemory, "assets/models/castle_in_sky.glb");
+
+				auto meshAsset 	= load_mesh_glb(*global_transientMemory, file, "Castle");
+				auto mesh 		= platformApi->push_mesh(platformGraphics, &meshAsset);
+
+				Array<BoxCollider> colliders = {};
+				Array<Transform3D> transforms = load_all_transforms_glb(*global_transientMemory, file, "Castle", &colliders);
+
+				for(s32 i = 0; i < colliders.count(); ++i)
+				{
+					colliders[i].center.z += 100;
+					scene->collisionSystem.staticBoxColliders.push(	{compute_collider_transform(colliders[i]),
+																	compute_inverse_collider_transform(colliders[i])});
+				}
+
+				scene->castleMesh 		= mesh;
+				scene->castleMaterial 	= materials.environment;
+				scene->castleTransform 	= transforms[0];
+
+				scene->castleTransform.position.z = 100;
+			}
+
+
+
 			auto file = read_gltf_file(*global_transientMemory, "assets/models/stonewalls.glb");
 
 			// Stone Walls
@@ -1873,7 +1868,11 @@ void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle saveFile
 			platformApi->push_texture(platformGraphics, &normal),
 			blackTexture
 		};
-		scene->lSystemTreeMaterial = platformApi->push_material(platformGraphics, GRAPHICS_PIPELINE_NORMAL, 3, treeTextures);
+		// scene->lSystemTreeMaterial = platformApi->push_material(platformGraphics, GRAPHICS_PIPELINE_NORMAL, 3, treeTextures);
+		MaterialHandle treeMaterial = platformApi->push_material(platformGraphics, GRAPHICS_PIPELINE_NORMAL, 3, treeTextures);
+		scene->treeMaterials[TREE_TYPE_1] = treeMaterial;
+		scene->treeMaterials[TREE_TYPE_2] = treeMaterial;
+		scene->treeMaterials[TREE_TYPE_CRYSTAL] = scene->waterMaterial;
 
 		MeshHandle tree1SeedMesh = seedMesh1;
 		MeshHandle tree2SeedMesh = seedMesh2;
@@ -1887,7 +1886,26 @@ void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle saveFile
 			auto leavesTexture 		= platformApi->push_texture(platformGraphics, &leafTextureAsset);
 			leavesMaterial 			= platformApi->push_material(platformGraphics, GRAPHICS_PIPELINE_LEAVES, 1, &leavesTexture);
 		}
+		
+		/// CRYSTAL TREE MATERIALS
+		{
+			v4 regionColours [] =
+			{
+				{0.62, 0.3, 0.8, 0.6},
+				{0.3, 0.62, 0.8, 0.6},
+				{0.47, 0.7, 0.40, 0.6},
+				{1.0, 0.7, 0.8, 0.6},
+			};
 
+			for (s32 i = 0; i < 4; ++i)
+			{
+				auto asset = make_texture_asset(allocate_array<u32>(*global_transientMemory, {colour_rgba_u32(regionColours[i])}), 1, 1, 4);
+				auto texture = platformApi->push_texture(platformGraphics, &asset);
+
+				TextureHandle treeTextures [] = {texture, treeTextures[1], blackTexture};
+				scene->crystalTreeMaterials[i] = platformApi->push_material(platformGraphics, GRAPHICS_PIPELINE_WATER, 3, treeTextures);
+			}
+		}
 
 		if (saveFile != nullptr)
 		{
@@ -1920,23 +1938,26 @@ void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle saveFile
 				scene->lSystems[i].indices = push_memory_view<u16>(persistentMemory, 45'000);
 
 				// scene->lSystemsPotIndices[i] = -1;
-				scene->lSystemLeavess[i] = make_leaves(persistentMemory, 4000);
-				scene->lSystemLeavess[i].material = leavesMaterial;
+				scene->lSystemLeavess[i] 			= make_leaves(persistentMemory, 4000);
+				scene->lSystemLeavess[i].material 	= leavesMaterial;
 
-				if (scene->lSystems[i].type == TREE_1)
+				if (scene->lSystems[i].type == TREE_TYPE_1)
 				{
 					scene->lSystems[i].seedMesh 	= tree1SeedMesh;
 					scene->lSystems[i].seedMaterial = tree1SeedMaterial;
-
-					update_lsystem_mesh(scene->lSystems[i], scene->lSystemLeavess[i]);
 				}
-				else if (scene->lSystems[i].type == TREE_2)
+				else if (scene->lSystems[i].type == TREE_TYPE_2)
 				{
 					scene->lSystems[i].seedMesh 	= tree2SeedMesh;
 					scene->lSystems[i].seedMaterial = tree1SeedMaterial;
-					
-					update_lsystem_mesh_tree2(scene->lSystems[i], scene->lSystemLeavess[i]);
 				}
+				else if (scene->lSystems[i].type == TREE_TYPE_CRYSTAL)
+				{
+					scene->lSystems[i].seedMesh 	= tree1SeedMesh;
+					scene->lSystems[i].seedMaterial = scene->waterMaterial;
+				}
+			
+				update_lsystem_mesh_tree2(scene->lSystems[i], scene->lSystemLeavess[i]);
 			}	
 			file_read_memory(saveFile, scene->lSystemCount, scene->lSystemsPotIndices);
 
@@ -1956,16 +1977,24 @@ void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle saveFile
 				scene->lSystemLeavess[i] 	= make_leaves(persistentMemory, 4000);
 				scene->lSystemLeavess[i].material = leavesMaterial;
 
-		
-				if (i < scene->lSystemCapacity / 2)
+				if (i < 5)
 				{
-					scene->lSystems[i].type 		= TREE_1;
+					scene->lSystems[i].type 		= TREE_TYPE_CRYSTAL;
+					scene->lSystems[i].maxAge		= 50;
+					scene->lSystems[i].aWord[0]		= {'A', 0, 0};
+
+					scene->lSystems[i].seedMesh 	= tree1SeedMesh;
+					scene->lSystems[i].seedMaterial = scene->waterMaterial;
+				}
+				else if ((i & 2) == 0)
+				{
+					scene->lSystems[i].type 		= TREE_TYPE_1;
 					scene->lSystems[i].seedMesh 	= tree1SeedMesh;
 					scene->lSystems[i].seedMaterial = tree1SeedMaterial;
 				}
 				else
 				{
-					scene->lSystems[i].type 		= TREE_2;
+					scene->lSystems[i].type 		= TREE_TYPE_2;
 					scene->lSystems[i].maxAge		= 50;
 					scene->lSystems[i].aWord[0]		= {'A', 0, 0};
 
@@ -1987,6 +2016,13 @@ void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle saveFile
 				logDebug(0) << position;
 			}
 		}
+	}
+
+	/// MARCHING CUBES AND METABALLS TESTING
+	{
+		scene->metaballTransform 	= translation_matrix({-10, -30, get_terrain_height(scene->collisionSystem, {-10,-10}) + 3});
+		scene->metaballMesh 		= generate_metaball();
+		scene->metaballMaterial 	= materials.environment;
 	}
 
 	// ----------------------------------------------------------------------------------

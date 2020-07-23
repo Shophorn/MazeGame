@@ -22,6 +22,7 @@ layout(location = 2) in vec4 lightCoords;
 layout(location = 0) out vec4 outColor;
 
 
+// Todo(Leo): use gradient textures
 const vec3 darkerColours [] =
 {
 	vec3(0.2, 0.05, 0.4),

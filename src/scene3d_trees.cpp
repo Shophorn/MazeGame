@@ -80,8 +80,11 @@ struct Module
 
 enum TreeType
 {
-	TREE_1,
-	TREE_2,
+	TREE_TYPE_1,
+	TREE_TYPE_2,
+	TREE_TYPE_CRYSTAL,
+
+	TREE_TYPE_COUNT,
 };
 
 struct TimedLSystem
