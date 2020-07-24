@@ -18,6 +18,7 @@ cameraworks
 better tree 2
 	also better model for its seed
 
+Enale culling after marching cubes
 
 
 DONE: save file

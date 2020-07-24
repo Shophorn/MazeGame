@@ -713,6 +713,41 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 		v3 position = multiply_point(scene->metaballTransform, {0,0,0});
 		debug_draw_circle_xy(position, 4, {1,0,1,1}, DEBUG_ALWAYS);
 		platformApi->draw_meshes(platformGraphics, 1, &scene->metaballTransform, scene->metaballMesh, scene->metaballMaterial);
+
+		v3 linePoints [74] = {};
+		v3 redlinePoints[4] = {};
+
+		for (s32 x = 0; x <= 16; ++x)
+		{
+			if (x == 8)
+			{
+				redlinePoints[0] = position + v3{-30.5f + x, -30.5f, 0};
+				redlinePoints[1] = position + v3{-30.5f + x, -30.5f + 16, 0};				
+
+				++x;
+			}
+			linePoints[2 * x] = position + v3{-30.5f + x, -30.5f, 0};
+			linePoints[2 * x + 1] = position + v3{-30.5f + x, -30.5f + 16, 0};
+		}
+
+		for (s32 y = 0; y <= 16; ++y)
+		{
+			if (y == 8)
+			{
+				redlinePoints[2] = position + v3{-30.5f, -30.5f + y, 0};
+				redlinePoints[3] = position + v3{-30.5f + 16, -30.5f + y, 0};	
+
+				++y;
+			}
+
+			linePoints[2 * y + 34] = position + v3{-30.5f, -30.5f + y, 0};
+			linePoints[2 * y + 34 + 1] = position + v3{-30.5f + 16, -30.5f + y, 0};	
+		}
+
+		debug_draw_lines(4, redlinePoints, colour_bright_red, DEBUG_ALWAYS);
+		debug_draw_lines(74, linePoints, colour_bright_green, DEBUG_ALWAYS);
+
+
 	}
 
 	for (auto & renderer : scene->renderers)
@@ -2020,7 +2055,10 @@ void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle saveFile
 
 	/// MARCHING CUBES AND METABALLS TESTING
 	{
-		scene->metaballTransform 	= translation_matrix({-10, -30, get_terrain_height(scene->collisionSystem, {-10,-10}) + 3});
+		v3 position = {-10, -30, 0};
+		position.z = get_terrain_height(scene->collisionSystem, position.xy) + 3;
+
+		scene->metaballTransform 	= translation_matrix(position);
 		scene->metaballMesh 		= generate_metaball();
 		scene->metaballMaterial 	= materials.environment;
 	}

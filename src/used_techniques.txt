@@ -1,0 +1,7 @@
+Techniques used:
+
+	LSystems for trees
+	Marching cubes, adaptive marching cubes
+	bufferless rendering
+	instancing
+	triplanar texturing

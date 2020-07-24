@@ -350,7 +350,10 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 																					array_count(fsvulkan_defaultVertexAttributes), fsvulkan_defaultVertexAttributes);
 		auto inputAssemblyState = fsvulkan_pipeline_input_assembly_create_info		(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
 		auto viewportState 		= fsvulkan_pipeline_viewport_state_create_info		(1, &fsvulkan_zero_viewport, 1, &fsvulkan_zero_scissor);
-		auto rasterizationState = fsvulkan_pipeline_rasterization_state_create_info	(VK_CULL_MODE_BACK_BIT);
+
+		// Todo(Leo): Cull mode is disabled while we develop marching cubes thing
+		auto rasterizationState = fsvulkan_pipeline_rasterization_state_create_info	(VK_CULL_MODE_NONE);
+		// auto rasterizationState = fsvulkan_pipeline_rasterization_state_create_info	(VK_CULL_MODE_BACK_BIT);
 		auto multisampleState 	= fsvulkan_pipeline_multisample_state_create_info	(context.msaaSamples);
 		auto depthStencilState 	= fsvulkan_pipeline_depth_stencil_create_info		(VK_TRUE, VK_TRUE);
 		auto colorBlendState 	= fsvulkan_pipeline_color_blend_state_create_info	(1, &fsvulkan_default_pipeline_color_blend_attachment_state);

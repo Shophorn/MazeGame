@@ -1,2 +1,5 @@
-image based lighting
+image based lighting:
 	https://www.youtube.com/watch?v=xWCZiksqCGA
+
+voronoi based better version of marching cubes:
+	http://www.geometry.caltech.edu/pubs/ACTD07.pdf
