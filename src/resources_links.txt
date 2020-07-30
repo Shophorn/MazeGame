@@ -3,3 +3,6 @@ image based lighting:
 
 voronoi based better version of marching cubes:
 	http://www.geometry.caltech.edu/pubs/ACTD07.pdf
+
+triplanar texture mapping
+	https://medium.com/@bgolus/normal-mapping-for-a-triplanar-shader-10bf39dca05a#0f18

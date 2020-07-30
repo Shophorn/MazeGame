@@ -2060,7 +2060,7 @@ void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle saveFile
 
 		scene->metaballTransform 	= translation_matrix(position);
 		scene->metaballMesh 		= generate_metaball();
-		scene->metaballMaterial 	= materials.environment;
+		scene->metaballMaterial 	= scene->treeMaterials[0];
 	}
 
 	// ----------------------------------------------------------------------------------
