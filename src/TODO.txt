@@ -1,3 +1,10 @@
+JUST NOW
+	- terrain with marching cubes
+	- terrain editor panel thing
+
+NEXT
+	- limited scope render thing
+
 sky editor, or at least sky "editor"
 	as described by campo santo blog post
 	-> gui slider

@@ -61,6 +61,11 @@ inline f32 square_root_f32 (f32 value)
     return sqrtf(value);
 }
 
+inline f32 f32_lerp(f32 a, f32 b, f32 t)
+{
+    return a + t * (b - a);
+}
+
 inline f32 interpolate(f32 from, f32 to, f32 t)
 {
     f32 result = (1.0f - t) * from + t * to;
@@ -85,6 +90,13 @@ s32 min_s32(s32 a, s32 b)
 s32 max_s32(s32 a, s32 b)
 {
     return (a > b) ? a : b;
+}
+
+internal s32 clamp_s32(s32 value, s32 inclusiveMin, s32 exclusiveMax)
+{
+    value = max_s32(value, inclusiveMin);
+    value = min_s32(value, exclusiveMax - 1);
+    return value;
 }
 
 inline f32 clamp_f32(f32 value, f32 min, f32 max)

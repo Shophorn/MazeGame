@@ -246,6 +246,12 @@ v3 cross_v3(v3 lhs, v3 rhs)
 	return lhs;
 }
 
+v3 v3_lerp(v3 a, v3 b, f32 t)
+{
+	a = a + t * (b - a);
+	return a;
+}
+
 v3 interpolate_v3(v3 from, v3 to, f32 t)
 {
 	from = from * (1 - t) + to * t;

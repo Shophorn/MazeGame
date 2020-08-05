@@ -352,8 +352,8 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 		auto viewportState 		= fsvulkan_pipeline_viewport_state_create_info		(1, &fsvulkan_zero_viewport, 1, &fsvulkan_zero_scissor);
 
 		// Todo(Leo): Cull mode is disabled while we develop marching cubes thing
-		auto rasterizationState = fsvulkan_pipeline_rasterization_state_create_info	(VK_CULL_MODE_NONE);
-		// auto rasterizationState = fsvulkan_pipeline_rasterization_state_create_info	(VK_CULL_MODE_BACK_BIT);
+		// auto rasterizationState = fsvulkan_pipeline_rasterization_state_create_info	(VK_CULL_MODE_NONE);
+		auto rasterizationState = fsvulkan_pipeline_rasterization_state_create_info	(VK_CULL_MODE_BACK_BIT);
 		auto multisampleState 	= fsvulkan_pipeline_multisample_state_create_info	(context.msaaSamples);
 		auto depthStencilState 	= fsvulkan_pipeline_depth_stencil_create_info		(VK_TRUE, VK_TRUE);
 		auto colorBlendState 	= fsvulkan_pipeline_color_blend_state_create_info	(1, &fsvulkan_default_pipeline_color_blend_attachment_state);
@@ -387,6 +387,79 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 		vkDestroyShaderModule(context.device, fragmentShaderModule, nullptr);
 		vkDestroyShaderModule(context.device, vertexShaderModule, nullptr);
 	}
+
+	/// GRAPHICS_PIPELINE_TRIPLANAR
+	{
+		s32 textureCount = 1;
+		auto materialLayout = fsvulkan_make_material_descriptor_set_layout(context.device, textureCount);
+
+		VkDescriptorSetLayout descriptorSetLayouts[] =
+		{
+			context.cameraDescriptorSetLayout,
+			materialLayout,
+			context.modelDescriptorSetLayout,
+			context.lightingDescriptorSetLayout,
+			context.shadowMapDescriptorSetLayout,
+		};
+		// TODO(Leo): this was maybe stupid idea, this is material block, and we are going to use
+		// textures for this probably
+
+		auto pipelineLayoutCreateInfo = fsvulkan_pipeline_layout_create_info(array_count(descriptorSetLayouts), descriptorSetLayouts, 0, nullptr);
+
+		VULKAN_CHECK(vkCreatePipelineLayout (context.device, &pipelineLayoutCreateInfo, nullptr, &context.pipelines[GRAPHICS_PIPELINE_TRIPLANAR].pipelineLayout));
+
+		VkShaderModule vertexShaderModule 	= fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/vert.spv"));
+		VkShaderModule fragmentShaderModule = fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/triplanar_frag.spv"));
+
+		VkPipelineShaderStageCreateInfo shaderStages [] =
+		{
+			fsvulkan_pipeline_shader_stage_create_info(VK_SHADER_STAGE_VERTEX_BIT, vertexShaderModule, "main"),
+			fsvulkan_pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, fragmentShaderModule, "main"),
+		};
+
+		auto vertexInputState 	= fsvulkan_pipeline_vertex_input_state_create_info	(1, &fsvulkan_defaultVertexBinding,
+																					array_count(fsvulkan_defaultVertexAttributes), fsvulkan_defaultVertexAttributes);
+		auto inputAssemblyState = fsvulkan_pipeline_input_assembly_create_info		(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+		auto viewportState 		= fsvulkan_pipeline_viewport_state_create_info		(1, &fsvulkan_zero_viewport, 1, &fsvulkan_zero_scissor);
+
+		// Todo(Leo): Cull mode is disabled while we develop marching cubes thing
+		// auto rasterizationState = fsvulkan_pipeline_rasterization_state_create_info	(VK_CULL_MODE_NONE);	
+		auto rasterizationState = fsvulkan_pipeline_rasterization_state_create_info	(VK_CULL_MODE_BACK_BIT);
+		auto multisampleState 	= fsvulkan_pipeline_multisample_state_create_info	(context.msaaSamples);
+		auto depthStencilState 	= fsvulkan_pipeline_depth_stencil_create_info		(VK_TRUE, VK_TRUE);
+		auto colorBlendState 	= fsvulkan_pipeline_color_blend_state_create_info	(1, &fsvulkan_default_pipeline_color_blend_attachment_state);
+		auto dynamicState 		= fsvulkan_pipeline_dynamic_state_create_info		(array_count(fsvulkan_default_dynamic_states), fsvulkan_default_dynamic_states);
+
+
+		VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo =
+		{
+			.sType 					= VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+			.stageCount 			= array_count(shaderStages),
+			.pStages 				= shaderStages,
+
+			.pVertexInputState 		= &vertexInputState,
+			.pInputAssemblyState 	= &inputAssemblyState,
+			.pViewportState 		= &viewportState,
+			.pRasterizationState 	= &rasterizationState,
+			.pMultisampleState 		= &multisampleState,
+			.pDepthStencilState 	= &depthStencilState,
+			.pColorBlendState 		= &colorBlendState,
+			.pDynamicState 			= &dynamicState,
+			
+			.layout 				= context.pipelines[GRAPHICS_PIPELINE_TRIPLANAR].pipelineLayout,
+			.renderPass 			= context.drawingResources.renderPass,
+		};
+
+		vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &context.pipelines[GRAPHICS_PIPELINE_TRIPLANAR].pipeline);
+
+		context.pipelines[GRAPHICS_PIPELINE_TRIPLANAR].descriptorSetLayout = materialLayout;
+		context.pipelines[GRAPHICS_PIPELINE_TRIPLANAR].textureCount 		= textureCount;
+
+		vkDestroyShaderModule(context.device, fragmentShaderModule, nullptr);
+		vkDestroyShaderModule(context.device, vertexShaderModule, nullptr);
+	}
+
+
 
 	/// GRAPHICS_PIPELINE_ANIMATED
 	{

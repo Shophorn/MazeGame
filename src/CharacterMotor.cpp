@@ -323,7 +323,7 @@ update_character_motor( CharacterMotor & 	motor,
 
 	// CHECK COLLISION WITH OTHER COLLIDERS TOO
 	{
-		f32 groundRaySkinWidth 	= 0.1f;
+		f32 groundRaySkinWidth 	= 1.0f;
 		v3 groundRayStart 		= motor.transform->position + v3{0,0,groundRaySkinWidth};
 		v3 groundRayDirection 	= -up_v3;
 		f32 groundRayLength 	= groundRaySkinWidth + max_f32(0.1f, abs_f32(motor.zSpeed));

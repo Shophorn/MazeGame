@@ -7,7 +7,7 @@ Terrain generator prototype
 
 struct HeightMap
 {
-	// y rows of x colums
+	// gridSize rows and gridSize colums
 	Array<f32> 	values;
 	u32 		gridSize;
 	f32			worldSize;
@@ -16,7 +16,7 @@ struct HeightMap
 };
 
 internal f32
-get_height_at(HeightMap * map, v2 worldScalePosition)
+get_height_at(HeightMap const * map, v2 worldScalePosition)
 {
 	v2 gridSpacePosition = worldScalePosition * (map->gridSize / map->worldSize);
 

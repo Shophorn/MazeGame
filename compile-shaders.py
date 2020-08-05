@@ -26,6 +26,8 @@ targets = [
 	("leaves.frag", 			"leaves_frag.spv"),
 	("leaves_shadow.vert", 		"leaves_shadow_vert.spv"),
 	("leaves_shadow.frag", 		"leaves_shadow_frag.spv"),
+
+	("triplanar.frag",			"triplanar_frag.spv")
 ]
 
 for target in targets:

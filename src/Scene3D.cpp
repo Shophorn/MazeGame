@@ -30,6 +30,20 @@ enum CarryMode : s32
 	CARRY_TREE,
 };
 
+enum TrainState : s32
+{
+	TRAIN_MOVE,
+	TRAIN_WAIT,
+};
+
+enum NoblePersonMode : s32
+{
+	NOBLE_WANDER_AROUND,
+	NOBLE_WAIT_FOR_TRAIN,
+	NOBLE_AWAY,
+	NOBLE_ARRIVING_IN_TRAIN,
+};
+
 struct Scene3d
 {
 	// Todo(Leo): Remove these "component" arrays, they are stupidly generic solution, that hide away actual data location, at least the way they are now used
@@ -37,7 +51,7 @@ struct Scene3d
 
 	Array<SkeletonAnimator> 	skeletonAnimators;	
 	Array<CharacterMotor>		characterMotors;
-	Array<CharacterInput>		characterInputs;
+	// Array<CharacterInput>		characterInputs;
 	Array<Renderer> 			renderers;
 	Array<AnimatedRenderer> 	animatedRenderers;
 
@@ -48,8 +62,9 @@ struct Scene3d
 	PlayerCameraController 		playerCamera;
 	FreeCameraController		freeCamera;
 
-	PlayerInputState 			playerInputState;
-	Transform3D * 				playerCharacterTransform;
+	PlayerInputState	playerInputState;
+	Transform3D 		playerCharacterTransform;
+	CharacterMotor 		playerCharacterMotor;
 
 	// ---------------------------------------
 
@@ -82,30 +97,50 @@ struct Scene3d
 
 	Monuments monuments;
 
-	Transform3D 	castleTransform;
-	MeshHandle 		castleMesh;
-	MaterialHandle 	castleMaterial;
-
 	// ------------------------------------------------------
 
 	s32 playerCarryState;
 	s32 carriedItemIndex;
 
-	// Big Scenery
-	s32 			stoneWallCount;
-	m44 * 			stoneWallTransforms;
-	MeshHandle 		stoneWallMesh;
-	MaterialHandle 	stoneWallMaterial;
+	// ------------------------------------------------------
 
-	s32 			buildingCount;
-	m44 *			buildingTransforms;
-	MeshHandle 		buildingMesh;
-	MaterialHandle 	buildingMaterial;
+	Transform3D 	trainTransform;
+	MeshHandle 		trainMesh;
+	MaterialHandle 	trainMaterial;
 
-	s32 			gateCount;
-	m44 * 			gateTransforms;
-	MeshHandle 		gateMesh;
-	MaterialHandle 	gateMaterial;
+	v3 trainStopPosition;
+	v3 trainFarPositionA;
+	v3 trainFarPositionB;
+
+	s32 trainMoveState;
+	s32 trainTargetReachedMoveState;
+
+	s32 trainWayPointIndex;
+
+	f32 trainFullSpeed;
+	f32 trainStationMinSpeed;
+	f32 trainAcceleration;
+	f32 trainWaitTimeOnStop;
+	f32 trainBrakeBeforeStationDistance;
+
+	f32 trainCurrentWaitTime;
+	f32 trainCurrentSpeed;
+
+	v3 trainCurrentTargetPosition;
+	v3 trainCurrentDirection;
+
+	// ------------------------------------------------------
+
+
+	Transform3D 	noblePersonTransform;
+	s32 			noblePersonMode;
+	CharacterMotor 	noblePersonCharacterMotor;
+
+	v3 		nobleWanderTargetPosition;
+	f32 	nobleWanderWaitTimer;
+	bool32 	nobleWanderIsWaiting;
+
+	// ------------------------------------------------------
 
 	s32 			cubePyramidCount;
 	m44 *			cubePyramidTransforms;
@@ -124,9 +159,33 @@ struct Scene3d
 
 	// ----------------------------------------------------------
 	
-	m44 			metaballTransform;
-	MeshHandle 		metaballMesh;
+	bool32 		drawMCStuff;
+	
+	f32 			metaballGridScale;
 	MaterialHandle 	metaballMaterial;
+
+	m44 		metaballTransform;
+
+	u32 		metaballVertexCapacity;
+	u32 		metaballVertexCount;
+	Vertex * 	metaballVertices;
+
+	u32 		metaballIndexCapacity;
+	u32 		metaballIndexCount;
+	u16 * 		metaballIndices;
+
+
+
+	m44 metaballTransform2;
+	
+	u32 		metaballVertexCapacity2;
+	u32 		metaballVertexCount2;
+	Vertex * 	metaballVertices2;
+
+	u32 		metaballIndexCapacity2;
+	u32 		metaballIndexCount2;
+	u16 *		metaballIndices2;
+
 
 	// ----------------------------------------------------------
 
@@ -142,21 +201,15 @@ struct Scene3d
 
 	// Random
 	ModelHandle skybox;
+	bool32 		getSkyColorFromTreeDistance;
+	f32 		skyColorSelection;
+
 	Gui 		gui;
 	s32 		cameraMode;
 	bool32		drawDebugShadowTexture;
 
-	enum MenuView : s32
-	{
-		MENU_OFF,
-		MENU_MAIN,
-		MENU_CONFIRM_EXIT,
-		MENU_CONFIRM_TELEPORT,
-		MENU_EDIT_SKY,
-		MENU_SAVE_COMPLETE,
-	};
 
-	MenuView menuView;
+	s32 menuView;
 
 	GuiTextureHandle guiPanelImage;
 	v4 guiPanelColour;
@@ -165,6 +218,7 @@ struct Scene3d
 	constexpr static s32 	timeScaleCount = 3;
 	s32 					timeScaleIndex;
 };
+
 
 struct Scene3dSaveLoad
 {
@@ -207,7 +261,7 @@ internal void write_save_file(Scene3d * scene)
 	platformApi->set_file_position(file, sizeof(save));
 
 	save.playerLocation = platformApi->get_file_position(file);
-	platformApi->write_file(file, sizeof(Transform3D), scene->playerCharacterTransform);
+	platformApi->write_file(file, sizeof(Transform3D), &scene->playerCharacterTransform);
 
 	save.watersLocation = platformApi->get_file_position(file);
 	file_write_struct(file, &scene->waters.capacity);
@@ -245,6 +299,8 @@ internal void write_save_file(Scene3d * scene)
 
 	platformApi->close_file(file);
 }
+
+#include "scene3d_gui.cpp"
 
 internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, PlatformTime const & time)
 {
@@ -318,35 +374,46 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 	// Game Logic section
 	if(scene->cameraMode == CAMERA_MODE_PLAYER)
 	{
-		if (scene->menuView == Scene3d::MENU_OFF)
+		CharacterInput playerCharacterMotorInput = {};
+
+		if (scene->menuView == MENU_OFF)
 		{
-			// Todo(Leo): Maybe do submit motor thing, so we can also disable falling etc here
-			update_player_input(scene->playerInputState, scene->characterInputs, scene->worldCamera, input);
-		}
-		else
-		{
-			scene->characterInputs[scene->playerInputState.inputArrayIndex] = {};
+			if (is_clicked(input.down))
+			{
+				scene->nobleWanderTargetPosition 	= scene->playerCharacterTransform.position;
+				scene->nobleWanderWaitTimer 		= 0;
+				scene->nobleWanderIsWaiting 		= false;
+			}
+
+			playerCharacterMotorInput = update_player_input(scene->playerInputState, scene->worldCamera, input);
 		}
 
-		update_camera_controller(&scene->playerCamera, scene->playerCharacterTransform->position, input, scaledTime);
+		update_character_motor(scene->playerCharacterMotor, playerCharacterMotorInput, scene->collisionSystem, scaledTime, DEBUG_PLAYER);
+
+		update_camera_controller(&scene->playerCamera, scene->playerCharacterTransform.position, input, scaledTime);
 
 		scene->worldCamera.position = scene->playerCamera.position;
 		scene->worldCamera.direction = scene->playerCamera.direction;
 
 		scene->worldCamera.farClipPlane = 1000;
+
+		/// ---------------------------------------------------------------------------------------------------
+
+		debug_draw_circle_xy(scene->nobleWanderTargetPosition + v3{0,0,0.5}, 1.0, colour_bright_green, DEBUG_NPC);
+		debug_draw_circle_xy(scene->nobleWanderTargetPosition + v3{0,0,0.5}, 0.9, colour_bright_green, DEBUG_NPC);
+
 	}
 	else
 	{
-		scene->characterInputs[scene->playerInputState.inputArrayIndex] = {};
 		m44 cameraMatrix = update_free_camera(scene->freeCamera, input, unscaledTime);
 
 		scene->worldCamera.position = scene->freeCamera.position;
 		scene->worldCamera.direction = scene->freeCamera.direction;
 
 		/// Document(Leo): Teleport player
-		if (scene->menuView == Scene3d::MENU_OFF && is_clicked(input.A))
+		if (scene->menuView == MENU_OFF && is_clicked(input.A))
 		{
-			scene->menuView = Scene3d::MENU_CONFIRM_TELEPORT;
+			scene->menuView = MENU_CONFIRM_TELEPORT;
 			gui_ignore_input();
 			gui_reset_selection();
 		}
@@ -363,6 +430,7 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 	v3 ambient 	= {0.05, 0.05, 0.3};
 
 
+	if (scene->getSkyColorFromTreeDistance)
 	{
 		float playerDistanceFromClosestTree = highest_f32;
 		for (s32 i = 0; i < scene->lSystemCount; ++i)
@@ -377,7 +445,7 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 			debug_draw_circle_xy(scene->lSystems[i].position + v3{0,0,0.2}, treeRadius, colour_bright_green, DEBUG_NPC);
 
-			f32 distanceFromTree 			= magnitude_v3(scene->playerCharacterTransform->position - scene->lSystems[i].position) - treeRadius;
+			f32 distanceFromTree 			= magnitude_v3(scene->playerCharacterTransform.position - scene->lSystems[i].position) - treeRadius;
 			playerDistanceFromClosestTree 	= min_f32(playerDistanceFromClosestTree, distanceFromTree);
 		}
 
@@ -386,7 +454,10 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 		// f32 playerDistance 				= magnitude_v2(scene->playerCharacterTransform->position.xy);
 		light.skyColorSelection 		= clamp_f32((playerDistanceFromClosestTree - minPlayerDistance) / (maxPlayerDistance - minPlayerDistance), 0, 1);
-
+	}
+	else
+	{
+		light.skyColorSelection = scene->skyColorSelection;
 	}
 
 
@@ -400,7 +471,7 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 	{
 		Waters & waters = scene->waters;
 
-		v2 center = scene->playerCharacterTransform->position.xy;
+		v2 center = scene->playerCharacterTransform.position.xy;
 
 		s32 spawnCount = 10;
 		spawnCount = min_f32(spawnCount, waters.capacity - waters.count);
@@ -429,14 +500,14 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 	/// PICKUP OR DROP
 	if ((scene->cameraMode == CAMERA_MODE_PLAYER) && is_clicked(input.A))
 	{
-		v3 playerPosition = scene->playerCharacterTransform->position;
+		v3 playerPosition = scene->playerCharacterTransform.position;
 		f32 grabDistance = 1.0f;
 
 		switch(scene->playerCarryState)
 		{
 			case CARRY_NONE: {
 				/* Todo(Leo): Do this properly, taking into account player facing direction and distances etc. */
-				auto check_pickup = [	playerPosition 		= scene->playerCharacterTransform->position,
+				auto check_pickup = [	playerPosition 		= scene->playerCharacterTransform.position,
 										&playerCarryState 	= scene->playerCarryState,
 										&carriedItemIndex 	= scene->carriedItemIndex,
 										grabDistance]
@@ -468,7 +539,7 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 						continue;
 					}
 
-					f32 distanceToLSystemTree = magnitude_v3(lSystem.position - scene->playerCharacterTransform->position);
+					f32 distanceToLSystemTree = magnitude_v3(lSystem.position - scene->playerCharacterTransform.position);
 					if(distanceToLSystemTree < grabDistance)
 					{
 						scene->playerCarryState = CARRY_TREE;
@@ -536,8 +607,8 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 	} // endif input
 
 
-	v3 carriedPosition = multiply_point(transform_matrix(*scene->playerCharacterTransform), {0, 0.7, 0.7});
-	quaternion carriedRotation = scene->playerCharacterTransform->rotation;
+	v3 carriedPosition = multiply_point(transform_matrix(scene->playerCharacterTransform), {0, 0.7, 0.7});
+	quaternion carriedRotation = scene->playerCharacterTransform.rotation;
 	switch(scene->playerCarryState)
 	{
 		case CARRY_POT:
@@ -571,6 +642,120 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 	}
 	
 	// -----------------------------------------------------------------------------------------------------------
+	/// TRAIN
+	{
+		v3 trainWayPoints [] = 
+		{
+			scene->trainStopPosition, 
+			scene->trainFarPositionA,
+			scene->trainStopPosition, 
+			scene->trainFarPositionB,
+		};
+
+		if (scene->trainMoveState == TRAIN_MOVE)
+		{
+
+			v3 trainMoveVector 	= scene->trainCurrentTargetPosition - scene->trainTransform.position;
+			f32 directionDot 	= dot_v3(trainMoveVector, scene->trainCurrentDirection);
+			f32 moveDistance	= magnitude_v3(trainMoveVector);
+
+			if (moveDistance > scene->trainBrakeBeforeStationDistance)
+			{
+				scene->trainCurrentSpeed += scaledTime * scene->trainAcceleration;
+				scene->trainCurrentSpeed = min_f32(scene->trainCurrentSpeed, scene->trainFullSpeed);
+			}
+			else
+			{
+				scene->trainCurrentSpeed -= scaledTime * scene->trainAcceleration;
+				scene->trainCurrentSpeed = max_f32(scene->trainCurrentSpeed, scene->trainStationMinSpeed);
+			}
+
+			if (directionDot > 0)
+			{
+				scene->trainTransform.position += scene->trainCurrentDirection * scene->trainCurrentSpeed * scaledTime;
+			}
+			else
+			{
+				scene->trainMoveState 		= TRAIN_WAIT;
+				scene->trainCurrentWaitTime = 0;
+			}
+
+		}
+		else
+		{
+			scene->trainCurrentWaitTime += scaledTime;
+			if (scene->trainCurrentWaitTime > scene->trainWaitTimeOnStop)
+			{
+				scene->trainMoveState 		= TRAIN_MOVE;
+				scene->trainCurrentSpeed 	= 0;
+
+				v3 start 	= trainWayPoints[scene->trainWayPointIndex];
+				v3 end 		= trainWayPoints[(scene->trainWayPointIndex + 1) % array_count(trainWayPoints)];
+
+				scene->trainWayPointIndex += 1;
+				scene->trainWayPointIndex %= array_count(trainWayPoints);
+
+				scene->trainCurrentTargetPosition 	= end;
+				scene->trainCurrentDirection 		= normalize_v3(end - start);
+			}
+		}
+	}
+
+	// -----------------------------------------------------------------------------------------------------------
+	/// NOBLE PERSON CHARACTER
+	{
+		CharacterInput nobleCharacterMotorInput = {};
+
+		switch(scene->noblePersonMode)
+		{
+			case NOBLE_WANDER_AROUND:
+			{
+				if (scene->nobleWanderIsWaiting)
+				{
+					scene->nobleWanderWaitTimer -= scaledTime;
+					if (scene->nobleWanderWaitTimer < 0)
+					{
+						scene->nobleWanderTargetPosition = { random_range(-99, 99), random_range(-99, 99)};
+						scene->nobleWanderIsWaiting = false;
+					}
+
+
+					m44 gizmoTransform = make_transform_matrix(	scene->noblePersonTransform.position + up_v3 * scene->noblePersonTransform.scale.z * 2.0f, 
+																scene->noblePersonTransform.rotation,
+																scene->nobleWanderWaitTimer);
+					debug_draw_diamond_xz(gizmoTransform, colour_muted_red, DEBUG_NPC);
+				}
+				
+				f32 distance = magnitude_v2(scene->noblePersonTransform.position.xy - scene->nobleWanderTargetPosition.xy);
+				if (distance < 1.0f && scene->nobleWanderIsWaiting == false)
+				{
+					scene->nobleWanderWaitTimer = 10;
+					scene->nobleWanderIsWaiting = true;
+				}
+
+
+				v3 input 			= {};
+				input.xy	 		= scene->nobleWanderTargetPosition.xy - scene->noblePersonTransform.position.xy;
+				f32 inputMagnitude 	= magnitude_v3(input);
+				input 				= input / inputMagnitude;
+				inputMagnitude 		= clamp_f32(inputMagnitude, 0.0f, 1.0f);
+				input 				= input * inputMagnitude;
+
+				nobleCharacterMotorInput = {input, false, false};
+
+			} break;
+		}
+	
+		update_character_motor(	scene->noblePersonCharacterMotor,
+								nobleCharacterMotorInput,
+								scene->collisionSystem,
+								scaledTime,
+								DEBUG_NPC);
+	}
+
+
+
+	// -----------------------------------------------------------------------------------------------------------
 
 	// Todo(Leo): Rather use something like submit_collider() with what every collider can decide themselves, if they want to
 	// contribute to collisions this frame or not.
@@ -596,42 +781,30 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 		constexpr f32 baseRadius = 0.12;
 		constexpr f32 baseHeight = 2;
-
-		{
-			f32 castleColliderHeight = 0.01;
-			f32 castleColliderRadius = 20;
-		
-			Transform3D castleColliderTransform = scene->castleTransform;
-			f32 castleColliderHalfHeight 		= castleColliderHeight / 2;
-			castleColliderTransform.position.z -= castleColliderHalfHeight;
-
-			submit_cylinder_colliders(castleColliderRadius, castleColliderHalfHeight, 1, &castleColliderTransform);
-		}
-
 	}
 
-	for (auto & randomWalker : scene->randomWalkers)
-	{
-		update_random_walker_input(randomWalker, scene->characterInputs, scaledTime);
-	}
+	// for (auto & randomWalker : scene->randomWalkers)
+	// {
+	// 	update_random_walker_input(randomWalker, scene->characterInputs, scaledTime);
+	// }
 
-	for (auto & follower : scene->followers)
-	{
-		update_follower_input(follower, scene->characterInputs, scaledTime);
-	}
+	// for (auto & follower : scene->followers)
+	// {
+	// 	update_follower_input(follower, scene->characterInputs, scaledTime);
+	// }
 	
-	for (int i = 0; i < 1; ++i)
-	// for (int i = 0; i < scene->characterMotors.count(); ++i)
-	{
-		update_character_motor(	scene->characterMotors[i],
-								scene->characterInputs[i],
-								scene->collisionSystem,
-								scaledTime,
-								i == scene->playerInputState.inputArrayIndex ? DEBUG_PLAYER : DEBUG_NPC);
-	}
+	// for (int i = 0; i < 2; ++i)
+	// // for (int i = 0; i < scene->characterMotors.count(); ++i)
+	// {
+	// 	update_character_motor(	scene->characterMotors[i],
+	// 							scene->characterInputs[i],
+	// 							scene->collisionSystem,
+	// 							scaledTime,
+	// 							i == scene->playerInputState.inputArrayIndex ? DEBUG_PLAYER : DEBUG_NPC);
+	// }
 
 
-	for (s32 i = 0; i < 1; ++i)
+	for (s32 i = 0; i < 2; ++i)
 	// for (s32 i = 0; i < scene->skeletonAnimators.count; ++i)
 	{
 		update_skeleton_animator(scene->skeletonAnimators[i], scaledTime);
@@ -650,9 +823,6 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 	/// DRAW STATIC SCENERY
 	{
-		platformApi->draw_meshes(platformGraphics, scene->stoneWallCount, scene->stoneWallTransforms, scene->stoneWallMesh, scene->stoneWallMaterial);
-		platformApi->draw_meshes(platformGraphics, scene->buildingCount, scene->buildingTransforms, scene->buildingMesh, scene->buildingMaterial);
-		platformApi->draw_meshes(platformGraphics, scene->gateCount, scene->gateTransforms, scene->gateMesh, scene->gateMaterial);
 		platformApi->draw_meshes(platformGraphics, scene->cubePyramidCount, scene->cubePyramidTransforms, scene->cubePyramidMesh, scene->cubePyramidMaterial);
 
 		for(s32 i = 0; i < scene->terrainCount; ++i)
@@ -690,7 +860,7 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 			debug_draw_circle_xy(collider.center + v3{0, 0, collider.halfHeight}, collider.radius, colour_bright_green, DEBUG_BACKGROUND);
 		}
 
-		debug_draw_circle_xy(scene->playerCharacterTransform->position + v3{0,0,0.7}, 0.25f, colour_bright_green, DEBUG_PLAYER);
+		debug_draw_circle_xy(scene->playerCharacterTransform.position + v3{0,0,0.7}, 0.25f, colour_bright_green, DEBUG_PLAYER);
 	}
 
 	  //////////////////////////////
@@ -704,50 +874,110 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 		3. Render animated models
 	*/
 
+	// {
+	// 	m44 castleTransformMatrix = transform_matrix(scene->castleTransform);
+	// 	platformApi->draw_meshes(platformGraphics, 1, &castleTransformMatrix, scene->castleMesh, scene->castleMaterial);
+	// }
+
+	if (scene->drawMCStuff)
 	{
-		m44 castleTransformMatrix = transform_matrix(scene->castleTransform);
-		platformApi->draw_meshes(platformGraphics, 1, &castleTransformMatrix, scene->castleMesh, scene->castleMaterial);
+		v3 position = multiply_point(scene->metaballTransform, {0,0,0});
+		// debug_draw_circle_xy(position, 4, {1,0,1,1}, DEBUG_ALWAYS);
+		// platformApi->draw_meshes(platformGraphics, 1, &scene->metaballTransform, scene->metaballMesh, scene->metaballMaterial);
+
+		local_persist f32 testX = 0;
+		local_persist f32 testY = 0;
+		local_persist f32 testZ = 0;
+		local_persist f32 testW = 0;
+
+		testX += scaledTime;
+		testY += scaledTime * 1.2;
+		testZ += scaledTime * 0.9;
+		testW += scaledTime * 1.7;
+
+		v4 positions[] =
+		{
+			{mathfun_pingpong_f32(testX, 5),2,2,										2},
+			{1,mathfun_pingpong_f32(testY, 3),1,										1},
+			{4,3,mathfun_pingpong_f32(testZ, 3) + 1,									1.5},
+			{mathfun_pingpong_f32(testW, 4) + 1, mathfun_pingpong_f32(testY, 3), 3,		1.2},
+		};
+
+		generate_mesh_marching_cubes(	scene->metaballVertexCapacity, scene->metaballVertices, &scene->metaballVertexCount,
+										scene->metaballIndexCapacity, scene->metaballIndices, &scene->metaballIndexCount,
+										sample_four_sdf_balls, positions, scene->metaballGridScale);
+
+		platformApi->draw_procedural_mesh(	platformGraphics,
+											scene->metaballVertexCount, scene->metaballVertices,
+											scene->metaballIndexCount, scene->metaballIndices,
+											scene->metaballTransform,
+											scene->metaballMaterial);
+
+		auto sample_sdf_2 = [](v3 position, void const * data)
+		{
+			v3 a = {2,2,2};
+			v3 b = {5,3,5};
+
+			f32 rA = 1;
+			f32 rB = 1;
+
+			// f32 d = min_f32(1, max_f32(0, dot_v3()))
+
+			f32 t = min_f32(1, max_f32(0, dot_v3(position - a, b - a) / square_magnitude_v3(b-a)));
+			f32 d = magnitude_v3(position - a  - t * (b -a));
+
+			return d - f32_lerp(0.5,0.1,t);
+
+			// return min_f32(magnitude_v3(a - position) - rA, magnitude_v3(b - position) - rB);
+		};
+
+		f32 fieldMemory [] =
+		{
+			-5,-5,-5,-5,-5,
+			-5,-5,-5,-5,-5,
+			-5,-5,-5,-5,-5,
+			-5,-5,-5,-5,-5,
+			
+			-5,-5,-5,-5,-5,
+			-5,-5,-5,-5,-5,
+			-5,-5,-5,-5,-5,
+			-5,-5,-5,-5,-5,
+			
+			5,5,5,5,5,
+			5,-2,-2,5,5,
+			5,-1,-1,-1,5,
+			5,5,5,5,5,
+			
+			5,5,5,5,5,
+			5,5,5,5,5,
+			5,5,5,5,5,
+			5,5,5,5,5,
+		};
+
+		// v3 fieldSize = {5,4,4};
+
+		VoxelField field = {5, 4, 4, fieldMemory};
+
+		generate_mesh_marching_cubes(	scene->metaballVertexCapacity2, scene->metaballVertices2, &scene->metaballVertexCount2,
+										scene->metaballIndexCapacity2, scene->metaballIndices2, &scene->metaballIndexCount2,
+										sample_heightmap_for_mc, &scene->collisionSystem.terrainCollider, scene->metaballGridScale);
+
+		debug_draw_circle_xy(multiply_point(scene->metaballTransform2, scene->metaballVertices2[0].position), 5.0f, colour_bright_green, DEBUG_ALWAYS);
+		// logDebug(0) << multiply_point(scene->metaballTransform2, scene->metaballVertices2[0].position);
+
+		if (scene->metaballVertexCount2 > 0 && scene->metaballIndexCount2 > 0)
+		{
+			platformApi->draw_procedural_mesh(	platformGraphics,
+												scene->metaballVertexCount2, scene->metaballVertices2,
+												scene->metaballIndexCount2, scene->metaballIndices2,
+												scene->metaballTransform2,
+												scene->metaballMaterial);
+		}
 	}
 
 	{
-		v3 position = multiply_point(scene->metaballTransform, {0,0,0});
-		debug_draw_circle_xy(position, 4, {1,0,1,1}, DEBUG_ALWAYS);
-		platformApi->draw_meshes(platformGraphics, 1, &scene->metaballTransform, scene->metaballMesh, scene->metaballMaterial);
-
-		v3 linePoints [74] = {};
-		v3 redlinePoints[4] = {};
-
-		for (s32 x = 0; x <= 16; ++x)
-		{
-			if (x == 8)
-			{
-				redlinePoints[0] = position + v3{-30.5f + x, -30.5f, 0};
-				redlinePoints[1] = position + v3{-30.5f + x, -30.5f + 16, 0};				
-
-				++x;
-			}
-			linePoints[2 * x] = position + v3{-30.5f + x, -30.5f, 0};
-			linePoints[2 * x + 1] = position + v3{-30.5f + x, -30.5f + 16, 0};
-		}
-
-		for (s32 y = 0; y <= 16; ++y)
-		{
-			if (y == 8)
-			{
-				redlinePoints[2] = position + v3{-30.5f, -30.5f + y, 0};
-				redlinePoints[3] = position + v3{-30.5f + 16, -30.5f + y, 0};	
-
-				++y;
-			}
-
-			linePoints[2 * y + 34] = position + v3{-30.5f, -30.5f + y, 0};
-			linePoints[2 * y + 34 + 1] = position + v3{-30.5f + 16, -30.5f + y, 0};	
-		}
-
-		debug_draw_lines(4, redlinePoints, colour_bright_red, DEBUG_ALWAYS);
-		debug_draw_lines(74, linePoints, colour_bright_green, DEBUG_ALWAYS);
-
-
+		m44 trainTransformMatrix = transform_matrix(scene->trainTransform);
+		platformApi->draw_meshes(platformGraphics, 1, &trainTransformMatrix, scene->trainMesh, scene->trainMaterial);
 	}
 
 	for (auto & renderer : scene->renderers)
@@ -760,8 +990,21 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 
 	// for (auto & renderer : scene->animatedRenderers)
+	/// PLAYER
 	{
 		auto & renderer = scene->animatedRenderers[0];
+
+		m44 boneTransformMatrices [32];
+
+		update_animated_renderer(boneTransformMatrices, renderer.skeleton->bones);
+
+		platformApi->draw_model(platformGraphics, renderer.model, transform_matrix(*renderer.transform),
+								renderer.castShadows, boneTransformMatrices, array_count(boneTransformMatrices));
+	}
+
+	/// CHARACTER 2
+	{
+		auto & renderer = scene->animatedRenderers[1];
 
 		m44 boneTransformMatrices [32];
 
@@ -787,15 +1030,14 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 		s32 updatedLSystemIndex = persist_updatedLSystemIndex;
 
 		auto update_lsystem = [	&waters 				= scene->waters,
-								potWaterLevels 	= scene->potWaterLevels,
+								potWaterLevels 			= scene->potWaterLevels,
 								lSystemsPotIndices 		= scene->lSystemsPotIndices,
-								// lSystemsInPotPotIndices = scene->lSystemsInPotPotIndices,
 								get_region_colour_index,
 								get_water, 
 								get_water_from_pot,
 								updatedLSystemIndex,
 								scaledTime]
-							(s32 count, TimedLSystem * lSystems, Leaves * leavess)// bool isInPot)
+							(s32 count, TimedLSystem * lSystems, Leaves * leavess)
 		{
 
 			for (int i = 0; i < count; ++i)
@@ -964,211 +1206,7 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 	// ------------------------------------------------------------------------
 
-	if (is_clicked(input.start))
-	{
-		if (scene->menuView == Scene3d::MENU_OFF)
-		{
-			scene->menuView = Scene3d::MENU_MAIN;
-			gui_reset_selection();
-		}
-		else
-		{
-			scene->menuView = Scene3d::MENU_OFF;
-		}
-	}
-
-	bool32 keepScene = true;
-	
-	v4 menuColor = colour_rgb_alpha(colour_bright_blue.rgb, 0.5);
-	switch(scene->menuView)
-	{	
-		case Scene3d::MENU_OFF:
-			// Nothing to do
-			break;
-
-		case Scene3d::MENU_CONFIRM_EXIT:
-		{
-			gui_position({800, 300});
-
-			gui_start_panel("Exit to Main Menu?", menuColor);
-
-			if (gui_button("Yes"))
-			{
-				keepScene = false;
-			}
-
-			if (gui_button("No"))
-			{
-				scene->menuView = Scene3d::MENU_MAIN;
-				gui_reset_selection();
-			}
-
-			gui_end_panel();
-		} break;
-
-		case Scene3d::MENU_MAIN:
-		{
-			gui_position({800, 300});	
-
-			gui_start_panel("Menu", menuColor);
-
-
-			if (gui_button("Continue"))
-			{
-				scene->menuView = Scene3d::MENU_OFF;
-			}
-
-			char const * const cameraModeLabels [] =
-			{
-				"Camera Mode: Player", 
-				"Camera Mode: Free"
-			};
-			
-			if (gui_button(cameraModeLabels[scene->cameraMode]))
-			{
-				scene->cameraMode += 1;
-				scene->cameraMode %= CAMERA_MODE_COUNT;
-			}
-
-			char const * const debugLevelButtonLabels [] =
-			{
-				"Debug Level: Off",
-				"Debug Level: Player",
-				"Debug Level: Player, NPC",
-				"Debug Level: Player, NPC, Background"
-			};
-
-			if(gui_button(debugLevelButtonLabels[global_DebugDrawLevel]))
-			{
-				global_DebugDrawLevel += 1;
-				global_DebugDrawLevel %= DEBUG_LEVEL_COUNT;
-			}
-
-			char const * const drawDebugShadowLabels [] =
-			{
-				"Debug Shadow: Off",
-				"Debug Shadow: On"
-			};
-
-			if (gui_button(drawDebugShadowLabels[scene->drawDebugShadowTexture]))
-			{
-				scene->drawDebugShadowTexture = !scene->drawDebugShadowTexture;
-			}
-
-			if (gui_button("Reload Shaders"))
-			{
-				platformApi->reload_shaders(platformGraphics);
-			}
-
-			char const * const timeScaleLabels [scene->timeScaleCount] =
-			{
-				"Time Scale: 1.0",
-				"Time Scale: 0.1",
-				"Time Scale: 0.5",
-			};
-
-			if (gui_button(timeScaleLabels[scene->timeScaleIndex]))
-			{
-				scene->timeScaleIndex += 1;
-				scene->timeScaleIndex %= scene->timeScaleCount;
-			}
-
-			if (gui_button("Save Game"))
-			{
-				// Todo(Leo): Show some response
-				write_save_file(scene);
-
-				scene->menuView = Scene3d::MENU_SAVE_COMPLETE;
-				gui_reset_selection();
-			}
-
-			if (gui_button("Edit Sky"))
-			{
-				scene->menuView = Scene3d::MENU_EDIT_SKY;
-				gui_reset_selection();
-			}
-
-			if (gui_button("Exit Scene"))
-			{
-				scene->menuView = Scene3d::MENU_CONFIRM_EXIT;
-				gui_reset_selection();
-			}
-
-			gui_end_panel();
-
-		} break;
-	
-		case Scene3d::MENU_SAVE_COMPLETE:
-		{
-			gui_position({850, 400});
-			gui_start_panel("Game Saved!", menuColor);
-
-			if (gui_button("Ok"))
-			{
-				scene->menuView = Scene3d::MENU_MAIN;
-				gui_reset_selection();
-			}
-
-			gui_end_panel();
-
-		} break;
-
-		case Scene3d::MENU_CONFIRM_TELEPORT:
-		{
-			gui_position({800, 300});
-
-			gui_start_panel("Teleport Player Here?", menuColor);
-
-			if (gui_button("Yes"))
-			{
-				scene->playerCharacterTransform->position = scene->freeCamera.position;
-				scene->menuView = Scene3d::MENU_OFF;
-				scene->cameraMode = CAMERA_MODE_PLAYER;
-			}
-
-			if (gui_button("No"))
-			{
-				scene->menuView = Scene3d::MENU_OFF;
-			}
-
-			gui_end_panel();
-		} break;
-
-		case Scene3d::MENU_EDIT_SKY:
-		{
-			gui_position({100, 100});
-
-			gui_start_panel("Edit Sky", menuColor);
-
-
-
-			if (gui_button("Back"))
-			{
-				scene->menuView = Scene3d::MENU_MAIN;
-			}
-
-			gui_end_panel();
-
-		} break;
-	}
-
-	// gui_position({100, 100});
-	// gui_text("Sphinx of black quartz, judge my vow!");
-	// gui_text("Sphinx of black quartz, judge my vow!");
-
-	// gui_pivot(GUI_PIVOT_TOP_RIGHT);
-	// gui_position({100, 100});
-	// gui_image(shadowTexture, {300, 300});
-
-	gui_position({1550, 50});
-	if (scene->drawDebugShadowTexture)
-	{
-		gui_image(GRAPHICS_RESOURCE_SHADOWMAP_GUI_TEXTURE, {300, 300});
-	}
-
-	gui_end_frame();
-
-	return keepScene;
+	return do_gui(scene, input);
 }
 
 void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle saveFile)
@@ -1209,7 +1247,7 @@ void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle saveFile
 
 	// Todo(Leo): Probaly need to allocate these more coupledly, at least they must be able to reordered together
 	scene->characterMotors		= allocate_array<CharacterMotor>(persistentMemory, 600);
-	scene->characterInputs		= allocate_array<CharacterInput>(persistentMemory, scene->characterMotors.capacity(), ALLOC_FILL | ALLOC_NO_CLEAR);
+	// scene->characterInputs		= allocate_array<CharacterInput>(persistentMemory, scene->characterMotors.capacity(), ALLOC_FILL | ALLOC_NO_CLEAR);
 
 	scene->collisionSystem.boxColliders 		= allocate_array<BoxCollider>(persistentMemory, 600);
 	scene->collisionSystem.cylinderColliders 	= allocate_array<CylinderCollider>(persistentMemory, 600);
@@ -1334,24 +1372,19 @@ void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle saveFile
 		auto girlMesh 		= platformApi->push_mesh(platformGraphics, &girlMeshAsset);
 
 		// --------------------------------------------------------------------
-
-		Transform3D * playerTransform 	= scene->transforms.push_return_pointer({10, 0, 5});
-		scene->playerCharacterTransform = playerTransform;
+	
+		scene->playerCharacterTransform = {.position = {10, 0, 5}};
 
 		if (saveFile != nullptr)
 		{
-			logDebug(0) << "player position = " << playerTransform->position;
-
 			platformApi->set_file_position(saveFile, save.playerLocation);
-			file_read_struct(saveFile, playerTransform);
-			
-			logDebug(0) << "player position = " << playerTransform->position;
+			file_read_struct(saveFile, &scene->playerCharacterTransform);
 		}
 
-		s32 motorIndex = scene->characterMotors.count();
-		scene->playerInputState.inputArrayIndex = motorIndex;
-		auto * motor = scene->characterMotors.push_return_pointer();
-		motor->transform = playerTransform;
+		// s32 motorIndex 							= scene->characterMotors.count();
+		// scene->playerInputState.inputArrayIndex = motorIndex;
+		auto * motor 							= &scene->playerCharacterMotor; //scene->characterMotors.push_return_pointer();
+		motor->transform 						= &scene->playerCharacterTransform;
 
 		{
 			using namespace CharacterAnimations;			
@@ -1391,93 +1424,139 @@ void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle saveFile
 
 		auto model = push_model(girlMesh, materials.character);
 		scene->animatedRenderers.push(make_animated_renderer(
-				playerTransform,
+				&scene->playerCharacterTransform,
 				&cubeHeadSkeleton,
 				model));
 
 		// --------------------------------------------------------------------
 
-		for (s32 randomWalkerIndex = 0; randomWalkerIndex < array_count(scene->randomWalkers); ++randomWalkerIndex)
 		{
 			v3 position = {random_range(-99, 99), random_range(-99, 99), 0};
 			v3 scale 	= make_uniform_v3(random_range(0.8f, 1.5f));
 
-			auto * transform 	= scene->transforms.push_return_pointer({.position = position, .scale = scale});
-			s32 motorIndex 		= scene->characterMotors.count();
-			auto * motor 		= scene->characterMotors.push_return_pointer();
-			motor->transform 	= transform;
+			scene->noblePersonTransform.position 	= position;
+			scene->noblePersonTransform.scale 		= scale;
 
-			scene->randomWalkers[randomWalkerIndex] = {transform, motorIndex, {random_range(-99, 99), random_range(-99, 99)}};
+			scene->noblePersonCharacterMotor = {};
+			scene->noblePersonCharacterMotor.transform = &scene->noblePersonTransform;
 
 			{
-				using namespace CharacterAnimations;			
-
-				motor->animations[WALK] 	= &scene->characterAnimations[WALK];
-				motor->animations[RUN] 		= &scene->characterAnimations[RUN];
-				motor->animations[IDLE] 	= &scene->characterAnimations[IDLE];
-				motor->animations[JUMP]		= &scene->characterAnimations[JUMP];
-				motor->animations[FALL]		= &scene->characterAnimations[FALL];
-				motor->animations[CROUCH] 	= &scene->characterAnimations[CROUCH];
+				using namespace CharacterAnimations;
+				
+				scene->noblePersonCharacterMotor.animations[WALK] 	= &scene->characterAnimations[WALK];
+				scene->noblePersonCharacterMotor.animations[RUN] 	= &scene->characterAnimations[RUN];
+				scene->noblePersonCharacterMotor.animations[IDLE]	= &scene->characterAnimations[IDLE];
+				scene->noblePersonCharacterMotor.animations[JUMP] 	= &scene->characterAnimations[JUMP];
+				scene->noblePersonCharacterMotor.animations[FALL] 	= &scene->characterAnimations[FALL];
+				scene->noblePersonCharacterMotor.animations[CROUCH] = &scene->characterAnimations[CROUCH];
 			}
 
 			scene->skeletonAnimators.push({
 					.skeleton 		= { .bones = copy_array(persistentMemory, cubeHeadSkeleton.bones) },
-					.animations 	= motor->animations,
-					.weights 		= motor->animationWeights,
+					.animations 	= scene->noblePersonCharacterMotor.animations,
+					.weights 		= scene->noblePersonCharacterMotor.animationWeights,
 					.animationCount = CharacterAnimations::ANIMATION_COUNT
 				});
 
 			auto model = push_model(girlMesh, materials.character); 
-			scene->animatedRenderers.push(make_animated_renderer(transform,	&scene->skeletonAnimators.last().skeleton, model));
+			scene->animatedRenderers.push(make_animated_renderer(&scene->noblePersonTransform, &scene->skeletonAnimators.last().skeleton, model));
+
 		}
 
 
-
-		Transform3D * targetTransform = nullptr;
-		s32 followersPerWalker = array_count(scene->followers) / array_count(scene->randomWalkers); 
-
-		for (s32 followerIndex = 0; followerIndex < array_count(scene->followers); ++followerIndex)
+		for (s32 randomWalkerIndex = 0; randomWalkerIndex < array_count(scene->randomWalkers); ++randomWalkerIndex)
 		{
-			v3 position 		= {random_range(-99, 99), random_range(-99, 99), 0};
-			v3 scale 			= make_uniform_v3(random_range(0.8f, 1.5f));
-			auto * transform 	= scene->transforms.push_return_pointer({.position = position, .scale = scale});
+			// v3 position = {random_range(-99, 99), random_range(-99, 99), 0};
+			// v3 scale 	= make_uniform_v3(random_range(0.8f, 1.5f));
 
-			s32 motorIndex 		= scene->characterMotors.count();
-			auto * motor 		= scene->characterMotors.push_return_pointer();
-			motor->transform 	= transform;
+			// auto * transform 	= scene->transforms.push_return_pointer({.position = position, .scale = scale});
+			// s32 motorIndex 		= scene->characterMotors.count();
+			// auto * motor 		= scene->characterMotors.push_return_pointer();
 
+			// if (randomWalkerIndex == 0)
+			// {
+			// 	// scene->nobleMotorInputIndex = motorIndex;
+			// 	scene->noblePersonTransform = *transform;
+			// 	transform 					= &scene->noblePersonTransform;
 
-			if ((followerIndex % followersPerWalker) == 0)
-			{
-				s32 targetIndex = followerIndex / followersPerWalker;
-				targetTransform = scene->randomWalkers[targetIndex].transform;
-			}
+			// 	motor = &scene->noblePersonCharacterMotor;
+			// 	*motor = {};
+			// }
 
+			// motor->transform 	= transform;
 
-			scene->followers[followerIndex] = make_follower_controller(transform, targetTransform, motorIndex);
-			targetTransform = transform;
+			// scene->randomWalkers[randomWalkerIndex] = {transform, motorIndex, {random_range(-99, 99), random_range(-99, 99)}};
 
-			{
-				using namespace CharacterAnimations;			
+			// {
+			// 	using namespace CharacterAnimations;			
 
-				motor->animations[WALK] 	= &scene->characterAnimations[WALK];
-				motor->animations[RUN] 		= &scene->characterAnimations[RUN];
-				motor->animations[IDLE] 	= &scene->characterAnimations[IDLE];
-				motor->animations[JUMP]		= &scene->characterAnimations[JUMP];
-				motor->animations[FALL]		= &scene->characterAnimations[FALL];
-				motor->animations[CROUCH] 	= &scene->characterAnimations[CROUCH];
-			}
+			// 	motor->animations[WALK] 	= &scene->characterAnimations[WALK];
+			// 	motor->animations[RUN] 		= &scene->characterAnimations[RUN];
+			// 	motor->animations[IDLE] 	= &scene->characterAnimations[IDLE];
+			// 	motor->animations[JUMP]		= &scene->characterAnimations[JUMP];
+			// 	motor->animations[FALL]		= &scene->characterAnimations[FALL];
+			// 	motor->animations[CROUCH] 	= &scene->characterAnimations[CROUCH];
+			// }
 
-			scene->skeletonAnimators.push({
-					.skeleton 		= { .bones = copy_array(persistentMemory, cubeHeadSkeleton.bones) },
-					.animations 	= motor->animations,
-					.weights 		= motor->animationWeights,
-					.animationCount = CharacterAnimations::ANIMATION_COUNT
-				});
+			// scene->skeletonAnimators.push({
+			// 		.skeleton 		= { .bones = copy_array(persistentMemory, cubeHeadSkeleton.bones) },
+			// 		.animations 	= motor->animations,
+			// 		.weights 		= motor->animationWeights,
+			// 		.animationCount = CharacterAnimations::ANIMATION_COUNT
+			// 	});
 
-			auto model = push_model(girlMesh, materials.character); 
-			scene->animatedRenderers.push(make_animated_renderer(transform,	&scene->skeletonAnimators.last().skeleton, model));
+			// auto model = push_model(girlMesh, materials.character); 
+			// scene->animatedRenderers.push(make_animated_renderer(transform,	&scene->skeletonAnimators.last().skeleton, model));
+
 		}
+
+
+
+	// 	Transform3D * targetTransform = nullptr;
+	// 	s32 followersPerWalker = array_count(scene->followers) / array_count(scene->randomWalkers); 
+
+	// 	for (s32 followerIndex = 0; followerIndex < array_count(scene->followers); ++followerIndex)
+	// 	{
+	// 		v3 position 		= {random_range(-99, 99), random_range(-99, 99), 0};
+	// 		v3 scale 			= make_uniform_v3(random_range(0.8f, 1.5f));
+	// 		auto * transform 	= scene->transforms.push_return_pointer({.position = position, .scale = scale});
+
+	// 		s32 motorIndex 		= scene->characterMotors.count();
+	// 		auto * motor 		= scene->characterMotors.push_return_pointer();
+	// 		motor->transform 	= transform;
+
+
+	// 		if ((followerIndex % followersPerWalker) == 0)
+	// 		{
+	// 			s32 targetIndex = followerIndex / followersPerWalker;
+	// 			targetTransform = scene->randomWalkers[targetIndex].transform;
+	// 		}
+
+
+	// 		scene->followers[followerIndex] = make_follower_controller(transform, targetTransform, motorIndex);
+	// 		targetTransform = transform;
+
+	// 		{
+	// 			using namespace CharacterAnimations;			
+
+	// 			motor->animations[WALK] 	= &scene->characterAnimations[WALK];
+	// 			motor->animations[RUN] 		= &scene->characterAnimations[RUN];
+	// 			motor->animations[IDLE] 	= &scene->characterAnimations[IDLE];
+	// 			motor->animations[JUMP]		= &scene->characterAnimations[JUMP];
+	// 			motor->animations[FALL]		= &scene->characterAnimations[FALL];
+	// 			motor->animations[CROUCH] 	= &scene->characterAnimations[CROUCH];
+	// 		}
+
+	// 		scene->skeletonAnimators.push({
+	// 				.skeleton 		= { .bones = copy_array(persistentMemory, cubeHeadSkeleton.bones) },
+	// 				.animations 	= motor->animations,
+	// 				.weights 		= motor->animationWeights,
+	// 				.animationCount = CharacterAnimations::ANIMATION_COUNT
+	// 			});
+
+	// 		auto model = push_model(girlMesh, materials.character); 
+	// 		scene->animatedRenderers.push(make_animated_renderer(transform,	&scene->skeletonAnimators.last().skeleton, model));
+	// 	}
 	}
 
 	scene->worldCamera 				= make_camera(60, 0.1f, 1000.0f);
@@ -1528,10 +1607,8 @@ void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle saveFile
 					v2 position = { x * chunkSize, y * chunkSize };
 					v2 size 	= { chunkSize, chunkSize };
 
-
 					auto groundMeshAsset 	= generate_terrain(*global_transientMemory, heightmap, position, size, chunkResolution, 10);
 					scene->terrainMeshes[i] = platformApi->push_mesh(platformGraphics, &groundMeshAsset);
-
 				}
 			
 				pop_memory_checkpoint(*global_transientMemory);
@@ -1728,111 +1805,7 @@ void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle saveFile
 
 		/// BIG SCENERY THINGS
 		{
-			/// CASTLE THING IN THE SKY
-			{
-				auto file = read_gltf_file(*global_transientMemory, "assets/models/castle_in_sky.glb");
-
-				auto meshAsset 	= load_mesh_glb(*global_transientMemory, file, "Castle");
-				auto mesh 		= platformApi->push_mesh(platformGraphics, &meshAsset);
-
-				Array<BoxCollider> colliders = {};
-				Array<Transform3D> transforms = load_all_transforms_glb(*global_transientMemory, file, "Castle", &colliders);
-
-				for(s32 i = 0; i < colliders.count(); ++i)
-				{
-					colliders[i].center.z += 100;
-					scene->collisionSystem.staticBoxColliders.push(	{compute_collider_transform(colliders[i]),
-																	compute_inverse_collider_transform(colliders[i])});
-				}
-
-				scene->castleMesh 		= mesh;
-				scene->castleMaterial 	= materials.environment;
-				scene->castleTransform 	= transforms[0];
-
-				scene->castleTransform.position.z = 100;
-			}
-
-
-
 			auto file = read_gltf_file(*global_transientMemory, "assets/models/stonewalls.glb");
-
-			// Stone Walls
-			{
-				auto meshAsset 	= load_mesh_glb(*global_transientMemory, file, "StoneWall.001");
-				auto mesh 		= platformApi->push_mesh(platformGraphics, &meshAsset);
-
-				auto albedo 	= load_and_push_texture("assets/textures/stone_wall.jpg");
-				auto normal 	= load_and_push_texture("assets/textures/stone_wall_normal.png");
-				auto material   = push_material(GRAPHICS_PIPELINE_NORMAL, albedo, normal, blackTexture);
-
-				Array<BoxCollider> colliders = {};
-
-				auto transformsArray = load_all_transforms_glb(persistentMemory, file, "StoneWall", &colliders);
-
-				scene->stoneWallCount 		= transformsArray.count();
-				scene->stoneWallTransforms 	= push_memory<m44>(persistentMemory, scene->stoneWallCount, ALLOC_NO_CLEAR);
-				for (s32 i = 0; i < scene->stoneWallCount; ++i)
-				{
-					scene->stoneWallTransforms[i] = transform_matrix(transformsArray[i]);
-				}
-				scene->stoneWallMesh		= mesh;
-				scene->stoneWallMaterial 	= material;
-
-				for (auto & collider : colliders)
-				{
-					scene->collisionSystem.staticBoxColliders.push({compute_collider_transform(collider),
-																	compute_inverse_collider_transform(collider)});
-				}
-			}
-
-			// Buildings
-			{
-				auto meshAsset 					= load_mesh_glb(*global_transientMemory, file, "Building.001");
-				auto mesh 						= platformApi->push_mesh(platformGraphics, &meshAsset);
-
-				Array<BoxCollider> colliders 	= {};
-				auto transformsArray 			= load_all_transforms_glb(*global_transientMemory, file, "Building", &colliders);
-
-				scene->buildingCount 			= transformsArray.count();
- 				scene->buildingTransforms 		= push_memory<m44>(persistentMemory, scene->buildingCount, ALLOC_NO_CLEAR);
-				for (s32 i = 0; i < scene->buildingCount; ++i)
-				{
-					scene->buildingTransforms[i] = transform_matrix(transformsArray[i]);
-				}
-
-				scene->buildingMesh = mesh;
-				scene->buildingMaterial = materials.environment;
-
-				for (auto & collider : colliders)
-				{
-					scene->collisionSystem.staticBoxColliders.push({compute_collider_transform(collider),
-																	compute_inverse_collider_transform(collider)});
-				}
-			}
-
-			// Gates
-			{
-				auto meshAsset 	= load_mesh_glb(*global_transientMemory, file, "Gate.001");
-				auto meshHandle = platformApi->push_mesh(platformGraphics, &meshAsset);
-
-				Array<BoxCollider> colliders = {};
-				auto transformsArray = load_all_transforms_glb(*global_transientMemory, file, "Gate", &colliders);
-				scene->gateTransforms = push_memory<m44>(persistentMemory, transformsArray.count(), ALLOC_NO_CLEAR);
-				for (s32 i = 0; i < transformsArray.count(); ++i)
-				{
-					scene->gateTransforms[i] = transform_matrix(transformsArray[i]);
-				}
-
-				scene->gateCount 	= transformsArray.count();
-				scene->gateMesh 	= meshHandle;
-				scene->gateMaterial = materials.environment;
-
-				for (auto collider : colliders)
-				{
-					scene->collisionSystem.staticBoxColliders.push({compute_collider_transform(collider),
-																	compute_inverse_collider_transform(collider)});
-				}
-			}
 
 			// Pyramid thing
 			{
@@ -1864,6 +1837,59 @@ void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle saveFile
 																	compute_inverse_collider_transform(collider)});
 				}
 			}
+		}
+
+		/// TRAIN
+		{
+			auto file 				= read_gltf_file(*global_transientMemory, "assets/models/train.glb");
+			auto meshAsset 			= load_mesh_glb(*global_transientMemory, file, "train");
+			scene->trainMesh 		= platformApi->push_mesh(platformGraphics, &meshAsset);
+			scene->trainMaterial 	= materials.environment;
+
+			// ----------------------------------------------------------------------------------
+
+			scene->trainStopPosition 	= {50, 0, 0};
+			scene->trainStopPosition.z 	= get_terrain_height(scene->collisionSystem, scene->trainStopPosition.xy);
+			scene->trainStopPosition.z 	= max_f32(0, scene->trainStopPosition.z);
+
+			f32 trainFarDistance 		= 2000;
+
+			scene->trainFarPositionA 	= {50, trainFarDistance, 0};
+			scene->trainFarPositionA.z 	= get_terrain_height(scene->collisionSystem, scene->trainFarPositionA.xy);
+			scene->trainFarPositionA.z 	= max_f32(0, scene->trainFarPositionA.z);
+
+			scene->trainFarPositionB 	= {50, -trainFarDistance, 0};
+			scene->trainFarPositionB.z 	= get_terrain_height(scene->collisionSystem, scene->trainFarPositionB.xy);
+			scene->trainFarPositionB.z 	= max_f32(0, scene->trainFarPositionB.z);
+
+			scene->trainTransform.position 			= scene->trainStopPosition;
+
+			scene->trainMoveState 					= TRAIN_WAIT;
+
+			scene->trainFullSpeed 					= 200;
+			scene->trainStationMinSpeed 			= 1;
+			scene->trainAcceleration 				= 20;
+			scene->trainWaitTimeOnStop 				= 5;
+
+			/*
+			v = v0 + a*t
+			-> t = (v - v0) / a
+
+			d = d0 + v0*t + 1/2*a*t^2
+	
+			d - d0 = v0*t + 1/2*a*t^2
+
+			*/
+			f32 timeToBrakeBeforeStation 			= (scene->trainFullSpeed - scene->trainStationMinSpeed) / scene->trainAcceleration;
+			scene->trainBrakeBeforeStationDistance 	= scene->trainFullSpeed * timeToBrakeBeforeStation
+													// Note(Leo): we brake, so acceleration term is negative
+													- 0.5f * scene->trainAcceleration * timeToBrakeBeforeStation * timeToBrakeBeforeStation;
+
+			logDebug(0) << "brake time: " << timeToBrakeBeforeStation << ", distance: " << scene->trainBrakeBeforeStationDistance;
+
+			scene->trainCurrentWaitTime = 0;
+			scene->trainCurrentSpeed 	= 0;
+
 		}
 	}
 
@@ -2058,9 +2084,55 @@ void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle saveFile
 		v3 position = {-10, -30, 0};
 		position.z = get_terrain_height(scene->collisionSystem, position.xy) + 3;
 
+		s32 vertexCountPerCube 	= 14;
+		s32 indexCountPerCube 	= 36;
+		s32 cubeCapacity 		= 100000;
+		s32 vertexCapacity 		= vertexCountPerCube * cubeCapacity;
+		s32 indexCapacity 		= indexCountPerCube * cubeCapacity;
+
+		Vertex * vertices 	= push_memory<Vertex>(persistentMemory, vertexCapacity, ALLOC_NO_CLEAR);
+		u16 * indices 		= push_memory<u16>(persistentMemory, indexCapacity, ALLOC_NO_CLEAR);
+
+		u32 vertexCount;
+		u32 indexCount;
+
+		scene->metaballGridScale = 0.3;
+
+		scene->metaballVertexCount 	= vertexCount;
+		scene->metaballVertices 	= vertices;
+
+		scene->metaballIndexCount 	= indexCount;
+		scene->metaballIndices 		= indices;
+
+		scene->metaballVertexCapacity 	= vertexCapacity;
+		scene->metaballIndexCapacity 	= indexCapacity;
+
 		scene->metaballTransform 	= translation_matrix(position);
-		scene->metaballMesh 		= generate_metaball();
-		scene->metaballMaterial 	= scene->treeMaterials[0];
+
+		// Todo(Leo): textures are copied too many times: from file to stb, from stb to TextureAsset, from TextureAsset to graphics.
+		TextureAsset albedo = load_texture_asset(*global_transientMemory, "assets/textures/Acorn_albedo.png");
+		// TextureAsset normal = load_texture_asset(*global_transientMemory, "assets/textures/ground_normal.png");
+
+		TextureHandle treeTextures [] =
+		{	
+			platformApi->push_texture(platformGraphics, &albedo),
+		};
+		scene->metaballMaterial = platformApi->push_material(platformGraphics, GRAPHICS_PIPELINE_TRIPLANAR, 1, treeTextures);
+
+		// ----------------------------------------------------------------------------------
+
+		scene->metaballVertexCapacity2 	= vertexCapacity;
+		scene->metaballVertexCount2 	= 0;
+		scene->metaballVertices2 		= push_memory<Vertex>(persistentMemory, vertexCapacity, ALLOC_NO_CLEAR);
+
+		scene->metaballIndexCapacity2 	= vertexCapacity;
+		scene->metaballIndexCount2 		= 0;
+		scene->metaballIndices2 		= push_memory<u16>(persistentMemory, indexCapacity, ALLOC_NO_CLEAR);
+
+		v3 position2 				= {0, -30, 0};
+		position2.z 				= get_terrain_height(scene->collisionSystem, position2.xy) + 3;
+		scene->metaballTransform2 	= translation_matrix(position2);
+
 	}
 
 	// ----------------------------------------------------------------------------------

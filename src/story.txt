@@ -1,0 +1,23 @@
+Story Time:
+
+Player is a gardener like character, who is 'trapped' on a particular island. Trapped as in, there exists a active train connection
+to somewhere, but player has no way to get a ticket.
+
+There is another character at the island, the Noble, who has a villa of sort there as their personal resort suite. At the beginning,
+the noble will hang around at the island for a while, and it may be so that the player may interact with them. (Maybe they even show
+the player how to climb the trees and collect fruits to plant more trees.) After some time though, war rises from horizon, and the
+Noble leaves the island. For the better part of the games duration, war rages on, and the Noble will visit the island from time to
+time. In the end, war ends and they will return for good(, transformed by the horrors somehow). 
+
+During the war, particularly in the absence of the Noble, player has little to do except to explore the sparse mysteries of the barren
+island, and grow trees( and maybe other plants too). There is the train station, where player will be denied entrance each time, since
+they do not have a train ticket. Player and the Noble will probably create some kind of relationship during the Nobles visit, maybe they
+bring some exotic seeds to player from their travels. Or accessories.
+
+State of the war will be shown in the sky, horizons turning red etc.
+
+The train will come once a 'year', or time it takes any plants to grow some amount. There are only one track, and each time train will
+go to other direction. Many times the train will come empty, so that the couple times the Noble does come, will feel more important.
+The train will only stop on station if player is there, but player will still be denied access.
+
+Non evergreen plants will drop their leaves, and grow some more next 'year'. Mature plants will produce fruit.

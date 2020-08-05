@@ -8,13 +8,12 @@ shophorn @ internet
 struct PlayerInputState
 {
 	bool32 	crouching;
-	s32 	inputArrayIndex;
+	// s32 	inputArrayIndex;
 };
 
-void update_player_input(	PlayerInputState & 			playerState,
-							Array<CharacterInput> & 	inputs,
-							Camera & 					playerCamera,
-							PlatformInput const & 		platformInput)
+CharacterInput update_player_input(	PlayerInputState & 			playerState,
+									Camera & 					playerCamera,
+									PlatformInput const & 		platformInput)
 {
 	v3 viewForward 		= get_forward(&playerCamera);
 	viewForward.z 		= 0;
@@ -31,5 +30,5 @@ void update_player_input(	PlayerInputState & 			playerState,
 	}
 	bool32 crouchInput 	= playerState.crouching;
 
-	inputs[playerState.inputArrayIndex] = {worldSpaceInput, jumpInput, crouchInput};
+	return {worldSpaceInput, jumpInput, crouchInput};
 } 
