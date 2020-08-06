@@ -21,3 +21,25 @@ go to other direction. Many times the train will come empty, so that the couple 
 The train will only stop on station if player is there, but player will still be denied access.
 
 Non evergreen plants will drop their leaves, and grow some more next 'year'. Mature plants will produce fruit.
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+Train will come and go 8 times, say, and that will give pace to the game. Transitions in story will happen at those more
+or less fixed intervals. Intervals will be maybe 1 year in game time, 10 to 20 minutes in real world time.
+
+1. Player is alone in island. Maybe player arrives with a train there first. Player gets to know controls of the game.
+
+2. Noble person arrives with a train, and is introduced to the player. He is now happy and carefree.
+
+3. Player and noble person's relationship maybe grows tighter. First flames of war appear on horizon, first aerial fighter units
+	are seen in sky. Noble person grows more stiff and anxious. He is called away for war.
+
+4. Noble person leaves the island for war.
+
+5. Raccoon gang appears. Player can carry raccoons
+
+6.
+
+7. War ends slowly, constant noise and flames of war fade away. Skies clear back to blue.
+
+8. Noble person returns from war wounded, but relieved. Maybe even their arm is torn away.

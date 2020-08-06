@@ -12,7 +12,7 @@ struct Renderer
 struct AnimatedRenderer
 {
 	// References to external resources
-	Transform3D	* 		transform;
+	// Transform3D	* 		transform;
 	AnimatedSkeleton * 	skeleton;
 	ModelHandle 		model;
 
@@ -25,7 +25,7 @@ AnimatedRenderer make_animated_renderer (	Transform3D * transform,
 											ModelHandle model)
 {
 	auto result = AnimatedRenderer {
-			.transform 	= transform,
+			// .transform 	= transform,
 			.skeleton 	= skeleton,
 			.model 		= model,
 		};	

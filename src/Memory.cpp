@@ -100,6 +100,7 @@ enum AllocFlags : s32
 	ALLOC_FLAGS_NONE 	= 0,
 	ALLOC_FILL 			= 1,
 	ALLOC_NO_CLEAR  	= 2,
+	ALLOC_CLEAR 		= 4,
 };
 
 struct MemoryArena
@@ -116,16 +117,27 @@ struct MemoryArena
 
 
 internal void *
-allocate(MemoryArena & allocator, s64 size, s32 flags = 0)
+allocate(MemoryArena & allocator, u64 size, s32 flags = 0)
 {
-	s64 start = align_up(allocator.used, MemoryArena::defaultAlignment);
-	void * result = allocator.memory + start;
+	/*
+	Note(Leo): we align size, so start is always at aligned position.
+	Todo(Leo): this assumes that the original memory is at aligned position, which it maybe is not
+	*/
 
-	allocator.used = start + size;
+	u64 start 		= allocator.used;
+	size 			= align_up(size, MemoryArena::defaultAlignment);
+	void * result 	= allocator.memory + start;
+	allocator.used 	= start + size;
 
-	Assert(allocator.used <= allocator.size);
+	Assert(allocator.used <= allocator.size && "Out of memory");
 
-	if ((flags & ALLOC_NO_CLEAR) == 0)
+	bool noClear = (flags & ALLOC_NO_CLEAR) != 0;
+	bool yesClear = (flags & ALLOC_CLEAR) != 0;
+
+	// // Todo(Leo): remove ALLOC_NO_CLEAR flag
+	// Assert(noClear == yesClear &&  "This is clear conflict");
+
+	if (!noClear || yesClear)
 	{
 		std::memset(result, 0, size);
 	}
@@ -136,8 +148,8 @@ allocate(MemoryArena & allocator, s64 size, s32 flags = 0)
 template <typename T>
 internal T* push_memory(MemoryArena & arena, s32 count, s32 flags)
 {
-	s64 size = sizeof(T) * count;
-	T * result = reinterpret_cast<T*>(allocate(arena, size, flags));
+	u64 size 	= sizeof(T) * count;
+	T * result 	= reinterpret_cast<T*>(allocate(arena, size, flags));
 	return result;	
 }
 
@@ -156,7 +168,8 @@ make_memory_arena(byte * memory, u64 size)
 internal void
 flush_memory_arena(MemoryArena * arena)
 {
-	arena->used = 0;
+	arena->used 		= 0;
+	arena->checkpoint 	= 0;
 }
 
 internal f32 used_percent(MemoryArena & arena)
@@ -168,18 +181,17 @@ internal f32 used_percent(MemoryArena & arena)
 internal void push_memory_checkpoint(MemoryArena & arena)
 {
 	u64 used 				= arena.used;
-
 	u64 * checkpointMemory 	= push_memory<u64>(arena, 1, 0);
 	*checkpointMemory 		= arena.checkpoint;
-
 	arena.checkpoint 		= used;
 }
 
 internal void pop_memory_checkpoint(MemoryArena & arena)
 {
-	Assert(arena.checkpoint > 0 && "Cannot pop memory checkoint at 0");
+	Assert(arena.checkpoint > 0 && "Cannot pop memory checkpoint at 0");
 
-	u64 previousCheckpoint 	= *(u64*)(arena.memory + arena.checkpoint);
+	u64 * checkpointMemory 	= (u64*)(arena.memory + arena.checkpoint);
+	u64 previousCheckpoint 	= *checkpointMemory;
 
 	arena.used 				= arena.checkpoint;
 	arena.checkpoint 		= previousCheckpoint;

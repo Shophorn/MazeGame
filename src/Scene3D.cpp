@@ -28,6 +28,7 @@ enum CarryMode : s32
 	CARRY_POT,
 	CARRY_WATER,
 	CARRY_TREE,
+	CARRY_RACCOON,
 };
 
 enum TrainState : s32
@@ -44,27 +45,53 @@ enum NoblePersonMode : s32
 	NOBLE_ARRIVING_IN_TRAIN,
 };
 
+enum RaccoonMode : s32
+{
+	RACCOON_IDLE,
+	RACCOON_FLEE,
+	RACCOON_CARRIED,
+};
+
+struct FallingObject
+{
+	s32 type;
+	s32 index;
+	f32 fallSpeed;
+};
+
 struct Scene3d
 {
 	// Todo(Leo): Remove these "component" arrays, they are stupidly generic solution, that hide away actual data location, at least the way they are now used
 	Array<Transform3D> 			transforms;
-
-	Array<SkeletonAnimator> 	skeletonAnimators;	
-	Array<CharacterMotor>		characterMotors;
-	// Array<CharacterInput>		characterInputs;
 	Array<Renderer> 			renderers;
-	Array<AnimatedRenderer> 	animatedRenderers;
 
 	CollisionSystem3D 			collisionSystem;
 
-	// Player
+	// ---------------------------------------
+
+	Transform3D 		playerCharacterTransform;
+	CharacterMotor 		playerCharacterMotor;
+	SkeletonAnimator 	playerSkeletonAnimator;
+	AnimatedRenderer 	playerAnimaterRenderer;
+
+	PlayerInputState	playerInputState;
+
 	Camera 						worldCamera;
 	PlayerCameraController 		playerCamera;
 	FreeCameraController		freeCamera;
+	
+	// ---------------------------------------
 
-	PlayerInputState	playerInputState;
-	Transform3D 		playerCharacterTransform;
-	CharacterMotor 		playerCharacterMotor;
+	Transform3D 		noblePersonTransform;
+	CharacterMotor 		noblePersonCharacterMotor;
+	SkeletonAnimator 	noblePersonSkeletonAnimator;
+	AnimatedRenderer 	noblePersonAnimatedRenderer;
+
+	s32 	noblePersonMode;
+
+	v3 		nobleWanderTargetPosition;
+	f32 	nobleWanderWaitTimer;
+	bool32 	nobleWanderIsWaiting;
 
 	// ---------------------------------------
 
@@ -99,8 +126,25 @@ struct Scene3d
 
 	// ------------------------------------------------------
 
+	s32 				raccoonCount;
+	s32 *				raccoonModes;
+	Transform3D * 		raccoonTransforms;
+	v3 *				raccoonTargetPositions;
+	CharacterMotor * 	raccoonCharacterMotors;
+
+	MeshHandle 		raccoonMesh;
+	MaterialHandle 	raccoonMaterial;
+
+	Animation 		raccoonEmptyAnimation;
+
+	// ------------------------------------------------------
+
 	s32 playerCarryState;
 	s32 carriedItemIndex;
+
+	s32 			fallingObjectCapacity;
+	s32 			fallingObjectCount;
+	FallingObject * fallingObjects;
 
 	// ------------------------------------------------------
 
@@ -128,17 +172,6 @@ struct Scene3d
 
 	v3 trainCurrentTargetPosition;
 	v3 trainCurrentDirection;
-
-	// ------------------------------------------------------
-
-
-	Transform3D 	noblePersonTransform;
-	s32 			noblePersonMode;
-	CharacterMotor 	noblePersonCharacterMotor;
-
-	v3 		nobleWanderTargetPosition;
-	f32 	nobleWanderWaitTimer;
-	bool32 	nobleWanderIsWaiting;
 
 	// ------------------------------------------------------
 
@@ -175,7 +208,6 @@ struct Scene3d
 	u16 * 		metaballIndices;
 
 
-
 	m44 metaballTransform2;
 	
 	u32 		metaballVertexCapacity2;
@@ -188,13 +220,6 @@ struct Scene3d
 
 
 	// ----------------------------------------------------------
-
-	// Other actors
-	static constexpr s32 followerCapacity = 30;
-	FollowerController followers[followerCapacity];
-
-	static constexpr s32 walkerCapacity = 10;
-	RandomWalkController randomWalkers [walkerCapacity];
 
 	// Data
 	Animation characterAnimations [CharacterAnimations::ANIMATION_COUNT];
@@ -218,7 +243,6 @@ struct Scene3d
 	constexpr static s32 	timeScaleCount = 3;
 	s32 					timeScaleIndex;
 };
-
 
 struct Scene3dSaveLoad
 {
@@ -302,6 +326,24 @@ internal void write_save_file(Scene3d * scene)
 
 #include "scene3d_gui.cpp"
 
+struct SnapOnGround
+{
+	CollisionSystem3D & collisionSystem;
+
+	v3 operator()(v2 position)
+	{
+		v3 result = {position.x, position.y, get_terrain_height(collisionSystem, position)};
+		return result;
+	}
+
+	v3 operator()(v3 position)
+	{
+		v3 result = {position.x, position.y, get_terrain_height(collisionSystem, position.xy)};
+		return result;
+	}
+};
+
+
 internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, PlatformTime const & time)
 {
 	Scene3d * scene = reinterpret_cast<Scene3d*>(scenePtr);
@@ -355,6 +397,15 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 		potWaterLevels[index] -= amount;
 		return amount;
 	};
+
+	// auto snap_on_ground = [&collisionSystem = scene->collisionSystem](v3 position) -> v3
+	// {
+	// 	v3 result = {position.x, position.y, get_terrain_height(collisionSystem, position.xy)};
+	// 	return result;
+	// };
+
+	/// Todo(Leo): static may cause probblems
+	local_persist SnapOnGround snap_on_ground = {scene->collisionSystem};
 
 	/// ****************************************************************************
 	/// TIME
@@ -467,7 +518,10 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 	
 
 	/// SPAWN WATER
-	if ((scene->cameraMode == CAMERA_MODE_PLAYER) && is_clicked(input.Y))
+	bool playerInputAvailable = scene->cameraMode == CAMERA_MODE_PLAYER
+								&& scene->menuView == MENU_OFF;
+
+	if (playerInputAvailable && is_clicked(input.Y))
 	{
 		Waters & waters = scene->waters;
 
@@ -498,8 +552,19 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 	}
 
 	/// PICKUP OR DROP
-	if ((scene->cameraMode == CAMERA_MODE_PLAYER) && is_clicked(input.A))
+	if (playerInputAvailable && is_clicked(input.A))
 	{
+		auto push_falling_object = [fallingObjects 			= scene->fallingObjects,
+									fallingObjectCapacity 	= scene->fallingObjectCapacity,
+									&fallingObjectCount 	= scene->fallingObjectCount]
+									(s32 type, s32 index)
+		{
+			Assert(fallingObjectCount < fallingObjectCapacity);
+
+			fallingObjects[fallingObjectCount] 	= {type, index, 0};
+			fallingObjectCount 					+= 1;
+		};
+
 		v3 playerPosition = scene->playerCharacterTransform.position;
 		f32 grabDistance = 1.0f;
 
@@ -525,6 +590,7 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 				check_pickup(scene->potCount, scene->potTransforms, CARRY_POT);
 				check_pickup(scene->waters.count, scene->waters.transforms, CARRY_WATER);
+				check_pickup(scene->raccoonCount, scene->raccoonTransforms, CARRY_RACCOON);
 
 				for (s32 i = 0; i < scene->lSystemCount; ++i)
 				{
@@ -550,17 +616,18 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 			} break;
 
 			case CARRY_POT:
+				push_falling_object(CARRY_POT, scene->carriedItemIndex);
 				scene->playerCarryState = CARRY_NONE;
-				scene->potTransforms[scene->carriedItemIndex].position.z
-					= get_terrain_height(scene->collisionSystem, scene->potTransforms[scene->carriedItemIndex].position.xy);
+
 				break;
 	
 			case CARRY_WATER:
 			{
 				Transform3D & waterTransform = scene->waters.transforms[scene->carriedItemIndex];
 
+				push_falling_object(CARRY_WATER, scene->carriedItemIndex);
 				scene->playerCarryState = CARRY_NONE;
-				waterTransform.position.z = get_terrain_height(scene->collisionSystem, waterTransform.position.xy);
+
 
 				constexpr f32 waterSnapDistance 	= 0.5f;
 				constexpr f32 smallPotMaxWaterLevel = 1.0f;
@@ -588,9 +655,9 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 			case CARRY_TREE:
 			{
+				push_falling_object(CARRY_TREE, scene->carriedItemIndex);
 				scene->playerCarryState = CARRY_NONE;
-				scene->lSystems[scene->carriedItemIndex].position.z = get_terrain_height(scene->collisionSystem, scene->lSystems[scene->carriedItemIndex].position.xy);
-
+				
 				constexpr f32 treeSnapDistance = 0.5f;
 
 				for (s32 potIndex = 0; potIndex < scene->potCount; ++potIndex)
@@ -603,12 +670,20 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 				}
 
 			} break;
+
+			case CARRY_RACCOON:
+			{
+				scene->raccoonTransforms[scene->carriedItemIndex].rotation = identity_quaternion;
+				push_falling_object(CARRY_RACCOON, scene->carriedItemIndex);
+				scene->playerCarryState = CARRY_NONE;
+
+			} break;
 		}
 	} // endif input
 
 
-	v3 carriedPosition = multiply_point(transform_matrix(scene->playerCharacterTransform), {0, 0.7, 0.7});
-	quaternion carriedRotation = scene->playerCharacterTransform.rotation;
+	v3 carriedPosition 			= multiply_point(transform_matrix(scene->playerCharacterTransform), {0, 0.7, 0.7});
+	quaternion carriedRotation 	= scene->playerCharacterTransform.rotation;
 	switch(scene->playerCarryState)
 	{
 		case CARRY_POT:
@@ -626,7 +701,21 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 			scene->lSystems[scene->carriedItemIndex].rotation = carriedRotation;
 			break;
 
+		case CARRY_RACCOON:
+		{
+			scene->raccoonTransforms[scene->carriedItemIndex].position 	= carriedPosition + v3{0,0,0.2};
+
+			v3 right = rotate_v3(carriedRotation, right_v3);
+			scene->raccoonTransforms[scene->carriedItemIndex].rotation 	= carriedRotation * axis_angle_quaternion(right, 1.4f);
+
+
+		} break;
+
+		case CARRY_NONE:
+			break;
+
 		default:
+			Assert(false && "That cannot be carried!");
 			break;
 	}
 
@@ -638,6 +727,40 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 			s32 potIndex = scene->lSystemsPotIndices[i];
 			scene->lSystems[i].position = multiply_point(transform_matrix(scene->potTransforms[potIndex]), v3{0,0,0.25});
 			scene->lSystems[i].rotation = scene->potTransforms[potIndex].rotation;
+		}
+	}
+
+	// UPDATE falling objects
+	{
+		for (s32 i = 0; i < scene->fallingObjectCount; ++i)
+		{
+			s32 index 		= scene->fallingObjects[i].index;
+			f32 & fallSpeed = scene->fallingObjects[i].fallSpeed;
+
+			v3 * position;
+
+			switch (scene->fallingObjects[i].type)
+			{
+				case CARRY_RACCOON:	position = &scene->raccoonTransforms[index].position; 	break;
+				case CARRY_WATER: position = &scene->waters.transforms[index].position; 	break;
+				case CARRY_TREE: position =	&scene->lSystems[index].position;				break;
+				case CARRY_POT:	position = &scene->potTransforms[index].position;			break;
+			}
+		
+			f32 targetHeight 	= get_terrain_height(scene->collisionSystem, position->xy);
+
+			fallSpeed 			+= scaledTime * physics_gravity_acceleration;
+			position->z 		+= scaledTime * fallSpeed;
+
+			if (position->z < targetHeight)
+			{
+				position->z = targetHeight;
+
+				/// POP falling object
+				scene->fallingObjects[i] = scene->fallingObjects[scene->fallingObjectCount];
+				scene->fallingObjectCount -= 1;
+				i--;
+			}
 		}
 	}
 	
@@ -753,7 +876,51 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 								DEBUG_NPC);
 	}
 
+	// -----------------------------------------------------------------------------------------------------------
+	/// Update RACCOONS
+	{
 
+		for(s32 i = 0; i < scene->raccoonCount; ++i)
+		{
+			CharacterInput raccoonCharacterMotorInput = {};
+	
+			v3 toTarget 			= scene->raccoonTargetPositions[i] - scene->raccoonTransforms[i].position;
+			f32 distanceToTarget 	= magnitude_v3(toTarget);
+
+			v3 input = {};
+
+			if (distanceToTarget < 1.0f)
+			{
+				scene->raccoonTargetPositions[i] 	= snap_on_ground(random_inside_unit_square() * 100 - v3{50,50,0});
+				toTarget 							= scene->raccoonTargetPositions[i] - scene->raccoonTransforms[i].position;
+			}
+			else
+			{
+				input.xy	 		= scene->raccoonTargetPositions[i].xy - scene->raccoonTransforms[i].position.xy;
+				f32 inputMagnitude 	= magnitude_v3(input);
+				input 				= input / inputMagnitude;
+				inputMagnitude 		= clamp_f32(inputMagnitude, 0.0f, 1.0f);
+				input 				= input * inputMagnitude;
+			}
+
+			raccoonCharacterMotorInput = {input, false, false};
+
+			bool isCarried = (scene->playerCarryState == CARRY_RACCOON) && (scene->carriedItemIndex == i);
+
+			if (isCarried == false)
+			{
+				update_character_motor( scene->raccoonCharacterMotors[i],
+										raccoonCharacterMotorInput,
+										scene->collisionSystem,
+										scaledTime,
+										DEBUG_NPC);
+			}
+
+			// debug_draw_circle_xy(snap_on_ground(scene->raccoonTargetPositions[i].xy) + v3{0,0,1}, 1, colour_bright_red, DEBUG_ALWAYS);
+		}
+
+
+	}
 
 	// -----------------------------------------------------------------------------------------------------------
 
@@ -783,32 +950,10 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 		constexpr f32 baseHeight = 2;
 	}
 
-	// for (auto & randomWalker : scene->randomWalkers)
-	// {
-	// 	update_random_walker_input(randomWalker, scene->characterInputs, scaledTime);
-	// }
 
-	// for (auto & follower : scene->followers)
-	// {
-	// 	update_follower_input(follower, scene->characterInputs, scaledTime);
-	// }
+	update_skeleton_animator(scene->playerSkeletonAnimator, scaledTime);
+	update_skeleton_animator(scene->noblePersonSkeletonAnimator, scaledTime);
 	
-	// for (int i = 0; i < 2; ++i)
-	// // for (int i = 0; i < scene->characterMotors.count(); ++i)
-	// {
-	// 	update_character_motor(	scene->characterMotors[i],
-	// 							scene->characterInputs[i],
-	// 							scene->collisionSystem,
-	// 							scaledTime,
-	// 							i == scene->playerInputState.inputArrayIndex ? DEBUG_PLAYER : DEBUG_NPC);
-	// }
-
-
-	for (s32 i = 0; i < 2; ++i)
-	// for (s32 i = 0; i < scene->skeletonAnimators.count; ++i)
-	{
-		update_skeleton_animator(scene->skeletonAnimators[i], scaledTime);
-	}
 	
 	/// DRAW POTS
 	{
@@ -873,11 +1018,6 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 		2. Render normal models
 		3. Render animated models
 	*/
-
-	// {
-	// 	m44 castleTransformMatrix = transform_matrix(scene->castleTransform);
-	// 	platformApi->draw_meshes(platformGraphics, 1, &castleTransformMatrix, scene->castleMesh, scene->castleMaterial);
-	// }
 
 	if (scene->drawMCStuff)
 	{
@@ -980,6 +1120,16 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 		platformApi->draw_meshes(platformGraphics, 1, &trainTransformMatrix, scene->trainMesh, scene->trainMaterial);
 	}
 
+	/// DRAW RACCOONS
+	{
+		m44 * raccoonTransformMatrices = push_memory<m44>(*global_transientMemory, scene->raccoonCount, ALLOC_NO_CLEAR);
+		for (s32 i = 0; i < scene->raccoonCount; ++i)
+		{
+			raccoonTransformMatrices[i] = transform_matrix(scene->raccoonTransforms[i]);
+		}
+		platformApi->draw_meshes(platformGraphics, scene->raccoonCount, raccoonTransformMatrices, scene->raccoonMesh, scene->raccoonMaterial);
+	}
+
 	for (auto & renderer : scene->renderers)
 	{
 		platformApi->draw_model(platformGraphics, renderer.model,
@@ -989,29 +1139,33 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 	}
 
 
-	// for (auto & renderer : scene->animatedRenderers)
 	/// PLAYER
-	{
-		auto & renderer = scene->animatedRenderers[0];
-
-		m44 boneTransformMatrices [32];
-
-		update_animated_renderer(boneTransformMatrices, renderer.skeleton->bones);
-
-		platformApi->draw_model(platformGraphics, renderer.model, transform_matrix(*renderer.transform),
-								renderer.castShadows, boneTransformMatrices, array_count(boneTransformMatrices));
-	}
-
 	/// CHARACTER 2
 	{
-		auto & renderer = scene->animatedRenderers[1];
 
 		m44 boneTransformMatrices [32];
+		
+		// -------------------------------------------------------------------------------
 
-		update_animated_renderer(boneTransformMatrices, renderer.skeleton->bones);
+		update_animated_renderer(boneTransformMatrices, scene->playerAnimaterRenderer.skeleton->bones);
 
-		platformApi->draw_model(platformGraphics, renderer.model, transform_matrix(*renderer.transform),
-								renderer.castShadows, boneTransformMatrices, array_count(boneTransformMatrices));
+		platformApi->draw_model(platformGraphics,
+								scene->playerAnimaterRenderer.model,
+								transform_matrix(scene->playerCharacterTransform),
+								scene->playerAnimaterRenderer.castShadows,
+								boneTransformMatrices,
+								array_count(boneTransformMatrices));
+
+		// -------------------------------------------------------------------------------
+
+		update_animated_renderer(boneTransformMatrices, scene->noblePersonAnimatedRenderer.skeleton->bones);
+
+		platformApi->draw_model(platformGraphics,
+								scene->noblePersonAnimatedRenderer.model,
+								transform_matrix(scene->noblePersonTransform),
+								scene->noblePersonAnimatedRenderer.castShadows,
+								boneTransformMatrices,
+								array_count(boneTransformMatrices));
 	}
 
 	/// UPDATE LSYSTEM TREES
@@ -1241,17 +1395,15 @@ void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle saveFile
 	// TODO(Leo): these should probably all go away
 	// Note(Leo): amounts are SWAG, rethink.
 	scene->transforms 			= allocate_array<Transform3D>(persistentMemory, 1200);
-	scene->skeletonAnimators 	= allocate_array<SkeletonAnimator>(persistentMemory, 600);
-	scene->animatedRenderers 	= allocate_array<AnimatedRenderer>(persistentMemory, 600);
 	scene->renderers 			= allocate_array<Renderer>(persistentMemory, 600);
-
-	// Todo(Leo): Probaly need to allocate these more coupledly, at least they must be able to reordered together
-	scene->characterMotors		= allocate_array<CharacterMotor>(persistentMemory, 600);
-	// scene->characterInputs		= allocate_array<CharacterInput>(persistentMemory, scene->characterMotors.capacity(), ALLOC_FILL | ALLOC_NO_CLEAR);
 
 	scene->collisionSystem.boxColliders 		= allocate_array<BoxCollider>(persistentMemory, 600);
 	scene->collisionSystem.cylinderColliders 	= allocate_array<CylinderCollider>(persistentMemory, 600);
 	scene->collisionSystem.staticBoxColliders 	= allocate_array<StaticBoxCollider>(persistentMemory, 2000);
+
+	scene->fallingObjectCapacity = 100;
+	scene->fallingObjectCount = 0;
+	scene->fallingObjects = push_memory<FallingObject>(persistentMemory, scene->fallingObjectCapacity, ALLOC_CLEAR);
 
 	logSystem() << "Allocations succesful! :)";
 
@@ -1365,7 +1517,7 @@ void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle saveFile
 
 		auto const gltfFile 		= read_gltf_file(*global_transientMemory, "assets/models/cube_head_v4.glb");
 
-		// Exporting animations from blender is not easy, this file has working animations
+		// Exporting animations from blender is not easy, this file has working animations, previous has proper model
 		auto const animationFile 	= read_gltf_file(*global_transientMemory, "assets/models/cube_head_v3.glb");
 
 		auto girlMeshAsset 	= load_mesh_glb(*global_transientMemory, gltfFile, "cube_head");
@@ -1381,10 +1533,8 @@ void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle saveFile
 			file_read_struct(saveFile, &scene->playerCharacterTransform);
 		}
 
-		// s32 motorIndex 							= scene->characterMotors.count();
-		// scene->playerInputState.inputArrayIndex = motorIndex;
-		auto * motor 							= &scene->playerCharacterMotor; //scene->characterMotors.push_return_pointer();
-		motor->transform 						= &scene->playerCharacterTransform;
+		auto * motor 		= &scene->playerCharacterMotor;
+		motor->transform 	= &scene->playerCharacterTransform;
 
 		{
 			using namespace CharacterAnimations;			
@@ -1412,21 +1562,19 @@ void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle saveFile
 
 		logSystem(1) << "Loading skeleton took: " << platformApi->elapsed_seconds(startTime, platformApi->current_time()) << " s";
 
-		scene->skeletonAnimators.push({
+		scene->playerSkeletonAnimator = 
+		{
 			.skeleton 		= load_skeleton_glb(persistentMemory, gltfFile, "cube_head"),
 			.animations 	= motor->animations,
 			.weights 		= motor->animationWeights,
 			.animationCount = CharacterAnimations::ANIMATION_COUNT
-		});
+		};
 
 		// Note(Leo): take the reference here, so we can easily copy this down below.
-		auto & cubeHeadSkeleton = scene->skeletonAnimators.last().skeleton;
+		auto & cubeHeadSkeleton = scene->playerSkeletonAnimator.skeleton;
 
 		auto model = push_model(girlMesh, materials.character);
-		scene->animatedRenderers.push(make_animated_renderer(
-				&scene->playerCharacterTransform,
-				&cubeHeadSkeleton,
-				model));
+		scene->playerAnimaterRenderer = make_animated_renderer(&scene->playerCharacterTransform, &cubeHeadSkeleton, model);
 
 		// --------------------------------------------------------------------
 
@@ -1451,112 +1599,18 @@ void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle saveFile
 				scene->noblePersonCharacterMotor.animations[CROUCH] = &scene->characterAnimations[CROUCH];
 			}
 
-			scene->skeletonAnimators.push({
-					.skeleton 		= { .bones = copy_array(persistentMemory, cubeHeadSkeleton.bones) },
-					.animations 	= scene->noblePersonCharacterMotor.animations,
-					.weights 		= scene->noblePersonCharacterMotor.animationWeights,
-					.animationCount = CharacterAnimations::ANIMATION_COUNT
-				});
+			scene-> noblePersonSkeletonAnimator = 
+			{
+				.skeleton 		= { .bones = copy_array(persistentMemory, cubeHeadSkeleton.bones) },
+				.animations 	= scene->noblePersonCharacterMotor.animations,
+				.weights 		= scene->noblePersonCharacterMotor.animationWeights,
+				.animationCount = CharacterAnimations::ANIMATION_COUNT
+			};
 
 			auto model = push_model(girlMesh, materials.character); 
-			scene->animatedRenderers.push(make_animated_renderer(&scene->noblePersonTransform, &scene->skeletonAnimators.last().skeleton, model));
+			scene->noblePersonAnimatedRenderer = make_animated_renderer(&scene->noblePersonTransform, &scene->noblePersonSkeletonAnimator.skeleton, model);
 
 		}
-
-
-		for (s32 randomWalkerIndex = 0; randomWalkerIndex < array_count(scene->randomWalkers); ++randomWalkerIndex)
-		{
-			// v3 position = {random_range(-99, 99), random_range(-99, 99), 0};
-			// v3 scale 	= make_uniform_v3(random_range(0.8f, 1.5f));
-
-			// auto * transform 	= scene->transforms.push_return_pointer({.position = position, .scale = scale});
-			// s32 motorIndex 		= scene->characterMotors.count();
-			// auto * motor 		= scene->characterMotors.push_return_pointer();
-
-			// if (randomWalkerIndex == 0)
-			// {
-			// 	// scene->nobleMotorInputIndex = motorIndex;
-			// 	scene->noblePersonTransform = *transform;
-			// 	transform 					= &scene->noblePersonTransform;
-
-			// 	motor = &scene->noblePersonCharacterMotor;
-			// 	*motor = {};
-			// }
-
-			// motor->transform 	= transform;
-
-			// scene->randomWalkers[randomWalkerIndex] = {transform, motorIndex, {random_range(-99, 99), random_range(-99, 99)}};
-
-			// {
-			// 	using namespace CharacterAnimations;			
-
-			// 	motor->animations[WALK] 	= &scene->characterAnimations[WALK];
-			// 	motor->animations[RUN] 		= &scene->characterAnimations[RUN];
-			// 	motor->animations[IDLE] 	= &scene->characterAnimations[IDLE];
-			// 	motor->animations[JUMP]		= &scene->characterAnimations[JUMP];
-			// 	motor->animations[FALL]		= &scene->characterAnimations[FALL];
-			// 	motor->animations[CROUCH] 	= &scene->characterAnimations[CROUCH];
-			// }
-
-			// scene->skeletonAnimators.push({
-			// 		.skeleton 		= { .bones = copy_array(persistentMemory, cubeHeadSkeleton.bones) },
-			// 		.animations 	= motor->animations,
-			// 		.weights 		= motor->animationWeights,
-			// 		.animationCount = CharacterAnimations::ANIMATION_COUNT
-			// 	});
-
-			// auto model = push_model(girlMesh, materials.character); 
-			// scene->animatedRenderers.push(make_animated_renderer(transform,	&scene->skeletonAnimators.last().skeleton, model));
-
-		}
-
-
-
-	// 	Transform3D * targetTransform = nullptr;
-	// 	s32 followersPerWalker = array_count(scene->followers) / array_count(scene->randomWalkers); 
-
-	// 	for (s32 followerIndex = 0; followerIndex < array_count(scene->followers); ++followerIndex)
-	// 	{
-	// 		v3 position 		= {random_range(-99, 99), random_range(-99, 99), 0};
-	// 		v3 scale 			= make_uniform_v3(random_range(0.8f, 1.5f));
-	// 		auto * transform 	= scene->transforms.push_return_pointer({.position = position, .scale = scale});
-
-	// 		s32 motorIndex 		= scene->characterMotors.count();
-	// 		auto * motor 		= scene->characterMotors.push_return_pointer();
-	// 		motor->transform 	= transform;
-
-
-	// 		if ((followerIndex % followersPerWalker) == 0)
-	// 		{
-	// 			s32 targetIndex = followerIndex / followersPerWalker;
-	// 			targetTransform = scene->randomWalkers[targetIndex].transform;
-	// 		}
-
-
-	// 		scene->followers[followerIndex] = make_follower_controller(transform, targetTransform, motorIndex);
-	// 		targetTransform = transform;
-
-	// 		{
-	// 			using namespace CharacterAnimations;			
-
-	// 			motor->animations[WALK] 	= &scene->characterAnimations[WALK];
-	// 			motor->animations[RUN] 		= &scene->characterAnimations[RUN];
-	// 			motor->animations[IDLE] 	= &scene->characterAnimations[IDLE];
-	// 			motor->animations[JUMP]		= &scene->characterAnimations[JUMP];
-	// 			motor->animations[FALL]		= &scene->characterAnimations[FALL];
-	// 			motor->animations[CROUCH] 	= &scene->characterAnimations[CROUCH];
-	// 		}
-
-	// 		scene->skeletonAnimators.push({
-	// 				.skeleton 		= { .bones = copy_array(persistentMemory, cubeHeadSkeleton.bones) },
-	// 				.animations 	= motor->animations,
-	// 				.weights 		= motor->animationWeights,
-	// 				.animationCount = CharacterAnimations::ANIMATION_COUNT
-	// 			});
-
-	// 		auto model = push_model(girlMesh, materials.character); 
-	// 		scene->animatedRenderers.push(make_animated_renderer(transform,	&scene->skeletonAnimators.last().skeleton, model));
-	// 	}
 	}
 
 	scene->worldCamera 				= make_camera(60, 0.1f, 1000.0f);
@@ -1674,6 +1728,69 @@ void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle saveFile
 								v3{0.5, 0.5, 2.5},
 								v3{0,0,1},
 								transform);
+		}
+
+		/// RACCOONS
+		{
+			scene->raccoonEmptyAnimation = {};
+
+			scene->raccoonCount 			= 4;
+			scene->raccoonModes 			= push_memory<s32>(persistentMemory, scene->raccoonCount, ALLOC_CLEAR);
+			scene->raccoonTransforms 		= push_memory<Transform3D>(persistentMemory, scene->raccoonCount, ALLOC_CLEAR);
+			scene->raccoonTargetPositions 	= push_memory<v3>(persistentMemory, scene->raccoonCount, ALLOC_CLEAR);
+			scene->raccoonCharacterMotors	= push_memory<CharacterMotor>(persistentMemory, scene->raccoonCount, ALLOC_CLEAR);
+
+			for (s32 i = 0; i < scene->raccoonCount; ++i)
+			{
+				scene->raccoonModes[i]					= RACCOON_IDLE;
+
+				scene->raccoonTransforms[i] 			= identity_transform;
+				scene->raccoonTransforms[i].position 	= random_inside_unit_square() * 100 - v3{50, 50, 0};
+				scene->raccoonTransforms[i].position.z  = get_terrain_height(scene->collisionSystem, scene->raccoonTransforms[i].position.xy);
+
+				scene->raccoonTargetPositions[i] 		= random_inside_unit_square() * 100 - v3{50,50,0};
+				scene->raccoonTargetPositions[i].z  	= get_terrain_height(scene->collisionSystem, scene->raccoonTargetPositions[i].xy);
+
+				// ------------------------------------------------------------------------------------------------
+		
+				scene->raccoonCharacterMotors[i] = {};
+				scene->raccoonCharacterMotors[i].transform = &scene->raccoonTransforms[i];
+
+				{
+					using namespace CharacterAnimations;
+
+					scene->raccoonCharacterMotors[i].animations[WALK] 		= &scene->raccoonEmptyAnimation;
+					scene->raccoonCharacterMotors[i].animations[RUN] 		= &scene->raccoonEmptyAnimation;
+					scene->raccoonCharacterMotors[i].animations[IDLE]		= &scene->raccoonEmptyAnimation;
+					scene->raccoonCharacterMotors[i].animations[JUMP] 		= &scene->raccoonEmptyAnimation;
+					scene->raccoonCharacterMotors[i].animations[FALL] 		= &scene->raccoonEmptyAnimation;
+					scene->raccoonCharacterMotors[i].animations[CROUCH] 	= &scene->raccoonEmptyAnimation;
+				}
+			}
+
+			auto raccoonGltfFile 	= read_gltf_file(*global_transientMemory, "assets/models/raccoon.glb");
+			auto raccoonMeshAsset 	= load_mesh_glb(*global_transientMemory, raccoonGltfFile, "raccoon");
+			scene->raccoonMesh 		= platformApi->push_mesh(platformGraphics, &raccoonMeshAsset);
+
+			auto albedoTexture = load_and_push_texture("assets/textures/RaccoonAlbedo.png");
+			TextureHandle textures [] =	{albedoTexture, neutralBumpTexture, blackTexture};
+
+			scene->raccoonMaterial = platformApi->push_material(platformGraphics, GRAPHICS_PIPELINE_NORMAL, 3, textures);
+
+
+
+
+			// scene-> noblePersonSkeletonAnimator = 
+			// {
+			// 	.skeleton 		= { .bones = copy_array(persistentMemory, cubeHeadSkeleton.bones) },
+			// 	.animations 	= scene->noblePersonCharacterMotor.animations,
+			// 	.weights 		= scene->noblePersonCharacterMotor.animationWeights,
+			// 	.animationCount = CharacterAnimations::ANIMATION_COUNT
+			// };
+
+			// auto model = push_model(girlMesh, materials.character); 
+			// scene->noblePersonAnimatedRenderer = make_animated_renderer(&scene->noblePersonTransform, &scene->noblePersonSkeletonAnimator.skeleton, model);
+
 		}
 
 		/// INVISIBLE TEST COLLIDER
@@ -1874,12 +1991,10 @@ void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle saveFile
 			/*
 			v = v0 + a*t
 			-> t = (v - v0) / a
-
 			d = d0 + v0*t + 1/2*a*t^2
-	
 			d - d0 = v0*t + 1/2*a*t^2
-
 			*/
+
 			f32 timeToBrakeBeforeStation 			= (scene->trainFullSpeed - scene->trainStationMinSpeed) / scene->trainAcceleration;
 			scene->trainBrakeBeforeStationDistance 	= scene->trainFullSpeed * timeToBrakeBeforeStation
 													// Note(Leo): we brake, so acceleration term is negative
