@@ -7,11 +7,13 @@ Implementations of vulkan related functions
 
 // Todo(Leo): these are getting old..
 #include "VulkanCommandBuffers.cpp"
-#include "VulkanSwapchain.cpp"
 
 #include "fsvulkan_pipelines.cpp"
 #include "fsvulkan_resources.cpp"
 #include "fsvulkan_drawing.cpp"
+
+// Todo(Leo): these are getting old..
+#include "VulkanSwapchain.cpp"
 
 
 // Todo(Leo): this is weird, it doesnt feel at home here.
@@ -49,16 +51,9 @@ internal void fsvulkan_reload_shaders(VulkanContext * context)
 	{
 		VkDevice device = context->device;
 
-		for (s32 i = 0; i < GRAPHICS_PIPELINE_COUNT; ++i)
-		{
-			vkDestroyDescriptorSetLayout(device, context->pipelines[i].descriptorSetLayout, nullptr);
-			vkDestroyPipelineLayout(device, context->pipelines[i].pipelineLayout, nullptr);
-			vkDestroyPipeline(device, context->pipelines[i].pipeline, nullptr);				
-		}
+		logVulkan(0) << "Hello";
 
-		vkDestroyPipelineLayout(device, context->linePipelineLayout, nullptr);
-		vkDestroyPipeline(device, context->linePipeline, nullptr);
-
+		fsvulkan_cleanup_pipelines(context);
 		fsvulkan_initialize_pipelines(*context);
 
 		context->shadowMapTexture = make_material_vk_descriptor_set_2( 	context,
@@ -67,6 +62,7 @@ internal void fsvulkan_reload_shaders(VulkanContext * context)
 																		context->persistentDescriptorPool,
 																		context->shadowPass.sampler,
 																		VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+		logVulkan(0) << "Hello2";
 	};
 }
 
@@ -275,6 +271,7 @@ vulkan::make_vk_image_view(
 }
 
 
+// Todo(Leo): Clean, 'context' is used here for logical and physical devices only
 internal VkRenderPass
 vulkan::make_vk_render_pass(VulkanContext * context, VkFormat format, VkSampleCountFlagBits msaaSamples)
 {
@@ -318,7 +315,8 @@ vulkan::make_vk_render_pass(VulkanContext * context, VkFormat format, VkSampleCo
 	attachments[RESOLVE_ATTACHMENT_ID].stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 	attachments[RESOLVE_ATTACHMENT_ID].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
 	attachments[RESOLVE_ATTACHMENT_ID].initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
-	attachments[RESOLVE_ATTACHMENT_ID].finalLayout    = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+	attachments[RESOLVE_ATTACHMENT_ID].finalLayout    = VK_IMAGE_LAYOUT_GENERAL;
+	// attachments[RESOLVE_ATTACHMENT_ID].finalLayout    = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
 	constexpr s32 COLOR_ATTACHMENT_COUNT = 1;        
 	VkAttachmentReference colorAttachmentRefs[COLOR_ATTACHMENT_COUNT] = {};
@@ -347,6 +345,7 @@ vulkan::make_vk_render_pass(VulkanContext * context, VkFormat format, VkSampleCo
 	dependencies[0].dstSubpass          = 0;
 	dependencies[0].srcStageMask        = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 	dependencies[0].srcAccessMask       = 0;
+	// dependencies[0].dstStageMask        = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
 	dependencies[0].dstStageMask        = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 	dependencies[0].dstAccessMask       = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 
@@ -660,22 +659,16 @@ winapi::create_vulkan_context(WinAPIWindow * window)
 		
 		init_shadow_pass(&context, 1024 * 4, 1024 * 4);
 
-		fsvulkan_initialize_pipelines(context);
-
-		add_cleanup(&context, [](VulkanContext * context)
+		/// PIPELINES
 		{
-			VkDevice device = context->device;
-
-			for (s32 i = 0; i < GRAPHICS_PIPELINE_COUNT; ++i)
+			fsvulkan_initialize_pipelines(context);
+			add_cleanup(&context, [](VulkanContext * context)
 			{
-				vkDestroyDescriptorSetLayout(device, context->pipelines[i].descriptorSetLayout, nullptr);
-				vkDestroyPipelineLayout(device, context->pipelines[i].pipelineLayout, nullptr);
-				vkDestroyPipeline(device, context->pipelines[i].pipeline, nullptr);				
-			}
-
-			vkDestroyPipelineLayout(device, context->linePipelineLayout, nullptr);
-			vkDestroyPipeline(device, context->linePipeline, nullptr);
-		});
+				// Todo(Leo): this kinda goes to show that this add_cleanup is stupid, we should just create
+				// pairs of initialize and cleanup functions and call those
+				fsvulkan_cleanup_pipelines(context);
+			});
+		}
 
 		context.shadowMapTexture = make_material_vk_descriptor_set_2( 	&context,
 																		context.pipelines[GRAPHICS_PIPELINE_SCREEN_GUI].descriptorSetLayout,
@@ -1322,6 +1315,10 @@ winapi_vulkan_internal_::init_virtual_frames(VulkanContext * context)
 			vkDestroySemaphore(context->device, frame.renderFinishedSemaphore, nullptr);
 			vkDestroySemaphore(context->device, frame.imageAvailableSemaphore, nullptr);
 			vkDestroyFence(context->device, frame.inFlightFence, nullptr);
+
+			// Todo(Leo): these maybe should be here, but for now at least they are created and destroed with swapchain
+			// vkDestroyImage(context->device, frame.colorImage, nullptr);
+			// vkDestroyImageView(context->device, frame.colorImageView, nullptr);
 		}
 	});
 }
@@ -1330,8 +1327,8 @@ void winapi_vulkan_internal_::init_shadow_pass(VulkanContext * context, u32 widt
 {
 		// init_shadow_pass(&context, 1024 * 4, 1024 * 4);
 
-
 	using namespace vulkan;
+
 	// Todo(Leo): This may not be a valid format, query support or check if vulkan spec requires this.
 	VkFormat format = VK_FORMAT_D32_SFLOAT;
 

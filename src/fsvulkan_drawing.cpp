@@ -135,36 +135,25 @@ internal void fsvulkan_drawing_prepare_frame(VulkanContext * context)
 
 	VkImageView attachments [] =
 	{
-		context->drawingResources.colorImageView,
-		context->drawingResources.depthImageView,
-
-		// Todo(Leo): make nice accessor :D
-		context->drawingResources.imageViews[context->currentDrawFrameIndex],
+		frame->colorImageView,
+		frame->depthImageView,
+		frame->resolveImageView,
+		// context->drawingResources.swapchainImageViews[context->currentDrawFrameIndex],
 	};
 
+	// TODO HDR: use floating point frame buffer here
 	frame->framebuffer = vulkan::make_vk_framebuffer(   context->device,
-														context->drawingResources.renderPass,
+														context->renderPass,
 														array_count(attachments),
 														attachments,
 														context->drawingResources.extent.width,
 														context->drawingResources.extent.height);    
 
-	VkCommandBufferBeginInfo masterCmdBeginInfo =
-	{
-		.sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-		.flags              = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
-		.pInheritanceInfo   = nullptr,
-	};
-
-	/* Note (Leo): beginning command buffer implicitly resets it, if we have specified
-	VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT in command pool creation */
-	VULKAN_CHECK(vkBeginCommandBuffer(frame->commandBuffers.master, &masterCmdBeginInfo));
-	
 	VkCommandBufferBeginInfo sceneCmdBeginInfo =
 	{
 		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
 		.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT | VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT,
-		.pInheritanceInfo = fsvulkan_drawing_internal_::get_vk_command_buffer_inheritance_info(context->drawingResources.renderPass, frame->framebuffer),
+		.pInheritanceInfo = fsvulkan_drawing_internal_::get_vk_command_buffer_inheritance_info(context->renderPass, frame->framebuffer),
 	};
 	VULKAN_CHECK (vkBeginCommandBuffer(frame->commandBuffers.scene, &sceneCmdBeginInfo));
 
@@ -194,6 +183,7 @@ internal void fsvulkan_drawing_prepare_frame(VulkanContext * context)
 		.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT | VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT,
 
 		// Note(Leo): the pointer in this is actually same as above, but this function call changes values of struct at the other end of pointer.
+		// Todo(Leo): shadow framebuffer needs to be separate per virtual frame
 		.pInheritanceInfo = fsvulkan_drawing_internal_::get_vk_command_buffer_inheritance_info(context->shadowPass.renderPass, context->shadowPass.framebuffer),
 	};
 	VULKAN_CHECK(vkBeginCommandBuffer(frame->commandBuffers.offscreen, &shadowCmdBeginInfo));
@@ -208,6 +198,19 @@ internal void fsvulkan_drawing_finish_frame(VulkanContext * context)
 	context->canDraw = false;
 
 	VulkanVirtualFrame * frame = fsvulkan_get_current_virtual_frame(context);
+
+
+	VkCommandBufferBeginInfo masterCmdBeginInfo =
+	{
+		.sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+		.flags              = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+		.pInheritanceInfo   = nullptr,
+	};
+
+	/* Note (Leo): beginning command buffer implicitly resets it, if we have specified
+	VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT in command pool creation */
+	VULKAN_CHECK(vkBeginCommandBuffer(frame->commandBuffers.master, &masterCmdBeginInfo));
+	
 
 	// SHADOWS RENDER PASS ----------------------------------------------------
 	VULKAN_CHECK(vkEndCommandBuffer(frame->commandBuffers.offscreen));
@@ -231,10 +234,8 @@ internal void fsvulkan_drawing_finish_frame(VulkanContext * context)
 	vkCmdExecuteCommands(frame->commandBuffers.master, 1, &frame->commandBuffers.offscreen);
 	vkCmdEndRenderPass(frame->commandBuffers.master);
 
-	// Note(Leo): Debug quad, MaterialHandle::Null directs to debug material where shadow image is bound
-	// record_gui_draw_command(context, {1500, 20}, {400, 400}, MaterialHandle::Null, {0,1,1,1});
-
 	// MAIN SCENE RENDER PASS -------------------------------------------------
+	// Todo(Leo): add separate pass for gui and debug stuffs
 	VULKAN_CHECK(vkEndCommandBuffer(frame->commandBuffers.scene));
 
 	VkClearValue clearValues [] =
@@ -242,10 +243,11 @@ internal void fsvulkan_drawing_finish_frame(VulkanContext * context)
 		{ .color = {0.35f, 0.0f, 0.35f, 1.0f} },
 		{ .depthStencil = {1.0f, 0} }
 	};
+
 	VkRenderPassBeginInfo renderPassInfo =
 	{
 		.sType              = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-		.renderPass         = context->drawingResources.renderPass,
+		.renderPass         = context->renderPass,
 		.framebuffer        = frame->framebuffer,
 		
 		.renderArea = {
@@ -259,13 +261,118 @@ internal void fsvulkan_drawing_finish_frame(VulkanContext * context)
 	vkCmdBeginRenderPass(frame->commandBuffers.master, &renderPassInfo, VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS);
 	vkCmdExecuteCommands(frame->commandBuffers.master, 1, &frame->commandBuffers.scene);
 	vkCmdEndRenderPass(frame->commandBuffers.master);
-	
+
+	/// HDR RENDER PASS --------------------------------------------------------------------
+	/*	
+		Do all these in master command buffer
+		1. set viewport and scissor sizes
+		2. create extra frame buffer for this pass only
+		3. start render pass
+		4. add commands for pass through shader
+			-> bind passthroug pipeline
+			-> bind resolveimage as texture
+			-> draw 3 vertices, no buffers
+		5. end renderpass
+	*/
+
+
+	VkViewport viewport =
+	{
+		.x          = 0.0f,
+		.y          = 0.0f,
+		.width      = (float) context->drawingResources.extent.width,
+		.height     = (float) context->drawingResources.extent.height,
+		.minDepth   = 0.0f,
+		.maxDepth   = 1.0f,
+	};
+	vkCmdSetViewport(frame->commandBuffers.master, 0, 1, &viewport);
+
+	VkRect2D scissor =
+	{
+		.offset = {0, 0},
+		.extent = context->drawingResources.extent,
+	};
+	vkCmdSetScissor(frame->commandBuffers.master, 0, 1, &scissor);
+
+	vkDestroyFramebuffer(context->device, frame->passThroughFramebuffer, nullptr);
+	frame->passThroughFramebuffer = vulkan::make_vk_framebuffer(context->device,
+																context->passThroughRenderPass,
+																1,
+																&context->drawingResources.swapchainImageViews[context->currentDrawFrameIndex],
+																context->drawingResources.extent.width,
+																context->drawingResources.extent.height);	
+
+	VkRenderPassBeginInfo passthrougPassBeginInfo 	= {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
+	passthrougPassBeginInfo.renderPass 				= context->passThroughRenderPass;
+	passthrougPassBeginInfo.framebuffer 			= frame->passThroughFramebuffer;
+	passthrougPassBeginInfo.renderArea 				= {{0,0}, context->drawingResources.extent};
+	// Note(Leo): no need to clear this, we fill every pixel anyway
+
+
+	vkCmdBeginRenderPass(frame->commandBuffers.master, &passthrougPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+	// Todo(Leo): Draw fullscreen triangle
+
+	vkCmdBindPipeline(frame->commandBuffers.master, VK_PIPELINE_BIND_POINT_GRAPHICS, context->passThroughPipeline);
+
+
+	VkDescriptorSet testDescriptor = frame->resolveImageDescriptor;
+	// VkDescriptorSet testDescriptor = context->loadedGuiTextures[2].descriptorSet;
+	vkCmdBindDescriptorSets(frame->commandBuffers.master, VK_PIPELINE_BIND_POINT_GRAPHICS, 
+							context->passThroughPipelineLayout,
+							0, 1, &testDescriptor, 0, nullptr);
+
+	vkCmdDraw(frame->commandBuffers.master, 3, 1, 0, 0);
+
+	vkCmdEndRenderPass(frame->commandBuffers.master);
+
+
+	#if 0
+	{
+		auto * frame = fsvulkan_get_current_virtual_frame(context);
+
+		VkPipeline 			pipeline;
+		VkPipelineLayout 	pipelineLayout;
+		VkDescriptorSet 	descriptorSet;
+
+		if(textureHandle == GRAPHICS_RESOURCE_SHADOWMAP_GUI_TEXTURE)
+		{
+			descriptorSet = context->shadowMapTexture;
+		}
+		else
+		{
+			descriptorSet = fsvulkan_get_loaded_gui_texture(*context, textureHandle).descriptorSet;
+		}
+
+		pipeline 		= context->pipelines[GRAPHICS_PIPELINE_SCREEN_GUI].pipeline;
+		pipelineLayout 	= context->pipelines[GRAPHICS_PIPELINE_SCREEN_GUI].pipelineLayout;
+
+		vkCmdBindPipeline(frame->commandBuffers.scene, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+		
+		vkCmdBindDescriptorSets(frame->commandBuffers.scene, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout,
+								0, 1, &descriptorSet,
+								0, nullptr);
+
+		// Note(Leo): Color does not change, so we update it only once, this will break if we change shader :(
+		vkCmdPushConstants(frame->commandBuffers.scene, pipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 64, sizeof(v4), &color);
+
+		// TODO(Leo): Instantiatee!
+		for(s32 i = 0; i < count; ++i)
+		{      
+			vkCmdPushConstants( frame->commandBuffers.scene, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(ScreenRect), &rects[i]);
+			vkCmdDraw(frame->commandBuffers.scene, 4, 1, 0, 0);
+		}
+	}
+	#endif
+
 
 	// PRIMARY COMMAND BUFFER -------------------------------------------------
+
 	VULKAN_CHECK(vkEndCommandBuffer(frame->commandBuffers.master));
 
 	/* Note(Leo): these have to do with sceneloading in game layer. We are then unloading
 	all resources associated with command buffer, which makes it invalid to submit to queue */
+	// Todo(Leo): this should be removed, just unload stuff after the frame is done
 	bool32 skipFrame            = context->sceneUnloaded;
 	context->sceneUnloaded      = false;
 
@@ -308,6 +415,8 @@ internal void fsvulkan_drawing_finish_frame(VulkanContext * context)
 		context->virtualFrameIndex %= VIRTUAL_FRAME_COUNT;
 	}
 
+	/* Todo(Leo): there are limited number of these they should be listed explicitly,
+	and especially not called from here, but in this functions call site */
 	if (context->onPostRender != nullptr)
 	{
 		vkDeviceWaitIdle(context->device);

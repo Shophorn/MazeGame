@@ -149,7 +149,9 @@ internal Gui make_main_menu_gui(MemoryArena & allocator)
 	gui.padding 			= 10;
 	gui.font 				= load_font("c:/windows/fonts/arial.ttf");
 
-	TextureAsset guiTextureAsset 	= make_texture_asset(allocate_array<u32>(*global_transientMemory, {0xffffffff}), 1, 1, 4);
+
+	TextureAsset guiTextureAsset 	= load_texture_asset(*global_transientMemory, "assets/textures/Acorn_albedo.png");
+	// TextureAsset guiTextureAsset 	= make_texture_asset(allocate_array<u32>(*global_transientMemory, {0xffffffff}), 1, 1, 4);
 	gui.panelTexture				= platformApi->push_gui_texture(platformGraphics, &guiTextureAsset);
 
 	return gui;

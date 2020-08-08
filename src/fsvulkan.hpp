@@ -168,6 +168,7 @@ struct FSVulkanPipeline
 
 struct VulkanVirtualFrame
 {
+	// Todo(Leo): these anon structs are stupid idea, that merely introduces more complexity, and are not even supported by c++ standard
 	struct
 	{
 		VkCommandBuffer master;
@@ -180,13 +181,33 @@ struct VulkanVirtualFrame
 		// VkCommandBuffer debug;
 	} commandBuffers;
 
-	VkFramebuffer  framebuffer;
-    VkFramebuffer  shadowFramebuffer;
+	VkFramebuffer  	framebuffer;
+
+	// Todo(Leo): more like 'final framebuffer' or 'present framebuffer'
+	VkFramebuffer 	passThroughFramebuffer;
+
+    // Note(Leo): these are attchaments.
+	// VkDeviceMemory attachmentMemory;
+
+	VkImage 	colorImage;
+	VkImageView colorImageView;
+
+	VkImage 	depthImage;	
+	VkImageView depthImageView;
+
+	VkImage 	resolveImage;
+	VkImageView resolveImageView;
+
+	VkDescriptorSet resolveImageDescriptor;
+
+	// Todo(Leo): this is not enough, the complete shadow texture mess needs to be per virtual frame
+	// Extre Todo(Leo): this is not even used even though it should be instead of static single one
+    VkFramebuffer  	shadowFramebuffer;
 
     VkSemaphore 	shadowPassWaitSemaphore;
-	VkSemaphore    imageAvailableSemaphore;
-	VkSemaphore    renderFinishedSemaphore;
-	VkFence        inFlightFence; // Todo(Leo): Change to queuesubmitfence or commandbufferfence etc..
+	VkSemaphore    	imageAvailableSemaphore;
+	VkSemaphore    	renderFinishedSemaphore;
+	VkFence        	inFlightFence; // Todo(Leo): Change to queuesubmitfence or commandbufferfence etc..
 };
 
 struct PlatformGraphics
@@ -242,6 +263,9 @@ struct PlatformGraphics
     // Uncategorized
 	VkCommandPool 			commandPool;
     VkSampleCountFlagBits 	msaaSamples;
+
+    /* Note(Leo): we need a separate sampler for each address mode (and other properties).
+	'textureSampler' has REPEAT address mode*/
     VkSampler 				textureSampler;			
     VkSampler 				clampSampler;			
 
@@ -252,22 +276,19 @@ struct PlatformGraphics
 	    VkSwapchainKHR 	swapchain;
 	    VkExtent2D 		extent;
 
-	    VkFormat 					imageFormat;
-	    std::vector<VkImage> 		images;
-	    std::vector<VkImageView> 	imageViews;
+	    // Note(Leo): these are images from gpu for presentation, we use them to form final framebuffers
+	    VkFormat 					swapchainImageFormat;
+	    std::vector<VkImage> 		swapchainImages;
+	    std::vector<VkImageView> 	swapchainImageViews;
 
-	    VkRenderPass renderPass;
-
+	    // Todo(Leo): these maybe should go to virtual frame thing
 	    // Note(Leo): these are attchaments.
 		VkDeviceMemory memory;
-
-		VkImage 	colorImage;
-		VkImageView colorImageView;
-
-		VkImage 	depthImage;	
-		VkImageView depthImageView;
 	} drawingResources = {};
 
+
+    VkRenderPass renderPass;
+    VkRenderPass passThroughRenderPass;
 
 	struct
 	{
@@ -305,8 +326,6 @@ struct PlatformGraphics
 	// Note(Leo): Guitextures are separeate becauses they are essentially texture AND material
 	// since they are used alone. We should maybe just use normal materials. I don't know yet.
 	std::vector<VulkanGuiTexture> 	loadedGuiTextures;
-	std::vector<VulkanTexture> 		loadedGuiTexturesTextures;
-	std::vector<VkDescriptorSet> 	loadedGuiTexturesDescriptorSets;
 
 	VkDescriptorSet 		shadowMapTexture;
 
@@ -319,9 +338,14 @@ struct PlatformGraphics
 	VkPipelineLayout 		leavesShadowPipelineLayout;
 	VkDescriptorSetLayout 	leavesShadowMaskDescriptorSetLayout;
 
+	VkPipeline 				passThroughPipeline;
+	VkPipelineLayout 		passThroughPipelineLayout;
+	VkDescriptorSetLayout 	passThroughDescriptorSetLayout; // Todo(Leo): make better name; what descriptor set this is
+
 	// Note(Leo): This is a list of functions to call when destroying this.
-    using CleanupFunc = void (VulkanContext*);
-	std::vector<CleanupFunc*> cleanups = {};
+	// Todo(Leo): Do not use std::vector; we know explicitly how many we have at compile time
+    using CleanupFunc 					= void (VulkanContext*);
+	std::vector<CleanupFunc*> cleanups 	= {};
 
     u32 currentDrawFrameIndex;
     bool32 canDraw = false;
@@ -421,6 +445,9 @@ namespace vulkan
 	internal VkImageView 			make_vk_image_view(VkDevice device, VkImage image, u32 mipLevels, VkFormat format, VkImageAspectFlags aspectFlags);
 	// internal VkSampler				make_vk_sampler(VkDevice, VkSamplerAddressMode);   
 }
+
+internal VkDescriptorSetAllocateInfo
+fsvulkan_descriptor_set_allocate_info(VkDescriptorPool descriptorPool, u32 descriptorSetCount, VkDescriptorSetLayout const * setLayouts);
 
 internal VkDescriptorSet make_material_vk_descriptor_set_2(	VulkanContext *			context,
 															VkDescriptorSetLayout 	descriptorSetLayout,

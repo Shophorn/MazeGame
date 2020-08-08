@@ -376,7 +376,7 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 			.pDynamicState 			= &dynamicState,
 			
 			.layout 				= context.pipelines[GRAPHICS_PIPELINE_NORMAL].pipelineLayout,
-			.renderPass 			= context.drawingResources.renderPass,
+			.renderPass 			= context.renderPass,
 		};
 
 		vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &context.pipelines[GRAPHICS_PIPELINE_NORMAL].pipeline);
@@ -447,7 +447,7 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 			.pDynamicState 			= &dynamicState,
 			
 			.layout 				= context.pipelines[GRAPHICS_PIPELINE_TRIPLANAR].pipelineLayout,
-			.renderPass 			= context.drawingResources.renderPass,
+			.renderPass 			= context.renderPass,
 		};
 
 		vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &context.pipelines[GRAPHICS_PIPELINE_TRIPLANAR].pipeline);
@@ -458,8 +458,6 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 		vkDestroyShaderModule(context.device, fragmentShaderModule, nullptr);
 		vkDestroyShaderModule(context.device, vertexShaderModule, nullptr);
 	}
-
-
 
 	/// GRAPHICS_PIPELINE_ANIMATED
 	{
@@ -518,7 +516,7 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 			.pDynamicState 			= &dynamicState,
 			
 			.layout 				= context.pipelines[GRAPHICS_PIPELINE_ANIMATED].pipelineLayout,
-			.renderPass 			= context.drawingResources.renderPass,
+			.renderPass 			= context.renderPass,
 		};
 
 		vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &context.pipelines[GRAPHICS_PIPELINE_ANIMATED].pipeline);
@@ -582,7 +580,7 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 			.pColorBlendState 		= &colorBlendState,
 			.pDynamicState 			= &dynamicState,
 			.layout 				= context.pipelines[GRAPHICS_PIPELINE_SKYBOX].pipelineLayout,
-			.renderPass 			= context.drawingResources.renderPass,
+			.renderPass 			= context.renderPass,
 		};
 
 		vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &context.pipelines[GRAPHICS_PIPELINE_SKYBOX].pipeline);
@@ -660,7 +658,7 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 			.pColorBlendState 		= &colorBlendState,
 			.pDynamicState 			= &dynamicState,
 			.layout 				= context.pipelines[GRAPHICS_PIPELINE_SCREEN_GUI].pipelineLayout,
-			.renderPass 			= context.drawingResources.renderPass,
+			.renderPass 			= context.renderPass,
 		};
 
 		vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &context.pipelines[GRAPHICS_PIPELINE_SCREEN_GUI].pipeline);
@@ -733,7 +731,7 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 			.pColorBlendState 		= &colorBlendState,
 			.pDynamicState 			= &dynamicState,
 			.layout 				= context.pipelines[GRAPHICS_PIPELINE_LEAVES].pipelineLayout,
-			.renderPass 			= context.drawingResources.renderPass,
+			.renderPass 			= context.renderPass,
 		};
 
 		vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &context.pipelines[GRAPHICS_PIPELINE_LEAVES].pipeline);
@@ -818,7 +816,7 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 			.pDynamicState 			= &dynamicState,
 			
 			.layout 				= context.pipelines[GRAPHICS_PIPELINE_WATER].pipelineLayout,
-			.renderPass 			= context.drawingResources.renderPass,
+			.renderPass 			= context.renderPass,
 		};
 
 		vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &context.pipelines[GRAPHICS_PIPELINE_WATER].pipeline);
@@ -888,7 +886,7 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 			.pColorBlendState 		= &colorBlendState,
 			.pDynamicState 			= &dynamicState,
 			.layout 				= context.linePipelineLayout,
-			.renderPass 			= context.drawingResources.renderPass,
+			.renderPass 			= context.renderPass,
 		};
 
 		vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &context.linePipeline);
@@ -896,6 +894,113 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 		// Note(Leo): Always remember to destroy these :)
 		vkDestroyShaderModule(context.device, fragmentShaderModule, nullptr);
 		vkDestroyShaderModule(context.device, vertexShaderModule, nullptr);	
+	}
+
+	/// INTERNAL HDR TONEMAP PIPELINE
+	{
+		auto materialLayout 			= fsvulkan_make_material_descriptor_set_layout(context.device, 1);
+
+		auto pipelineLayoutCreateInfo 	= fsvulkan_pipeline_layout_create_info(1, &materialLayout, 0, nullptr);
+		VULKAN_CHECK(vkCreatePipelineLayout (context.device, &pipelineLayoutCreateInfo, nullptr, &context.passThroughPipelineLayout));
+
+		// ---------------------------------------------------------------------------------------------------------------------------
+
+		VkShaderModule vertexShaderModule 	= fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/hdr_vert.spv"));
+		VkShaderModule fragmentShaderModule = fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/hdr_frag.spv"));
+
+		VkPipelineShaderStageCreateInfo shaderStages [] =
+		{
+			fsvulkan_pipeline_shader_stage_create_info(VK_SHADER_STAGE_VERTEX_BIT, vertexShaderModule, "main"),
+			fsvulkan_pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, fragmentShaderModule, "main"),
+		};
+
+		auto vertexInputState 		= fsvulkan_pipeline_vertex_input_state_create_info	(0, nullptr, 0, nullptr);
+		auto inputAssemblyState 	= fsvulkan_pipeline_input_assembly_create_info		(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+		auto viewportState 			= fsvulkan_pipeline_viewport_state_create_info		(1, &fsvulkan_zero_viewport, 1, &fsvulkan_zero_scissor);
+		auto rasterizationState 	= fsvulkan_pipeline_rasterization_state_create_info	(VK_CULL_MODE_NONE);
+		auto multisampleState 		= fsvulkan_pipeline_multisample_state_create_info	(VK_SAMPLE_COUNT_1_BIT);
+		auto depthStencilState 		= fsvulkan_pipeline_depth_stencil_create_info		(VK_FALSE, VK_FALSE);
+
+		// VkPipelineColorBlendAttachmentState colorBlendAttachment = 
+		// {
+		// 	.blendEnable            = VK_TRUE,
+		// 	.srcColorBlendFactor    = VK_BLEND_FACTOR_SRC_ALPHA,
+		// 	.dstColorBlendFactor    = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+		// 	.colorBlendOp           = VK_BLEND_OP_ADD,
+
+		// 	.srcAlphaBlendFactor    = VK_BLEND_FACTOR_SRC_ALPHA,
+		// 	.dstAlphaBlendFactor    = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+
+		// 	// Note(Leo): For some reason this was subtract, I can't remember why, but it seemed to have worked like add.
+		// 	// .alphaBlendOp           = VK_BLEND_OP_SUBTRACT, 
+		// 	.alphaBlendOp           = VK_BLEND_OP_ADD, 
+
+		// 	.colorWriteMask         = fsvulkan_all_colors,
+		// };
+		auto colorBlendState 		= fsvulkan_pipeline_color_blend_state_create_info(1, &fsvulkan_default_pipeline_color_blend_attachment_state);
+		auto dynamicState 			= fsvulkan_pipeline_dynamic_state_create_info(array_count(fsvulkan_default_dynamic_states), fsvulkan_default_dynamic_states);
+
+		VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo =
+		{
+			.sType 					= VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+			.stageCount 			= array_count(shaderStages),
+			.pStages 				= shaderStages,
+			.pVertexInputState 		= &vertexInputState,
+			.pInputAssemblyState 	= &inputAssemblyState,
+			.pViewportState 		= &viewportState,
+			.pRasterizationState 	= &rasterizationState,
+			.pMultisampleState 		= &multisampleState,
+			.pDepthStencilState 	= &depthStencilState,
+			.pColorBlendState 		= &colorBlendState,
+			.pDynamicState 			= &dynamicState,
+			.layout 				= context.passThroughPipelineLayout,
+			.renderPass 			= context.passThroughRenderPass,
+		};
+
+		vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &context.passThroughPipeline);
+
+		context.passThroughDescriptorSetLayout = materialLayout;
+
+		vkDestroyShaderModule(context.device, fragmentShaderModule, nullptr);
+		vkDestroyShaderModule(context.device, vertexShaderModule, nullptr);
+
+
+		/// Make resolve image sampleable in pass through pipeline
+		// Todo(Leo): These depend on pass through layouts etc, but otherwise should not be here...
+		{
+			for(s32 i = 0; i < VIRTUAL_FRAME_COUNT; ++i)
+			{	
+				auto allocateInfo = fsvulkan_descriptor_set_allocate_info(	context.persistentDescriptorPool,
+																			1,
+																			&context.passThroughDescriptorSetLayout);
+				VULKAN_CHECK(vkAllocateDescriptorSets(	context.device,
+														&allocateInfo,
+														&context.virtualFrames[i].resolveImageDescriptor));
+
+				logVulkan(0) << "Allocated: " << context.virtualFrames[i].resolveImageDescriptor;
+
+				VkDescriptorImageInfo info = 
+				{
+					context.textureSampler,
+					context.virtualFrames[i].resolveImageView,
+					VK_IMAGE_LAYOUT_GENERAL,
+					// VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+					// VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+				};
+
+				VkWriteDescriptorSet write = 
+				{
+					.sType              = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+					.dstSet             = context.virtualFrames[i].resolveImageDescriptor,
+					.dstBinding         = 0,
+					.dstArrayElement    = 0,
+					.descriptorCount    = 1,
+					.descriptorType     = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+					.pImageInfo         = &info,
+				};
+				vkUpdateDescriptorSets(context.device, 1, &write, 0, nullptr);
+			}
+		}
 	}
 }
 
@@ -1027,3 +1132,21 @@ internal void fsvulkan_initialize_leaves_shadow_pipeline(VulkanContext & context
 	vkDestroyShaderModule(context.device, vertexShaderModule, nullptr);
 }
 
+internal void fsvulkan_cleanup_pipelines(VulkanContext * context)
+{
+	VkDevice device = context->device;
+
+	for (s32 i = 0; i < GRAPHICS_PIPELINE_COUNT; ++i)
+	{
+		vkDestroyDescriptorSetLayout(device, context->pipelines[i].descriptorSetLayout, nullptr);
+		vkDestroyPipelineLayout(device, context->pipelines[i].pipelineLayout, nullptr);
+		vkDestroyPipeline(device, context->pipelines[i].pipeline, nullptr);				
+	}
+
+	vkDestroyPipelineLayout(device, context->linePipelineLayout, nullptr);
+	vkDestroyPipeline(device, context->linePipeline, nullptr);
+
+	vkDestroyDescriptorSetLayout(device, context->passThroughDescriptorSetLayout, nullptr);
+	vkDestroyPipelineLayout(device, context->passThroughPipelineLayout, nullptr);
+	vkDestroyPipeline(device, context->passThroughPipeline, nullptr);
+}
