@@ -135,5 +135,5 @@ void main()
 	outColor.a = 1;//tex.a;
 
 
-	outColor.rgb = pow(outColor.rgb, vec3(1/gamma));
+	// outColor.rgb = pow(outColor.rgb, vec3(1/gamma));
 }

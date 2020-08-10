@@ -11,11 +11,11 @@ Todo(Leo):
 #include "external/stb_image.h"
 
 internal TextureAsset
-make_texture_asset(Array<u32> pixels, s32 width, s32 height, s32 channels)
+make_texture_asset(u32 * pixelMemory, s32 width, s32 height, s32 channels)
 {
     TextureAsset result = 
     {
-        .pixels     = std::move(pixels),
+        .pixelMemory     = pixelMemory,
         .width      = width,
         .height     = height,
         .channels   = channels,
@@ -31,11 +31,26 @@ internal TextureAsset load_texture_asset(MemoryArena & allocator, const char * f
 
     AssertMsg(stbi_pixels != nullptr, filename);
 
-    auto begin  = reinterpret_cast<u32*>(stbi_pixels);
-    auto end    = begin + (width * height);
-    auto pixels = allocate_array<u32>(allocator, begin, end);
+    // auto begin  = reinterpret_cast<u32*>(stbi_pixels);
+    // auto end    = begin + (width * height);
+    // auto pixels = allocate_array<u32>(allocator, begin, end);
 
-    auto result = make_texture_asset(std::move(pixels), width, height, 4);
+    u64 pixelCount      = width * height;
+    u64 pixelMemorySize = width * height * channels;
+
+    // // Note(Leo): this is only supported number
+    // logDebug(0) << filename << ": " << channels;
+    // AssertMsg(channels == 4, filename);
+
+    TextureAsset result = {};
+    result.pixelMemory = push_memory<u32>(allocator, pixelCount, 0);
+    copy_memory(result.pixelMemory, stbi_pixels, pixelMemorySize);
+
+    result.width    = width;
+    result.height   = height;
+    result.channels = 4;
+
+    // auto result = make_texture_asset(std::move(pixels), width, height, 4);
 
     stbi_image_free(stbi_pixels);
 
@@ -112,7 +127,8 @@ internal Font load_font(char const * fontFilePath)
         stbtt_MakeCodepointBitmap(&fontInfo, monoColorBitmap + byteOffset, ix1 - ix0, iy1 - iy0, width, scale, scale, character);
     }
 
-    Array<u32> fontBitMap = allocate_array<u32>(*global_transientMemory, width * height, ALLOC_FILL);
+    // Array<u32> fontBitMap = allocate_array<u32>(*global_transientMemory, width * height, ALLOC_FILL);
+    u32 * fontBitMap = push_memory<u32>(*global_transientMemory, width * height, 0);
 
     for (s32 y = 0; y < height; ++y)
     {
@@ -132,7 +148,9 @@ internal Font load_font(char const * fontFilePath)
 
 internal TextureAsset generate_gradient(MemoryArena & allocator, int colourCount, v4 * colours, f32 * times, s32 pixelCount)
 {
-    Array<u32> pixels = allocate_array<u32>(allocator, pixelCount, ALLOC_FILL | ALLOC_NO_CLEAR);
+    #if 1
+
+    v4 * pixelMemory = push_memory<v4>(allocator, pixelCount, 0);
 
     s32 pixelIndex  = 0;
     s32 colourIndex = 0;
@@ -143,7 +161,7 @@ internal TextureAsset generate_gradient(MemoryArena & allocator, int colourCount
 
     while(pixelIndex < pixelCount && time < times[0])
     {
-        pixels[pixelIndex] = colour_rgba_u32(colours[0]);
+        pixelMemory[pixelIndex] = colours[0];
         pixelIndex += 1;
         time += timeStep;
     }
@@ -169,7 +187,7 @@ internal TextureAsset generate_gradient(MemoryArena & allocator, int colourCount
 
         v4 colour = v4_lerp(previousColour, nextColour, relativeTime);
 
-        pixels[pixelIndex] = colour_rgba_u32(v4_lerp(previousColour, nextColour, relativeTime));
+        pixelMemory[pixelIndex] = v4_lerp(previousColour, nextColour, relativeTime);
 
         pixelIndex += 1;    
         time += timeStep;
@@ -177,11 +195,69 @@ internal TextureAsset generate_gradient(MemoryArena & allocator, int colourCount
 
     while(pixelIndex < pixelCount)
     {
-        pixels[pixelIndex] = colour_rgba_u32(colours[colourCount - 1]);
+        pixelMemory[pixelIndex] = colours[colourCount - 1];
         pixelIndex += 1;
         time += timeStep;
     }
 
-    TextureAsset result = { std::move(pixels), pixelCount, 1, 4 };
+    TextureAsset result = { pixelMemory, pixelCount, 1, 4 };
+    result.format       = TEXTURE_FORMAT_F32;
+    result.addressMode  = TEXTURE_ADDRESS_MODE_CLAMP;
     return result;
+
+    #else
+    u32 * pixelMemory = push_memory<u32>(allocator, pixelCount, 0);
+    // Array<u32> pixelMemory = allocate_array<u32>(allocator, pixelCount, ALLOC_FILL | ALLOC_NO_CLEAR);
+
+    s32 pixelIndex  = 0;
+    s32 colourIndex = 0;
+    f32 time        = 0;
+
+    // Note(Leo): there is one pixel more than steps, steps are in between
+    f32 timeStep    = 1.0f / (pixelCount - 1);
+
+    while(pixelIndex < pixelCount && time < times[0])
+    {
+        pixelMemory[pixelIndex] = colour_rgba_u32(colours[0]);
+        pixelIndex += 1;
+        time += timeStep;
+    }
+
+    colourIndex = 1;
+
+    while(pixelIndex < pixelCount && time < times[colourCount - 1])
+    {
+        while (time > times[colourIndex])
+        {
+            colourIndex += 1;
+        }
+
+        v4 previousColour   = colours[colourIndex - 1];
+        v4 nextColour       = colours[colourIndex];
+
+        f32 previousTime    = times[colourIndex - 1];
+        f32 nextTime        = times[colourIndex];
+
+        float relativeTime = (time - previousTime) / (nextTime - previousTime);
+
+        Assert(relativeTime <= 1);
+
+        v4 colour = v4_lerp(previousColour, nextColour, relativeTime);
+
+        pixelMemory[pixelIndex] = colour_rgba_u32(v4_lerp(previousColour, nextColour, relativeTime));
+
+        pixelIndex += 1;    
+        time += timeStep;
+    }
+
+    while(pixelIndex < pixelCount)
+    {
+        pixelMemory[pixelIndex] = colour_rgba_u32(colours[colourCount - 1]);
+        pixelIndex += 1;
+        time += timeStep;
+    }
+
+    TextureAsset result = { pixelMemory, pixelCount, 1, 4 };
+    return result;
+    #endif
 }

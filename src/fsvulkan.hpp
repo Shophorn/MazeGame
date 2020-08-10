@@ -198,6 +198,7 @@ struct VulkanVirtualFrame
 	VkImage 	resolveImage;
 	VkImageView resolveImageView;
 
+	// Note(Leo): This is used as input to hdr->ldr tonemap shader
 	VkDescriptorSet resolveImageDescriptor;
 
 	// Todo(Leo): this is not enough, the complete shadow texture mess needs to be per virtual frame
@@ -222,23 +223,19 @@ struct PlatformGraphics
 	VkDebugUtilsMessengerEXT debugMessenger;
 #endif
 
-	struct {
-		VkQueue graphics;
-		VkQueue present;
+	/// QUEUES
+	VkQueue graphicsQueue;
+	VkQueue presentQueue;
 
-		u32 graphicsIndex;
-		u32 presentIndex;
-	} queues;
-
-    VulkanVirtualFrame virtualFrames [VIRTUAL_FRAME_COUNT];
-    u32 virtualFrameIndex = 0;
+    VulkanVirtualFrame 	virtualFrames [VIRTUAL_FRAME_COUNT];
+    u32 				virtualFrameIndex = 0;
+	VkDeviceMemory 		virtualFrameAttachmentMemory;
 
     VkDescriptorPool 		uniformDescriptorPool;
     VkDescriptorPool 		materialDescriptorPool;
 
 	// Note(Leo): these are not cleared on unload
     VkDescriptorPool		persistentDescriptorPool;
-
 
     VkDescriptorSetLayout 	modelDescriptorSetLayout;
     VkDescriptorSet 		modelDescriptorSet;
@@ -249,6 +246,7 @@ struct PlatformGraphics
 	VkDescriptorSetLayout 	lightingDescriptorSetLayout;
     VkDescriptorSet 		lightingDescriptorSet[VIRTUAL_FRAME_COUNT];
 	
+	// Todo(Leo): These also need to be part of virtual frame thing
 	VkDescriptorSetLayout 	shadowMapDescriptorSetLayout;
 	VkDescriptorSet 		shadowMapDescriptorSet;
 
@@ -268,27 +266,18 @@ struct PlatformGraphics
 	'textureSampler' has REPEAT address mode*/
     VkSampler 				textureSampler;			
     VkSampler 				clampSampler;			
+	
+	VkFormat 		hdrFormat;
 
-    /* Note(Leo): color and depth images for initial writing. These are
-    afterwards resolved to actual framebufferimage */
+    VkSwapchainKHR 	swapchain;
+	VkExtent2D 		swapchainExtent;
+    VkRenderPass 	renderPass;
+    VkRenderPass 	passThroughRenderPass;
 
-	struct {
-	    VkSwapchainKHR 	swapchain;
-	    VkExtent2D 		extent;
-
-	    // Note(Leo): these are images from gpu for presentation, we use them to form final framebuffers
-	    VkFormat 					swapchainImageFormat;
-	    std::vector<VkImage> 		swapchainImages;
-	    std::vector<VkImageView> 	swapchainImageViews;
-
-	    // Todo(Leo): these maybe should go to virtual frame thing
-	    // Note(Leo): these are attchaments.
-		VkDeviceMemory memory;
-	} drawingResources = {};
-
-
-    VkRenderPass renderPass;
-    VkRenderPass passThroughRenderPass;
+    // Note(Leo): these are images from gpu for presentation, we use them to form final framebuffers
+    VkFormat 					swapchainImageFormat;
+    std::vector<VkImage> 		swapchainImages;
+    std::vector<VkImageView> 	swapchainImageViews;
 
 	struct
 	{
@@ -356,9 +345,14 @@ struct PlatformGraphics
     VkDeviceMemory 	leafBufferMemory;
     VkDeviceSize 	leafBufferCapacity;
     VkDeviceSize 	leafBufferUsed[VIRTUAL_FRAME_COUNT];
+    // Todo(Leo): is this unmapped in the end?
     void * 			persistentMappedLeafBufferMemory;
-};
 
+    // HÄXÖR SKY
+    // Todo(Leo): make smarter
+    VkDescriptorSetLayout 	skyGradientDescriptorSetLayout;
+    VkDescriptorSet 		skyGradientDescriptorSet;
+};
 
 // Note(Leo): We are expecting to at some point need to get things from multiple different
 // containers, which is easier with helper function.

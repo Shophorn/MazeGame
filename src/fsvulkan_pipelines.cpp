@@ -316,6 +316,8 @@ These are default values, so those that are not needed can just be left away (ex
 
 internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 {
+	context.skyGradientDescriptorSetLayout = fsvulkan_make_material_descriptor_set_layout(context.device, 2);
+
 	/// GRAPHICS_PIPELINE_NORMAL
 	{
 		auto materialLayout = fsvulkan_make_material_descriptor_set_layout(context.device, 3);
@@ -327,6 +329,7 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 			context.modelDescriptorSetLayout,
 			context.lightingDescriptorSetLayout,
 			context.shadowMapDescriptorSetLayout,
+			context.skyGradientDescriptorSetLayout
 		};
 		// TODO(Leo): this was maybe stupid idea, this is material block, and we are going to use
 		// textures for this probably
@@ -400,6 +403,7 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 			context.modelDescriptorSetLayout,
 			context.lightingDescriptorSetLayout,
 			context.shadowMapDescriptorSetLayout,
+			context.skyGradientDescriptorSetLayout,
 		};
 		// TODO(Leo): this was maybe stupid idea, this is material block, and we are going to use
 		// textures for this probably
@@ -470,6 +474,7 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 			context.modelDescriptorSetLayout,
 			context.lightingDescriptorSetLayout,
 			context.shadowMapDescriptorSetLayout,
+			context.skyGradientDescriptorSetLayout
 		};
 		// TODO(Leo): this was maybe stupid idea, this is material block, and we are going to use
 		// textures for this probably
@@ -540,6 +545,7 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 			context.modelDescriptorSetLayout,
 			context.lightingDescriptorSetLayout,
 			context.shadowMapDescriptorSetLayout,
+			context.skyGradientDescriptorSetLayout
 		};
 
 		auto pipelineLayoutCreateInfo = fsvulkan_pipeline_layout_create_info(array_count(descriptorSetLayouts), descriptorSetLayouts, 0, nullptr);
@@ -679,7 +685,8 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 			context.cameraDescriptorSetLayout,
 			context.lightingDescriptorSetLayout,
 			context.shadowMapDescriptorSetLayout,
-			materialLayout,
+			materialLayout,	
+			context.skyGradientDescriptorSetLayout,
 		};
 
 		VkPushConstantRange pushConstantRange = {VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(s32)};
@@ -755,6 +762,7 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 			context.modelDescriptorSetLayout,
 			context.lightingDescriptorSetLayout,
 			context.shadowMapDescriptorSetLayout,
+			context.skyGradientDescriptorSetLayout,
 		};
 		// TODO(Leo): this was maybe stupid idea, this is material block, and we are going to use
 		// textures for this probably
@@ -1149,4 +1157,6 @@ internal void fsvulkan_cleanup_pipelines(VulkanContext * context)
 	vkDestroyDescriptorSetLayout(device, context->passThroughDescriptorSetLayout, nullptr);
 	vkDestroyPipelineLayout(device, context->passThroughPipelineLayout, nullptr);
 	vkDestroyPipeline(device, context->passThroughPipeline, nullptr);
+
+	vkDestroyDescriptorSetLayout(device, context->skyGradientDescriptorSetLayout, nullptr);
 }

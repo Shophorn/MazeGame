@@ -133,12 +133,13 @@ internal void fsvulkan_drawing_prepare_frame(VulkanContext * context)
 	// https://software.intel.com/en-us/articles/api-without-secrets-introduction-to-vulkan-part-4#inpage-nav-5
 	vkDestroyFramebuffer(context->device, frame->framebuffer, nullptr);
 
+	// Todo(Leo): We should not recreate this every frame. It was done to easily adjust to
+	// screen size changes, but that is not something we expect player to do in the final product
 	VkImageView attachments [] =
 	{
 		frame->colorImageView,
 		frame->depthImageView,
 		frame->resolveImageView,
-		// context->drawingResources.swapchainImageViews[context->currentDrawFrameIndex],
 	};
 
 	// TODO HDR: use floating point frame buffer here
@@ -146,8 +147,8 @@ internal void fsvulkan_drawing_prepare_frame(VulkanContext * context)
 														context->renderPass,
 														array_count(attachments),
 														attachments,
-														context->drawingResources.extent.width,
-														context->drawingResources.extent.height);    
+														context->swapchainExtent.width,
+														context->swapchainExtent.height);    
 
 	VkCommandBufferBeginInfo sceneCmdBeginInfo =
 	{
@@ -161,8 +162,8 @@ internal void fsvulkan_drawing_prepare_frame(VulkanContext * context)
 	{
 		.x          = 0.0f,
 		.y          = 0.0f,
-		.width      = (float) context->drawingResources.extent.width,
-		.height     = (float) context->drawingResources.extent.height,
+		.width      = (float) context->swapchainExtent.width,
+		.height     = (float) context->swapchainExtent.height,
 		.minDepth   = 0.0f,
 		.maxDepth   = 1.0f,
 	};
@@ -171,7 +172,7 @@ internal void fsvulkan_drawing_prepare_frame(VulkanContext * context)
 	VkRect2D scissor =
 	{
 		.offset = {0, 0},
-		.extent = context->drawingResources.extent,
+		.extent = context->swapchainExtent,
 	};
 	vkCmdSetScissor(frame->commandBuffers.scene, 0, 1, &scissor);
 
@@ -252,7 +253,7 @@ internal void fsvulkan_drawing_finish_frame(VulkanContext * context)
 		
 		.renderArea = {
 			.offset  = {0, 0},
-			.extent  = context->drawingResources.extent,
+			.extent  = context->swapchainExtent,
 		},
 		
 		.clearValueCount    = 2,
@@ -280,8 +281,8 @@ internal void fsvulkan_drawing_finish_frame(VulkanContext * context)
 	{
 		.x          = 0.0f,
 		.y          = 0.0f,
-		.width      = (float) context->drawingResources.extent.width,
-		.height     = (float) context->drawingResources.extent.height,
+		.width      = (float) context->swapchainExtent.width,
+		.height     = (float) context->swapchainExtent.height,
 		.minDepth   = 0.0f,
 		.maxDepth   = 1.0f,
 	};
@@ -290,22 +291,29 @@ internal void fsvulkan_drawing_finish_frame(VulkanContext * context)
 	VkRect2D scissor =
 	{
 		.offset = {0, 0},
-		.extent = context->drawingResources.extent,
+		.extent = context->swapchainExtent,
 	};
 	vkCmdSetScissor(frame->commandBuffers.master, 0, 1, &scissor);
+
+	local_persist s32 debugged = 0;
+	if (context->virtualFrameIndex == 0 && debugged < 2)
+	{
+		debugged += 1;
+		logDebug(0) << "hdr framebuffer: " << frame->passThroughFramebuffer << ", " << (frame->passThroughFramebuffer == VK_NULL_HANDLE);
+	}
 
 	vkDestroyFramebuffer(context->device, frame->passThroughFramebuffer, nullptr);
 	frame->passThroughFramebuffer = vulkan::make_vk_framebuffer(context->device,
 																context->passThroughRenderPass,
 																1,
-																&context->drawingResources.swapchainImageViews[context->currentDrawFrameIndex],
-																context->drawingResources.extent.width,
-																context->drawingResources.extent.height);	
+																&context->swapchainImageViews[context->currentDrawFrameIndex],
+																context->swapchainExtent.width,
+																context->swapchainExtent.height);	
 
 	VkRenderPassBeginInfo passthrougPassBeginInfo 	= {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
 	passthrougPassBeginInfo.renderPass 				= context->passThroughRenderPass;
 	passthrougPassBeginInfo.framebuffer 			= frame->passThroughFramebuffer;
-	passthrougPassBeginInfo.renderArea 				= {{0,0}, context->drawingResources.extent};
+	passthrougPassBeginInfo.renderArea 				= {{0,0}, context->swapchainExtent};
 	// Note(Leo): no need to clear this, we fill every pixel anyway
 
 
@@ -389,7 +397,7 @@ internal void fsvulkan_drawing_finish_frame(VulkanContext * context)
 		.pSignalSemaphores      = &frame->renderFinishedSemaphore,
 	};
 	vkResetFences(context->device, 1, &frame->inFlightFence);
-	VULKAN_CHECK(vkQueueSubmit(context->queues.graphics, 1, &submitInfo, frame->inFlightFence));
+	VULKAN_CHECK(vkQueueSubmit(context->graphicsQueue, 1, &submitInfo, frame->inFlightFence));
 
 	VkPresentInfoKHR presentInfo =
 	{
@@ -397,13 +405,13 @@ internal void fsvulkan_drawing_finish_frame(VulkanContext * context)
 		.waitSemaphoreCount = 1,
 		.pWaitSemaphores    = &frame->renderFinishedSemaphore,
 		.swapchainCount     = 1,
-		.pSwapchains        = &context->drawingResources.swapchain,
+		.pSwapchains        = &context->swapchain,
 		.pImageIndices      = &context->currentDrawFrameIndex,
 		.pResults           = nullptr,
 	};
 
 	// Todo(Leo): Should we do something with this? We are handling VK_ERROR_OUT_OF_DATE_KHR elsewhere anyway.
-	VkResult result = vkQueuePresentKHR(context->queues.present, &presentInfo);
+	VkResult result = vkQueuePresentKHR(context->presentQueue, &presentInfo);
 	if (result != VK_SUCCESS)
 	{
 		logVulkan() << FILE_ADDRESS << "Present result = " << vulkan::to_str(result);
@@ -424,7 +432,6 @@ internal void fsvulkan_drawing_finish_frame(VulkanContext * context)
 		context->onPostRender = nullptr;
 	}
 }
-
 
 internal void fsvulkan_drawing_draw_model(VulkanContext * context, ModelHandle model, m44 transform, bool32 castShadow, m44 const * bones, u32 bonesCount)
 {
@@ -473,6 +480,7 @@ internal void fsvulkan_drawing_draw_model(VulkanContext * context, ModelHandle m
 		context->modelDescriptorSet,
 		context->lightingDescriptorSet[context->virtualFrameIndex],
 		context->shadowMapTexture,
+		context->skyGradientDescriptorSet,
 	};
 
 	// Note(Leo): this works, because models are only dynamic set
@@ -583,6 +591,10 @@ internal void fsvulkan_drawing_draw_leaves(	VulkanContext * context,
 	VkDescriptorSet materialDescriptorSet = fsvulkan_get_loaded_material(context, materialHandle)->descriptorSet;
 	vkCmdBindDescriptorSets(frame->commandBuffers.scene, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 3, 1, &materialDescriptorSet, 0, nullptr);
 
+	vkCmdBindDescriptorSets(frame->commandBuffers.scene, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout,
+							4, 1, &context->skyGradientDescriptorSet,
+							0, nullptr);
+
 	vkCmdPushConstants(frame->commandBuffers.scene, pipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(s32), &colourIndex);
 
 	vkCmdBindVertexBuffers(frame->commandBuffers.scene, 0, 1, &context->leafBuffer, &instanceBufferOffset);
@@ -667,6 +679,7 @@ internal void fsvulkan_drawing_draw_meshes(VulkanContext * context, s32 count, m
 		context->modelDescriptorSet,
 		context->lightingDescriptorSet[context->virtualFrameIndex],
 		context->shadowMapTexture,
+		context->skyGradientDescriptorSet,
 	};
 
 	Assert(mesh->indexCount > 0);
@@ -756,6 +769,7 @@ internal void fsvulkan_drawing_draw_procedural_mesh(VulkanContext * context,
 		context->modelDescriptorSet,
 		context->lightingDescriptorSet[context->virtualFrameIndex],
 		context->shadowMapTexture,
+		context->skyGradientDescriptorSet
 	};
 
 	u32 uniformBufferOffsets [] = {(u32)uniformBufferOffset};

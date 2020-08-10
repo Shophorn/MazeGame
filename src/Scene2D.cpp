@@ -141,8 +141,11 @@ internal void * load_scene_2d(MemoryArena & persistentMemory)
 
 	// Create MateriaLs
 	{
-		TextureAsset whiteTextureAsset = make_texture_asset(allocate_array<u32>(*global_transientMemory, {0xffffffff}), 1, 1, 4);
-		TextureAsset blackTextureAsset = make_texture_asset(allocate_array<u32>(*global_transientMemory, {0xff000000}), 1, 1, 4);
+		u32 whiteTexturePixelColour = 0xffffffff;
+		u32 blackTexturePixelColour = 0xff000000;
+
+		TextureAsset whiteTextureAsset = make_texture_asset(&whiteTexturePixelColour, 1, 1, 4);
+		TextureAsset blackTextureAsset = make_texture_asset(&blackTexturePixelColour, 1, 1, 4);
 
 		TextureHandle whiteTexture = platformApi->push_texture(platformGraphics, &whiteTextureAsset);
 		TextureHandle blackTexture = platformApi->push_texture(platformGraphics, &blackTextureAsset);
@@ -154,7 +157,7 @@ internal void * load_scene_2d(MemoryArena & persistentMemory)
 			return result;
 		};
 
-		auto tilesTexture 	= load_and_push_texture("assets/textures/tiles.jpg");
+		auto tilesTexture 	= load_and_push_texture("assets/textures/tiles.png");
 		auto lavaTexture 	= load_and_push_texture("assets/textures/lava.jpg");
 		auto faceTexture 	= load_and_push_texture("assets/textures/texture.jpg");
 

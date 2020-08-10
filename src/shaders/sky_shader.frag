@@ -9,7 +9,7 @@ const int SAMPLER_BIND_ID = 0;
 const int SAMPLER_SET_ID = 1;
 
 // layout(	binding = SAMPLER_BIND_ID, set = SAMPLER_SET_ID) uniform samplerCube texSampler;
-layout(	binding = 0, set = 1) uniform sampler2D texSampler[2];
+layout(	binding = 0, set = 1) uniform sampler2D skyGradients[2];
 
 layout (set = 3, binding = 0) uniform Lighting
 {
@@ -18,22 +18,16 @@ layout (set = 3, binding = 0) uniform Lighting
 	vec4 ignored_ambient;
 	vec4 ignored_cameraPosition;
 	float skyColourSelection;
-} lightInput;
+} light;
 
 #include "skyfunc.glsl"
 
 void main()
 {
-	// vec3 light = -normalize(lightInput.direction.xyz);
-	vec3 normal = normalize(fragTexCoord);
-	// float d = dot(light, normal);
+	vec3 lightDir 	= -normalize(light.direction.xyz);
+	vec3 normal 	= normalize(fragTexCoord);
 
-	// d = (d + 1) / 2;
-	// vec3 color = mix(	texture(texSampler[0], vec2(max(0, d), 0)).rgb,
-	// 					texture(texSampler[1], vec2(max(0, d), 0)).rgb,
-	// 					lightInput.skyColourSelection);
+	outColor.rgb 	= compute_sky_color(normal, lightDir);
 
-	// outColor.rgb 	= color;
-	outColor.rgb 	= compute_sky_color(normal);
 	outColor.a 		= 1.0;
 }

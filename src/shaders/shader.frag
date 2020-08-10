@@ -1,4 +1,5 @@
 #version 450
+#extension GL_GOOGLE_include_directive : enable
 
 layout (set = 0, binding = 0) uniform CameraProjections 
 {
@@ -12,8 +13,8 @@ layout (set = 3, binding = 0) uniform Lighting
 	vec4 color;
 	vec4 ambient;
 	vec4 cameraPosition;
+	float skyColourSelection;
 } light;
-
 
 layout(location = 0) in vec3 fragColor;
 layout(location = 1) in vec2 fragTexCoord;
@@ -34,12 +35,20 @@ const int TEXTURE_COUNT = 3;
 layout(set = 1, binding = 0) uniform sampler2D texSampler[TEXTURE_COUNT];
 layout(set = 4, binding = 0) uniform sampler2D lightMap;
 
+
+
+layout(set = 5, binding = 0) uniform sampler2D skyGradients[2];
+
+
 layout (push_constant) uniform MaterialBlock
 {
 	float smoothness;
 	float specularStrength;
 } material;
 
+
+#define MORE_INPUT
+#include "skyfunc.glsl"
 
 void main()
 {
@@ -49,7 +58,6 @@ void main()
 
 	float ldotn = max(0, dot(lightDir, normal));
 
-
 	float gamma = 2.2;
 	vec4 tex = texture(texSampler[ALBEDO_INDEX], fragTexCoord);
 	vec3 albedo = tex.rgb;
@@ -57,7 +65,6 @@ void main()
 #if 0
 	vec3 ambient 	= light.ambient.rgb;
 	vec3 diffuse 	= ldotn * light.color.rgb;
-
 
 	vec3 viewDirection = normalize(light.cameraPosition.xyz - fragPosition);
 	viewDirection = tbnMatrix * viewDirection;
@@ -70,8 +77,6 @@ void main()
 	vec3 specular = spec * light.color.rgb;
 
 	vec3 totalLight = ambient + diffuse + spec;
-
-
 
 	outColor.rgb = totalLight * albedo;
 	outColor.a = 1;
@@ -108,17 +113,18 @@ void main()
 
 	spec = pow(spec, 256 * smoothness);
 
-	vec3 specularTerm = spec * specularStrength * light.color.rgb * inLightActual;
+	vec3 lightColor = compute_sky_color(normal, lightDir);
+
+	vec3 specularTerm = spec * specularStrength * lightColor * inLightActual;
 
 	// lightIntensity *= 2;
-	vec3 lightColor = mix(light.ambient.rgb, light.color.rgb, lightIntensity);
-	// vec3 lightColor = light.ambient.rgb + light.color.rgb * lightIntensity;
+	vec3 diffuseTerm = mix(light.ambient.rgb, lightColor, lightIntensity);
+	// vec3 diffuseTerm = light.ambient.rgb + light.color.rgb * lightIntensity;
 	
-	vec3 color = lightColor * albedo + specularTerm;
+	vec3 color = diffuseTerm * albedo + specularTerm;
+	// color = lightColor * albedo;
 
 	outColor.rgb = color;
 	outColor.a = tex.a;
 
-
-	outColor.rgb = pow(outColor.rgb, vec3(1/gamma));
 }

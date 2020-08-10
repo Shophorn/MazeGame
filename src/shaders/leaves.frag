@@ -1,11 +1,18 @@
 #version 450
+#extension GL_GOOGLE_include_directive : enable
 
 layout (set = 1, binding = 0) uniform Lighting
 {
 	vec4 direction;
 	vec4 color;
 	vec4 ambient;
+	vec4 camDirection;
+	float skyColourSelection;
 } light;
+
+layout(binding = 0, set = 4) uniform sampler2D skyGradients[2];
+
+#include "skyfunc.glsl"
 
 layout(binding = 0, set = 2) uniform sampler2D lightMap;
 layout(binding = 0, set = 3) uniform sampler2D maskTexture;
@@ -103,16 +110,14 @@ void main()
 	lightIntensity = lightIntensity * inLight;	
 
 	// Note(Leo): try these two
-	vec3 lightColor = mix(light.ambient.rgb, light.color.rgb, lightIntensity);
+	// vec3 lightColor = mix(light.ambient.rgb, light.color.rgb, lightIntensity);
+	vec3 lightColor = compute_sky_color(normal, lightDir);
 	// vec3 lightColor = light.ambient.rgb + light.color.rgb * lightIntensity;
 	
 	vec3 color = lightColor * albedo;
 
 	// color *= step(distanceFromCenter, 1.0);
+
 	outColor.rgb = color;
-
-	outColor.rgb = pow(outColor.rgb, vec3(1/gamma));
-
-
 	outColor.a 					= 1;
 }

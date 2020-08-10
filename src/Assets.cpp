@@ -94,16 +94,47 @@ enum : s32
 	TEXTURE_ADDRESS_MODE_CLAMP,
 };
 
+enum : s32
+{
+	TEXTURE_FORMAT_U8,
+	TEXTURE_FORMAT_F32,
+};
+
 struct TextureAsset
 {
-	Array<u32> pixels;
+	void * 	pixelMemory;
 
 	s32 	width;
 	s32 	height;
 	s32 	channels;
 
 	s32 	addressMode;
+	s32 	format;
 };
+
+u32 * get_u32_pixel_memory(TextureAsset & asset)
+{
+	Assert(asset.format == TEXTURE_FORMAT_U8);
+	return (u32*)asset.pixelMemory;
+}
+
+f32 * get_f32_pixel_memory(TextureAsset & asset)
+{
+	Assert(asset.format == TEXTURE_FORMAT_F32);
+	return (f32*)asset.pixelMemory;
+}
+
+u64 get_texture_asset_memory_size(TextureAsset & asset)
+{
+	Assert(asset.channels == 4);
+
+	u64 pixelCount 		= asset.width * asset.height;
+	u64 componenCount 	= pixelCount * asset.channels;
+	u64 componentSize  	= asset.format == TEXTURE_FORMAT_U8 ? sizeof(u8) : sizeof(f32);
+
+	u64 memorySize 		=  componentSize * componenCount;
+	return memorySize;
+}
 
 inline u32 
 get_pixel(TextureAsset * texture, u32 x, u32 y)
@@ -111,7 +142,7 @@ get_pixel(TextureAsset * texture, u32 x, u32 y)
 	AssertMsg(x < texture->width && y < texture->height, "Invalid pixel coordinates!");
 
 	s64 index = x + y * texture->width;
-	return texture->pixels[index];
+	return get_u32_pixel_memory(*texture)[index];
 }
 
 inline u8
@@ -176,7 +207,7 @@ get_closest_pixel(TextureAsset * texture, v2 texcoord)
 	u32 v = (u32)round_f32(texture->height * texcoord.y) % texture->height;
 
 	s64 index = u + v * texture->width;
-	return texture->pixels[index];
+	return get_u32_pixel_memory(*texture)[index];
 }
 
 struct MaterialAsset

@@ -1,4 +1,5 @@
 #version 450
+#extension GL_GOOGLE_include_directive : enable
 
 layout (set = 0, binding = 0) uniform CameraProjections 
 {
@@ -11,7 +12,14 @@ layout (set = 3, binding = 0) uniform Lighting
 	vec4 direction;
 	vec4 color;
 	vec4 ambient;
+	vec4 ignored_cameraPosition;
+	float skyColourSelection;
 } light;
+
+layout(set = 5, binding = 0) uniform sampler2D skyGradients[2];
+
+#define MORE_INPUT
+#include "skyfunc.glsl"
 
 layout(location = 0) in vec3 fragColor;
 layout(location = 1) in vec2 fragTexCoord;
@@ -80,9 +88,10 @@ void main()
 	}
 	// ------------------------------------------------------------------------
 
-	vec3 light = light.ambient.rgb + (light.color.rgb * (2 - test) * lightIntensity);
+	vec3 lightColor = compute_sky_color(normal, -light.direction.xyz);
+	vec3 light = light.ambient.rgb + (lightColor * (2 - test) * lightIntensity);
 
-
+	
 	outColor.rgb = light * albedo;
 	outColor.a = 1.0;
 }

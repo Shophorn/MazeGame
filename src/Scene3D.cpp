@@ -1387,7 +1387,8 @@ void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle saveFile
 	scene->gui.padding 				= 10;
 	scene->gui.font 				= load_font("c:/windows/fonts/arial.ttf");
 
-	TextureAsset guiTextureAsset 	= make_texture_asset(allocate_array<u32>(*global_transientMemory, {0xffffffff}), 1, 1, 4);
+	u32 guiTexturePixelColor 		= 0xffffffff;
+	TextureAsset guiTextureAsset 	= make_texture_asset(&guiTexturePixelColor, 1, 1, 4);
 	scene->gui.panelTexture			= platformApi->push_gui_texture(platformGraphics, &guiTextureAsset);
 
 	// ----------------------------------------------------------------------------------
@@ -1429,11 +1430,17 @@ void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle saveFile
 		return result;
 	};
 
-	TextureAsset whiteTextureAsset 			= make_texture_asset(allocate_array<u32>(*global_transientMemory, {0xffffffff}), 1, 1, 4);
-	TextureAsset blackTextureAsset	 		= make_texture_asset(allocate_array<u32>(*global_transientMemory, {0xff000000}), 1, 1, 4);
-	TextureAsset neutralBumpTextureAsset 	= make_texture_asset(allocate_array<u32>(*global_transientMemory, {colour_rgba_u32(colour_bump)}), 1, 1, 4);
-	TextureAsset waterBlueTextureAsset 		= make_texture_asset(allocate_array<u32>(*global_transientMemory, {colour_rgb_alpha_32(colour_aqua_blue.rgb,0.7)}), 1, 1, 4);
-	TextureAsset seedBrownTextureAsset 		= make_texture_asset(allocate_array<u32>(*global_transientMemory, {0xff003399}), 1, 1, 4);
+	u32 whitePixelColour		= 0xffffffff;
+	u32 blackPixelColour 		= 0xff000000;
+	u32 neutralBumpPixelColour 	= colour_rgba_u32(colour_bump);
+	u32 waterBluePixelColour 	= colour_rgb_alpha_32(colour_aqua_blue.rgb, 0.7);
+	u32 seedBrownPixelColour 	= 0xff003399;
+
+	TextureAsset whiteTextureAsset 			= make_texture_asset(&whitePixelColour, 1, 1, 4);
+	TextureAsset blackTextureAsset	 		= make_texture_asset(&blackPixelColour, 1, 1, 4);
+	TextureAsset neutralBumpTextureAsset 	= make_texture_asset(&neutralBumpPixelColour, 1, 1, 4);
+	TextureAsset waterBlueTextureAsset 		= make_texture_asset(&waterBluePixelColour, 1, 1, 4);
+	TextureAsset seedBrownTextureAsset 		= make_texture_asset(&seedBrownPixelColour, 1, 1, 4);
 
 	TextureHandle whiteTexture 			= platformApi->push_texture(platformGraphics, &whiteTextureAsset);
 	TextureHandle blackTexture 			= platformApi->push_texture(platformGraphics, &blackTextureAsset);
@@ -1450,7 +1457,7 @@ void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle saveFile
 
 	// Create MateriaLs
 	{
-		auto tilesAlbedo 	= load_and_push_texture("assets/textures/tiles.jpg");
+		auto tilesAlbedo 	= load_and_push_texture("assets/textures/tiles.png");
 		auto tilesNormal 	= load_and_push_texture("assets/textures/tiles_normal.png");
 		auto groundAlbedo 	= load_and_push_texture("assets/textures/ground.png");
 		auto groundNormal 	= load_and_push_texture("assets/textures/ground_normal.png");
@@ -1469,9 +1476,9 @@ void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle saveFile
 			v4 niceSkyGradientColors [] =
 			{
 				{0.43f / 2.55f, 0.3f/2.55f, 0.98f/2.55f, 	1.0},
-				{0.4, 0.9, 1.0,								1.0},
-				{0.8, 0.99, 1.0,							1.0},
-				{1,1,1, 									1.0},
+				{0.4, 0.9, 1.2,								1.0},
+				{0.8, 0.99, 1.2,							1.0},
+				{2,2,2, 									1.0},
 			};
 			f32 niceSkyGradientTimes [] 		= {0.1, 0.3, 0.9, 0.99};
 
@@ -1482,19 +1489,19 @@ void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle saveFile
 			v4 meanSkyGradientColors [] =
 			{
 				{0,0,0,  			1.0},
-				{0.8, 0.1, 0.05,	1.0},
-				{0.8, 0.1, 0.05,	1.0},
-				{1.0, 0.95, 0.8,	1.0},
-				{1,1,1, 			1.0},
+				{1.1, 0.1, 0.05,	1.0},
+				{1.1, 0.1, 0.05,	1.0},
+				{1.4, 0.95, 0.8,	1.0},
+				{2,1.5,1.5, 			1.0},
 			};
-			f32 meanSkyGradientTimes [] 		= {0.1, 0.3, 0.7, 0.9, 0.99};
-			TextureAsset meanSkyGradientAsset 	= generate_gradient(*global_transientMemory, 5, meanSkyGradientColors, meanSkyGradientTimes, 128);
-			meanSkyGradientAsset.addressMode 	= TEXTURE_ADDRESS_MODE_CLAMP;
-			auto meanSkyGradientTexture			= platformApi->push_texture(platformGraphics, &meanSkyGradientAsset);
+			f32 meanSkyGradientTimes [] 			= {0.1, 0.3, 0.7, 0.9, 0.99};
+			TextureAsset meanSkyGradientAsset 		= generate_gradient(*global_transientMemory, 5, meanSkyGradientColors, meanSkyGradientTimes, 128);
+			meanSkyGradientAsset.addressMode 		= TEXTURE_ADDRESS_MODE_CLAMP;
+			auto meanSkyGradientTexture				= platformApi->push_texture(platformGraphics, &meanSkyGradientAsset);
 
-			TextureHandle skyGradientTextures [] = {niceSkyGradient, meanSkyGradientTexture};
+			TextureHandle skyGradientTextures [] 	= {niceSkyGradient, meanSkyGradientTexture};
 
-			materials.sky 					= platformApi->push_material(platformGraphics, GRAPHICS_PIPELINE_SKYBOX, 2, skyGradientTextures);
+			materials.sky 							= platformApi->push_material(platformGraphics, GRAPHICS_PIPELINE_SKYBOX, 2, skyGradientTextures);
 		}
 	}
 
@@ -2075,7 +2082,8 @@ void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle saveFile
 
 			for (s32 i = 0; i < 4; ++i)
 			{
-				auto asset = make_texture_asset(allocate_array<u32>(*global_transientMemory, {colour_rgba_u32(regionColours[i])}), 1, 1, 4);
+				u32 pixelColour = colour_rgba_u32(regionColours[i]);
+				auto asset = make_texture_asset(&pixelColour, 1, 1, 4);
 				auto texture = platformApi->push_texture(platformGraphics, &asset);
 
 				TextureHandle treeTextures [] = {texture, treeTextures[1], blackTexture};

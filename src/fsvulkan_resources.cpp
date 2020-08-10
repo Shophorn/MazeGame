@@ -83,19 +83,29 @@ BAD_VULKAN_make_texture(VulkanContext * context, TextureAsset * asset)
 	u32 height       = asset->height;
 	u32 mipLevels    = compute_mip_levels(width, height);
 
-	VkDeviceSize imageSize = width * height * asset->channels;
+	VkDeviceSize textureMemorySize = get_texture_asset_memory_size(*asset);
 
 	void * data;
-	vkMapMemory(context->device, context->stagingBufferPool.memory, 0, imageSize, 0, &data);
-	memcpy (data, (void*)asset->pixels.begin(), imageSize);
+	vkMapMemory(context->device, context->stagingBufferPool.memory, 0, textureMemorySize, 0, &data);
+	memcpy (data, (void*)asset->pixelMemory, textureMemorySize);
 	vkUnmapMemory(context->device, context->stagingBufferPool.memory);
+
+	VkFormat format;
+	if (asset->format == TEXTURE_FORMAT_U8)
+	{
+		format = VK_FORMAT_R8G8B8A8_UNORM;
+	}
+	else if (asset->format == TEXTURE_FORMAT_F32)
+	{
+		format = VK_FORMAT_R32G32B32A32_SFLOAT;
+	}
 
 	VkImageCreateInfo imageInfo =
 	{
 		.sType          = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
 		.flags          = 0,
 		.imageType      = VK_IMAGE_TYPE_2D,
-		.format         = VK_FORMAT_R8G8B8A8_UNORM,
+		.format         = format,
 		.extent         = { width, height, 1 },
 		.mipLevels      = mipLevels,
 		.arrayLayers    = 1,
@@ -140,10 +150,8 @@ BAD_VULKAN_make_texture(VulkanContext * context, TextureAsset * asset)
 	VkCommandBuffer cmd = vulkan::begin_command_buffer(context->device, context->commandPool);
 	
 	// Todo(Leo): begin and end command buffers once only and then just add commands from inside these
-	vulkan::cmd_transition_image_layout(cmd, context->device, context->queues.graphics,
-							resultImage, VK_FORMAT_R8G8B8A8_UNORM, mipLevels,
-							VK_IMAGE_LAYOUT_UNDEFINED,
-							VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+	vulkan::cmd_transition_image_layout(cmd, context->device, context->graphicsQueue, resultImage, format, mipLevels,
+										VK_IMAGE_LAYOUT_UNDEFINED,VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
 	VkBufferImageCopy region =
 	{
@@ -168,18 +176,16 @@ BAD_VULKAN_make_texture(VulkanContext * context, TextureAsset * asset)
 	};
 	vkCmdCopyBufferToImage (cmd, context->stagingBufferPool.buffer, resultImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 
-	cmd_generate_mip_maps(  cmd, context->physicalDevice,
-						resultImage, VK_FORMAT_R8G8B8A8_UNORM,
-						asset->width, asset->height, mipLevels);
+	cmd_generate_mip_maps(cmd, context->physicalDevice, resultImage, format, asset->width, asset->height, mipLevels);
 
-	vulkan::execute_command_buffer (cmd, context->device, context->commandPool, context->queues.graphics);
+	vulkan::execute_command_buffer (cmd, context->device, context->commandPool, context->graphicsQueue);
 
 	VkImageViewCreateInfo imageViewInfo =
 	{ 
 		.sType      = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
 		.image      = resultImage,
 		.viewType   = VK_IMAGE_VIEW_TYPE_2D,
-		.format     = VK_FORMAT_R8G8B8A8_UNORM,
+		.format     = format,
 
 		.components = {
 			.r = VK_COMPONENT_SWIZZLE_IDENTITY,
@@ -232,8 +238,8 @@ BAD_VULKAN_make_cubemap(VulkanContext * context, StaticArray<TextureAsset, 6> * 
 	vkMapMemory(context->device, context->stagingBufferPool.memory, 0, imageSize, 0, (void**)&data);
 	for (int i = 0; i < 6; ++i)
 	{
-		u32 * start          = (*assets)[i].pixels.begin();
-		u32 * end            = (*assets)[i].pixels.end();
+		u32 * start          = get_u32_pixel_memory((*assets)[i]);
+		u32 * end            = get_u32_pixel_memory((*assets)[i]) + layerSize;
 		u32 * destination    = reinterpret_cast<u32*>(data + (i * layerSize));
 
 		std::copy(start, end, destination);
@@ -291,7 +297,7 @@ BAD_VULKAN_make_cubemap(VulkanContext * context, StaticArray<TextureAsset, 6> * 
 	VkCommandBuffer cmd = vulkan::begin_command_buffer(context->device, context->commandPool);
 	
 	// Todo(Leo): begin and end command buffers once only and then just add commands from inside these
-	vulkan::cmd_transition_image_layout(cmd, context->device, context->queues.graphics,
+	vulkan::cmd_transition_image_layout(cmd, context->device, context->graphicsQueue,
 								resultImage, VK_FORMAT_R8G8B8A8_UNORM, mipLevels,
 								VK_IMAGE_LAYOUT_UNDEFINED,
 								VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, CUBEMAP_LAYERS);
@@ -320,7 +326,7 @@ BAD_VULKAN_make_cubemap(VulkanContext * context, StaticArray<TextureAsset, 6> * 
 							resultImage, VK_FORMAT_R8G8B8A8_UNORM,
 							width, height, mipLevels, CUBEMAP_LAYERS);
 
-	vulkan::execute_command_buffer(cmd, context->device, context->commandPool, context->queues.graphics);
+	vulkan::execute_command_buffer(cmd, context->device, context->commandPool, context->graphicsQueue);
 
 	/// CREATE IMAGE VIEW
 	VkImageViewCreateInfo imageViewInfo =
@@ -422,6 +428,12 @@ internal MaterialHandle fsvulkan_resources_push_material (	VulkanContext *     c
 	s64 index = (s64)context->loadedMaterials.size();
 	context->loadedMaterials.push_back({pipeline, descriptorSet});
 
+
+	if (pipeline == GRAPHICS_PIPELINE_SKYBOX)
+	{
+		context->skyGradientDescriptorSet = descriptorSet;
+	}
+
 	return {index};
 }
 
@@ -457,7 +469,7 @@ internal MeshHandle fsvulkan_resources_push_mesh(VulkanContext * context, MeshAs
 	VkBufferCopy copyRegion = { 0, context->staticMeshPool.used, totalBufferSize };
 	vkCmdCopyBuffer(commandBuffer, context->stagingBufferPool.buffer, context->staticMeshPool.buffer, 1, &copyRegion);
 
-	vulkan::execute_command_buffer(commandBuffer,context->device, context->commandPool, context->queues.graphics);
+	vulkan::execute_command_buffer(commandBuffer,context->device, context->commandPool, context->graphicsQueue);
 
 	VulkanMesh model = {};
 
@@ -703,7 +715,7 @@ make_shadow_texture(VulkanContext * context, u32 width, u32 height, VkFormat for
 	vkCmdPipelineBarrier(cmd,   VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
 								VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT,
 								0, 0, nullptr, 0, nullptr, 1, &barrier);
-	execute_command_buffer (cmd, context->device, context->commandPool, context->queues.graphics);
+	execute_command_buffer (cmd, context->device, context->commandPool, context->graphicsQueue);
 
 
 	/// CREATE IMAGE VIEW

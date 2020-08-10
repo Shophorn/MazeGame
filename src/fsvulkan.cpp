@@ -24,8 +24,8 @@ internal PlatformGraphicsFrameResult fsvulkan_prepare_frame(VulkanContext * cont
     VULKAN_CHECK(vkWaitForFences(context->device, 1, &frame->inFlightFence, VK_TRUE, VULKAN_NO_TIME_OUT));
 
     VkResult result = vkAcquireNextImageKHR(context->device,
-                                            context->drawingResources.swapchain,
-                                            VULKAN_NO_TIME_OUT,//MaxValue<u64>,
+                                            context->swapchain,
+                                            VULKAN_NO_TIME_OUT,
                                             frame->imageAvailableSemaphore,
                                             VK_NULL_HANDLE,
                                             &context->currentDrawFrameIndex);
@@ -52,6 +52,8 @@ internal void fsvulkan_reload_shaders(VulkanContext * context)
 		VkDevice device = context->device;
 
 		logVulkan(0) << "Hello";
+
+		vkResetDescriptorPool(context->device, context->persistentDescriptorPool, 0);
 
 		fsvulkan_cleanup_pipelines(context);
 		fsvulkan_initialize_pipelines(*context);
@@ -614,11 +616,9 @@ winapi::create_vulkan_context(WinAPIWindow * window)
 		using namespace winapi_vulkan_internal_;
 
 		VulkanQueueFamilyIndices queueFamilyIndices = vulkan::find_queue_families(context.physicalDevice, context.surface);
-		vkGetDeviceQueue(context.device, queueFamilyIndices.graphics, 0, &context.queues.graphics);
-		vkGetDeviceQueue(context.device, queueFamilyIndices.present, 0, &context.queues.present);
+		vkGetDeviceQueue(context.device, queueFamilyIndices.graphics, 0, &context.graphicsQueue);
+		vkGetDeviceQueue(context.device, queueFamilyIndices.present, 0, &context.presentQueue);
 
-		context.queues.graphicsIndex = queueFamilyIndices.graphics;
-		context.queues.presentIndex = queueFamilyIndices.present;
 
 		/// START OF RESOURCES SECTION ////////////////////
 		VkCommandPoolCreateInfo poolInfo =
@@ -896,7 +896,7 @@ winapi_vulkan_internal_::create_vk_device(VkPhysicalDevice physicalDevice, VkSur
 	s32 uniqueQueueFamilyCount = queueIndices.graphics == queueIndices.present ? 1 : 2;
 	VkDeviceQueueCreateInfo queueCreateInfos [2] = {};
 	float queuePriorities[/*queueCount*/] = { 1.0f };
-	for (s32 i = 0; i <uniqueQueueFamilyCount; ++i)
+	for (s32 i = 0; i < uniqueQueueFamilyCount; ++i)
 	{
 		// VkDeviceQueueCreateInfo queueCreateInfo = {};
 		queueCreateInfos[i].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
