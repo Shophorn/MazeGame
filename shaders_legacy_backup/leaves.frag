@@ -1,8 +1,17 @@
 #version 450
 #extension GL_GOOGLE_include_directive : enable
 
-const int LIGHTING_SET 		= 1;
-const int SKY_GRADIENT_SET 	= 4;
+layout (set = 1, binding = 0) uniform Lighting
+{
+	vec4 direction;
+	vec4 color;
+	vec4 ambient;
+	vec4 camDirection;
+	float skyColourSelection;
+} light;
+
+layout(binding = 0, set = 4) uniform sampler2D skyGradients[2];
+
 #include "skyfunc.glsl"
 
 layout(binding = 0, set = 2) uniform sampler2D lightMap;
@@ -16,9 +25,9 @@ layout(push_constant) uniform Block
 layout(location = 0) in vec2 fragTexCoord;
 layout(location = 1) in vec3 fragNormal;
 layout(location = 2) in vec4 lightCoords;
-layout(location = 3) in vec3 fragPosition;
 
 layout(location = 0) out vec4 outColor;
+
 
 // Todo(Leo): use gradient textures
 const vec3 darkerColours [] =
@@ -102,26 +111,10 @@ void main()
 
 	// Note(Leo): try these two
 	// vec3 lightColor = mix(light.ambient.rgb, light.color.rgb, lightIntensity);
-	vec3 lightColor 	= compute_sky_color(normal, lightDir);
-	vec3 diffuseTerm 	= mix(light.ambient.rgb, lightColor, lightIntensity) * albedo;
-
-	vec3 viewDirection 		= normalize(light.cameraPosition.xyz - fragPosition);
-
-	float smoothness 		= 0.5; //material.smoothness;
-	float specularStrength 	= 0.1;//material.specularStrength;;
-	vec3 halfVector 		= normalize(lightDir + viewDirection);
-	float spec 				= max(0, dot (halfVector, normal));
-	spec 					= pow(spec, 256 * smoothness);
-
-	const float epsilon = 0.0001;
-
-	float inLightActual 	= 1.0 - step(lightDepthFromTexture + epsilon, lightCoords.z);
-	vec3 specularTerm 		= spec * specularStrength * lightColor * inLightActual;
-
-
+	vec3 lightColor = compute_sky_color(normal, lightDir);
 	// vec3 lightColor = light.ambient.rgb + light.color.rgb * lightIntensity;
 	
-	vec3 color = diffuseTerm + specularTerm;
+	vec3 color = lightColor * albedo;
 
 	// color *= step(distanceFromCenter, 1.0);
 

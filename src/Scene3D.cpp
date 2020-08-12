@@ -228,6 +228,8 @@ struct Scene3d
 	ModelHandle skybox;
 	bool32 		getSkyColorFromTreeDistance;
 	f32 		skyColorSelection;
+	f32 		sunHeightAngle;
+	f32 		sunOrbitAngle;
 
 	Gui 		gui;
 	s32 		cameraMode;
@@ -242,6 +244,7 @@ struct Scene3d
 	// Todo(Leo): this is kinda too hacky
 	constexpr static s32 	timeScaleCount = 3;
 	s32 					timeScaleIndex;
+
 };
 
 struct Scene3dSaveLoad
@@ -476,43 +479,50 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 	update_camera_system(&scene->worldCamera, platformGraphics, platformWindow);
 
-	Light light = { .direction 	= normalize_v3({-1, 1.2, -8}), 
-					.color 		= v3{0.95, 0.95, 0.9}};
-	v3 ambient 	= {0.05, 0.05, 0.3};
-
-
-	if (scene->getSkyColorFromTreeDistance)
 	{
-		float playerDistanceFromClosestTree = highest_f32;
-		for (s32 i = 0; i < scene->lSystemCount; ++i)
+		v3 lightDirection = {0,0,1};
+		lightDirection = rotate_v3(axis_angle_quaternion(right_v3, scene->sunHeightAngle * π), lightDirection);
+		lightDirection = rotate_v3(axis_angle_quaternion(up_v3, scene->sunOrbitAngle * 2 * π), lightDirection);
+		lightDirection = normalize_v3(-lightDirection);
+
+		Light light = { .direction 	= lightDirection, //normalize_v3({-1, 1.2, -8}), 
+						.color 		= v3{0.95, 0.95, 0.9}};
+		v3 ambient 	= {0.05, 0.05, 0.3};
+
+
+		if (scene->getSkyColorFromTreeDistance)
 		{
-			if (scene->lSystems[i].totalAge < 0.0001f)
+			float playerDistanceFromClosestTree = highest_f32;
+			for (s32 i = 0; i < scene->lSystemCount; ++i)
 			{
-				continue;
+				if (scene->lSystems[i].totalAge < 0.0001f)
+				{
+					continue;
+				}
+
+				constexpr f32 treeRadiusRatio = 0.2;
+				f32 treeRadius = scene->lSystems[i].totalAge * treeRadiusRatio;
+
+				debug_draw_circle_xy(scene->lSystems[i].position + v3{0,0,0.2}, treeRadius, colour_bright_green, DEBUG_NPC);
+
+				f32 distanceFromTree 			= magnitude_v3(scene->playerCharacterTransform.position - scene->lSystems[i].position) - treeRadius;
+				playerDistanceFromClosestTree 	= min_f32(playerDistanceFromClosestTree, distanceFromTree);
 			}
 
-			constexpr f32 treeRadiusRatio = 0.2;
-			f32 treeRadius = scene->lSystems[i].totalAge * treeRadiusRatio;
+			constexpr f32 minPlayerDistance = 0;
+			constexpr f32 maxPlayerDistance = 5;
 
-			debug_draw_circle_xy(scene->lSystems[i].position + v3{0,0,0.2}, treeRadius, colour_bright_green, DEBUG_NPC);
-
-			f32 distanceFromTree 			= magnitude_v3(scene->playerCharacterTransform.position - scene->lSystems[i].position) - treeRadius;
-			playerDistanceFromClosestTree 	= min_f32(playerDistanceFromClosestTree, distanceFromTree);
+			// f32 playerDistance 				= magnitude_v2(scene->playerCharacterTransform->position.xy);
+			light.skyColorSelection 		= clamp_f32((playerDistanceFromClosestTree - minPlayerDistance) / (maxPlayerDistance - minPlayerDistance), 0, 1);
+		}
+		else
+		{
+			light.skyColorSelection = scene->skyColorSelection;
 		}
 
-		constexpr f32 minPlayerDistance = 0;
-		constexpr f32 maxPlayerDistance = 5;
 
-		// f32 playerDistance 				= magnitude_v2(scene->playerCharacterTransform->position.xy);
-		light.skyColorSelection 		= clamp_f32((playerDistanceFromClosestTree - minPlayerDistance) / (maxPlayerDistance - minPlayerDistance), 0, 1);
+		platformApi->update_lighting(platformGraphics, &light, &scene->worldCamera, ambient);
 	}
-	else
-	{
-		light.skyColorSelection = scene->skyColorSelection;
-	}
-
-
-	platformApi->update_lighting(platformGraphics, &light, &scene->worldCamera, ambient);
 
 	/// *******************************************************************************************
 	
@@ -1240,6 +1250,9 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 							update_lsystem_mesh_tree2(lSystems[i], leavess[i]);
 						}
 
+						mesh_generate_normals(	lSystems[i].vertices.count, lSystems[i].vertices.data,
+												lSystems[i].indices.count, lSystems[i].indices.data);
+
 						mesh_generate_tangents(	lSystems[i].vertices.count, lSystems[i].vertices.data,
 												lSystems[i].indices.count, lSystems[i].indices.data);
 
@@ -1475,10 +1488,10 @@ void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle saveFile
 		{
 			v4 niceSkyGradientColors [] =
 			{
-				{0.43f / 2.55f, 0.3f/2.55f, 0.98f/2.55f, 	1.0},
-				{0.4, 0.9, 1.2,								1.0},
-				{0.8, 0.99, 1.2,							1.0},
-				{2,2,2, 									1.0},
+				{0.11, 0.07, 0.25, 	1.0},
+				{0.4, 0.9, 1.2,		1.0},
+				{0.8, 0.99, 1.2,	1.0},
+				{2,2,2, 			1.0},
 			};
 			f32 niceSkyGradientTimes [] 		= {0.1, 0.3, 0.9, 0.99};
 
@@ -1488,11 +1501,11 @@ void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle saveFile
 
 			v4 meanSkyGradientColors [] =
 			{
-				{0,0,0,  			1.0},
+				{0.1,0.05,0.05,		1.0},
 				{1.1, 0.1, 0.05,	1.0},
 				{1.1, 0.1, 0.05,	1.0},
 				{1.4, 0.95, 0.8,	1.0},
-				{2,1.5,1.5, 			1.0},
+				{2, 1.2, 1.2, 		1.0},
 			};
 			f32 meanSkyGradientTimes [] 			= {0.1, 0.3, 0.7, 0.9, 0.99};
 			TextureAsset meanSkyGradientAsset 		= generate_gradient(*global_transientMemory, 5, meanSkyGradientColors, meanSkyGradientTimes, 128);
@@ -2042,8 +2055,8 @@ void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle saveFile
 		}
 
 		// Todo(Leo): textures are copied too many times: from file to stb, from stb to TextureAsset, from TextureAsset to graphics.
-		TextureAsset albedo = load_texture_asset(*global_transientMemory, "assets/textures/Acorn_albedo.png");
-		TextureAsset normal = load_texture_asset(*global_transientMemory, "assets/textures/ground_normal.png");
+		TextureAsset albedo = load_texture_asset(*global_transientMemory, "assets/textures/bark.png");
+		TextureAsset normal = load_texture_asset(*global_transientMemory, "assets/textures/bark_normal.png");
 
 		TextureHandle treeTextures [] =
 		{	

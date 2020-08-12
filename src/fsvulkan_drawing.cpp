@@ -185,12 +185,13 @@ internal void fsvulkan_drawing_prepare_frame(VulkanContext * context)
 
 		// Note(Leo): the pointer in this is actually same as above, but this function call changes values of struct at the other end of pointer.
 		// Todo(Leo): shadow framebuffer needs to be separate per virtual frame
-		.pInheritanceInfo = fsvulkan_drawing_internal_::get_vk_command_buffer_inheritance_info(context->shadowPass.renderPass, context->shadowPass.framebuffer),
+		.pInheritanceInfo = fsvulkan_drawing_internal_::get_vk_command_buffer_inheritance_info(context->shadowRenderPass, context->shadowFramebuffer),
 	};
 	VULKAN_CHECK(vkBeginCommandBuffer(frame->commandBuffers.offscreen, &shadowCmdBeginInfo));
 
+	// Todo(Leo): this comment is not true anymore, but deductions from it have not been corrected
 	// Note(Leo): We only ever use this one pipeline with shadows, so it is sufficient to only bind it once, here.
-	vkCmdBindPipeline(frame->commandBuffers.offscreen, VK_PIPELINE_BIND_POINT_GRAPHICS, context->shadowPass.pipeline);
+	vkCmdBindPipeline(frame->commandBuffers.offscreen, VK_PIPELINE_BIND_POINT_GRAPHICS, context->shadowPipeline);
 }
 
 internal void fsvulkan_drawing_finish_frame(VulkanContext * context)
@@ -220,12 +221,12 @@ internal void fsvulkan_drawing_finish_frame(VulkanContext * context)
 	VkRenderPassBeginInfo shadowRenderPassInfo =
 	{
 		.sType              = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-		.renderPass         = context->shadowPass.renderPass,
-		.framebuffer        = context->shadowPass.framebuffer,
+		.renderPass         = context->shadowRenderPass,
+		.framebuffer        = context->shadowFramebuffer,
 		
 		.renderArea = {
 			.offset = {0,0},
-			.extent  = {context->shadowPass.width, context->shadowPass.height},
+			.extent  = {context->shadowTextureWidth, context->shadowTextureHeight},
 		},
 
 		.clearValueCount    = 1,
@@ -345,7 +346,7 @@ internal void fsvulkan_drawing_finish_frame(VulkanContext * context)
 
 		if(textureHandle == GRAPHICS_RESOURCE_SHADOWMAP_GUI_TEXTURE)
 		{
-			descriptorSet = context->shadowMapTexture;
+			descriptorSet = context->shadowMapTextureDescriptorSet;
 		}
 		else
 		{
@@ -479,7 +480,7 @@ internal void fsvulkan_drawing_draw_model(VulkanContext * context, ModelHandle m
 		material->descriptorSet,
 		context->modelDescriptorSet,
 		context->lightingDescriptorSet[context->virtualFrameIndex],
-		context->shadowMapTexture,
+		context->shadowMapTextureDescriptorSet,
 		context->skyGradientDescriptorSet,
 	};
 
@@ -516,7 +517,7 @@ internal void fsvulkan_drawing_draw_model(VulkanContext * context, ModelHandle m
 
 		vkCmdBindDescriptorSets(frame->commandBuffers.offscreen,
 								VK_PIPELINE_BIND_POINT_GRAPHICS,
-								context->shadowPass.layout,
+								context->shadowPipelineLayout,
 								0,
 								2,
 								shadowSets,
@@ -585,7 +586,7 @@ internal void fsvulkan_drawing_draw_leaves(	VulkanContext * context,
 							0, nullptr);
 
 	vkCmdBindDescriptorSets(frame->commandBuffers.scene, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout,
-							2, 1, &context->shadowMapTexture,
+							2, 1, &context->shadowMapTextureDescriptorSet,
 							0, nullptr);
 
 	VkDescriptorSet materialDescriptorSet = fsvulkan_get_loaded_material(context, materialHandle)->descriptorSet;
@@ -678,7 +679,7 @@ internal void fsvulkan_drawing_draw_meshes(VulkanContext * context, s32 count, m
 		material->descriptorSet,
 		context->modelDescriptorSet,
 		context->lightingDescriptorSet[context->virtualFrameIndex],
-		context->shadowMapTexture,
+		context->shadowMapTextureDescriptorSet,
 		context->skyGradientDescriptorSet,
 	};
 
@@ -721,7 +722,7 @@ internal void fsvulkan_drawing_draw_meshes(VulkanContext * context, s32 count, m
 		{
 			vkCmdBindDescriptorSets(frame->commandBuffers.offscreen,
 									VK_PIPELINE_BIND_POINT_GRAPHICS,
-									context->shadowPass.layout,
+									context->shadowPipelineLayout,
 									0,
 									2,
 									shadowSets,
@@ -768,7 +769,7 @@ internal void fsvulkan_drawing_draw_procedural_mesh(VulkanContext * context,
 		material->descriptorSet,
 		context->modelDescriptorSet,
 		context->lightingDescriptorSet[context->virtualFrameIndex],
-		context->shadowMapTexture,
+		context->shadowMapTextureDescriptorSet,
 		context->skyGradientDescriptorSet
 	};
 
@@ -821,7 +822,7 @@ internal void fsvulkan_drawing_draw_procedural_mesh(VulkanContext * context,
 
 	vkCmdBindDescriptorSets(frame->commandBuffers.offscreen,
 							VK_PIPELINE_BIND_POINT_GRAPHICS,
-							context->shadowPass.layout,
+							context->shadowPipelineLayout,
 							0,
 							2,
 							shadowSets,
@@ -881,7 +882,7 @@ internal void fsvulkan_drawing_draw_screen_rects(VulkanContext * context, s32 co
 
 	if(textureHandle == GRAPHICS_RESOURCE_SHADOWMAP_GUI_TEXTURE)
 	{
-		descriptorSet = context->shadowMapTexture;
+		descriptorSet = context->shadowMapTextureDescriptorSet;
 	}
 	else
 	{

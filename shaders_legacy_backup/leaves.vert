@@ -14,7 +14,6 @@ layout (location = 0) in mat4 modelMatrix;
 layout (location = 0) out vec2 fragTexCoord;
 layout (location = 1) out vec3 fragNormal;
 layout (location = 2) out vec4 lightCoords;
-layout (location = 3) out vec3 fragPosition;
 
 const float shadowDistance = 90.0;
 const float transitionDistance = 10.0;
@@ -79,7 +78,6 @@ void main ()
 	lightCoords.xy -= 0.5;
 
 	vec4 worldPosition = modelMatrix * vec4(inPosition, 1.0);
-	fragPosition = worldPosition.xyz;
 	float distance = length((camera.view * worldPosition).xyz);
 	distance = distance - (shadowDistance - transitionDistance);
 	distance = distance / transitionDistance;

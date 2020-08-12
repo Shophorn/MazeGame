@@ -203,7 +203,7 @@ struct VulkanVirtualFrame
 
 	// Todo(Leo): this is not enough, the complete shadow texture mess needs to be per virtual frame
 	// Extre Todo(Leo): this is not even used even though it should be instead of static single one
-    VkFramebuffer  	shadowFramebuffer;
+    // VkFramebuffer  	shadowFramebuffer;
 
     VkSemaphore 	shadowPassWaitSemaphore;
 	VkSemaphore    	imageAvailableSemaphore;
@@ -246,9 +246,6 @@ struct PlatformGraphics
 	VkDescriptorSetLayout 	lightingDescriptorSetLayout;
     VkDescriptorSet 		lightingDescriptorSet[VIRTUAL_FRAME_COUNT];
 	
-	// Todo(Leo): These also need to be part of virtual frame thing
-	VkDescriptorSetLayout 	shadowMapDescriptorSetLayout;
-	VkDescriptorSet 		shadowMapDescriptorSet;
 
     // Todo(Leo): set these dynamically
     constexpr static VkDeviceSize cameraUniformOffset 			= 0;
@@ -279,21 +276,27 @@ struct PlatformGraphics
     std::vector<VkImage> 		swapchainImages;
     std::vector<VkImageView> 	swapchainImageViews;
 
-	struct
-	{
-		u32 width;
-		u32 height;
+	// ----------------------------------------------------------------------------------
 
-		VulkanTexture 		attachment;
-		VkSampler 			sampler; 
+    u32 		shadowTextureWidth;
+    u32 		shadowTextureHeight;
+	VkSampler 	shadowTextureSampler; 
 
-		VkRenderPass 		renderPass;
-		VkFramebuffer 		framebuffer;
+	VkRenderPass 		shadowRenderPass;
+	VkPipeline 			shadowPipeline;
+	VkPipelineLayout 	shadowPipelineLayout;
 
-		VkPipelineLayout 	layout;
-		VkPipeline 			pipeline;
+	VulkanTexture 			shadowAttachment;
+	VkFramebuffer 			shadowFramebuffer;
 
-	} shadowPass;
+	VkDescriptorSetLayout 	shadowMapTextureDescriptorSetLayout;
+	VkDescriptorSet 		shadowMapTextureDescriptorSet;
+	
+	VkPipeline 				leavesShadowPipeline;
+	VkPipelineLayout 		leavesShadowPipelineLayout;
+	VkDescriptorSetLayout 	leavesShadowMaskDescriptorSetLayout;
+
+	// ----------------------------------------------------------------------------------
 
 	// Todo(Leo): This is stupid, just use bool, we only have one use case, probably never have a ton, so just add more bools
 	using PostRenderFunc = void(VulkanContext*);
@@ -316,16 +319,13 @@ struct PlatformGraphics
 	// since they are used alone. We should maybe just use normal materials. I don't know yet.
 	std::vector<VulkanGuiTexture> 	loadedGuiTextures;
 
-	VkDescriptorSet 		shadowMapTexture;
+
 
 	FSVulkanPipeline pipelines [GRAPHICS_PIPELINE_COUNT];
 
 	VkPipeline 				linePipeline;
 	VkPipelineLayout 		linePipelineLayout;
 
-	VkPipeline 				leavesShadowPipeline;
-	VkPipelineLayout 		leavesShadowPipelineLayout;
-	VkDescriptorSetLayout 	leavesShadowMaskDescriptorSetLayout;
 
 	VkPipeline 				passThroughPipeline;
 	VkPipelineLayout 		passThroughPipelineLayout;

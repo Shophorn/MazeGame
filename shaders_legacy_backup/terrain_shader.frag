@@ -18,7 +18,6 @@ layout (set = 3, binding = 0) uniform Lighting
 
 layout(set = 5, binding = 0) uniform sampler2D skyGradients[2];
 
-#define MORE_INPUT
 #include "skyfunc.glsl"
 
 layout(location = 0) in vec3 fragColor;

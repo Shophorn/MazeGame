@@ -134,14 +134,11 @@ global_variable int globalXinputControllerIndex;
 // Todo(Leo): Vulkan implementation depends on this, not cool
 using BinaryAsset = std::vector<u8>;
 BinaryAsset
-BAD_read_binary_file (const char * fileName)
+BAD_read_binary_file (const char * filename)
 {
-	std::ifstream file (fileName, std::ios::ate | std::ios::binary);
+	std::ifstream file (filename, std::ios::ate | std::ios::binary);
 
-	if (file.is_open() == false)
-	{
-		throw std::runtime_error("failed to open file");
-	}
+	AssertMsg(file.is_open(), filename);
 
 	size_t fileSize = file.tellg();
 	BinaryAsset result (fileSize);

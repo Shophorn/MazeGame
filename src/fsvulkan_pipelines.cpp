@@ -328,7 +328,7 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 			materialLayout,
 			context.modelDescriptorSetLayout,
 			context.lightingDescriptorSetLayout,
-			context.shadowMapDescriptorSetLayout,
+			context.shadowMapTextureDescriptorSetLayout,
 			context.skyGradientDescriptorSetLayout
 		};
 		// TODO(Leo): this was maybe stupid idea, this is material block, and we are going to use
@@ -402,7 +402,7 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 			materialLayout,
 			context.modelDescriptorSetLayout,
 			context.lightingDescriptorSetLayout,
-			context.shadowMapDescriptorSetLayout,
+			context.shadowMapTextureDescriptorSetLayout,
 			context.skyGradientDescriptorSetLayout,
 		};
 		// TODO(Leo): this was maybe stupid idea, this is material block, and we are going to use
@@ -473,7 +473,7 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 			materialLayout,
 			context.modelDescriptorSetLayout,
 			context.lightingDescriptorSetLayout,
-			context.shadowMapDescriptorSetLayout,
+			context.shadowMapTextureDescriptorSetLayout,
 			context.skyGradientDescriptorSetLayout
 		};
 		// TODO(Leo): this was maybe stupid idea, this is material block, and we are going to use
@@ -544,7 +544,7 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 			materialLayout,
 			context.modelDescriptorSetLayout,
 			context.lightingDescriptorSetLayout,
-			context.shadowMapDescriptorSetLayout,
+			context.shadowMapTextureDescriptorSetLayout,
 			context.skyGradientDescriptorSetLayout
 		};
 
@@ -614,8 +614,8 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 
 		// ---------------------------------------------------------------------------------------------------------------------------
 
-		VkShaderModule vertexShaderModule 	= fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/gui_vert3.spv"));
-		VkShaderModule fragmentShaderModule = fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/gui_frag2.spv"));
+		VkShaderModule vertexShaderModule 	= fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/gui_vert.spv"));
+		VkShaderModule fragmentShaderModule = fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/gui_frag.spv"));
 
 		VkPipelineShaderStageCreateInfo shaderStages [] =
 		{
@@ -684,7 +684,7 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 		{
 			context.cameraDescriptorSetLayout,
 			context.lightingDescriptorSetLayout,
-			context.shadowMapDescriptorSetLayout,
+			context.shadowMapTextureDescriptorSetLayout,
 			materialLayout,	
 			context.skyGradientDescriptorSetLayout,
 		};
@@ -761,7 +761,7 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 			materialLayout,
 			context.modelDescriptorSetLayout,
 			context.lightingDescriptorSetLayout,
-			context.shadowMapDescriptorSetLayout,
+			context.shadowMapTextureDescriptorSetLayout,
 			context.skyGradientDescriptorSetLayout,
 		};
 		// TODO(Leo): this was maybe stupid idea, this is material block, and we are going to use
@@ -1022,8 +1022,8 @@ internal void fsvulkan_initialize_shadow_pipeline(VulkanContext & context)
 																			array_count(fsvulkan_defaultVertexAttributes), fsvulkan_defaultVertexAttributes);
 	auto inputAssemblyState	= fsvulkan_pipeline_input_assembly_create_info(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
 
-	VkViewport viewport 	= {0, 0, (f32)context.shadowPass.width, (f32)context.shadowPass.height, 0, 1};
-	VkRect2D scissor 		= {{0,0}, {context.shadowPass.width, context.shadowPass.height}};
+	VkViewport viewport 	= {0, 0, (f32)context.shadowTextureWidth, (f32)context.shadowTextureHeight, 0, 1};
+	VkRect2D scissor 		= {{0,0}, {context.shadowTextureWidth, context.shadowTextureHeight}};
 	auto viewportState 		= fsvulkan_pipeline_viewport_state_create_info(1, &viewport, 1, &scissor);
 
 	auto rasterizationState	= fsvulkan_pipeline_rasterization_state_create_info(VK_CULL_MODE_NONE);
@@ -1042,7 +1042,7 @@ internal void fsvulkan_initialize_shadow_pipeline(VulkanContext & context)
 	};
 
 	auto pipelineLayoutInfo = fsvulkan_pipeline_layout_create_info(array_count(setLayouts), setLayouts, 0, nullptr);
-	VULKAN_CHECK(vkCreatePipelineLayout (context.device, &pipelineLayoutInfo, nullptr, &context.shadowPass.layout));
+	VULKAN_CHECK(vkCreatePipelineLayout (context.device, &pipelineLayoutInfo, nullptr, &context.shadowPipelineLayout));
 
 	VkGraphicsPipelineCreateInfo pipelineCreateInfo =
 	{
@@ -1056,11 +1056,11 @@ internal void fsvulkan_initialize_shadow_pipeline(VulkanContext & context)
 		.pMultisampleState 		= &multisampleState,
 		.pDepthStencilState 	= &depthStencilState,
 		.pColorBlendState 		= &colorBlendState,
-		.layout 				= context.shadowPass.layout,
-		.renderPass 			= context.shadowPass.renderPass,
+		.layout 				= context.shadowPipelineLayout,
+		.renderPass 			= context.shadowRenderPass,
 	};
 
-	VULKAN_CHECK(vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &context.shadowPass.pipeline));
+	VULKAN_CHECK(vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &context.shadowPipeline));
 
 	// Note(Leo): Always remember to destroy these :)
 	vkDestroyShaderModule(context.device, vertexShaderModule, nullptr);
@@ -1105,8 +1105,8 @@ internal void fsvulkan_initialize_leaves_shadow_pipeline(VulkanContext & context
 																											vertexAttributeDescriptions);
 	auto inputAssemblyState = fsvulkan_pipeline_input_assembly_create_info									(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP);
 
-	VkViewport viewport 	= {0, 0, (f32)context.shadowPass.width, (f32)context.shadowPass.height, 0, 1};
-	VkRect2D scissor 		= {{0,0}, {context.shadowPass.width, context.shadowPass.height}};
+	VkViewport viewport 	= {0, 0, (f32)context.shadowTextureWidth, (f32)context.shadowTextureHeight, 0, 1};
+	VkRect2D scissor 		= {{0,0}, {context.shadowTextureWidth, context.shadowTextureHeight}};
 	auto viewportState 		= fsvulkan_pipeline_viewport_state_create_info									(1, &viewport, 1, &scissor);
 
 	auto rasterizationState = fsvulkan_pipeline_rasterization_state_create_info								(VK_CULL_MODE_NONE);
@@ -1130,7 +1130,7 @@ internal void fsvulkan_initialize_leaves_shadow_pipeline(VulkanContext & context
 		.pColorBlendState       = &colorBlendingState,
 
 		.layout                 = context.leavesShadowPipelineLayout,
-		.renderPass             = context.shadowPass.renderPass,
+		.renderPass             = context.shadowRenderPass,
 	};
 
 	VULKAN_CHECK(vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &context.leavesShadowPipeline));

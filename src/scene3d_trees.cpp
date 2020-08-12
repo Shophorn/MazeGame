@@ -735,7 +735,7 @@ internal void update_lsystem_mesh_tree2(TimedLSystem & lSystem, Leaves & leaves)
 		Vertex vertex =
 		{
 			.position 	= multiply_point(transform, position),
-			.normal 	= normalize_v3(multiply_direction(transform, normal)),
+			// .normal 	= normalize_v3(multiply_direction(transform, normalize_v3(normal))),
 			.color 		= {1,1,1},
 			.texCoord 	= texcoord,
 		};
@@ -863,7 +863,7 @@ internal void update_lsystem_mesh_tree2(TimedLSystem & lSystem, Leaves & leaves)
 				}
 
 				state.position 	+= forward * heightGrowth * terminalAge;// * word[i].parameter;
-				state.textureHeight += heightGrowth * terminalAge;
+				state.textureHeight += heightGrowth * terminalAge / 2;
 
 				// Note(Leo): Draw upper end slightly thinner, so it matches the following 'X' module
 				width 			= (word[i].age - terminalAge) * widthGroth;

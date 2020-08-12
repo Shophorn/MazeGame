@@ -314,12 +314,13 @@ internal void fsvulkan_recreate_drawing_resources(VulkanContext * context, u32 w
 	fsvulkan_cleanup_pipelines(context);
 	fsvulkan_initialize_pipelines(*context);
 
-	context->shadowMapTexture = make_material_vk_descriptor_set_2( 	context,
-																context->pipelines[GRAPHICS_PIPELINE_SCREEN_GUI].descriptorSetLayout,
-																context->shadowPass.attachment.view,
-																context->persistentDescriptorPool,
-																context->shadowPass.sampler,
-																VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	context->shadowMapTextureDescriptorSet = make_material_vk_descriptor_set_2( context,
+																				context->shadowMapTextureDescriptorSetLayout,
+																				// context->pipelines[GRAPHICS_PIPELINE_SCREEN_GUI].descriptorSetLayout,
+																				context->shadowAttachment.view,
+																				context->persistentDescriptorPool,
+																				context->shadowTextureSampler,
+																				VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 	
 	/* Todo(Leo, 28.5.): We currently have viewport and scissor sizes as dynamic
 	things in all pipelines, so we do not need to recreate those. But if we change that,

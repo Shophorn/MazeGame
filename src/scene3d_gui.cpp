@@ -229,11 +229,14 @@ bool32 do_gui(Scene3d * scene, PlatformInput const & input)
 				"Color From Tree Distance: Off",
 				"Color From Tree Distance: On"
 			};
+
 			if (gui_button(colorFromTreeDistanceTexts[scene->getSkyColorFromTreeDistance]))
 			{
 				scene->getSkyColorFromTreeDistance = !scene->getSkyColorFromTreeDistance;
 			}
 
+			scene->sunHeightAngle 	= gui_float_slider("Sky Height Angle", scene->sunHeightAngle, -1, 1);
+			scene->sunOrbitAngle 	= gui_float_slider("Sky Orbit Angle", scene->sunOrbitAngle, 0, 1);
 
 			if (gui_button("Back"))
 			{

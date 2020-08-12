@@ -58,12 +58,13 @@ internal void fsvulkan_reload_shaders(VulkanContext * context)
 		fsvulkan_cleanup_pipelines(context);
 		fsvulkan_initialize_pipelines(*context);
 
-		context->shadowMapTexture = make_material_vk_descriptor_set_2( 	context,
-																		context->pipelines[GRAPHICS_PIPELINE_SCREEN_GUI].descriptorSetLayout,
-																		context->shadowPass.attachment.view,
-																		context->persistentDescriptorPool,
-																		context->shadowPass.sampler,
-																		VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+		context->shadowMapTextureDescriptorSet = make_material_vk_descriptor_set_2( context,
+																				context->shadowMapTextureDescriptorSetLayout,
+																				// context->pipelines[GRAPHICS_PIPELINE_SCREEN_GUI].descriptorSetLayout,
+																				context->shadowAttachment.view,
+																				context->persistentDescriptorPool,
+																				context->shadowTextureSampler,
+																				VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 		logVulkan(0) << "Hello2";
 	};
 }
@@ -670,12 +671,13 @@ winapi::create_vulkan_context(WinAPIWindow * window)
 			});
 		}
 
-		context.shadowMapTexture = make_material_vk_descriptor_set_2( 	&context,
-																		context.pipelines[GRAPHICS_PIPELINE_SCREEN_GUI].descriptorSetLayout,
-																		context.shadowPass.attachment.view,
-																		context.persistentDescriptorPool,
-																		context.shadowPass.sampler,
-																		VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+		context.shadowMapTextureDescriptorSet = make_material_vk_descriptor_set_2( 	&context,
+																				context.shadowMapTextureDescriptorSetLayout,
+																				// context.pipelines[GRAPHICS_PIPELINE_SCREEN_GUI].descriptorSetLayout,
+																				context.shadowAttachment.view,
+																				context.persistentDescriptorPool,
+																				context.shadowTextureSampler,
+																				VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 	}
 
 
@@ -1332,11 +1334,11 @@ void winapi_vulkan_internal_::init_shadow_pass(VulkanContext * context, u32 widt
 	// Todo(Leo): This may not be a valid format, query support or check if vulkan spec requires this.
 	VkFormat format = VK_FORMAT_D32_SFLOAT;
 
-	context->shadowPass.width = width;
-	context->shadowPass.height = height;
+	context->shadowTextureWidth = width;
+	context->shadowTextureHeight = height;
 
-	context->shadowPass.attachment  = make_shadow_texture(context, context->shadowPass.width, context->shadowPass.height, format);
-	context->shadowPass.sampler     = BAD_VULKAN_make_vk_sampler(context->device, VK_SAMPLER_ADDRESS_MODE_REPEAT);
+	context->shadowAttachment  = make_shadow_texture(context, context->shadowTextureWidth, context->shadowTextureHeight, format);
+	context->shadowTextureSampler     = BAD_VULKAN_make_vk_sampler(context->device, VK_SAMPLER_ADDRESS_MODE_REPEAT);
 
 	VkAttachmentDescription attachment =
 	{
@@ -1395,56 +1397,56 @@ void winapi_vulkan_internal_::init_shadow_pass(VulkanContext * context, u32 widt
 	renderPassInfo.dependencyCount          = array_count(dependencies);
 	renderPassInfo.pDependencies            = &dependencies[0];
 
-	VULKAN_CHECK (vkCreateRenderPass(context->device, &renderPassInfo, nullptr, &context->shadowPass.renderPass));
+	VULKAN_CHECK (vkCreateRenderPass(context->device, &renderPassInfo, nullptr, &context->shadowRenderPass));
 
-	context->shadowPass.framebuffer = make_vk_framebuffer(  context->device,
-															context->shadowPass.renderPass,
-															1,
-															&context->shadowPass.attachment.view,
-															context->shadowPass.width,
-															context->shadowPass.height);    
+	context->shadowFramebuffer = make_vk_framebuffer(  	context->device,
+														context->shadowRenderPass,
+														1,
+														&context->shadowAttachment.view,
+														context->shadowTextureWidth,
+														context->shadowTextureHeight);    
 
 	fsvulkan_initialize_shadow_pipeline(*context);
 	fsvulkan_initialize_leaves_shadow_pipeline(*context);
 
 	VkDescriptorSetLayoutBinding shadowMapBinding 	= { 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr };
 	auto shadowMapLayoutCreateInfo					= fsvulkan_descriptor_set_layout_create_info(1, &shadowMapBinding);
-	VULKAN_CHECK(vkCreateDescriptorSetLayout(context->device, &shadowMapLayoutCreateInfo, nullptr, &context->shadowMapDescriptorSetLayout));
+	VULKAN_CHECK(vkCreateDescriptorSetLayout(context->device, &shadowMapLayoutCreateInfo, nullptr, &context->shadowMapTextureDescriptorSetLayout));
 
-	auto shadowMapAllocateInfo = fsvulkan_descriptor_set_allocate_info(context->materialDescriptorPool, 1, &context->shadowMapDescriptorSetLayout);
-	VULKAN_CHECK (vkAllocateDescriptorSets(context->device, &shadowMapAllocateInfo, &context->shadowMapDescriptorSet));  
+	// auto shadowMapAllocateInfo = fsvulkan_descriptor_set_allocate_info(context->materialDescriptorPool, 1, &context->shadowMapTextureDescriptorSetLayout);
+	// VULKAN_CHECK (vkAllocateDescriptorSets(context->device, &shadowMapAllocateInfo, &context->shadowMapDescriptorSet));  
 
-	VkDescriptorImageInfo info =
-	{
-		context->shadowPass.sampler,
-		context->shadowPass.attachment.view,
-		VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL
-	};
+	// VkDescriptorImageInfo info =
+	// {
+	// 	context->shadowTextureSampler,
+	// 	context->shadowAttachment.view,
+	// 	VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL
+	// };
 
-	VkWriteDescriptorSet write = 
-	{
-		.sType              = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-		.dstSet             = context->shadowMapDescriptorSet,
-		.dstBinding         = 0,
-		.dstArrayElement    = 0,
-		.descriptorCount    = 1,
-		.descriptorType     = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-		.pImageInfo         = &info,
-	};
-	vkUpdateDescriptorSets(context->device, 1, &write, 0, nullptr);
+	// VkWriteDescriptorSet write = 
+	// {
+	// 	.sType              = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+	// 	.dstSet             = context->shadowMapDescriptorSet,
+	// 	.dstBinding         = 0,
+	// 	.dstArrayElement    = 0,
+	// 	.descriptorCount    = 1,
+	// 	.descriptorType     = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+	// 	.pImageInfo         = &info,
+	// };
+	// vkUpdateDescriptorSets(context->device, 1, &write, 0, nullptr);
 
 	add_cleanup(context, [](VulkanContext * context)
 	{
 		VkDevice device = context->device;
 
-		destroy_texture(context, &context->shadowPass.attachment);
+		destroy_texture(context, &context->shadowAttachment);
 
-		vkDestroySampler(context->device, context->shadowPass.sampler, nullptr);
-		vkDestroyRenderPass(context->device, context->shadowPass.renderPass, nullptr);
-		vkDestroyFramebuffer(context->device, context->shadowPass.framebuffer, nullptr);
-		vkDestroyPipeline(context->device, context->shadowPass.pipeline, nullptr);
-		vkDestroyPipelineLayout(context->device, context->shadowPass.layout, nullptr);
-		vkDestroyDescriptorSetLayout(context->device, context->shadowMapDescriptorSetLayout, nullptr);
+		vkDestroySampler(context->device, context->shadowTextureSampler, nullptr);
+		vkDestroyRenderPass(context->device, context->shadowRenderPass, nullptr);
+		vkDestroyFramebuffer(context->device, context->shadowFramebuffer, nullptr);
+		vkDestroyPipeline(context->device, context->shadowPipeline, nullptr);
+		vkDestroyPipelineLayout(context->device, context->shadowPipelineLayout, nullptr);
+		vkDestroyDescriptorSetLayout(context->device, context->shadowMapTextureDescriptorSetLayout, nullptr);
 
 		vkDestroyDescriptorSetLayout(context->device, context->leavesShadowMaskDescriptorSetLayout, nullptr);
 		vkDestroyPipeline(device, context->leavesShadowPipeline, nullptr);

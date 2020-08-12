@@ -1,16 +1,20 @@
 #version 450
 #extension GL_GOOGLE_include_directive : enable
 
-
 layout (set = 0, binding = 0) uniform CameraProjections 
 {
 	mat4 view;
 	mat4 projection;
 } camera;
 
-const int LIGHTING_SET 		= 3;
-const int SKY_GRADIENT_SET 	= 5;
-#include "skyfunc.glsl"
+layout (set = 3, binding = 0) uniform Lighting
+{
+	vec4 direction;
+	vec4 color;
+	vec4 ambient;
+	vec4 cameraPosition;
+	float skyColourSelection;
+} light;
 
 layout(location = 0) in vec3 fragColor;
 layout(location = 1) in vec2 fragTexCoord;
@@ -21,13 +25,19 @@ layout(location = 5) in mat3 tbnMatrix;
 
 layout(location = 0) out vec4 outColor;
 
-const int ALBEDO_INDEX 		= 0;
-const int NORMAL_INDEX 		= 1; 
-const int TEST_MASK_INDEX 	= 2;
-const int TEXTURE_COUNT 	= 3;
+// TODO(Leo): Set these from c++ side
+const int ALBEDO_INDEX = 0;
+const int NORMAL_INDEX = 1; 
+const int TEST_MASK_INDEX = 2;
+const int TEXTURE_COUNT = 3;
+
 
 layout(set = 1, binding = 0) uniform sampler2D texSampler[TEXTURE_COUNT];
 layout(set = 4, binding = 0) uniform sampler2D lightMap;
+
+
+
+layout(set = 5, binding = 0) uniform sampler2D skyGradients[2];
 
 
 layout (push_constant) uniform MaterialBlock
@@ -37,6 +47,8 @@ layout (push_constant) uniform MaterialBlock
 } material;
 
 
+#define MORE_INPUT
+#include "skyfunc.glsl"
 
 void main()
 {
@@ -50,8 +62,6 @@ void main()
 	vec4 tex = texture(texSampler[ALBEDO_INDEX], fragTexCoord);
 	vec3 albedo = tex.rgb;
 	albedo = pow(albedo, vec3(gamma));	
-
-
 #if 0
 	vec3 ambient 	= light.ambient.rgb;
 	vec3 diffuse 	= ldotn * light.color.rgb;
@@ -86,11 +96,10 @@ void main()
 	// SHADOWS
 	// lightIntensity = min(lightIntensity, inLight);	
 	lightIntensity = lightIntensity * inLight;
-	lightIntensity = inLight;
 
 	/// SPECULAR
 	float smoothness 		= material.smoothness;
-	float specularStrength 	= 0.1;//material.specularStrength;
+	float specularStrength 	= material.specularStrength;
 
 	vec3 viewDirection = normalize(tbnMatrix * (light.cameraPosition.xyz - fragPosition));
 
@@ -111,13 +120,8 @@ void main()
 	// lightIntensity *= 2;
 	vec3 diffuseTerm = mix(light.ambient.rgb, lightColor, lightIntensity);
 	// vec3 diffuseTerm = light.ambient.rgb + light.color.rgb * lightIntensity;
-
-	vec3 ambientColor = compute_sky_color(-lightDir, lightDir);
-	diffuseTerm = lightColor * albedo * lightIntensity + ambientColor * albedo;
-
-	// diffuseTerm *= lightIntensity;
-
-	vec3 color = diffuseTerm + specularTerm;
+	
+	vec3 color = diffuseTerm * albedo + specularTerm;
 	// color = lightColor * albedo;
 
 	outColor.rgb = color;
