@@ -67,8 +67,6 @@ internal void fswin32_set_window_fullscreen(WinAPIWindow * window, bool32 setFul
         LONG heigth = monitorInfo.rcMonitor.bottom - top;
         SetWindowPos(window->hwnd, HWND_TOP, left, top, width, heigth, SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
 
-        ShowCursor(false);
-
         window->isFullscreen = true;
     }
 
@@ -79,11 +77,15 @@ internal void fswin32_set_window_fullscreen(WinAPIWindow * window, bool32 setFul
         SetWindowPos(   window->hwnd, NULL, 0, 0, 0, 0,
                         SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
 
-        ShowCursor(true);
 
         window->isFullscreen = false;
 
     }
+}
+
+internal void fswin32_set_cursor_visible(PlatformWindow*, bool32 visible)
+{
+    ShowCursor(visible);
 }
 
 internal HWNDUserPointer * fswin32_get_user_pointer(HWND hwnd)
@@ -101,6 +103,25 @@ internal LRESULT CALLBACK fswin32_window_callback (HWND hwnd, UINT message, WPAR
 
     switch (message)
     {
+        case WM_MOUSEMOVE:
+        {
+            winapi::State & state = *fswin32_get_user_pointer(hwnd)->state;
+            state.mousePosition.x = GET_X_LPARAM(lParam);
+            state.mousePosition.y = GET_Y_LPARAM(lParam);
+        } break;
+
+        case WM_LBUTTONDOWN:
+        {
+            winapi::State & state       = *fswin32_get_user_pointer(hwnd)->state;
+            state.leftMouseButtonDown   = true;
+        } break;
+
+        case WM_LBUTTONUP:
+        {
+            winapi::State & state       = *fswin32_get_user_pointer(hwnd)->state;
+            state.leftMouseButtonDown   = false;
+        } break;
+
         case WM_KEYDOWN:
             process_keyboard_input(fswin32_get_user_pointer(hwnd)->state, wParam, true);
             break;

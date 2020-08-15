@@ -199,6 +199,9 @@ struct PlatformInput
 
 	ButtonState zoomIn;
 	ButtonState zoomOut;
+
+	v2 mousePosition;
+	ButtonState mouse0;
 };
 
 struct PlatformTime
@@ -271,6 +274,8 @@ struct PlatformApi
 	u32 (*get_window_height) 		(PlatformWindow const *);
 	bool32 (*is_window_fullscreen) 	(PlatformWindow const *);
 	void (*set_window_fullscreen) 	(PlatformWindow*, bool32 value);
+	void (*set_cursor_visible)		(PlatformWindow*, bool32 visible);
+
 
 	// TIME FUNCTIONS
 	PlatformTimePoint (*current_time) 	();
@@ -283,6 +288,9 @@ struct PlatformApi
 	s32 (*get_file_position)		(PlatformFileHandle);
 	void (*write_file) 				(PlatformFileHandle, s32 count, void * memory);
 	void (*read_file) 				(PlatformFileHandle, s32 count, void * memory);
+	s32 (*get_file_length)			(PlatformFileHandle);
+
+	s32 (*read_file_until)			(PlatformFileHandle, char delimiter, s32 memorySize, void * memory);
 };
 
 internal bool32 platform_all_functions_set(PlatformApi const * api)

@@ -1,5 +1,15 @@
+Mouse input and item positioning
+	-> tweak file
+		-> read on startup
+		 	++> hot reload when file is saved externally
+		-> write when values are changed. just write the whole thing again for now
+	-> mouse input
+		-> win32 stuff
+
+
 Sky Editor
 	-> skybox lights
+		-> probability function for sample points
 		-> hdr
 			-> pass through render phase
 				- start with something easy like invert

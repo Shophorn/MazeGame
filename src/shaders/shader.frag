@@ -46,10 +46,10 @@ void main()
 
 	float ldotn = max(0, dot(lightDir, normal));
 
-	float gamma = 2.2;
+	// float gamma = 2.2;
 	vec4 tex = texture(texSampler[ALBEDO_INDEX], fragTexCoord);
 	vec3 albedo = tex.rgb;
-	albedo = pow(albedo, vec3(gamma));	
+	// albedo = pow(albedo, vec3(gamma));	
 
 
 #if 0

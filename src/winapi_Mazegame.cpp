@@ -6,6 +6,7 @@ Windows platform layer for mazegame
 
 #include <WinSock2.h>
 #include <Windows.h>
+#include <Windowsx.h>
 #include <xinput.h>
 
 #include <objbase.h>
@@ -122,6 +123,47 @@ void fswin32_read_file (PlatformFileHandle file, s32 count, void * memory)
 	SetFilePointer((HANDLE)file, count, nullptr, FILE_CURRENT);
 }
 
+s32 fswin32_get_file_length(PlatformFileHandle file)
+{
+	LARGE_INTEGER fileSize;
+	GetFileSizeEx((HANDLE)file, &fileSize);
+
+	Assert(fileSize.QuadPart < max_value_s32);
+
+	return (s32)fileSize.QuadPart;
+}
+
+/* Note(Leo): read file until delimiter is found, or memory size is reached */
+s32 fswin32_read_file_until(PlatformFileHandle file, char delimiter, s32 memorySize, void * memory)
+{
+	char * buffer = (char*)memory;
+	s32 count = 0;
+
+
+	while(count < memorySize)
+	{
+		DWORD bytesRead;
+		ReadFile((HANDLE)file, (void*)buffer, 1, &bytesRead, nullptr);
+		
+		if (bytesRead == 0)
+		{
+			break;
+		}
+
+		SetFilePointer((HANDLE)file, 1, nullptr, FILE_CURRENT);
+
+		if (*buffer == delimiter)
+		{
+			break;
+		}
+
+		++buffer;
+		++count;
+	}
+
+	return count;
+}
+
 
 // Todo(Leo): hack to get two controller on single pc and use only 1st controller when online
 global_variable int globalXinputControllerIndex;
@@ -151,8 +193,8 @@ BAD_read_binary_file (const char * filename)
 }
 
 // Note(Leo): make unity build
-#include "winapi_Input.cpp"
-#include "winapi_Window.cpp"
+#include "fswin32_input.cpp"
+#include "fswin32_window.cpp"
 #include "winapi_Audio.cpp"
 #include "winapi_Network.cpp"
 
@@ -203,10 +245,11 @@ Run(HINSTANCE hInstance)
 	// SETTING FUNCTION POINTERS
 	{
 		// WINDOW FUNCTIONS
-		platformApi.get_window_width        = [](PlatformWindow const * window) { return window->width; },
-		platformApi.get_window_height       = [](PlatformWindow const * window) { return window->height; },
-		platformApi.is_window_fullscreen    = [](PlatformWindow const * window) { return window->isFullscreen; },
-		platformApi.set_window_fullscreen   = fswin32_set_window_fullscreen,
+		platformApi.get_window_width        = [](PlatformWindow const * window) { return window->width; };
+		platformApi.get_window_height       = [](PlatformWindow const * window) { return window->height; };
+		platformApi.is_window_fullscreen    = [](PlatformWindow const * window) { return window->isFullscreen; };
+		platformApi.set_window_fullscreen   = fswin32_set_window_fullscreen;
+		platformApi.set_cursor_visible 		= fswin32_set_cursor_visible;
 
 		fsvulkan_set_platform_graphics_api(&vulkanContext, &platformApi);
 
@@ -219,6 +262,8 @@ Run(HINSTANCE hInstance)
 		platformApi.get_file_position 	= fswin32_get_file_position;
 		platformApi.write_file 			= fswin32_write_file;
 		platformApi.read_file 			= fswin32_read_file;
+		platformApi.get_file_length 	= fswin32_get_file_length;
+		platformApi.read_file_until 	= fswin32_read_file_until;
 
 		Assert(platform_all_functions_set(&platformApi));
 	}
@@ -323,6 +368,10 @@ Run(HINSTANCE hInstance)
 			{
 				update_unused_input(&platformInput);
 			}
+
+			platformInput.mousePosition = state.mousePosition;
+    		platformInput.mouse0   		= update_button_state(platformInput.mouse0, state.leftMouseButtonDown);
+
 		}
 
 

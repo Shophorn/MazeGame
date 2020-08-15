@@ -58,13 +58,17 @@ internal void fsvulkan_reload_shaders(VulkanContext * context)
 		fsvulkan_cleanup_pipelines(context);
 		fsvulkan_initialize_pipelines(*context);
 
-		context->shadowMapTextureDescriptorSet = make_material_vk_descriptor_set_2( context,
-																				context->shadowMapTextureDescriptorSetLayout,
-																				// context->pipelines[GRAPHICS_PIPELINE_SCREEN_GUI].descriptorSetLayout,
-																				context->shadowAttachment.view,
-																				context->persistentDescriptorPool,
-																				context->shadowTextureSampler,
-																				VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+		for (s32 i = 0; i < VIRTUAL_FRAME_COUNT; ++i)
+		{
+			context->shadowMapTextureDescriptorSet[i] = make_material_vk_descriptor_set_2( context,
+																					context->shadowMapTextureDescriptorSetLayout,
+																					// context->pipelines[GRAPHICS_PIPELINE_SCREEN_GUI].descriptorSetLayout,
+																					context->shadowAttachment[i].view,
+																					context->persistentDescriptorPool,
+																					context->shadowTextureSampler,
+																					VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+		}
+
 		logVulkan(0) << "Hello2";
 	};
 }
@@ -154,6 +158,61 @@ vulkan::find_memory_type (VkPhysicalDevice physicalDevice, u32 typeFilter, VkMem
 	AssertMsg(false, "Failed to find suitable memory type.");
 	return -1;
 }   
+
+internal VkBufferCreateInfo fsvulkan_buffer_create_info(VkDeviceSize size, VkBufferUsageFlags usage)
+{
+	VkBufferCreateInfo info =
+	{
+	    .sType 					= VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+	    .pNext 					= nullptr,
+	    .flags 					= 0, // Todo(Leo): add if necessary
+	    .size 					= size,
+	    .usage 					= usage,
+	    .sharingMode 			= VK_SHARING_MODE_EXCLUSIVE, // Todo(Leo): Expose if necessary, also maybe queue stuff
+	    .queueFamilyIndexCount 	= 0,
+	    .pQueueFamilyIndices 	= nullptr
+	};
+	return info;
+};
+
+internal VkMemoryAllocateInfo fsvulkan_memory_allocate_info(VkDeviceSize allocationSize, u32 memoryTypeIndex)
+{
+	VkMemoryAllocateInfo allocateInfo = 
+	{
+		.sType 				= VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+		.pNext 				= nullptr,
+		.allocationSize 	= allocationSize,
+		.memoryTypeIndex 	= memoryTypeIndex
+	};
+	return allocateInfo;
+}
+
+internal VkMemoryRequirements fsvulkan_get_buffer_memory_requirements(VkDevice device, VkBuffer buffer)
+{
+	VkMemoryRequirements requirements;
+	vkGetBufferMemoryRequirements(device, buffer, &requirements);
+	return requirements;
+}
+
+internal void fsvulkan_create_and_allocate_buffer(	VkDevice 				device,
+													VkPhysicalDevice 		physicalDevice,
+													VkBuffer * 				buffer,
+													VkDeviceMemory * 		memory,
+													VkDeviceSize 			size,
+													VkBufferUsageFlags 		usage,
+													VkMemoryPropertyFlags 	memoryProperties)
+{
+	auto createInfo = fsvulkan_buffer_create_info(size, usage);
+	VULKAN_CHECK(vkCreateBuffer(device, &createInfo, nullptr, buffer));
+	
+	VkMemoryRequirements memoryRequirements = fsvulkan_get_buffer_memory_requirements(device, *buffer);
+
+	auto allocateInfo = fsvulkan_memory_allocate_info(memoryRequirements.size, vulkan::find_memory_type(physicalDevice, memoryRequirements.memoryTypeBits, memoryProperties));
+
+	VULKAN_CHECK(vkAllocateMemory(device, &allocateInfo, nullptr, memory));
+
+	vkBindBufferMemory(device, *buffer, *memory, 0);
+}
 
 internal VulkanBufferResource
 BAD_VULKAN_make_buffer_resource(
@@ -671,13 +730,16 @@ winapi::create_vulkan_context(WinAPIWindow * window)
 			});
 		}
 
-		context.shadowMapTextureDescriptorSet = make_material_vk_descriptor_set_2( 	&context,
-																				context.shadowMapTextureDescriptorSetLayout,
-																				// context.pipelines[GRAPHICS_PIPELINE_SCREEN_GUI].descriptorSetLayout,
-																				context.shadowAttachment.view,
-																				context.persistentDescriptorPool,
-																				context.shadowTextureSampler,
-																				VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+		for (s32 i = 0; i < VIRTUAL_FRAME_COUNT; ++i)
+		{
+			context.shadowMapTextureDescriptorSet[i] = make_material_vk_descriptor_set_2( 	&context,
+																					context.shadowMapTextureDescriptorSetLayout,
+																					// context.pipelines[GRAPHICS_PIPELINE_SCREEN_GUI].descriptorSetLayout,
+																					context.shadowAttachment[i].view,
+																					context.persistentDescriptorPool,
+																					context.shadowTextureSampler,
+																					VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+		}
 	}
 
 
@@ -974,11 +1036,11 @@ winapi_vulkan_internal_::init_memory(VulkanContext * context)
 {
 	// TODO [MEMORY] (Leo): Properly measure required amount
 	// TODO[memory] (Leo): Log usage
-	u64 staticMeshPoolSize       = gigabytes(2);
-	u64 stagingBufferPoolSize    = megabytes(100);
-	u64 modelUniformBufferSize   = megabytes(500);
-	u64 sceneUniformBufferSize   = megabytes(100);
-	u64 guiUniformBufferSize     = megabytes(100);
+	u64 staticMeshPoolSize       	= gigabytes(2);
+	context->stagingBufferCapacity 	= megabytes(100);
+	u64 modelUniformBufferSize   	= megabytes(500);
+	u64 sceneUniformBufferSize   	= megabytes(100);
+	u64 guiUniformBufferSize     	= megabytes(100);
 
 	// TODO[MEMORY] (Leo): This will need guarding against multithreads once we get there
 	context->staticMeshPool = BAD_VULKAN_make_buffer_resource(  
@@ -986,10 +1048,14 @@ winapi_vulkan_internal_::init_memory(VulkanContext * context)
 									VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
 									VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-	context->stagingBufferPool = BAD_VULKAN_make_buffer_resource(  
-									context, stagingBufferPoolSize,
-									VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-									VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+	fsvulkan_create_and_allocate_buffer(context->device,
+										context->physicalDevice,
+										&context->stagingBuffer,
+										&context->stagingBufferDeviceMemory,
+										context->stagingBufferCapacity,
+										VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+										VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+	vkMapMemory(context->device, context->stagingBufferDeviceMemory, 0, VK_WHOLE_SIZE, 0, (void**)&context->persistentMappedStagingBufferMemory);
 
 	context->modelUniformBuffer = BAD_VULKAN_make_buffer_resource(  
 									context, modelUniformBufferSize,
@@ -1040,9 +1106,12 @@ winapi_vulkan_internal_::init_memory(VulkanContext * context)
 
 	add_cleanup(context, [](VulkanContext * context){
 		BAD_VULKAN_destroy_buffer_resource(context->device, &context->staticMeshPool);
-		BAD_VULKAN_destroy_buffer_resource(context->device, &context->stagingBufferPool);
+		// BAD_VULKAN_destroy_buffer_resource(context->device, &context->stagingBufferPool);
 		BAD_VULKAN_destroy_buffer_resource(context->device, &context->modelUniformBuffer);
 		BAD_VULKAN_destroy_buffer_resource(context->device, &context->sceneUniformBuffer);
+
+		vkDestroyBuffer(context->device, context->stagingBuffer, nullptr);
+		vkFreeMemory(context->device, context->stagingBufferDeviceMemory, nullptr);
 
 		vkDestroyBuffer(context->device, context->leafBuffer, nullptr);
 		// Todo(Leo): Is it required to free memory on application exit?
@@ -1337,7 +1406,10 @@ void winapi_vulkan_internal_::init_shadow_pass(VulkanContext * context, u32 widt
 	context->shadowTextureWidth = width;
 	context->shadowTextureHeight = height;
 
-	context->shadowAttachment  = make_shadow_texture(context, context->shadowTextureWidth, context->shadowTextureHeight, format);
+	for (s32 i = 0; i < VIRTUAL_FRAME_COUNT; ++i)
+	{
+		context->shadowAttachment[i]  	= make_shadow_texture(context, context->shadowTextureWidth, context->shadowTextureHeight, format);
+	}
 	context->shadowTextureSampler     = BAD_VULKAN_make_vk_sampler(context->device, VK_SAMPLER_ADDRESS_MODE_REPEAT);
 
 	VkAttachmentDescription attachment =
@@ -1399,12 +1471,15 @@ void winapi_vulkan_internal_::init_shadow_pass(VulkanContext * context, u32 widt
 
 	VULKAN_CHECK (vkCreateRenderPass(context->device, &renderPassInfo, nullptr, &context->shadowRenderPass));
 
-	context->shadowFramebuffer = make_vk_framebuffer(  	context->device,
-														context->shadowRenderPass,
-														1,
-														&context->shadowAttachment.view,
-														context->shadowTextureWidth,
-														context->shadowTextureHeight);    
+	for (s32 i = 0; i < VIRTUAL_FRAME_COUNT; ++i)
+	{
+		context->shadowFramebuffer[i] = make_vk_framebuffer(  	context->device,
+															context->shadowRenderPass,
+															1,
+															&context->shadowAttachment[i].view,
+															context->shadowTextureWidth,
+															context->shadowTextureHeight);    
+	}
 
 	fsvulkan_initialize_shadow_pipeline(*context);
 	fsvulkan_initialize_leaves_shadow_pipeline(*context);
@@ -1439,11 +1514,14 @@ void winapi_vulkan_internal_::init_shadow_pass(VulkanContext * context, u32 widt
 	{
 		VkDevice device = context->device;
 
-		destroy_texture(context, &context->shadowAttachment);
+		for (s32 i = 0; i < VIRTUAL_FRAME_COUNT; ++i)
+		{
+			destroy_texture(context, &context->shadowAttachment[i]);
+			vkDestroyFramebuffer(context->device, context->shadowFramebuffer[i], nullptr);
+		}
 
 		vkDestroySampler(context->device, context->shadowTextureSampler, nullptr);
 		vkDestroyRenderPass(context->device, context->shadowRenderPass, nullptr);
-		vkDestroyFramebuffer(context->device, context->shadowFramebuffer, nullptr);
 		vkDestroyPipeline(context->device, context->shadowPipeline, nullptr);
 		vkDestroyPipelineLayout(context->device, context->shadowPipelineLayout, nullptr);
 		vkDestroyDescriptorSetLayout(context->device, context->shadowMapTextureDescriptorSetLayout, nullptr);

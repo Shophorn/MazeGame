@@ -74,8 +74,7 @@ internal VkDescriptorSet fsvulkan_make_texture_descriptor_set(  VulkanContext * 
 	return resultSet;
 }
 
-internal VulkanTexture
-BAD_VULKAN_make_texture(VulkanContext * context, TextureAsset * asset)
+internal VulkanTexture BAD_VULKAN_make_texture(VulkanContext * context, TextureAsset * asset)
 {
 	using namespace fsvulkan_resources_internal_;
 
@@ -85,20 +84,17 @@ BAD_VULKAN_make_texture(VulkanContext * context, TextureAsset * asset)
 
 	VkDeviceSize textureMemorySize = get_texture_asset_memory_size(*asset);
 
-	void * data;
-	vkMapMemory(context->device, context->stagingBufferPool.memory, 0, textureMemorySize, 0, &data);
-	memcpy (data, (void*)asset->pixelMemory, textureMemorySize);
-	vkUnmapMemory(context->device, context->stagingBufferPool.memory);
+	Assert(textureMemorySize <= context->stagingBufferCapacity);
+	copy_memory(context->persistentMappedStagingBufferMemory, asset->pixelMemory, textureMemorySize);
 
-	VkFormat format;
-	if (asset->format == TEXTURE_FORMAT_U8)
+	constexpr VkFormat formatTable [] =
 	{
-		format = VK_FORMAT_R8G8B8A8_UNORM;
-	}
-	else if (asset->format == TEXTURE_FORMAT_F32)
-	{
-		format = VK_FORMAT_R32G32B32A32_SFLOAT;
-	}
+		VK_FORMAT_R8G8B8A8_SRGB,
+		VK_FORMAT_R8G8B8A8_UNORM,
+		VK_FORMAT_R32G32B32A32_SFLOAT,
+	};
+
+	VkFormat format = formatTable[asset->format];
 
 	VkImageCreateInfo imageInfo =
 	{
@@ -174,7 +170,7 @@ BAD_VULKAN_make_texture(VulkanContext * context, TextureAsset * asset)
 		.imageOffset = { 0, 0, 0 },
 		.imageExtent = { width, height, 1 },
 	};
-	vkCmdCopyBufferToImage (cmd, context->stagingBufferPool.buffer, resultImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+	vkCmdCopyBufferToImage (cmd, context->stagingBuffer, resultImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 
 	cmd_generate_mip_maps(cmd, context->physicalDevice, resultImage, format, asset->width, asset->height, mipLevels);
 
@@ -212,7 +208,14 @@ BAD_VULKAN_make_texture(VulkanContext * context, TextureAsset * asset)
 		.image      = resultImage,
 		.view       = resultView,
 		.sampler 	= asset->addressMode == TEXTURE_ADDRESS_MODE_WRAP ? context->textureSampler : context->clampSampler,
+
+		.format 	= format,
+
 		.memory     = resultImageMemory,
+
+		.width 		= width,
+		.height 	= height,
+		.mipLevels 	= mipLevels,
 	};
 	return resultTexture;
 }
@@ -220,149 +223,153 @@ BAD_VULKAN_make_texture(VulkanContext * context, TextureAsset * asset)
 internal VulkanTexture
 BAD_VULKAN_make_cubemap(VulkanContext * context, StaticArray<TextureAsset, 6> * assets)
 {
-	using namespace fsvulkan_resources_internal_;
+	Assert(false && "Presumably unused function, not up to date");
 
-	u32 width        = (*assets)[0].width;
-	u32 height       = (*assets)[0].height;
-	u32 channels     = (*assets)[0].channels;
-	u32 mipLevels    = compute_mip_levels(width, height);
-
-	constexpr u32 CUBEMAP_LAYERS = 6;
-
-	VkDeviceSize layerSize = width * height * channels;
-	VkDeviceSize imageSize = layerSize * CUBEMAP_LAYERS;
-
-	VkExtent3D extent = { width, height, 1};
-
-	byte * data;
-	vkMapMemory(context->device, context->stagingBufferPool.memory, 0, imageSize, 0, (void**)&data);
-	for (int i = 0; i < 6; ++i)
-	{
-		u32 * start          = get_u32_pixel_memory((*assets)[i]);
-		u32 * end            = get_u32_pixel_memory((*assets)[i]) + layerSize;
-		u32 * destination    = reinterpret_cast<u32*>(data + (i * layerSize));
-
-		std::copy(start, end, destination);
-	}
-	vkUnmapMemory(context->device, context->stagingBufferPool.memory);
-
-	VkImageCreateInfo imageInfo =
-	{
-		.sType          = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-		.flags          = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT,
-		.imageType      = VK_IMAGE_TYPE_2D,
-		.format         = VK_FORMAT_R8G8B8A8_UNORM,
-		.extent         = extent,
-		.mipLevels      = mipLevels,
-		.arrayLayers    = CUBEMAP_LAYERS,
-
-		.samples        = VK_SAMPLE_COUNT_1_BIT,
-		.tiling         = VK_IMAGE_TILING_OPTIMAL,
-		.usage          = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-		.sharingMode    = VK_SHARING_MODE_EXCLUSIVE, // Note(Leo): this concerns queue families,
-		.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED,
-	};
-
-	VkImage resultImage = {};
-	VkDeviceMemory resultImageMemory = {};
-
-	// Note(Leo): some image formats may not be supported
-	VULKAN_CHECK(vkCreateImage(context->device, &imageInfo, nullptr, &resultImage));
-
-	VkMemoryRequirements memoryRequirements;
-	vkGetImageMemoryRequirements (context->device, resultImage, &memoryRequirements);
-
-	VkMemoryAllocateInfo allocateInfo =
-	{ 
-		.sType              = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-		.allocationSize     = memoryRequirements.size,
-		.memoryTypeIndex    = vulkan::find_memory_type( context->physicalDevice,
-														memoryRequirements.memoryTypeBits,
-														VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT),
-	};
-
-	VULKAN_CHECK(vkAllocateMemory(context->device, &allocateInfo, nullptr, &resultImageMemory));
-
-	vkBindImageMemory(context->device, resultImage, resultImageMemory, 0);   
-
-	/* Note(Leo):
-		1. change layout to copy optimal
-		2. copy contents
-		3. change layout to read optimal
-
-		This last is good to use after generated textures, finally some 
-		benefits from this verbose nonsense :D
-	*/
-
-	VkCommandBuffer cmd = vulkan::begin_command_buffer(context->device, context->commandPool);
+	return {};
 	
-	// Todo(Leo): begin and end command buffers once only and then just add commands from inside these
-	vulkan::cmd_transition_image_layout(cmd, context->device, context->graphicsQueue,
-								resultImage, VK_FORMAT_R8G8B8A8_UNORM, mipLevels,
-								VK_IMAGE_LAYOUT_UNDEFINED,
-								VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, CUBEMAP_LAYERS);
+	// using namespace fsvulkan_resources_internal_;
 
-	VkBufferImageCopy region =
-	{
-		.bufferOffset       = 0,
-		.bufferRowLength    = 0,
-		.bufferImageHeight  = 0,
+	// u32 width        = (*assets)[0].width;
+	// u32 height       = (*assets)[0].height;
+	// u32 channels     = (*assets)[0].channels;
+	// u32 mipLevels    = compute_mip_levels(width, height);
 
-		.imageSubresource = {
-			.aspectMask        = VK_IMAGE_ASPECT_COLOR_BIT,
-			.mipLevel          = 0,
-			.baseArrayLayer    = 0,
-			.layerCount        = CUBEMAP_LAYERS,
-		},
+	// constexpr u32 CUBEMAP_LAYERS = 6;
 
-		.imageOffset = { 0, 0, 0 },
-		.imageExtent = extent,
-	};
-	vkCmdCopyBufferToImage (cmd, context->stagingBufferPool.buffer, resultImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+	// VkDeviceSize layerSize = width * height * channels;
+	// VkDeviceSize imageSize = layerSize * CUBEMAP_LAYERS;
+
+	// VkExtent3D extent = { width, height, 1};
+
+	// byte * data;
+	// vkMapMemory(context->device, context->stagingBufferPool.memory, 0, imageSize, 0, (void**)&data);
+	// for (int i = 0; i < 6; ++i)
+	// {
+	// 	u32 * start          = get_u32_pixel_memory((*assets)[i]);
+	// 	u32 * end            = start + layerSize;
+	// 	u32 * destination    = reinterpret_cast<u32*>(data + (i * layerSize));
+
+	// 	std::copy(start, end, destination);
+	// }
+	// vkUnmapMemory(context->device, context->stagingBufferPool.memory);
+
+	// VkImageCreateInfo imageInfo =
+	// {
+	// 	.sType          = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+	// 	.flags          = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT,
+	// 	.imageType      = VK_IMAGE_TYPE_2D,
+	// 	.format         = VK_FORMAT_R8G8B8A8_UNORM,
+	// 	.extent         = extent,
+	// 	.mipLevels      = mipLevels,
+	// 	.arrayLayers    = CUBEMAP_LAYERS,
+
+	// 	.samples        = VK_SAMPLE_COUNT_1_BIT,
+	// 	.tiling         = VK_IMAGE_TILING_OPTIMAL,
+	// 	.usage          = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+	// 	.sharingMode    = VK_SHARING_MODE_EXCLUSIVE, // Note(Leo): this concerns queue families,
+	// 	.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED,
+	// };
+
+	// VkImage resultImage = {};
+	// VkDeviceMemory resultImageMemory = {};
+
+	// // Note(Leo): some image formats may not be supported
+	// VULKAN_CHECK(vkCreateImage(context->device, &imageInfo, nullptr, &resultImage));
+
+	// VkMemoryRequirements memoryRequirements;
+	// vkGetImageMemoryRequirements (context->device, resultImage, &memoryRequirements);
+
+	// VkMemoryAllocateInfo allocateInfo =
+	// { 
+	// 	.sType              = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+	// 	.allocationSize     = memoryRequirements.size,
+	// 	.memoryTypeIndex    = vulkan::find_memory_type( context->physicalDevice,
+	// 													memoryRequirements.memoryTypeBits,
+	// 													VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT),
+	// };
+
+	// VULKAN_CHECK(vkAllocateMemory(context->device, &allocateInfo, nullptr, &resultImageMemory));
+
+	// vkBindImageMemory(context->device, resultImage, resultImageMemory, 0);   
+
+	// /* Note(Leo):
+	// 	1. change layout to copy optimal
+	// 	2. copy contents
+	// 	3. change layout to read optimal
+
+	// 	This last is good to use after generated textures, finally some 
+	// 	benefits from this verbose nonsense :D
+	// */
+
+	// VkCommandBuffer cmd = vulkan::begin_command_buffer(context->device, context->commandPool);
+	
+	// // Todo(Leo): begin and end command buffers once only and then just add commands from inside these
+	// vulkan::cmd_transition_image_layout(cmd, context->device, context->graphicsQueue,
+	// 							resultImage, VK_FORMAT_R8G8B8A8_UNORM, mipLevels,
+	// 							VK_IMAGE_LAYOUT_UNDEFINED,
+	// 							VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, CUBEMAP_LAYERS);
+
+	// VkBufferImageCopy region =
+	// {
+	// 	.bufferOffset       = 0,
+	// 	.bufferRowLength    = 0,
+	// 	.bufferImageHeight  = 0,
+
+	// 	.imageSubresource = {
+	// 		.aspectMask        = VK_IMAGE_ASPECT_COLOR_BIT,
+	// 		.mipLevel          = 0,
+	// 		.baseArrayLayer    = 0,
+	// 		.layerCount        = CUBEMAP_LAYERS,
+	// 	},
+
+	// 	.imageOffset = { 0, 0, 0 },
+	// 	.imageExtent = extent,
+	// };
+	// vkCmdCopyBufferToImage (cmd, context->stagingBufferPool.buffer, resultImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 
 
-	/// CREATE MIP MAPS
-	cmd_generate_mip_maps(  cmd, context->physicalDevice,
-							resultImage, VK_FORMAT_R8G8B8A8_UNORM,
-							width, height, mipLevels, CUBEMAP_LAYERS);
+	// /// CREATE MIP MAPS
+	// cmd_generate_mip_maps(  cmd, context->physicalDevice,
+	// 						resultImage, VK_FORMAT_R8G8B8A8_UNORM,
+	// 						width, height, mipLevels, CUBEMAP_LAYERS);
 
-	vulkan::execute_command_buffer(cmd, context->device, context->commandPool, context->graphicsQueue);
+	// vulkan::execute_command_buffer(cmd, context->device, context->commandPool, context->graphicsQueue);
 
-	/// CREATE IMAGE VIEW
-	VkImageViewCreateInfo imageViewInfo =
-	{ 
-		.sType      = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-		.image      = resultImage,
-		.viewType   = VK_IMAGE_VIEW_TYPE_CUBE,
-		.format     = VK_FORMAT_R8G8B8A8_UNORM,
+	// /// CREATE IMAGE VIEW
+	// VkImageViewCreateInfo imageViewInfo =
+	// { 
+	// 	.sType      = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+	// 	.image      = resultImage,
+	// 	.viewType   = VK_IMAGE_VIEW_TYPE_CUBE,
+	// 	.format     = VK_FORMAT_R8G8B8A8_UNORM,
 
-		.components = {
-			.r = VK_COMPONENT_SWIZZLE_IDENTITY,
-			.g = VK_COMPONENT_SWIZZLE_IDENTITY,
-			.b = VK_COMPONENT_SWIZZLE_IDENTITY,
-			.a = VK_COMPONENT_SWIZZLE_IDENTITY,
-		},
+	// 	.components = {
+	// 		.r = VK_COMPONENT_SWIZZLE_IDENTITY,
+	// 		.g = VK_COMPONENT_SWIZZLE_IDENTITY,
+	// 		.b = VK_COMPONENT_SWIZZLE_IDENTITY,
+	// 		.a = VK_COMPONENT_SWIZZLE_IDENTITY,
+	// 	},
 
-		.subresourceRange = {
-			.aspectMask        = VK_IMAGE_ASPECT_COLOR_BIT,
-			.baseMipLevel      = 0,
-			.levelCount        = mipLevels,
-			.baseArrayLayer    = 0,
-			.layerCount        = CUBEMAP_LAYERS,
-		},
+	// 	.subresourceRange = {
+	// 		.aspectMask        = VK_IMAGE_ASPECT_COLOR_BIT,
+	// 		.baseMipLevel      = 0,
+	// 		.levelCount        = mipLevels,
+	// 		.baseArrayLayer    = 0,
+	// 		.layerCount        = CUBEMAP_LAYERS,
+	// 	},
 
-	};
+	// };
 
-	VkImageView resultView = {};
-	VULKAN_CHECK(vkCreateImageView(context->device, &imageViewInfo, nullptr, &resultView));
+	// VkImageView resultView = {};
+	// VULKAN_CHECK(vkCreateImageView(context->device, &imageViewInfo, nullptr, &resultView));
 
-	VulkanTexture resultTexture =
-	{
-		.image      = resultImage,
-		.view       = resultView,
-		.memory     = resultImageMemory,
-	};
-	return resultTexture;
+	// VulkanTexture resultTexture =
+	// {
+	// 	.image      = resultImage,
+	// 	.view       = resultView,
+	// 	.memory     = resultImageMemory,
+	// };
+	// return resultTexture;
 }
 
 internal VkIndexType
@@ -456,18 +463,14 @@ internal MeshHandle fsvulkan_resources_push_mesh(VulkanContext * context, MeshAs
 	u64 indexOffset = 0;
 	u64 vertexOffset = alignedIndexBufferSize;
 
-	u8 * data;
-	vkMapMemory(context->device, context->stagingBufferPool.memory, 0, totalBufferSize, 0, (void**)&data);
-	memcpy(data, &mesh->indices[0], indexBufferSize);
-
-	data += vertexOffset;
-	memcpy(data, &mesh->vertices[0], vertexBufferSize);
-	vkUnmapMemory(context->device, context->stagingBufferPool.memory);
+	Assert(totalBufferSize <= context->stagingBufferCapacity);
+	copy_memory(context->persistentMappedStagingBufferMemory, mesh->indices.data(), indexBufferSize);
+	copy_memory(context->persistentMappedStagingBufferMemory + vertexOffset, mesh->vertices.data(), vertexBufferSize);
 
 	VkCommandBuffer commandBuffer = vulkan::begin_command_buffer(context->device, context->commandPool);
 
 	VkBufferCopy copyRegion = { 0, context->staticMeshPool.used, totalBufferSize };
-	vkCmdCopyBuffer(commandBuffer, context->stagingBufferPool.buffer, context->staticMeshPool.buffer, 1, &copyRegion);
+	vkCmdCopyBuffer(commandBuffer, context->stagingBuffer, context->staticMeshPool.buffer, 1, &copyRegion);
 
 	vulkan::execute_command_buffer(commandBuffer,context->device, context->commandPool, context->graphicsQueue);
 
@@ -754,6 +757,52 @@ make_shadow_texture(VulkanContext * context, u32 width, u32 height, VkFormat for
 
 internal void fsvulkan_resources_update_texture(VulkanContext * context, TextureHandle textureHandle, TextureAsset * asset)
 {
-	vulkan::destroy_texture(context, &context->loadedTextures[textureHandle]);
-	context->loadedTextures[textureHandle] = BAD_VULKAN_make_texture(context, asset);
+	using namespace fsvulkan_resources_internal_;
+
+
+	VulkanTexture & texture = context->loadedTextures[textureHandle];
+
+	Assert(asset->width == texture.width);
+	Assert(asset->height == texture.height);
+	// Todo(Leo): Also assert format and miplevels
+
+	VkDeviceSize textureMemorySize = get_texture_asset_memory_size(*asset);
+
+	Assert(textureMemorySize <= context->stagingBufferCapacity);
+	copy_memory(context->persistentMappedStagingBufferMemory, asset->pixelMemory, textureMemorySize);
+
+	VkCommandBuffer cmd 	= vulkan::begin_command_buffer(context->device, context->commandPool);
+	
+	// Todo(Leo): graphics queue may be in use, so this may fail...???
+	vulkan::cmd_transition_image_layout(cmd, context->device,
+										context->graphicsQueue, texture.image, texture.format, texture.mipLevels,
+										VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+
+	VkBufferImageCopy region =
+	{
+		.bufferOffset       = 0,
+		.bufferRowLength    = 0,
+		.bufferImageHeight  = 0,
+
+		.imageSubresource = {
+			.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
+			.mipLevel       = 0,
+			.baseArrayLayer = 0,
+			.layerCount     = 1,
+		},
+
+		// .imageSubresource.aspectMask        = VK_IMAGE_ASPECT_COLOR_BIT,
+		// .imageSubresource.mipLevel          = 0,
+		// .imageSubresource.baseArrayLayer    = 0,
+		// .imageSubresource.layerCount        = 1,
+
+		.imageOffset = { 0, 0, 0 },
+		.imageExtent = { texture.width, texture.height, 1 },
+	};
+	vkCmdCopyBufferToImage (cmd, context->stagingBuffer, texture.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+
+	// Todo(Leo): This probably implicitly changes layout to shader read optimal or something, change
+	cmd_generate_mip_maps(cmd, context->physicalDevice, texture.image, texture.format, texture.width, texture.height, texture.mipLevels);
+
+	vulkan::execute_command_buffer (cmd, context->device, context->commandPool, context->graphicsQueue);
 }

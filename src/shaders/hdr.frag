@@ -11,13 +11,13 @@ void main()
 
 	/// TONE MAP
 	// vec3 color = hdrColor / (hdrColor + vec3(1.0));
-	const float exposure = 0.4;
+	const float exposure = 0.5;
 	vec3 color = vec3(1.0) - exp(-hdrColor * exposure);
 
 
 	/// GAMMA CORRECTION
-	const float gamma = 2.2;
-	color = pow(color, vec3(1.0/gamma));
+	// const float gamma = 2.2;
+	// color = pow(color, vec3(1.0/gamma));
 
 	// /// INVERT
 	// if (fragTexCoord.x < 0.5)
@@ -29,9 +29,9 @@ void main()
 
 	/// CONTRAST
 	/// https://www.dfstudios.co.uk/articles/programming/image-programming-algorithms/image-processing-algorithms-part-5-contrast-adjustment/
-	float contrast = 0.1;
-	float factor = (1.01 * (contrast + 1.0)) / (1.0 * (1.01 - contrast));
-	color = clamp(factor * (color - 0.5) + 0.5, 0, 1);
+	// float contrast = 0.1;
+	// float factor = (1.01 * (contrast + 1.0)) / (1.0 * (1.01 - contrast));
+	// color = clamp(factor * (color - 0.5) + 0.5, 0, 1);
 
 
 	/// OUTPUT

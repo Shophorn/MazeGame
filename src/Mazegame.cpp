@@ -257,17 +257,13 @@ bool32 update_game(
 
 		gui_position({870, 500});
 
-		local_persist v4 guiPanelColor = colour_rgb_alpha(colour_bright_blue.rgb, 0.5);
-
+		v4 guiPanelColor = colour_rgb_alpha(colour_bright_blue.rgb, 0.5);
 		gui_start_panel(GUI_NO_TITLE, guiPanelColor);
 
 		if(gui_button("New Game"))
 		{
 			action = ACTION_NEW_GAME;
 		}
-
-		local_persist f32 testSliderValue = 8;
-		guiPanelColor.r = gui_float_slider("Test Value", guiPanelColor.r, 0, 1);
 
 		if (gui_button("Load Game"))
 		{
@@ -335,15 +331,11 @@ bool32 update_game(
 	// Todo(Leo): These still MAYBE do not belong here
 	if (is_clicked(input->select))
 	{
-		if (platformApi->is_window_fullscreen(window))
-		{
-			platformApi->set_window_fullscreen(window, false);
-		}
-		else
-		{
-			platformApi->set_window_fullscreen(window, true);
-		}
+		bool isFullScreen = !platformApi->is_window_fullscreen(platformWindow);
+		platformApi->set_window_fullscreen(platformWindow, isFullScreen);
+		platformApi->set_cursor_visible(platformWindow, !isFullScreen);
 	}
+
 
 	/* Todo(Leo): this should probably be the master mixer, and scenes
 	just put their audio in it.	*/

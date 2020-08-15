@@ -96,8 +96,16 @@ enum : s32
 
 enum : s32
 {
-	TEXTURE_FORMAT_U8,
+	TEXTURE_FORMAT_U8_SRGB,
+	TEXTURE_FORMAT_U8_LINEAR,
 	TEXTURE_FORMAT_F32,
+};
+
+constexpr u64 textureComponentSizeTable [] =
+{
+	sizeof(u8),
+	sizeof(u8),
+	sizeof(f32),
 };
 
 struct TextureAsset
@@ -110,19 +118,21 @@ struct TextureAsset
 
 	s32 	addressMode;
 	s32 	format;
+	s32 	colorMode;
 };
 
 u32 * get_u32_pixel_memory(TextureAsset & asset)
 {
-	Assert(asset.format == TEXTURE_FORMAT_U8);
+	Assert(asset.format == TEXTURE_FORMAT_U8_SRGB || asset.format == TEXTURE_FORMAT_U8_LINEAR);
 	return (u32*)asset.pixelMemory;
 }
 
-f32 * get_f32_pixel_memory(TextureAsset & asset)
-{
-	Assert(asset.format == TEXTURE_FORMAT_F32);
-	return (f32*)asset.pixelMemory;
-}
+// Todo(Leo): unused
+// f32 * get_f32_pixel_memory(TextureAsset & asset)
+// {
+// 	Assert(asset.format == TEXTURE_FORMAT_F32);
+// 	return (f32*)asset.pixelMemory;
+// }
 
 u64 get_texture_asset_memory_size(TextureAsset & asset)
 {
@@ -130,7 +140,7 @@ u64 get_texture_asset_memory_size(TextureAsset & asset)
 
 	u64 pixelCount 		= asset.width * asset.height;
 	u64 componenCount 	= pixelCount * asset.channels;
-	u64 componentSize  	= asset.format == TEXTURE_FORMAT_U8 ? sizeof(u8) : sizeof(f32);
+	u64 componentSize  	= textureComponentSizeTable[asset.format];
 
 	u64 memorySize 		=  componentSize * componenCount;
 	return memorySize;
@@ -200,15 +210,15 @@ internal v4 colour_multiply(v4 a, v4 b)
 	return a;
 }
 
-internal u32
-get_closest_pixel(TextureAsset * texture, v2 texcoord)
-{
-	u32 u = (u32)round_f32(texture->width * texcoord.x) % texture->width;
-	u32 v = (u32)round_f32(texture->height * texcoord.y) % texture->height;
+// internal u32
+// get_closest_pixel(TextureAsset * texture, v2 texcoord)
+// {
+// 	u32 u = (u32)round_f32(texture->width * texcoord.x) % texture->width;
+// 	u32 v = (u32)round_f32(texture->height * texcoord.y) % texture->height;
 
-	s64 index = u + v * texture->width;
-	return get_u32_pixel_memory(*texture)[index];
-}
+// 	s64 index = u + v * texture->width;
+// 	return get_u32_pixel_memory(*texture)[index];
+// }
 
 struct MaterialAsset
 {

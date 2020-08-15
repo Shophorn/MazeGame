@@ -146,10 +146,16 @@ internal Font load_font(char const * fontFilePath)
     return result;
 }
 
-internal TextureAsset generate_gradient(MemoryArena & allocator, int colourCount, v4 * colours, f32 * times, s32 pixelCount)
+struct Gradient
 {
-    #if 1
+    s32     count;
+    s32     capacity;
+    v4 *    colours;
+    f32 *   times;
+};
 
+internal TextureAsset generate_gradient(MemoryArena & allocator, s32 pixelCount, Gradient const & gradient)
+{
     v4 * pixelMemory = push_memory<v4>(allocator, pixelCount, 0);
 
     s32 pixelIndex  = 0;
@@ -158,6 +164,10 @@ internal TextureAsset generate_gradient(MemoryArena & allocator, int colourCount
 
     // Note(Leo): there is one pixel more than steps, steps are in between
     f32 timeStep    = 1.0f / (pixelCount - 1);
+
+    f32 * times     = gradient.times;
+    v4 * colours    = gradient.colours;
+    s32 colourCount = gradient.count;
 
     while(pixelIndex < pixelCount && time < times[0])
     {
@@ -204,60 +214,4 @@ internal TextureAsset generate_gradient(MemoryArena & allocator, int colourCount
     result.format       = TEXTURE_FORMAT_F32;
     result.addressMode  = TEXTURE_ADDRESS_MODE_CLAMP;
     return result;
-
-    #else
-    u32 * pixelMemory = push_memory<u32>(allocator, pixelCount, 0);
-    // Array<u32> pixelMemory = allocate_array<u32>(allocator, pixelCount, ALLOC_FILL | ALLOC_NO_CLEAR);
-
-    s32 pixelIndex  = 0;
-    s32 colourIndex = 0;
-    f32 time        = 0;
-
-    // Note(Leo): there is one pixel more than steps, steps are in between
-    f32 timeStep    = 1.0f / (pixelCount - 1);
-
-    while(pixelIndex < pixelCount && time < times[0])
-    {
-        pixelMemory[pixelIndex] = colour_rgba_u32(colours[0]);
-        pixelIndex += 1;
-        time += timeStep;
-    }
-
-    colourIndex = 1;
-
-    while(pixelIndex < pixelCount && time < times[colourCount - 1])
-    {
-        while (time > times[colourIndex])
-        {
-            colourIndex += 1;
-        }
-
-        v4 previousColour   = colours[colourIndex - 1];
-        v4 nextColour       = colours[colourIndex];
-
-        f32 previousTime    = times[colourIndex - 1];
-        f32 nextTime        = times[colourIndex];
-
-        float relativeTime = (time - previousTime) / (nextTime - previousTime);
-
-        Assert(relativeTime <= 1);
-
-        v4 colour = v4_lerp(previousColour, nextColour, relativeTime);
-
-        pixelMemory[pixelIndex] = colour_rgba_u32(v4_lerp(previousColour, nextColour, relativeTime));
-
-        pixelIndex += 1;    
-        time += timeStep;
-    }
-
-    while(pixelIndex < pixelCount)
-    {
-        pixelMemory[pixelIndex] = colour_rgba_u32(colours[colourCount - 1]);
-        pixelIndex += 1;
-        time += timeStep;
-    }
-
-    TextureAsset result = { pixelMemory, pixelCount, 1, 4 };
-    return result;
-    #endif
 }

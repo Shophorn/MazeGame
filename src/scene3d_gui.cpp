@@ -1,27 +1,45 @@
-enum MenuView : s32
+internal void scene_3d_initialize_gui(Scene3d * scene)
 {
-	MENU_OFF,
-	MENU_MAIN,
-	MENU_CONFIRM_EXIT,
-	MENU_CONFIRM_TELEPORT,
-	MENU_EDIT_SKY,
-	MENU_EDIT_MESH_GENERATION,
-	MENU_SAVE_COMPLETE,
-};
+	scene->gui 						= {};
+	scene->gui.textSize 			= 30;
+	scene->gui.textColor 			= colour_white;
+	scene->gui.selectedTextColor 	= colour_muted_red;
+	scene->gui.padding 				= 10;
+	scene->gui.font 				= load_font("c:/windows/fonts/arial.ttf");
+
+	u32 guiTexturePixelColor 		= 0xffffffff;
+	TextureAsset guiTextureAsset 	= make_texture_asset(&guiTexturePixelColor, 1, 1, 4);
+	scene->gui.panelTexture			= platformApi->push_gui_texture(platformGraphics, &guiTextureAsset);
+}
+
+internal void gui_set_cursor_visible(bool menuVisible)
+{
+	bool windowIsFullscreen = platformApi->is_window_fullscreen(platformWindow);
+	bool cursorVisible = !windowIsFullscreen || menuVisible;
+	platformApi->set_cursor_visible(platformWindow, cursorVisible);
+
+	logDebug(0) << "Set cursor visible: " << bool_str(cursorVisible);
+}
 
 bool32 do_gui(Scene3d * scene, PlatformInput const & input)
 {	
+	constexpr v2 cornerPosition = {30, 30};
+	constexpr v2 centerPosition = {850, 400};
+
 	if (is_clicked(input.start))
 	{
 		if (scene->menuView == MENU_OFF)
 		{
 			scene->menuView = MENU_MAIN;
 			gui_reset_selection();
+			gui_set_cursor_visible(true);
 		}
 		else
 		{
 			scene->menuView = MENU_OFF;
+			gui_set_cursor_visible(false);
 		}
+
 	}
 
 	bool32 keepScene = true;
@@ -35,7 +53,7 @@ bool32 do_gui(Scene3d * scene, PlatformInput const & input)
 
 		case MENU_CONFIRM_EXIT:
 		{
-			gui_position({50, 50});
+			gui_position(cornerPosition);
 
 			gui_start_panel("Exit to Main Menu?", menuColor);
 
@@ -55,14 +73,19 @@ bool32 do_gui(Scene3d * scene, PlatformInput const & input)
 
 		case MENU_MAIN:
 		{
-			gui_position({50, 50});	
+			gui_position(cornerPosition);	
 
 			gui_start_panel("Menu", menuColor);
 
+			v2 mousePosition = input.mousePosition;
+
+			gui_float_slider_2("X", &mousePosition.x, -20000, 20000);
+			gui_float_slider_2("Y", &mousePosition.y, -20000, 20000);
 
 			if (gui_button("Continue"))
 			{
 				scene->menuView = MENU_OFF;
+				gui_set_cursor_visible(false);
 			}
 
 			char const * const cameraModeLabels [] =
@@ -141,6 +164,10 @@ bool32 do_gui(Scene3d * scene, PlatformInput const & input)
 				gui_reset_selection();
 			}
 
+			if (gui_button("Reload Tweaks"))
+			{
+				read_tweak_values(scene);
+			}
 
 			if (gui_button("Exit Scene"))
 			{
@@ -148,17 +175,28 @@ bool32 do_gui(Scene3d * scene, PlatformInput const & input)
 				gui_reset_selection();
 			}
 
+			// {
+			// 	char const * mouseOnStrings[] = {"Mouse: Off", "Mouse: On"};
+			// 	local_persist bool32 mouseOn = true;
+
+			// 	if (gui_button(mouseOnStrings[mouseOn]))
+			// 	{
+			// 		mouseOn = !mouseOn;
+			// 		platformApi->set_cursor_visible(platformWindow, mouseOn);
+			// 	}
+			// }
+
 			gui_end_panel();
 
 		} break;
 
 		case MENU_EDIT_MESH_GENERATION:
 		{
-			gui_position({50, 50});	
+			gui_position(cornerPosition);	
 
 			gui_start_panel("Edit Mesh Generation", menuColor);
 
-			scene->metaballGridScale = gui_float_slider("Grid Scale", scene->metaballGridScale, 0.2, 1);
+			gui_float_slider("Grid Scale", &scene->metaballGridScale, 0.2, 1);
 
 			char const * const drawMCStuffTexts [] = 
 			{
@@ -182,7 +220,7 @@ bool32 do_gui(Scene3d * scene, PlatformInput const & input)
 	
 		case MENU_SAVE_COMPLETE:
 		{
-			gui_position({850, 400});
+			gui_position(centerPosition);
 			gui_start_panel("Game Saved!", menuColor);
 
 			if (gui_button("Ok"))
@@ -197,7 +235,7 @@ bool32 do_gui(Scene3d * scene, PlatformInput const & input)
 
 		case MENU_CONFIRM_TELEPORT:
 		{
-			gui_position({50, 50});
+			gui_position(cornerPosition);
 
 			gui_start_panel("Teleport Player Here?", menuColor);
 
@@ -218,11 +256,12 @@ bool32 do_gui(Scene3d * scene, PlatformInput const & input)
 
 		case MENU_EDIT_SKY:
 		{
-			gui_position({100, 100});
+			gui_position(cornerPosition);
 
 			gui_start_panel("Edit Sky", menuColor);
 
-			scene->skyColorSelection = gui_float_slider("Sky Color", scene->skyColorSelection, 0,1);
+			// scene->skyColorSelection = 
+			gui_float_slider("Sky Color", &scene->skyColorSelection, 0,1);
 
 			char const * const colorFromTreeDistanceTexts [] = 
 			{
@@ -235,8 +274,26 @@ bool32 do_gui(Scene3d * scene, PlatformInput const & input)
 				scene->getSkyColorFromTreeDistance = !scene->getSkyColorFromTreeDistance;
 			}
 
-			scene->sunHeightAngle 	= gui_float_slider("Sky Height Angle", scene->sunHeightAngle, -1, 1);
-			scene->sunOrbitAngle 	= gui_float_slider("Sky Orbit Angle", scene->sunOrbitAngle, 0, 1);
+			gui_float_slider("Sky Height Angle", &scene->sunHeightAngle, -1, 1);
+			gui_float_slider("Sky Orbit Angle", &scene->sunOrbitAngle, 0, 1);
+
+			{
+				local_persist v4 color = {2,2,2,1};
+
+				bool modified = gui_color("Test Color", &color, GUI_COLOR_FLAGS_HDR);
+
+				if (modified)
+				{
+					scene->niceSkyGradient.colours[3] = color;
+
+					TextureAsset niceSkyGradientAsset 	= generate_gradient(*global_transientMemory, 128, scene->niceSkyGradient);
+					niceSkyGradientAsset.addressMode 	= TEXTURE_ADDRESS_MODE_CLAMP;
+
+					platformApi->update_texture(platformGraphics, scene->niceSkyGradientTexture, &niceSkyGradientAsset);
+
+					logDebug(0) << "Color = " << color;
+				}
+			}
 
 			if (gui_button("Back"))
 			{
@@ -256,7 +313,7 @@ bool32 do_gui(Scene3d * scene, PlatformInput const & input)
 	// gui_position({100, 100});
 	// gui_image(shadowTexture, {300, 300});
 
-	gui_position({1550, 50});
+	gui_position({1550, 30});
 	if (scene->drawDebugShadowTexture)
 	{
 		gui_image(GRAPHICS_RESOURCE_SHADOWMAP_GUI_TEXTURE, {300, 300});

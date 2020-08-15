@@ -8,6 +8,8 @@ constexpr f32 lowest_f32    = std::numeric_limits<f32>::lowest();
 constexpr f32 smallest_f32  = std::numeric_limits<f32>::min();
 
 constexpr s16 max_value_s16 = std::numeric_limits<s16>::max();
+constexpr s32 max_value_s32 = std::numeric_limits<s32>::max();
+constexpr s64 max_value_s64 = std::numeric_limits<s64>::max();
 
 constexpr s16 max_value_u16 = std::numeric_limits<u16>::max();
 constexpr u32 max_value_u32 = std::numeric_limits<u32>::max();

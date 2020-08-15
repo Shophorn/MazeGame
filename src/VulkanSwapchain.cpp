@@ -43,17 +43,28 @@ internal VulkanSwapchainSupportDetails fsvulkan_query_swap_chain_support(VkPhysi
 
 internal VkSurfaceFormatKHR fsvulkan_choose_swapchain_surface_format(std::vector<VkSurfaceFormatKHR>& availableFormats)
 {
-	constexpr VkFormat preferredFormat              = VK_FORMAT_R8G8B8A8_UNORM;
+	constexpr VkFormat preferredFormat              = VK_FORMAT_B8G8R8A8_SRGB;
 	constexpr VkColorSpaceKHR preferredColorSpace   = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
 
+	logVulkan(0) << "surface format preferred, format = " << fsvulkan_format_string(preferredFormat) << " color space = " << fsvulkan_color_space_khr_string(preferredColorSpace);
+
 	VkSurfaceFormatKHR result = availableFormats [0];
+	s32 resultFormatIndex;
 	for (s32 i = 0; i < availableFormats.size(); ++i)
-	{
+	{	
+		logVulkan(0) << i << ": surface format prospect, format = " << fsvulkan_format_string(availableFormats[i].format) << " color space = " << fsvulkan_color_space_khr_string(availableFormats[i].colorSpace);
+
 		if (availableFormats[i].format == preferredFormat && availableFormats[i].colorSpace == preferredColorSpace)
 		{
-			result = availableFormats [i];
+			logVulkan(0) << i << ": preferred surface format found, format = " << fsvulkan_format_string(availableFormats[i].format) << " color space = " << fsvulkan_color_space_khr_string(availableFormats[i].colorSpace);
+
+			resultFormatIndex 	= i;
+			result 				= availableFormats [i];
 		}   
 	}
+
+	logVulkan(0) << "result format index = " << resultFormatIndex;
+
 	return result;
 }
 
@@ -142,6 +153,7 @@ vulkan::create_drawing_resources(VulkanContext * context, u32 width, u32 height)
 
 
 	context->swapchainImageFormat = surfaceFormat.format;
+	logVulkan(0) << "Swapchain format is " << fsvulkan_format_string(surfaceFormat.format);
 
 
 	// TODO(Leo): following imageCount variable is reusing one from previous definition, maybe bug
@@ -314,13 +326,16 @@ internal void fsvulkan_recreate_drawing_resources(VulkanContext * context, u32 w
 	fsvulkan_cleanup_pipelines(context);
 	fsvulkan_initialize_pipelines(*context);
 
-	context->shadowMapTextureDescriptorSet = make_material_vk_descriptor_set_2( context,
-																				context->shadowMapTextureDescriptorSetLayout,
-																				// context->pipelines[GRAPHICS_PIPELINE_SCREEN_GUI].descriptorSetLayout,
-																				context->shadowAttachment.view,
-																				context->persistentDescriptorPool,
-																				context->shadowTextureSampler,
-																				VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	for (s32 i = 0; i < VIRTUAL_FRAME_COUNT; ++i)
+	{
+		context->shadowMapTextureDescriptorSet[i] = make_material_vk_descriptor_set_2( context,
+																					context->shadowMapTextureDescriptorSetLayout,
+																					// context->pipelines[GRAPHICS_PIPELINE_SCREEN_GUI].descriptorSetLayout,
+																					context->shadowAttachment[i].view,
+																					context->persistentDescriptorPool,
+																					context->shadowTextureSampler,
+																					VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	}
 	
 	/* Todo(Leo, 28.5.): We currently have viewport and scissor sizes as dynamic
 	things in all pipelines, so we do not need to recreate those. But if we change that,

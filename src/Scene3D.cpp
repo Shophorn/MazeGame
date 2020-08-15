@@ -59,6 +59,18 @@ struct FallingObject
 	f32 fallSpeed;
 };
 
+enum MenuView : s32
+{
+	MENU_OFF,
+	MENU_MAIN,
+	MENU_CONFIRM_EXIT,
+	MENU_CONFIRM_TELEPORT,
+	MENU_EDIT_SKY,
+	MENU_EDIT_MESH_GENERATION,
+	MENU_SAVE_COMPLETE,
+};
+
+
 struct Scene3d
 {
 	// Todo(Leo): Remove these "component" arrays, they are stupidly generic solution, that hide away actual data location, at least the way they are now used
@@ -224,8 +236,15 @@ struct Scene3d
 	// Data
 	Animation characterAnimations [CharacterAnimations::ANIMATION_COUNT];
 
+	// Sky
+	Gradient 		niceSkyGradient;
+	Gradient 		meanSkyGradient;
+	ModelHandle 	skybox;
+	MaterialHandle 	skyMaterial;
+	TextureHandle 	niceSkyGradientTexture;
+	TextureHandle 	meanSkyGradientTexture;
+
 	// Random
-	ModelHandle skybox;
 	bool32 		getSkyColorFromTreeDistance;
 	f32 		skyColorSelection;
 	f32 		sunHeightAngle;
@@ -236,7 +255,7 @@ struct Scene3d
 	bool32		drawDebugShadowTexture;
 
 
-	s32 menuView;
+	MenuView menuView;
 
 	GuiTextureHandle guiPanelImage;
 	v4 guiPanelColour;
@@ -246,6 +265,99 @@ struct Scene3d
 	s32 					timeScaleIndex;
 
 };
+
+struct StringReference
+{
+	s32 	length;
+	char * 	string;
+};
+
+std::ostream & operator << (std::ostream & os, StringReference & stringRef)
+{
+	for(s32 i = 0; i < stringRef.length; ++i)
+	{
+		logDebug(0) << stringRef.string[i] << '\n';
+		os << stringRef.string[i];
+	}
+
+	return os;
+}
+
+void eat_leading_spaces(StringReference & stringRef)
+{
+	while(stringRef.length > 0 && stringRef.string[0] == ' ')
+	{
+		stringRef.string += 1;
+		stringRef.length -= 1;
+	}
+}
+
+StringReference extract_line(StringReference & source)
+{
+	s32 length = 0;
+	while(true)
+	{
+		if (length == source.length)
+		{
+			break;
+		}
+
+		if (source.string[length] == '\r' && source.string[length + 1] == '\n')
+		{
+			break;
+		}
+
+		length += 1;
+	}
+
+	StringReference result = 
+	{
+		.length = length,
+		.string = source.string
+	};
+	eat_leading_spaces(result);
+
+
+	source.string += length + 2;
+	source.length -= length + 2;
+
+	return result;
+}
+
+
+internal void read_tweak_values(Scene3d * scene)
+{
+	auto file = platformApi->open_file("tweakfile", FILE_MODE_READ);
+	s32 fileLength = platformApi->get_file_length(file);
+
+	char * buffer = push_memory<char>(*global_transientMemory, fileLength, 0);
+
+	platformApi->read_file(file, fileLength, buffer); 
+
+	StringReference fileAsString = {fileLength, buffer};
+
+	while(fileAsString.length > 0)
+	{
+		StringReference line = extract_line(fileAsString);
+
+		auto log = logDebug(0);
+		log << "Tweak file: ";
+	
+		if (line.length > 0)
+		{
+			for(s32 i = 0; i < line.length; ++i)
+			{
+				log << line.string[i];
+			}
+		}
+		else
+		{
+			log << "[EMPTY LINE]";
+		}
+	}
+
+	platformApi->close_file(file);		
+}
 
 struct Scene3dSaveLoad
 {
@@ -1373,6 +1485,34 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 	// ------------------------------------------------------------------------
 
+	// // Todo(Leo): These still MAYBE do not belong here
+	// if (is_clicked(input->select))
+	// {
+	// 	if (platformApi->is_window_fullscreen(window))
+	// 	{
+	// 		platformApi->set_window_fullscreen(window, false);
+	// 	}
+	// 	else
+	// 	{
+	// 		platformApi->set_window_fullscreen(window, true);
+	// 	}
+	// }
+
+
+	// bool isFullScreen 		= platformApi->is_window_fullscreen(platformWindow);
+	// bool toggleFullScreen 	= is_clicked(input.select);
+	// if (toggleFullScreen)
+	// {
+	// 	isFullScreen = !isFullScreen;
+	// 	platformApi->set_window_fullscreen(platformWindow, isFullScreen);
+	// 	platformApi->set_cursor_visible(platformWindow, !isFullScreen);
+	// }
+
+	// bool mouseCursorVisible = !isFullScreen || (scene->menuView != MENU_OFF);
+	// platformApi->set_cursor_visible(platformWindow, mouseCursorVisible);
+
+	// ------------------------------------------------------------------------
+
 	return do_gui(scene, input);
 }
 
@@ -1393,16 +1533,7 @@ void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle saveFile
 
 	// ----------------------------------------------------------------------------------
 
-	scene->gui 						= {};
-	scene->gui.textSize 			= 40;
-	scene->gui.textColor 			= colour_white;
-	scene->gui.selectedTextColor 	= colour_muted_red;
-	scene->gui.padding 				= 10;
-	scene->gui.font 				= load_font("c:/windows/fonts/arial.ttf");
-
-	u32 guiTexturePixelColor 		= 0xffffffff;
-	TextureAsset guiTextureAsset 	= make_texture_asset(&guiTexturePixelColor, 1, 1, 4);
-	scene->gui.panelTexture			= platformApi->push_gui_texture(platformGraphics, &guiTextureAsset);
+	scene_3d_initialize_gui(scene);
 
 	// ----------------------------------------------------------------------------------
 
@@ -1433,7 +1564,6 @@ void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle saveFile
 		MaterialHandle character;
 		MaterialHandle environment;
 		MaterialHandle ground;
-		MaterialHandle sky;
 	} materials;
 
 	auto load_and_push_texture = [](const char * path) -> TextureHandle
@@ -1486,35 +1616,51 @@ void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle saveFile
 		};
 		
 		{
-			v4 niceSkyGradientColors [] =
-			{
-				{0.11, 0.07, 0.25, 	1.0},
-				{0.4, 0.9, 1.2,		1.0},
-				{0.8, 0.99, 1.2,	1.0},
-				{2,2,2, 			1.0},
-			};
-			f32 niceSkyGradientTimes [] 		= {0.1, 0.3, 0.9, 0.99};
+			scene->niceSkyGradient.capacity = 10;
+			scene->niceSkyGradient.count 	= 4;
+			scene->niceSkyGradient.colours 	= push_memory<v4>(persistentMemory, scene->niceSkyGradient.capacity, ALLOC_CLEAR);
+			scene->niceSkyGradient.times 	= push_memory<f32>(persistentMemory, scene->niceSkyGradient.capacity, ALLOC_CLEAR);
 
-			TextureAsset niceSkyGradientAsset 	= generate_gradient(*global_transientMemory, 4, niceSkyGradientColors, niceSkyGradientTimes, 128);
+			scene->niceSkyGradient.colours[0] = {0.11, 0.07, 0.25, 	1.0};
+			scene->niceSkyGradient.colours[1] = {0.4, 0.9, 1.2,		1.0};
+			scene->niceSkyGradient.colours[2] = {0.8, 0.99, 1.2,	1.0};
+			scene->niceSkyGradient.colours[3] = {2,2,2, 			1.0};
+
+			scene->niceSkyGradient.times[0] = 0.1;
+			scene->niceSkyGradient.times[1] = 0.3;
+			scene->niceSkyGradient.times[2] = 0.9;
+			scene->niceSkyGradient.times[3] = 0.998;
+
+			TextureAsset niceSkyGradientAsset 	= generate_gradient(*global_transientMemory, 128, scene->niceSkyGradient);
 			niceSkyGradientAsset.addressMode 	= TEXTURE_ADDRESS_MODE_CLAMP;
-			auto niceSkyGradient				= platformApi->push_texture(platformGraphics, &niceSkyGradientAsset);
+			scene->niceSkyGradientTexture		= platformApi->push_texture(platformGraphics, &niceSkyGradientAsset);
 
-			v4 meanSkyGradientColors [] =
-			{
-				{0.1,0.05,0.05,		1.0},
-				{1.1, 0.1, 0.05,	1.0},
-				{1.1, 0.1, 0.05,	1.0},
-				{1.4, 0.95, 0.8,	1.0},
-				{2, 1.2, 1.2, 		1.0},
-			};
-			f32 meanSkyGradientTimes [] 			= {0.1, 0.3, 0.7, 0.9, 0.99};
-			TextureAsset meanSkyGradientAsset 		= generate_gradient(*global_transientMemory, 5, meanSkyGradientColors, meanSkyGradientTimes, 128);
-			meanSkyGradientAsset.addressMode 		= TEXTURE_ADDRESS_MODE_CLAMP;
-			auto meanSkyGradientTexture				= platformApi->push_texture(platformGraphics, &meanSkyGradientAsset);
+			////------------------------------------------------------------------------------------------
 
-			TextureHandle skyGradientTextures [] 	= {niceSkyGradient, meanSkyGradientTexture};
+			scene->meanSkyGradient.capacity = 10;
+			scene->meanSkyGradient.count 	= 5;
+			scene->meanSkyGradient.colours 	= push_memory<v4>(persistentMemory, scene->meanSkyGradient.capacity, ALLOC_CLEAR);
+			scene->meanSkyGradient.times 	= push_memory<f32>(persistentMemory, scene->meanSkyGradient.capacity, ALLOC_CLEAR);
 
-			materials.sky 							= platformApi->push_material(platformGraphics, GRAPHICS_PIPELINE_SKYBOX, 2, skyGradientTextures);
+			scene->meanSkyGradient.colours[0] = {0.1,0.05,0.05,		1.0};
+			scene->meanSkyGradient.colours[1] = {1.1, 0.1, 0.05,	1.0};
+			scene->meanSkyGradient.colours[2] = {1.1, 0.1, 0.05,	1.0};
+			scene->meanSkyGradient.colours[3] = {1.4, 0.95, 0.8,	1.0};
+			scene->meanSkyGradient.colours[4] = {2, 1.2, 1.2, 		1.0};
+
+			scene->meanSkyGradient.times[0] = 0.1;
+			scene->meanSkyGradient.times[1] = 0.3;
+			scene->meanSkyGradient.times[2] = 0.7;
+			scene->meanSkyGradient.times[3] = 0.9;
+			scene->meanSkyGradient.times[4] = 0.998;
+
+			TextureAsset meanSkyGradientAsset 	= generate_gradient(*global_transientMemory, 128, scene->meanSkyGradient);
+			meanSkyGradientAsset.addressMode 	= TEXTURE_ADDRESS_MODE_CLAMP;
+			scene->meanSkyGradientTexture		= platformApi->push_texture(platformGraphics, &meanSkyGradientAsset);
+
+			TextureHandle skyGradientTextures [] 	= {scene->niceSkyGradientTexture, scene->meanSkyGradientTexture};
+
+			scene->skyMaterial 						= platformApi->push_material(platformGraphics, GRAPHICS_PIPELINE_SKYBOX, 2, skyGradientTextures);
 		}
 	}
 
@@ -1528,7 +1674,7 @@ void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle saveFile
 	{
 		auto meshAsset 	= create_skybox_mesh(global_transientMemory);
 		auto meshHandle = platformApi->push_mesh(platformGraphics, &meshAsset);
-		scene->skybox 	= push_model(meshHandle, materials.sky);
+		scene->skybox 	= push_model(meshHandle, scene->skyMaterial);
 	}
 
 	// Characters

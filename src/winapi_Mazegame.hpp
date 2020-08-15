@@ -99,5 +99,8 @@ namespace winapi
         DWORD xinputLastPacketNumber;
         bool32 xinputIsUsed;
         KeyboardInput keyboardInput;
+
+        v2 mousePosition;
+        bool32 leftMouseButtonDown;
     };  
 }

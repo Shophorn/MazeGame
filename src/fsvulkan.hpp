@@ -20,7 +20,7 @@ print_vulkan_assert(LogInput::FileAddress address, VkResult result)
 
 #define VULKAN_CHECK(result) if (result != VK_SUCCESS) { print_vulkan_assert(FILE_ADDRESS, result); abort();}
 
-// Note(Leo): Play with these later in development, when we have closer to final contents
+// Todo(Leo): Play with these later in development, when we have closer to final contents
 // constexpr s32 VIRTUAL_FRAME_COUNT = 2;
 constexpr s32 VIRTUAL_FRAME_COUNT = 3;
 
@@ -114,9 +114,15 @@ struct VulkanTexture
 	VkImage 		image;
 	VkImageView 	view;
 	VkSampler 		sampler;
+	
+	VkFormat 		format;
 
 	// TODO(Leo): totally not allocate like this, we need texture pool
 	VkDeviceMemory memory;
+
+	u32 width;
+	u32 height;
+	u32 mipLevels;
 };
 
 struct VulkanGuiTexture
@@ -283,18 +289,20 @@ struct PlatformGraphics
 	VkSampler 	shadowTextureSampler; 
 
 	VkRenderPass 		shadowRenderPass;
+	
 	VkPipeline 			shadowPipeline;
 	VkPipelineLayout 	shadowPipelineLayout;
 
-	VulkanTexture 			shadowAttachment;
-	VkFramebuffer 			shadowFramebuffer;
-
-	VkDescriptorSetLayout 	shadowMapTextureDescriptorSetLayout;
-	VkDescriptorSet 		shadowMapTextureDescriptorSet;
-	
 	VkPipeline 				leavesShadowPipeline;
 	VkPipelineLayout 		leavesShadowPipelineLayout;
 	VkDescriptorSetLayout 	leavesShadowMaskDescriptorSetLayout;
+
+	VulkanTexture 			shadowAttachment[VIRTUAL_FRAME_COUNT];
+	VkFramebuffer 			shadowFramebuffer[VIRTUAL_FRAME_COUNT];
+
+	VkDescriptorSetLayout 	shadowMapTextureDescriptorSetLayout;
+	VkDescriptorSet 		shadowMapTextureDescriptorSet[VIRTUAL_FRAME_COUNT];
+	
 
 	// ----------------------------------------------------------------------------------
 
@@ -302,7 +310,12 @@ struct PlatformGraphics
 	using PostRenderFunc = void(VulkanContext*);
 	PostRenderFunc * onPostRender;
 
-    VulkanBufferResource stagingBufferPool;
+	// Todo(Leo): Guard against multithreaded race condition once we have that
+	u64 			stagingBufferCapacity;
+	VkBuffer 		stagingBuffer;
+	VkDeviceMemory 	stagingBufferDeviceMemory;
+	u8 * 			persistentMappedStagingBufferMemory;
+
     VulkanBufferResource staticMeshPool;
     VulkanBufferResource modelUniformBuffer;
     VulkanBufferResource sceneUniformBuffer;
