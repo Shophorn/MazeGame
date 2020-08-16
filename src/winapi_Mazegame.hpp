@@ -100,7 +100,8 @@ namespace winapi
         bool32 xinputIsUsed;
         KeyboardInput keyboardInput;
 
-        v2 mousePosition;
-        bool32 leftMouseButtonDown;
+        v2      mousePosition;
+        f32     mouseScroll;
+        bool32  leftMouseButtonDown;
     };  
 }

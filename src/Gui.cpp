@@ -552,7 +552,8 @@ internal bool gui_float_slider_2(char const * label, f32 * value, f32 minValue, 
 	constexpr f32 sliderMoveSpeed = 1.0;
 	bool isSelected = gui_is_selected();
 
-	bool modified = false;
+	bool modified 			= false;
+	bool modifiedByMouse 	= isSelected && is_pressed(gui.input.mouse0);
 
 	if (isSelected)
 	{
@@ -569,6 +570,12 @@ internal bool gui_float_slider_2(char const * label, f32 * value, f32 minValue, 
 		}
 	}
 	
+	if (modifiedByMouse)
+	{
+		f32 mouseDelta 	= gui.input.mousePosition.x - gui.mousePositionLastFrame.x;
+		*value 			+= mouseDelta / 100;
+	}
+
 	*value = clamp_f32(*value, minValue, maxValue);
 
 	char valueTextBuffer [10] = {};
@@ -656,12 +663,11 @@ internal bool gui_color(char const * label, v4 * color, GuiColorFlags flags)
 	v2 startCursor = gui.panelCursor;
 
 	bool hdr = (flags & GUI_COLOR_FLAGS_HDR) != 0;
-	f32 min = hdr ? -10 : 0;
 	f32 max = hdr ? 10 : 1;
 
-	bool modified 	= gui_float_slider_2("R:", &color->r, min, max);
-	modified 		= gui_float_slider_2("G:", &color->g, min, max) || modified;
-	modified 		= gui_float_slider_2("B:", &color->b, min, max) || modified;
+	bool modified 	= gui_float_slider_2("R:", &color->r, 0, max);
+	modified 		= gui_float_slider_2("G:", &color->g, 0, max) || modified;
+	modified 		= gui_float_slider_2("B:", &color->b, 0, max) || modified;
 
 	if ((flags & GUI_COLOR_FLAGS_ALPHA) != 0)
 	{

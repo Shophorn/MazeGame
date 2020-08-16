@@ -122,6 +122,14 @@ internal LRESULT CALLBACK fswin32_window_callback (HWND hwnd, UINT message, WPAR
             state.leftMouseButtonDown   = false;
         } break;
 
+        case WM_MOUSEWHEEL:
+        {
+            constexpr f32 windowsScrollConstant = 120;
+            
+            winapi::State & state   = *fswin32_get_user_pointer(hwnd)->state;
+            state.mouseScroll       += GET_WHEEL_DELTA_WPARAM(wParam) / windowsScrollConstant;
+        } break;
+
         case WM_KEYDOWN:
             process_keyboard_input(fswin32_get_user_pointer(hwnd)->state, wParam, true);
             break;

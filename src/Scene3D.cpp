@@ -18,6 +18,7 @@ enum CameraMode : s32
 { 
 	CAMERA_MODE_PLAYER, 
 	CAMERA_MODE_ELEVATOR,
+	CAMERA_MODE_MOUSE_AND_KEYBOARD,
 
 	CAMERA_MODE_COUNT
 };
@@ -91,7 +92,8 @@ struct Scene3d
 	Camera 						worldCamera;
 	PlayerCameraController 		playerCamera;
 	FreeCameraController		freeCamera;
-	
+	MouseCameraController		mouseCamera;
+
 	// ---------------------------------------
 
 	Transform3D 		noblePersonTransform;
@@ -251,7 +253,7 @@ struct Scene3d
 	f32 		sunOrbitAngle;
 
 	Gui 		gui;
-	s32 		cameraMode;
+	CameraMode 	cameraMode;
 	bool32		drawDebugShadowTexture;
 
 
@@ -538,54 +540,76 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 	platformApi->draw_model(platformGraphics, scene->skybox, identity_m44, false, nullptr, 0);
 
 	// Game Logic section
-	if(scene->cameraMode == CAMERA_MODE_PLAYER)
+	switch (scene->cameraMode)
 	{
-		CharacterInput playerCharacterMotorInput = {};
-
-		if (scene->menuView == MENU_OFF)
+		case CAMERA_MODE_PLAYER:
 		{
-			if (is_clicked(input.down))
+			CharacterInput playerCharacterMotorInput = {};
+
+			if (scene->menuView == MENU_OFF)
 			{
-				scene->nobleWanderTargetPosition 	= scene->playerCharacterTransform.position;
-				scene->nobleWanderWaitTimer 		= 0;
-				scene->nobleWanderIsWaiting 		= false;
+				if (is_clicked(input.down))
+				{
+					scene->nobleWanderTargetPosition 	= scene->playerCharacterTransform.position;
+					scene->nobleWanderWaitTimer 		= 0;
+					scene->nobleWanderIsWaiting 		= false;
+				}
+
+				playerCharacterMotorInput = update_player_input(scene->playerInputState, scene->worldCamera, input);
 			}
 
-			playerCharacterMotorInput = update_player_input(scene->playerInputState, scene->worldCamera, input);
-		}
+			update_character_motor(scene->playerCharacterMotor, playerCharacterMotorInput, scene->collisionSystem, scaledTime, DEBUG_PLAYER);
 
-		update_character_motor(scene->playerCharacterMotor, playerCharacterMotorInput, scene->collisionSystem, scaledTime, DEBUG_PLAYER);
+			update_camera_controller(&scene->playerCamera, scene->playerCharacterTransform.position, input, scaledTime);
 
-		update_camera_controller(&scene->playerCamera, scene->playerCharacterTransform.position, input, scaledTime);
+			scene->worldCamera.position = scene->playerCamera.position;
+			scene->worldCamera.direction = scene->playerCamera.direction;
 
-		scene->worldCamera.position = scene->playerCamera.position;
-		scene->worldCamera.direction = scene->playerCamera.direction;
+			scene->worldCamera.farClipPlane = 1000;
 
-		scene->worldCamera.farClipPlane = 1000;
+			/// ---------------------------------------------------------------------------------------------------
 
-		/// ---------------------------------------------------------------------------------------------------
+			debug_draw_circle_xy(scene->nobleWanderTargetPosition + v3{0,0,0.5}, 1.0, colour_bright_green, DEBUG_NPC);
+			debug_draw_circle_xy(scene->nobleWanderTargetPosition + v3{0,0,0.5}, 0.9, colour_bright_green, DEBUG_NPC);
+		} break;
 
-		debug_draw_circle_xy(scene->nobleWanderTargetPosition + v3{0,0,0.5}, 1.0, colour_bright_green, DEBUG_NPC);
-		debug_draw_circle_xy(scene->nobleWanderTargetPosition + v3{0,0,0.5}, 0.9, colour_bright_green, DEBUG_NPC);
-
-	}
-	else
-	{
-		m44 cameraMatrix = update_free_camera(scene->freeCamera, input, unscaledTime);
-
-		scene->worldCamera.position = scene->freeCamera.position;
-		scene->worldCamera.direction = scene->freeCamera.direction;
-
-		/// Document(Leo): Teleport player
-		if (scene->menuView == MENU_OFF && is_clicked(input.A))
+		case CAMERA_MODE_ELEVATOR:
 		{
-			scene->menuView = MENU_CONFIRM_TELEPORT;
-			gui_ignore_input();
-			gui_reset_selection();
-		}
+			m44 cameraMatrix = update_free_camera(scene->freeCamera, input, unscaledTime);
 
-		scene->worldCamera.farClipPlane = 2000;
-	}	
+			scene->worldCamera.position = scene->freeCamera.position;
+			scene->worldCamera.direction = scene->freeCamera.direction;
+
+			/// Document(Leo): Teleport player
+			if (scene->menuView == MENU_OFF && is_clicked(input.A))
+			{
+				scene->menuView = MENU_CONFIRM_TELEPORT;
+				gui_ignore_input();
+				gui_reset_selection();
+			}
+
+			scene->worldCamera.farClipPlane = 2000;
+		} break;
+
+		case CAMERA_MODE_MOUSE_AND_KEYBOARD:
+		{
+			update_mouse_camera(scene->mouseCamera, input, unscaledTime);
+
+			scene->worldCamera.position = scene->mouseCamera.position;
+			scene->worldCamera.direction = scene->mouseCamera.direction;
+
+			/// Document(Leo): Teleport player
+			if (scene->menuView == MENU_OFF && is_clicked(input.A))
+			{
+				scene->menuView = MENU_CONFIRM_TELEPORT;
+				gui_ignore_input();
+				gui_reset_selection();
+			}
+
+			scene->worldCamera.farClipPlane = 2000;
+		} break;
+	}
+
 
 	/// *******************************************************************************************
 
@@ -1485,34 +1509,6 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 	// ------------------------------------------------------------------------
 
-	// // Todo(Leo): These still MAYBE do not belong here
-	// if (is_clicked(input->select))
-	// {
-	// 	if (platformApi->is_window_fullscreen(window))
-	// 	{
-	// 		platformApi->set_window_fullscreen(window, false);
-	// 	}
-	// 	else
-	// 	{
-	// 		platformApi->set_window_fullscreen(window, true);
-	// 	}
-	// }
-
-
-	// bool isFullScreen 		= platformApi->is_window_fullscreen(platformWindow);
-	// bool toggleFullScreen 	= is_clicked(input.select);
-	// if (toggleFullScreen)
-	// {
-	// 	isFullScreen = !isFullScreen;
-	// 	platformApi->set_window_fullscreen(platformWindow, isFullScreen);
-	// 	platformApi->set_cursor_visible(platformWindow, !isFullScreen);
-	// }
-
-	// bool mouseCursorVisible = !isFullScreen || (scene->menuView != MENU_OFF);
-	// platformApi->set_cursor_visible(platformWindow, mouseCursorVisible);
-
-	// ------------------------------------------------------------------------
-
 	return do_gui(scene, input);
 }
 
@@ -2392,7 +2388,7 @@ void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle saveFile
 		scene->metaballTransform 	= translation_matrix(position);
 
 		// Todo(Leo): textures are copied too many times: from file to stb, from stb to TextureAsset, from TextureAsset to graphics.
-		TextureAsset albedo = load_texture_asset(*global_transientMemory, "assets/textures/Acorn_albedo.png");
+		TextureAsset albedo = load_texture_asset(*global_transientMemory, "assets/textures/bark.png");
 		// TextureAsset normal = load_texture_asset(*global_transientMemory, "assets/textures/ground_normal.png");
 
 		TextureHandle treeTextures [] =
@@ -2400,6 +2396,8 @@ void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle saveFile
 			platformApi->push_texture(platformGraphics, &albedo),
 		};
 		scene->metaballMaterial = platformApi->push_material(platformGraphics, GRAPHICS_PIPELINE_TRIPLANAR, 1, treeTextures);
+		scene->treeMaterials[TREE_TYPE_1] = scene->metaballMaterial;
+		scene->treeMaterials[TREE_TYPE_2] = scene->metaballMaterial;
 
 		// ----------------------------------------------------------------------------------
 

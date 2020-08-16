@@ -180,3 +180,63 @@ internal m44 update_free_camera(FreeCameraController & controller, PlatformInput
 
 	return rotation;
 }
+
+struct MouseCameraController
+{
+	v3 targetPosition 	= {0,0,0};
+	v3 position 		= {0,0,0};
+	v3 direction 		= {0,1,0};
+	f32 distance 		= 0;
+	v2 lastMousePosition;
+};
+
+internal void update_mouse_camera(MouseCameraController & controller, PlatformInput const & input, f32 elapsedTime)
+{
+
+	constexpr f32 lowMoveSpeed 		= 10;
+	constexpr f32 highMoveSpeed		= 100;
+	constexpr f32 zMoveSpeed 		= 25;
+	constexpr f32 rotateSpeed 		= 0.3;
+	constexpr f32 maxTilt 			= 0.45f * π;
+	constexpr f32 scrollMoveSpeed 	= -10; // Note(Leo): Negative because scroll up should move us closer
+
+	v2 mouseInput 					= input.mousePosition - controller.lastMousePosition;
+	controller.lastMousePosition 	= input.mousePosition;
+
+	if (is_pressed(input.mouse0) == false)
+	{
+		mouseInput = {};
+	}
+
+	// Note(Leo): positive rotation is to left, which is opposite of joystick
+	f32 panAngle 	= -1 * mouseInput.x * rotateSpeed * elapsedTime;
+	quaternion pan 	= axis_angle_quaternion(up_v3, panAngle);
+
+	v3 direction 	= rotate_v3(pan, controller.direction);
+	v3 right 		= normalize_v3(cross_v3(direction, up_v3));
+
+	f32 tiltAngle 	= -1 * mouseInput.y * rotateSpeed * elapsedTime;
+	tiltAngle 		= clamp_f32(tiltAngle, -maxTilt, maxTilt);
+	quaternion tilt = axis_angle_quaternion(right, tiltAngle);
+
+	direction 		= rotate_v3(tilt, direction);
+
+	constexpr f32 minHeight = 10;
+	constexpr f32 maxHeight = 50;
+	f32 heightValue = clamp_f32(controller.targetPosition.z, minHeight, maxHeight) / maxHeight;
+	f32 moveSpeed 	= interpolate(lowMoveSpeed, highMoveSpeed, heightValue);
+
+	f32 moveStep 		= moveSpeed * elapsedTime;
+
+	v3 rightMovement 	= right * input.move.x * moveStep;
+	v3 forwardMovement 	= direction * input.move.y * moveStep;
+
+	controller.targetPosition += rightMovement + forwardMovement;
+	controller.direction = direction;
+
+	f32 scrollMovement 	= input.mouseZoom * scrollMoveSpeed;
+	controller.distance += scrollMovement;
+	controller.distance = clamp_f32(controller.distance, 0, 10000);
+
+	controller.position = controller.targetPosition - controller.direction * controller.distance;
+}

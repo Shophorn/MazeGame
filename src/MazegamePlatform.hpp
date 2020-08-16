@@ -200,7 +200,8 @@ struct PlatformInput
 	ButtonState zoomIn;
 	ButtonState zoomOut;
 
-	v2 mousePosition;
+	v2 			mousePosition;
+	f32 		mouseZoom;
 	ButtonState mouse0;
 };
 

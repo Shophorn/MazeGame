@@ -371,6 +371,9 @@ Run(HINSTANCE hInstance)
 
 			platformInput.mousePosition = state.mousePosition;
     		platformInput.mouse0   		= update_button_state(platformInput.mouse0, state.leftMouseButtonDown);
+    		platformInput.mouseZoom 	= state.mouseScroll;
+
+    		state.mouseScroll = 0;
 
 		}
 

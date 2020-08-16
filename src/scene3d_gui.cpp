@@ -91,13 +91,13 @@ bool32 do_gui(Scene3d * scene, PlatformInput const & input)
 			char const * const cameraModeLabels [] =
 			{
 				"Camera Mode: Player", 
-				"Camera Mode: Free"
+				"Camera Mode: Free",
+				"Camera Mode: Mouse",
 			};
 			
 			if (gui_button(cameraModeLabels[scene->cameraMode]))
 			{
-				scene->cameraMode += 1;
-				scene->cameraMode %= CAMERA_MODE_COUNT;
+				scene->cameraMode = (CameraMode)((scene->cameraMode + 1) % CAMERA_MODE_COUNT);
 			}
 
 			char const * const debugLevelButtonLabels [] =

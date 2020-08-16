@@ -47,7 +47,7 @@ void main()
 	vec2 uvXZ = worldPosition.xz;
 	vec2 uvYZ = worldPosition.yz;
 
-	float gamma = 2.2;
+	// float gamma = 2.2;
 
 	vec3 texXY = texture(texSampler, uvXY).rgb;
 	vec3 texXZ = texture(texSampler, uvXZ).rgb;
@@ -66,7 +66,7 @@ void main()
 				+ texXZ * weights.y
 				+ texYZ * weights.z;
 
-	albedo = pow(albedo, vec3(gamma));	
+	// albedo = pow(albedo, vec3(gamma));	
 
 #if 0
 	vec3 ambient 	= light.ambient.rgb;
