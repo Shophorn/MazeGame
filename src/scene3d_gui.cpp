@@ -295,6 +295,9 @@ bool32 do_gui(Scene3d * scene, PlatformInput const & input)
 				}
 			}
 
+			gui_float_slider("HDR Exposure", &scene->hdrSettings.exposure, 0.1, 10);
+			gui_float_slider("HDR Contrast", &scene->hdrSettings.contrast, -1, 1);
+
 			if (gui_button("Back"))
 			{
 				scene->menuView = MENU_MAIN;

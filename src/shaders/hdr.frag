@@ -5,14 +5,19 @@ layout (binding = 0, set = 0) uniform sampler2D hdrTexture;
 layout (location = 0) in vec2 fragTexCoord;
 layout (location = 0) out vec4 outColor;
 
+layout(push_constant) uniform HdrSettings
+{
+	float exposure;
+	float contrast;
+} settings;
+
 void main()
 {	
 	vec3 hdrColor = texture(hdrTexture, fragTexCoord).rgb;
 
 	/// TONE MAP
 	// vec3 color = hdrColor / (hdrColor + vec3(1.0));
-	const float exposure = 0.5;
-	vec3 color = vec3(1.0) - exp(-hdrColor * exposure);
+	vec3 color = vec3(1.0) - exp(-hdrColor * settings.exposure);
 
 
 	/// GAMMA CORRECTION
@@ -29,9 +34,11 @@ void main()
 
 	/// CONTRAST
 	/// https://www.dfstudios.co.uk/articles/programming/image-programming-algorithms/image-processing-algorithms-part-5-contrast-adjustment/
-	// float contrast = 0.1;
-	// float factor = (1.01 * (contrast + 1.0)) / (1.0 * (1.01 - contrast));
-	// color = clamp(factor * (color - 0.5) + 0.5, 0, 1);
+
+	float contrast = pow(settings.contrast, 3);
+
+	float factor = (1.01 * (contrast + 1.0)) / (1.0 * (1.01 - contrast));
+	color = clamp(factor * (color - 0.5) + 0.5, 0, 1);
 
 
 	/// OUTPUT

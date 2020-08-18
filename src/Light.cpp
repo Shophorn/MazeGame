@@ -13,6 +13,9 @@ struct Light
 	f32 shadowTransitionDistance;
 
 	f32 skyColorSelection;
+	
+	f32 hdrExposure;
+	f32 hdrContrast;
 };
 
 

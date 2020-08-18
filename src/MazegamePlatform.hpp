@@ -70,6 +70,13 @@ needs to be specified for compiler. */
 #include "Camera.cpp"
 #include "Light.cpp"
 
+// Todo(Leo): Maybe post process
+struct HdrSettings
+{
+	f32 exposure;
+	f32 contrast;
+};
+
 struct ScreenRect
 {
 	v2 position;
@@ -259,6 +266,7 @@ struct PlatformApi
 	void (*finish_frame) 	(PlatformGraphics*);
 	void (*update_camera) 	(PlatformGraphics*, Camera const *);
 	void (*update_lighting)	(PlatformGraphics*, Light const *, Camera const * camera, v3 ambient);
+	void (*update_hdr_settings) (PlatformGraphics*, HdrSettings const*);
 	void (*draw_model) 		(PlatformGraphics*, ModelHandle model, m44 transform, bool32 castShadow, m44 const * bones, u32 boneCount);
 
 	void (*draw_meshes)			(PlatformGraphics*, s32 count, m44 const * transforms, MeshHandle mesh, MaterialHandle material);

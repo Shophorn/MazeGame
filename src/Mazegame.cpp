@@ -150,9 +150,13 @@ internal Gui make_main_menu_gui(MemoryArena & allocator)
 	gui.font 				= load_font("c:/windows/fonts/arial.ttf");
 
 
-	TextureAsset guiTextureAsset 	= load_texture_asset(*global_transientMemory, "assets/textures/Acorn_albedo.png");
-	// TextureAsset guiTextureAsset 	= make_texture_asset(allocate_array<u32>(*global_transientMemory, {0xffffffff}), 1, 1, 4);
+	u32 pixelColor 					= 0xffffffff;
+	TextureAsset guiTextureAsset 	= make_texture_asset(&pixelColor, 1, 1, 4);
 	gui.panelTexture				= platformApi->push_gui_texture(platformGraphics, &guiTextureAsset);
+
+	// Todo(Leo): this has nothing to do with gui, but this function is called appropriately :)
+	HdrSettings hdr = {1, 0};
+	platformApi->update_hdr_settings(platformGraphics, &hdr);
 
 	return gui;
 }
@@ -176,7 +180,6 @@ internal void initialize_game_state(GameState * state, PlatformMemory * memory)
 	state->gui 					= make_main_menu_gui(state->persistentMemoryArena);
 	auto backGroundImageAsset 	= load_texture_asset(*global_transientMemory, "assets/textures/NighestNouKeyArt.png");
 	state->backgroundImage		= platformApi->push_gui_texture(platformGraphics, &backGroundImageAsset);
-
 
 	state->isInitialized = true;
 }

@@ -266,6 +266,7 @@ struct Scene3d
 	constexpr static s32 	timeScaleCount = 3;
 	s32 					timeScaleIndex;
 
+	HdrSettings hdrSettings = {1,0};
 };
 
 struct StringReference
@@ -608,6 +609,10 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 			scene->worldCamera.farClipPlane = 2000;
 		} break;
+
+		case CAMERA_MODE_COUNT:
+			Assert(false && "Bad execution path");
+			break;
 	}
 
 
@@ -624,7 +629,6 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 		Light light = { .direction 	= lightDirection, //normalize_v3({-1, 1.2, -8}), 
 						.color 		= v3{0.95, 0.95, 0.9}};
 		v3 ambient 	= {0.05, 0.05, 0.3};
-
 
 		if (scene->getSkyColorFromTreeDistance)
 		{
@@ -656,8 +660,8 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 			light.skyColorSelection = scene->skyColorSelection;
 		}
 
-
 		platformApi->update_lighting(platformGraphics, &light, &scene->worldCamera, ambient);
+		platformApi->update_hdr_settings(platformGraphics, &scene->hdrSettings);
 	}
 
 	/// *******************************************************************************************
@@ -1572,7 +1576,7 @@ void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle saveFile
 	u32 whitePixelColour		= 0xffffffff;
 	u32 blackPixelColour 		= 0xff000000;
 	u32 neutralBumpPixelColour 	= colour_rgba_u32(colour_bump);
-	u32 waterBluePixelColour 	= colour_rgb_alpha_32(colour_aqua_blue.rgb, 0.7);
+	u32 waterBluePixelColour 	= colour_rgb_alpha_32(colour_aqua_blue.rgb, 0.4);
 	u32 seedBrownPixelColour 	= 0xff003399;
 
 	TextureAsset whiteTextureAsset 			= make_texture_asset(&whitePixelColour, 1, 1, 4);
@@ -1823,7 +1827,7 @@ void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle saveFile
 					v2 position = { x * chunkSize, y * chunkSize };
 					v2 size 	= { chunkSize, chunkSize };
 
-					auto groundMeshAsset 	= generate_terrain(*global_transientMemory, heightmap, position, size, chunkResolution, 10);
+					auto groundMeshAsset 	= generate_terrain(*global_transientMemory, heightmap, position, size, chunkResolution, 20);
 					scene->terrainMeshes[i] = platformApi->push_mesh(platformGraphics, &groundMeshAsset);
 				}
 			

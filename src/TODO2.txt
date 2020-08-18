@@ -1,0 +1,19 @@
+todo
+
+cursor visibility count thing
+
+rendering:
+	sky
+	shadows
+	pbs -> bdrf things
+	(deferred???)
+
+terrain:
+	ash like texture
+		-> sand like stuff like in journey
+	marching cubes terrain
+	triplanar map terrain
+
+trees:
+	spline mesh generation
+	spline generation from l-system things

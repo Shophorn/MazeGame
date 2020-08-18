@@ -35,37 +35,43 @@ constexpr s32 VULKAN_MAX_MATERIAL_COUNT = 100;
 constexpr VkSampleCountFlagBits VULKAN_MAX_MSAA_SAMPLE_COUNT = VK_SAMPLE_COUNT_2_BIT;
 
 
-namespace vulkan
+// Todo(Leo): these need to align properly
+// Note(Leo): these need to align properly
+// Study(Leo): these need to align properly
+struct FSVulkanCameraUniformBuffer
 {
-	// Note(Leo): these need to align properly
-	// Study(Leo): these need to align properly
-	struct CameraUniformBuffer
-	{
-		alignas(16) m44 view;
-		alignas(16) m44 projection;
-		alignas(16) m44 lightViewProjection;
-		alignas(16) f32 shadowDistance;
-		f32 shadowTransitionDistance;
-	};
+	alignas(16) m44 view;
+	alignas(16) m44 projection;
+	alignas(16) m44 lightViewProjection;
+	alignas(16) f32 shadowDistance;
+	f32 shadowTransitionDistance;
+};
 
-	struct LightingUniformBuffer
-	{
-		v4 direction;
-		v4 color;
-		v4 ambient;
-		v4 cameraPosition;
-		f32 skyColor;
-	};
-	
-	struct ModelUniformBuffer
-	{
-		// Note(Leo): matrices must be aligned on 16 byte boundaries
-		// Todo(Leo): Find the confirmation for this from Vulkan documentation
-		alignas(16) m44 	localToWorld;
-		alignas(16) float 	isAnimated;
-		alignas(16) m44 	bonesToLocal [32];
-	};
-}
+struct FSVulkanLightingUniformBuffer
+{
+	v4 direction;
+	v4 color;
+	v4 ambient;
+	v4 cameraPosition;
+	f32 skyColor;
+};
+
+struct FSVulkanModelUniformBuffer
+{
+	// Note(Leo): matrices must be aligned on 16 byte boundaries
+	// Todo(Leo): Find the confirmation for this from Vulkan documentation
+	alignas(16) m44 	localToWorld;
+	alignas(16) float 	isAnimated;
+	alignas(16) m44 	bonesToLocal [32];
+};
+
+// Note(Leo): this is currently same as platform version HdrSettings, and we could just use that, 
+// but if we add more or more complex variables, we may need to care about alignment.
+struct FSVulkanHdrSettings
+{
+	f32 exposure;
+	f32 contrast;
+};
 
 struct VulkanBufferResource
 {
@@ -214,7 +220,7 @@ struct VulkanVirtualFrame
     VkSemaphore 	shadowPassWaitSemaphore;
 	VkSemaphore    	imageAvailableSemaphore;
 	VkSemaphore    	renderFinishedSemaphore;
-	VkFence        	inFlightFence; // Todo(Leo): Change to queuesubmitfence or commandbufferfence etc..
+	VkFence        	queueSubmitFence;
 };
 
 struct PlatformGraphics
@@ -248,18 +254,21 @@ struct PlatformGraphics
 
 	VkDescriptorSetLayout 	cameraDescriptorSetLayout;
     VkDescriptorSet 		cameraDescriptorSet[VIRTUAL_FRAME_COUNT];
-    
+
 	VkDescriptorSetLayout 	lightingDescriptorSetLayout;
     VkDescriptorSet 		lightingDescriptorSet[VIRTUAL_FRAME_COUNT];
-	
 
-    // Todo(Leo): set these dynamically
-    constexpr static VkDeviceSize cameraUniformOffset 			= 0;
-    constexpr static VkDeviceSize lightingUniformOffset 		= 256;
-    constexpr static VkDeviceSize sceneUniformBufferFrameOffset = 1024;
+	VkDescriptorSetLayout 	hdrSettingsDescriptorSetLayout;
+	VkDescriptorSet 		hdrSettingsDescriptorSet[VIRTUAL_FRAME_COUNT];
 
-    static_assert(sizeof(vulkan::CameraUniformBuffer) <= 256);
-    static_assert(sizeof(vulkan::LightingUniformBuffer) <= 256);
+    // VulkanBufferResource sceneUniformBuffer;
+    VkDeviceSize 	sceneUniformBufferCapacity;
+    VkBuffer 		sceneUniformBuffer;
+    VkDeviceMemory 	sceneUniformBufferMemory;
+
+    FSVulkanCameraUniformBuffer * 	persistentMappedCameraUniformBufferMemory[VIRTUAL_FRAME_COUNT];
+    FSVulkanLightingUniformBuffer * persistentMappedLightingUniformBufferMemory[VIRTUAL_FRAME_COUNT];
+    FSVulkanHdrSettings * 			frameHdrSettings[VIRTUAL_FRAME_COUNT];
 
     // Uncategorized
 	VkCommandPool 			commandPool;
@@ -270,7 +279,8 @@ struct PlatformGraphics
     VkSampler 				textureSampler;			
     VkSampler 				clampSampler;			
 	
-	VkFormat 		hdrFormat;
+	VkFormat 				hdrFormat;
+	FSVulkanHdrSettings 	hdrSettings;
 
     VkSwapchainKHR 	swapchain;
 	VkExtent2D 		swapchainExtent;
@@ -278,6 +288,7 @@ struct PlatformGraphics
     VkRenderPass 	passThroughRenderPass;
 
     // Note(Leo): these are images from gpu for presentation, we use them to form final framebuffers
+    // Todo(Leo): get rid of std::vector...
     VkFormat 					swapchainImageFormat;
     std::vector<VkImage> 		swapchainImages;
     std::vector<VkImageView> 	swapchainImageViews;
@@ -311,14 +322,13 @@ struct PlatformGraphics
 	PostRenderFunc * onPostRender;
 
 	// Todo(Leo): Guard against multithreaded race condition once we have that
-	u64 			stagingBufferCapacity;
+	VkDeviceSize	stagingBufferCapacity;
 	VkBuffer 		stagingBuffer;
 	VkDeviceMemory 	stagingBufferDeviceMemory;
 	u8 * 			persistentMappedStagingBufferMemory;
 
     VulkanBufferResource staticMeshPool;
     VulkanBufferResource modelUniformBuffer;
-    VulkanBufferResource sceneUniformBuffer;
 
     // Todo(Leo): Use our own arena arrays for these.
     // Todo(Leo): That requires access to persistent memory block at platform layer
@@ -333,12 +343,10 @@ struct PlatformGraphics
 	std::vector<VulkanGuiTexture> 	loadedGuiTextures;
 
 
-
 	FSVulkanPipeline pipelines [GRAPHICS_PIPELINE_COUNT];
 
 	VkPipeline 				linePipeline;
 	VkPipelineLayout 		linePipelineLayout;
-
 
 	VkPipeline 				passThroughPipeline;
 	VkPipelineLayout 		passThroughPipelineLayout;
@@ -358,7 +366,6 @@ struct PlatformGraphics
     VkDeviceMemory 	leafBufferMemory;
     VkDeviceSize 	leafBufferCapacity;
     VkDeviceSize 	leafBufferUsed[VIRTUAL_FRAME_COUNT];
-    // Todo(Leo): is this unmapped in the end?
     void * 			persistentMappedLeafBufferMemory;
 
     // HÄXÖR SKY

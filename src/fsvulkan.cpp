@@ -5,6 +5,57 @@ Implementations of vulkan related functions
 =============================================================================*/
 #include "fsvulkan.hpp"
 
+internal VkDescriptorSetLayoutCreateInfo
+fsvulkan_descriptor_set_layout_create_info(u32 bindingCount, VkDescriptorSetLayoutBinding const * bindings)
+{
+	VkDescriptorSetLayoutCreateInfo descriptorSetlayoutCreateInfo = 
+	{
+		VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+		nullptr,
+		0,
+		bindingCount,
+		bindings
+	};
+
+	return descriptorSetlayoutCreateInfo;
+}
+
+internal VkDescriptorSetAllocateInfo
+fsvulkan_descriptor_set_allocate_info(VkDescriptorPool descriptorPool, u32 descriptorSetCount, VkDescriptorSetLayout const * setLayouts)
+{
+	VkDescriptorSetAllocateInfo descriptorSetAllocateInfo =
+	{ 
+		.sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+		.pNext 				= nullptr,
+		.descriptorPool     = descriptorPool,
+		.descriptorSetCount = descriptorSetCount,
+		.pSetLayouts        = setLayouts,
+	};	
+
+	return descriptorSetAllocateInfo;
+}
+
+internal VkWriteDescriptorSet
+fsvulkan_write_descriptor_set_buffer (VkDescriptorSet dstSet, u32 descriptorCount, VkDescriptorType descriptorType, VkDescriptorBufferInfo const * bufferInfo)
+{
+	VkWriteDescriptorSet writeDescriptorSet =
+	{
+		.sType 				= VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+		.pNext 				= nullptr,
+		.dstSet 			= dstSet,
+		.dstBinding 		= 0,
+		.dstArrayElement	= 0,
+		.descriptorCount 	= descriptorCount,
+		.descriptorType 	= descriptorType,
+		.pImageInfo 		= nullptr,
+		.pBufferInfo		= bufferInfo,
+		.pTexelBufferView 	= nullptr,
+	};
+
+	return writeDescriptorSet;
+}
+
+
 // Todo(Leo): these are getting old..
 #include "VulkanCommandBuffers.cpp"
 
@@ -21,7 +72,7 @@ internal PlatformGraphicsFrameResult fsvulkan_prepare_frame(VulkanContext * cont
 {
 	VulkanVirtualFrame * frame = fsvulkan_get_current_virtual_frame(context);
 
-    VULKAN_CHECK(vkWaitForFences(context->device, 1, &frame->inFlightFence, VK_TRUE, VULKAN_NO_TIME_OUT));
+    VULKAN_CHECK(vkWaitForFences(context->device, 1, &frame->queueSubmitFence, VK_TRUE, VULKAN_NO_TIME_OUT));
 
     VkResult result = vkAcquireNextImageKHR(context->device,
                                             context->swapchain,
@@ -91,6 +142,7 @@ internal void fsvulkan_set_platform_graphics_api(VulkanContext * context, Platfo
  	api->finish_frame       	= fsvulkan_drawing_finish_frame;
  	api->update_camera      	= fsvulkan_drawing_update_camera;
  	api->update_lighting		= fsvulkan_drawing_update_lighting;
+ 	api->update_hdr_settings 	= fsvulkan_drawing_update_hdr_settings;
  	
  	api->draw_model         	= fsvulkan_drawing_draw_model;
  	api->draw_meshes 			= fsvulkan_drawing_draw_meshes;
@@ -1039,7 +1091,7 @@ winapi_vulkan_internal_::init_memory(VulkanContext * context)
 	u64 staticMeshPoolSize       	= gigabytes(2);
 	context->stagingBufferCapacity 	= megabytes(100);
 	u64 modelUniformBufferSize   	= megabytes(500);
-	u64 sceneUniformBufferSize   	= megabytes(100);
+	// u64 sceneUniformBufferSize   	= megabytes(100);
 	u64 guiUniformBufferSize     	= megabytes(100);
 
 	// TODO[MEMORY] (Leo): This will need guarding against multithreads once we get there
@@ -1062,10 +1114,10 @@ winapi_vulkan_internal_::init_memory(VulkanContext * context)
 									VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
 									VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
-	context->sceneUniformBuffer = BAD_VULKAN_make_buffer_resource(
-									context, sceneUniformBufferSize,
-									VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-									VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+	// context->sceneUniformBuffer = BAD_VULKAN_make_buffer_resource(
+	// 								context, sceneUniformBufferSize,
+	// 								VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+	// 								VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
 
 	{
 		s64 leafBufferSize = megabytes(200);
@@ -1106,9 +1158,7 @@ winapi_vulkan_internal_::init_memory(VulkanContext * context)
 
 	add_cleanup(context, [](VulkanContext * context){
 		BAD_VULKAN_destroy_buffer_resource(context->device, &context->staticMeshPool);
-		// BAD_VULKAN_destroy_buffer_resource(context->device, &context->stagingBufferPool);
 		BAD_VULKAN_destroy_buffer_resource(context->device, &context->modelUniformBuffer);
-		BAD_VULKAN_destroy_buffer_resource(context->device, &context->sceneUniformBuffer);
 
 		vkDestroyBuffer(context->device, context->stagingBuffer, nullptr);
 		vkFreeMemory(context->device, context->stagingBufferDeviceMemory, nullptr);
@@ -1146,63 +1196,17 @@ winapi_vulkan_internal_::init_persistent_descriptor_pool(VulkanContext * context
 	});
 }
 
-internal VkDescriptorSetLayoutCreateInfo
-fsvulkan_descriptor_set_layout_create_info(u32 bindingCount, VkDescriptorSetLayoutBinding const * bindings)
-{
-	VkDescriptorSetLayoutCreateInfo descriptorSetlayoutCreateInfo = 
-	{
-		VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-		nullptr,
-		0,
-		bindingCount,
-		bindings
-	};
-
-	return descriptorSetlayoutCreateInfo;
-}
-
-internal VkDescriptorSetAllocateInfo
-fsvulkan_descriptor_set_allocate_info(VkDescriptorPool descriptorPool, u32 descriptorSetCount, VkDescriptorSetLayout const * setLayouts)
-{
-	VkDescriptorSetAllocateInfo descriptorSetAllocateInfo =
-	{ 
-		.sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-		.pNext 				= nullptr,
-		.descriptorPool     = descriptorPool,
-		.descriptorSetCount = descriptorSetCount,
-		.pSetLayouts        = setLayouts,
-	};	
-
-	return descriptorSetAllocateInfo;
-}
-
-internal VkWriteDescriptorSet
-fsvulkan_write_descriptor_set_buffer (VkDescriptorSet dstSet, u32 descriptorCount, VkDescriptorType descriptorType, VkDescriptorBufferInfo const * bufferInfo)
-{
-	VkWriteDescriptorSet writeDescriptorSet =
-	{
-		.sType 				= VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-		.pNext 				= nullptr,
-		.dstSet 			= dstSet,
-		.dstBinding 		= 0,
-		.dstArrayElement	= 0,
-		.descriptorCount 	= descriptorCount,
-		.descriptorType 	= descriptorType,
-		.pImageInfo 		= nullptr,
-		.pBufferInfo		= bufferInfo,
-		.pTexelBufferView 	= nullptr,
-	};
-
-	return writeDescriptorSet;
-}
-
 internal void
 winapi_vulkan_internal_::init_uniform_buffers(VulkanContext * context)
-{
+{	
+	// Todo(Leo): there is quite a lot going on here, rather messily even. Pls cleanup
+
+	static_assert(VIRTUAL_FRAME_COUNT == 3, "There is hardcoding here");
+
 	VkDescriptorPoolSize poolSizes [] =
 	{
 		{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 	1},
-		{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 			2 * VIRTUAL_FRAME_COUNT}
+		{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 			3 * VIRTUAL_FRAME_COUNT}
 	};
 
 	VkDescriptorPoolCreateInfo poolInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO };
@@ -1224,6 +1228,10 @@ winapi_vulkan_internal_::init_uniform_buffers(VulkanContext * context)
 	auto lightDescriptorSetLayoutCreateInfo 	= fsvulkan_descriptor_set_layout_create_info(1, &cameraBinding);
 	VULKAN_CHECK(vkCreateDescriptorSetLayout(context->device, &lightDescriptorSetLayoutCreateInfo, nullptr, &context->lightingDescriptorSetLayout));
 
+	// VkDescriptorSetLayoutBinding hdrBinding = {0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr};
+	// auto hdrDescriptorSetLayoutCreateInfo 	= fsvulkan_descriptor_set_layout_create_info(1, & hdrBinding);
+	// VULKAN_CHECK(vkCreateDescriptorSetLayout(context->device, &hdrDescriptorSetLayoutCreateInfo, nullptr, &context->hdrSettingsDescriptorSetLayout));
+
 	VkDescriptorSetLayout layouts [] =
 	{
 		context->modelDescriptorSetLayout,
@@ -1235,6 +1243,10 @@ winapi_vulkan_internal_::init_uniform_buffers(VulkanContext * context)
 		context->lightingDescriptorSetLayout,
 		context->lightingDescriptorSetLayout,
 		context->lightingDescriptorSetLayout,
+
+		// context->hdrSettingsDescriptorSetLayout,
+		// context->hdrSettingsDescriptorSetLayout,
+		// context->hdrSettingsDescriptorSetLayout,
 	};
 	VkDescriptorSet resultSets[array_count(layouts)];
 
@@ -1251,21 +1263,60 @@ winapi_vulkan_internal_::init_uniform_buffers(VulkanContext * context)
 	context->lightingDescriptorSet[1] = resultSets[5];
 	context->lightingDescriptorSet[2] = resultSets[6];
 
+	// context->hdrSettingsDescriptorSet[0] = resultSets[7];
+	// context->hdrSettingsDescriptorSet[1] = resultSets[8];
+	// context->hdrSettingsDescriptorSet[2] = resultSets[9];
+
+
+	/// Note(Leo): Allocation done
+	// ------------------------------------------------------------------------------------
+
+    /* Note(Leo): third is FRAME offset, so it is added per virtual frame */
+    constexpr VkDeviceSize cameraUniformOffset 			= 0;
+    constexpr VkDeviceSize lightingUniformOffset 		= 256;
+    constexpr VkDeviceSize hdrOffset 					= 512;
+    constexpr VkDeviceSize sceneUniformBufferFrameOffset = 1024;
+
+    static_assert(sizeof(FSVulkanCameraUniformBuffer) <= 256);
+    static_assert(sizeof(FSVulkanLightingUniformBuffer) <= 256);
+    static_assert(sizeof(FSVulkanHdrSettings) <= 256);
+
+	context->sceneUniformBufferCapacity = VIRTUAL_FRAME_COUNT * sceneUniformBufferFrameOffset;
+	fsvulkan_create_and_allocate_buffer(context->device,
+										context->physicalDevice,
+										&context->sceneUniformBuffer,
+										&context->sceneUniformBufferMemory,
+										context->sceneUniformBufferCapacity,
+										VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+										VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+	// ------------------------------------------------------------------------------------
+
+    // Todo(Leo): This would seem not to belong here
 	VkDescriptorBufferInfo modelBufferInfo 	= { context->modelUniformBuffer.buffer, 0, sizeof(m44) };
 
 	VkDescriptorBufferInfo cameraBufferInfo [] =
 	{
-		{context->sceneUniformBuffer.buffer, context->cameraUniformOffset + 0 * context->sceneUniformBufferFrameOffset, sizeof(vulkan::CameraUniformBuffer)},
-		{context->sceneUniformBuffer.buffer, context->cameraUniformOffset + 1 * context->sceneUniformBufferFrameOffset, sizeof(vulkan::CameraUniformBuffer)},
-		{context->sceneUniformBuffer.buffer, context->cameraUniformOffset + 2 * context->sceneUniformBufferFrameOffset, sizeof(vulkan::CameraUniformBuffer)},
+		{context->sceneUniformBuffer, cameraUniformOffset + 0 * sceneUniformBufferFrameOffset, sizeof(FSVulkanCameraUniformBuffer)},
+		{context->sceneUniformBuffer, cameraUniformOffset + 1 * sceneUniformBufferFrameOffset, sizeof(FSVulkanCameraUniformBuffer)},
+		{context->sceneUniformBuffer, cameraUniformOffset + 2 * sceneUniformBufferFrameOffset, sizeof(FSVulkanCameraUniformBuffer)},
 	};
 
 	VkDescriptorBufferInfo lightingBufferInfo [] =
 	{
-		{context->sceneUniformBuffer.buffer, context->lightingUniformOffset + 0 * context->sceneUniformBufferFrameOffset, sizeof(vulkan::LightingUniformBuffer)},
-		{context->sceneUniformBuffer.buffer, context->lightingUniformOffset + 1 * context->sceneUniformBufferFrameOffset, sizeof(vulkan::LightingUniformBuffer)},
-		{context->sceneUniformBuffer.buffer, context->lightingUniformOffset + 2 * context->sceneUniformBufferFrameOffset, sizeof(vulkan::LightingUniformBuffer)},
+		{context->sceneUniformBuffer, lightingUniformOffset + 0 * sceneUniformBufferFrameOffset, sizeof(FSVulkanLightingUniformBuffer)},
+		{context->sceneUniformBuffer, lightingUniformOffset + 1 * sceneUniformBufferFrameOffset, sizeof(FSVulkanLightingUniformBuffer)},
+		{context->sceneUniformBuffer, lightingUniformOffset + 2 * sceneUniformBufferFrameOffset, sizeof(FSVulkanLightingUniformBuffer)},
 	};
+
+	// VkDescriptorBufferInfo hdrBufferInfo [] =
+	// {
+	// 	{context->sceneUniformBuffer, hdrOffset + 0 * sceneUniformBufferFrameOffset, sizeof(FSVulkanHdrSettings)},
+	// 	{context->sceneUniformBuffer, hdrOffset + 1 * sceneUniformBufferFrameOffset, sizeof(FSVulkanHdrSettings)},
+	// 	{context->sceneUniformBuffer, hdrOffset + 2 * sceneUniformBufferFrameOffset, sizeof(FSVulkanHdrSettings)},
+	// };
+
+	// Todo(Leo): Why is this 'lIGHTINGbufferwrite' ??????
 	VkWriteDescriptorSet lightingBufferWrite [] = 
 	{
 		fsvulkan_write_descriptor_set_buffer(context->modelDescriptorSet, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, &modelBufferInfo),
@@ -1277,8 +1328,28 @@ winapi_vulkan_internal_::init_uniform_buffers(VulkanContext * context)
 		fsvulkan_write_descriptor_set_buffer(context->lightingDescriptorSet[0], 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, &lightingBufferInfo[0]),
 		fsvulkan_write_descriptor_set_buffer(context->lightingDescriptorSet[1], 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, &lightingBufferInfo[1]),
 		fsvulkan_write_descriptor_set_buffer(context->lightingDescriptorSet[2], 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, &lightingBufferInfo[2]),
+
+		// fsvulkan_write_descriptor_set_buffer(context->hdrSettingDescriptorSet[0], 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, &hdrBufferInfo[0]),
+		// fsvulkan_write_descriptor_set_buffer(context->hdrSettingDescriptorSet[1], 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, &hdrBufferInfo[1]),
+		// fsvulkan_write_descriptor_set_buffer(context->hdrSettingDescriptorSet[2], 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, &hdrBufferInfo[2]),
 	};
 	vkUpdateDescriptorSets(context->device, array_count(lightingBufferWrite), lightingBufferWrite, 0, nullptr);
+
+	// Note(Leo): we don't need to save this pointer, vulkan memory is unmapped with VkDeviceMemory only.
+	u8 * persistentMappedSceneUniformBufferMemory;
+	vkMapMemory(context->device, context->sceneUniformBufferMemory, 0, VK_WHOLE_SIZE, 0, (void**)&persistentMappedSceneUniformBufferMemory);
+
+	context->persistentMappedCameraUniformBufferMemory[0] = (FSVulkanCameraUniformBuffer*)(persistentMappedSceneUniformBufferMemory + cameraUniformOffset + 0 * sceneUniformBufferFrameOffset);
+	context->persistentMappedCameraUniformBufferMemory[1] = (FSVulkanCameraUniformBuffer*)(persistentMappedSceneUniformBufferMemory + cameraUniformOffset + 1 * sceneUniformBufferFrameOffset);
+	context->persistentMappedCameraUniformBufferMemory[2] = (FSVulkanCameraUniformBuffer*)(persistentMappedSceneUniformBufferMemory + cameraUniformOffset + 2 * sceneUniformBufferFrameOffset);
+
+	context->persistentMappedLightingUniformBufferMemory[0] = (FSVulkanLightingUniformBuffer*)(persistentMappedSceneUniformBufferMemory + lightingUniformOffset + 0 * sceneUniformBufferFrameOffset);
+	context->persistentMappedLightingUniformBufferMemory[1] = (FSVulkanLightingUniformBuffer*)(persistentMappedSceneUniformBufferMemory + lightingUniformOffset + 1 * sceneUniformBufferFrameOffset);
+	context->persistentMappedLightingUniformBufferMemory[2] = (FSVulkanLightingUniformBuffer*)(persistentMappedSceneUniformBufferMemory + lightingUniformOffset + 2 * sceneUniformBufferFrameOffset);
+
+	// context->frameHdrSettings[0] = (FSVulkanHdrSettings*)(persistentMappedSceneUniformBufferMemory + hdrOffset + 0 * sceneUniformBufferFrameOffset);
+	// context->frameHdrSettings[1] = (FSVulkanHdrSettings*)(persistentMappedSceneUniformBufferMemory + hdrOffset + 1 * sceneUniformBufferFrameOffset);
+	// context->frameHdrSettings[2] = (FSVulkanHdrSettings*)(persistentMappedSceneUniformBufferMemory + hdrOffset + 2 * sceneUniformBufferFrameOffset);
 
 	///////////////////////////////
 	///         CLEANUP         ///
@@ -1291,6 +1362,9 @@ winapi_vulkan_internal_::init_uniform_buffers(VulkanContext * context)
 
 		// Notice(Leo): this must be last
 		vkDestroyDescriptorPool(context->device, context->uniformDescriptorPool, nullptr);
+
+		vkDestroyBuffer(context->device, context->sceneUniformBuffer, nullptr);
+		vkFreeMemory(context->device, context->sceneUniformBufferMemory, nullptr);
 	});
 
 }
@@ -1368,7 +1442,7 @@ winapi_vulkan_internal_::init_virtual_frames(VulkanContext * context)
 		success = success && vkCreateSemaphore(context->device, &semaphoreInfo, nullptr, &frame.shadowPassWaitSemaphore) == VK_SUCCESS;
 		success = success && vkCreateSemaphore(context->device, &semaphoreInfo, nullptr, &frame.imageAvailableSemaphore) == VK_SUCCESS;
 		success = success && vkCreateSemaphore(context->device, &semaphoreInfo, nullptr, &frame.renderFinishedSemaphore) == VK_SUCCESS;
-		success = success && vkCreateFence(context->device, &fenceInfo, nullptr, &frame.inFlightFence) == VK_SUCCESS;
+		success = success && vkCreateFence(context->device, &fenceInfo, nullptr, &frame.queueSubmitFence) == VK_SUCCESS;
 
 		AssertMsg(success, "Failed to create VulkanVirtualFrame");
 	}
@@ -1385,7 +1459,7 @@ winapi_vulkan_internal_::init_virtual_frames(VulkanContext * context)
 			vkDestroySemaphore(context->device, frame.shadowPassWaitSemaphore, nullptr);
 			vkDestroySemaphore(context->device, frame.renderFinishedSemaphore, nullptr);
 			vkDestroySemaphore(context->device, frame.imageAvailableSemaphore, nullptr);
-			vkDestroyFence(context->device, frame.inFlightFence, nullptr);
+			vkDestroyFence(context->device, frame.queueSubmitFence, nullptr);
 
 			// Todo(Leo): these maybe should be here, but for now at least they are created and destroed with swapchain
 			// vkDestroyImage(context->device, frame.colorImage, nullptr);

@@ -66,31 +66,15 @@ internal void fsvulkan_reset_uniform_buffer(VulkanContext & context)
 
 internal void fsvulkan_drawing_update_camera(VulkanContext * context, Camera const * camera)
 {
-	// Todo(Leo): alignment
-
-	// Note (Leo): map vulkan memory directly to right type so we can easily avoid one (small) memcpy per frame
-	vulkan::CameraUniformBuffer * pUbo;
-	vkMapMemory(context->device,
-				context->sceneUniformBuffer.memory,
-				context->cameraUniformOffset + context->sceneUniformBufferFrameOffset * context->virtualFrameIndex,
-				sizeof(vulkan::CameraUniformBuffer),
-				0,
-				(void**)&pUbo);
+	FSVulkanCameraUniformBuffer * pUbo = context->persistentMappedCameraUniformBufferMemory[context->virtualFrameIndex];
 
 	pUbo->view 			= camera_view_matrix(camera->position, camera->direction);
 	pUbo->projection 	= camera_projection_matrix(camera);
-
-	vkUnmapMemory(context->device, context->sceneUniformBuffer.memory);
 }
 
 internal void fsvulkan_drawing_update_lighting(VulkanContext * context, Light const * light, Camera const * camera, v3 ambient)
 {
-	vulkan::LightingUniformBuffer * lightPtr;
-	vkMapMemory(context->device,
-				context->sceneUniformBuffer.memory,
-				context->lightingUniformOffset + context->sceneUniformBufferFrameOffset * context->virtualFrameIndex,
-				sizeof(vulkan::LightingUniformBuffer),
-				0, (void**)&lightPtr);
+	FSVulkanLightingUniformBuffer * lightPtr = context->persistentMappedLightingUniformBufferMemory[context->virtualFrameIndex];
 
 	lightPtr->direction    		= v3_to_v4(light->direction, 0);
 	lightPtr->color        		= v3_to_v4(light->color, 0);
@@ -98,24 +82,21 @@ internal void fsvulkan_drawing_update_lighting(VulkanContext * context, Light co
 	lightPtr->cameraPosition 	= v3_to_v4(camera->position, 1);
 	lightPtr->skyColor 			= light->skyColorSelection;
 
-	vkUnmapMemory(context->device, context->sceneUniformBuffer.memory);
-
 	// ------------------------------------------------------------------------------
 
 	m44 lightViewProjection = get_light_view_projection (light, camera);
 
-	vulkan::CameraUniformBuffer * pUbo;
-	vkMapMemory(context->device,
-				context->sceneUniformBuffer.memory,
-				context->cameraUniformOffset + context->sceneUniformBufferFrameOffset * context->virtualFrameIndex,
-				sizeof(vulkan::CameraUniformBuffer),
-				0, (void**)&pUbo);
+	FSVulkanCameraUniformBuffer * pUbo = context->persistentMappedCameraUniformBufferMemory[context->virtualFrameIndex];
 
 	pUbo->lightViewProjection 		= lightViewProjection;
 	pUbo->shadowDistance 			= light->shadowDistance;
 	pUbo->shadowTransitionDistance 	= light->shadowTransitionDistance;
+}
 
-	vkUnmapMemory(context->device, context->sceneUniformBuffer.memory);
+internal void fsvulkan_drawing_update_hdr_settings(VulkanContext * context, HdrSettings const * hdrSettings)
+{
+	context->hdrSettings.exposure = hdrSettings->exposure;
+	context->hdrSettings.contrast = hdrSettings->contrast;
 }
 
 internal void fsvulkan_drawing_prepare_frame(VulkanContext * context)
@@ -277,7 +258,6 @@ internal void fsvulkan_drawing_finish_frame(VulkanContext * context)
 		5. end renderpass
 	*/
 
-
 	VkViewport viewport =
 	{
 		.x          = 0.0f,
@@ -311,69 +291,26 @@ internal void fsvulkan_drawing_finish_frame(VulkanContext * context)
 																context->swapchainExtent.width,
 																context->swapchainExtent.height);	
 
-	VkRenderPassBeginInfo passthrougPassBeginInfo 	= {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
-	passthrougPassBeginInfo.renderPass 				= context->passThroughRenderPass;
-	passthrougPassBeginInfo.framebuffer 			= frame->passThroughFramebuffer;
-	passthrougPassBeginInfo.renderArea 				= {{0,0}, context->swapchainExtent};
+	VkRenderPassBeginInfo passthroughPassBeginInfo 	= {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
+	passthroughPassBeginInfo.renderPass 			= context->passThroughRenderPass;
+	passthroughPassBeginInfo.framebuffer 			= frame->passThroughFramebuffer;
+	passthroughPassBeginInfo.renderArea 			= {{0,0}, context->swapchainExtent};
 	// Note(Leo): no need to clear this, we fill every pixel anyway
 
 
-	vkCmdBeginRenderPass(frame->commandBuffers.master, &passthrougPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-
-	// Todo(Leo): Draw fullscreen triangle
-
+	vkCmdBeginRenderPass(frame->commandBuffers.master, &passthroughPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 	vkCmdBindPipeline(frame->commandBuffers.master, VK_PIPELINE_BIND_POINT_GRAPHICS, context->passThroughPipeline);
 
-
 	VkDescriptorSet testDescriptor = frame->resolveImageDescriptor;
-	// VkDescriptorSet testDescriptor = context->loadedGuiTextures[2].descriptorSet;
 	vkCmdBindDescriptorSets(frame->commandBuffers.master, VK_PIPELINE_BIND_POINT_GRAPHICS, 
 							context->passThroughPipelineLayout,
 							0, 1, &testDescriptor, 0, nullptr);
 
+	vkCmdPushConstants(frame->commandBuffers.master, context->passThroughPipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(FSVulkanHdrSettings), &context->hdrSettings);
+
 	vkCmdDraw(frame->commandBuffers.master, 3, 1, 0, 0);
 
 	vkCmdEndRenderPass(frame->commandBuffers.master);
-
-
-	#if 0
-	{
-		auto * frame = fsvulkan_get_current_virtual_frame(context);
-
-		VkPipeline 			pipeline;
-		VkPipelineLayout 	pipelineLayout;
-		VkDescriptorSet 	descriptorSet;
-
-		if(textureHandle == GRAPHICS_RESOURCE_SHADOWMAP_GUI_TEXTURE)
-		{
-			descriptorSet = context->shadowMapTextureDescriptorSet;
-		}
-		else
-		{
-			descriptorSet = fsvulkan_get_loaded_gui_texture(*context, textureHandle).descriptorSet;
-		}
-
-		pipeline 		= context->pipelines[GRAPHICS_PIPELINE_SCREEN_GUI].pipeline;
-		pipelineLayout 	= context->pipelines[GRAPHICS_PIPELINE_SCREEN_GUI].pipelineLayout;
-
-		vkCmdBindPipeline(frame->commandBuffers.scene, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
-		
-		vkCmdBindDescriptorSets(frame->commandBuffers.scene, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout,
-								0, 1, &descriptorSet,
-								0, nullptr);
-
-		// Note(Leo): Color does not change, so we update it only once, this will break if we change shader :(
-		vkCmdPushConstants(frame->commandBuffers.scene, pipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 64, sizeof(v4), &color);
-
-		// TODO(Leo): Instantiatee!
-		for(s32 i = 0; i < count; ++i)
-		{      
-			vkCmdPushConstants( frame->commandBuffers.scene, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(ScreenRect), &rects[i]);
-			vkCmdDraw(frame->commandBuffers.scene, 4, 1, 0, 0);
-		}
-	}
-	#endif
-
 
 	// PRIMARY COMMAND BUFFER -------------------------------------------------
 
@@ -397,8 +334,8 @@ internal void fsvulkan_drawing_finish_frame(VulkanContext * context)
 		.signalSemaphoreCount   = 1,
 		.pSignalSemaphores      = &frame->renderFinishedSemaphore,
 	};
-	vkResetFences(context->device, 1, &frame->inFlightFence);
-	VULKAN_CHECK(vkQueueSubmit(context->graphicsQueue, 1, &submitInfo, frame->inFlightFence));
+	vkResetFences(context->device, 1, &frame->queueSubmitFence);
+	VULKAN_CHECK(vkQueueSubmit(context->graphicsQueue, 1, &submitInfo, frame->queueSubmitFence));
 
 	VkPresentInfoKHR presentInfo =
 	{
@@ -443,10 +380,10 @@ internal void fsvulkan_drawing_draw_model(VulkanContext * context, ModelHandle m
 	MeshHandle meshHandle           = context->loadedModels[model].mesh;
 	MaterialHandle materialHandle   = context->loadedModels[model].material;
 
-	u32 uniformBufferSize   = sizeof(vulkan::ModelUniformBuffer);
+	u32 uniformBufferSize   = sizeof(FSVulkanModelUniformBuffer);
 
-	VkDeviceSize uniformBufferOffset = fsvulkan_get_uniform_memory(*context, sizeof(vulkan::ModelUniformBuffer));
-	vulkan::ModelUniformBuffer * pBuffer;
+	VkDeviceSize uniformBufferOffset = fsvulkan_get_uniform_memory(*context, sizeof(FSVulkanModelUniformBuffer));
+	FSVulkanModelUniformBuffer * pBuffer;
 
 	// Optimize(Leo): Just map this once when rendering starts
 	vkMapMemory(context->device, context->modelUniformBuffer.memory, uniformBufferOffset, uniformBufferSize, 0, (void**)&pBuffer);
@@ -752,11 +689,11 @@ internal void fsvulkan_drawing_draw_procedural_mesh(VulkanContext * context,
 	VkPipeline pipeline 			= context->pipelines[material->pipeline].pipeline;
 	VkPipelineLayout pipelineLayout = context->pipelines[material->pipeline].pipelineLayout;
 
-	VkDeviceSize uniformBufferOffset = fsvulkan_get_uniform_memory(*context, sizeof(vulkan::ModelUniformBuffer));
-	vulkan::ModelUniformBuffer * pBuffer;
+	VkDeviceSize uniformBufferOffset = fsvulkan_get_uniform_memory(*context, sizeof(FSVulkanModelUniformBuffer));
+	FSVulkanModelUniformBuffer * pBuffer;
 
 	// Optimize(Leo): Just map this once when rendering starts
-	vkMapMemory(context->device, context->modelUniformBuffer.memory, uniformBufferOffset, sizeof(vulkan::ModelUniformBuffer), 0, (void**)&pBuffer);
+	vkMapMemory(context->device, context->modelUniformBuffer.memory, uniformBufferOffset, sizeof(FSVulkanModelUniformBuffer), 0, (void**)&pBuffer);
 	
 	pBuffer->localToWorld = transform;
 	pBuffer->isAnimated = 0;

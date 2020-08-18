@@ -797,8 +797,8 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 			.dstColorBlendFactor    = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
 			.colorBlendOp           = VK_BLEND_OP_ADD,
 
-			.srcAlphaBlendFactor    = VK_BLEND_FACTOR_SRC_ALPHA,
-			.dstAlphaBlendFactor    = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+			.srcAlphaBlendFactor    = VK_BLEND_FACTOR_ONE, //VK_BLEND_FACTOR_SRC_ALPHA,
+			.dstAlphaBlendFactor    = VK_BLEND_FACTOR_ZERO, //VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
 			.alphaBlendOp           = VK_BLEND_OP_ADD, 
 
 			.colorWriteMask         = fsvulkan_all_colors
@@ -908,7 +908,14 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 	{
 		auto materialLayout 			= fsvulkan_make_material_descriptor_set_layout(context.device, 1);
 
-		auto pipelineLayoutCreateInfo 	= fsvulkan_pipeline_layout_create_info(1, &materialLayout, 0, nullptr);
+		VkDescriptorSetLayout layouts [] = 
+		{
+			materialLayout,
+		};
+
+		VkPushConstantRange pushConstantRange = {VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(FSVulkanHdrSettings)};
+
+		auto pipelineLayoutCreateInfo 	= fsvulkan_pipeline_layout_create_info(array_count(layouts), layouts, 1, &pushConstantRange);
 		VULKAN_CHECK(vkCreatePipelineLayout (context.device, &pipelineLayoutCreateInfo, nullptr, &context.passThroughPipelineLayout));
 
 		// ---------------------------------------------------------------------------------------------------------------------------
@@ -928,25 +935,8 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 		auto rasterizationState 	= fsvulkan_pipeline_rasterization_state_create_info	(VK_CULL_MODE_NONE);
 		auto multisampleState 		= fsvulkan_pipeline_multisample_state_create_info	(VK_SAMPLE_COUNT_1_BIT);
 		auto depthStencilState 		= fsvulkan_pipeline_depth_stencil_create_info		(VK_FALSE, VK_FALSE);
-
-		// VkPipelineColorBlendAttachmentState colorBlendAttachment = 
-		// {
-		// 	.blendEnable            = VK_TRUE,
-		// 	.srcColorBlendFactor    = VK_BLEND_FACTOR_SRC_ALPHA,
-		// 	.dstColorBlendFactor    = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-		// 	.colorBlendOp           = VK_BLEND_OP_ADD,
-
-		// 	.srcAlphaBlendFactor    = VK_BLEND_FACTOR_SRC_ALPHA,
-		// 	.dstAlphaBlendFactor    = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-
-		// 	// Note(Leo): For some reason this was subtract, I can't remember why, but it seemed to have worked like add.
-		// 	// .alphaBlendOp           = VK_BLEND_OP_SUBTRACT, 
-		// 	.alphaBlendOp           = VK_BLEND_OP_ADD, 
-
-		// 	.colorWriteMask         = fsvulkan_all_colors,
-		// };
-		auto colorBlendState 		= fsvulkan_pipeline_color_blend_state_create_info(1, &fsvulkan_default_pipeline_color_blend_attachment_state);
-		auto dynamicState 			= fsvulkan_pipeline_dynamic_state_create_info(array_count(fsvulkan_default_dynamic_states), fsvulkan_default_dynamic_states);
+		auto colorBlendState 		= fsvulkan_pipeline_color_blend_state_create_info	(1, &fsvulkan_default_pipeline_color_blend_attachment_state);
+		auto dynamicState 			= fsvulkan_pipeline_dynamic_state_create_info		(array_count(fsvulkan_default_dynamic_states), fsvulkan_default_dynamic_states);
 
 		VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo =
 		{
