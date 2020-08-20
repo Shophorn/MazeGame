@@ -205,7 +205,7 @@ struct MemoryView
 {
 	s32 capacity;
 	s32 count;
-	T * data;
+	T * memory;
 };
 
 template <typename T>

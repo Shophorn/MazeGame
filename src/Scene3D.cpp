@@ -12,6 +12,8 @@ Scene description for 3d development scene
 #include "scene3d_monuments.cpp"
 #include "scene3d_trees.cpp"
 
+#include "Trees3.cpp"
+
 #include "metaballs.cpp"
 
 enum CameraMode : s32
@@ -267,6 +269,9 @@ struct Scene3d
 	s32 					timeScaleIndex;
 
 	HdrSettings hdrSettings = {1,0};
+
+	Trees3 		trees3;
+	DynamicMesh trees3DynamicMesh;
 };
 
 struct StringReference
@@ -522,8 +527,7 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 	// 	return result;
 	// };
 
-	/// Todo(Leo): static may cause probblems
-	local_persist SnapOnGround snap_on_ground = {scene->collisionSystem};
+	SnapOnGround snap_on_ground = {scene->collisionSystem};
 
 	/// ****************************************************************************
 	/// TIME
@@ -1216,7 +1220,7 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 			f32 t = min_f32(1, max_f32(0, dot_v3(position - a, b - a) / square_magnitude_v3(b-a)));
 			f32 d = magnitude_v3(position - a  - t * (b -a));
 
-			return d - f32_lerp(0.5,0.1,t);
+			return d - lerp_f32(0.5,0.1,t);
 
 			// return min_f32(magnitude_v3(a - position) - rA, magnitude_v3(b - position) - rB);
 		};
@@ -1390,11 +1394,11 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 							update_lsystem_mesh_tree2(lSystems[i], leavess[i]);
 						}
 
-						mesh_generate_normals(	lSystems[i].vertices.count, lSystems[i].vertices.data,
-												lSystems[i].indices.count, lSystems[i].indices.data);
+						mesh_generate_normals(	lSystems[i].vertices.count, lSystems[i].vertices.memory,
+												lSystems[i].indices.count, lSystems[i].indices.memory);
 
-						mesh_generate_tangents(	lSystems[i].vertices.count, lSystems[i].vertices.data,
-												lSystems[i].indices.count, lSystems[i].indices.data);
+						mesh_generate_tangents(	lSystems[i].vertices.count, lSystems[i].vertices.memory,
+												lSystems[i].indices.count, lSystems[i].indices.memory);
 
 					}
 				}
@@ -1428,8 +1432,8 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 					}
 
 					platformApi->draw_procedural_mesh( 	platformGraphics,
-														lSystems[i].vertices.count, lSystems[i].vertices.data,
-														lSystems[i].indices.count, lSystems[i].indices.data,
+														lSystems[i].vertices.count, lSystems[i].vertices.memory,
+														lSystems[i].indices.count, lSystems[i].indices.memory,
 														transform,
 														material);
 				}
@@ -1464,8 +1468,8 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 			for (s32 i = 0; i < vertexCount; ++i)
 			{
-				points [i * 2] = lSystem.vertices.data[i].position + lSystem.position;
-				points [i * 2 + 1] = lSystem.vertices.data[i].position + lSystem.position + lSystem.vertices.data[i].normal * 0.4f;
+				points [i * 2] = lSystem.vertices.memory[i].position + lSystem.position;
+				points [i * 2 + 1] = lSystem.vertices.memory[i].position + lSystem.position + lSystem.vertices.memory[i].normal * 0.4f;
 			}
 
 
@@ -1487,6 +1491,19 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 													make_uniform_v3(scene->waters.levels[i] / scene->fullWaterLevel));
 		}
 		platformApi->draw_meshes(platformGraphics, scene->waters.count, waterTransforms, scene->waterMesh, scene->waterMaterial);
+	}
+
+	{
+		v3 position = snap_on_ground(v2{5,5});
+		position.z += 2;
+		m44 transform = translation_matrix(position);
+
+		platformApi->draw_procedural_mesh(	platformGraphics,
+											scene->trees3DynamicMesh.vertexCount, scene->trees3DynamicMesh.vertices,
+											scene->trees3DynamicMesh.indexCount, scene->trees3DynamicMesh.indices,
+											transform, scene->treeMaterials[0]);
+
+		debug_draw_circle_xy(position, 2, colour_bright_red, DEBUG_ALWAYS);
 	}
 
 	/// DRAW LEAVES FOR BOTH LSYSTEM ARRAYS IN THE END BECAUSE OF LEAF SHDADOW INCONVENIENCE
@@ -2417,6 +2434,22 @@ void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle saveFile
 		position2.z 				= get_terrain_height(scene->collisionSystem, position2.xy) + 3;
 		scene->metaballTransform2 	= translation_matrix(position2);
 
+	}
+
+	// ----------------------------------------------------------------------------------
+	
+	{
+		initialize_test_trees_3(persistentMemory, scene->trees3);
+
+		scene->trees3DynamicMesh.vertexCapacity = 1000;
+		scene->trees3DynamicMesh.vertexCount = 0;
+		scene->trees3DynamicMesh.vertices = push_memory<Vertex>(persistentMemory, scene->trees3DynamicMesh.vertexCapacity, ALLOC_CLEAR);
+
+		scene->trees3DynamicMesh.indexCapacity = 1000;
+		scene->trees3DynamicMesh.indexCount = 0;
+		scene->trees3DynamicMesh.indices = push_memory<u16>(persistentMemory, scene->trees3DynamicMesh.indexCapacity, ALLOC_CLEAR);
+
+		build_tree_3_mesh(scene->trees3.memory[0], scene->trees3DynamicMesh);
 	}
 
 	// ----------------------------------------------------------------------------------

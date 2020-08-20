@@ -63,7 +63,7 @@ inline f32 square_root_f32 (f32 value)
     return sqrtf(value);
 }
 
-inline f32 f32_lerp(f32 a, f32 b, f32 t)
+inline f32 lerp_f32(f32 a, f32 b, f32 t)
 {
     return a + t * (b - a);
 }
@@ -112,7 +112,14 @@ inline f32 clamp_f32(f32 value, f32 min, f32 max)
 /// MATHFUN, fun math stuff :)
 f32 mathfun_smooth_f32 (f32 v)
 {
-    return (3 - 2 * v) * v * v;
+    v = v * v * (v * -2 + 3);
+    return v;
+}
+
+f32 mathfun_smoother_f32(f32 v)
+{
+    v = v * v * v * (v * (v * 6 - 15) + 10);
+    return v;
 }
 
 f32 mathfun_pingpong_f32(f32 value, f32 length)

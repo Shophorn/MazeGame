@@ -47,14 +47,13 @@ struct Vertex
 {
 	v3 position;
 	v3 normal;
-	v3 color;
+	v3 tangent;
+
 	v2 texCoord;
+	v3 color;
 
 	u32 boneIndices[4];
 	f32 boneWeights[4];
-
-	v3 tangent;
-	v3 biTangent;
 };
 
 enum struct IndexType : u32 { UInt16, UInt32 };

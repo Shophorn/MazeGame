@@ -149,12 +149,12 @@ internal Gui make_main_menu_gui(MemoryArena & allocator)
 	gui.padding 			= 10;
 	gui.font 				= load_font("c:/windows/fonts/arial.ttf");
 
-
 	u32 pixelColor 					= 0xffffffff;
 	TextureAsset guiTextureAsset 	= make_texture_asset(&pixelColor, 1, 1, 4);
 	gui.panelTexture				= platformApi->push_gui_texture(platformGraphics, &guiTextureAsset);
 
 	// Todo(Leo): this has nothing to do with gui, but this function is called appropriately :)
+	// move away or change function name
 	HdrSettings hdr = {1, 0};
 	platformApi->update_hdr_settings(platformGraphics, &hdr);
 

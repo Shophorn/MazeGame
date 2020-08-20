@@ -109,6 +109,19 @@ v2 scale_v2 (v2 a, v2 b)
 	return a;
 }
 
+v2 rotate_v2 (v2 vec, f32 angle)
+{
+	f32 cos = cosine(angle);
+	f32 sin = sine(angle);
+
+	vec =
+	{
+		vec.x * cos - vec.y * sin,
+		vec.x * sin + vec.y * cos
+	};
+	return vec;
+}
+
 v2 clamp_length_v2(v2 vec, f32 length)
 {
 	f32 magnitude = magnitude_v2(vec);
@@ -246,7 +259,7 @@ v3 cross_v3(v3 lhs, v3 rhs)
 	return lhs;
 }
 
-v3 v3_lerp(v3 a, v3 b, f32 t)
+v3 lerp_v3(v3 a, v3 b, f32 t)
 {
 	a = a + t * (b - a);
 	return a;

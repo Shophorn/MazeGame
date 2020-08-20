@@ -62,7 +62,6 @@ constexpr VkVertexInputAttributeDescription fsvulkan_defaultVertexAttributes [] 
 	{4, 0, VK_FORMAT_R32G32B32A32_UINT, offsetof(Vertex, boneIndices)},
 	{5, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(Vertex, boneWeights)},
 	{6, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, tangent)},
-	{7, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, biTangent)},
 };
 
 

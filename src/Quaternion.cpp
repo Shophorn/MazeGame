@@ -262,6 +262,12 @@ quaternion interpolate_quaternion(quaternion from, quaternion to, f32 t)
 	return from * result;
 }
 
+// Todo(Leo): use this function rather than interpolate_quaternion, since we may also need lerp_quaternion, and thus make difference
+quaternion slerp_quaternion(quaternion from, quaternion to, f32 t)
+{
+	return interpolate_quaternion(from, to, t);
+}
+
 quaternion quaternion_from_to(v3 from, v3 to)
 {
 	f32 angle = angle_v3(from, to);

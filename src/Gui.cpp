@@ -486,7 +486,7 @@ internal bool gui_float_slider(char const * label, f32 * value, f32 minValue, f3
 		handlePositionTime = x;
 		handlePositionTime = clamp_f32(handlePositionTime, 0, 1);
 
-		*value = f32_lerp(minValue, maxValue, handlePositionTime);
+		*value = lerp_f32(minValue, maxValue, handlePositionTime);
 	}
 
 	float handleRectX = position.x + (sliderWidth - handleWidth) * handlePositionTime;

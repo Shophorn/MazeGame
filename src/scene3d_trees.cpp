@@ -121,7 +121,7 @@ struct AddProductionFunctor
 	{
 		Assert(word->count + count <= word->capacity);
 
-		copy_structs(word->data + word->count, production, count);
+		copy_structs(word->memory + word->count, production, count);
 		word->count += count;
 	}
 
@@ -266,10 +266,10 @@ internal void update_lsystem_mesh(TimedLSystem & lSystem, Leaves & leaves)
 				Assert(memory_view_available(lSystem.vertices) >= 8);
 				s32 & v = lSystem.vertices.count;
 
-				lSystem.vertices.data[v++] = {multiply_point(transform, {-0.5, -0.5, 0}), normalize_v3(multiply_direction(transform, {-0.5, -0.5, 0})), {1,1,1}, {0,0}};
-				lSystem.vertices.data[v++] = {multiply_point(transform, { 0.5, -0.5, 0}), normalize_v3(multiply_direction(transform, { 0.5, -0.5, 0})), {1,1,1}, {0.25,0}};
-				lSystem.vertices.data[v++] = {multiply_point(transform, { 0.5,  0.5, 0}), normalize_v3(multiply_direction(transform, { 0.5,  0.5, 0})), {1,1,1}, {0.5,0}};
-				lSystem.vertices.data[v++] = {multiply_point(transform, {-0.5,  0.5, 0}), normalize_v3(multiply_direction(transform, {-0.5,  0.5, 0})), {1,1,1}, {0.75,0}};
+				lSystem.vertices.memory[v++] = {multiply_point(transform, {-0.5, -0.5, 0}), normalize_v3(multiply_direction(transform, {-0.5, -0.5, 0})), {1,1,1}, {0,0}};
+				lSystem.vertices.memory[v++] = {multiply_point(transform, { 0.5, -0.5, 0}), normalize_v3(multiply_direction(transform, { 0.5, -0.5, 0})), {1,1,1}, {0.25,0}};
+				lSystem.vertices.memory[v++] = {multiply_point(transform, { 0.5,  0.5, 0}), normalize_v3(multiply_direction(transform, { 0.5,  0.5, 0})), {1,1,1}, {0.5,0}};
+				lSystem.vertices.memory[v++] = {multiply_point(transform, {-0.5,  0.5, 0}), normalize_v3(multiply_direction(transform, {-0.5,  0.5, 0})), {1,1,1}, {0.75,0}};
 
 				state.position 	+= forward * word[i].parameter;
 
@@ -277,10 +277,10 @@ internal void update_lsystem_mesh(TimedLSystem & lSystem, Leaves & leaves)
 				width 			= (word[i].age - terminalAge) * widthGroth;
 				transform 		= transform_matrix(state.position, state.orientation, {width, width, 1});
 
-				lSystem.vertices.data[v++] = {multiply_point(transform, {-0.5, -0.5, 0}), normalize_v3(multiply_direction(transform, {-0.5, -0.5, 0})), {1,1,1}, {0,1}};
-				lSystem.vertices.data[v++] = {multiply_point(transform, { 0.5, -0.5, 0}), normalize_v3(multiply_direction(transform, { 0.5, -0.5, 0})), {1,1,1}, {0.25,1}};
-				lSystem.vertices.data[v++] = {multiply_point(transform, { 0.5,  0.5, 0}), normalize_v3(multiply_direction(transform, { 0.5,  0.5, 0})), {1,1,1}, {0.5,1}};
-				lSystem.vertices.data[v++] = {multiply_point(transform, {-0.5,  0.5, 0}), normalize_v3(multiply_direction(transform, {-0.5,  0.5, 0})), {1,1,1}, {0.75,1}};
+				lSystem.vertices.memory[v++] = {multiply_point(transform, {-0.5, -0.5, 0}), normalize_v3(multiply_direction(transform, {-0.5, -0.5, 0})), {1,1,1}, {0,1}};
+				lSystem.vertices.memory[v++] = {multiply_point(transform, { 0.5, -0.5, 0}), normalize_v3(multiply_direction(transform, { 0.5, -0.5, 0})), {1,1,1}, {0.25,1}};
+				lSystem.vertices.memory[v++] = {multiply_point(transform, { 0.5,  0.5, 0}), normalize_v3(multiply_direction(transform, { 0.5,  0.5, 0})), {1,1,1}, {0.5,1}};
+				lSystem.vertices.memory[v++] = {multiply_point(transform, {-0.5,  0.5, 0}), normalize_v3(multiply_direction(transform, {-0.5,  0.5, 0})), {1,1,1}, {0.75,1}};
 
 				constexpr u16 indices [] = 
 				{
@@ -293,7 +293,7 @@ internal void update_lsystem_mesh(TimedLSystem & lSystem, Leaves & leaves)
 
 				for(u16 index : indices)
 				{
-					lSystem.indices.data[lSystem.indices.count++] = index + vertexOffsetBefore;
+					lSystem.indices.memory[lSystem.indices.count++] = index + vertexOffsetBefore;
 				}
 
 			} break;
@@ -310,20 +310,20 @@ internal void update_lsystem_mesh(TimedLSystem & lSystem, Leaves & leaves)
 
 				s32 & v = lSystem.vertices.count;
 
-				lSystem.vertices.data[v++] = {multiply_point(transform, {-0.5, -0.5, 0}), normalize_v3(multiply_direction(transform, {-0.5, -0.5, 0})), {1,1,1}, {0,0}};
-				lSystem.vertices.data[v++] = {multiply_point(transform, { 0.5, -0.5, 0}), normalize_v3(multiply_direction(transform, { 0.5, -0.5, 0})), {1,1,1}, {0.25,0}};
-				lSystem.vertices.data[v++] = {multiply_point(transform, { 0.5,  0.5, 0}), normalize_v3(multiply_direction(transform, { 0.5,  0.5, 0})), {1,1,1}, {0.5,0}};
-				lSystem.vertices.data[v++] = {multiply_point(transform, {-0.5,  0.5, 0}), normalize_v3(multiply_direction(transform, {-0.5,  0.5, 0})), {1,1,1}, {0.75,0}};
+				lSystem.vertices.memory[v++] = {multiply_point(transform, {-0.5, -0.5, 0}), normalize_v3(multiply_direction(transform, {-0.5, -0.5, 0})), {1,1,1}, {0,0}};
+				lSystem.vertices.memory[v++] = {multiply_point(transform, { 0.5, -0.5, 0}), normalize_v3(multiply_direction(transform, { 0.5, -0.5, 0})), {1,1,1}, {0.25,0}};
+				lSystem.vertices.memory[v++] = {multiply_point(transform, { 0.5,  0.5, 0}), normalize_v3(multiply_direction(transform, { 0.5,  0.5, 0})), {1,1,1}, {0.5,0}};
+				lSystem.vertices.memory[v++] = {multiply_point(transform, {-0.5,  0.5, 0}), normalize_v3(multiply_direction(transform, {-0.5,  0.5, 0})), {1,1,1}, {0.75,0}};
 
 				state.position 	+= forward * word[i].parameter * word[i].age;
 				
 				width 		= (word[i].age / 2) *widthGroth;
 				transform 	= transform_matrix(state.position, state.orientation, {width, width, 1});
 
-				lSystem.vertices.data[v++] = {multiply_point(transform, {-0.5, -0.5, 0}), normalize_v3(multiply_direction(transform, {-0.5, -0.5, 0})), {1,1,1}, {0,1}};
-				lSystem.vertices.data[v++] = {multiply_point(transform, { 0.5, -0.5, 0}), normalize_v3(multiply_direction(transform, { 0.5, -0.5, 0})), {1,1,1}, {0.25,1}};
-				lSystem.vertices.data[v++] = {multiply_point(transform, { 0.5,  0.5, 0}), normalize_v3(multiply_direction(transform, { 0.5,  0.5, 0})), {1,1,1}, {0.5,1}};
-				lSystem.vertices.data[v++] = {multiply_point(transform, {-0.5,  0.5, 0}), normalize_v3(multiply_direction(transform, {-0.5,  0.5, 0})), {1,1,1}, {0.75,1}};
+				lSystem.vertices.memory[v++] = {multiply_point(transform, {-0.5, -0.5, 0}), normalize_v3(multiply_direction(transform, {-0.5, -0.5, 0})), {1,1,1}, {0,1}};
+				lSystem.vertices.memory[v++] = {multiply_point(transform, { 0.5, -0.5, 0}), normalize_v3(multiply_direction(transform, { 0.5, -0.5, 0})), {1,1,1}, {0.25,1}};
+				lSystem.vertices.memory[v++] = {multiply_point(transform, { 0.5,  0.5, 0}), normalize_v3(multiply_direction(transform, { 0.5,  0.5, 0})), {1,1,1}, {0.5,1}};
+				lSystem.vertices.memory[v++] = {multiply_point(transform, {-0.5,  0.5, 0}), normalize_v3(multiply_direction(transform, {-0.5,  0.5, 0})), {1,1,1}, {0.75,1}};
 
 				constexpr u16 indices [] = 
 				{
@@ -336,7 +336,7 @@ internal void update_lsystem_mesh(TimedLSystem & lSystem, Leaves & leaves)
 
 				for(u16 index : indices)
 				{
-					lSystem.indices.data[lSystem.indices.count++] = index + vertexOffsetBefore;
+					lSystem.indices.memory[lSystem.indices.count++] = index + vertexOffsetBefore;
 				}
 
 			} break;
@@ -735,9 +735,8 @@ internal void update_lsystem_mesh_tree2(TimedLSystem & lSystem, Leaves & leaves)
 		Vertex vertex =
 		{
 			.position 	= multiply_point(transform, position),
-			// .normal 	= normalize_v3(multiply_direction(transform, normalize_v3(normal))),
-			.color 		= {1,1,1},
 			.texCoord 	= texcoord,
+			.color 		= {1,1,1},
 		};
 
 		return vertex;
@@ -763,7 +762,7 @@ internal void update_lsystem_mesh_tree2(TimedLSystem & lSystem, Leaves & leaves)
 		for (s32 i = 0; i < array_count(positions); ++i)
 		{
 			state.currentVertexIndices[i] 	= v;
-			lSystem.vertices.data[v++] 		= transform_vertex(transform, positions[i], positions[i], {i * (1.0f / array_count(positions)), state.textureHeight});
+			lSystem.vertices.memory[v++] 		= transform_vertex(transform, positions[i], positions[i], {i * (1.0f / array_count(positions)), state.textureHeight});
 		}
 	};
 
@@ -774,40 +773,40 @@ internal void update_lsystem_mesh_tree2(TimedLSystem & lSystem, Leaves & leaves)
 
 		s32 & i = lSystem.indices.count;
 
-		lSystem.indices.data[i++] = bottomVertexIndices[0],
-		lSystem.indices.data[i++] = bottomVertexIndices[1],
-		lSystem.indices.data[i++] = topVertexIndices[0],
-		lSystem.indices.data[i++] = topVertexIndices[0],
-		lSystem.indices.data[i++] = bottomVertexIndices[1],
-		lSystem.indices.data[i++] = topVertexIndices[1],
+		lSystem.indices.memory[i++] = bottomVertexIndices[0],
+		lSystem.indices.memory[i++] = bottomVertexIndices[1],
+		lSystem.indices.memory[i++] = topVertexIndices[0],
+		lSystem.indices.memory[i++] = topVertexIndices[0],
+		lSystem.indices.memory[i++] = bottomVertexIndices[1],
+		lSystem.indices.memory[i++] = topVertexIndices[1],
 
-		lSystem.indices.data[i++] = bottomVertexIndices[1],
-		lSystem.indices.data[i++] = bottomVertexIndices[2],
-		lSystem.indices.data[i++] = topVertexIndices[1],
-		lSystem.indices.data[i++] = topVertexIndices[1],
-		lSystem.indices.data[i++] = bottomVertexIndices[2],
-		lSystem.indices.data[i++] = topVertexIndices[2],
+		lSystem.indices.memory[i++] = bottomVertexIndices[1],
+		lSystem.indices.memory[i++] = bottomVertexIndices[2],
+		lSystem.indices.memory[i++] = topVertexIndices[1],
+		lSystem.indices.memory[i++] = topVertexIndices[1],
+		lSystem.indices.memory[i++] = bottomVertexIndices[2],
+		lSystem.indices.memory[i++] = topVertexIndices[2],
 		
-		lSystem.indices.data[i++] = bottomVertexIndices[2],
-		lSystem.indices.data[i++] = bottomVertexIndices[3],
-		lSystem.indices.data[i++] = topVertexIndices[2],
-		lSystem.indices.data[i++] = topVertexIndices[2],
-		lSystem.indices.data[i++] = bottomVertexIndices[3],
-		lSystem.indices.data[i++] = topVertexIndices[3],
+		lSystem.indices.memory[i++] = bottomVertexIndices[2],
+		lSystem.indices.memory[i++] = bottomVertexIndices[3],
+		lSystem.indices.memory[i++] = topVertexIndices[2],
+		lSystem.indices.memory[i++] = topVertexIndices[2],
+		lSystem.indices.memory[i++] = bottomVertexIndices[3],
+		lSystem.indices.memory[i++] = topVertexIndices[3],
 		
-		lSystem.indices.data[i++] = bottomVertexIndices[3],
-		lSystem.indices.data[i++] = bottomVertexIndices[4],
-		lSystem.indices.data[i++] = topVertexIndices[3],
-		lSystem.indices.data[i++] = topVertexIndices[3],
-		lSystem.indices.data[i++] = bottomVertexIndices[4],
-		lSystem.indices.data[i++] = topVertexIndices[4];
+		lSystem.indices.memory[i++] = bottomVertexIndices[3],
+		lSystem.indices.memory[i++] = bottomVertexIndices[4],
+		lSystem.indices.memory[i++] = topVertexIndices[3],
+		lSystem.indices.memory[i++] = topVertexIndices[3],
+		lSystem.indices.memory[i++] = bottomVertexIndices[4],
+		lSystem.indices.memory[i++] = topVertexIndices[4];
 
-		lSystem.indices.data[i++] = bottomVertexIndices[4],
-		lSystem.indices.data[i++] = bottomVertexIndices[0],
-		lSystem.indices.data[i++] = topVertexIndices[4],
-		lSystem.indices.data[i++] = topVertexIndices[4],
-		lSystem.indices.data[i++] = bottomVertexIndices[0],
-		lSystem.indices.data[i++] = topVertexIndices[0];
+		lSystem.indices.memory[i++] = bottomVertexIndices[4],
+		lSystem.indices.memory[i++] = bottomVertexIndices[0],
+		lSystem.indices.memory[i++] = topVertexIndices[4],
+		lSystem.indices.memory[i++] = topVertexIndices[4],
+		lSystem.indices.memory[i++] = bottomVertexIndices[0],
+		lSystem.indices.memory[i++] = topVertexIndices[0];
 	};
 
 
