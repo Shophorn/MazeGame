@@ -43,13 +43,10 @@ constexpr v4 color_muted_purple 	= {0.8, 0.2, 0.8, 1};
 #include "MapGenerator.cpp"
 #include "Transform3D.cpp"
 #include "Animator.cpp"
-#include "Collisions2D.cpp"
-#include "CollisionManager2D.cpp"
 #include "Skybox.cpp"
 #include "TerrainGenerator.cpp"
 #include "Collisions3D.cpp"
 
-#include "CharacterSystems.cpp"
 #include "CameraController.cpp"
 #include "RenderingSystem.cpp"
 
@@ -84,9 +81,10 @@ struct Font
 
 /* Todo(Leo): Haxor: these should be in different translation units, and only include
 headers here. For now, 2d scene does not include its stuff because 3d scene does before it
-and both are still missing some because they are listed above. */
+and both are still missing some because they are listed above.
+
+Also, no 2d scene anymore*/
 #include "Scene3D.cpp"
-#include "Scene2D.cpp"
 
 struct AudioClip
 {
@@ -117,7 +115,7 @@ internal PlatformStereoSoundSample get_next_sample(AudioClip * clip)
 }
 
 // Todo(Leo): remove 2d scene
-enum LoadedSceneType { LOADED_SCENE_NONE, LOADED_SCENE_3D, LOADED_SCENE_2D };
+enum LoadedSceneType { LOADED_SCENE_NONE, LOADED_SCENE_3D };
 
 // Note(Leo): This makes less sense as a 'state' now that we have 'Scene' struct
 // Todo(Leo): This makes less sense as a 'state' now that we have 'Scene' struct
@@ -238,7 +236,7 @@ bool32 update_game(
 	bool32 gameIsAlive = true;
 	bool32 sceneIsAlive = true;
 
-	enum { ACTION_NONE, ACTION_NEW_GAME, ACTION_LOAD_GAME, ACTION_LOAD_2D_SCENE, ACTION_QUIT } action = ACTION_NONE;
+	enum { ACTION_NONE, ACTION_NEW_GAME, ACTION_LOAD_GAME, ACTION_QUIT } action = ACTION_NONE;
 
 	platformApi->prepare_frame(graphics);
 
@@ -247,10 +245,6 @@ bool32 update_game(
 		if (state->loadedSceneType == LOADED_SCENE_3D)
 		{
 			sceneIsAlive = update_scene_3d(state->loadedScene, *input, *time);
-		}
-		else if (state->loadedSceneType == LOADED_SCENE_2D)
-		{
-			sceneIsAlive = update_scene_2d(state->loadedScene, *input, *time);
 		}
 	}
 	else
@@ -274,12 +268,6 @@ bool32 update_game(
 		if (gui_button("Load Game"))
 		{
 			action = ACTION_LOAD_GAME;
-		}
-
-
-		if (gui_button("2D Scene"))
-		{
-			action = ACTION_LOAD_2D_SCENE;
 		}
 
 		if (gui_button("Quit"))
@@ -313,11 +301,6 @@ bool32 update_game(
 		state->loadedSceneType 		= LOADED_SCENE_3D;
 		platformApi->close_file(saveFile);
 	}
-	else if(action == ACTION_LOAD_2D_SCENE)
-	{
-		state->loadedScene 		= load_scene_2d(state->persistentMemoryArena);
-		state->loadedSceneType 	= LOADED_SCENE_2D;
-	}		
 
 	if (sceneIsAlive == false)
 	{

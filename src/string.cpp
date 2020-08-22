@@ -1,3 +1,9 @@
+/*
+Leo Tamminen
+
+String, tah-daa
+*/
+
 struct String
 {
 	s32 	length;
@@ -147,6 +153,7 @@ String string_extract_until_character(String & source, char delimiter)
 	return result;
 }
 
+// Note(Leo): string is passed by value since it is small, and can therefore be modified in function
 internal bool32 string_equals(String string, char const * cstring)
 {
 	while(true)
@@ -242,47 +249,71 @@ internal void string_append_cstring(String & string, char const * cstring, s32 c
 
 internal void string_append_f32(String & string, f32 value, s32 capacity)
 {	
-	char digits[11] = {};
-
 	// Todo(Leo): check that range is valid
 
-	f32 sign = value < 0 ? -1 : 1;
+	constexpr s32 digitCapacity = 8;
+	char digits[digitCapacity]	= {};
 
-	value = abs_f32(value);
+	// Note(Leo): added one is for possible negative sign
+	Assert((capacity - string.length) > (digitCapacity + 1))
+	
+	f32 sign 					= value < 0 ? -1 : 1;
+	value 						= abs_f32(value);
 
-	s32 exponent = 9;
-
-	if (value < 1)
+	constexpr s32 maxExponent 	= 6;
+	
+	constexpr f32 powers [2 * maxExponent + 1] =
 	{
-		exponent = -1;
-		digits[0] = '0';
-	}
-	else
+		0.000001,
+		0.00001,
+		0.0001,
+		0.001,
+		0.01,
+		0.1,
+		1,
+		10,
+		100,
+		1000,
+		10000,
+		100000,
+		1000000,
+	};
+
+	auto get_digit = [&powers, value](s32 exponent) -> char
 	{
-		while(true)
-		{
-			s32 digit = ((s32)(value / pow_f32(10, exponent))) % 10;
-			exponent -= 1;
+		f32 power 	= powers[exponent + maxExponent];
+	
+		// Note(Leo): Modulo limits upper bound, max limits lower bound;
+		s32 digit 	= ((s32)(value / power)) % 10;
+		digit 		= max_s32(0, digit);
+	
+		return '0' + (char)digit;
+	};
 
-			if (digit > 0)
-			{
-				digits[0] = '0' + (char)digit;
-				break;
-			}
-		}
+	s32 exponent 	= maxExponent;
+
+	// Note(Leo): first loop to find first number, so we don't write leading zeros wastefully
+	while(digits[0] == 0 || exponent >= 0)
+	{
+		digits[0] = get_digit(exponent);
+		exponent--;
 	}
 
-	for(s32 i = 1; i < 11; ++i)
+	s32 digitCount = 1;
+
+	// Note(Leo): second loop to find rest
+	while((digitCount < digitCapacity) && (exponent >= -maxExponent))
 	{
 		if (exponent == -1)
 		{
-			digits[i] = '.';
-			++i;
+			digits[digitCount] = '.';
+			digitCount++;
 		}
+		
+		digits[digitCount] = get_digit(exponent);
 
-		s32 digit = ((s32)(value / pow_f32(10, exponent))) % 10; 
-		digits[i] = '0' + (char)digit;
-		exponent -= 1;
+		digitCount++;
+		exponent--;
 	}
 
 	if (sign < 0)
@@ -290,7 +321,7 @@ internal void string_append_f32(String & string, f32 value, s32 capacity)
 		string.memory[string.length++] = '-';
 	}
 
-	for(s32 i = 0; i < 11; ++i)
+	for(s32 i = 0; i < digitCount; ++i)
 	{
 		string.memory[string.length++] = digits[i];
 	}

@@ -332,6 +332,11 @@ internal void read_settings_file(SerializedSettings & settings)
 
 internal void write_settings_file(SerializedSettings & settings)
 {
+	if (settings.hdrExposure.value_f32 > 3)
+	{
+		;
+	}
+
 	PlatformFileHandle file = platformApi->open_file("settings", FILE_MODE_WRITE);
 
 	for (s32 i = 0; i < settings.count; ++i)
