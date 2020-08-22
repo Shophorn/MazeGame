@@ -51,7 +51,7 @@ print (vulkan_sdk)
 ### CLANG++
 if compiler == 'clang++':
 	# Build settings
-	flags 		= "-static -std=c++17 -g -gcodeview -O0"
+	flags 		= "-static -std=c++17 -g -gcodeview -O0 -Werror"
 	# flags 		= "-static -std=c++17 -O3"
 
 	definitions = [ "-DMAZEGAME_DEVELOPMENT="		+ str(1),

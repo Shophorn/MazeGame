@@ -71,7 +71,7 @@ PlatformFileHandle fswin32_open_file(char const * filename, FileMode fileMode)
 	}
 
 	// Todo(Leo): check lpSecurityAttributes
-	HANDLE file = CreateFileA(	filename,
+	HANDLE file = CreateFile(	filename,
 								access,
 								0,
 								nullptr,
@@ -81,6 +81,7 @@ PlatformFileHandle fswin32_open_file(char const * filename, FileMode fileMode)
 
 	SetFilePointer((HANDLE)file, 0, nullptr, FILE_BEGIN);
 
+	// Todo(Leo): this may be unwanted
 	if (fileMode == FILE_MODE_WRITE)
 	{
 		SetEndOfFile((HANDLE)file);
@@ -111,12 +112,11 @@ void fswin32_write_file (PlatformFileHandle file, s32 count, void * memory)
 {
 	DWORD bytesWritten;
 	WriteFile((HANDLE)file, memory, count, &bytesWritten, nullptr);
-
-	SetFilePointer((HANDLE)file, count, nullptr, FILE_CURRENT);
 }
 
 void fswin32_read_file (PlatformFileHandle file, s32 count, void * memory)
 {
+	// Todo(Leo): test if ReadFile also moves file pointer, WriteFile does
 	DWORD bytesRead;
 	ReadFile((HANDLE)file, memory, count, &bytesRead, nullptr);
 
@@ -138,7 +138,6 @@ s32 fswin32_read_file_until(PlatformFileHandle file, char delimiter, s32 memoryS
 {
 	char * buffer = (char*)memory;
 	s32 count = 0;
-
 
 	while(count < memorySize)
 	{

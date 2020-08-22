@@ -64,6 +64,7 @@ T convert_bytes(byte const * bytes, u64 offset)
 template<typename T>
 void swap(T & a, T & b)
 {
+	// Todo(Leo): these may  not be the requirements we require
 	static_assert(std::is_trivially_constructible<T>::value);
 	static_assert(std::is_trivially_destructible<T>::value);
 

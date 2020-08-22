@@ -108,6 +108,11 @@ inline f32 clamp_f32(f32 value, f32 min, f32 max)
     return value;
 }
 
+internal f32 pow_f32(f32 value, f32 pow)
+{
+    return std::pow(value, pow);
+}
+
 /// ******************************************************************
 /// MATHFUN, fun math stuff :)
 f32 mathfun_smooth_f32 (f32 v)

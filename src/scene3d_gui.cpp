@@ -21,10 +21,12 @@ internal void gui_set_cursor_visible(bool menuVisible)
 	logDebug(0) << "Set cursor visible: " << bool_str(cursorVisible);
 }
 
+
 bool32 do_gui(Scene3d * scene, PlatformInput const & input)
 {	
 	constexpr v2 cornerPosition = {30, 30};
 	constexpr v2 centerPosition = {850, 400};
+
 
 	if (is_clicked(input.start))
 	{
@@ -34,12 +36,11 @@ bool32 do_gui(Scene3d * scene, PlatformInput const & input)
 			gui_reset_selection();
 			gui_set_cursor_visible(true);
 		}
-		else
+		else if (scene->menuView == MENU_MAIN)
 		{
 			scene->menuView = MENU_OFF;
 			gui_set_cursor_visible(false);
 		}
-
 	}
 
 	bool32 keepScene = true;
@@ -164,9 +165,14 @@ bool32 do_gui(Scene3d * scene, PlatformInput const & input)
 				gui_reset_selection();
 			}
 
-			if (gui_button("Reload Tweaks"))
+			if (gui_button("Read Settings"))
 			{
-				read_tweak_values(scene);
+				read_settings_file(scene->settings);
+			}
+
+			if (gui_button("Write Settings"))
+			{
+				write_settings_file(scene->settings);
 			}
 
 			if (gui_button("Exit Scene"))
@@ -187,7 +193,6 @@ bool32 do_gui(Scene3d * scene, PlatformInput const & input)
 			// }
 
 			gui_end_panel();
-
 		} break;
 
 		case MENU_EDIT_MESH_GENERATION:
@@ -209,7 +214,7 @@ bool32 do_gui(Scene3d * scene, PlatformInput const & input)
 				scene->drawMCStuff = !scene->drawMCStuff;
 			}
 
-			if (gui_button("Back"))
+			if (gui_button("Back") || is_clicked(input.start))
 			{
 				scene->menuView = MENU_MAIN;
 				gui_reset_selection();
@@ -260,8 +265,12 @@ bool32 do_gui(Scene3d * scene, PlatformInput const & input)
 
 			gui_start_panel("Edit Sky", menuColor);
 
-			// scene->skyColorSelection = 
-			gui_float_slider("Sky Color", &scene->skyColorSelection, 0,1);
+			auto mark_dirty = [scene](bool dirty)
+			{
+				scene->settings.dirty = scene->settings.dirty || dirty;
+			};
+
+			mark_dirty(gui_float_slider("Sky Color", &scene->settings.skyColourSelection.value_f32, 0,1));
 
 			char const * const colorFromTreeDistanceTexts [] = 
 			{
@@ -274,8 +283,8 @@ bool32 do_gui(Scene3d * scene, PlatformInput const & input)
 				scene->getSkyColorFromTreeDistance = !scene->getSkyColorFromTreeDistance;
 			}
 
-			gui_float_slider("Sky Height Angle", &scene->sunHeightAngle, -1, 1);
-			gui_float_slider("Sky Orbit Angle", &scene->sunOrbitAngle, 0, 1);
+			mark_dirty(gui_float_slider("Sky Height Angle", &scene->settings.sunHeightAngle.value_f32, -1, 1));
+			mark_dirty(gui_float_slider("Sky Orbit Angle", &scene->settings.sunOrbitAngle.value_f32, 0, 1));
 
 			{
 				local_persist v4 color = {2,2,2,1};
@@ -295,10 +304,10 @@ bool32 do_gui(Scene3d * scene, PlatformInput const & input)
 				}
 			}
 
-			gui_float_slider("HDR Exposure", &scene->hdrSettings.exposure, 0.1, 10);
-			gui_float_slider("HDR Contrast", &scene->hdrSettings.contrast, -1, 1);
+			mark_dirty(gui_float_slider("HDR Exposure", &scene->settings.hdrExposure.value_f32, 0.1, 10));
+			mark_dirty(gui_float_slider("HDR Contrast", &scene->settings.hdrContrast.value_f32, -1, 1));
 
-			if (gui_button("Back"))
+			if (gui_button("Back") || is_clicked(input.start))
 			{
 				scene->menuView = MENU_MAIN;
 			}

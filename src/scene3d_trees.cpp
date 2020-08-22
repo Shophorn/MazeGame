@@ -25,6 +25,11 @@ struct Leaves
 	MaterialHandle	material;
 };
  
+internal void flush_leaves(Leaves & leaves)
+{
+	leaves.count = 0;
+}
+
 internal Leaves make_leaves(MemoryArena & allocator, s32 capacity)
 {
 	Leaves leaves 			= {};

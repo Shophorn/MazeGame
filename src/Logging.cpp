@@ -100,6 +100,7 @@ struct LogChannel
 LogChannel logConsole 	= {"LOG", 5};
 
 LogChannel logDebug 	= {"DEBUG", 5};
+LogChannel logWarning	= {"WARNING", 5};
 LogChannel logAnim 		= {"ANIMATION", 5};
 LogChannel logVulkan 	= {"VULKAN", 5};
 LogChannel logWindow	= {"WINDOW", 5};

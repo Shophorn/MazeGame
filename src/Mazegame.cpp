@@ -116,9 +116,11 @@ internal PlatformStereoSoundSample get_next_sample(AudioClip * clip)
 	return sample;
 }
 
+// Todo(Leo): remove 2d scene
 enum LoadedSceneType { LOADED_SCENE_NONE, LOADED_SCENE_3D, LOADED_SCENE_2D };
 
 // Note(Leo): This makes less sense as a 'state' now that we have 'Scene' struct
+// Todo(Leo): This makes less sense as a 'state' now that we have 'Scene' struct
 struct GameState
 {
 	/* Note(Leo): MEMORY
@@ -225,6 +227,7 @@ bool32 update_game(
 		initialize_game_state (state, memory);
 
 		logDebug.output     = logFile;
+		logWarning.output 	= logFile;
 		logAnim.output      = logFile;
 		logVulkan.output    = logFile;
 		logWindow.output    = logFile;

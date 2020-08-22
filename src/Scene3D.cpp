@@ -5,6 +5,9 @@ shophorn @ internet
 Scene description for 3d development scene
 =============================================================================*/
 
+// Todo(Leo): At least how things are now, this should be higher in include hierarchy
+#include "string.cpp"
+
 #include "CharacterMotor.cpp"
 #include "PlayerController3rdPerson.cpp"
 #include "FollowerController.cpp"
@@ -15,6 +18,8 @@ Scene description for 3d development scene
 #include "Trees3.cpp"
 
 #include "metaballs.cpp"
+
+#include "settings.cpp"
 
 enum CameraMode : s32
 { 
@@ -74,8 +79,22 @@ enum MenuView : s32
 };
 
 
+template<typename ... TArgs>
+internal void file_write_format(PlatformFileHandle file, TArgs ... args)
+{
+	// Todo(Leo): check that this buffer is enough
+	char buffer [256] = {};
+	String string {0, buffer};
+	string_append_format(string, sizeof(buffer), args...);
+	platformApi->write_file(file, string.length, string.memory);
+}
+
 struct Scene3d
 {
+	SerializedSettings settings;
+
+	// ---------------------------------------
+
 	// Todo(Leo): Remove these "component" arrays, they are stupidly generic solution, that hide away actual data location, at least the way they are now used
 	Array<Transform3D> 			transforms;
 	Array<Renderer> 			renderers;
@@ -248,11 +267,9 @@ struct Scene3d
 	TextureHandle 	niceSkyGradientTexture;
 	TextureHandle 	meanSkyGradientTexture;
 
+
 	// Random
 	bool32 		getSkyColorFromTreeDistance;
-	f32 		skyColorSelection;
-	f32 		sunHeightAngle;
-	f32 		sunOrbitAngle;
 
 	Gui 		gui;
 	CameraMode 	cameraMode;
@@ -268,104 +285,72 @@ struct Scene3d
 	constexpr static s32 	timeScaleCount = 3;
 	s32 					timeScaleIndex;
 
-	HdrSettings hdrSettings = {1,0};
+	// HdrSettings hdrSettings = {1,0};
 
 	Trees3 		trees3;
+	Leaves 		tree3Leaves;
 	DynamicMesh trees3DynamicMesh;
 };
 
-struct StringReference
+internal void read_settings_file(SerializedSettings & settings)
 {
-	s32 	length;
-	char * 	string;
-};
+	PlatformFileHandle file = platformApi->open_file("settings", FILE_MODE_READ);
 
-std::ostream & operator << (std::ostream & os, StringReference & stringRef)
-{
-	for(s32 i = 0; i < stringRef.length; ++i)
-	{
-		logDebug(0) << stringRef.string[i] << '\n';
-		os << stringRef.string[i];
-	}
+	s32 fileLength 	= platformApi->get_file_length(file);
+	char * buffer 	= push_memory<char>(*global_transientMemory, fileLength, 0);
 
-	return os;
-}
+	platformApi->read_file(file, fileLength, buffer);
+	platformApi->close_file(file);	
 
-void eat_leading_spaces(StringReference & stringRef)
-{
-	while(stringRef.length > 0 && stringRef.string[0] == ' ')
-	{
-		stringRef.string += 1;
-		stringRef.length -= 1;
-	}
-}
-
-StringReference extract_line(StringReference & source)
-{
-	s32 length = 0;
-	while(true)
-	{
-		if (length == source.length)
-		{
-			break;
-		}
-
-		if (source.string[length] == '\r' && source.string[length + 1] == '\n')
-		{
-			break;
-		}
-
-		length += 1;
-	}
-
-	StringReference result = 
-	{
-		.length = length,
-		.string = source.string
-	};
-	eat_leading_spaces(result);
-
-
-	source.string += length + 2;
-	source.length -= length + 2;
-
-	return result;
-}
-
-
-internal void read_tweak_values(Scene3d * scene)
-{
-	auto file = platformApi->open_file("tweakfile", FILE_MODE_READ);
-	s32 fileLength = platformApi->get_file_length(file);
-
-	char * buffer = push_memory<char>(*global_transientMemory, fileLength, 0);
-
-	platformApi->read_file(file, fileLength, buffer); 
-
-	StringReference fileAsString = {fileLength, buffer};
+	String fileAsString = {fileLength, buffer};
 
 	while(fileAsString.length > 0)
 	{
-		StringReference line = extract_line(fileAsString);
+		String line 		= string_extract_line (fileAsString);
+		String identifier 	= string_extract_until_character(line, ':');
 
-		auto log = logDebug(0);
-		log << "Tweak file: ";
-	
-		if (line.length > 0)
+		for (s32 i = 0; i < settings.count; ++i)
 		{
-			for(s32 i = 0; i < line.length; ++i)
+			if (string_equals(identifier, settings[i].id))
 			{
-				log << line.string[i];
+				switch(settings[i].type)
+				{
+					case TYPE_F32:
+						// todo(Leo): maybe use try_parse_f32 kind of thing
+						settings[i].value_f32 = string_parse_f32(line);
+						break;
+
+					// case TYPE_V3:
+					// 	// settings[i].value_v3 = string_parse_v3(line);
+					// 	break;
+				}
 			}
 		}
-		else
+	}
+}
+
+
+internal void write_settings_file(SerializedSettings & settings)
+{
+	PlatformFileHandle file = platformApi->open_file("settings", FILE_MODE_WRITE);
+
+	for (s32 i = 0; i < settings.count; ++i)
+	{
+		switch(settings[i].type)
 		{
-			log << "[EMPTY LINE]";
+			case TYPE_F32:
+				file_write_format(file, settings[i].id, " : ", settings[i].value_f32, "\n");			
+				break;
+
+			// case TYPE_V3:
+
+			// 	break;
 		}
 	}
 
-	platformApi->close_file(file);		
+	platformApi->close_file(file);
 }
+
 
 struct Scene3dSaveLoad
 {
@@ -626,8 +611,8 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 	{
 		v3 lightDirection = {0,0,1};
-		lightDirection = rotate_v3(axis_angle_quaternion(right_v3, scene->sunHeightAngle * π), lightDirection);
-		lightDirection = rotate_v3(axis_angle_quaternion(up_v3, scene->sunOrbitAngle * 2 * π), lightDirection);
+		lightDirection = rotate_v3(axis_angle_quaternion(right_v3, scene->settings.sunHeightAngle.value_f32 * π), lightDirection);
+		lightDirection = rotate_v3(axis_angle_quaternion(up_v3, scene->settings.sunOrbitAngle.value_f32 * 2 * π), lightDirection);
 		lightDirection = normalize_v3(-lightDirection);
 
 		Light light = { .direction 	= lightDirection, //normalize_v3({-1, 1.2, -8}), 
@@ -661,11 +646,16 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 		}
 		else
 		{
-			light.skyColorSelection = scene->skyColorSelection;
+			light.skyColorSelection = scene->settings.skyColourSelection.value_f32;
 		}
 
 		platformApi->update_lighting(platformGraphics, &light, &scene->worldCamera, ambient);
-		platformApi->update_hdr_settings(platformGraphics, &scene->hdrSettings);
+		HdrSettings hdrSettings = 
+		{
+			scene->settings.hdrExposure.value_f32,
+			scene->settings.hdrContrast.value_f32,
+		};
+		platformApi->update_hdr_settings(platformGraphics, &hdrSettings);
 	}
 
 	/// *******************************************************************************************
@@ -1494,24 +1484,34 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 	}
 
 	{
+		grow_tree_3(scene->trees3.memory[1], scaledTime);
+
+		flush_leaves(scene->tree3Leaves);
+		flush_dynamic_mesh(scene->trees3DynamicMesh);
+		build_tree_3_mesh(scene->trees3.memory[1], scene->tree3Leaves, scene->trees3DynamicMesh);
+
 		v3 position = snap_on_ground(v2{5,5});
 		position.z += 2;
 		m44 transform = translation_matrix(position);
+
+		scene->tree3Leaves.position = position;
+		scene->tree3Leaves.rotation = identity_quaternion;
 
 		platformApi->draw_procedural_mesh(	platformGraphics,
 											scene->trees3DynamicMesh.vertexCount, scene->trees3DynamicMesh.vertices,
 											scene->trees3DynamicMesh.indexCount, scene->trees3DynamicMesh.indices,
 											transform, scene->treeMaterials[0]);
 
+
 		debug_draw_circle_xy(position, 2, colour_bright_red, DEBUG_ALWAYS);
 	}
 
 	/// DRAW LEAVES FOR BOTH LSYSTEM ARRAYS IN THE END BECAUSE OF LEAF SHDADOW INCONVENIENCE
-	// Todo(Leo): leaves are drawn last, so we can bind their shadow pipeline once, and not rebind the normal shadow thing. Fix this unconvenience!
-	// Todo(Leo): leaves are drawn last, so we can bind their shadow pipeline once, and not rebind the normal shadow thing. Fix this unconvenience!
-	// Todo(Leo): leaves are drawn last, so we can bind their shadow pipeline once, and not rebind the normal shadow thing. Fix this unconvenience!
-	// Todo(Leo): leaves are drawn last, so we can bind their shadow pipeline once, and not rebind the normal shadow thing. Fix this unconvenience!
-	// Todo(Leo): leaves are drawn last, so we can bind their shadow pipeline once, and not rebind the normal shadow thing. Fix this unconvenience!
+	// Todo(Leo): leaves are drawn last, so we can bind their shadow pipeline once, and not rebind the normal shadow thing. Fix this inconvenience!
+	// Todo(Leo): leaves are drawn last, so we can bind their shadow pipeline once, and not rebind the normal shadow thing. Fix this inconvenience!
+	// Todo(Leo): leaves are drawn last, so we can bind their shadow pipeline once, and not rebind the normal shadow thing. Fix this inconvenience!
+	// Todo(Leo): leaves are drawn last, so we can bind their shadow pipeline once, and not rebind the normal shadow thing. Fix this inconvenience!
+	// Todo(Leo): leaves are drawn last, so we can bind their shadow pipeline once, and not rebind the normal shadow thing. Fix this inconvenience!
 	// Todo(Leo): This works ok currently, but do fix this, maybe do a proper command buffer for these
 	{
 		auto draw_l_system_tree_leaves = [scaledTime](s32 count, Leaves * leavess)
@@ -1526,14 +1526,27 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 		};
 
 		draw_l_system_tree_leaves(scene->lSystemCount, scene->lSystemLeavess);
+
+		if (scene->tree3Leaves.count > 0)
+		{
+			draw_leaves(scene->tree3Leaves, scaledTime);
+		}
 	}
 
 	// ------------------------------------------------------------------------
 
-	return do_gui(scene, input);
+	auto gui_result = do_gui(scene, input);
+
+	if (scene->settings.dirty)
+	{
+		write_settings_file(scene->settings);
+		scene->settings.dirty = false;
+	}
+
+	return gui_result;
 }
 
-void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle saveFile)
+internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle saveFile)
 {
 	Scene3dSaveLoad save;
 	if (saveFile != nullptr)
@@ -1544,9 +1557,15 @@ void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle saveFile
 		file_read_struct(saveFile, &save);
 	}
 
-	void * scenePtr = allocate(persistentMemory, sizeof(Scene3d), 0);
-	Scene3d * scene = reinterpret_cast<Scene3d*>(scenePtr);
-	*scene = {};
+	// void * scenePtr = allocate(persistentMemory, sizeof(Scene3d), 0);
+	// Scene3d * scene = reinterpret_cast<Scene3d*>(scenePtr);
+
+	Scene3d * scene = push_memory<Scene3d>(persistentMemory, 1, ALLOC_CLEAR);
+	*scene 			= {};
+
+	scene->settings = init_settings();
+	read_settings_file(scene->settings);
+
 
 	// ----------------------------------------------------------------------------------
 
@@ -2194,6 +2213,7 @@ void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle saveFile
 	// ----------------------------------------------------------------------------------
 
 	/// LSYSTEM TREES	
+	MaterialHandle leavesMaterial;
 	{
 		// Todo(Leo): I forgot this. what does this comment mean?
 		// TODO(Leo): fukin häx
@@ -2239,7 +2259,6 @@ void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle saveFile
 		MaterialHandle tree1SeedMaterial = seedMaterial1;
 		MaterialHandle tree2SeedMaterial = seedMaterial2;
 
-		MaterialHandle leavesMaterial;
 		{
 			auto leafTextureAsset 	= load_texture_asset(*global_transientMemory, "assets/textures/leaf_mask.png");
 			auto leavesTexture 		= platformApi->push_texture(platformGraphics, &leafTextureAsset);
@@ -2441,15 +2460,18 @@ void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle saveFile
 	{
 		initialize_test_trees_3(persistentMemory, scene->trees3);
 
-		scene->trees3DynamicMesh.vertexCapacity = 1000;
-		scene->trees3DynamicMesh.vertexCount = 0;
-		scene->trees3DynamicMesh.vertices = push_memory<Vertex>(persistentMemory, scene->trees3DynamicMesh.vertexCapacity, ALLOC_CLEAR);
+		scene->trees3DynamicMesh.vertexCapacity = 5000;
+		scene->trees3DynamicMesh.vertexCount 	= 0;
+		scene->trees3DynamicMesh.vertices 		= push_memory<Vertex>(persistentMemory, scene->trees3DynamicMesh.vertexCapacity, ALLOC_CLEAR);
 
-		scene->trees3DynamicMesh.indexCapacity = 1000;
-		scene->trees3DynamicMesh.indexCount = 0;
-		scene->trees3DynamicMesh.indices = push_memory<u16>(persistentMemory, scene->trees3DynamicMesh.indexCapacity, ALLOC_CLEAR);
+		scene->trees3DynamicMesh.indexCapacity 	= 10000;
+		scene->trees3DynamicMesh.indexCount 	= 0;
+		scene->trees3DynamicMesh.indices 		= push_memory<u16>(persistentMemory, scene->trees3DynamicMesh.indexCapacity, ALLOC_CLEAR);
 
-		build_tree_3_mesh(scene->trees3.memory[0], scene->trees3DynamicMesh);
+		scene->tree3Leaves = make_leaves(persistentMemory, 4000);
+		scene->tree3Leaves.material = leavesMaterial;
+
+		build_tree_3_mesh(scene->trees3.memory[0], scene->tree3Leaves, scene->trees3DynamicMesh);
 	}
 
 	// ----------------------------------------------------------------------------------
@@ -2457,5 +2479,5 @@ void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle saveFile
 	logSystem(0) << "Scene3d loaded, " << used_percent(*global_transientMemory) * 100 << "% of transient memory used.";
 	logSystem(0) << "Scene3d loaded, " << used_percent(persistentMemory) * 100 << "% of persistent memory used.";
 
-	return scenePtr;
+	return scene;
 }

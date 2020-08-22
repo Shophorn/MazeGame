@@ -21,7 +21,7 @@ u32 xor128()
 internal f32 random_value()
 {
 	f32 value 	= static_cast<f32>(xor128());
-	f32 max 		= static_cast<f32>(max_value_u32);
+	f32 max 	= static_cast<f32>(max_value_u32);
 	f32 result 	= value / max;
 
 	return result;	
@@ -30,6 +30,12 @@ internal f32 random_value()
 internal bool random_choice()
 {
 	return xor128() & 0x00000001;	
+}
+
+internal bool32 random_choice_probability(f32 probability)
+{
+	bool32 result = random_value() < probability;
+	return result;
 }
 
 internal f32 random_range(f32 min, f32 max)
