@@ -6,37 +6,41 @@ layout (set = LIGHTING_SET, binding = 0) uniform Lighting
 	vec4 IGNORED_color;
 	vec4 ambient;
 	vec4 cameraPosition;
+	
+	vec4 skyBottomColor;
+	vec4 skyTopColor;
+
+	vec4 horizonHaloColorAndFalloff;
+	vec4 sunHaloColorAndFalloff;
+
 	float skyColourSelection;
 } light;
 
-vec3 actual_compute_sky_color(float dotHorizon, float dotLight)
+vec3 actual_compute_sky_color(const float dotHorizon, const float dotLight)
 {
-
-	// -------------------------------------------------------------
-
-
-
-	const float horizonClip = step(0, dotHorizon);
-
-	// -------------------------------------------------------------
-
-	vec3 skyTop 	= vec3(0.05, 0.2, 0.7);
-	vec3 skyBottom 	= vec3(0.1, 0.3, 0.9);
-
-	vec3 skyGradientColor = mix(skyBottom, skyTop, dotHorizon);
-
+	// return 	texture(skyGradients[0], vec2(dotHorizon, 0)).rgb 
+	// 		+ texture(skyGradients[1], vec2((1-dotLight), 0)).rgb;
 
 
 
 	// -------------------------------------------------------------
-	float horizonHaloFalloff 	= 0.2;
-	// float horizonHaloDistanceFalloff = ???;
-	// float horizonHaloIntensityFalloff = ???;
 
-	vec3 horizonHaloColor 	= vec3(0.9, 0.9, 0.8);
-	horizonHaloColor 		*= exp(-dotHorizon / horizonHaloFalloff);
+	float t 	= dotHorizon;
+	float bias 	= light.skyColourSelection;
+
+	t = mix(mix(0,bias,t), mix(bias,1,t), t);
+	t = mix(mix(0,bias,t), mix(bias,1,t), t);
+
+	const vec3 skyGradientColor = mix(	light.skyBottomColor.rgb,
+										light.skyTopColor.rgb,
+										t);
 
 
+	// -------------------------------------------------------------
+
+	float n 					= 1 - dotHorizon / light.horizonHaloColorAndFalloff.a;
+	float horizonHaloFalloff 	= n*n*n;
+	const vec3 horizonHaloColor = max(vec3(0,0,0), light.horizonHaloColorAndFalloff.rgb * horizonHaloFalloff);
 
 	// -------------------------------------------------------------
 
@@ -45,9 +49,10 @@ vec3 actual_compute_sky_color(float dotHorizon, float dotLight)
 
 	// -------------------------------------------------
 
-	float sunHaloFalloff = 0.03;
-	vec3 sunHaloColor 	= vec3(3,3,1);
-	sunHaloColor 		*= exp(-(1 - dotLight) / sunHaloFalloff);
+	float d  				= 1 - dotLight;
+	float m 				= 1 - d / light.sunHaloColorAndFalloff.a;
+	float sunHaloFalloff 	= pow(m,light.skyColourSelection * 10) * step(d, m);
+	const vec3 sunHaloColor = max(vec3(0,0,0), light.sunHaloColorAndFalloff.rgb * sunHaloFalloff);
 
 	// -------------------------------------------------
 
@@ -57,20 +62,11 @@ vec3 actual_compute_sky_color(float dotHorizon, float dotLight)
 	finalColor += horizonHaloColor;
 	finalColor += sunDiscColor;
 	finalColor += sunHaloColor;
-	finalColor *= horizonClip;
 
-	return finalColor;
+	float horizonClip 	= step(0, dotHorizon);
+	finalColor 			*= horizonClip;
 
-
-/*
-	vec2 uv = vec2(d, 0);
-
-	vec3 colorA = texture(skyGradients[0], uv).rgb;
-	vec3 colorB = texture(skyGradients[1], uv).rgb;
-
-	vec3 color = mix(colorA, colorB, light.skyColourSelection);
-	return color;
-*/	
+	return finalColor;	
 }
 
 

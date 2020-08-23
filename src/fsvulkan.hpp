@@ -53,6 +53,13 @@ struct FSVulkanLightingUniformBuffer
 	v4 color;
 	v4 ambient;
 	v4 cameraPosition;
+
+	v4 skyBottomColor;
+	v4 skyTopColor;
+
+	v4 horizonHaloColorAndFalloff;
+	v4 sunHaloColorAndFalloff;
+
 	f32 skyColor;
 };
 

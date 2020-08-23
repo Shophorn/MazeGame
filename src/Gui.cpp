@@ -684,7 +684,7 @@ internal bool gui_color(char const * label, v4 * color, GuiColorFlags flags)
 	*rect = 
 	{
 		.position 	= gui_transform_screen_point(texturePosition),
-		.size 		= gui_transform_screen_size(v2{gui.textSize, gui.textSize} * 4.0f),
+		.size 		= gui_transform_screen_size(v2{gui.textSize, gui.textSize} * 3.0f),
 		.uvPosition = {0,0},
 		.uvSize 	= {1,1},
 	};

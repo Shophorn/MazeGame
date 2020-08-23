@@ -1,7 +1,7 @@
 internal void scene_3d_initialize_gui(Scene3d * scene)
 {
 	scene->gui 						= {};
-	scene->gui.textSize 			= 30;
+	scene->gui.textSize 			= 25;
 	scene->gui.textColor 			= colour_white;
 	scene->gui.selectedTextColor 	= colour_muted_red;
 	scene->gui.padding 				= 10;
@@ -286,23 +286,32 @@ bool32 do_gui(Scene3d * scene, PlatformInput const & input)
 			mark_dirty(gui_float_slider("Sky Height Angle", &scene->settings.sunHeightAngle.value_f32, -1, 1));
 			mark_dirty(gui_float_slider("Sky Orbit Angle", &scene->settings.sunOrbitAngle.value_f32, 0, 1));
 
-			{
-				local_persist v4 color = {2,2,2,1};
+			gui_color("Sky Gradient Bottom", &scene->skyBottomColor, GUI_COLOR_FLAGS_HDR);
+			gui_color("Sky Gradient Top", &scene->skyTopColor, GUI_COLOR_FLAGS_HDR);
 
-				bool modified = gui_color("Test Color", &color, GUI_COLOR_FLAGS_HDR);
+			gui_color("Horizon Halo Color", &scene->horizonHaloColor, GUI_COLOR_FLAGS_HDR);
+			gui_float_slider("Horizon Halo Falloff", &scene->horizonHaloFalloff, 0.0001, 1);
 
-				if (modified)
-				{
-					scene->niceSkyGradient.colours[3] = color;
+			gui_color("Sun Halo Color", &scene->sunHaloColor, GUI_COLOR_FLAGS_HDR);
+			gui_float_slider("Sun Halo Falloff", &scene->sunHaloFalloff, 0.0001, 1);
 
-					TextureAsset niceSkyGradientAsset 	= generate_gradient(*global_transientMemory, 128, scene->niceSkyGradient);
-					niceSkyGradientAsset.addressMode 	= TEXTURE_ADDRESS_MODE_CLAMP;
+			// {
+			// 	local_persist v4 color = {2,2,2,1};
 
-					platformApi->update_texture(platformGraphics, scene->niceSkyGradientTexture, &niceSkyGradientAsset);
+			// 	bool modified = gui_color("Test Color", &color, GUI_COLOR_FLAGS_HDR);
 
-					logDebug(0) << "Color = " << color;
-				}
-			}
+			// 	if (modified)
+			// 	{
+			// 		scene->niceSkyGradient.colours[3] = color;
+
+			// 		TextureAsset niceSkyGradientAsset 	= generate_gradient(*global_transientMemory, 128, scene->niceSkyGradient);
+			// 		niceSkyGradientAsset.addressMode 	= TEXTURE_ADDRESS_MODE_CLAMP;
+
+			// 		platformApi->update_texture(platformGraphics, scene->niceSkyGradientTexture, &niceSkyGradientAsset);
+
+			// 		logDebug(0) << "Color = " << color;
+			// 	}
+			// }
 
 			mark_dirty(gui_float_slider("HDR Exposure", &scene->settings.hdrExposure.value_f32, 0.1, 10));
 			mark_dirty(gui_float_slider("HDR Contrast", &scene->settings.hdrContrast.value_f32, -1, 1));

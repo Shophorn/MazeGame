@@ -290,6 +290,15 @@ struct Scene3d
 	Trees3 		trees3;
 	Leaves 		tree3Leaves;
 	DynamicMesh trees3DynamicMesh;
+
+	v4 skyBottomColor 	= {0.1, 0.3, 0.9};
+	v4 skyTopColor 		= {0.05, 0.2, 0.7};
+
+	v4 horizonHaloColor 	= {0.9, 0.9, 0.8};
+	f32 horizonHaloFalloff 	= 0.2;
+
+	v4 sunHaloColor 	= {3,3,2};
+	f32 sunHaloFalloff 	= 0.2;
 };
 
 internal void read_settings_file(SerializedSettings & settings)
@@ -653,6 +662,15 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 		{
 			light.skyColorSelection = scene->settings.skyColourSelection.value_f32;
 		}
+
+		light.skyBottomColor 	= scene->skyBottomColor;
+		light.skyTopColor 		= scene->skyTopColor;
+
+		light.horizonHaloColorAndFalloff.rgb 	= scene->horizonHaloColor.rgb;
+		light.horizonHaloColorAndFalloff.a 		= scene->horizonHaloFalloff;
+
+		light.sunHaloColorAndFalloff.rgb 		= scene->sunHaloColor.rgb;
+		light.sunHaloColorAndFalloff.a 			= scene->sunHaloFalloff;
 
 		platformApi->update_lighting(platformGraphics, &light, &scene->worldCamera, ambient);
 		HdrSettings hdrSettings = 

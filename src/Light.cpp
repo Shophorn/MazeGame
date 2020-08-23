@@ -16,6 +16,12 @@ struct Light
 	
 	f32 hdrExposure;
 	f32 hdrContrast;
+
+	v4 skyBottomColor;
+	v4 skyTopColor;
+
+	v4 horizonHaloColorAndFalloff;
+	v4 sunHaloColorAndFalloff;
 };
 
 
