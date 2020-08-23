@@ -769,7 +769,7 @@ winapi::create_vulkan_context(WinAPIWindow * window)
 			vulkan::destroy_drawing_resources(context);
 		});
 		
-		init_shadow_pass(&context, 1024 * 4, 1024 * 4);
+		init_shadow_pass(&context, 1024 * 8, 1024 * 8);
 
 		/// PIPELINES
 		{

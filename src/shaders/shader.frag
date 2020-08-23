@@ -112,7 +112,7 @@ void main()
 	vec3 diffuseTerm = mix(light.ambient.rgb, lightColor, lightIntensity);
 	// vec3 diffuseTerm = light.ambient.rgb + light.color.rgb * lightIntensity;
 
-	vec3 ambientColor = compute_sky_color(-lightDir, lightDir);
+	vec3 ambientColor = compute_sky_color(-lightDir, tbnMatrix);
 	diffuseTerm = lightColor * albedo * lightIntensity + ambientColor * albedo;
 
 	// diffuseTerm *= lightIntensity;

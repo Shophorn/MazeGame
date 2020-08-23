@@ -1713,7 +1713,8 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 
 	// Skybox
 	{
-		auto meshAsset 	= create_skybox_mesh(global_transientMemory);
+		// auto meshAsset 	= create_skybox_mesh(global_transientMemory);
+		auto meshAsset 	= load_mesh_glb(*global_transientMemory, read_gltf_file(*global_transientMemory, "assets/models/skysphere.glb"), "skysphere");
 		auto meshHandle = platformApi->push_mesh(platformGraphics, &meshAsset);
 		scene->skybox 	= push_model(meshHandle, scene->skyMaterial);
 	}

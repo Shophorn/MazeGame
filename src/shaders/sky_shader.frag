@@ -13,7 +13,7 @@ void main()
 	vec3 lightDir 	= -normalize(light.direction.xyz);
 	vec3 normal 	= normalize(fragTexCoord);
 
-	outColor.rgb 	= compute_sky_color(normal, lightDir);
+	outColor.rgb 	= compute_sky_color(normal);
 
 	outColor.a 		= 1.0;
 }
