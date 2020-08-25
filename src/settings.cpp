@@ -11,6 +11,7 @@ should use value_XX fields in SerializedSetting union
 enum SerializedSettingType : s32
 {
 	TYPE_F32,
+	TYPE_V3,
 };
 
 #define SETTINGS_LIST \
@@ -18,7 +19,20 @@ enum SerializedSettingType : s32
 		SET_SETTING(sunOrbitAngle, 		TYPE_F32, 0) \
 		SET_SETTING(skyColourSelection, TYPE_F32, 0) \
 		SET_SETTING(hdrExposure, 		TYPE_F32, 1) \
-		SET_SETTING(hdrContrast, 		TYPE_F32, 0)
+		SET_SETTING(hdrContrast, 		TYPE_F32, 0) \
+\
+		SET_SETTING(horizonHaloFalloff,	TYPE_F32, 0) 			\
+		SET_SETTING(sunHaloFalloff, 	TYPE_F32, 0) 			\
+		SET_SETTING(sunDiscSize,		TYPE_F32, 0) 			\
+		SET_SETTING(sunDiscFalloff,  	TYPE_F32, 0)	 		\
+\
+		SET_SETTING(skyGradientBottom,	TYPE_V3,  {}) 	\
+		SET_SETTING(skyGradientTop,		TYPE_V3,  {}) 	\
+		SET_SETTING(horizonHaloColour, 	TYPE_V3,  {})	\
+		SET_SETTING(sunHaloColour, 		TYPE_V3,  {}) 	\
+		SET_SETTING(sunDiscColour, 		TYPE_V3,  {}) 	\
+
+#define ZERO_VECTOR {0,0,0}
 
 struct SerializedSetting
 {
@@ -28,6 +42,7 @@ struct SerializedSetting
 	union
 	{
 		f32 value_f32;
+		v3 value_v3;
 	};
 };
 

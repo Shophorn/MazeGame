@@ -291,14 +291,17 @@ struct Scene3d
 	Leaves 		tree3Leaves;
 	DynamicMesh trees3DynamicMesh;
 
-	v4 skyBottomColor 	= {0.1, 0.3, 0.9};
-	v4 skyTopColor 		= {0.05, 0.2, 0.7};
+	// v4 skyBottomColor 	= {0.1, 0.3, 0.9};
+	// v4 skyTopColor 		= {0.05, 0.2, 0.7};
 
-	v4 horizonHaloColor 	= {0.9, 0.9, 0.8};
-	f32 horizonHaloFalloff 	= 0.2;
+	// v4 horizonHaloColor 	= {0.9, 0.9, 0.8};
+	// // f32 horizonHaloFalloff 	= 0.2;
 
-	v4 sunHaloColor 	= {3,3,2};
-	f32 sunHaloFalloff 	= 0.2;
+	// v4 sunHaloColor 	= {3,3,2};
+	// // f32 sunHaloFalloff 	= 0.2;
+
+	// v4 sunDiscColor 			= {10,10,5};
+	// // v2 sunDiscSizeAndFalloff	= {0.0012, 0.0007};
 };
 
 internal void read_settings_file(SerializedSettings & settings)
@@ -316,7 +319,7 @@ internal void read_settings_file(SerializedSettings & settings)
 	while(fileAsString.length > 0)
 	{
 		String line 		= string_extract_line (fileAsString);
-		String identifier 	= string_extract_until_character(line, ':');
+		String identifier 	= string_extract_until_character(line, '=');
 
 		for (s32 i = 0; i < settings.count; ++i)
 		{
@@ -329,9 +332,9 @@ internal void read_settings_file(SerializedSettings & settings)
 						settings[i].value_f32 = string_parse_f32(line);
 						break;
 
-					// case TYPE_V3:
-					// 	// settings[i].value_v3 = string_parse_v3(line);
-					// 	break;
+					case TYPE_V3:
+						settings[i].value_v3 = string_parse_v3(line);
+						break;
 				}
 			}
 		}
@@ -353,12 +356,12 @@ internal void write_settings_file(SerializedSettings & settings)
 		switch(settings[i].type)
 		{
 			case TYPE_F32:
-				file_write_format(file, settings[i].id, " : ", settings[i].value_f32, "\n");			
+				file_write_format(file, settings[i].id, " = ", settings[i].value_f32, "\n");			
 				break;
 
-			// case TYPE_V3:
-
-			// 	break;
+			case TYPE_V3:
+				file_write_format(file, settings[i].id, " = ", settings[i].value_v3, "\n");			
+				break;
 		}
 	}
 
@@ -663,14 +666,18 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 			light.skyColorSelection = scene->settings.skyColourSelection.value_f32;
 		}
 
-		light.skyBottomColor 	= scene->skyBottomColor;
-		light.skyTopColor 		= scene->skyTopColor;
+		light.skyBottomColor.rgb 	= scene->settings.skyGradientBottom.value_v3;
+		light.skyTopColor.rgb 		= scene->settings.skyGradientTop.value_v3;
 
-		light.horizonHaloColorAndFalloff.rgb 	= scene->horizonHaloColor.rgb;
-		light.horizonHaloColorAndFalloff.a 		= scene->horizonHaloFalloff;
+		light.horizonHaloColorAndFalloff.rgb 	= scene->settings.horizonHaloColour.value_v3;
+		light.horizonHaloColorAndFalloff.a 		= scene->settings.horizonHaloFalloff.value_f32;
 
-		light.sunHaloColorAndFalloff.rgb 		= scene->sunHaloColor.rgb;
-		light.sunHaloColorAndFalloff.a 			= scene->sunHaloFalloff;
+		light.sunHaloColorAndFalloff.rgb 	= scene->settings.sunHaloColour.value_v3;
+		light.sunHaloColorAndFalloff.a 		= scene->settings.sunHaloFalloff.value_f32;
+
+		light.sunDiscColor.rgb 			= scene->settings.sunDiscColour.value_v3;
+		light.sunDiscSizeAndFalloff.xy 	= {	scene->settings.sunDiscSize.value_f32,
+											scene->settings.sunDiscFalloff.value_f32 };
 
 		platformApi->update_lighting(platformGraphics, &light, &scene->worldCamera, ambient);
 		HdrSettings hdrSettings = 

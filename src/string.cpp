@@ -236,6 +236,22 @@ internal f32 string_parse_f32(String string)
 	return sign * value;
 }
 
+internal v3 string_parse_v3(String string)
+{
+	v3 result;
+	String part;
+
+	part 		= string_extract_until_character(string, ',');
+	result.x 	= string_parse_f32(part);
+
+	part 		= string_extract_until_character(string, ',');
+	result.y 	= string_parse_f32(part);
+
+	result.z 	= string_parse_f32(string);
+
+	return result;
+}
+
 internal void string_append_cstring(String & string, char const * cstring, s32 capacity)
 {
 	while(string.length < capacity && *cstring != 0)
@@ -327,6 +343,15 @@ internal void string_append_f32(String & string, f32 value, s32 capacity)
 	}
 }
 
+internal void string_append_v3(String & string, v3 value, s32 capacity)
+{
+	string_append_f32(string, value.x, capacity);	
+	string_append_cstring(string, ", ", capacity);	
+	string_append_f32(string, value.y, capacity);	
+	string_append_cstring(string, ", ", capacity);	
+	string_append_f32(string, value.z, capacity);	
+}
+
 template<typename T>
 internal void string_append_format(String & string, s32 capacity, T thing)
 {
@@ -339,6 +364,11 @@ internal void string_append_format(String & string, s32 capacity, T thing)
 	{
 		string_append_cstring(string, thing, capacity);
 	}	
+
+	if constexpr (std::is_same_v<T, v3>)
+	{
+		string_append_v3(string, thing, capacity);
+	}
 }
 
 template<typename TFirst, typename ... TOthers>

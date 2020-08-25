@@ -22,6 +22,9 @@ struct Light
 
 	v4 horizonHaloColorAndFalloff;
 	v4 sunHaloColorAndFalloff;
+
+	v4 sunDiscColor;
+	v4 sunDiscSizeAndFalloff;
 };
 
 

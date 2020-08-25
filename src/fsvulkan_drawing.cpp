@@ -88,6 +88,9 @@ internal void fsvulkan_drawing_update_lighting(VulkanContext * context, Light co
 	lightPtr->horizonHaloColorAndFalloff 	= light->horizonHaloColorAndFalloff;
 	lightPtr->sunHaloColorAndFalloff 		= light->sunHaloColorAndFalloff;
 
+	lightPtr->sunDiscColor 			= light->sunDiscColor;
+	lightPtr->sunDiscSizeAndFalloff = light->sunDiscSizeAndFalloff;
+
 	// ------------------------------------------------------------------------------
 
 	m44 lightViewProjection = get_light_view_projection (light, camera);

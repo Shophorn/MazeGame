@@ -148,16 +148,9 @@ f32 v2_signed_angle(v2 from, v2 to)
 
 union v3
 {
-	struct
-	{
-		f32 x, y, z;
-	};
-
-	struct
-	{
-		v2 xy;
-		f32 ignored_;
-	};
+	struct { f32 x, y, z; };
+	struct { f32 r, g, b; };
+	struct { v2 xy; f32 ignored_; };
 };
 
 constexpr v3 right_v3 	= {1,0,0};
@@ -336,6 +329,16 @@ union v4
 	};
 };
 
+internal v4 operator * (v4 v, f32 f)
+{
+	v.x *= f;
+	v.y *= f;
+	v.z *= f;
+	v.w *= f;
+
+	return v;
+}
+
 f32 dot_v4(v4 a, v4 b)
 {
 	f32 dot = a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w;
@@ -362,8 +365,13 @@ v4 v4_lerp(v4 const & a, v4 const & b, float t)
 	return result;
 }
 
-
 #if MAZEGAME_INCLUDE_STD_IOSTREAM
+
+std::ostream & operator << (std::ostream & os, v2 vec)
+{
+	os << "(" << vec.x << "," << vec.y << ")";
+	return os;
+}
 
 std::ostream & operator << (std::ostream & os, v3 vec)
 {

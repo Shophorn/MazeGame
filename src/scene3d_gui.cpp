@@ -1,15 +1,18 @@
 internal void scene_3d_initialize_gui(Scene3d * scene)
 {
-	scene->gui 						= {};
-	scene->gui.textSize 			= 25;
-	scene->gui.textColor 			= colour_white;
-	scene->gui.selectedTextColor 	= colour_muted_red;
-	scene->gui.padding 				= 10;
-	scene->gui.font 				= load_font("c:/windows/fonts/arial.ttf");
+	Gui & gui = scene->gui;
+
+	gui 					= {};
+	gui.textSize 			= 20;
+	gui.textColor 			= colour_white;
+	gui.selectedTextColor 	= colour_muted_red;
+	gui.spacing 			= 5;
+	gui.padding 			= 10;
+	gui.font 				= load_font("assets/SourceCodePro-Regular.ttf");
 
 	u32 guiTexturePixelColor 		= 0xffffffff;
 	TextureAsset guiTextureAsset 	= make_texture_asset(&guiTexturePixelColor, 1, 1, 4);
-	scene->gui.panelTexture			= platformApi->push_gui_texture(platformGraphics, &guiTextureAsset);
+	gui.panelTexture				= platformApi->push_gui_texture(platformGraphics, &guiTextureAsset);
 }
 
 internal void gui_set_cursor_visible(bool menuVisible)
@@ -76,7 +79,7 @@ bool32 do_gui(Scene3d * scene, PlatformInput const & input)
 		{
 			gui_position(cornerPosition);	
 
-			gui_start_panel("Menu", menuColor);
+			gui_start_panel("MENU", menuColor);
 
 			v2 mousePosition = input.mousePosition;
 
@@ -199,7 +202,7 @@ bool32 do_gui(Scene3d * scene, PlatformInput const & input)
 		{
 			gui_position(cornerPosition);	
 
-			gui_start_panel("Edit Mesh Generation", menuColor);
+			gui_start_panel("EDIT MESH GENERATION", menuColor);
 
 			gui_float_slider("Grid Scale", &scene->metaballGridScale, 0.2, 1);
 
@@ -263,7 +266,7 @@ bool32 do_gui(Scene3d * scene, PlatformInput const & input)
 		{
 			gui_position(cornerPosition);
 
-			gui_start_panel("Edit Sky", menuColor);
+			gui_start_panel("EDIT SKY", menuColor);
 
 			auto mark_dirty = [scene](bool dirty)
 			{
@@ -283,38 +286,36 @@ bool32 do_gui(Scene3d * scene, PlatformInput const & input)
 				scene->getSkyColorFromTreeDistance = !scene->getSkyColorFromTreeDistance;
 			}
 
-			mark_dirty(gui_float_slider("Sky Height Angle", &scene->settings.sunHeightAngle.value_f32, -1, 1));
-			mark_dirty(gui_float_slider("Sky Orbit Angle", &scene->settings.sunOrbitAngle.value_f32, 0, 1));
+			mark_dirty(gui_float_slider("Sun Height Angle", &scene->settings.sunHeightAngle.value_f32, -1, 1));
+			mark_dirty(gui_float_slider("Sun Orbit Angle", &scene->settings.sunOrbitAngle.value_f32, 0, 1));
 
-			gui_color("Sky Gradient Bottom", &scene->skyBottomColor, GUI_COLOR_FLAGS_HDR);
-			gui_color("Sky Gradient Top", &scene->skyTopColor, GUI_COLOR_FLAGS_HDR);
+			gui_line();
 
-			gui_color("Horizon Halo Color", &scene->horizonHaloColor, GUI_COLOR_FLAGS_HDR);
-			gui_float_slider("Horizon Halo Falloff", &scene->horizonHaloFalloff, 0.0001, 1);
+			mark_dirty(gui_color_rgb("Sky Gradient Bottom", &scene->settings.skyGradientBottom.value_v3, GUI_COLOR_FLAGS_HDR));
+			mark_dirty(gui_color_rgb("Sky Gradient Top", &scene->settings.skyGradientTop.value_v3, GUI_COLOR_FLAGS_HDR));
 
-			gui_color("Sun Halo Color", &scene->sunHaloColor, GUI_COLOR_FLAGS_HDR);
-			gui_float_slider("Sun Halo Falloff", &scene->sunHaloFalloff, 0.0001, 1);
+			gui_line();
 
-			// {
-			// 	local_persist v4 color = {2,2,2,1};
+			mark_dirty(gui_color_rgb("Horizon Halo Color", &scene->settings.horizonHaloColour.value_v3, GUI_COLOR_FLAGS_HDR));
+			mark_dirty(gui_float_slider("Horizon Halo Falloff", &scene->settings.horizonHaloFalloff.value_f32, 0.0001, 1));
 
-			// 	bool modified = gui_color("Test Color", &color, GUI_COLOR_FLAGS_HDR);
+			gui_line();
 
-			// 	if (modified)
-			// 	{
-			// 		scene->niceSkyGradient.colours[3] = color;
+			mark_dirty(gui_color_rgb("Sun Halo Color", &scene->settings.sunHaloColour.value_v3, GUI_COLOR_FLAGS_HDR));
+			mark_dirty(gui_float_slider("Sun Halo Falloff", &scene->settings.sunHaloFalloff.value_f32, 0.0001, 1));
 
-			// 		TextureAsset niceSkyGradientAsset 	= generate_gradient(*global_transientMemory, 128, scene->niceSkyGradient);
-			// 		niceSkyGradientAsset.addressMode 	= TEXTURE_ADDRESS_MODE_CLAMP;
+			gui_line();
 
-			// 		platformApi->update_texture(platformGraphics, scene->niceSkyGradientTexture, &niceSkyGradientAsset);
+			mark_dirty(gui_color_rgb("Sun Disc Color", &scene->settings.sunDiscColour.value_v3, GUI_COLOR_FLAGS_HDR));
+			mark_dirty(gui_float_slider("Sun Disc Size", &scene->settings.sunDiscSize.value_f32, 0, 0.01));
+			mark_dirty(gui_float_slider("Sun Disc Falloff", &scene->settings.sunDiscFalloff.value_f32, 0, 1));
 
-			// 		logDebug(0) << "Color = " << color;
-			// 	}
-			// }
+			gui_line();
 
 			mark_dirty(gui_float_slider("HDR Exposure", &scene->settings.hdrExposure.value_f32, 0.1, 10));
 			mark_dirty(gui_float_slider("HDR Contrast", &scene->settings.hdrContrast.value_f32, -1, 1));
+
+			gui_line();
 
 			if (gui_button("Back") || is_clicked(input.start))
 			{

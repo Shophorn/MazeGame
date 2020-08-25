@@ -1,5 +1,14 @@
-sunHeightAngle : -0.092339
-sunOrbitAngle : 0.319395
-skyColourSelection : 0.795556
-hdrExposure : 0.764099
-hdrContrast : 0.224771
+sunHeightAngle = 0.198996
+sunOrbitAngle = 0.000000
+skyColourSelection = 0.000000
+hdrExposure = 1.101868
+hdrContrast = 0.281974
+horizonHaloFalloff = 0.234569
+sunHaloFalloff = 0.069198
+sunDiscSize = 0.001190
+sunDiscFalloff = 1.009000
+skyGradientBottom = 0.000000, 0.145990, 0.769999
+skyGradientTop = 0.000000, 0.000000, 0.739999
+horizonHaloColour = 0.900000, 0.900000, 0.900000
+sunHaloColour = 1.609157, 1.972833, 0.967364
+sunDiscColour = 0.000000, 0.000000, 5.000000

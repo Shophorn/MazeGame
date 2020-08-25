@@ -13,6 +13,9 @@ layout (set = LIGHTING_SET, binding = 0) uniform Lighting
 	vec4 horizonHaloColorAndFalloff;
 	vec4 sunHaloColorAndFalloff;
 
+	vec4 sunDiscColor;
+	vec4 sunDiscSizeAndFalloff;
+
 	float skyColourSelection;
 } light;
 
@@ -44,14 +47,19 @@ vec3 actual_compute_sky_color(const float dotHorizon, const float dotLight)
 
 	// -------------------------------------------------------------
 
-	vec3 sunDiscColor 	= vec3(10,10,5);
-	sunDiscColor 		*= smoothstep(0.9985, 0.9992, dotLight);
+	vec3 sunDiscColor 		= light.sunDiscColor.rgb;
+	float sunDiscSize 		= light.sunDiscSizeAndFalloff.x;
+	float sunDiscFalloff 	= light.sunDiscSizeAndFalloff.y * sunDiscSize;
+	float halfFalloff 		= sunDiscFalloff * 0.5;
+
+	// sunDiscColor 		*= smoothstep(0.9985, 0.9992, dotLight);
+	sunDiscColor 		*= smoothstep((1 - sunDiscSize) - halfFalloff, (1 - sunDiscSize) + halfFalloff, dotLight);
 
 	// -------------------------------------------------
 
 	float d  				= 1 - dotLight;
 	float m 				= 1 - d / light.sunHaloColorAndFalloff.a;
-	float sunHaloFalloff 	= pow(m,light.skyColourSelection * 10) * step(d, m);
+	float sunHaloFalloff 	= m*m*m;//pow(m,light.skyColourSelection * 10) * step(d, m);
 	const vec3 sunHaloColor = max(vec3(0,0,0), light.sunHaloColorAndFalloff.rgb * sunHaloFalloff);
 
 	// -------------------------------------------------
