@@ -8,6 +8,9 @@ struct String
 {
 	s32 	length;
 	char * 	memory;
+
+	char & operator [] (s32 index) { return memory[index]; }
+	char operator [] (s32 index) const { return memory[index]; }
 };
 
 LogInput & operator << (LogInput & log, String const & string)

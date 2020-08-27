@@ -105,6 +105,7 @@ internal void gui_start_panel(char const * label, v4 color);
 internal void gui_end_panel();
 
 internal bool gui_button(char const * label);
+internal bool gui_toggle(char const * label, bool32 & value);
 internal void gui_text(char const * label);
 internal void gui_image(GuiTextureHandle texture, v2 size, v4 colour = colour_white);
 internal bool gui_float_slider(char const * label, f32 * value, f32 minValue, f32 maxValue);
@@ -163,7 +164,7 @@ internal void gui_end_frame()
 {
 	Gui & gui = *global_currentGui;
 
-	gui.mousePositionLastFrame 			= gui.input.mousePosition;
+	gui.mousePositionLastFrame 		= gui.input.mousePosition;
 	gui.selectableCountLastFrame 	= gui.currentSelectableIndex;
 
 	global_currentGui = nullptr;
@@ -326,6 +327,65 @@ internal f32 gui_panel_add_text_draw_call(char const * text, v4 color, bool appe
 	return textWidth;
 }
 
+internal f32 gui_panel_add_text_draw_call_2(String const & text, v4 color, GuiAlignment alignment)
+{
+	Gui & gui = *global_currentGui;
+
+	Assert(gui.isPanelActive == true);
+	Assert(gui.panelDrawCallsCount < gui.panelDrawCallsCapacity);
+
+	f32 size 					= gui.textSize;
+	s32 firstCharacter 			= ' ';
+	s32 charactersPerDirection 	= 10;
+	f32 characterUvSize 		= 1.0f / charactersPerDirection;
+
+	f32 textWidth 	= gui.padding;
+
+	s32 rectCapacity 	= 256;
+	s32 rectCount 		= 0;
+	ScreenRect * rects 	= push_memory<ScreenRect>(*global_transientMemory, rectCapacity, ALLOC_NO_CLEAR);
+
+	for(s32 i = 0; i < text.length; ++i)
+	{
+		Assert(rectCount < rectCapacity && "Too little room for such a long text");
+
+		if (text[i] == ' ')
+		{
+			gui.panelCursor.x += size * gui.font.spaceWidth;
+			textWidth += size * gui.font.spaceWidth;
+			continue;
+		}
+
+		s32 index = text[i] - firstCharacter;
+		v2 glyphStart 		= {gui.panelCursor.x + gui.font.leftSideBearings[index], gui.panelCursor.y};
+
+		// Todo(Leo): also consider glyph's actual height
+		v2 glyphSize 		= {gui.font.characterWidths[index] * size, size};
+
+		rects[rectCount] = 
+		{
+			.position 	= (glyphStart),
+			.size 		= (glyphSize),
+			.uvPosition = gui.font.uvPositionsAndSizes[index].xy,
+			.uvSize 	= gui.font.uvPositionsAndSizes[index].zw,
+		};
+
+		++rectCount;
+
+		gui.panelCursor.x += size * gui.font.advanceWidths[index];
+		textWidth += size * gui.font.advanceWidths[index];
+	}
+
+	gui.panelDrawCalls[gui.panelDrawCallsCount] 	= {rectCount, rects, gui.font.atlasTexture, color, alignment};
+	gui.panelDrawCallsCount 						+= 1;
+
+	gui.panelSize.x = max_f32(gui.panelSize.x, textWidth + gui.padding);
+
+	gui.panelCursor.x += gui.padding;
+
+	return textWidth;
+}
+
 internal void gui_start_panel(char const * label, v4 color)
 {
 	Gui & gui = *global_currentGui;
@@ -451,6 +511,38 @@ internal bool gui_button(char const * label)
 	return result;
 }
 
+internal bool gui_toggle(char const * label, bool32 * value)
+{
+	Gui & gui 		= *global_currentGui;
+	Assert(gui.isPanelActive);
+
+	bool isSelected = gui_is_selected();
+	bool modified 	= false;
+
+	if (isSelected && is_clicked(gui.input.confirm) || is_clicked(gui.input.mouse0))
+	{
+		logDebug(0) << "Toggle toggled";
+
+		*value 		= !*value;
+		modified 	= true;
+	}
+
+	CStringBuilder builder = label;
+	if (*value)
+	{
+		builder.append_cstring(": ON");	
+	}
+	else
+	{
+		builder.append_cstring(": OFF");	
+	}
+
+	gui_panel_add_text_draw_call(builder, isSelected ? gui.selectedTextColor : gui.textColor, true);
+
+	return modified;
+}
+
+
 internal void gui_text(char const * text)
 {
 	Gui & gui = *global_currentGui;
@@ -559,15 +651,7 @@ internal bool gui_float_slider(char const * label, f32 * value, f32 minValue, f3
 	float handleRectW = handleWidth;
 	float handleRectH = handleHeight;
 
-	// if (gui.isPanelActive)
-	// {
-		gui.panelSize.x = max_f32(gui.panelSize.x, labelTextWidth + sliderWidth + 2 * gui.padding);
-	// }
-	// else
-	// {
-	// 	gui.currentPosition.y += gui.textSize;
-	// 	gui.currentPosition.y += gui.padding;		
-	// }
+	gui.panelSize.x = max_f32(gui.panelSize.x, labelTextWidth + sliderWidth + 2 * gui.padding);
 
 	ScreenRect sliderRect =
 	{ 
@@ -588,21 +672,22 @@ internal bool gui_float_slider(char const * label, f32 * value, f32 minValue, f3
 	v4 railColour = colour_multiply({0.3, 0.3, 0.3, 0.6}, isSelected ? gui.selectedTextColor : gui.textColor);
 	v4 handleColour = colour_multiply({0.8, 0.8, 0.8, 1.0}, isSelected ? gui.selectedTextColor : gui.textColor);
 
-	// if (gui.isPanelActive)
-	// {
-		ScreenRect * rects = push_memory<ScreenRect>(*global_transientMemory, 2, ALLOC_NO_CLEAR);
-		rects[0] = sliderRect;
-		rects[1] = handleRect;
+	ScreenRect * rects = push_memory<ScreenRect>(*global_transientMemory, 2, ALLOC_NO_CLEAR);
+	rects[0] = sliderRect;
+	rects[1] = handleRect;
+	
+	gui.panelDrawCalls[gui.panelDrawCallsCount] 		= {1, &rects[0], gui.panelTexture, railColour, GUI_ALIGN_RIGHT };
+	gui.panelDrawCalls[gui.panelDrawCallsCount + 1] 	= {1, &rects[1]	, gui.panelTexture, handleColour, GUI_ALIGN_RIGHT };
+	gui.panelDrawCallsCount += 2;
 
-		gui.panelDrawCalls[gui.panelDrawCallsCount] 		= {1, &rects[0], gui.panelTexture, railColour, GUI_ALIGN_RIGHT };
-		gui.panelDrawCalls[gui.panelDrawCallsCount + 1] 	= {1, &rects[1]	, gui.panelTexture, handleColour, GUI_ALIGN_RIGHT };
-		gui.panelDrawCallsCount += 2;
-	// }
-	// else
-	// {
-	// 	platformApi->draw_screen_rects(platformGraphics, 1, &sliderRect, gui.panelTexture, railColour);
-	// 	platformApi->draw_screen_rects(platformGraphics, 1, &handleRect, gui.panelTexture, handleColour);
-	// }
+	char buffer [16] 	= {};
+	String valueFormat 	= {0, buffer};
+	string_append_f32(valueFormat, *value, 16);
+
+	v2 backUpCursor 	= gui.panelCursor;
+	gui.panelCursor.x 	= sliderRectX + gui.padding;
+	gui_panel_add_text_draw_call_2(valueFormat, {0,0,0,1}, GUI_ALIGN_RIGHT);
+	gui.panelCursor 	= backUpCursor;
 
 	gui_panel_new_line();
 	
@@ -834,9 +919,11 @@ internal bool gui_is_selected()
 {
 	Gui & gui = *global_currentGui;
 
-	bool isUnderMouse = gui_is_under_mouse(gui.panelPosition + v2{gui.padding, gui.padding} + gui.panelCursor, {400, gui.textSize});// || isSelected;
+	// Todo(Leo): do some kind of "current rect" thing, or pass it here
+	bool isUnderMouse 	= gui_is_under_mouse(gui.panelPosition + v2{gui.padding, gui.padding} + gui.panelCursor, {400, gui.textSize});// || isSelected;
+	bool mouseHasMoved 	= magnitude_v2(gui.mousePositionLastFrame - gui.input.mousePosition) > 0.1f;
 
-	if (isUnderMouse)
+	if (isUnderMouse && mouseHasMoved)
 	{
 		gui.selectedIndex = gui.currentSelectableIndex;
 	}

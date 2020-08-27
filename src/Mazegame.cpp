@@ -5,6 +5,7 @@ Leo Tamminen
 =============================================================================*/
 #include "MazegamePlatform.hpp"
 #include "Mazegame.hpp"
+#include "string.cpp"
 
 static PlatformApi * 		platformApi;
 static PlatformGraphics * 	platformGraphics;

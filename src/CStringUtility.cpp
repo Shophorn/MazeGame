@@ -66,12 +66,12 @@ struct CStringBuilder
 
 	CStringBuilder(char const * string)
 	{
-		copy_cstring(string);
+		append_cstring(string);
 	}
 
 	CStringBuilder & operator + (char const * string)
 	{
-		copy_cstring(string);
+		append_cstring(string);
 		return *this;
 	}
 
@@ -81,7 +81,7 @@ struct CStringBuilder
 		ss << value;
 		std::string s = ss.str();
 		char const * cstring = s.c_str();
-		copy_cstring(cstring);
+		append_cstring(cstring);
 		return *this;
 	}
 
@@ -91,7 +91,7 @@ struct CStringBuilder
 		return cstring;
 	}
 
-	void copy_cstring(char const * source)
+	void append_cstring(char const * source)
 	{
 		while(*source != 0 && length < Capacity)
 		{

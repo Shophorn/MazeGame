@@ -4,10 +4,6 @@ shophorn @ internet
 
 Scene description for 3d development scene
 =============================================================================*/
-
-// Todo(Leo): At least how things are now, this should be higher in include hierarchy
-#include "string.cpp"
-
 #include "CharacterMotor.cpp"
 #include "PlayerController3rdPerson.cpp"
 #include "FollowerController.cpp"
@@ -75,6 +71,7 @@ enum MenuView : s32
 	MENU_CONFIRM_TELEPORT,
 	MENU_EDIT_SKY,
 	MENU_EDIT_MESH_GENERATION,
+	MENU_EDIT_TREE,
 	MENU_SAVE_COMPLETE,
 };
 
@@ -285,23 +282,7 @@ struct Scene3d
 	constexpr static s32 	timeScaleCount = 3;
 	s32 					timeScaleIndex;
 
-	// HdrSettings hdrSettings = {1,0};
-
-	Trees3 		trees3;
-	Leaves 		tree3Leaves;
-	DynamicMesh trees3DynamicMesh;
-
-	// v4 skyBottomColor 	= {0.1, 0.3, 0.9};
-	// v4 skyTopColor 		= {0.05, 0.2, 0.7};
-
-	// v4 horizonHaloColor 	= {0.9, 0.9, 0.8};
-	// // f32 horizonHaloFalloff 	= 0.2;
-
-	// v4 sunHaloColor 	= {3,3,2};
-	// // f32 sunHaloFalloff 	= 0.2;
-
-	// v4 sunDiscColor 			= {10,10,5};
-	// // v2 sunDiscSizeAndFalloff	= {0.0012, 0.0007};
+	Tree3   	testTree;
 };
 
 internal void read_settings_file(SerializedSettings & settings)
@@ -1514,26 +1495,21 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 	}
 
 	{
-		grow_tree_3(scene->trees3.memory[1], scaledTime);
+		update_tree_3(scene->testTree, scaledTime);
+	
 
-		flush_leaves(scene->tree3Leaves);
-		flush_dynamic_mesh(scene->trees3DynamicMesh);
-		build_tree_3_mesh(scene->trees3.memory[1], scene->tree3Leaves, scene->trees3DynamicMesh);
+		m44 transform = translation_matrix(scene->testTree.position);
 
-		v3 position = snap_on_ground(v2{5,5});
-		position.z += 2;
-		m44 transform = translation_matrix(position);
-
-		scene->tree3Leaves.position = position;
-		scene->tree3Leaves.rotation = identity_quaternion;
+		scene->testTree.leaves.position = scene->testTree.position;
+		scene->testTree.leaves.rotation = identity_quaternion;
 
 		platformApi->draw_procedural_mesh(	platformGraphics,
-											scene->trees3DynamicMesh.vertexCount, scene->trees3DynamicMesh.vertices,
-											scene->trees3DynamicMesh.indexCount, scene->trees3DynamicMesh.indices,
+											scene->testTree.mesh.vertexCount, scene->testTree.mesh.vertices,
+											scene->testTree.mesh.indexCount, scene->testTree.mesh.indices,
 											transform, scene->treeMaterials[0]);
 
 
-		debug_draw_circle_xy(position, 2, colour_bright_red, DEBUG_ALWAYS);
+		debug_draw_circle_xy(scene->testTree.position, 2, colour_bright_red, DEBUG_ALWAYS);
 	}
 
 	/// DRAW LEAVES FOR BOTH LSYSTEM ARRAYS IN THE END BECAUSE OF LEAF SHDADOW INCONVENIENCE
@@ -1557,9 +1533,9 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 		draw_l_system_tree_leaves(scene->lSystemCount, scene->lSystemLeavess);
 
-		if (scene->tree3Leaves.count > 0)
+		if (scene->testTree.leaves.count > 0)
 		{
-			draw_leaves(scene->tree3Leaves, scaledTime);
+			draw_leaves(scene->testTree.leaves, scaledTime);
 		}
 	}
 
@@ -2488,21 +2464,24 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 
 	// ----------------------------------------------------------------------------------
 	
-	{
-		initialize_test_trees_3(persistentMemory, scene->trees3);
+	{		
+		v3 position = {5,5, get_terrain_height(scene->collisionSystem, {5,5})};
+		position.z += 2;
 
-		scene->trees3DynamicMesh.vertexCapacity = 5000;
-		scene->trees3DynamicMesh.vertexCount 	= 0;
-		scene->trees3DynamicMesh.vertices 		= push_memory<Vertex>(persistentMemory, scene->trees3DynamicMesh.vertexCapacity, ALLOC_CLEAR);
+		initialize_test_tree_3(persistentMemory, scene->testTree, position);
 
-		scene->trees3DynamicMesh.indexCapacity 	= 10000;
-		scene->trees3DynamicMesh.indexCount 	= 0;
-		scene->trees3DynamicMesh.indices 		= push_memory<u16>(persistentMemory, scene->trees3DynamicMesh.indexCapacity, ALLOC_CLEAR);
+		scene->testTree.mesh.vertexCapacity = 5000;
+		scene->testTree.mesh.vertexCount 	= 0;
+		scene->testTree.mesh.vertices 		= push_memory<Vertex>(persistentMemory, scene->testTree.mesh.vertexCapacity, ALLOC_CLEAR);
 
-		scene->tree3Leaves = make_leaves(persistentMemory, 4000);
-		scene->tree3Leaves.material = leavesMaterial;
+		scene->testTree.mesh.indexCapacity 	= 10000;
+		scene->testTree.mesh.indexCount 	= 0;
+		scene->testTree.mesh.indices 		= push_memory<u16>(persistentMemory, scene->testTree.mesh.indexCapacity, ALLOC_CLEAR);
 
-		build_tree_3_mesh(scene->trees3.memory[0], scene->tree3Leaves, scene->trees3DynamicMesh);
+		scene->testTree.leaves = make_leaves(persistentMemory, 4000);
+		scene->testTree.leaves.material = leavesMaterial;
+
+		build_tree_3_mesh(scene->testTree, scene->testTree.leaves, scene->testTree.mesh);
 	}
 
 	// ----------------------------------------------------------------------------------

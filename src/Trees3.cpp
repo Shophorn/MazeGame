@@ -35,20 +35,6 @@ struct Tree3Branch
 	// f32 distanceAlongParentBranch;
 };
 
-struct Tree3
-{
-	s32 			branchCapacity;
-	s32 			branchCount;
-	Tree3Branch * 	branches;
-};
-
-struct Trees3
-{
-	s32 	capacity;
-	s32 	count;
-	Tree3 * memory;
-};
-
 struct DynamicMesh
 {
 	u64 vertexCapacity;
@@ -60,113 +46,46 @@ struct DynamicMesh
 	u16 * indices;
 };
 
+struct Tree3
+{
+	s32 			branchCapacity;
+	s32 			branchCount;
+	Tree3Branch * 	branches;
+
+	Leaves 			leaves;
+	DynamicMesh 	mesh;
+
+	bool32 			enabled;
+	f32 			growSpeedScale 	= 1;
+	f32 			areaGrowSpeed 	= 0.1;
+	f32 			tangentScale 	= 5;
+
+	v3 				position;
+
+	bool32 breakOnUpdate;
+};
+
 internal void flush_dynamic_mesh(DynamicMesh & mesh)
 {
 	mesh.vertexCount = 0;
 	mesh.indexCount = 0;
 };
 
-void initialize_test_trees_3(MemoryArena & allocator, Trees3 & trees)
+internal void initialize_test_tree_3(MemoryArena & allocator, Tree3 & tree, v3 position)
 {
-	trees.capacity 	= 2;
-	trees.count 	= trees.capacity;
-	trees.memory 	= push_memory<Tree3>(allocator, trees.capacity, 0);
-
-	Tree3 & tree = trees.memory[0];
-
-	tree.branchCapacity = 30;
-	tree.branchCount 	= 2;
-	tree.branches 		= push_memory<Tree3Branch>(allocator, tree.branchCapacity, 0);
+	tree.branchCapacity 	= 10;
+	tree.branchCount 		= 1;
+	tree.branches 			= push_memory<Tree3Branch>(allocator, tree.branchCapacity, ALLOC_CLEAR);
 
 	for (s32 i = 0; i < tree.branchCapacity; ++i)
 	{
-		Tree3Branch & branch = tree.branches[i];
-
-		branch.nodeCapacity = 10;
-		branch.nodeCount 	= 0;
-		branch.nodes 		= push_memory<Tree3Node>(allocator, branch.nodeCapacity, 0);
+		tree.branches[i].nodeCapacity 	= 6;
+		tree.branches[i].nodeCount 	= 0;
+		tree.branches[i].nodes 		= push_memory<Tree3Node>(allocator, 10, ALLOC_CLEAR);
 	}
 
-	tree.branches[0].nodes[tree.branches[0].nodeCount++] = 
-	{
-		.position 	= {0,0,0},
-		.rotation 	= identity_quaternion,
-		.size 		= 1.5,
-	};
-
-	tree.branches[0].nodes[tree.branches[0].nodeCount++] = 
-	{
-		.position 	= {1,2,3},
-		.rotation 	= axis_angle_quaternion(right_v3, -0.2 * π),
-		.size 		= 1
-	};
-
-	tree.branches[0].nodes[tree.branches[0].nodeCount++] = 
-	{
-		.position 	= {1,1,6},
-		.rotation 	= identity_quaternion,
-		.size 		= 0.35
-	};
-
-	tree.branches[0].nodes[tree.branches[0].nodeCount++] = 
-	{
-		.position 	= {1,0.8,8},
-		.rotation 	= identity_quaternion,
-		.size 		= 0.1
-	};
-
-	tree.branches[0].nodes[tree.branches[0].nodeCount++] = 
-	{
-		.position 	= {1,0.7,11},
-		.rotation 	= identity_quaternion,
-		.size 		= 0.05
-	};
-
-	// 2nd branch
-	tree.branches[1].nodeCount = 0;
-	tree.branches[1].nodes[tree.branches[1].nodeCount++] =
-	{
-		.position 	= {0.5, 1.0, 1.5},
-		.rotation 	= axis_angle_quaternion(forward_v3, 0.45f * π),
-		.size 		= 1,
-	};
-
-	v3 branchOrigin 	= tree.branches[1].nodes[0].position;
-	v3 branchDirection 	= rotate_v3(tree.branches[1].nodes[0].rotation, up_v3);
-
-	tree.branches[1].nodes[tree.branches[1].nodeCount++] =
-	{
-		.position = branchOrigin + branchDirection * 2.5,
-		.rotation = axis_angle_quaternion(forward_v3, 0.35f * π),
-		.size = 0.5,
-	};
-
-	branchOrigin 	= tree.branches[1].nodes[1].position;
-	branchDirection = rotate_v3(tree.branches[1].nodes[1].rotation, up_v3);
-
-	tree.branches[1].nodes[tree.branches[1].nodeCount++] =
-	{
-		.position = branchOrigin + branchDirection * 2.5,
-		.rotation = axis_angle_quaternion(forward_v3, 0.25f * π),
-		.size = 0.3,
-	};
-
-	/// -----------------------------------------------------------
-
-	Tree3 & tree2 			= trees.memory[1];
-	tree2.branchCapacity 	= 10;
-	tree2.branchCount 		= 1;
-	tree2.branches 			= push_memory<Tree3Branch>(allocator, tree2.branchCapacity, ALLOC_CLEAR);
-
-	for (s32 i = 0; i < tree2.branchCapacity; ++i)
-	{
-		tree2.branches[i].nodeCapacity 	= 6;
-		tree2.branches[i].nodeCount 	= 0;
-		tree2.branches[i].nodes 		= push_memory<Tree3Node>(allocator, 10, ALLOC_CLEAR);
-	}
-
-	tree2.branches[0].nodeCount = 2;
-	tree2.branches[0].nodes[0] = 
+	tree.branches[0].nodeCount = 2;
+	tree.branches[0].nodes[0] = 
 	{
 		.position 	= {0,0,0},
 		.rotation 	= identity_quaternion,
@@ -175,7 +94,7 @@ void initialize_test_trees_3(MemoryArena & allocator, Trees3 & trees)
 		.type 		= TREE_NODE_ROOT,
 	};
 
-	tree2.branches[0].nodes[1] = 
+	tree.branches[0].nodes[1] = 
 	{
 		.position 	= {0,0,0},
 		.rotation 	= identity_quaternion,
@@ -184,12 +103,15 @@ void initialize_test_trees_3(MemoryArena & allocator, Trees3 & trees)
 		.type 		= TREE_NODE_APEX,
 	};
 
+
+	tree.position = position;
 }
 
 internal void grow_tree_3(Tree3 & tree, f32 elapsedTime)
 {
-	elapsedTime *= 3;
+	elapsedTime *= tree.growSpeedScale;
 
+	f32 areaGrowSpeed = tree.areaGrowSpeed;
 	constexpr f32 widthGrowSpeed = 0.01;
 	constexpr f32 lengthGrowSpeed = 0.1;
 	constexpr f32 apexTerminalAge = 20;
@@ -216,7 +138,10 @@ internal void grow_tree_3(Tree3 & tree, f32 elapsedTime)
 
 			if (node.type == TREE_NODE_ROOT || node.type == TREE_NODE_STEM)
 			{
-				node.size += widthGrowSpeed * elapsedTime;
+				f32 originalArea 	= π * node.size * node.size;
+				f32 newArea 		= originalArea + areaGrowSpeed * elapsedTime;
+				f32 newRadius 		= square_root_f32(newArea / π);
+				node.size 			= newRadius;
 			}
 
 			else if (node.type == TREE_NODE_APEX)
@@ -292,7 +217,7 @@ void build_tree_3_mesh(Tree3 const & tree, Leaves & leaves, DynamicMesh & mesh)
 		interpolate with bezier curves by fixed t-values
 
 		TODO:
-		platform graphics based dynamic mesh, so no need to copy each f
+		platform graphics based dynamic mesh, so no need to copy each frame
 		*/
 
 		constexpr s32 verticesInLoop = 6;
@@ -324,7 +249,7 @@ void build_tree_3_mesh(Tree3 const & tree, Leaves & leaves, DynamicMesh & mesh)
 
 		*/
 
-		/// BOTTOM, only vertices, triangles are added on later rounds
+		/// BOTTOM DOME
 		{
 			v3 nodePosition 		= branch.nodes[0].position;
 			quaternion nodeRotation = branch.nodes[0].rotation;
@@ -343,7 +268,6 @@ void build_tree_3_mesh(Tree3 const & tree, Leaves & leaves, DynamicMesh & mesh)
 
 			Assert((mesh.vertexCount + bottomSphereLoops * verticesInLoop) <= mesh.vertexCapacity);
 			Assert((mesh.indexCount + bottomSphereLoops * verticesInLoop * 6) <= mesh.indexCapacity);
-
 
 			for (s32 loopIndex = 0; loopIndex < bottomSphereLoops; ++loopIndex)
 			{
@@ -391,10 +315,10 @@ void build_tree_3_mesh(Tree3 const & tree, Leaves & leaves, DynamicMesh & mesh)
 
 			// Todo(Leo): expose in tree editor once we have that
 			// Note(Leo): this can be tweaked for artistic purposes
-			constexpr f32 tangentScale = 1.5;
+			// constexpr f32 tangentScale = 1.5;
+			f32 tangentScale 			= tree.tangentScale;
 
-			f32 maxTangentLength = magnitude_v3(previous.position - next.position) / 3;
-
+			f32 maxTangentLength 		= magnitude_v3(previous.position - next.position) / 3;
 			f32 previousTangentLength 	= min_f32(maxTangentLength, previous.size * tangentScale);
 			f32 nextTangentLength 		= min_f32(maxTangentLength, next.size * tangentScale);
 
@@ -422,10 +346,9 @@ void build_tree_3_mesh(Tree3 const & tree, Leaves & leaves, DynamicMesh & mesh)
 
 			for (s32 loopIndex = 0; loopIndex < vertexLoopsInNodeSection; ++loopIndex)
 			{
-				f32 t = (loopIndex + 1) * loopTStep;
-
+				f32 t 				= (loopIndex + 1) * loopTStep;
 				v3 position 		= bezier_lerp_v3(t);
-				f32 size 			= lerp_f32(previous.size, next.size, mathfun_smoother_f32(t));
+				f32 size 			= lerp_f32(previous.size, next.size, t);
 
 				// Todo(Leo): maybe bezier slerp this too, but let's not bother with that right now
 				quaternion rotation = slerp_quaternion(previous.rotation, next.rotation, t);
@@ -468,10 +391,94 @@ void build_tree_3_mesh(Tree3 const & tree, Leaves & leaves, DynamicMesh & mesh)
 					leaves.swayAxes[leafIndex] 			= up_v3;
 				}
 			}
-
 		}
 	}
 
 	mesh_generate_normals(mesh.vertexCount, mesh.vertices, mesh.indexCount, mesh.indices);
 	// mesh_generate_tangents(mesh.vertexCount, mesh.vertices, mesh.indexCount, mesh.indices);
+}
+
+internal void reset_test_tree3(Tree3 & tree, Leaves & leaves, DynamicMesh & treeMesh)
+{
+	tree.branchCapacity 	= 10;
+	tree.branchCount 		= 1;
+
+	for (s32 i = 0; i < tree.branchCapacity; ++i)
+	{
+		tree.branches[i].nodeCount 		= 0;
+	}
+
+	tree.branches[0].nodeCount = 2;
+	tree.branches[0].nodes[0] = 
+	{
+		.position 	= {0,0,0},
+		.rotation 	= identity_quaternion,
+		.size 		= 0.05,
+		.age 		= 0.1,
+		.type 		= TREE_NODE_ROOT,
+	};
+
+	tree.branches[0].nodes[1] = 
+	{
+		.position 	= {0,0,0},
+		.rotation 	= identity_quaternion,
+		.size 		= 0.01,
+		.age 		= 0,
+		.type 		= TREE_NODE_APEX,
+	};
+
+	flush_leaves(leaves);
+	flush_dynamic_mesh(treeMesh);
+
+	build_tree_3_mesh(tree, leaves, treeMesh);
+}
+
+internal void tree_gui(Tree3 & tree)
+{
+	gui_toggle("Enable Updates", &tree.enabled);
+	gui_float_slider("Grow Speed Scale", &tree.growSpeedScale, 0, 3);
+	gui_float_slider("Area Grow Speed", &tree.areaGrowSpeed, 0, 0.2);
+	gui_float_slider("Tangent Scale", &tree.tangentScale, 0, 10);
+
+	if (gui_button("Reset tree"))
+	{
+		reset_test_tree3(tree, tree.leaves, tree.mesh);
+	}
+
+	gui_line();
+
+	gui_toggle("Break On Update", &tree.breakOnUpdate);
+
+}
+
+internal void update_tree_3(Tree3 & tree, f32 elapsedTime)
+{
+	if (tree.breakOnUpdate)
+	{
+		tree.breakOnUpdate = false;
+	}
+
+
+	if (tree.enabled)
+	{
+		grow_tree_3(tree, elapsedTime);
+
+		flush_leaves(tree.leaves);
+		flush_dynamic_mesh(tree.mesh);
+
+		build_tree_3_mesh(tree, tree.leaves, tree.mesh);
+	}
+
+
+	for(s32 b = 0; b < tree.branchCount; ++b)
+	{
+		Tree3Branch & branch = tree.branches[b];
+		for (s32 n = 0; n < branch.nodeCount; ++n)
+		{
+			v3 position = branch.nodes[n].position + tree.position;
+			debug_draw_circle_xy(position, 0.2f, colour_bright_green, DEBUG_ALWAYS);
+
+			logDebug(0) << b << ";" << n << ": " << position;
+		}
+	}
 }

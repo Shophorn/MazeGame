@@ -83,8 +83,8 @@ bool32 do_gui(Scene3d * scene, PlatformInput const & input)
 
 			v2 mousePosition = input.mousePosition;
 
-			gui_float_slider_2("X", &mousePosition.x, -20000, 20000);
-			gui_float_slider_2("Y", &mousePosition.y, -20000, 20000);
+			// gui_float_slider_2("X", &mousePosition.x, -20000, 20000);
+			// gui_float_slider_2("Y", &mousePosition.y, -20000, 20000);
 
 			if (gui_button("Continue"))
 			{
@@ -168,6 +168,12 @@ bool32 do_gui(Scene3d * scene, PlatformInput const & input)
 				gui_reset_selection();
 			}
 
+			if (gui_button("Edit Trees"))
+			{
+				scene->menuView = MENU_EDIT_TREE;
+				gui_reset_selection();
+			}
+
 			if (gui_button("Read Settings"))
 			{
 				read_settings_file(scene->settings);
@@ -226,6 +232,23 @@ bool32 do_gui(Scene3d * scene, PlatformInput const & input)
 			gui_end_panel();
 		} break;
 	
+		case MENU_EDIT_TREE:
+		{
+			gui_position(cornerPosition);	
+			gui_start_panel("EDIT TREES", menuColor);
+		
+			tree_gui(scene->testTree);
+			
+			gui_line();
+			if (gui_button("Back") || is_clicked(input.start))
+			{
+				scene->menuView = MENU_MAIN;
+				gui_reset_selection();
+			}
+			gui_end_panel();
+
+		} break;
+
 		case MENU_SAVE_COMPLETE:
 		{
 			gui_position(centerPosition);
