@@ -2469,16 +2469,6 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 		position.z += 2;
 
 		initialize_test_tree_3(persistentMemory, scene->testTree, position);
-
-		scene->testTree.mesh.vertexCapacity = 5000;
-		scene->testTree.mesh.vertexCount 	= 0;
-		scene->testTree.mesh.vertices 		= push_memory<Vertex>(persistentMemory, scene->testTree.mesh.vertexCapacity, ALLOC_CLEAR);
-
-		scene->testTree.mesh.indexCapacity 	= 10000;
-		scene->testTree.mesh.indexCount 	= 0;
-		scene->testTree.mesh.indices 		= push_memory<u16>(persistentMemory, scene->testTree.mesh.indexCapacity, ALLOC_CLEAR);
-
-		scene->testTree.leaves = make_leaves(persistentMemory, 4000);
 		scene->testTree.leaves.material = leavesMaterial;
 
 		build_tree_3_mesh(scene->testTree, scene->testTree.leaves, scene->testTree.mesh);

@@ -110,6 +110,7 @@ internal void gui_text(char const * label);
 internal void gui_image(GuiTextureHandle texture, v2 size, v4 colour = colour_white);
 internal bool gui_float_slider(char const * label, f32 * value, f32 minValue, f32 maxValue);
 internal bool gui_float_slider_2(char const * label, f32 * value, f32 minValue, f32 maxValue);
+internal bool gui_float_field(char const * label, f32 * value);
 internal bool gui_color_rgb(char const * label, v3 * color, bool enableHdr);
 // internal bool gui_color_rgba(char const * label, v4 * color, bool enableHdr);
 internal void gui_line();
@@ -804,6 +805,107 @@ internal bool gui_float_slider_2(char const * label, f32 * value, f32 minValue, 
 
 	return modified;
 }
+
+internal bool gui_float_field(char const * label, f32 * value)
+{
+Gui & gui = *global_currentGui;
+
+	Assert(gui.isPanelActive);
+
+	constexpr f32 sliderMoveSpeed = 0.1;
+	bool isSelected = gui_is_selected();
+
+	bool modified 			= false;
+	bool modifiedByMouse 	= isSelected && is_pressed(gui.input.mouse0);
+
+
+	if (isSelected)
+	{
+		if (is_pressed(gui.input.left))
+		{
+			*value 		-= sliderMoveSpeed * gui.elapsedTime;
+			modified 	= true;
+		}
+
+		if (is_pressed(gui.input.right))
+		{
+			*value 		+= sliderMoveSpeed * gui.elapsedTime;
+			modified 	= true;
+		}
+	}
+	
+	constexpr f32 mouseMoveScale = 0.2;
+	if (modifiedByMouse)
+	{
+		f32 mouseDelta 	= gui.input.mousePosition.x - gui.mousePositionLastFrame.x;
+		mouseDelta 		= mouseMoveScale * mouseDelta * mouseDelta;
+		*value 			+= mouseDelta;
+	}
+
+	// char valueTextBuffer [10] = {};
+	// {
+	// 	s32 valueTextIndex = 0;
+	
+	// 	if (*value < 0)
+	// 	{
+	// 		valueTextBuffer[valueTextIndex++] = '-';
+	// 	}
+
+	// 	f32 _value = abs_f32(*value);
+
+	// 	s32 digits [7] = {};
+	// 	digits[0] = ((s32)floor_f32(_value / 1000)) % 10;
+	// 	digits[1] = ((s32)floor_f32(_value / 100)) % 10;
+	// 	digits[2] = ((s32)floor_f32(_value / 10)) % 10;
+	// 	digits[3] = ((s32)floor_f32(_value)) % 10;
+	// 	digits[4] = ((s32)floor_f32(_value * 10)) % 10;
+	// 	digits[5] = ((s32)floor_f32(_value * 100)) % 10;
+	// 	digits[6] = ((s32)floor_f32(_value * 1000)) % 10;
+
+	// 	bool leadingZero = true;
+
+	// 	if (digits[0] > 0)
+	// 	{
+	// 		valueTextBuffer[valueTextIndex++] = '0' + digits[0];
+	// 		leadingZero = false;
+	// 	}
+
+	// 	if(digits[1] > 0 || leadingZero == false)
+	// 	{
+	// 		valueTextBuffer[valueTextIndex++] = '0' + digits[1];
+	// 		leadingZero = false;
+	// 	}
+
+	// 	if (digits[2] > 0 || leadingZero == false)
+	// 	{
+	// 		valueTextBuffer[valueTextIndex++] = '0' + digits[2];
+	// 		leadingZero = false;
+	// 	}
+
+	// 	valueTextBuffer[valueTextIndex++] = '0' + digits[3];
+	// 	valueTextBuffer[valueTextIndex++] = '.';
+	// 	valueTextBuffer[valueTextIndex++] = '0' + digits[4];
+	// 	valueTextBuffer[valueTextIndex++] = '0' + digits[5];
+	// 	valueTextBuffer[valueTextIndex++] = '0' + digits[6];
+	// }
+
+	auto push_temp_string = [](s32 capacity) -> String
+	{
+		String result = {0, push_memory<char>(*global_transientMemory, capacity, ALLOC_CLEAR)};
+		return result;
+	};
+
+	String string = push_temp_string(128);
+	string_append_f32(string, *value, 128);
+
+	gui_panel_add_text_draw_call(label, isSelected ? gui.selectedTextColor : gui.textColor, false);
+	gui_panel_add_text_draw_call_2(string, isSelected ? gui.selectedTextColor : gui.textColor, GUI_ALIGN_LEFT);
+
+	gui_panel_new_line();
+
+	return modified;	
+}
+
 
 internal bool gui_color_rgb(char const * label, v3 * color, GuiColorFlags flags)
 {

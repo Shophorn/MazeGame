@@ -58,6 +58,7 @@ struct Tree3
 	bool32 			enabled;
 	f32 			growSpeedScale 	= 1;
 	f32 			areaGrowSpeed 	= 0.1;
+	f32 			lengthGrowSpeed = 0.1;
 	f32 			tangentScale 	= 5;
 
 	v3 				position;
@@ -71,49 +72,12 @@ internal void flush_dynamic_mesh(DynamicMesh & mesh)
 	mesh.indexCount = 0;
 };
 
-internal void initialize_test_tree_3(MemoryArena & allocator, Tree3 & tree, v3 position)
-{
-	tree.branchCapacity 	= 10;
-	tree.branchCount 		= 1;
-	tree.branches 			= push_memory<Tree3Branch>(allocator, tree.branchCapacity, ALLOC_CLEAR);
-
-	for (s32 i = 0; i < tree.branchCapacity; ++i)
-	{
-		tree.branches[i].nodeCapacity 	= 6;
-		tree.branches[i].nodeCount 	= 0;
-		tree.branches[i].nodes 		= push_memory<Tree3Node>(allocator, 10, ALLOC_CLEAR);
-	}
-
-	tree.branches[0].nodeCount = 2;
-	tree.branches[0].nodes[0] = 
-	{
-		.position 	= {0,0,0},
-		.rotation 	= identity_quaternion,
-		.size 		= 0.05,
-		.age 		= 0.1,
-		.type 		= TREE_NODE_ROOT,
-	};
-
-	tree.branches[0].nodes[1] = 
-	{
-		.position 	= {0,0,0},
-		.rotation 	= identity_quaternion,
-		.size 		= 0.01,
-		.age 		= 0,
-		.type 		= TREE_NODE_APEX,
-	};
-
-
-	tree.position = position;
-}
-
 internal void grow_tree_3(Tree3 & tree, f32 elapsedTime)
 {
 	elapsedTime *= tree.growSpeedScale;
 
-	f32 areaGrowSpeed = tree.areaGrowSpeed;
-	constexpr f32 widthGrowSpeed = 0.01;
-	constexpr f32 lengthGrowSpeed = 0.1;
+	f32 areaGrowSpeed 	= tree.areaGrowSpeed;
+	f32 lengthGrowSpeed = tree.lengthGrowSpeed;
 	constexpr f32 apexTerminalAge = 20;
 
 	for (s32 branchIndex = 0; branchIndex < tree.branchCount; ++branchIndex)
@@ -151,10 +115,10 @@ internal void grow_tree_3(Tree3 & tree, f32 elapsedTime)
 
 				if (node.age > apexTerminalAge)
 				{
-					node.type = TREE_NODE_STEM;
-
-					if (branch.nodeCount < branch.nodeCapacity)
+						if (branch.nodeCount < branch.nodeCapacity)
 					{	
+						node.type = TREE_NODE_STEM;
+
 						v3 axis 			= normalize_v3(random_inside_unit_square() - v3{0.5, 0.5, 0});
 						f32 angle 			= random_value() * 0.5;
 						quaternion rotation = axis_angle_quaternion(axis, angle);
@@ -398,9 +362,8 @@ void build_tree_3_mesh(Tree3 const & tree, Leaves & leaves, DynamicMesh & mesh)
 	// mesh_generate_tangents(mesh.vertexCount, mesh.vertices, mesh.indexCount, mesh.indices);
 }
 
-internal void reset_test_tree3(Tree3 & tree, Leaves & leaves, DynamicMesh & treeMesh)
+internal void reset_test_tree3(Tree3 & tree)
 {
-	tree.branchCapacity 	= 10;
 	tree.branchCount 		= 1;
 
 	for (s32 i = 0; i < tree.branchCapacity; ++i)
@@ -427,10 +390,38 @@ internal void reset_test_tree3(Tree3 & tree, Leaves & leaves, DynamicMesh & tree
 		.type 		= TREE_NODE_APEX,
 	};
 
-	flush_leaves(leaves);
-	flush_dynamic_mesh(treeMesh);
+	flush_leaves(tree.leaves);
+	flush_dynamic_mesh(tree.mesh);
 
-	build_tree_3_mesh(tree, leaves, treeMesh);
+	build_tree_3_mesh(tree, tree.leaves, tree.mesh);
+}
+
+internal void initialize_test_tree_3(MemoryArena & allocator, Tree3 & tree, v3 position)
+{
+	tree.branchCapacity 	= 10;
+	tree.branchCount 		= 0;
+	tree.branches 			= push_memory<Tree3Branch>(allocator, tree.branchCapacity, ALLOC_CLEAR);
+
+	for (s32 i = 0; i < tree.branchCapacity; ++i)
+	{
+		tree.branches[i].nodeCapacity 	= 10;
+		tree.branches[i].nodeCount 		= 0;
+		tree.branches[i].nodes 			= push_memory<Tree3Node>(allocator, tree.branches[i].nodeCapacity, ALLOC_CLEAR);
+	}
+
+	tree.leaves 			= make_leaves(allocator, 4000);
+
+	tree.mesh.vertexCapacity 	= 5000;
+	tree.mesh.vertexCount 		= 0;
+	tree.mesh.vertices 			= push_memory<Vertex>(allocator, tree.mesh.vertexCapacity, ALLOC_CLEAR);
+
+	tree.mesh.indexCapacity 	= 10000;
+	tree.mesh.indexCount 		= 0;
+	tree.mesh.indices 			= push_memory<u16>(allocator, tree.mesh.indexCapacity, ALLOC_CLEAR);
+
+	reset_test_tree3(tree);
+
+	tree.position = position;
 }
 
 internal void tree_gui(Tree3 & tree)
@@ -438,11 +429,12 @@ internal void tree_gui(Tree3 & tree)
 	gui_toggle("Enable Updates", &tree.enabled);
 	gui_float_slider("Grow Speed Scale", &tree.growSpeedScale, 0, 3);
 	gui_float_slider("Area Grow Speed", &tree.areaGrowSpeed, 0, 0.2);
+	gui_float_field("Length Grow Speed", &tree.lengthGrowSpeed);
 	gui_float_slider("Tangent Scale", &tree.tangentScale, 0, 10);
 
 	if (gui_button("Reset tree"))
 	{
-		reset_test_tree3(tree, tree.leaves, tree.mesh);
+		reset_test_tree3(tree);
 	}
 
 	gui_line();

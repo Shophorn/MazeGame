@@ -1,0 +1,96 @@
+struct Node
+{
+	v3 			position;
+	quaternion 	orientation;
+	f32 		radius;	
+};
+
+struct Trees
+{
+	f32 maxLength	
+};
+
+
+
+
+Tree requirements:
+	can grow width and height
+	grows fast and thin first, slower and wider later
+	can branch pseudo-randomly
+	has thick coverage of leaves
+	can shed leaves in autumn and grow new ones in spring
+	can drop lower branches
+
+	(is a seed at the beginning)
+
+https://www.sciencefocus.com/nature/how-do-tree-branches-form/
+As tree trunks grow upwards, buds are produced on either side. These buds are initially dormant because the growing tip at the top, called the ‘apical meristem’, produces the hormone auxin, which inhibits their development. Once the apical meristem has grown far enough away, the concentration of auxin near the bud drops and it can begin growing sideways. This sideways shoot also lays down its own buds, which are in turn kept dormant until the shoot’s own growing tip has advanced enough.
+
+
+https://www.thoughtco.com/hardwood-trees-and-how-they-grow-1343506
+https://www.thoughtco.com/process-of-using-water-by-trees-1343505
+http://www.streamlinetreecare.com/taller-wider-trees-grow/
+https://text.npr.org/s.php?sId=262479807
+
+Tree mechanics:
+	root pumps and other nodes pump water (and nutrients) up
+		leaves evaporate water, which causes capillary effect to drain more water
+	apex nodes emit auxin hormone downwards
+	buds are placed on certain intervals
+		buds can produce shoots, leaves or flowers
+
+	width grows relative to diameter, which means older trees grow faster
+
+	waterflow can be described electric stuff, I = U/R, where I is growth rate at the top, U is width of the tree (or integral?), and R is height (or integral?) of the tree
+
+BETTER Tree properties:
+	water flow/resist factor
+		-> actually, only flow factor, resist is from gravity
+	diameter growth speed
+
+
+Compute growth factor at the top (in simple case o§f single branch of 2 nodes):
+	flowfactor * (average area / height)
+
+Tree properties
+
+	water loss ratio
+
+	length grow speed
+	width grow speed (area or volume dependent)
+
+	max branching depth
+	max distance from root
+
+	hierarchical model: 
+		root (is also branch)
+			-> n branches
+			 	-> m nodes
+
+
+struct Node
+{
+	position etc;
+	parent index;
+};
+
+struct Branch
+{
+	first node index;	
+
+	parent node index;
+	distance along parent;
+};
+
+struct Tree
+{
+	Node * nodes;
+	Branch * branches;
+};
+
+branches[0] = {root, -1, 0};
+branches[1] = {2, 1, 0.7}
+branches[2] = {4, 2, 0.6};
+
+nodes[0] = root;	
+nodes[1] = {}
