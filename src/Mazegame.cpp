@@ -5,13 +5,21 @@ Leo Tamminen
 =============================================================================*/
 #include "MazegamePlatform.hpp"
 #include "Mazegame.hpp"
+
 #include "string.cpp"
+#include "serialization.cpp"
 
 static PlatformApi * 		platformApi;
 static PlatformGraphics * 	platformGraphics;
 static PlatformWindow * 	platformWindow;
 
 static MemoryArena * global_transientMemory;
+
+internal String push_temp_string (s32 capacity)
+{
+	String result = {0, push_memory<char>(*global_transientMemory, capacity, ALLOC_CLEAR)};
+	return result;
+};
 
 constexpr f32 physics_gravity_acceleration = -9.81;
 

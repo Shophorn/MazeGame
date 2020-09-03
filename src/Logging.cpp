@@ -76,6 +76,8 @@ struct LogChannel
 {
 	char const * 	title;
 	s32 			verbosity;
+
+	// Todo(Leo): this is platform thing
 	std::ostream * 	output = &std::cout;
 
 	LogInput operator()(int verbosity = 1)

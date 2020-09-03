@@ -54,6 +54,11 @@ void fill_array(T * memory, u64 count, T value)
 	}
 }
 
+internal void fill_memory(void * memory, char  value, u64 size)
+{
+	memset(memory, value, size);
+}
+
 template<typename T>
 T convert_bytes(byte const * bytes, u64 offset)
 {

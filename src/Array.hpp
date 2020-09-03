@@ -14,10 +14,10 @@ struct Array
 	void operator = (Array const &) = delete;
 
 
-	T * data ()		{ return memory_; }
-	T const * data ()	const { return memory_; }
-	u64 count () const	{ return count_; }
-	u64 capacity () const { return capacity_; }
+	T * data ()					{ return memory_; }
+	T const * data ()	const 	{ return memory_; }
+	u64 count () const			{ return count_; }
+	u64 capacity () const 		{ return capacity_; }
 
 	T & operator[] (u64 index)
 	{ 

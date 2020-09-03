@@ -1,22 +1,28 @@
-enum : s32 
+enum DebugLevel: s32 
 {
-	DEBUG_ALWAYS = -1,
+	DEBUG_LEVEL_ALWAYS = -1,
 
-	DEBUG_OFF = 0,
-	DEBUG_PLAYER,
-	DEBUG_NPC,
-	DEBUG_BACKGROUND,
+	DEBUG_LEVEL_OFF = 0,
+	DEBUG_LEVEL_PLAYER,
+	DEBUG_LEVEL_NPC,
+	DEBUG_LEVEL_BACKGROUND,
 
-	DEBUG_LEVEL_COUNT
+	DEBUG_LEVEL_COUNT,
 };
 
-s32 global_DebugDrawLevel = DEBUG_OFF;
+s32 global_debugLevel = DEBUG_LEVEL_OFF;
 
-void debug_draw_axes(m44 transform, float radius, s32 level)
+#define FS_DEBUG(level, op) 		if (global_debugLevel >= level) {op;}
+
+#define FS_DEBUG_ALWAYS(op) 		FS_DEBUG(DEBUG_LEVEL_ALWAYS, op)
+#define FS_DEBUG_OFF(op) 			FS_DEBUG(DEBUG_LEVEL_OFF, op)
+#define FS_DEBUG_PLAYER(op) 		FS_DEBUG(DEBUG_LEVEL_PLAYER, op)
+#define FS_DEBUG_NPC(op) 			FS_DEBUG(DEBUG_LEVEL_NPC, op)
+#define FS_DEBUG_BACKGROUND(op) 	FS_DEBUG(DEBUG_LEVEL_BACKGROUND, op)
+
+
+void debug_draw_axes(m44 transform, float radius)
 {
-	if (level > global_DebugDrawLevel)
-		return;
-
 	v3 rayStart 	= multiply_point(transform, {0,0,0});
 
 	v3 rayRight 	= rayStart + multiply_direction(transform, {radius,0,0});
@@ -35,11 +41,8 @@ void debug_draw_axes(m44 transform, float radius, s32 level)
 	platformApi->draw_lines(platformGraphics, 2, points, {0, 0, 1, 1});			
 };
 
-void debug_draw_diamond(m44 transform, v4 color, s32 level)
+void debug_draw_diamond(m44 transform, v4 color)
 {
-	if (level > global_DebugDrawLevel)
-		return;
-
 	v3 xNeg = multiply_point(transform, v3{-1, 0, 0});
 	v3 xPos = multiply_point(transform, v3{1, 0, 0});
 		
@@ -73,11 +76,8 @@ void debug_draw_diamond(m44 transform, v4 color, s32 level)
 	platformApi->draw_lines(platformGraphics, 24, points, color);
 }
 
-void debug_draw_circle_xy(v3 position, f32 radius, v4 color, s32 level)
+void debug_draw_circle_xy(v3 position, f32 radius, v4 color)
 {
-	if (level > global_DebugDrawLevel)
-		return;
-
 	v3 points[32];
 	s32 pointCount = array_count(points);
 	s32 lineCount = pointCount / 2;
@@ -118,11 +118,8 @@ void debug_draw_circle_xy(v3 position, f32 radius, v4 color, s32 level)
 // 	debug_draw_lines(lines, 16, color);
 // }
 
-void debug_draw_diamond_xy(m44 transform, v4 color, s32 level)
+void debug_draw_diamond_xy(m44 transform, v4 color)
 {
-	if (level > global_DebugDrawLevel)
-		return;
-
 	v3 corners [4] =
 	{
 		multiply_point(transform, v3{1,0,0}),
@@ -142,11 +139,8 @@ void debug_draw_diamond_xy(m44 transform, v4 color, s32 level)
 	platformApi->draw_lines(platformGraphics, 8, points, color);
 }
 
-void debug_draw_diamond_xz(m44 transform, v4 color, s32 level)
+void debug_draw_diamond_xz(m44 transform, v4 color)
 {
-	if (level > global_DebugDrawLevel)
-		return;
-
 	v3 corners [4] =
 	{
 		multiply_point(transform, v3{1,0,0}),
@@ -166,11 +160,8 @@ void debug_draw_diamond_xz(m44 transform, v4 color, s32 level)
 	platformApi->draw_lines(platformGraphics, 8, points, color);
 }
 
-void debug_draw_diamond_yz(m44 transform, v4 color, s32 level)
+void debug_draw_diamond_yz(m44 transform, v4 color)
 {
-	if (level > global_DebugDrawLevel)
-		return;
-
 	v3 corners [4] =
 	{
 		multiply_point(transform, v3{0,1,0}),
@@ -190,19 +181,13 @@ void debug_draw_diamond_yz(m44 transform, v4 color, s32 level)
 	platformApi->draw_lines(platformGraphics, 8, points, color);
 }
 
-void debug_draw_lines(s32 pointsCount, v3 * points, v4 color, s32 level)
+void debug_draw_lines(s32 pointsCount, v3 * points, v4 color)
 {
-	if (level > global_DebugDrawLevel)
-		return;
-
 	platformApi->draw_lines(platformGraphics, pointsCount, points, color);
 }
 
-void debug_draw_vector(v3 position, v3 vector, v4 color, s32 level)
+void debug_draw_vector(v3 position, v3 vector, v4 color)
 {
-	if (level > global_DebugDrawLevel)
-		return;
-
 	f32 size 		= 0.1f; 
 	f32 length 		= magnitude_v3(vector);
 	size 			= min_f32(size, length / 2);
@@ -226,11 +211,8 @@ void debug_draw_vector(v3 position, v3 vector, v4 color, s32 level)
 
 }
 
-void debug_draw_box(m44 transform, v4 color, s32 level)
+void debug_draw_box(m44 transform, v4 color)
 {
-	if (level > global_DebugDrawLevel)
-		return;
-
 	v3 corners [] =
 	{
 		multiply_point(transform, {-1,-1,-1}),
@@ -265,11 +247,8 @@ void debug_draw_box(m44 transform, v4 color, s32 level)
 	platformApi->draw_lines(platformGraphics, 24, lines, color);
 }
 
-void debug_draw_cross_xy(v3 position, f32 radius, v4 color, s32 level)
+void debug_draw_cross_xy(v3 position, f32 radius, v4 color)
 {
-	if (level > global_DebugDrawLevel)
-		return;
-
 	v3 points [] = 
 	{
 		position + v3{-radius, 0, 0},
@@ -281,11 +260,8 @@ void debug_draw_cross_xy(v3 position, f32 radius, v4 color, s32 level)
 	platformApi->draw_lines(platformGraphics, 4, points, color);
 }
 
-void debug_draw_line(v3 a, v3 b, v4 color, s32 level)
+void debug_draw_line(v3 a, v3 b, v4 color)
 {
-	if (level > global_DebugDrawLevel)
-		return;
-
 	v3 points [] = {a, b};
 	platformApi->draw_lines(platformGraphics, 2, points, color);	
 }

@@ -26,6 +26,12 @@ enum GuiColorFlags : s32
 	GUI_COLOR_FLAGS_HDR 	= 1,
 };
 
+struct GuiClampValuesF32
+{
+	f32 min = lowest_f32;
+	f32 max = highest_f32;
+};
+
 struct Gui
 {
 	// References
@@ -105,12 +111,12 @@ internal void gui_start_panel(char const * label, v4 color);
 internal void gui_end_panel();
 
 internal bool gui_button(char const * label);
-internal bool gui_toggle(char const * label, bool32 & value);
+internal bool gui_toggle(char const * label, bool32 * value);
 internal void gui_text(char const * label);
 internal void gui_image(GuiTextureHandle texture, v2 size, v4 colour = colour_white);
 internal bool gui_float_slider(char const * label, f32 * value, f32 minValue, f32 maxValue);
 internal bool gui_float_slider_2(char const * label, f32 * value, f32 minValue, f32 maxValue);
-internal bool gui_float_field(char const * label, f32 * value);
+internal bool gui_float_field(char const * label, f32 * value, GuiClampValuesF32 clamp = {});
 internal bool gui_color_rgb(char const * label, v3 * color, bool enableHdr);
 // internal bool gui_color_rgba(char const * label, v4 * color, bool enableHdr);
 internal void gui_line();
@@ -313,11 +319,6 @@ internal f32 gui_panel_add_text_draw_call(char const * text, v4 color, bool appe
 	if (appendNewLine)
 	{
 		gui_panel_new_line();
-
-		// // cursor.x 		= gui.panelPosition.x + gui.padding;
-		// cursor.x 		= 0;//gui.padding;
-		// cursor.y 		+= gui.textSize + gui.padding;
-		// gui.panelSize.y += gui.textSize + gui.padding;
 	}
 	else
 	{
@@ -375,6 +376,14 @@ internal f32 gui_panel_add_text_draw_call_2(String const & text, v4 color, GuiAl
 
 		gui.panelCursor.x += size * gui.font.advanceWidths[index];
 		textWidth += size * gui.font.advanceWidths[index];
+	}
+
+	if (alignment == GUI_ALIGN_RIGHT)
+	{
+		for(s32 i = 0; i < rectCount; ++i)
+		{
+			rects[i].position.x -= textWidth;
+		}
 	}
 
 	gui.panelDrawCalls[gui.panelDrawCallsCount] 	= {rectCount, rects, gui.font.atlasTexture, color, alignment};
@@ -529,16 +538,30 @@ internal bool gui_toggle(char const * label, bool32 * value)
 	}
 
 	CStringBuilder builder = label;
+	builder.append_cstring(":");
+	
+	char offString [] = "OFF";
+	char onString [] = "ON";
+
+	String valueString = {};
+
 	if (*value)
 	{
-		builder.append_cstring(": ON");	
+		valueString = {2, onString};
 	}
 	else
 	{
-		builder.append_cstring(": OFF");	
+		valueString = {3, offString};
 	}
 
-	gui_panel_add_text_draw_call(builder, isSelected ? gui.selectedTextColor : gui.textColor, true);
+	gui_panel_add_text_draw_call(builder, isSelected ? gui.selectedTextColor : gui.textColor, false);
+
+	v2 backUpCursor 	= gui.panelCursor;
+	gui.panelCursor.x 	= 0;
+	gui_panel_add_text_draw_call_2(valueString, isSelected ? gui.selectedTextColor : gui.textColor, GUI_ALIGN_RIGHT);
+	gui.panelCursor 	= backUpCursor;
+
+	gui_panel_new_line();
 
 	return modified;
 }
@@ -608,21 +631,11 @@ internal bool gui_float_slider(char const * label, f32 * value, f32 minValue, f3
 	}
 
 	v2 position = gui.panelCursor;
-	f32 labelTextWidth;
-	// if(gui.isPanelActive)
-	// {
-	labelTextWidth = gui_panel_add_text_draw_call(label, isSelected ? gui.selectedTextColor : gui.textColor, false);
-	// }
-	// else
-	// {
-	// 	gui_render_text(label, gui.currentPosition, isSelected ? gui.selectedTextColor : gui.textColor);
-	// 	gui.currentPosition.y += gui.padding;
-	// 	position = gui.currentPosition;
-	// }
-
+	f32 labelTextWidth = gui_panel_add_text_draw_call(label, isSelected ? gui.selectedTextColor : gui.textColor, false);
+	
 	*value = clamp_f32(*value, minValue, maxValue);
 
-	constexpr float sliderWidth = 200;
+	constexpr float sliderWidth = 150;
 	float sliderHeight = gui.textSize;
 
 	float handleWidth 	= gui.textSize * (5.0f / 8.0f);
@@ -686,7 +699,7 @@ internal bool gui_float_slider(char const * label, f32 * value, f32 minValue, f3
 	string_append_f32(valueFormat, *value, 16);
 
 	v2 backUpCursor 	= gui.panelCursor;
-	gui.panelCursor.x 	= sliderRectX + gui.padding;
+	gui.panelCursor.x 	= 0;
 	gui_panel_add_text_draw_call_2(valueFormat, {0,0,0,1}, GUI_ALIGN_RIGHT);
 	gui.panelCursor 	= backUpCursor;
 
@@ -777,43 +790,21 @@ internal bool gui_float_slider_2(char const * label, f32 * value, f32 minValue, 
 		valueTextBuffer[valueTextIndex++] = '0' + digits[6];
 	}
 
-	v2 position;
-	f32 labelTextWidth;
-	// if(gui.isPanelActive)
-	// {
-		// Todo(Leo): This is a lie, it also contains padding, 18.07.2020
-		labelTextWidth 	= gui_panel_add_text_draw_call(label, isSelected ? gui.selectedTextColor : gui.textColor, false);
-
-		// position 		= gui.panelPosition;
-
-		// position.x 		+= labelTextWidth + gui.padding;
-		// position.y 		+= gui.panelSize.y - gui.padding - gui.textSize;
-
-		// gui.panelPosition = position;
-
-		labelTextWidth 	+= gui_panel_add_text_draw_call(valueTextBuffer, isSelected ? gui.selectedTextColor : gui.textColor, false);
-
-		gui_panel_new_line();
-	// }
-	// else
-	// {
-	// 	gui_render_text(label, gui.currentPosition, isSelected ? gui.selectedTextColor : gui.textColor);
-	// 	// gui_render_text(valueTextBuffer, isSelected ? gui.selectedTextColor : gui.textColor);
-	// 	gui.currentPosition.y += gui.padding;
-	// 	position = gui.currentPosition;
-	// }
+	gui_panel_add_text_draw_call(label, isSelected ? gui.selectedTextColor : gui.textColor, false);
+	gui_panel_add_text_draw_call(valueTextBuffer, isSelected ? gui.selectedTextColor : gui.textColor, false);
+	gui_panel_new_line();
 
 	return modified;
 }
 
-internal bool gui_float_field(char const * label, f32 * value)
+internal bool gui_float_field(char const * label, f32 * value, GuiClampValuesF32 clamp)
 {
-Gui & gui = *global_currentGui;
+	Gui & gui = *global_currentGui;
 
 	Assert(gui.isPanelActive);
 
-	constexpr f32 sliderMoveSpeed = 0.1;
-	bool isSelected = gui_is_selected();
+	constexpr f32 sliderMoveSpeed 	= 1.0;
+	bool isSelected 				= gui_is_selected();
 
 	bool modified 			= false;
 	bool modifiedByMouse 	= isSelected && is_pressed(gui.input.mouse0);
@@ -832,6 +823,15 @@ Gui & gui = *global_currentGui;
 			*value 		+= sliderMoveSpeed * gui.elapsedTime;
 			modified 	= true;
 		}
+
+		float joystickDelta = gui.input.move.x;
+		if (abs_f32(joystickDelta) >= 0.1)
+		{
+			// Note(Leo): pow3 provides more accuracy closer to zero and preserves sign
+			joystickDelta 	= joystickDelta*joystickDelta*joystickDelta;
+			*value 			+= joystickDelta * sliderMoveSpeed;
+			modified 		= true; 
+		}
 	}
 	
 	constexpr f32 mouseMoveScale = 0.2;
@@ -842,64 +842,22 @@ Gui & gui = *global_currentGui;
 		*value 			+= mouseDelta;
 	}
 
-	// char valueTextBuffer [10] = {};
-	// {
-	// 	s32 valueTextIndex = 0;
-	
-	// 	if (*value < 0)
-	// 	{
-	// 		valueTextBuffer[valueTextIndex++] = '-';
-	// 	}
-
-	// 	f32 _value = abs_f32(*value);
-
-	// 	s32 digits [7] = {};
-	// 	digits[0] = ((s32)floor_f32(_value / 1000)) % 10;
-	// 	digits[1] = ((s32)floor_f32(_value / 100)) % 10;
-	// 	digits[2] = ((s32)floor_f32(_value / 10)) % 10;
-	// 	digits[3] = ((s32)floor_f32(_value)) % 10;
-	// 	digits[4] = ((s32)floor_f32(_value * 10)) % 10;
-	// 	digits[5] = ((s32)floor_f32(_value * 100)) % 10;
-	// 	digits[6] = ((s32)floor_f32(_value * 1000)) % 10;
-
-	// 	bool leadingZero = true;
-
-	// 	if (digits[0] > 0)
-	// 	{
-	// 		valueTextBuffer[valueTextIndex++] = '0' + digits[0];
-	// 		leadingZero = false;
-	// 	}
-
-	// 	if(digits[1] > 0 || leadingZero == false)
-	// 	{
-	// 		valueTextBuffer[valueTextIndex++] = '0' + digits[1];
-	// 		leadingZero = false;
-	// 	}
-
-	// 	if (digits[2] > 0 || leadingZero == false)
-	// 	{
-	// 		valueTextBuffer[valueTextIndex++] = '0' + digits[2];
-	// 		leadingZero = false;
-	// 	}
-
-	// 	valueTextBuffer[valueTextIndex++] = '0' + digits[3];
-	// 	valueTextBuffer[valueTextIndex++] = '.';
-	// 	valueTextBuffer[valueTextIndex++] = '0' + digits[4];
-	// 	valueTextBuffer[valueTextIndex++] = '0' + digits[5];
-	// 	valueTextBuffer[valueTextIndex++] = '0' + digits[6];
-	// }
-
-	auto push_temp_string = [](s32 capacity) -> String
-	{
-		String result = {0, push_memory<char>(*global_transientMemory, capacity, ALLOC_CLEAR)};
-		return result;
-	};
+	*value = clamp_f32(*value, clamp.min, clamp.max);
 
 	String string = push_temp_string(128);
+
+	string_append_format(string, 128, label, ":");
+	gui_panel_add_text_draw_call_2(string, isSelected ? gui.selectedTextColor : gui.textColor, GUI_ALIGN_LEFT);
+
+	reset_string(string, 128);
 	string_append_f32(string, *value, 128);
 
-	gui_panel_add_text_draw_call(label, isSelected ? gui.selectedTextColor : gui.textColor, false);
-	gui_panel_add_text_draw_call_2(string, isSelected ? gui.selectedTextColor : gui.textColor, GUI_ALIGN_LEFT);
+	v2 backUpCursor = gui.panelCursor;
+	gui.panelCursor.x = 0;
+	gui_panel_add_text_draw_call_2(string, isSelected ? gui.selectedTextColor : gui.textColor, GUI_ALIGN_RIGHT);
+	gui.panelCursor = backUpCursor;
+
+	// Todo(Leo): expand panel width
 
 	gui_panel_new_line();
 

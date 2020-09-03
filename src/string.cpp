@@ -23,9 +23,21 @@ LogInput & operator << (LogInput & log, String const & string)
 	return log;
 }
 
+internal void reset_string(String & string, s32 capacity)
+{
+	fill_memory(string.memory, 0, capacity);
+	string.length = 0;
+}
+
 internal bool is_whitespace_character(char character)
 {
-	bool result = character == ' ' || character == '\t';
+	bool result = character == ' ' || character == '\t';// || character == '\r' || character == '\n';
+	return result;
+}
+
+internal bool is_newline_character(char character)
+{
+	bool result = character == '\r' || character == '\n';
 	return result;
 }
 
@@ -43,6 +55,15 @@ inline internal char string_first_character(String string)
 inline internal char string_last_character(String string)
 {
 	return string.memory[string.length - 1];
+}
+
+internal void string_eat_leading_spaces_and_lines(String & string)
+{
+	while(string.length > 0 && (is_whitespace_character(string[0]) || is_newline_character(string[0])))
+	{
+		string.memory += 1;
+		string.length -= 1;
+	}
 }
 
 internal void string_eat_leading_spaces(String & string)
@@ -255,6 +276,32 @@ internal v3 string_parse_v3(String string)
 	return result;
 }
 
+template<typename T>
+internal void string_parse(String string, T * value)
+{
+	static_assert(false, "string_parse is not implemented for T");
+}
+
+template<> void string_parse<f32>(String string, f32 * value)
+{
+	*value = string_parse_f32(string);
+}
+
+template<> void string_parse<v3>(String string, v3 * value)
+{
+	*value = string_parse_v3(string);
+}
+
+
+internal void string_append(String & a, String b, s32 capacity)
+{
+	s32 bIndex = 0;
+	while(a.length < capacity && bIndex < b.length)
+	{
+		a[a.length++] = b[bIndex++];
+	}
+}
+
 internal void string_append_cstring(String & string, char const * cstring, s32 capacity)
 {
 	while(string.length < capacity && *cstring != 0)
@@ -272,6 +319,7 @@ internal void string_append_f32(String & string, f32 value, s32 capacity)
 
 	constexpr s32 digitCapacity = 8;
 	char digits[digitCapacity]	= {};
+	fill_memory(digits, '0', digitCapacity);
 
 	// Note(Leo): added one is for possible negative sign
 	Assert((capacity - string.length) > (digitCapacity + 1))
@@ -312,7 +360,7 @@ internal void string_append_f32(String & string, f32 value, s32 capacity)
 	s32 exponent 	= maxExponent;
 
 	// Note(Leo): first loop to find first number, so we don't write leading zeros wastefully
-	while(digits[0] == 0 || exponent >= 0)
+	while(digits[0] == '0' && exponent >= 0)
 	{
 		digits[0] = get_digit(exponent);
 		exponent--;
@@ -371,6 +419,11 @@ internal void string_append_format(String & string, s32 capacity, T thing)
 	if constexpr (std::is_same_v<T, v3>)
 	{
 		string_append_v3(string, thing, capacity);
+	}
+
+	if constexpr (std::is_same_v<T, String>)
+	{
+		string_append(string, thing, capacity);
 	}
 }
 

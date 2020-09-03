@@ -112,22 +112,13 @@ bool32 do_gui(Scene3d * scene, PlatformInput const & input)
 				"Debug Level: Player, NPC, Background"
 			};
 
-			if(gui_button(debugLevelButtonLabels[global_DebugDrawLevel]))
+			if(gui_button(debugLevelButtonLabels[global_debugLevel]))
 			{
-				global_DebugDrawLevel += 1;
-				global_DebugDrawLevel %= DEBUG_LEVEL_COUNT;
+				global_debugLevel += 1;
+				global_debugLevel %= DEBUG_LEVEL_COUNT;
 			}
 
-			char const * const drawDebugShadowLabels [] =
-			{
-				"Debug Shadow: Off",
-				"Debug Shadow: On"
-			};
-
-			if (gui_button(drawDebugShadowLabels[scene->drawDebugShadowTexture]))
-			{
-				scene->drawDebugShadowTexture = !scene->drawDebugShadowTexture;
-			}
+			gui_toggle("Debug Shadow", &scene->drawDebugShadowTexture);
 
 			if (gui_button("Reload Shaders"))
 			{
@@ -176,12 +167,12 @@ bool32 do_gui(Scene3d * scene, PlatformInput const & input)
 
 			if (gui_button("Read Settings"))
 			{
-				read_settings_file(scene->settings);
+				read_settings_file(scene);
 			}
 
 			if (gui_button("Write Settings"))
 			{
-				write_settings_file(scene->settings);
+				write_settings_file(scene);
 			}
 
 			if (gui_button("Exit Scene"))
@@ -209,19 +200,8 @@ bool32 do_gui(Scene3d * scene, PlatformInput const & input)
 			gui_position(cornerPosition);	
 
 			gui_start_panel("EDIT MESH GENERATION", menuColor);
-
 			gui_float_slider("Grid Scale", &scene->metaballGridScale, 0.2, 1);
-
-			char const * const drawMCStuffTexts [] = 
-			{
-				"Draw: Off",
-				"Draw: On"
-			};
-
-			if (gui_button(drawMCStuffTexts[scene->drawMCStuff]))
-			{
-				scene->drawMCStuff = !scene->drawMCStuff;
-			}
+			gui_toggle("Draw", &scene->drawMCStuff);
 
 			if (gui_button("Back") || is_clicked(input.start))
 			{
@@ -291,52 +271,37 @@ bool32 do_gui(Scene3d * scene, PlatformInput const & input)
 
 			gui_start_panel("EDIT SKY", menuColor);
 
-			auto mark_dirty = [scene](bool dirty)
-			{
-				scene->settings.dirty = scene->settings.dirty || dirty;
-			};
+			gui_float_slider("Sky Color", &scene->BETTER_settings.skyColourSelection, 0,1);
+			gui_toggle("Color From Tree Distance", &scene->getSkyColorFromTreeDistance);
 
-			mark_dirty(gui_float_slider("Sky Color", &scene->settings.skyColourSelection.value_f32, 0,1));
-
-			char const * const colorFromTreeDistanceTexts [] = 
-			{
-				"Color From Tree Distance: Off",
-				"Color From Tree Distance: On"
-			};
-
-			if (gui_button(colorFromTreeDistanceTexts[scene->getSkyColorFromTreeDistance]))
-			{
-				scene->getSkyColorFromTreeDistance = !scene->getSkyColorFromTreeDistance;
-			}
-
-			mark_dirty(gui_float_slider("Sun Height Angle", &scene->settings.sunHeightAngle.value_f32, -1, 1));
-			mark_dirty(gui_float_slider("Sun Orbit Angle", &scene->settings.sunOrbitAngle.value_f32, 0, 1));
+			gui_float_slider("Sun Height Angle", &scene->BETTER_settings.sunHeightAngle, -1, 1);
+			gui_float_slider("Sun Orbit Angle", &scene->BETTER_settings.sunOrbitAngle, 0, 1);
 
 			gui_line();
 
-			mark_dirty(gui_color_rgb("Sky Gradient Bottom", &scene->settings.skyGradientBottom.value_v3, GUI_COLOR_FLAGS_HDR));
-			mark_dirty(gui_color_rgb("Sky Gradient Top", &scene->settings.skyGradientTop.value_v3, GUI_COLOR_FLAGS_HDR));
+			gui_color_rgb("Sky Gradient Bottom", &scene->BETTER_settings.skyGradientBottom, GUI_COLOR_FLAGS_HDR);
+			gui_color_rgb("Sky Gradient Top", &scene->BETTER_settings.skyGradientTop, GUI_COLOR_FLAGS_HDR);
 
 			gui_line();
 
-			mark_dirty(gui_color_rgb("Horizon Halo Color", &scene->settings.horizonHaloColour.value_v3, GUI_COLOR_FLAGS_HDR));
-			mark_dirty(gui_float_slider("Horizon Halo Falloff", &scene->settings.horizonHaloFalloff.value_f32, 0.0001, 1));
+			gui_color_rgb("Horizon Halo Color", &scene->BETTER_settings.horizonHaloColour, GUI_COLOR_FLAGS_HDR);
+			gui_float_slider("Horizon Halo Falloff", &scene->BETTER_settings.horizonHaloFalloff, 0.0001, 1);
 
 			gui_line();
 
-			mark_dirty(gui_color_rgb("Sun Halo Color", &scene->settings.sunHaloColour.value_v3, GUI_COLOR_FLAGS_HDR));
-			mark_dirty(gui_float_slider("Sun Halo Falloff", &scene->settings.sunHaloFalloff.value_f32, 0.0001, 1));
+			gui_color_rgb("Sun Halo Color", &scene->BETTER_settings.sunHaloColour, GUI_COLOR_FLAGS_HDR);
+			gui_float_slider("Sun Halo Falloff", &scene->BETTER_settings.sunHaloFalloff, 0.0001, 1);
 
 			gui_line();
 
-			mark_dirty(gui_color_rgb("Sun Disc Color", &scene->settings.sunDiscColour.value_v3, GUI_COLOR_FLAGS_HDR));
-			mark_dirty(gui_float_slider("Sun Disc Size", &scene->settings.sunDiscSize.value_f32, 0, 0.01));
-			mark_dirty(gui_float_slider("Sun Disc Falloff", &scene->settings.sunDiscFalloff.value_f32, 0, 1));
+			gui_color_rgb("Sun Disc Color", &scene->BETTER_settings.sunDiscColour, GUI_COLOR_FLAGS_HDR);
+			gui_float_slider("Sun Disc Size", &scene->BETTER_settings.sunDiscSize, 0, 0.01);
+			gui_float_slider("Sun Disc Falloff", &scene->BETTER_settings.sunDiscFalloff, 0, 1);
 
 			gui_line();
 
-			mark_dirty(gui_float_slider("HDR Exposure", &scene->settings.hdrExposure.value_f32, 0.1, 10));
-			mark_dirty(gui_float_slider("HDR Contrast", &scene->settings.hdrContrast.value_f32, -1, 1));
+			gui_float_slider("HDR Exposure", &scene->BETTER_settings.hdrExposure, 0.1, 10);
+			gui_float_slider("HDR Contrast", &scene->BETTER_settings.hdrContrast, -1, 1);
 
 			gui_line();
 

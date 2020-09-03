@@ -103,11 +103,11 @@ update_character_motor( CharacterMotor & 	motor,
 		rightInput = clamp_f32(angle, -1.0f, 1.0f);
 	}
 
-	debug_draw_axes(translation_matrix({0,0,2}) * transform_matrix(*motor.transform), 0.3f, debugLevel);
+	FS_DEBUG(debugLevel, debug_draw_axes(translation_matrix({0,0,2}) * transform_matrix(*motor.transform), 0.3f));
 
 	v3 points [] = {motor.transform->position + v3{0,0,1.9},
 					motor.transform->position + v3{0,0,1.9} + right * rightInput};
-	debug_draw_lines(2, points, color_muted_purple, debugLevel);
+	FS_DEBUG(debugLevel, debug_draw_lines(2, points, color_muted_purple));
 
 
 	// -------------------------------------------------
@@ -252,7 +252,7 @@ update_character_motor( CharacterMotor & 	motor,
 				rayDebugHitPoints[rayDebugHitCount + 1] = start + direction;
 				rayDebugHitCount += 2;
 
-				debug_draw_vector(currentResult.hitPosition, currentResult.hitNormal, colour_bright_yellow, debugLevel);
+				FS_DEBUG(debugLevel, debug_draw_vector(currentResult.hitPosition, currentResult.hitNormal, colour_bright_yellow));
 			}
 			else
 			{
@@ -262,9 +262,9 @@ update_character_motor( CharacterMotor & 	motor,
 			}
 
 		if (rayDebugHitCount > 0)
-			debug_draw_lines(rayDebugHitCount, rayDebugHitPoints, colour_bright_red, debugLevel);
+			FS_DEBUG(debugLevel, debug_draw_lines(rayDebugHitCount, rayDebugHitPoints, colour_bright_red));
 		if (rayDebugMissCount > 0)
-			debug_draw_lines(rayDebugMissCount, rayDebugMissPoints, colour_muted_green, debugLevel);
+			FS_DEBUG(debugLevel, debug_draw_lines(rayDebugMissCount, rayDebugMissPoints, colour_muted_green));
 		}
 
 		if (rayHitCount == 0)
@@ -335,13 +335,13 @@ update_character_motor( CharacterMotor & 	motor,
 			groundHeight 	= max_f32(groundHeight, rayResult.hitPosition.z);
 			grounded 		= grounded || motor.transform->position.z < (groundThreshold + groundHeight);
 
-			debug_draw_line(motor.transform->position, rayResult.hitPosition, colour_dark_red, debugLevel);
-			debug_draw_cross_xy(motor.transform->position, 0.3, colour_bright_yellow, debugLevel);
-			debug_draw_cross_xy(rayResult.hitPosition, 0.3, colour_bright_purple, debugLevel);
+			FS_DEBUG(debugLevel, debug_draw_line(motor.transform->position, rayResult.hitPosition, colour_dark_red));
+			FS_DEBUG(debugLevel, debug_draw_cross_xy(motor.transform->position, 0.3, colour_bright_yellow));
+			FS_DEBUG(debugLevel, debug_draw_cross_xy(rayResult.hitPosition, 0.3, colour_bright_purple));
 		}
 		else
 		{
-			debug_draw_line(motor.transform->position, motor.transform->position - v3{0,0,1}, colour_bright_green, debugLevel);
+			FS_DEBUG(debugLevel, debug_draw_line(motor.transform->position, motor.transform->position - v3{0,0,1}, colour_bright_green));
 		}
 	}
 

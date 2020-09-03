@@ -1,14 +1,33 @@
-sunHeightAngle = -0.078777
-sunOrbitAngle = 0.335789
-skyColourSelection = 0.028382
-hdrExposure = 1.357887
-hdrContrast = -0.136997
-horizonHaloFalloff = 0.129695
-sunHaloFalloff = 0.245150
-sunDiscSize = 0.002256
-sunDiscFalloff = 1.009000
-skyGradientBottom = 0.000000, 0.145990, 0.769999
-skyGradientTop = 0.000000, 0.000000, 0.739991
-horizonHaloColour = 0.900000, 0.900000, 0.900000
-sunHaloColour = 1.609157, 1.972833, 0.967364
-sunDiscColour = 0.000000, 0.000000, 5.000000
+testTree = 
+[
+	maxHeight = 7.423090
+	growSpeedScale = 1.008008
+	tangentScale = 89.00900
+	areaGrowthSpeed = 0.059906
+	lengthGrowthSpeed = 2.030304
+	maxHeightToWidthRatio = 20.00000
+	budInterval = 5.931884
+	budIntervalRandomness = 1.008008
+	budTerminalDistanceFromApex = 1.008008
+	budAngle = 2.069000
+	budAngleRandomness = 0.100000
+]
+
+settings = 
+[
+	sunHeightAngle = -0.078777
+	sunOrbitAngle = 0.335789
+	skyColourSelection = 1.009000
+	hdrExposure = 2.705946
+	hdrContrast = 0.402983
+	horizonHaloFalloff = 0.129695
+	sunHaloFalloff = 0.245150
+	sunDiscSize = 0.002249
+	sunDiscFalloff = 1.009000
+	skyGradientBottom = 0.000000, 0.145990, 0.769999
+	skyGradientTop = 0.000000, 0.000000, 0.739966
+	horizonHaloColour = 0.900000, 0.900000, 0.900000
+	sunHaloColour = 1.609157, 1.972833, 0.967364
+	sunDiscColour = 0.000000, 0.000000, 5.000000
+]
+

@@ -22,10 +22,12 @@ const vec3 vertexPositions [vertexCount] =
 
 const vec2 vertexTexcoords [vertexCount] =
 {
-	vec2 (0, 0),
-	vec2 (1, 0),
+	// Note(Leo): This is inverted as in normal leaf shader, look there
 	vec2 (0, 1),
 	vec2 (1, 1),
+	vec2 (0, 0),
+	vec2 (1, 0),
+
 };
 
 void main ()

@@ -11,10 +11,11 @@ Scene description for 3d development scene
 #include "scene3d_monuments.cpp"
 #include "scene3d_trees.cpp"
 
-#include "Trees3.cpp"
 
 #include "metaballs.cpp"
 
+
+#include "Trees3.cpp"
 #include "settings.cpp"
 
 enum CameraMode : s32
@@ -88,7 +89,8 @@ internal void file_write_format(PlatformFileHandle file, TArgs ... args)
 
 struct Scene3d
 {
-	SerializedSettings settings;
+	// SerializedSettings settings;
+	Settings BETTER_settings;
 
 	// ---------------------------------------
 
@@ -285,7 +287,7 @@ struct Scene3d
 	Tree3   	testTree;
 };
 
-internal void read_settings_file(SerializedSettings & settings)
+internal void read_settings_file(Scene3d * scene)
 {
 	PlatformFileHandle file = platformApi->open_file("settings", FILE_MODE_READ);
 
@@ -296,55 +298,52 @@ internal void read_settings_file(SerializedSettings & settings)
 	platformApi->close_file(file);	
 
 	String fileAsString = {fileLength, buffer};
+	String originalString = fileAsString;
 
 	while(fileAsString.length > 0)
 	{
 		String line 		= string_extract_line (fileAsString);
 		String identifier 	= string_extract_until_character(line, '=');
 
-		for (s32 i = 0; i < settings.count; ++i)
-		{
-			if (string_equals(identifier, settings[i].id))
-			{
-				switch(settings[i].type)
-				{
-					case TYPE_F32:
-						// todo(Leo): maybe use try_parse_f32 kind of thing
-						settings[i].value_f32 = string_parse_f32(line);
-						break;
+		string_extract_until_character(fileAsString, '[');
+		string_extract_line(fileAsString);
 
-					case TYPE_V3:
-						settings[i].value_v3 = string_parse_v3(line);
-						break;
-				}
-			}
+		if (string_equals(identifier, "settings"))
+		{
+			deserialize_properties(scene->BETTER_settings, string_extract_until_character(fileAsString, ']'));
 		}
+		else if (string_equals(identifier, "testTree"))
+		{
+			deserialize_properties(scene->testTree, string_extract_until_character(fileAsString, ']'));
+		}
+
+		string_eat_leading_spaces_and_lines(fileAsString);
 	}
 }
 
-
-internal void write_settings_file(SerializedSettings & settings)
+internal void write_settings_file(Scene3d * scene)
 {
-	if (settings.hdrExposure.value_f32 > 3)
-	{
-		;
-	}
-
 	PlatformFileHandle file = platformApi->open_file("settings", FILE_MODE_WRITE);
 
-	for (s32 i = 0; i < settings.count; ++i)
+	auto serialize = [file](char const * label, auto const & serializedData)
 	{
-		switch(settings[i].type)
-		{
-			case TYPE_F32:
-				file_write_format(file, settings[i].id, " = ", settings[i].value_f32, "\n");			
-				break;
+		push_memory_checkpoint(*global_transientMemory);
+	
+		constexpr s32 capacity 			= 2000;
+		String serializedFormatString 	= push_temp_string(capacity);
 
-			case TYPE_V3:
-				file_write_format(file, settings[i].id, " = ", settings[i].value_v3, "\n");			
-				break;
-		}
-	}
+		string_append_format(serializedFormatString, capacity, label, " = \n[\n");
+		serialize_properties(serializedData, serializedFormatString, capacity);
+		string_append_cstring(serializedFormatString, "]\n\n", capacity);
+
+		platformApi->write_file(file, serializedFormatString.length, serializedFormatString.memory);
+
+		pop_memory_checkpoint(*global_transientMemory);
+	};
+
+	serialize("testTree", scene->testTree);
+	serialize("settings", scene->BETTER_settings);
+
 
 	platformApi->close_file(file);
 }
@@ -546,7 +545,7 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 				playerCharacterMotorInput = update_player_input(scene->playerInputState, scene->worldCamera, input);
 			}
 
-			update_character_motor(scene->playerCharacterMotor, playerCharacterMotorInput, scene->collisionSystem, scaledTime, DEBUG_PLAYER);
+			update_character_motor(scene->playerCharacterMotor, playerCharacterMotorInput, scene->collisionSystem, scaledTime, DEBUG_LEVEL_PLAYER);
 
 			update_camera_controller(&scene->playerCamera, scene->playerCharacterTransform.position, input, scaledTime);
 
@@ -557,8 +556,8 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 			/// ---------------------------------------------------------------------------------------------------
 
-			debug_draw_circle_xy(scene->nobleWanderTargetPosition + v3{0,0,0.5}, 1.0, colour_bright_green, DEBUG_NPC);
-			debug_draw_circle_xy(scene->nobleWanderTargetPosition + v3{0,0,0.5}, 0.9, colour_bright_green, DEBUG_NPC);
+			FS_DEBUG_NPC(debug_draw_circle_xy(scene->nobleWanderTargetPosition + v3{0,0,0.5}, 1.0, colour_bright_green));
+			FS_DEBUG_NPC(debug_draw_circle_xy(scene->nobleWanderTargetPosition + v3{0,0,0.5}, 0.9, colour_bright_green));
 		} break;
 
 		case CAMERA_MODE_ELEVATOR:
@@ -609,8 +608,8 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 	{
 		v3 lightDirection = {0,0,1};
-		lightDirection = rotate_v3(axis_angle_quaternion(right_v3, scene->settings.sunHeightAngle.value_f32 * π), lightDirection);
-		lightDirection = rotate_v3(axis_angle_quaternion(up_v3, scene->settings.sunOrbitAngle.value_f32 * 2 * π), lightDirection);
+		lightDirection = rotate_v3(axis_angle_quaternion(right_v3, scene->BETTER_settings.sunHeightAngle * π), lightDirection);
+		lightDirection = rotate_v3(axis_angle_quaternion(up_v3, scene->BETTER_settings.sunOrbitAngle * 2 * π), lightDirection);
 		lightDirection = normalize_v3(-lightDirection);
 
 		Light light = { .direction 	= lightDirection, //normalize_v3({-1, 1.2, -8}), 
@@ -630,7 +629,7 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 				constexpr f32 treeRadiusRatio = 0.2;
 				f32 treeRadius = scene->lSystems[i].totalAge * treeRadiusRatio;
 
-				debug_draw_circle_xy(scene->lSystems[i].position + v3{0,0,0.2}, treeRadius, colour_bright_green, DEBUG_NPC);
+				FS_DEBUG_NPC(debug_draw_circle_xy(scene->lSystems[i].position + v3{0,0,0.2}, treeRadius, colour_bright_green));
 
 				f32 distanceFromTree 			= magnitude_v3(scene->playerCharacterTransform.position - scene->lSystems[i].position) - treeRadius;
 				playerDistanceFromClosestTree 	= min_f32(playerDistanceFromClosestTree, distanceFromTree);
@@ -644,27 +643,27 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 		}
 		else
 		{
-			light.skyColorSelection = scene->settings.skyColourSelection.value_f32;
+			light.skyColorSelection = scene->BETTER_settings.skyColourSelection;
 		}
 
-		light.skyBottomColor.rgb 	= scene->settings.skyGradientBottom.value_v3;
-		light.skyTopColor.rgb 		= scene->settings.skyGradientTop.value_v3;
+		light.skyBottomColor.rgb 	= scene->BETTER_settings.skyGradientBottom;
+		light.skyTopColor.rgb 		= scene->BETTER_settings.skyGradientTop;
 
-		light.horizonHaloColorAndFalloff.rgb 	= scene->settings.horizonHaloColour.value_v3;
-		light.horizonHaloColorAndFalloff.a 		= scene->settings.horizonHaloFalloff.value_f32;
+		light.horizonHaloColorAndFalloff.rgb 	= scene->BETTER_settings.horizonHaloColour;
+		light.horizonHaloColorAndFalloff.a 		= scene->BETTER_settings.horizonHaloFalloff;
 
-		light.sunHaloColorAndFalloff.rgb 	= scene->settings.sunHaloColour.value_v3;
-		light.sunHaloColorAndFalloff.a 		= scene->settings.sunHaloFalloff.value_f32;
+		light.sunHaloColorAndFalloff.rgb 	= scene->BETTER_settings.sunHaloColour;
+		light.sunHaloColorAndFalloff.a 		= scene->BETTER_settings.sunHaloFalloff;
 
-		light.sunDiscColor.rgb 			= scene->settings.sunDiscColour.value_v3;
-		light.sunDiscSizeAndFalloff.xy 	= {	scene->settings.sunDiscSize.value_f32,
-											scene->settings.sunDiscFalloff.value_f32 };
+		light.sunDiscColor.rgb 			= scene->BETTER_settings.sunDiscColour;
+		light.sunDiscSizeAndFalloff.xy 	= {	scene->BETTER_settings.sunDiscSize,
+											scene->BETTER_settings.sunDiscFalloff };
 
 		platformApi->update_lighting(platformGraphics, &light, &scene->worldCamera, ambient);
 		HdrSettings hdrSettings = 
 		{
-			scene->settings.hdrExposure.value_f32,
-			scene->settings.hdrContrast.value_f32,
+			scene->BETTER_settings.hdrExposure,
+			scene->BETTER_settings.hdrContrast,
 		};
 		platformApi->update_hdr_settings(platformGraphics, &hdrSettings);
 	}
@@ -1001,7 +1000,7 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 					m44 gizmoTransform = make_transform_matrix(	scene->noblePersonTransform.position + up_v3 * scene->noblePersonTransform.scale.z * 2.0f, 
 																scene->noblePersonTransform.rotation,
 																scene->nobleWanderWaitTimer);
-					debug_draw_diamond_xz(gizmoTransform, colour_muted_red, DEBUG_NPC);
+					FS_DEBUG_NPC(debug_draw_diamond_xz(gizmoTransform, colour_muted_red));
 				}
 				
 				f32 distance = magnitude_v2(scene->noblePersonTransform.position.xy - scene->nobleWanderTargetPosition.xy);
@@ -1028,7 +1027,7 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 								nobleCharacterMotorInput,
 								scene->collisionSystem,
 								scaledTime,
-								DEBUG_NPC);
+								DEBUG_LEVEL_NPC);
 	}
 
 	// -----------------------------------------------------------------------------------------------------------
@@ -1068,10 +1067,10 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 										raccoonCharacterMotorInput,
 										scene->collisionSystem,
 										scaledTime,
-										DEBUG_NPC);
+										DEBUG_LEVEL_NPC);
 			}
 
-			// debug_draw_circle_xy(snap_on_ground(scene->raccoonTargetPositions[i].xy) + v3{0,0,1}, 1, colour_bright_red, DEBUG_ALWAYS);
+			// debug_draw_circle_xy(snap_on_ground(scene->raccoonTargetPositions[i].xy) + v3{0,0,1}, 1, colour_bright_red, DEBUG_LEVEL_ALWAYS);
 		}
 
 
@@ -1140,27 +1139,27 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 	{
 		for (auto const & collider : scene->collisionSystem.precomputedBoxColliders)
 		{
-			debug_draw_box(collider.transform, colour_muted_green, DEBUG_BACKGROUND);
+			FS_DEBUG_BACKGROUND(debug_draw_box(collider.transform, colour_muted_green));
 		}
 
 		for (auto const & collider : scene->collisionSystem.staticBoxColliders)
 		{
-			debug_draw_box(collider.transform, colour_dark_green, DEBUG_BACKGROUND);
+			FS_DEBUG_BACKGROUND(debug_draw_box(collider.transform, colour_dark_green));
 		}
 
 		for (auto const & collider : scene->collisionSystem.precomputedCylinderColliders)
 		{
-			debug_draw_circle_xy(collider.center - v3{0, 0, collider.halfHeight}, collider.radius, colour_bright_green, DEBUG_BACKGROUND);
-			debug_draw_circle_xy(collider.center + v3{0, 0, collider.halfHeight}, collider.radius, colour_bright_green, DEBUG_BACKGROUND);
+			FS_DEBUG_BACKGROUND(debug_draw_circle_xy(collider.center - v3{0, 0, collider.halfHeight}, collider.radius, colour_bright_green));
+			FS_DEBUG_BACKGROUND(debug_draw_circle_xy(collider.center + v3{0, 0, collider.halfHeight}, collider.radius, colour_bright_green));
 		}
 
 		for (auto const & collider : scene->collisionSystem.submittedCylinderColliders)
 		{
-			debug_draw_circle_xy(collider.center - v3{0, 0, collider.halfHeight}, collider.radius, colour_bright_green, DEBUG_BACKGROUND);
-			debug_draw_circle_xy(collider.center + v3{0, 0, collider.halfHeight}, collider.radius, colour_bright_green, DEBUG_BACKGROUND);
+			FS_DEBUG_BACKGROUND(debug_draw_circle_xy(collider.center - v3{0, 0, collider.halfHeight}, collider.radius, colour_bright_green));
+			FS_DEBUG_BACKGROUND(debug_draw_circle_xy(collider.center + v3{0, 0, collider.halfHeight}, collider.radius, colour_bright_green));
 		}
 
-		debug_draw_circle_xy(scene->playerCharacterTransform.position + v3{0,0,0.7}, 0.25f, colour_bright_green, DEBUG_PLAYER);
+		FS_DEBUG_PLAYER(debug_draw_circle_xy(scene->playerCharacterTransform.position + v3{0,0,0.7}, 0.25f, colour_bright_green));
 	}
 
 	  //////////////////////////////
@@ -1177,7 +1176,7 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 	if (scene->drawMCStuff)
 	{
 		v3 position = multiply_point(scene->metaballTransform, {0,0,0});
-		// debug_draw_circle_xy(position, 4, {1,0,1,1}, DEBUG_ALWAYS);
+		// debug_draw_circle_xy(position, 4, {1,0,1,1}, DEBUG_LEVEL_ALWAYS);
 		// platformApi->draw_meshes(platformGraphics, 1, &scene->metaballTransform, scene->metaballMesh, scene->metaballMaterial);
 
 		local_persist f32 testX = 0;
@@ -1257,7 +1256,7 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 										scene->metaballIndexCapacity2, scene->metaballIndices2, &scene->metaballIndexCount2,
 										sample_heightmap_for_mc, &scene->collisionSystem.terrainCollider, scene->metaballGridScale);
 
-		debug_draw_circle_xy(multiply_point(scene->metaballTransform2, scene->metaballVertices2[0].position), 5.0f, colour_bright_green, DEBUG_ALWAYS);
+		FS_DEBUG_ALWAYS(debug_draw_circle_xy(multiply_point(scene->metaballTransform2, scene->metaballVertices2[0].position), 5.0f, colour_bright_green));
 		// logDebug(0) << multiply_point(scene->metaballTransform2, scene->metaballVertices2[0].position);
 
 		if (scene->metaballVertexCount2 > 0 && scene->metaballIndexCount2 > 0)
@@ -1358,7 +1357,7 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 				leavess[i].colourIndex 	= get_region_colour_index(leavess[i].position.xy);
 
 				f32 waterDistanceThreshold = 1;
-				debug_draw_circle_xy(lSystems[i].position + v3{0,0,1}, waterDistanceThreshold, colour_aqua_blue, DEBUG_NPC);
+				FS_DEBUG_NPC(debug_draw_circle_xy(lSystems[i].position + v3{0,0,1}, waterDistanceThreshold, colour_aqua_blue));
 
 				if (lSystems[i].totalAge > lSystems[i].maxAge)
 				{
@@ -1476,7 +1475,7 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 			if (vertexCount > 0)
 			{
-				debug_draw_lines(vertexCount * 2, points, colour_bright_green, DEBUG_PLAYER);
+				FS_DEBUG_PLAYER(debug_draw_lines(vertexCount * 2, points, colour_bright_green));
 			}
 		}
 	}
@@ -1504,12 +1503,12 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 		scene->testTree.leaves.rotation = identity_quaternion;
 
 		platformApi->draw_procedural_mesh(	platformGraphics,
-											scene->testTree.mesh.vertexCount, scene->testTree.mesh.vertices,
-											scene->testTree.mesh.indexCount, scene->testTree.mesh.indices,
+											scene->testTree.mesh.vertices.count, scene->testTree.mesh.vertices.memory,
+											scene->testTree.mesh.indices.count, scene->testTree.mesh.indices.memory,
 											transform, scene->treeMaterials[0]);
 
 
-		debug_draw_circle_xy(scene->testTree.position, 2, colour_bright_red, DEBUG_ALWAYS);
+		FS_DEBUG_ALWAYS(debug_draw_circle_xy(scene->testTree.position, 2, colour_bright_red));
 	}
 
 	/// DRAW LEAVES FOR BOTH LSYSTEM ARRAYS IN THE END BECAUSE OF LEAF SHDADOW INCONVENIENCE
@@ -1543,11 +1542,11 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 	auto gui_result = do_gui(scene, input);
 
-	if (scene->settings.dirty)
-	{
-		write_settings_file(scene->settings);
-		scene->settings.dirty = false;
-	}
+	// if (scene->settings.dirty)
+	// {
+	// 	write_settings_file(scene->settings, scene);
+	// 	scene->settings.dirty = false;
+	// }
 
 	return gui_result;
 }
@@ -1569,8 +1568,9 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 	Scene3d * scene = push_memory<Scene3d>(persistentMemory, 1, ALLOC_CLEAR);
 	*scene 			= {};
 
-	scene->settings = init_settings();
-	read_settings_file(scene->settings);
+	// scene->settings 					= init_settings();
+	// scene->settings.testTree.value_tree = &scene->testTree;
+	read_settings_file(scene);
 
 
 	// ----------------------------------------------------------------------------------
@@ -2435,7 +2435,7 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 		scene->metaballTransform 	= translation_matrix(position);
 
 		// Todo(Leo): textures are copied too many times: from file to stb, from stb to TextureAsset, from TextureAsset to graphics.
-		TextureAsset albedo = load_texture_asset(*global_transientMemory, "assets/textures/bark.png");
+		TextureAsset albedo = load_texture_asset(*global_transientMemory, "assets/textures/tiles.png");
 		// TextureAsset normal = load_texture_asset(*global_transientMemory, "assets/textures/ground_normal.png");
 
 		TextureHandle treeTextures [] =
