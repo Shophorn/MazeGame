@@ -1,63 +1,3 @@
-template<typename T>
-struct Array2
-{
-	u64 capacity;
-	u64 count;
-	T * memory;
-
-	T & operator[](u64 index)
-	{ 
-		Assert(index < count);
-		return memory[index];
-	}
-
-	T operator [](u64 index) const
-	{
-		Assert(index < count);
-		return memory[index];
-	}
-
-	bool has_room_for(u64 count)
-	{
-		return (this->capacity - this->count - count) > 0;
-	}
-};
-
-template<typename T>
-internal Array2<T> push_array_2(MemoryArena & allocator, u64 capacity, AllocFlags flags)
-{
-	Array2<T> result = {capacity, 0, push_memory<T>(allocator, capacity, flags)};
-	return result;
-}
-
-template<typename T>
-internal void clear_array_2(Array2<T> & array)
-{
-	memset(array.memory, 0, sizeof(T) * array.capacity);
-}
-
-struct DynamicMesh
-{
-	Array2<Vertex> 	vertices;
-	Array2<u16> 	indices;
-};
-
-internal DynamicMesh push_dynamic_mesh(MemoryArena & allocator, u64 vertexCapacity, u64 indexCapacity)
-{
-	DynamicMesh mesh =
-	{
-		.vertices 	= push_array_2<Vertex>(allocator, vertexCapacity, ALLOC_CLEAR),
-		.indices 	= push_array_2<u16>(allocator, indexCapacity, ALLOC_CLEAR)
-	};
-	return mesh;
-}
-
-internal void flush_dynamic_mesh(DynamicMesh & mesh)
-{
-	mesh.vertices.count = 0;
-	mesh.indices.count 	= 0;
-};
-
 /*
 Leo Tamminen
 Trees version 3
@@ -65,185 +5,389 @@ Trees version 3
 TODO(Leo):
 	interpolate beziers with even distances
 
+	- apex branching
+	- branch max age
+	- simple pruning
+
+
 	SELF PRUNING:
 	Compute incoming light for each branch section, and add them up from child to parent branch.
 	Compute a threshold value based on branch section and its cumulative childrens' sizes.
 	Any branch that does not meet the threshold is pruned
 
+DONE:
+	- leaves from buds age separately from tree growth
 */
 
-enum Tree3NodeType : s32
-{
-	// TREE_NODE_ROOT,
-	TREE_NODE_STEM,
-	TREE_NODE_APEX,
-};
-
-// Note(Leo): this is like a branch node
 struct Tree3Node
 {
 	v3 			position;
 	quaternion 	rotation;
-	f32 		size; 			// Note(Leo): this may refer to diameter, but it does not have to
-	f32 		age;
-
-	Tree3NodeType 	type;
+	f32 		radius;
 };
 
-struct Tree3BranchSection
+struct Tree3Branch
 {
-	s32 startNodeIndex;
-	s32 endNodeIndex;
+	s64 startNodeIndex;
+	s64 endNodeIndex;
 	f32 startNodeDistance;
 	
-	s32 parentBranchSectionIndex;
+	s64 parentBranchIndex;
 	s32 childBranchCount;
 
 	f32 		nextBudPosition;
 	quaternion 	nextBudRotation;
 	s32 		budIndex;
+
+	bool32	dontGrowLength;
 };
 
 struct Tree3Bud
 {
 	bool32 		hasLeaf;
-	s32 		leafIndex[2];
+	s64 		firstLeafIndex;
 	f32 		age;
 
 	f32 		distanceFromStartNode;
-	s32 		parentBranchSectionIndex;
+	s64 		parentBranchIndex;
 
 	// Updated with branch section stuff
 	v3 			position;
 	quaternion 	rotation;
 	f32 		size;
-
 };
 
 struct Tree3
 {
-	Array2<Tree3Node> 			nodes;
-	Array2<Tree3Bud> 			buds;
-	Array2<Tree3BranchSection> 	branchSections;
+	Array2<Tree3Node> 	nodes;
+	Array2<Tree3Bud> 	buds;
+	Array2<Tree3Branch> branches;
 
-	Leaves 			leaves;
-	DynamicMesh 	mesh;
-
-	bool32 			enabled;
+	Leaves 		leaves;
+	DynamicMesh mesh;
 
 	v3 position;
+	// Todo(Leo): this is not used yet, make it so that it is
+	// quaternion rotation;
 
-	s32 highLightBudIndex;
-
+	bool32 enabled;
+	bool32 drawGizmos;
 	bool32 breakOnUpdate;
 
-	f32 maxHeight = 10;
-	f32 growSpeedScale = 1;
-	f32 tangentScale = 5;
-	f32 areaGrowthSpeed = 0.05;
-	f32 lengthGrowthSpeed = 0.3;
-	f32 maxHeightToWidthRatio = 20;
-	f32 budInterval = 0.5;
-	f32 budIntervalRandomness = 0.1;
+	s32 leafCountPerBud = 3;
+
+	f32 maxHeight 					= 10;
+	f32 growSpeedScale 				= 1;
+	f32 tangentScale 				= 5;
+	f32 areaGrowthSpeed 			= 0.05;
+	f32 lengthGrowthSpeed 			= 0.3;
+	f32 maxHeightToWidthRatio 		= 20;
+	f32 budInterval 				= 0.5;
+	f32 budIntervalRandomness 		= 0.1;
 	f32 budTerminalDistanceFromApex = 1.0;
-	f32 budAngle = 2.06;
-	f32 budAngleRandomness = 0.1;
+	f32 budAngle 					= 2.06;
+	f32 budAngleRandomness 			= 0.1;
+	f32 leafMaturationTime 			= 3.0;
+	f32 apexBranchingProbability 	= 0.1;
+
+	f32 branchMaxAge = 2;
 
 	static constexpr auto serializedProperties = make_property_list
 	(	
-		serialized_property("maxHeight", 					&Tree3::maxHeight),
-		serialized_property("growSpeedScale", 				&Tree3::growSpeedScale),
-		serialized_property("tangentScale",	 				&Tree3::tangentScale),
-		serialized_property("areaGrowthSpeed", 				&Tree3::areaGrowthSpeed),
-		serialized_property("lengthGrowthSpeed", 			&Tree3::lengthGrowthSpeed),
-		serialized_property("maxHeightToWidthRatio", 		&Tree3::maxHeightToWidthRatio),
-		serialized_property("budInterval", 					&Tree3::budInterval),
-		serialized_property("budIntervalRandomness", 		&Tree3::budIntervalRandomness),
-		serialized_property("budTerminalDistanceFromApex", 	&Tree3::budTerminalDistanceFromApex),
-		serialized_property("budAngle", 					&Tree3::budAngle),
-		serialized_property("budAngleRandomness", 			&Tree3::budAngleRandomness)
+		#define SERIALIZE_PROPERTY(name) serialized_property(#name, &Tree3::name)
+
+		SERIALIZE_PROPERTY(maxHeight),
+		SERIALIZE_PROPERTY(growSpeedScale),
+		SERIALIZE_PROPERTY(tangentScale),
+		SERIALIZE_PROPERTY(areaGrowthSpeed),
+		SERIALIZE_PROPERTY(lengthGrowthSpeed),
+		SERIALIZE_PROPERTY(maxHeightToWidthRatio),
+		SERIALIZE_PROPERTY(budInterval),
+		SERIALIZE_PROPERTY(budIntervalRandomness),
+		SERIALIZE_PROPERTY(budTerminalDistanceFromApex),
+		SERIALIZE_PROPERTY(budAngle),
+		SERIALIZE_PROPERTY(budAngleRandomness),
+		SERIALIZE_PROPERTY(leafMaturationTime),
+		SERIALIZE_PROPERTY(apexBranchingProbability)
+
+
+		#undef SERIALIZE_PROPERTY
 	);
 };
+
+internal void tree_3_add_branch(Tree3 & tree, s64 parentBranchIndex, v3 position, quaternion rotation, f32 distanceFromParentStartNode)
+{
+	#if 1
+/*
+	Tree3Branch & branch = tree.branches[tree.branches.count++];
+
+	branch.startNodeIndex 			= tree.nodes.count++;
+	branch.endNodeIndex 			= tree.nodes.count++;
+	branch.childBranchCount 		= 0;
+	branch.parentBranchIndex = -1;
+	branch.nextBudPosition 			= tree.budInterval;
+	branch.nextBudRotation 			= identity_quaternion;
+	branch.budIndex 				= tree.buds.count++;
+
+	tree.nodes[branch.startNodeIndex] = 
+	{
+		.position 	= {0,0,0},
+		.rotation 	= identity_quaternion,
+		.radius		= 0.05,
+	};
+
+	tree.nodes[branch.endNodeIndex] = 
+	{
+		.position 	= {0,0,0},
+		.rotation 	= identity_quaternion,
+		.radius		= 0.01,
+	};
+
+	tree.buds[branch.budIndex] =
+	{
+		.hasLeaf 					= true,
+		.firstLeafIndex 			= tree.leaves.count,
+		.age 						= 0,
+		.distanceFromStartNode 		= 0,
+		.parentBranchIndex 	= 0,
+		.position 					= {},
+		.rotation 					= identity_quaternion,
+		.size 						= 0,
+	};
+
+	tree.leaves.count += tree.leafCountPerBud;
+*/
+
+			s32 newBranchIndex 				= tree.branches.count++;
+			Tree3Branch & newBranch 		= tree.branches[newBranchIndex];
+
+			newBranch.startNodeIndex 			= tree.nodes.count++;
+			newBranch.endNodeIndex 				= tree.nodes.count++;
+			newBranch.startNodeDistance 		= distanceFromParentStartNode;
+			newBranch.parentBranchIndex 		= parentBranchIndex;
+			newBranch.childBranchCount 			= 0;
+			newBranch.nextBudPosition 			= tree.budInterval;
+			newBranch.nextBudRotation 			= rotation;
+			newBranch.budIndex 					= tree.buds.count++;
+
+			constexpr f32 nodeStartSize = 0.01;
+
+			tree.nodes[newBranch.startNodeIndex] = 
+			{
+				.position 	= position,
+				.rotation 	= rotation,
+				.radius 	= nodeStartSize,
+			};
+
+			tree.nodes[newBranch.endNodeIndex] = 
+			{
+				.position 	= position,
+				.rotation 	= rotation,
+				.radius 	= nodeStartSize / 2,
+			};
+
+			// Todo(Leo): reset new bud here
+			Tree3Bud & newBud 		= tree.buds[newBranch.budIndex];
+			newBud.hasLeaf	 		= true;
+			newBud.firstLeafIndex 	= tree.leaves.count;
+			tree.leaves.count 		+= tree.leafCountPerBud;
+			newBud.age 				= 0;
+
+			newBud.distanceFromStartNode 	= 0;
+			newBud.parentBranchIndex = newBranchIndex;
+
+			// // Updated with branch section stuff
+			// v3 			position;
+			// quaternion 	rotation;
+			// f32 		size;
+
+			tree.branches[parentBranchIndex].childBranchCount += 1;
+
+	#else
+	s64 branchIndex 		= tree.branches.count++;
+	Tree3Branch & branch 	= tree.branches[branchIndex];
+
+	branch.startNodeIndex 			= tree.nodes.count++;
+	branch.endNodeIndex 			= tree.nodes.count++;
+	branch.childBranchCount 		= 0;
+	branch.parentBranchIndex 		= parentBranchIndex;
+	branch.nextBudPosition 			= tree.budInterval;
+	branch.nextBudRotation 			= rotation;
+	branch.budIndex 				= tree.buds.count++;
+
+	tree.nodes[branch.startNodeIndex] = 
+	{
+		.position 	= position,
+		.rotation 	= rotation,
+		.radius		= 0.05,
+	};
+
+	tree.nodes[branch.endNodeIndex] = 
+	{
+		.position 	= position,
+		.rotation 	= rotation,
+		.radius		= 0.01,
+	};
+
+	tree.buds[branch.budIndex] =
+	{
+		.hasLeaf 					= true,
+		.firstLeafIndex 			= tree.leaves.count,
+		.age 						= 0,
+		.distanceFromStartNode 		= 0,
+		.parentBranchIndex 			= branchIndex,
+		.position 					= position,
+		.rotation 					= rotation,
+		.size 						= 0,
+	};
+
+	tree.leaves.count += tree.leafCountPerBud;
+
+	if (parentBranchIndex >= 0)
+	{
+		tree.branches[parentBranchIndex].childBranchCount += 1;
+	}
+
+	#endif
+}
+
+// template<typename T>
+// struct IteratorRange
+// {
+// 	T * begin_;
+// 	T * end_;
+
+// 	T * begin() { return begin_; }
+// 	T * end() { return end_; }
+
+// 	T const * begin() const { return begin_; }
+// 	T const * end() const { return end_; }
+// };
+
+// template<typename T> IteratorRange<T> fixed_range (Array2<T> & array)
+// {
+// 	return IteratorRange<T> {array.begin(), array.end()};
+// }
+
+// template <typename T> IteratorRange<T> fixed_range(T * memory, s32 count)
+// {
+// 	return IteratorRange<T>{memory, memory + count};
+// }
 
 internal void grow_tree_3(Tree3 & tree, f32 elapsedTime)
 {
 	elapsedTime *= tree.growSpeedScale;
 
-	for (s32 i = 0; i < tree.branchSections.count; ++i)
+	s32 branchCountBefore = tree.branches.count;
+	for (s32 branchIndex = 0; branchIndex < branchCountBefore; ++branchIndex)
 	{
-		Tree3BranchSection & branchSection 	= tree.branchSections[i];
-		Tree3Node & startNode 				= tree.nodes[branchSection.startNodeIndex];
-		Tree3Node & endNode 				= tree.nodes[branchSection.endNodeIndex];
+		Tree3Branch & branch 	= tree.branches[branchIndex];
+
+		Tree3Node & startNode 	= tree.nodes[branch.startNodeIndex];
+		Tree3Node & endNode 	= tree.nodes[branch.endNodeIndex];
 
 		{
 			f32 maxRadius = highest_f32;
 
-			if (branchSection.parentBranchSectionIndex >= 0)
+			if (branch.parentBranchIndex >= 0)
 			{
-				s32 parentBranchStartNodeIndex 	= tree.branchSections[branchSection.parentBranchSectionIndex].startNodeIndex;
-				s32 parentBranchChildCount 		= tree.branchSections[branchSection.parentBranchSectionIndex].childBranchCount;
-				f32 parentBranchStartNodeSize 	= tree.nodes[parentBranchStartNodeIndex].size;
+				Tree3Branch & parentBranch = tree.branches[branch.parentBranchIndex];
 
-				f32 parentArea 				= π * parentBranchStartNodeSize * parentBranchStartNodeSize;
+				s32 parentBranchChildCount 		= parentBranch.childBranchCount;
+				f32 parentBranchStartNodeRadius	= tree.nodes[parentBranch.startNodeIndex].radius;
+
+				f32 parentArea 				= π * parentBranchStartNodeRadius * parentBranchStartNodeRadius;
 				f32 areaDividedForChildren 	= parentArea / parentBranchChildCount;
 				f32 maxRadiurPerChildren 	= square_root_f32(areaDividedForChildren / π);
 
 				maxRadius = maxRadiurPerChildren;
 			}
 
-			if (startNode.size < maxRadius)
+			if (startNode.radius < maxRadius)
 			{
 				f32 growthAmount 	= tree.areaGrowthSpeed / π * elapsedTime;
-				startNode.size 		= square_root_f32(startNode.size * startNode.size + growthAmount);
+				startNode.radius 	= square_root_f32(startNode.radius * startNode.radius + growthAmount);
+			}
+
+			if (branch.dontGrowLength && endNode.radius < maxRadius)
+			{
+				f32 growthAmount 	= tree.areaGrowthSpeed / π * elapsedTime;
+				endNode.radius 	= square_root_f32(endNode.radius * endNode.radius + growthAmount);
 			}
 		}
 
+		if (branch.dontGrowLength == false)
 		{
 			f32 distanceFromStart 	= magnitude_v3(endNode.position - startNode.position);
-			f32 distanceFromRoot 	= distanceFromStart + branchSection.startNodeDistance;
+			f32 distanceFromRoot 	= distanceFromStart + branch.startNodeDistance;
 
 			f32 hFactor 			= clamp_f32(1 - (distanceFromRoot / tree.maxHeight), 0, 1);
-			f32 hwRatio 			= distanceFromStart / startNode.size;
+			f32 hwRatio 			= distanceFromStart / startNode.radius;
 			f32 hwFactor 			= clamp_f32(1 - (hwRatio / tree.maxHeightToWidthRatio), 0, 1);
 			f32 growFactor  		= hFactor * hwFactor * tree.lengthGrowthSpeed * elapsedTime;
 
 			v3 direction 			= rotate_v3(endNode.rotation, up_v3);
 			endNode.position 		+= direction * growFactor;
 			
-			f32 ratioToNextBud 		= (branchSection.nextBudPosition - distanceFromStart) / tree.budInterval;
+			f32 ratioToNextBud 		= (branch.nextBudPosition - distanceFromStart) / tree.budInterval;
 
 			if (ratioToNextBud < 0)
 			{
-				// Assert(tree.budCount < tree.budCapacity);
-				Assert(tree.buds.has_room_for(1));
+				// Note(Leo): this is inverted..
+				if (random_value() > tree.apexBranchingProbability)
+				{
+					Assert(tree.buds.has_room_for(1));
 
-				f32 budIntervalRandom 			= 1 + random_range(-tree.budIntervalRandomness, tree.budIntervalRandomness);
-				branchSection.nextBudPosition 	= distanceFromStart + tree.budInterval * budIntervalRandom;
+					f32 budIntervalRandom 	= 1 + random_range(-tree.budIntervalRandomness, tree.budIntervalRandomness);
+					branch.nextBudPosition 	= distanceFromStart + tree.budInterval * budIntervalRandom;
 
-				branchSection.budIndex = tree.buds.count++;
+					branch.budIndex = tree.buds.count++;
 
-				tree.buds[branchSection.budIndex].hasLeaf 		= true;
-				tree.buds[branchSection.budIndex].leafIndex[0] 	= tree.leaves.count++;
-				tree.buds[branchSection.budIndex].leafIndex[1] 	= tree.leaves.count++;
-				tree.buds[branchSection.budIndex].age 			= 0;
+					tree.buds[branch.budIndex].hasLeaf 			= true;
+					tree.buds[branch.budIndex].firstLeafIndex 	= tree.leaves.count;
+					tree.leaves.count 							+= tree.leafCountPerBud;
 
-				v3 branchDirection 							= rotate_v3(endNode.rotation, up_v3);
+					tree.buds[branch.budIndex].age 				= 0;
 
-				f32 axisRotationAngle 						= tree.budAngle + random_range(-tree.budAngleRandomness, tree.budAngleRandomness);
-				branchSection.nextBudRotation 				= branchSection.nextBudRotation * axis_angle_quaternion(branchDirection, axisRotationAngle);
-				tree.buds[branchSection.budIndex].rotation  = branchSection.nextBudRotation;
+					tree.buds[branch.budIndex].rotation  		= branch.nextBudRotation;
 
-				tree.buds[branchSection.budIndex].distanceFromStartNode  	= distanceFromStart;
-				tree.buds[branchSection.budIndex].parentBranchSectionIndex 	= i;
+					tree.buds[branch.budIndex].distanceFromStartNode  	= distanceFromStart;
+					tree.buds[branch.budIndex].parentBranchIndex 		= branchIndex;
+					tree.buds[branch.budIndex].size 					= 1;
+
+					v3 branchDirection 		= rotate_v3(endNode.rotation, up_v3);
+					f32 axisRotationAngle 	= tree.budAngle + random_range(-tree.budAngleRandomness, tree.budAngleRandomness);
+					branch.nextBudRotation 	= branch.nextBudRotation * axis_angle_quaternion(branchDirection, axisRotationAngle);
+				}
+				else
+				{
+					s32 newApexBranchesCount = (random_value() < 0.6) ? 2 : 3;
+
+					Assert(tree.branches.has_room_for(newApexBranchesCount));
+					Assert(tree.buds.has_room_for(newApexBranchesCount));
+					Assert(tree.nodes.has_room_for(newApexBranchesCount * 2));
+
+					for(s32 newBranchIndex = 0; newBranchIndex < newApexBranchesCount; ++newBranchIndex)
+					{
+						f32 angle 			= newBranchIndex * 2 * π / newApexBranchesCount * (1 + random_range(-0.15, 0.15));
+						v3 direction 		= rotate_v3(branch.nextBudRotation, up_v3);
+						quaternion rotation = branch.nextBudRotation * axis_angle_quaternion(direction, angle);
+						// quaternion rotation = endNode.rotation * axis_angle_quaternion(rotate_v3(endNode.rotation, up_v3), angle);
+						v3 axis 			= rotate_v3(rotation, forward_v3);
+						rotation 			= rotation * axis_angle_quaternion(axis, 0.5);
+
+						tree_3_add_branch(tree, branchIndex, endNode.position, rotation, distanceFromRoot);
+					}
+
+					branch.dontGrowLength = true;
+				}
 			}
 			
 			// Note(Leo): these are updated each frame, as the apex bud moves with the tip of the branch
-			tree.buds[branchSection.budIndex].position 	= endNode.position;
-			tree.buds[branchSection.budIndex].size 		= 1 - clamp_f32(ratioToNextBud, 0, 1);
+			tree.buds[branch.budIndex].position 	= endNode.position;
 
 		}
 	}
-
 
 	for (s32 i = 0; i < tree.buds.count; ++i)
 	{
@@ -251,101 +395,48 @@ internal void grow_tree_3(Tree3 & tree, f32 elapsedTime)
 
 		bud.age += elapsedTime;
 
-		Tree3Node const & branchEndNode = tree.nodes[tree.branchSections[bud.parentBranchSectionIndex].endNodeIndex];
+		Tree3Node const & branchEndNode = tree.nodes[tree.branches[bud.parentBranchIndex].endNodeIndex];
 		f32 distanceFromApex 			= magnitude_v3(bud.position - branchEndNode.position);
 
 		if (bud.hasLeaf && (distanceFromApex > tree.budTerminalDistanceFromApex))
 		{
-			bud.hasLeaf = false;
+			/// RESET LEAVES
+			{			
+				bud.hasLeaf = false;
 
-			tree.leaves.localPositions[bud.leafIndex[0]] 	= {};
-			tree.leaves.localRotations[bud.leafIndex[0]] 	= {};
-			tree.leaves.localScales[bud.leafIndex[0]] 		= 0;
-			tree.leaves.swayAxes[bud.leafIndex[0]] 		= {};
-
-			tree.leaves.localPositions[bud.leafIndex[1]] 	= {};
-			tree.leaves.localRotations[bud.leafIndex[1]] 	= {};
-			tree.leaves.localScales[bud.leafIndex[1]] 		= 0;
-			tree.leaves.swayAxes[bud.leafIndex[1]] 		= {};
+				for(s32 leafIndex = 0; leafIndex < tree.leafCountPerBud; ++leafIndex)
+				{
+					tree.leaves.localPositions[leafIndex + bud.firstLeafIndex] 	= {};
+					tree.leaves.localRotations[leafIndex + bud.firstLeafIndex] 	= {};
+					tree.leaves.localScales[leafIndex + bud.firstLeafIndex] 	= 0;
+					tree.leaves.swayAxes[leafIndex + bud.firstLeafIndex] 		= {};
+				}
+			}
 
 			v3 axis 			= rotate_v3(bud.rotation, forward_v3);
 			quaternion rotation = bud.rotation * axis_angle_quaternion(axis, 0.25 * π);
-			v3 direction 		= rotate_v3(rotation, up_v3);
 
 			Assert(tree.nodes.has_room_for(2));
-			s32 startNodeIndex 	= tree.nodes.count++;
-			s32 endNodeIndex 	= tree.nodes.count++;
+			Assert(tree.branches.has_room_for(1));
+			Assert(tree.buds.has_room_for(1));
 
-			constexpr f32 nodeStartSize = 0.01;
-
-			tree.nodes[startNodeIndex] = 
-			{
-				.position = bud.position,
-				.rotation = rotation,
-				.size = nodeStartSize, 			// Note(Leo): this may refer to diameter, but it does not have to
-				.age = 0, 
-				.type = TREE_NODE_STEM
-			};
-
-			tree.nodes[endNodeIndex] = 
-			{
-				.position = bud.position + direction * nodeStartSize,
-				.rotation = rotation,
-				.size = nodeStartSize / 2,
-				.age = 0,
-				.type = TREE_NODE_APEX
-			};
-
-			s32 newBranchIndex = tree.branchSections.count++;
-			Tree3BranchSection & newBranchSection = tree.branchSections[newBranchIndex];
-
-			newBranchSection.startNodeIndex 			= startNodeIndex;
-			newBranchSection.endNodeIndex 				= endNodeIndex;
-			newBranchSection.startNodeDistance 			= bud.distanceFromStartNode;
-			newBranchSection.parentBranchSectionIndex 	= bud.parentBranchSectionIndex;
-			newBranchSection.childBranchCount 			= 0;
-			newBranchSection.nextBudPosition 			= tree.budInterval;
-			newBranchSection.nextBudRotation 			= rotation;
-			newBranchSection.budIndex 					= tree.buds.count++;
-
-			// Todo(Leo): reset new bud here
-			Tree3Bud & newBud 	= tree.buds[newBranchSection.budIndex];
-			newBud.hasLeaf	 	= true;
-			newBud.leafIndex[0]	= tree.leaves.count++;
-			newBud.leafIndex[1]	= tree.leaves.count++;
-			newBud.age 			= 0;
-
-			newBud.distanceFromStartNode 	= 0;
-			newBud.parentBranchSectionIndex = newBranchIndex;
-
-			// // Updated with branch section stuff
-			// v3 			position;
-			// quaternion 	rotation;
-			// f32 		size;
-
-			tree.branchSections[newBranchSection.parentBranchSectionIndex].childBranchCount += 1;
+			tree_3_add_branch(tree, bud.parentBranchIndex, bud.position, rotation, bud.distanceFromStartNode);
 		}
 
 		if (bud.hasLeaf)
 		{
-			tree.leaves.localPositions[bud.leafIndex[0]] 	= bud.position;
-			tree.leaves.localRotations[bud.leafIndex[0]] 	= bud.rotation;
-			tree.leaves.localScales[bud.leafIndex[0]] 		= bud.size;
-			tree.leaves.swayAxes[bud.leafIndex[0]] 			= rotate_v3(bud.rotation, forward_v3);
+			for(s32 leafIndex = 0; leafIndex < tree.leafCountPerBud; ++leafIndex)
+			{
+				s32 l = leafIndex + bud.firstLeafIndex;
+				tree.leaves.localPositions[l] 	= bud.position;
 
-			tree.leaves.localPositions[bud.leafIndex[1]] 	= bud.position;
-			tree.leaves.localRotations[bud.leafIndex[1]] 	= bud.rotation * axis_angle_quaternion(rotate_v3(bud.rotation, up_v3), π);
-			tree.leaves.localScales[bud.leafIndex[1]] 		= bud.size;
-			tree.leaves.swayAxes[bud.leafIndex[1]] 			= rotate_v3(bud.rotation, forward_v3);
-		}
+				f32 angle 						= leafIndex * 2 * π / tree.leafCountPerBud;
+				quaternion rotation 			= bud.rotation * axis_angle_quaternion(rotate_v3(bud.rotation, up_v3), angle);
+				tree.leaves.localRotations[l] 	= rotation;
 
-		if (bud.hasLeaf)
-		{
-			FS_DEBUG_ALWAYS(debug_draw_circle_xy(bud.position + tree.position, 0.5, colour_bright_green));
-		}
-		else
-		{
-			FS_DEBUG_ALWAYS(debug_draw_circle_xy(bud.position + tree.position, 0.5, colour_bright_red));
+				tree.leaves.localScales[l] 		= clamp_f32(bud.age / tree.leafMaturationTime, 0, 1) * bud.size;
+				tree.leaves.swayAxes[l] 		= rotate_v3(rotation, forward_v3);
+			}
 		}
 	}
 }
@@ -364,25 +455,25 @@ void build_tree_3_mesh(Tree3 const & tree, Leaves & leaves, DynamicMesh & mesh)
 	*/
 
 
+	// Todo(Leo): make these dynamic based on radius of branch
 	constexpr s32 verticesInLoop = 6;
+	s32 vertexLoopsInNodeSection = 4;
+	f32 loopTStep = 1.0f / vertexLoopsInNodeSection;
+	s32 bottomSphereLoops 	= 2;
 
 	local_persist v3 baseVertexPositions[verticesInLoop] = {};
 	local_persist bool32 arraysInitialized = false;
 	if (arraysInitialized == false)
 	{
 		arraysInitialized = true;
-
 		f32 angleStep = 2 * π / verticesInLoop;
 
 		for (s32 i = 0; i < verticesInLoop; ++i)
 		{
-			// Note(Leo): this describes radius, so "size" in tree nodes describe diameter
-			baseVertexPositions[i].xy 	= rotate_v2({0.5f ,0}, i * angleStep);
+			baseVertexPositions[i].xy 	= rotate_v2({1 ,0}, i * angleStep);
 		}
 	}
 
-	s32 vertexLoopsInNodeSection = 4;
-	f32 loopTStep = 1.0f / vertexLoopsInNodeSection;
 
 	/* DOCUMENT (Leo):
 	1. generate first vertices outside of the loop
@@ -393,33 +484,27 @@ void build_tree_3_mesh(Tree3 const & tree, Leaves & leaves, DynamicMesh & mesh)
 
 	*/
 
-	for (s32 branchIndex = 0; branchIndex < tree.branchSections.count; ++branchIndex)
+	for (s32 branchIndex = 0; branchIndex < tree.branches.count; ++branchIndex)
 	{
-		Tree3Node const & startNode = tree.nodes[tree.branchSections[branchIndex].startNodeIndex];
-		Tree3Node const & endNode = tree.nodes[tree.branchSections[branchIndex].endNodeIndex];
+		Tree3Node const & startNode = tree.nodes[tree.branches[branchIndex].startNodeIndex];
+		Tree3Node const & endNode 	= tree.nodes[tree.branches[branchIndex].endNodeIndex];
 
 		/// BOTTOM DOME
 		{
+			Assert(mesh.vertices.has_room_for(bottomSphereLoops * verticesInLoop + 1));
+			Assert(mesh.indices.has_room_for((2 * bottomSphereLoops * verticesInLoop - 1) * 3));
+
 			v3 nodePosition 		= startNode.position;
 			quaternion nodeRotation = startNode.rotation;
-			f32 size 				= startNode.size;
+			f32 radius 				= startNode.radius;
 
-			f32 radius = size * 0.5f;
+			v3 downDirection 		= rotate_v3(nodeRotation, -up_v3);
 
-			v3 downDirection = rotate_v3(nodeRotation, -up_v3);
+			s32 bottomVertexIndex = mesh.vertices.count++;
+			mesh.vertices[bottomVertexIndex] = { .position = nodePosition + downDirection * radius };
 
-			s32 bottomVertexIndex = mesh.vertices.count;
-			mesh.vertices[mesh.vertices.count++] = { .position = nodePosition + downDirection * radius };
-
-			s32 bottomSphereLoops 	= 2;
 			f32 fullAngle 			= 0.5f * π;
 			f32 angleStep 			= fullAngle / bottomSphereLoops;
-
-			// Assert((mesh.vertices.count + bottomSphereLoops * verticesInLoop) <= mesh.vertexCapacity);
-			// Assert((mesh.indexCount + bottomSphereLoops * verticesInLoop * 6) <= mesh.indexCapacity);
-
-			Assert(mesh.vertices.has_room_for(bottomSphereLoops * verticesInLoop));
-			Assert(mesh.indices.has_room_for(bottomSphereLoops * verticesInLoop * 6));
 
 			for (s32 loopIndex = 0; loopIndex < bottomSphereLoops; ++loopIndex)
 			{
@@ -431,7 +516,7 @@ void build_tree_3_mesh(Tree3 const & tree, Leaves & leaves, DynamicMesh & mesh)
 
 				for (s32 i = 0; i < verticesInLoop; ++i)
 				{
-					v3 pos = rotate_v3(nodeRotation, baseVertexPositions[i]) * size * cos;
+					v3 pos = rotate_v3(nodeRotation, baseVertexPositions[i]) * radius * cos;
 					mesh.vertices[mesh.vertices.count++] = {.position = pos + nodePosition + downDirection * sin * radius};
 				}
 
@@ -466,8 +551,8 @@ void build_tree_3_mesh(Tree3 const & tree, Leaves & leaves, DynamicMesh & mesh)
 			f32 tangentScale 			= tree.tangentScale;
 
 			f32 maxTangentLength 		= magnitude_v3(startNode.position - endNode.position) / 3;
-			f32 previousTangentLength 	= min_f32(maxTangentLength, startNode.size * tangentScale);
-			f32 nextTangentLength 		= min_f32(maxTangentLength, endNode.size * tangentScale);
+			f32 previousTangentLength 	= min_f32(maxTangentLength, startNode.radius * tangentScale);
+			f32 nextTangentLength 		= min_f32(maxTangentLength, endNode.radius * tangentScale);
 
 			v3 bezier0 = startNode.position;
 			v3 bezier1 = startNode.position + previousTangentLength * rotate_v3(startNode.rotation, up_v3);
@@ -495,7 +580,7 @@ void build_tree_3_mesh(Tree3 const & tree, Leaves & leaves, DynamicMesh & mesh)
 			{
 				f32 t 				= (loopIndex + 1) * loopTStep;
 				v3 position 		= bezier_lerp_v3(t);
-				f32 size 			= lerp_f32(startNode.size, endNode.size, t);
+				f32 radius 			= lerp_f32(startNode.radius, endNode.radius, t);
 
 				// Todo(Leo): maybe bezier slerp this too, but let's not bother with that right now
 				quaternion rotation = slerp_quaternion(startNode.rotation, endNode.rotation, t);
@@ -504,8 +589,13 @@ void build_tree_3_mesh(Tree3 const & tree, Leaves & leaves, DynamicMesh & mesh)
 
 				for (s32 i = 0; i < verticesInLoop; ++i)
 				{
-					v3 vertexPosition = rotate_v3(rotation, baseVertexPositions[i] * size) + position;
+					v3 vertexPosition = rotate_v3(rotation, baseVertexPositions[i] * radius) + position;
 					mesh.vertices[mesh.vertices.count++] = {.position = vertexPosition};
+
+					if (i == 0)
+					{
+						logDebug(0) << vertexPosition;
+					}
 				}
 
 				for (s32 i = 0; i < verticesInLoop; ++i)
@@ -518,11 +608,98 @@ void build_tree_3_mesh(Tree3 const & tree, Leaves & leaves, DynamicMesh & mesh)
 					mesh.indices[mesh.indices.count++] = ((i + 1) % verticesInLoop) + verticesStartCount - verticesInLoop; 
 					mesh.indices[mesh.indices.count++] = ((i + 1) % verticesInLoop) + verticesStartCount; 
 				}
-
-				// mesh.vertices.count += verticesInLoop;
 			}
 		}
+	
+		/// TOP DOME
+		// if (tree.branches[branchIndex].dontGrowLength)
+		// if (false)
+		{
+			Assert(mesh.vertices.has_room_for(bottomSphereLoops * verticesInLoop + 1));
+			Assert(mesh.indices.has_room_for((2 * bottomSphereLoops * verticesInLoop - 1) * 3));
+
+			// v3 position 		= endNode.position;
+			quaternion rotation = endNode.rotation;
+			f32 radius 			= endNode.radius;
+
+			s32 vertexCountBefore 	= tree.mesh.vertices.count;
+			s32 baseVertexIndex 	= vertexCountBefore - verticesInLoop;
+
+			v3 topVertexPosition 	= endNode.position + rotate_v3(rotation, up_v3) * radius;
+
+			s32 topVertexIndex 		= mesh.vertices.count++;
+			mesh.vertices[topVertexIndex] = { .position = topVertexPosition };
+
+			logDebug(0) << endNode.position << ", " << startNode.position; 
+
+
+			for (s32 v = 0; v < verticesInLoop; ++v)
+			{
+				mesh.indices[mesh.indices.count++] = baseVertexIndex + v;
+				mesh.indices[mesh.indices.count++] = baseVertexIndex + ((v + 1) % verticesInLoop);
+				mesh.indices[mesh.indices.count++] = topVertexIndex;
+			}
+
+		// 	v3 nodePosition 		= endNode.position;
+		// 	quaternion nodeRotation = endNode.rotation;
+		// 	f32 radius 				= endNode.radius;
+
+		// 	v3 upDirection 			= rotate_v3(nodeRotation, up_v3);
+
+
+		// 	f32 fullAngle 			= 0.5f * π;
+		// 	f32 angleStep 			= fullAngle / bottomSphereLoops;
+
+		// 	s32 verticesStartCount = mesh.vertices.count;
+		// 	for (s32 loopIndex = 0; loopIndex < bottomSphereLoops; ++loopIndex)
+		// 	{
+		// 		f32 angle 	= loopIndex * angleStep;
+		// 		f32 sin 	= sine(angle);
+		// 		f32 cos 	= cosine(angle);
+
+
+		// 		for (s32 i = 0; i < verticesInLoop; ++i)
+		// 		{
+		// 			v3 pos = rotate_v3(nodeRotation, baseVertexPositions[i]) * radius * cos;
+		// 			mesh.vertices[mesh.vertices.count++] = {.position = pos + nodePosition + upDirection * sin * radius};
+		// 		}
+		// 	}
+
+		// 	s32 topVertexIndex = mesh.vertices.count++;
+		// 	mesh.vertices[topVertexIndex] = { .position = nodePosition + upDirection * radius };
+
+		// 	for (s32 loopIndex = 0; loopIndex < bottomSphereLoops; ++loopIndex)
+		// 	{
+		// 		if (loopIndex == bottomSphereLoops - 1)
+		// 		{
+		// 			for(s32 i = 0; i < verticesInLoop; ++i)
+		// 			{
+		// 				mesh.indices[mesh.indices.count++] = topVertexIndex;
+		// 				mesh.indices[mesh.indices.count++] = verticesStartCount + ((i + 1) % verticesInLoop);
+		// 				mesh.indices[mesh.indices.count++] = verticesStartCount + i;
+		// 			}
+		// 		}
+		// 		else
+		// 		{
+		// 			for (s32 i = 0; i < verticesInLoop; ++i)
+		// 			{
+		// 				mesh.indices[mesh.indices.count++] = i + verticesStartCount - verticesInLoop;
+		// 				mesh.indices[mesh.indices.count++] = i + verticesStartCount;
+		// 				mesh.indices[mesh.indices.count++] = ((i + 1) % verticesInLoop) + verticesStartCount - verticesInLoop;
+
+		// 				mesh.indices[mesh.indices.count++] = i + verticesStartCount;
+		// 				mesh.indices[mesh.indices.count++] = ((i + 1) % verticesInLoop) + verticesStartCount;
+		// 				mesh.indices[mesh.indices.count++] = ((i + 1) % verticesInLoop) + verticesStartCount - verticesInLoop;
+		// 			}
+		// 		}
+			
+		// 		verticesStartCount += verticesInLoop;
+		// 	}
+		}
+
 	}
+
+
 
 	mesh_generate_normals(mesh.vertices.count, mesh.vertices.memory, mesh.indices.count, mesh.indices.memory);
 	// mesh_generate_tangents(mesh.vertexCount, mesh.vertices, mesh.indexCount, mesh.indices);
@@ -530,67 +707,32 @@ void build_tree_3_mesh(Tree3 const & tree, Leaves & leaves, DynamicMesh & mesh)
 
 internal void reset_test_tree3(Tree3 & tree)
 {
+	// Note(Leo): arrays are initialized to 0
 	clear_array_2(tree.nodes);
 	clear_array_2(tree.buds);
-	clear_array_2(tree.branchSections);
-
-	tree.nodes.count = 2;
-	tree.nodes[0] = 
-	{
-		.position 	= {0,0,0},
-		.rotation 	= identity_quaternion,
-		.size 		= 0.05,
-		.age 		= 0.1,
-		.type 		= TREE_NODE_STEM,
-	};
-
-	tree.nodes[1] = 
-	{
-		.position 	= {0,0,0},
-		.rotation 	= identity_quaternion,
-		.size 		= 0.01,
-		.age 		= 0,
-		.type 		= TREE_NODE_APEX,
-	};
-
-	tree.branchSections.count = 1;
-	tree.branchSections[0].startNodeIndex = 0;
-	tree.branchSections[0].endNodeIndex = 1;
-	tree.branchSections[0].childBranchCount 		= 0;
-	tree.branchSections[0].parentBranchSectionIndex = -1;
-	tree.branchSections[0].nextBudPosition 			= tree.budInterval;
-	tree.branchSections[0].nextBudRotation 			= identity_quaternion;
-	tree.branchSections[0].budIndex 				= 0;
+	clear_array_2(tree.branches);
 
 	flush_leaves(tree.leaves);
 	flush_dynamic_mesh(tree.mesh);
 
-	// tree.buds.count			= 1;
-	// tree.leaves.count 		= 2;
-
-	Tree3Bud & bud = tree.buds[tree.buds.count++];
-
-	tree.buds[0].hasLeaf 					= true;
-	tree.buds[0].leafIndex[0] 				= tree.leaves.count++;
-	tree.buds[0].leafIndex[1] 				= tree.leaves.count++;
-	tree.buds[0].age 						= 0;
-	tree.buds[0].distanceFromStartNode 		= 0;
-	tree.buds[0].parentBranchSectionIndex 	= 0;
-	tree.buds[0].position 					= {};
-	tree.buds[0].rotation 					= identity_quaternion;
-	tree.buds[0].size 						= 0;
+	tree_3_add_branch(tree, -1, {0,0,0}, identity_quaternion, 0);
 
 	build_tree_3_mesh(tree, tree.leaves, tree.mesh);
 }
 
 internal void initialize_test_tree_3(MemoryArena & allocator, Tree3 & tree, v3 position)
 {
-	tree.nodes 			= push_array_2<Tree3Node>(allocator, 1000, ALLOC_CLEAR);
-	tree.buds 			= push_array_2<Tree3Bud>(allocator, 1000, ALLOC_CLEAR);
-	tree.branchSections = push_array_2<Tree3BranchSection>(allocator, 1000, ALLOC_CLEAR);
+	tree.nodes 		= push_array_2<Tree3Node>(allocator, 1000, ALLOC_CLEAR);
+	tree.buds 		= push_array_2<Tree3Bud>(allocator, 1000, ALLOC_CLEAR);
+	tree.branches 	= push_array_2<Tree3Branch>(allocator, 1000, ALLOC_CLEAR);
+	tree.leaves 	= make_leaves(allocator, 4000);
 
-	tree.leaves = make_leaves(allocator, 4000);
-	tree.mesh 	= push_dynamic_mesh(allocator, 5000, 10000);
+
+	f32 usedPercentBefore = used_percent(allocator);
+	tree.mesh 	= push_dynamic_mesh(allocator, 10000, 40000);
+	f32 usedPercentAfter = used_percent(allocator);
+
+	logDebug(0) << "Tree used " << (usedPercentAfter - usedPercentBefore) << "% of persistent memory";
 
 	reset_test_tree3(tree);
 
@@ -600,6 +742,7 @@ internal void initialize_test_tree_3(MemoryArena & allocator, Tree3 & tree, v3 p
 internal void tree_gui(Tree3 & tree)
 {
 	gui_toggle("Enable Updates", &tree.enabled);
+	gui_toggle("Draw Gizmos", &tree.drawGizmos);
 	gui_float_field("Grow Speed Scale", &tree.growSpeedScale);
 
 	if (gui_button("Reset tree"))
@@ -622,11 +765,23 @@ internal void tree_gui(Tree3 & tree)
 
 	gui_float_field("Bud Angle", &tree.budAngle, {.min = 0, .max = 2*π});
 	gui_float_slider("Bud Angle Randomness", &tree.budAngleRandomness, 0, 1);
+	gui_float_field("Branch Max Age", &tree.branchMaxAge, {.min = 1});
+
+	gui_float_field("Leaf Maturation Time", &tree.leafMaturationTime, {.min = 0});
+	gui_float_slider("Apex Branching Probability", &tree.apexBranchingProbability, 0, 1);
 
 	gui_line();
 
-	f32 budCount = tree.buds.count;
-	gui_float_field("Bud Count", &budCount);
+	f32 budCount 	= tree.buds.count;
+	f32 vertexCount = tree.mesh.vertices.count;
+	f32 indexCount 	= tree.mesh.indices.count;
+	f32 leafCount 	= tree.leaves.count;
+
+	gui_text("STATS");
+	gui_float_field("Buds", &budCount);
+	gui_float_field("Vertices", &vertexCount);
+	gui_float_field("Indices", &indexCount);
+	gui_float_field("Leaves", &leafCount);
 
 	gui_line();
 
@@ -640,27 +795,30 @@ internal void update_tree_3(Tree3 & tree, f32 elapsedTime)
 		tree.breakOnUpdate = false;
 	}
 
-
 	if (tree.enabled)
 	{
 		grow_tree_3(tree, elapsedTime);
-
-		// flush_leaves(tree.leaves);
 		flush_dynamic_mesh(tree.mesh);
-
 		build_tree_3_mesh(tree, tree.leaves, tree.mesh);
 	}
 
+	if (tree.drawGizmos)
+	{
+		for (auto const & branch : tree.branches)
+		{
+			FS_DEBUG_ALWAYS(debug_draw_circle_xy(tree.nodes[branch.endNodeIndex].position + tree.position, 0.6, colour_bright_yellow));
+		}
 
-	// for(s32 b = 0; b < tree.branchCount; ++b)
-	// {
-	// 	// Tree3Branch & branch = tree.branches[b];
-	// 	for (s32 n = 0; n < tree.nodeCount; ++n)
-	// 	{
-	// 		v3 position = branch.nodes[n].position + tree.position;
-	// 		debug_draw_circle_xy(position, 0.2f, colour_bright_green, DEBUG_LEVEL_ALWAYS);
-
-	// 		logDebug(0) << b << ";" << n << ": " << position;
-	// 	}
-	// // }
+		// for (auto const & bud : tree.buds)
+		// {
+		// 	if (bud.hasLeaf)
+		// 	{
+		// 		FS_DEBUG_ALWAYS(debug_draw_circle_xy(bud.position + tree.position, 0.5, colour_bright_green));
+		// 	}
+		// 	else
+		// 	{
+		// 		FS_DEBUG_ALWAYS(debug_draw_circle_xy(bud.position + tree.position, 0.5, colour_bright_red));
+		// 	}
+		// }
+	}
 }

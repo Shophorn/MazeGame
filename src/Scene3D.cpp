@@ -14,7 +14,8 @@ Scene description for 3d development scene
 
 #include "metaballs.cpp"
 
-
+#include "array2.cpp"
+#include "dynamic_mesh.cpp"
 #include "Trees3.cpp"
 #include "settings.cpp"
 
@@ -76,21 +77,9 @@ enum MenuView : s32
 	MENU_SAVE_COMPLETE,
 };
 
-
-template<typename ... TArgs>
-internal void file_write_format(PlatformFileHandle file, TArgs ... args)
-{
-	// Todo(Leo): check that this buffer is enough
-	char buffer [256] = {};
-	String string {0, buffer};
-	string_append_format(string, sizeof(buffer), args...);
-	platformApi->write_file(file, string.length, string.memory);
-}
-
 struct Scene3d
 {
-	// SerializedSettings settings;
-	Settings BETTER_settings;
+	SkySettings skySettings;
 
 	// ---------------------------------------
 
@@ -284,7 +273,7 @@ struct Scene3d
 	constexpr static s32 	timeScaleCount = 3;
 	s32 					timeScaleIndex;
 
-	Tree3   	testTree;
+	Tree3   testTree;
 };
 
 internal void read_settings_file(Scene3d * scene)
@@ -310,7 +299,7 @@ internal void read_settings_file(Scene3d * scene)
 
 		if (string_equals(identifier, "settings"))
 		{
-			deserialize_properties(scene->BETTER_settings, string_extract_until_character(fileAsString, ']'));
+			deserialize_properties(scene->skySettings, string_extract_until_character(fileAsString, ']'));
 		}
 		else if (string_equals(identifier, "testTree"))
 		{
@@ -342,7 +331,7 @@ internal void write_settings_file(Scene3d * scene)
 	};
 
 	serialize("testTree", scene->testTree);
-	serialize("settings", scene->BETTER_settings);
+	serialize("settings", scene->skySettings);
 
 
 	platformApi->close_file(file);
@@ -608,8 +597,8 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 	{
 		v3 lightDirection = {0,0,1};
-		lightDirection = rotate_v3(axis_angle_quaternion(right_v3, scene->BETTER_settings.sunHeightAngle * π), lightDirection);
-		lightDirection = rotate_v3(axis_angle_quaternion(up_v3, scene->BETTER_settings.sunOrbitAngle * 2 * π), lightDirection);
+		lightDirection = rotate_v3(axis_angle_quaternion(right_v3, scene->skySettings.sunHeightAngle * π), lightDirection);
+		lightDirection = rotate_v3(axis_angle_quaternion(up_v3, scene->skySettings.sunOrbitAngle * 2 * π), lightDirection);
 		lightDirection = normalize_v3(-lightDirection);
 
 		Light light = { .direction 	= lightDirection, //normalize_v3({-1, 1.2, -8}), 
@@ -643,27 +632,27 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 		}
 		else
 		{
-			light.skyColorSelection = scene->BETTER_settings.skyColourSelection;
+			light.skyColorSelection = scene->skySettings.skyColourSelection;
 		}
 
-		light.skyBottomColor.rgb 	= scene->BETTER_settings.skyGradientBottom;
-		light.skyTopColor.rgb 		= scene->BETTER_settings.skyGradientTop;
+		light.skyBottomColor.rgb 	= scene->skySettings.skyGradientBottom;
+		light.skyTopColor.rgb 		= scene->skySettings.skyGradientTop;
 
-		light.horizonHaloColorAndFalloff.rgb 	= scene->BETTER_settings.horizonHaloColour;
-		light.horizonHaloColorAndFalloff.a 		= scene->BETTER_settings.horizonHaloFalloff;
+		light.horizonHaloColorAndFalloff.rgb 	= scene->skySettings.horizonHaloColour;
+		light.horizonHaloColorAndFalloff.a 		= scene->skySettings.horizonHaloFalloff;
 
-		light.sunHaloColorAndFalloff.rgb 	= scene->BETTER_settings.sunHaloColour;
-		light.sunHaloColorAndFalloff.a 		= scene->BETTER_settings.sunHaloFalloff;
+		light.sunHaloColorAndFalloff.rgb 	= scene->skySettings.sunHaloColour;
+		light.sunHaloColorAndFalloff.a 		= scene->skySettings.sunHaloFalloff;
 
-		light.sunDiscColor.rgb 			= scene->BETTER_settings.sunDiscColour;
-		light.sunDiscSizeAndFalloff.xy 	= {	scene->BETTER_settings.sunDiscSize,
-											scene->BETTER_settings.sunDiscFalloff };
+		light.sunDiscColor.rgb 			= scene->skySettings.sunDiscColour;
+		light.sunDiscSizeAndFalloff.xy 	= {	scene->skySettings.sunDiscSize,
+											scene->skySettings.sunDiscFalloff };
 
 		platformApi->update_lighting(platformGraphics, &light, &scene->worldCamera, ambient);
 		HdrSettings hdrSettings = 
 		{
-			scene->BETTER_settings.hdrExposure,
-			scene->BETTER_settings.hdrContrast,
+			scene->skySettings.hdrExposure,
+			scene->skySettings.hdrContrast,
 		};
 		platformApi->update_hdr_settings(platformGraphics, &hdrSettings);
 	}
@@ -1496,7 +1485,6 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 	{
 		update_tree_3(scene->testTree, scaledTime);
 	
-
 		m44 transform = translation_matrix(scene->testTree.position);
 
 		scene->testTree.leaves.position = scene->testTree.position;
@@ -1562,16 +1550,10 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 		file_read_struct(saveFile, &save);
 	}
 
-	// void * scenePtr = allocate(persistentMemory, sizeof(Scene3d), 0);
-	// Scene3d * scene = reinterpret_cast<Scene3d*>(scenePtr);
-
 	Scene3d * scene = push_memory<Scene3d>(persistentMemory, 1, ALLOC_CLEAR);
 	*scene 			= {};
 
-	// scene->settings 					= init_settings();
-	// scene->settings.testTree.value_tree = &scene->testTree;
 	read_settings_file(scene);
-
 
 	// ----------------------------------------------------------------------------------
 
@@ -2465,11 +2447,12 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 	// ----------------------------------------------------------------------------------
 	
 	{		
-		v3 position = {5,5, get_terrain_height(scene->collisionSystem, {5,5})};
+		v3 position = {-10, 10, get_terrain_height(scene->collisionSystem, {-10, 10})};
 		position.z += 2;
 
 		initialize_test_tree_3(persistentMemory, scene->testTree, position);
-		scene->testTree.leaves.material = leavesMaterial;
+		scene->testTree.leaves.material 	= leavesMaterial;
+		scene->testTree.leaves.colourIndex 	= 2;
 
 		build_tree_3_mesh(scene->testTree, scene->testTree.leaves, scene->testTree.mesh);
 	}

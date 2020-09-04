@@ -267,41 +267,13 @@ bool32 do_gui(Scene3d * scene, PlatformInput const & input)
 
 		case MENU_EDIT_SKY:
 		{
+			SkySettings & settings = scene->skySettings;
+
 			gui_position(cornerPosition);
 
 			gui_start_panel("EDIT SKY", menuColor);
 
-			gui_float_slider("Sky Color", &scene->BETTER_settings.skyColourSelection, 0,1);
-			gui_toggle("Color From Tree Distance", &scene->getSkyColorFromTreeDistance);
-
-			gui_float_slider("Sun Height Angle", &scene->BETTER_settings.sunHeightAngle, -1, 1);
-			gui_float_slider("Sun Orbit Angle", &scene->BETTER_settings.sunOrbitAngle, 0, 1);
-
-			gui_line();
-
-			gui_color_rgb("Sky Gradient Bottom", &scene->BETTER_settings.skyGradientBottom, GUI_COLOR_FLAGS_HDR);
-			gui_color_rgb("Sky Gradient Top", &scene->BETTER_settings.skyGradientTop, GUI_COLOR_FLAGS_HDR);
-
-			gui_line();
-
-			gui_color_rgb("Horizon Halo Color", &scene->BETTER_settings.horizonHaloColour, GUI_COLOR_FLAGS_HDR);
-			gui_float_slider("Horizon Halo Falloff", &scene->BETTER_settings.horizonHaloFalloff, 0.0001, 1);
-
-			gui_line();
-
-			gui_color_rgb("Sun Halo Color", &scene->BETTER_settings.sunHaloColour, GUI_COLOR_FLAGS_HDR);
-			gui_float_slider("Sun Halo Falloff", &scene->BETTER_settings.sunHaloFalloff, 0.0001, 1);
-
-			gui_line();
-
-			gui_color_rgb("Sun Disc Color", &scene->BETTER_settings.sunDiscColour, GUI_COLOR_FLAGS_HDR);
-			gui_float_slider("Sun Disc Size", &scene->BETTER_settings.sunDiscSize, 0, 0.01);
-			gui_float_slider("Sun Disc Falloff", &scene->BETTER_settings.sunDiscFalloff, 0, 1);
-
-			gui_line();
-
-			gui_float_slider("HDR Exposure", &scene->BETTER_settings.hdrExposure, 0.1, 10);
-			gui_float_slider("HDR Contrast", &scene->BETTER_settings.hdrContrast, -1, 1);
+			sky_gui(scene->skySettings);
 
 			gui_line();
 

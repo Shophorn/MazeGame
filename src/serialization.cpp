@@ -1,3 +1,12 @@
+/*
+Leo Tamminen
+
+Serialization meta function helper things
+
+Inspired by:
+https://eliasdaler.github.io/meta-stuff/
+*/
+
 template<typename TStruct, typename TProp>
 struct SerializedMemberProperty
 {

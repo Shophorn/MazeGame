@@ -1,29 +1,31 @@
 testTree = 
 [
-	maxHeight = 7.423090
-	growSpeedScale = 1.008008
-	tangentScale = 89.00900
+	maxHeight = 15.92057
+	growSpeedScale = 0.288333
+	tangentScale = 17.92717
 	areaGrowthSpeed = 0.059906
-	lengthGrowthSpeed = 2.030304
-	maxHeightToWidthRatio = 20.00000
-	budInterval = 5.931884
-	budIntervalRandomness = 1.008008
+	lengthGrowthSpeed = 2.048389
+	maxHeightToWidthRatio = 41.54451
+	budInterval = 0.587787
+	budIntervalRandomness = 0.318480
 	budTerminalDistanceFromApex = 1.008008
-	budAngle = 2.069000
-	budAngleRandomness = 0.100000
+	budAngle = 1.601104
+	budAngleRandomness = 0.166026
+	leafMaturationTime = 1.200000
+	apexBranchingProbability = 0.183858
 ]
 
 settings = 
 [
 	sunHeightAngle = -0.078777
 	sunOrbitAngle = 0.335789
-	skyColourSelection = 1.009000
-	hdrExposure = 2.705946
-	hdrContrast = 0.402983
+	skyColourSelection = 0.000000
+	hdrExposure = 1.473387
+	hdrContrast = 0.197874
 	horizonHaloFalloff = 0.129695
 	sunHaloFalloff = 0.245150
 	sunDiscSize = 0.002249
-	sunDiscFalloff = 1.009000
+	sunDiscFalloff = 1.008008
 	skyGradientBottom = 0.000000, 0.145990, 0.769999
 	skyGradientTop = 0.000000, 0.000000, 0.739966
 	horizonHaloColour = 0.900000, 0.900000, 0.900000
