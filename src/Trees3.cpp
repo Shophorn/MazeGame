@@ -80,7 +80,11 @@ struct Tree3Settings
 	s32 leafCountPerBud 	= 3;
 	v2 leafSize 			= {1,1};
 
-	f32 seedDrawSizeThreshold = 1;
+	f32 seedDrawSizeThreshold 	= 1;
+
+	f32 waterDrainSpeed 		= 1;
+	f32 waterUsageSpeed 		= 0.5;
+	f32 waterReservoirCapacity 	= 10;
 
 	static constexpr auto serializedProperties = make_property_list
 	(	
@@ -102,7 +106,10 @@ struct Tree3Settings
 		SERIALIZE(leafColourIndex),
 		SERIALIZE(leafCountPerBud),
 		SERIALIZE(seedDrawSizeThreshold),
-		SERIALIZE(leafSize)
+		SERIALIZE(leafSize),
+		SERIALIZE(waterDrainSpeed),
+		SERIALIZE(waterUsageSpeed),
+		SERIALIZE(waterReservoirCapacity)
 
 		#undef SERIALIZE
 	);
@@ -120,6 +127,8 @@ struct Tree3
 	MeshHandle 		seedMesh;
 	MaterialHandle 	seedMaterial;
 
+	f32 waterReservoir = 0;
+
 	v3 position;
 	// Todo(Leo): this is not used yet, make it so that it is
 	// quaternion rotation;
@@ -130,11 +139,14 @@ struct Tree3
 	bool32 drawGizmos;
 	bool32 breakOnUpdate;
 
+	static bool32 globalEnabled;
+
 	bool32 resourceLimitReached 	= false;
 	f32 resourceLimitThresholdValue = 0.8;
 
 	Tree3Settings * settings;
 };
+bool32 Tree3::globalEnabled = false;
 
 internal void tree_3_add_branch(Tree3 & tree, s64 parentBranchIndex, v3 position, quaternion rotation, f32 distanceFromParentStartNode)
 {
@@ -185,9 +197,26 @@ internal void tree_3_add_branch(Tree3 & tree, s64 parentBranchIndex, v3 position
 }
 
 
-internal void grow_tree_3(Tree3 & tree, f32 elapsedTime)
+internal void grow_tree_3(Tree3 & tree, f32 elapsedTime, GetWaterFunc & get_water)
 {
 	elapsedTime *= tree.settings->growSpeedScale;
+
+	f32 waterCapacityAvailable 	= tree.settings->waterReservoirCapacity - tree.waterReservoir; 
+	f32 waterDrain 				= min_f32(waterCapacityAvailable, tree.settings->waterDrainSpeed * elapsedTime);
+	tree.waterReservoir 		+= get_water(tree.position, waterDrain);
+	
+	tree.waterReservoir         -= tree.settings->waterUsageSpeed * elapsedTime;
+	tree.waterReservoir 		= clamp_f32(tree.waterReservoir, 0, tree.settings->waterReservoirCapacity);
+
+
+	f32 waterGrowthFactor;
+	{
+		waterGrowthFactor = clamp_f32(tree.waterReservoir / tree.settings->waterReservoirCapacity, 0, 1);
+		waterGrowthFactor = pow_f32(waterGrowthFactor, 0.5);
+		// waterGrowthFactor = waterGrowthFactor * waterGrowthFactor;
+		// waterGrowthFactor *= -1;
+		// waterGrowthFactor += 1;
+	}
 
 	s32 branchCountBefore = tree.branches.count;
 	for (s32 branchIndex = 0; branchIndex < branchCountBefore; ++branchIndex)
@@ -197,6 +226,7 @@ internal void grow_tree_3(Tree3 & tree, f32 elapsedTime)
 		Tree3Node & startNode 	= tree.nodes[branch.startNodeIndex];
 		Tree3Node & endNode 	= tree.nodes[branch.endNodeIndex];
 
+		// GROW WIDTH
 		{
 			f32 maxRadius = highest_f32;
 
@@ -216,13 +246,13 @@ internal void grow_tree_3(Tree3 & tree, f32 elapsedTime)
 
 			if (startNode.radius < maxRadius)
 			{
-				f32 growthAmount 	= tree.settings->areaGrowthSpeed / π * elapsedTime;
+				f32 growthAmount 	= tree.settings->areaGrowthSpeed / π * elapsedTime * waterGrowthFactor;
 				startNode.radius 	= square_root_f32(startNode.radius * startNode.radius + growthAmount);
 			}
 
 			if (branch.dontGrowLength && endNode.radius < maxRadius)
 			{
-				f32 growthAmount 	= tree.settings->areaGrowthSpeed / π * elapsedTime;
+				f32 growthAmount 	= tree.settings->areaGrowthSpeed / π * elapsedTime * waterGrowthFactor;
 				endNode.radius 	= square_root_f32(endNode.radius * endNode.radius + growthAmount);
 			}
 		}
@@ -236,6 +266,7 @@ internal void grow_tree_3(Tree3 & tree, f32 elapsedTime)
 			f32 hwRatio 			= distanceFromStart / startNode.radius;
 			f32 hwFactor 			= clamp_f32(1 - (hwRatio / tree.settings->maxHeightToWidthRatio), 0, 1);
 			f32 growFactor  		= hFactor * hwFactor * tree.settings->lengthGrowthSpeed * elapsedTime;
+			growFactor 				*= waterGrowthFactor;
 
 			v3 direction 			= rotate_v3(endNode.rotation, up_v3);
 			endNode.position 		+= direction * growFactor;
@@ -624,6 +655,8 @@ internal void reset_test_tree3(Tree3 & tree)
 
 	tree.resourceLimitReached 	= false;
 	tree.drawSeed 				= true;
+	tree.waterReservoir 		= 0;
+	tree.enabled 				= true;
 
 	build_tree_3_mesh(tree);
 }
@@ -646,6 +679,7 @@ internal void initialize_test_tree_3(MemoryArena & allocator, Tree3 & tree, v3 p
 
 internal void tree_gui(Tree3 & tree)
 {
+	gui_toggle("Global Enable", &Tree3::globalEnabled);
 	gui_toggle("Enable Updates", &tree.enabled);
 	gui_toggle("Draw Gizmos", &tree.drawGizmos);
 	gui_float_field("Grow Speed Scale", &tree.settings->growSpeedScale);
@@ -681,6 +715,10 @@ internal void tree_gui(Tree3 & tree)
 	gui_int_field("Leaf Count Per Bud", &tree.settings->leafCountPerBud, {.min = 0});
 	gui_vector_2_field("Leaf Size", &tree.settings->leafSize, {.min = {0,0}});
 
+	gui_float_field("Water Drain Speed", &tree.settings->waterDrainSpeed, {.min= 0});
+	gui_float_field("Water Usage Speed", &tree.settings->waterUsageSpeed, {.min= 0});
+	gui_float_field("Water Reservoir Capacity", &tree.settings->waterReservoirCapacity, {.min= 0});
+
 	gui_line();
 
 	s32 budCount 				= tree.buds.count;
@@ -696,21 +734,25 @@ internal void tree_gui(Tree3 & tree)
 	gui_int_field("Leaves", &leafCount);
 	gui_toggle("Resources reached", &resourceLimitReached);
 
+	f32 waterReservoir = tree.waterReservoir;
+	gui_float_field("Water", &waterReservoir);
+
+
 	gui_line();
 
 	gui_toggle("Break On Update", &tree.breakOnUpdate);
 }
 
-internal void update_tree_3(Tree3 & tree, f32 elapsedTime)
+internal void update_tree_3(Tree3 & tree, f32 elapsedTime, GetWaterFunc & get_water)
 {
 	if (tree.breakOnUpdate)
 	{
 		tree.breakOnUpdate = false;
 	}
 
-	if (tree.enabled && !tree.resourceLimitReached && !tree.isCarried)
+	if (Tree3::globalEnabled && tree.enabled && !tree.resourceLimitReached && !tree.isCarried)
 	{
-		grow_tree_3(tree, elapsedTime);
+		grow_tree_3(tree, elapsedTime, get_water);
 		build_tree_3_mesh(tree);
 	}
 

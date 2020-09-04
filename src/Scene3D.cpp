@@ -17,6 +17,53 @@ Scene description for 3d development scene
 #include "array2.cpp"
 #include "experimental.cpp"
 
+
+struct GetWaterFunc
+{
+	Waters & 	waters;
+	s32 		carriedItemIndex;
+	bool32 		waterIsCarried;
+
+	f32 operator()(v3 position, f32 requestedAmount)
+	{
+		s32 closestIndex;
+		f32 closestDistance = highest_f32;
+
+		for (s32 i = 0; i < waters.count; ++i)
+		{
+			if (carriedItemIndex == i && waterIsCarried)
+			{
+				continue;
+			}
+
+			f32 distance = magnitude_v3(waters.transforms[i].position - position);
+			if (distance < closestDistance)
+			{
+				closestDistance = distance;
+				closestIndex 	= i;
+			}
+		}
+
+		f32 amount 				= 0;
+		f32 distanceThreshold	= 1;
+
+		if (closestDistance < distanceThreshold)
+		{
+			waters.levels[closestIndex] -= requestedAmount;
+			if (waters.levels[closestIndex] < 0)
+			{
+				waters.count -= 1;
+				waters.transforms[closestIndex] 	= waters.transforms[waters.count];
+				waters.levels[closestIndex] 		= waters.levels[waters.count];
+			}
+
+			amount = requestedAmount;
+		}
+
+		return amount;
+	};
+};
+
 #include "dynamic_mesh.cpp"
 #include "Trees3.cpp"
 #include "settings.cpp"
@@ -480,7 +527,7 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 			}
 		}
 
-		float amount = 0;
+		f32 amount = 0;
 
 		if (closestDistance < distanceThreshold)
 		{
@@ -503,6 +550,11 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 		amount = min_f32(amount, potWaterLevels[index]);
 		potWaterLevels[index] -= amount;
 		return amount;
+	};
+
+	auto simple_get_water = [get_water, &waters = scene->waters] (v3 position, f32 amount) ->f32
+	{
+		return get_water(waters, position, 1.0f, amount);
 	};
 
 	SnapOnGround snap_on_ground = {scene->collisionSystem};
@@ -1310,7 +1362,8 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 	for (auto & tree : scene->trees)
 	{
-		update_tree_3(tree, scaledTime);
+		GetWaterFunc get_water = {scene->waters, scene->carriedItemIndex, scene->playerCarryState == CARRY_WATER };
+		update_tree_3(tree, scaledTime, get_water);
 		
 		tree.leaves.position = tree.position;
 		tree.leaves.rotation = identity_quaternion;

@@ -8,7 +8,7 @@ sky =
 	horizonHaloFalloff = 0.129695
 	sunHaloFalloff = 0.245150
 	sunDiscSize = 0.002249
-	sunDiscFalloff = 1.009000
+	sunDiscFalloff = 1.008008
 	skyGradientBottom = 0.000000, 0.145990, 0.769999
 	skyGradientTop = 0.000000, 0.000000, 0.739966
 	horizonHaloColour = 0.900000, 0.900000, 0.900000
@@ -34,7 +34,10 @@ tree_0 =
 	leafColourIndex = 1
 	leafCountPerBud = 3
 	seedDrawSizeThreshold = 1.008008
-	leafSize = 0.877918, 0.865639
+	leafSize = 0.877916, 0.865639
+	waterDrainSpeed = 0.609000
+	waterUsageSpeed = 0.068809
+	waterReservoirCapacity = 10.47868
 ]
 
 tree_1 = 
@@ -50,11 +53,14 @@ tree_1 =
 	budTerminalDistanceFromApex = 1.008008
 	budAngle = 2.373886
 	budAngleRandomness = 0.353730
-	leafMaturationTime = 1.200000
+	leafMaturationTime = 0.993222
 	apexBranchingProbability = 0.306092
 	leafColourIndex = 2
 	leafCountPerBud = 3
 	seedDrawSizeThreshold = 1.008008
-	leafSize = 1.008009, 1.008009
+	leafSize = 0.702146, 0.632694
+	waterDrainSpeed = 0.609000
+	waterUsageSpeed = 0.069000
+	waterReservoirCapacity = 10.00000
 ]
 
