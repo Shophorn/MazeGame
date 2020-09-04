@@ -44,7 +44,7 @@ internal Leaves make_leaves(MemoryArena & allocator, s32 capacity)
 	return leaves;
 }
 
-internal void draw_leaves(Leaves & leaves, f32 elapsedTime)
+internal void draw_leaves(Leaves & leaves, f32 elapsedTime, v2 leafScale = {1,1})
 {
 	s32 drawCount = min_f32(leaves.capacity, leaves.count);
 
@@ -59,7 +59,9 @@ internal void draw_leaves(Leaves & leaves, f32 elapsedTime)
 		quaternion rotation 	= axis_angle_quaternion(leaves.swayAxes[i], sway);
 		rotation 				= leaves.localRotations[i] * leaves.rotation * rotation;
 
-		v3 scale 				= make_uniform_v3(leaves.localScales[i]);
+		v3 scale 	= make_uniform_v3(leaves.localScales[i]);
+		scale.x 	*= leafScale.x;
+		scale.y 	*= leafScale.y;
 
 		leafTransforms[i] 		= transform_matrix(	position, rotation,	scale);
 	}

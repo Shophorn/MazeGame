@@ -1,9 +1,27 @@
+sky = 
+[
+	sunHeightAngle = -0.07877
+	sunOrbitAngle = 0.335789
+	skyColourSelection = 0.000000
+	hdrExposure = 1.473387
+	hdrContrast = 0.197874
+	horizonHaloFalloff = 0.129695
+	sunHaloFalloff = 0.245150
+	sunDiscSize = 0.002249
+	sunDiscFalloff = 1.009000
+	skyGradientBottom = 0.000000, 0.145990, 0.769999
+	skyGradientTop = 0.000000, 0.000000, 0.739966
+	horizonHaloColour = 0.900000, 0.900000, 0.900000
+	sunHaloColour = 1.609157, 1.972833, 0.967364
+	sunDiscColour = 0.000000, 0.000000, 5.000000
+]
+
 tree_0 = 
 [
 	maxHeight = 30.54009
-	growSpeedScale = 0.719208
+	growSpeedScale = 0.719206
 	tangentScale = 17.92717
-	areaGrowthSpeed = 0.010853
+	areaGrowthSpeed = 0.010851
 	lengthGrowthSpeed = 2.048389
 	maxHeightToWidthRatio = 41.54451
 	budInterval = 0.587787
@@ -13,14 +31,18 @@ tree_0 =
 	budAngleRandomness = 0.353730
 	leafMaturationTime = 1.200000
 	apexBranchingProbability = 0.000000
+	leafColourIndex = 1
+	leafCountPerBud = 3
+	seedDrawSizeThreshold = 1.008008
+	leafSize = 0.877918, 0.865639
 ]
 
 tree_1 = 
 [
 	maxHeight = 30.54009
-	growSpeedScale = 0.719208
+	growSpeedScale = 0.719206
 	tangentScale = 17.92717
-	areaGrowthSpeed = 0.010853
+	areaGrowthSpeed = 0.010851
 	lengthGrowthSpeed = 2.048389
 	maxHeightToWidthRatio = 41.54451
 	budInterval = 0.587787
@@ -30,23 +52,9 @@ tree_1 =
 	budAngleRandomness = 0.353730
 	leafMaturationTime = 1.200000
 	apexBranchingProbability = 0.306092
-]
-
-settings = 
-[
-	sunHeightAngle = -0.078777
-	sunOrbitAngle = 0.335789
-	skyColourSelection = 0.000000
-	hdrExposure = 1.473387
-	hdrContrast = 0.197874
-	horizonHaloFalloff = 0.129695
-	sunHaloFalloff = 0.245150
-	sunDiscSize = 0.002249
-	sunDiscFalloff = 1.008008
-	skyGradientBottom = 0.000000, 0.145990, 0.769999
-	skyGradientTop = 0.000000, 0.000000, 0.739966
-	horizonHaloColour = 0.900000, 0.900000, 0.900000
-	sunHaloColour = 1.609157, 1.972833, 0.967364
-	sunDiscColour = 0.000000, 0.000000, 5.000000
+	leafColourIndex = 2
+	leafCountPerBud = 3
+	seedDrawSizeThreshold = 1.008008
+	leafSize = 1.008009, 1.008009
 ]
 

@@ -95,10 +95,10 @@ s32 max_s32(s32 a, s32 b)
     return (a > b) ? a : b;
 }
 
-internal s32 clamp_s32(s32 value, s32 inclusiveMin, s32 exclusiveMax)
+internal s32 clamp_s32(s32 value, s32 minValue, s32 maxValue)
 {
-    value = max_s32(value, inclusiveMin);
-    value = min_s32(value, exclusiveMax - 1);
+    value = max_s32(value, minValue);
+    value = min_s32(value, maxValue);
     return value;
 }
 

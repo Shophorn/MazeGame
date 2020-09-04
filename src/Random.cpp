@@ -55,6 +55,16 @@ internal v3 random_inside_unit_square()
 	return result;
 }
 
+internal v3 random_on_unit_circle_xy()
+{
+	f32 angle	= random_value() * 2 * π;
+	f32 sin 	= sine(angle);
+	f32 cos 	= cosine(angle);
+
+	v3 result = {cos, sin, 0};
+	return result;
+}
+
 // internal v3 random_inside_circle()
 // {
 

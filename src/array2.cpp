@@ -17,10 +17,11 @@ struct Array2
 		return memory[index];
 	}
 
-	// T & push()
-	// {
-	// 	return memory[count++];
-	// }
+	void push(T const & value)
+	{
+		Assert(count < capacity);
+		memory[count++] = value;
+	}
 
 	bool has_room_for(s64 count)
 	{
@@ -48,3 +49,17 @@ internal void clear_array_2(Array2<T> & array)
 	array.count = 0;
 }
 
+template<typename T>
+f32 used_percent(Array2<T> const & array)
+{
+	f32 usedPercent = (f32)array.count / array.capacity;
+	return usedPercent;
+}
+
+template<typename T>
+s64 array_2_get_index_of(Array2<T> const & array, T const & valueInArray)
+{
+	s64 pointerDifference = &valueInArray - array.memory;
+	Assert((pointerDifference >= 0) && (pointerDifference < array.capacity) && "Value not in array");
+	return pointerDifference;
+}

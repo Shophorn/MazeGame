@@ -15,6 +15,8 @@ Scene description for 3d development scene
 #include "metaballs.cpp"
 
 #include "array2.cpp"
+#include "experimental.cpp"
+
 #include "dynamic_mesh.cpp"
 #include "Trees3.cpp"
 #include "settings.cpp"
@@ -35,6 +37,7 @@ enum CarryMode : s32
 	CARRY_WATER,
 	CARRY_TREE,
 	CARRY_RACCOON,
+	CARRY_TREE_3,
 };
 
 enum TrainState : s32
@@ -137,6 +140,7 @@ struct Scene3d
 		s32 			lSystemCount;
 		TimedLSystem * 	lSystems;
 		Leaves * 		lSystemLeavess;
+		
 		s32 * 			lSystemsPotIndices;
 
 		// MaterialHandle 	lSystemTreeMaterial;
@@ -273,8 +277,9 @@ struct Scene3d
 	constexpr static s32 	timeScaleCount = 3;
 	s32 					timeScaleIndex;
 
-	Tree3 	trees[2];
-	s32 	treeIndex;
+	Array2<Tree3> 	trees;
+	s32 			treeIndex;
+	Tree3Settings 	treeSettings [2];
 };
 
 internal void read_settings_file(Scene3d * scene)
@@ -300,18 +305,17 @@ internal void read_settings_file(Scene3d * scene)
 
 		String block = string_extract_until_character(fileAsString, ']');
 
-		if (string_equals(identifier, "settings"))
+		auto try_deserialize = [&identifier, &block](char const * name, auto & serializedProperties)
 		{
-			deserialize_properties(scene->skySettings, block);
-		}
-		else if (string_equals(identifier, "tree_0"))
-		{
-			deserialize_properties(scene->trees[0].settings, block);
-		}
-		else if (string_equals(identifier, "tree_1"))
-		{
-			deserialize_properties(scene->trees[1].settings, block);
-		}
+			if(string_equals(identifier, name))
+			{
+				deserialize_properties(serializedProperties, block);
+			}
+		};
+
+		try_deserialize("sky", scene->skySettings);
+		try_deserialize("tree_0", scene->treeSettings[0]);
+		try_deserialize("tree_1", scene->treeSettings[1]);
 
 		string_eat_leading_spaces_and_lines(fileAsString);
 	}
@@ -330,16 +334,16 @@ internal void write_settings_file(Scene3d * scene)
 
 		string_append_format(serializedFormatString, capacity, label, " = \n[\n");
 		serialize_properties(serializedData, serializedFormatString, capacity);
-		string_append_cstring(serializedFormatString, "]\n\n", capacity);
+		string_append_cstring(serializedFormatString, capacity, "]\n\n");
 
 		platformApi->write_file(file, serializedFormatString.length, serializedFormatString.memory);
 
 		pop_memory_checkpoint(*global_transientMemory);
 	};
 
-	serialize("tree_0", scene->trees[0].settings);
-	serialize("tree_1", scene->trees[1].settings);
-	serialize("settings", scene->skySettings);
+	serialize("sky", scene->skySettings);
+	serialize("tree_0", scene->treeSettings[0]);
+	serialize("tree_1", scene->treeSettings[1]);
 
 
 	platformApi->close_file(file);
@@ -499,12 +503,6 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 		potWaterLevels[index] -= amount;
 		return amount;
 	};
-
-	// auto snap_on_ground = [&collisionSystem = scene->collisionSystem](v3 position) -> v3
-	// {
-	// 	v3 result = {position.x, position.y, get_terrain_height(collisionSystem, position.xy)};
-	// 	return result;
-	// };
 
 	SnapOnGround snap_on_ground = {scene->collisionSystem};
 
@@ -743,6 +741,25 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 				check_pickup(scene->waters.count, scene->waters.transforms, CARRY_WATER);
 				check_pickup(scene->raccoonCount, scene->raccoonTransforms, CARRY_RACCOON);
 
+				{
+					for (auto & tree : scene->trees)
+					{
+						if (magnitude_v3(playerPosition - tree.position) < grabDistance)
+						{
+							// f32 maxGrabbableLength 	= 1;
+							// f32 maxGrabbableRadius 	= maxGrabbableLength / tree.settings->maxHeightToWidthRatio;
+							// bool isGrabbable 		= tree.nodes[tree.branches[0].startNodeIndex].radius > maxGrabbableRadius;
+
+							// if (isGrabbable)
+							{
+								scene->playerCarryState = CARRY_TREE_3;
+								scene->carriedItemIndex = array_2_get_index_of(scene->trees, tree);
+								tree.isCarried = true;
+							}
+						}
+					}
+				}
+
 				for (s32 i = 0; i < scene->lSystemCount; ++i)
 				{
 					auto & lSystem = scene->lSystems[i]; 
@@ -829,6 +846,12 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 				scene->playerCarryState = CARRY_NONE;
 
 			} break;
+
+			case CARRY_TREE_3:
+			{	
+				push_falling_object(CARRY_TREE_3, scene->carriedItemIndex);
+				scene->playerCarryState = CARRY_NONE;
+			} break;
 		}
 	} // endif input
 
@@ -862,8 +885,13 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 		} break;
 
+		case CARRY_TREE_3:
+			scene->trees[scene->carriedItemIndex].position = carriedPosition;
+			break;
+
 		case CARRY_NONE:
 			break;
+
 
 		default:
 			Assert(false && "That cannot be carried!");
@@ -886,6 +914,8 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 		for (s32 i = 0; i < scene->fallingObjectCount; ++i)
 		{
 			s32 index 		= scene->fallingObjects[i].index;
+			bool cancelFall = index == scene->carriedItemIndex;
+
 			f32 & fallSpeed = scene->fallingObjects[i].fallSpeed;
 
 			v3 * position;
@@ -893,24 +923,31 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 			switch (scene->fallingObjects[i].type)
 			{
 				case CARRY_RACCOON:	position = &scene->raccoonTransforms[index].position; 	break;
-				case CARRY_WATER: position = &scene->waters.transforms[index].position; 	break;
-				case CARRY_TREE: position =	&scene->lSystems[index].position;				break;
-				case CARRY_POT:	position = &scene->potTransforms[index].position;			break;
+				case CARRY_WATER: 	position = &scene->waters.transforms[index].position; 	break;
+				case CARRY_TREE: 	position = &scene->lSystems[index].position;			break;
+				case CARRY_POT:		position = &scene->potTransforms[index].position;		break;
+				case CARRY_TREE_3: 	position = &scene->trees[index].position; 				break;
 			}
 		
 			f32 targetHeight 	= get_terrain_height(scene->collisionSystem, position->xy);
 
-			fallSpeed 			+= scaledTime * physics_gravity_acceleration;
-			position->z 		+= scaledTime * fallSpeed;
-
-			if (position->z < targetHeight)
+			if (position->z < targetHeight or cancelFall)
 			{
+				if (scene->fallingObjects[i].type == CARRY_TREE_3)
+				{
+					scene->trees[index].isCarried = false;
+				}
 				position->z = targetHeight;
 
 				/// POP falling object
 				scene->fallingObjects[i] = scene->fallingObjects[scene->fallingObjectCount];
 				scene->fallingObjectCount -= 1;
 				i--;
+			}
+			else
+			{
+				fallSpeed 			+= scaledTime * physics_gravity_acceleration;
+				position->z 		+= scaledTime * fallSpeed;
 			}
 		}
 	}
@@ -1099,6 +1136,17 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 		constexpr f32 baseRadius = 0.12;
 		constexpr f32 baseHeight = 2;
+
+		// NEW TREES 3
+		for (auto tree : scene->trees)
+		{
+			constexpr f32 colliderHalfHeight = 1.0f;
+			constexpr v3 colliderOffset = {0, 0, colliderHalfHeight};
+			submit_cylinder_collider(	scene->collisionSystem,
+										tree.nodes[tree.branches[0].startNodeIndex].radius,
+										colliderHalfHeight,
+										tree.position + colliderOffset);
+		}
 	}
 
 
@@ -1490,17 +1538,16 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 		platformApi->draw_meshes(platformGraphics, scene->waters.count, waterTransforms, scene->waterMesh, scene->waterMaterial);
 	}
 
+	for (auto & tree : scene->trees)
 	{
-		Tree3 & tree = scene->trees[scene->treeIndex]; 
-
 		update_tree_3(tree, scaledTime);
 		
-		m44 transform = translation_matrix(tree.position);
-
 		tree.leaves.position = tree.position;
 		tree.leaves.rotation = identity_quaternion;
 
-		// Todo(Leo): make some kind of LAZY_ASSERT macro thing
+
+		m44 transform = translation_matrix(tree.position);
+		// Todo(Leo): make some kind of SLOPPY_ASSERT macro thing
 		if (tree.mesh.vertices.count > 0 || tree.mesh.indices.count > 0)
 		{
 			platformApi->draw_procedural_mesh(	platformGraphics,
@@ -1509,8 +1556,12 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 												transform, scene->treeMaterials[0]);
 		}
 
+		if (tree.drawSeed)
+		{
+			platformApi->draw_meshes(platformGraphics, 1, &transform, tree.seedMesh, tree.seedMaterial);
+		}
 
-		FS_DEBUG_ALWAYS(debug_draw_circle_xy(tree.position, 2, colour_bright_red));
+		FS_DEBUG_BACKGROUND(debug_draw_circle_xy(tree.position, 2, colour_bright_red));
 	}
 
 	/// DRAW LEAVES FOR BOTH LSYSTEM ARRAYS IN THE END BECAUSE OF LEAF SHDADOW INCONVENIENCE
@@ -1534,9 +1585,9 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 		draw_l_system_tree_leaves(scene->lSystemCount, scene->lSystemLeavess);
 
-		if (scene->trees[scene->treeIndex].leaves.count > 0)
+		for (auto & tree : scene->trees)
 		{
-			draw_leaves(scene->trees[scene->treeIndex].leaves, scaledTime);
+			draw_leaves(tree.leaves, scaledTime, tree.settings->leafSize);
 		}
 	}
 
@@ -1566,6 +1617,10 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 
 	Scene3d * scene = push_memory<Scene3d>(persistentMemory, 1, ALLOC_CLEAR);
 	*scene 			= {};
+
+	// Note(Leo): We currently only have statically allocated stuff (or rather allocated with scene),
+	// this can be read here, at the top. If we need to allocate some stuff, we need to reconsider.
+	read_settings_file(scene);
 
 	// ----------------------------------------------------------------------------------
 
@@ -2215,15 +2270,14 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 
 	/// LSYSTEM TREES	
 	MaterialHandle leavesMaterial;
+	// Todo(Leo): I forgot this. what does this comment mean?
+	// TODO(Leo): fukin häx
+	MeshHandle seedMesh1;
+	MeshHandle seedMesh2;
+
+	MaterialHandle seedMaterial1;
+	MaterialHandle seedMaterial2;
 	{
-		// Todo(Leo): I forgot this. what does this comment mean?
-		// TODO(Leo): fukin häx
-		MeshHandle seedMesh1;
-		MeshHandle seedMesh2;
-
-		MaterialHandle seedMaterial1;
-		MaterialHandle seedMaterial2;
-
 		/// SEEDS
 		{
 			MeshAsset seedMeshAsset 		= load_mesh_glb(*global_transientMemory, sceneryFile, "acorn");
@@ -2458,30 +2512,45 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 
 	// ----------------------------------------------------------------------------------
 	
-	{		
-		// scene->trees = push_array_2<Tree3>(persistentMemory, 1, ALLOC_CLEAR);
+	{	
+		s32 treeCapacity 	= 1;	
+		scene->trees 		= push_array_2<Tree3>(persistentMemory, treeCapacity, ALLOC_CLEAR);
+		scene->trees.count 	= scene->trees.capacity;
 
-		v3 position = {-10, 10, get_terrain_height(scene->collisionSystem, {-10, 10})};
-		position.z += 2;
+		scene->treeIndex 	= 0;
 
-		scene->treeIndex = 0;//scene->trees.count++;
+		// for (auto & tree : experimental::array_2_range(scene->trees, 0, 25))
+		for (auto & tree : scene->trees)
+		{
+			v3 position = random_on_unit_circle_xy() * random_value() * 50;
+			position.z = get_terrain_height(scene->collisionSystem, position.xy);
 
-		initialize_test_tree_3(persistentMemory, scene->trees[scene->treeIndex], position);
-		scene->trees[scene->treeIndex].leaves.material 	= leavesMaterial;
-		scene->trees[scene->treeIndex].leaves.colourIndex 	= 2;
-		build_tree_3_mesh(scene->trees[scene->treeIndex], scene->trees[scene->treeIndex].leaves, scene->trees[scene->treeIndex].mesh);
 
-		scene->treeIndex = 1;//scene->trees.count++;
-		initialize_test_tree_3(persistentMemory, scene->trees[scene->treeIndex], position);
-		scene->trees[scene->treeIndex].leaves.material 	= leavesMaterial;
-		scene->trees[scene->treeIndex].leaves.colourIndex 	= 2;
-		build_tree_3_mesh(scene->trees[scene->treeIndex], scene->trees[scene->treeIndex].leaves, scene->trees[scene->treeIndex].mesh);
+			initialize_test_tree_3(persistentMemory, tree, position, &scene->treeSettings[0]);
+			build_tree_3_mesh(tree);
+
+			tree.leaves.material 	= leavesMaterial;
+			tree.leaves.colourIndex = tree.settings->leafColourIndex;
+			tree.seedMesh 			= seedMesh1;
+			tree.seedMaterial 		= seedMaterial1;
+		}
+
+		// ----------------------------------------------------------------------------------
+
+		// for (auto & tree : experimental::array_2_range(scene->trees, 25, 50))
+		// {
+		// 	v3 position = random_on_unit_circle_xy() * random_value() * 50;
+		// 	position.z = get_terrain_height(scene->collisionSystem, position.xy);
+			
+		// 	initialize_test_tree_3(persistentMemory, tree, position, &scene->treeSettings[1]);
+		// 	build_tree_3_mesh(tree);
+
+		// 	tree.leaves.material 	= leavesMaterial;
+		// 	tree.leaves.colourIndex = tree.settings->leafColourIndex;
+		// 	tree.seedMesh 			= seedMesh2;
+		// 	tree.seedMaterial 		= seedMaterial2;
+		// }
 	}
-
-	// ----------------------------------------------------------------------------------
-
-	// Note(Leo): this must be last, after all allocations
-	read_settings_file(scene);
 
 	// ----------------------------------------------------------------------------------
 

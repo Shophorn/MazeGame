@@ -38,6 +38,12 @@ struct GuiClampValuesS32
 	s32 max = max_value_s32;	
 };
 
+struct GuiClampValuesV2
+{
+	v2 min = {lowest_f32, lowest_f32};
+	v2 max = {highest_f32, highest_f32};
+};
+
 struct Gui
 {
 	// References
@@ -120,13 +126,18 @@ internal bool gui_button(char const * label);
 internal bool gui_toggle(char const * label, bool32 * value);
 internal void gui_text(char const * label);
 internal void gui_image(GuiTextureHandle texture, v2 size, v4 colour = colour_white);
+
 internal bool gui_float_slider(char const * label, f32 * value, f32 minValue, f32 maxValue);
 internal bool gui_float_slider_2(char const * label, f32 * value, f32 minValue, f32 maxValue);
 internal bool gui_float_field(char const * label, f32 * value, GuiClampValuesF32 clamp = {});
 internal bool gui_int_field(char const * label, s32 * value, GuiClampValuesS32 clamp = {});
+
+internal bool gui_vector_2_field(char const * label, v2 * value, GuiClampValuesV2 const & clamp = {});
+
 internal bool gui_color_rgb(char const * label, v3 * color, bool enableHdr);
 // internal bool gui_color_rgba(char const * label, v4 * color, bool enableHdr);
 internal void gui_line();
+
 
 // Internal
 internal void gui_render_texture(TextureHandle texture, ScreenRect rect);
@@ -703,7 +714,7 @@ internal bool gui_float_slider(char const * label, f32 * value, f32 minValue, f3
 
 	char buffer [16] 	= {};
 	String valueFormat 	= {0, buffer};
-	string_append_f32(valueFormat, *value, 16);
+	string_append_f32(valueFormat, 16, *value);
 
 	v2 backUpCursor 	= gui.panelCursor;
 	gui.panelCursor.x 	= 0;
@@ -857,7 +868,7 @@ internal bool gui_float_field(char const * label, f32 * value, GuiClampValuesF32
 	gui_panel_add_text_draw_call_2(string, isSelected ? gui.selectedTextColor : gui.textColor, GUI_ALIGN_LEFT);
 
 	reset_string(string, 128);
-	string_append_f32(string, *value, 128);
+	string_append_f32(string, 128, *value);
 
 	v2 backUpCursor = gui.panelCursor;
 	gui.panelCursor.x = 0;
@@ -912,7 +923,7 @@ internal bool gui_int_field(char const * label, s32 * value, GuiClampValuesS32 c
 	gui_panel_add_text_draw_call_2(string, isSelected ? gui.selectedTextColor : gui.textColor, GUI_ALIGN_LEFT);
 
 	reset_string(string, 128);
-	string_append_s32(string, *value, 128);
+	string_append_s32(string, 128, *value);
 
 	v2 backUpCursor = gui.panelCursor;
 	gui.panelCursor.x = 0;
@@ -925,6 +936,19 @@ internal bool gui_int_field(char const * label, s32 * value, GuiClampValuesS32 c
 
 	return modified;	
 }
+
+internal bool gui_vector_2_field(char const * label, v2 * value, GuiClampValuesV2 const & clamp)
+{
+	gui_text(label);
+
+	// Note(Leo): this should not short-circuit, or y field is not drawn that frame :)
+	bool xModified 	= gui_float_field("X", &value->x, {clamp.min.x, clamp.max.x});
+	bool yModified 	= gui_float_field("Y", &value->y, {clamp.min.y, clamp.max.y});
+	
+	return xModified || yModified;
+}
+
+
 
 internal bool gui_color_rgb(char const * label, v3 * color, GuiColorFlags flags)
 {

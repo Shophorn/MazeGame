@@ -10,6 +10,8 @@ https://eliasdaler.github.io/meta-stuff/
 template<typename TStruct, typename TProp>
 struct SerializedMemberProperty
 {
+	using property_type = TProp;
+
 	char const * 		name;
 	TProp TStruct::* 	address;
 };
@@ -84,8 +86,8 @@ internal void deserialize_properties(T & data, String serializedString)
 			[&](auto property)
 			{
 				if (string_equals(id, property.name))
-				{
-					string_parse(line, &(data.*property.address)); 
+				{	
+					generic_string_parse(line, &(data.*property.address));
 				}
 			},
 			data.serializedProperties

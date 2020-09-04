@@ -217,7 +217,7 @@ bool32 do_gui(Scene3d * scene, PlatformInput const & input)
 			gui_position(cornerPosition);	
 			gui_start_panel("EDIT TREES", menuColor);
 		
-			gui_int_field("Tree Index", &scene->treeIndex, {.min = 0, .max = (s32)array_count(scene->trees)});	
+			gui_int_field("Tree Index", &scene->treeIndex, {.min = 0, .max = (s32)scene->trees.count - 1});	
 
 			tree_gui(scene->trees[scene->treeIndex]);
 			

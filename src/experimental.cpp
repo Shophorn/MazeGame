@@ -22,4 +22,9 @@ namespace experimental
 	{
 		return IteratorRange<T>{memory, memory + count};
 	}
+
+	template<typename T> IteratorRange<T> array_2_range(Array2<T> & array, s64 beginOffset, s64 endOffset)
+	{
+		return {array.memory + beginOffset, array.memory + endOffset};
+	}
 }

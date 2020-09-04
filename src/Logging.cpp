@@ -4,6 +4,8 @@
 struct LogInput
 {
 	// Todo(Leo): Do make use of our own string classes at some point
+	// todo(Leo): these allocate randomly from wherever. It probably doesn't matter, since these should be disabled on
+	// release anyway
 	std::stringstream 	buffer;
 	std::ostream * 		output;
 
@@ -32,7 +34,6 @@ struct LogInput
 	
 		return *this;
 	}
-
 
 	template<>
 	LogInput & operator << <FileAddress>(FileAddress const & value)

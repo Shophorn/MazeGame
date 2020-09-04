@@ -78,6 +78,17 @@ void swap(T & a, T & b)
 	b 		= temp;
 }
 
+// Todo(Leo): this would be cool, but it probably diverst from real problems at call sites
+// template<typename T>
+// void default_initialize_elements(T * memory, s32 count)
+// {
+// 	while(count--)
+// 	{
+// 		*memory = {};
+// 		memory++;
+// 	}
+// }
+
 // ----------------------------------------------------------------------------
 
 template<typename T, u32 Count>
