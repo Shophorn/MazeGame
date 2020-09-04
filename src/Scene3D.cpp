@@ -4,11 +4,6 @@ shophorn @ internet
 
 Scene description for 3d development scene
 =============================================================================*/
-
-/*
-git test
-*/
-
 #include "CharacterMotor.cpp"
 #include "PlayerController3rdPerson.cpp"
 #include "FollowerController.cpp"
