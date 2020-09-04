@@ -32,6 +32,12 @@ struct GuiClampValuesF32
 	f32 max = highest_f32;
 };
 
+struct GuiClampValuesS32
+{
+	s32 min = min_value_s32;	
+	s32 max = max_value_s32;	
+};
+
 struct Gui
 {
 	// References
@@ -117,6 +123,7 @@ internal void gui_image(GuiTextureHandle texture, v2 size, v4 colour = colour_wh
 internal bool gui_float_slider(char const * label, f32 * value, f32 minValue, f32 maxValue);
 internal bool gui_float_slider_2(char const * label, f32 * value, f32 minValue, f32 maxValue);
 internal bool gui_float_field(char const * label, f32 * value, GuiClampValuesF32 clamp = {});
+internal bool gui_int_field(char const * label, s32 * value, GuiClampValuesS32 clamp = {});
 internal bool gui_color_rgb(char const * label, v3 * color, bool enableHdr);
 // internal bool gui_color_rgba(char const * label, v4 * color, bool enableHdr);
 internal void gui_line();
@@ -864,6 +871,60 @@ internal bool gui_float_field(char const * label, f32 * value, GuiClampValuesF32
 	return modified;	
 }
 
+
+internal bool gui_int_field(char const * label, s32 * value, GuiClampValuesS32 clamp)
+{
+	Gui & gui = *global_currentGui;
+
+	Assert(gui.isPanelActive);
+
+	bool isSelected 				= gui_is_selected();
+
+	bool modified 			= false;
+	// bool modifiedByMouse 	= isSelected && is_pressed(gui.input.mouse0);
+
+
+	if (isSelected)
+	{
+		if (is_clicked(gui.input.left))
+		{
+			*value 		-= 1;
+			modified 	= true;
+		}
+
+		if (is_clicked(gui.input.right))
+		{
+			*value 		+= 1;
+			modified 	= true;
+		}
+	}
+	*value = clamp_s32(*value, clamp.min, clamp.max);
+
+	if (modified)
+	{
+		logDebug(0) << FILE_ADDRESS << *value;
+	}
+
+
+	String string = push_temp_string(128);
+
+	string_append_format(string, 128, label, ":");
+	gui_panel_add_text_draw_call_2(string, isSelected ? gui.selectedTextColor : gui.textColor, GUI_ALIGN_LEFT);
+
+	reset_string(string, 128);
+	string_append_s32(string, *value, 128);
+
+	v2 backUpCursor = gui.panelCursor;
+	gui.panelCursor.x = 0;
+	gui_panel_add_text_draw_call_2(string, isSelected ? gui.selectedTextColor : gui.textColor, GUI_ALIGN_RIGHT);
+	gui.panelCursor = backUpCursor;
+
+	// Todo(Leo): expand panel width
+
+	gui_panel_new_line();
+
+	return modified;	
+}
 
 internal bool gui_color_rgb(char const * label, v3 * color, GuiColorFlags flags)
 {

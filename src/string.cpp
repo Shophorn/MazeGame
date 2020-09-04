@@ -11,6 +11,12 @@ struct String
 
 	char & operator [] (s32 index) { return memory[index]; }
 	char operator [] (s32 index) const { return memory[index]; }
+
+	char * begin() { return memory; }
+	char * end() { return memory + length; }
+
+	char const * begin() const { return memory; }
+	char const * end() const { return memory + length; }
 };
 
 LogInput & operator << (LogInput & log, String const & string)
@@ -282,15 +288,22 @@ internal void string_parse(String string, T * value)
 	static_assert(false, "string_parse is not implemented for T");
 }
 
-template<> void string_parse<f32>(String string, f32 * value)
-{
-	*value = string_parse_f32(string);
-}
+#define STRING_GENERIC_PARSE(type) template<> void string_parse<type>(String string, type * value){*value = string_parse_##type(string);}
 
-template<> void string_parse<v3>(String string, v3 * value)
-{
-	*value = string_parse_v3(string);
-}
+STRING_GENERIC_PARSE(f32);
+STRING_GENERIC_PARSE(v3);
+
+#undef STRING_GENERIC_PARSE
+
+// template<> void string_parse<f32>(String string, f32 * value)
+// {
+// 	*value = string_parse_f32(string);
+// }
+
+// template<> void string_parse<v3>(String string, v3 * value)
+// {
+// 	*value = string_parse_v3(string);
+// }
 
 
 internal void string_append(String & a, String b, s32 capacity)
@@ -394,6 +407,54 @@ internal void string_append_f32(String & string, f32 value, s32 capacity)
 	}
 }
 
+internal void string_append_s32(String & string, s32 value, s32 capacity)
+{	
+	// Todo(Leo): check that range is valid
+
+	// Note(Leo): these are connected
+	constexpr s32 digitCapacity 	= 8;
+	constexpr s32 startMultiplier 	= 10'000'000;
+
+	// Note(Leo): added one is for possible negative sign
+	char digits[digitCapacity + 1] = {};
+	fill_memory(digits, '0', array_count(digits));
+	s32 digitCount = 0;
+
+	Assert((capacity - string.length) > array_count(digits));
+
+	if (value == 0)
+	{
+		*string.end() = '0';
+		string.length += 1;
+	}
+	else
+	{
+		if (value < 0)
+		{
+			value *= -1;
+			digits[digitCount++] = '-';
+		}
+
+		s32 multiplier 				= startMultiplier;
+		bool32 firstNonZeroFound 	= false;
+
+		for (s32 i = 0; i < digitCapacity; ++i)
+		{
+			s32 valueAtMultiplier = (value / multiplier) % 10;
+			multiplier /= 10;
+
+			firstNonZeroFound = firstNonZeroFound || (valueAtMultiplier > 0);
+
+			if (firstNonZeroFound)
+			{
+				digits[digitCount++] = '0' + valueAtMultiplier;
+			}
+		}
+
+		string_append(string, {digitCount, digits}, capacity);
+	}
+}
+
 internal void string_append_v3(String & string, v3 value, s32 capacity)
 {
 	string_append_f32(string, value.x, capacity);	
@@ -426,6 +487,12 @@ internal void string_append_format(String & string, s32 capacity, T thing)
 		string_append(string, thing, capacity);
 	}
 }
+
+#define STRING_GENERIC_APPEND(type) template<> void string_append_format<type>(String & string, s32 capacity, type thing) { string_append_##type(string, thing, capacity); }
+
+STRING_GENERIC_APPEND(s32)
+
+#undef STRING_GENERIC_APPEND
 
 template<typename TFirst, typename ... TOthers>
 internal void string_append_format(String & string, s32 capacity, TFirst first, TOthers ... others)

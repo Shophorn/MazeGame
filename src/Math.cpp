@@ -7,6 +7,8 @@ constexpr f32 highest_f32   = std::numeric_limits<f32>::max();
 constexpr f32 lowest_f32    = std::numeric_limits<f32>::lowest();
 constexpr f32 smallest_f32  = std::numeric_limits<f32>::min();
 
+constexpr s32 min_value_s32 = std::numeric_limits<s32>::min();
+
 constexpr s16 max_value_s16 = std::numeric_limits<s16>::max();
 constexpr s32 max_value_s32 = std::numeric_limits<s32>::max();
 constexpr s64 max_value_s64 = std::numeric_limits<s64>::max();
@@ -25,7 +27,6 @@ inline f32 abs_f32(f32 value)
     Always optimize with proper compiler options :) */
     return fabsf(value);
 }
-
 
 inline f32 mod_f32(f32 dividend, f32 divisor)
 {

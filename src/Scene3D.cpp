@@ -273,7 +273,8 @@ struct Scene3d
 	constexpr static s32 	timeScaleCount = 3;
 	s32 					timeScaleIndex;
 
-	Tree3   testTree;
+	Tree3 	trees[2];
+	s32 	treeIndex;
 };
 
 internal void read_settings_file(Scene3d * scene)
@@ -297,13 +298,19 @@ internal void read_settings_file(Scene3d * scene)
 		string_extract_until_character(fileAsString, '[');
 		string_extract_line(fileAsString);
 
+		String block = string_extract_until_character(fileAsString, ']');
+
 		if (string_equals(identifier, "settings"))
 		{
-			deserialize_properties(scene->skySettings, string_extract_until_character(fileAsString, ']'));
+			deserialize_properties(scene->skySettings, block);
 		}
-		else if (string_equals(identifier, "testTree"))
+		else if (string_equals(identifier, "tree_0"))
 		{
-			deserialize_properties(scene->testTree, string_extract_until_character(fileAsString, ']'));
+			deserialize_properties(scene->trees[0].settings, block);
+		}
+		else if (string_equals(identifier, "tree_1"))
+		{
+			deserialize_properties(scene->trees[1].settings, block);
 		}
 
 		string_eat_leading_spaces_and_lines(fileAsString);
@@ -330,7 +337,8 @@ internal void write_settings_file(Scene3d * scene)
 		pop_memory_checkpoint(*global_transientMemory);
 	};
 
-	serialize("testTree", scene->testTree);
+	serialize("tree_0", scene->trees[0].settings);
+	serialize("tree_1", scene->trees[1].settings);
 	serialize("settings", scene->skySettings);
 
 
@@ -1483,20 +1491,26 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 	}
 
 	{
-		update_tree_3(scene->testTree, scaledTime);
-	
-		m44 transform = translation_matrix(scene->testTree.position);
+		Tree3 & tree = scene->trees[scene->treeIndex]; 
 
-		scene->testTree.leaves.position = scene->testTree.position;
-		scene->testTree.leaves.rotation = identity_quaternion;
+		update_tree_3(tree, scaledTime);
+		
+		m44 transform = translation_matrix(tree.position);
 
-		platformApi->draw_procedural_mesh(	platformGraphics,
-											scene->testTree.mesh.vertices.count, scene->testTree.mesh.vertices.memory,
-											scene->testTree.mesh.indices.count, scene->testTree.mesh.indices.memory,
-											transform, scene->treeMaterials[0]);
+		tree.leaves.position = tree.position;
+		tree.leaves.rotation = identity_quaternion;
+
+		// Todo(Leo): make some kind of LAZY_ASSERT macro thing
+		if (tree.mesh.vertices.count > 0 || tree.mesh.indices.count > 0)
+		{
+			platformApi->draw_procedural_mesh(	platformGraphics,
+												tree.mesh.vertices.count, tree.mesh.vertices.memory,
+												tree.mesh.indices.count, tree.mesh.indices.memory,
+												transform, scene->treeMaterials[0]);
+		}
 
 
-		FS_DEBUG_ALWAYS(debug_draw_circle_xy(scene->testTree.position, 2, colour_bright_red));
+		FS_DEBUG_ALWAYS(debug_draw_circle_xy(tree.position, 2, colour_bright_red));
 	}
 
 	/// DRAW LEAVES FOR BOTH LSYSTEM ARRAYS IN THE END BECAUSE OF LEAF SHDADOW INCONVENIENCE
@@ -1520,9 +1534,9 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 		draw_l_system_tree_leaves(scene->lSystemCount, scene->lSystemLeavess);
 
-		if (scene->testTree.leaves.count > 0)
+		if (scene->trees[scene->treeIndex].leaves.count > 0)
 		{
-			draw_leaves(scene->testTree.leaves, scaledTime);
+			draw_leaves(scene->trees[scene->treeIndex].leaves, scaledTime);
 		}
 	}
 
@@ -1552,8 +1566,6 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 
 	Scene3d * scene = push_memory<Scene3d>(persistentMemory, 1, ALLOC_CLEAR);
 	*scene 			= {};
-
-	read_settings_file(scene);
 
 	// ----------------------------------------------------------------------------------
 
@@ -2447,15 +2459,29 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 	// ----------------------------------------------------------------------------------
 	
 	{		
+		// scene->trees = push_array_2<Tree3>(persistentMemory, 1, ALLOC_CLEAR);
+
 		v3 position = {-10, 10, get_terrain_height(scene->collisionSystem, {-10, 10})};
 		position.z += 2;
 
-		initialize_test_tree_3(persistentMemory, scene->testTree, position);
-		scene->testTree.leaves.material 	= leavesMaterial;
-		scene->testTree.leaves.colourIndex 	= 2;
+		scene->treeIndex = 0;//scene->trees.count++;
 
-		build_tree_3_mesh(scene->testTree, scene->testTree.leaves, scene->testTree.mesh);
+		initialize_test_tree_3(persistentMemory, scene->trees[scene->treeIndex], position);
+		scene->trees[scene->treeIndex].leaves.material 	= leavesMaterial;
+		scene->trees[scene->treeIndex].leaves.colourIndex 	= 2;
+		build_tree_3_mesh(scene->trees[scene->treeIndex], scene->trees[scene->treeIndex].leaves, scene->trees[scene->treeIndex].mesh);
+
+		scene->treeIndex = 1;//scene->trees.count++;
+		initialize_test_tree_3(persistentMemory, scene->trees[scene->treeIndex], position);
+		scene->trees[scene->treeIndex].leaves.material 	= leavesMaterial;
+		scene->trees[scene->treeIndex].leaves.colourIndex 	= 2;
+		build_tree_3_mesh(scene->trees[scene->treeIndex], scene->trees[scene->treeIndex].leaves, scene->trees[scene->treeIndex].mesh);
 	}
+
+	// ----------------------------------------------------------------------------------
+
+	// Note(Leo): this must be last, after all allocations
+	read_settings_file(scene);
 
 	// ----------------------------------------------------------------------------------
 

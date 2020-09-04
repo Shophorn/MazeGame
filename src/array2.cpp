@@ -17,6 +17,11 @@ struct Array2
 		return memory[index];
 	}
 
+	// T & push()
+	// {
+	// 	return memory[count++];
+	// }
+
 	bool has_room_for(s64 count)
 	{
 		return (this->capacity - this->count - count) > 0;
