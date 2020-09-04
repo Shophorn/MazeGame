@@ -35,7 +35,6 @@ enum CarryMode : s32
 	CARRY_NONE,
 	CARRY_POT,
 	CARRY_WATER,
-	CARRY_TREE,
 	CARRY_RACCOON,
 	CARRY_TREE_3,
 };
@@ -136,12 +135,12 @@ struct Scene3d
 		MaterialHandle 	potMaterial;
 
 	/// TREES ------------------------------------
-		s32 			lSystemCapacity;
-		s32 			lSystemCount;
-		TimedLSystem * 	lSystems;
-		Leaves * 		lSystemLeavess;
+		// s32 			lSystemCapacity;
+		// s32 			lSystemCount;
+		// TimedLSystem * 	lSystems;
+		// Leaves * 		lSystemLeavess;
 		
-		s32 * 			lSystemsPotIndices;
+		// s32 * 			lSystemsPotIndices;
 
 		// MaterialHandle 	lSystemTreeMaterial;
 		MaterialHandle treeMaterials[TREE_TYPE_COUNT];
@@ -384,6 +383,7 @@ internal inline void file_read_memory(PlatformFileHandle file, s32 count, T * me
 
 internal void write_save_file(Scene3d * scene)
 {
+	/*
 	auto file = platformApi->open_file("save_game.fssave", FILE_MODE_WRITE);
 
 	// Note(Leo): as we go, set values to this struct, and write this to file last.
@@ -428,6 +428,7 @@ internal void write_save_file(Scene3d * scene)
 	file_write_memory(file, 1, &save);
 
 	platformApi->close_file(file);
+	*/
 }
 
 #include "scene3d_gui.cpp"
@@ -611,35 +612,7 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 						.color 		= v3{0.95, 0.95, 0.9}};
 		v3 ambient 	= {0.05, 0.05, 0.3};
 
-		if (scene->getSkyColorFromTreeDistance)
-		{
-			float playerDistanceFromClosestTree = highest_f32;
-			for (s32 i = 0; i < scene->lSystemCount; ++i)
-			{
-				if (scene->lSystems[i].totalAge < 0.0001f)
-				{
-					continue;
-				}
-
-				constexpr f32 treeRadiusRatio = 0.2;
-				f32 treeRadius = scene->lSystems[i].totalAge * treeRadiusRatio;
-
-				FS_DEBUG_NPC(debug_draw_circle_xy(scene->lSystems[i].position + v3{0,0,0.2}, treeRadius, colour_bright_green));
-
-				f32 distanceFromTree 			= magnitude_v3(scene->playerCharacterTransform.position - scene->lSystems[i].position) - treeRadius;
-				playerDistanceFromClosestTree 	= min_f32(playerDistanceFromClosestTree, distanceFromTree);
-			}
-
-			constexpr f32 minPlayerDistance = 0;
-			constexpr f32 maxPlayerDistance = 5;
-
-			// f32 playerDistance 				= magnitude_v2(scene->playerCharacterTransform->position.xy);
-			light.skyColorSelection 		= clamp_f32((playerDistanceFromClosestTree - minPlayerDistance) / (maxPlayerDistance - minPlayerDistance), 0, 1);
-		}
-		else
-		{
-			light.skyColorSelection = scene->skySettings.skyColourSelection;
-		}
+		light.skyColorSelection = scene->skySettings.skyColourSelection;
 
 		light.skyBottomColor.rgb 	= scene->skySettings.skyGradientBottom;
 		light.skyTopColor.rgb 		= scene->skySettings.skyGradientTop;
@@ -760,31 +733,11 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 					}
 				}
 
-				for (s32 i = 0; i < scene->lSystemCount; ++i)
-				{
-					auto & lSystem = scene->lSystems[i]; 
-					if (lSystem.totalAge > 1)
-					{
-						continue;
-					}
-
-					if (scene->lSystemsPotIndices[i] >= 0)
-					{
-						continue;
-					}
-
-					f32 distanceToLSystemTree = magnitude_v3(lSystem.position - scene->playerCharacterTransform.position);
-					if(distanceToLSystemTree < grabDistance)
-					{
-						scene->playerCarryState = CARRY_TREE;
-						scene->carriedItemIndex = i;
-					}
-				}
-
 			} break;
 
 			case CARRY_POT:
 				push_falling_object(CARRY_POT, scene->carriedItemIndex);
+				scene->carriedItemIndex = -1;
 				scene->playerCarryState = CARRY_NONE;
 
 				break;
@@ -794,8 +747,8 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 				Transform3D & waterTransform = scene->waters.transforms[scene->carriedItemIndex];
 
 				push_falling_object(CARRY_WATER, scene->carriedItemIndex);
+				scene->carriedItemIndex = -1;
 				scene->playerCarryState = CARRY_NONE;
-
 
 				constexpr f32 waterSnapDistance 	= 0.5f;
 				constexpr f32 smallPotMaxWaterLevel = 1.0f;
@@ -821,28 +774,11 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 			} break;
 
-			case CARRY_TREE:
-			{
-				push_falling_object(CARRY_TREE, scene->carriedItemIndex);
-				scene->playerCarryState = CARRY_NONE;
-				
-				constexpr f32 treeSnapDistance = 0.5f;
-
-				for (s32 potIndex = 0; potIndex < scene->potCount; ++potIndex)
-				{
-					f32 distance = magnitude_v3(scene->potTransforms[potIndex].position - scene->lSystems[scene->carriedItemIndex].position);
-					if (distance < treeSnapDistance)
-					{
-						scene->lSystemsPotIndices[scene->carriedItemIndex] = potIndex;
-					}
-				}
-
-			} break;
-
 			case CARRY_RACCOON:
 			{
 				scene->raccoonTransforms[scene->carriedItemIndex].rotation = identity_quaternion;
 				push_falling_object(CARRY_RACCOON, scene->carriedItemIndex);
+				scene->carriedItemIndex = -1;
 				scene->playerCarryState = CARRY_NONE;
 
 			} break;
@@ -850,6 +786,7 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 			case CARRY_TREE_3:
 			{	
 				push_falling_object(CARRY_TREE_3, scene->carriedItemIndex);
+				scene->carriedItemIndex = -1;
 				scene->playerCarryState = CARRY_NONE;
 			} break;
 		}
@@ -868,11 +805,6 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 		case CARRY_WATER:
 			scene->waters.transforms[scene->carriedItemIndex].position = carriedPosition;
 			scene->waters.transforms[scene->carriedItemIndex].rotation = carriedRotation;
-			break;
-
-		case CARRY_TREE:
-			scene->lSystems[scene->carriedItemIndex].position = carriedPosition;
-			scene->lSystems[scene->carriedItemIndex].rotation = carriedRotation;
 			break;
 
 		case CARRY_RACCOON:
@@ -899,15 +831,7 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 	}
 
 	/// UPDATE TREES IN POTS POSITIONS
-	for (s32 i = 0; i < scene->lSystemCount; ++i)
-	{
-		if (scene->lSystemsPotIndices[i] > 0)
-		{
-			s32 potIndex = scene->lSystemsPotIndices[i];
-			scene->lSystems[i].position = multiply_point(transform_matrix(scene->potTransforms[potIndex]), v3{0,0,0.25});
-			scene->lSystems[i].rotation = scene->potTransforms[potIndex].rotation;
-		}
-	}
+	// Todo(Leo):...
 
 	// UPDATE falling objects
 	{
@@ -924,7 +848,6 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 			{
 				case CARRY_RACCOON:	position = &scene->raccoonTransforms[index].position; 	break;
 				case CARRY_WATER: 	position = &scene->waters.transforms[index].position; 	break;
-				case CARRY_TREE: 	position = &scene->lSystems[index].position;			break;
 				case CARRY_POT:		position = &scene->potTransforms[index].position;		break;
 				case CARRY_TREE_3: 	position = &scene->trees[index].position; 				break;
 			}
@@ -937,7 +860,11 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 				{
 					scene->trees[index].isCarried = false;
 				}
-				position->z = targetHeight;
+
+				if(!cancelFall)
+				{
+					position->z = targetHeight;
+				}
 
 				/// POP falling object
 				scene->fallingObjects[i] = scene->fallingObjects[scene->fallingObjectCount];
@@ -1367,163 +1294,6 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 								array_count(boneTransformMatrices));
 	}
 
-	/// UPDATE LSYSTEM TREES
-	{
-		// TODO(Leo): This is stupid, the two use cases are too different, and we have to capture too much stuff :(
-
-		auto get_region_colour_index = [](v2 position) -> s32
-		{
-			// Todo(Leo): sample from some kind of map
-			return (s32)((position.y < 0) + 2 * (position.x < 0));
-		};
-
-		local_persist s32 persist_updatedLSystemIndex = -1;
-		persist_updatedLSystemIndex += 1;
-		persist_updatedLSystemIndex %= 10;
-		s32 updatedLSystemIndex = persist_updatedLSystemIndex;
-
-		auto update_lsystem = [	&waters 				= scene->waters,
-								potWaterLevels 			= scene->potWaterLevels,
-								lSystemsPotIndices 		= scene->lSystemsPotIndices,
-								get_region_colour_index,
-								get_water, 
-								get_water_from_pot,
-								updatedLSystemIndex,
-								scaledTime]
-							(s32 count, TimedLSystem * lSystems, Leaves * leavess)
-		{
-
-			for (int i = 0; i < count; ++i)
-			{
-				bool isInPot = lSystemsPotIndices[i] > 0;
-
-				leavess[i].position 	= lSystems[i].position;
-				leavess[i].rotation 	= lSystems[i].rotation;
-				leavess[i].colourIndex 	= get_region_colour_index(leavess[i].position.xy);
-
-				f32 waterDistanceThreshold = 1;
-				FS_DEBUG_NPC(debug_draw_circle_xy(lSystems[i].position + v3{0,0,1}, waterDistanceThreshold, colour_aqua_blue));
-
-				if (lSystems[i].totalAge > lSystems[i].maxAge)
-				{
-					continue;
-				}
-
-				lSystems[i].timeSinceLastUpdate += scaledTime;
-				if ((i % 10) == updatedLSystemIndex)
-				{
-					float timePassed 				= lSystems[i].timeSinceLastUpdate;
-					lSystems[i].timeSinceLastUpdate = 0;
-
-					constexpr f32 treeWaterDrainSpeed = 0.5f;
-
-					f32 waterLevel = 	isInPot ?
-										get_water_from_pot(potWaterLevels, lSystemsPotIndices[i], treeWaterDrainSpeed * timePassed) : 
-										get_water (waters, lSystems[i].position, waterDistanceThreshold, treeWaterDrainSpeed * timePassed);
-
-					if (waterLevel > 0)
-					{
-						if (lSystems[i].type == TREE_TYPE_1)
-						{
-							advance_lsystem_time(lSystems[i], timePassed);
-							update_lsystem_mesh(lSystems[i], leavess[i]);
-						}
-						else if(lSystems[i].type == TREE_TYPE_2)
-						{
-							advance_lsystem_time_tree2(lSystems[i], timePassed);
-							update_lsystem_mesh_tree2(lSystems[i], leavess[i]);
-						}
-						else if (lSystems[i].type == TREE_TYPE_CRYSTAL)
-						{
-							advance_lsystem_time_tree2(lSystems[i], timePassed);
-							update_lsystem_mesh_tree2(lSystems[i], leavess[i]);
-						}
-
-						mesh_generate_normals(	lSystems[i].vertices.count, lSystems[i].vertices.memory,
-												lSystems[i].indices.count, lSystems[i].indices.memory);
-
-						mesh_generate_tangents(	lSystems[i].vertices.count, lSystems[i].vertices.memory,
-												lSystems[i].indices.count, lSystems[i].indices.memory);
-
-					}
-				}
-
-			}			
-		};
-
-		update_lsystem(scene->lSystemCount, scene->lSystems, scene->lSystemLeavess);
-
-		auto draw_l_system_trees = [&materials 				= scene->treeMaterials, 
-									&crystalTreeMaterials 	= scene->crystalTreeMaterials,
-									get_region_colour_index] 
-									(s32 count, TimedLSystem * lSystems)
-		{
-			for (s32 i = 0; i < count; ++i)
-			{
-				m44 transform = transform_matrix(lSystems[i].position, lSystems[i].rotation, make_uniform_v3(1));
-
-				if (lSystems[i].vertices.count > 0 && lSystems[i].indices.count > 0)
-				{
-
-					MaterialHandle material;
-					if (lSystems[i].type == TREE_TYPE_CRYSTAL)
-					{
-						s32 colourIndex = get_region_colour_index(lSystems[i].position.xy);
-						material 		= crystalTreeMaterials[colourIndex];
-					}
-					else
-					{
-						material = materials[lSystems[i].type];
-					}
-
-					platformApi->draw_procedural_mesh( 	platformGraphics,
-														lSystems[i].vertices.count, lSystems[i].vertices.memory,
-														lSystems[i].indices.count, lSystems[i].indices.memory,
-														transform,
-														material);
-				}
-
-				// Todo(Leo): this is not maybe so nice anymore
-				constexpr s32 randomTreeAgeToStopDrawingSeed = 1;
-				if (lSystems[i].totalAge < randomTreeAgeToStopDrawingSeed)
-				{
-					platformApi->draw_meshes(platformGraphics, 1, &transform, lSystems[i].seedMesh, lSystems[i].seedMaterial);
-				}
-			}
-		};
-
-		draw_l_system_trees(scene->lSystemCount, scene->lSystems);		
-
-		for (s32 i = 0; i < scene->lSystemCount; ++i)
-		{
-			m44 transform = transform_matrix(scene->lSystems[i].position, scene->lSystems[i].rotation, make_uniform_v3(1));
-			constexpr s32 randomTreeAgeToStopDrawingSeed = 1;
-			if (scene->lSystems[i].totalAge < randomTreeAgeToStopDrawingSeed)
-			{
-				platformApi->draw_meshes(platformGraphics, 1, &transform, scene->lSystems[i].seedMesh, scene->lSystems[i].seedMaterial);
-			}
-		}
-
-		if (scene->lSystemCount > 0)
-		{
-			auto & lSystem = scene->lSystems[0];
-			s32 vertexCount = lSystem.vertices.count;
-
-			v3 * points = push_memory<v3>(*global_transientMemory, vertexCount * 2, ALLOC_NO_CLEAR);
-
-			for (s32 i = 0; i < vertexCount; ++i)
-			{
-				points [i * 2] = lSystem.vertices.memory[i].position + lSystem.position;
-				points [i * 2 + 1] = lSystem.vertices.memory[i].position + lSystem.position + lSystem.vertices.memory[i].normal * 0.4f;
-			}
-
-
-			if (vertexCount > 0)
-			{
-				FS_DEBUG_PLAYER(debug_draw_lines(vertexCount * 2, points, colour_bright_green));
-			}
-		}
-	}
 
 	/// DRAW UNUSED WATER
 	if (scene->waters.count > 0)
@@ -1572,19 +1342,6 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 	// Todo(Leo): leaves are drawn last, so we can bind their shadow pipeline once, and not rebind the normal shadow thing. Fix this inconvenience!
 	// Todo(Leo): This works ok currently, but do fix this, maybe do a proper command buffer for these
 	{
-		auto draw_l_system_tree_leaves = [scaledTime](s32 count, Leaves * leavess)
-		{
-			for (s32 i = 0; i < count; ++i)
-			{
-				if (leavess[i].count > 0)
-				{
-					draw_leaves(leavess[i], scaledTime);
-				}
-			}
-		};
-
-		draw_l_system_tree_leaves(scene->lSystemCount, scene->lSystemLeavess);
-
 		for (auto & tree : scene->trees)
 		{
 			draw_leaves(tree.leaves, scaledTime, tree.settings->leafSize);
@@ -2340,116 +2097,6 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 				scene->crystalTreeMaterials[i] = platformApi->push_material(platformGraphics, GRAPHICS_PIPELINE_WATER, 3, treeTextures);
 			}
 		}
-
-		if (saveFile != nullptr)
-		{
-			platformApi->set_file_position(saveFile, save.treesLocation);
-			
-			file_read_struct(saveFile, &scene->lSystemCapacity);
-			file_read_struct(saveFile, &scene->lSystemCount);
-
-			scene->lSystems 			= push_memory<TimedLSystem>(persistentMemory, scene->lSystemCapacity, ALLOC_NO_CLEAR);
-			scene->lSystemLeavess 		= push_memory<Leaves>(persistentMemory, scene->lSystemCapacity, ALLOC_NO_CLEAR);
-			scene->lSystemsPotIndices 	= push_memory<s32>(persistentMemory, scene->lSystemCapacity, ALLOC_NO_CLEAR);
-
-			for (s32 i = 0; i < scene->lSystemCapacity; ++i)
-			{
-				file_read_struct(saveFile, &scene->lSystems[i].wordCapacity);
-				file_read_struct(saveFile, &scene->lSystems[i].wordCount);
-
-				scene->lSystems[i].aWord = push_memory<Module>(persistentMemory, scene->lSystems[i].wordCapacity, ALLOC_NO_CLEAR);
-				scene->lSystems[i].bWord = push_memory<Module>(persistentMemory, scene->lSystems[i].wordCapacity, ALLOC_NO_CLEAR);
-				file_read_memory(saveFile, scene->lSystems[i].wordCount, scene->lSystems[i].aWord);
-
-				file_read_struct(saveFile, &scene->lSystems[i].timeSinceLastUpdate);
-				file_read_struct(saveFile, &scene->lSystems[i].position);
-				file_read_struct(saveFile, &scene->lSystems[i].rotation);
-				file_read_struct(saveFile, &scene->lSystems[i].type);
-				file_read_struct(saveFile, &scene->lSystems[i].totalAge);
-				file_read_struct(saveFile, &scene->lSystems[i].maxAge);
-
-				scene->lSystems[i].vertices = push_memory_view<Vertex>(persistentMemory, 15'000);
-				scene->lSystems[i].indices = push_memory_view<u16>(persistentMemory, 45'000);
-
-				// scene->lSystemsPotIndices[i] = -1;
-				scene->lSystemLeavess[i] 			= make_leaves(persistentMemory, 4000);
-				scene->lSystemLeavess[i].material 	= leavesMaterial;
-
-				if (scene->lSystems[i].type == TREE_TYPE_1)
-				{
-					scene->lSystems[i].seedMesh 	= tree1SeedMesh;
-					scene->lSystems[i].seedMaterial = tree1SeedMaterial;
-				}
-				else if (scene->lSystems[i].type == TREE_TYPE_2)
-				{
-					scene->lSystems[i].seedMesh 	= tree2SeedMesh;
-					scene->lSystems[i].seedMaterial = tree1SeedMaterial;
-				}
-				else if (scene->lSystems[i].type == TREE_TYPE_CRYSTAL)
-				{
-					scene->lSystems[i].seedMesh 	= tree1SeedMesh;
-					scene->lSystems[i].seedMaterial = scene->waterMaterial;
-				}
-			
-				update_lsystem_mesh_tree2(scene->lSystems[i], scene->lSystemLeavess[i]);
-			}	
-			file_read_memory(saveFile, scene->lSystemCount, scene->lSystemsPotIndices);
-
-		}
-		else
-		{
-			scene->lSystemCapacity 		= 20;
-			scene->lSystemCount 		= 20;
-			scene->lSystems 			= push_memory<TimedLSystem>(persistentMemory, scene->lSystemCapacity, ALLOC_NO_CLEAR);
-			scene->lSystemLeavess 		= push_memory<Leaves>(persistentMemory, scene->lSystemCapacity, ALLOC_NO_CLEAR);
-			scene->lSystemsPotIndices 	= push_memory<s32>(persistentMemory, scene->lSystemCapacity, ALLOC_NO_CLEAR);
-
-			for (int i = 0; i < scene->lSystemCapacity; ++i)
-			{
-				scene->lSystems[i]			= make_lsystem(persistentMemory);
-				
-				scene->lSystemLeavess[i] 	= make_leaves(persistentMemory, 4000);
-				scene->lSystemLeavess[i].material = leavesMaterial;
-
-				if (i < 5)
-				{
-					scene->lSystems[i].type 		= TREE_TYPE_CRYSTAL;
-					scene->lSystems[i].maxAge		= 50;
-					scene->lSystems[i].aWord[0]		= {'A', 0, 0};
-
-					scene->lSystems[i].seedMesh 	= tree1SeedMesh;
-					scene->lSystems[i].seedMaterial = scene->waterMaterial;
-				}
-				else if ((i & 2) == 0)
-				{
-					scene->lSystems[i].type 		= TREE_TYPE_1;
-					scene->lSystems[i].seedMesh 	= tree1SeedMesh;
-					scene->lSystems[i].seedMaterial = tree1SeedMaterial;
-				}
-				else
-				{
-					scene->lSystems[i].type 		= TREE_TYPE_2;
-					scene->lSystems[i].maxAge		= 50;
-					scene->lSystems[i].aWord[0]		= {'A', 0, 0};
-
-					scene->lSystems[i].seedMesh 	= tree2SeedMesh;
-					scene->lSystems[i].seedMaterial = tree1SeedMaterial;
-				}
-
-				scene->lSystemsPotIndices[i] = -1;
-			}
-
-			for (s32 i = 0; i < scene->lSystemCount; ++i)
-			{
-				v3 position 				= random_inside_unit_square() * 20 - v3{10, 10, 0};
-				position.z 					= get_terrain_height(scene->collisionSystem, position.xy);
-				scene->lSystems[i].position = position;
-				scene->lSystems[i].rotation = identity_quaternion;
-
-
-				logDebug(0) << position;
-			}
-		}
 	}
 
 	/// MARCHING CUBES AND METABALLS TESTING
@@ -2513,14 +2160,15 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 	// ----------------------------------------------------------------------------------
 	
 	{	
-		s32 treeCapacity 	= 1;	
+		s32 treeCapacity 	= 50;	
 		scene->trees 		= push_array_2<Tree3>(persistentMemory, treeCapacity, ALLOC_CLEAR);
 		scene->trees.count 	= scene->trees.capacity;
 
 		scene->treeIndex 	= 0;
 
-		// for (auto & tree : experimental::array_2_range(scene->trees, 0, 25))
-		for (auto & tree : scene->trees)
+
+		s32 halfCapacity 	= scene->trees.capacity / 2;
+		for (auto & tree : experimental::array_2_range(scene->trees, 0, halfCapacity))
 		{
 			v3 position = random_on_unit_circle_xy() * random_value() * 50;
 			position.z = get_terrain_height(scene->collisionSystem, position.xy);
@@ -2537,19 +2185,19 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 
 		// ----------------------------------------------------------------------------------
 
-		// for (auto & tree : experimental::array_2_range(scene->trees, 25, 50))
-		// {
-		// 	v3 position = random_on_unit_circle_xy() * random_value() * 50;
-		// 	position.z = get_terrain_height(scene->collisionSystem, position.xy);
+		for (auto & tree : experimental::array_2_range(scene->trees, halfCapacity, scene->trees.capacity))
+		{
+			v3 position = random_on_unit_circle_xy() * random_value() * 50;
+			position.z = get_terrain_height(scene->collisionSystem, position.xy);
 			
-		// 	initialize_test_tree_3(persistentMemory, tree, position, &scene->treeSettings[1]);
-		// 	build_tree_3_mesh(tree);
+			initialize_test_tree_3(persistentMemory, tree, position, &scene->treeSettings[1]);
+			build_tree_3_mesh(tree);
 
-		// 	tree.leaves.material 	= leavesMaterial;
-		// 	tree.leaves.colourIndex = tree.settings->leafColourIndex;
-		// 	tree.seedMesh 			= seedMesh2;
-		// 	tree.seedMaterial 		= seedMaterial2;
-		// }
+			tree.leaves.material 	= leavesMaterial;
+			tree.leaves.colourIndex = tree.settings->leafColourIndex;
+			tree.seedMesh 			= seedMesh2;
+			tree.seedMaterial 		= seedMaterial2;
+		}
 	}
 
 	// ----------------------------------------------------------------------------------
