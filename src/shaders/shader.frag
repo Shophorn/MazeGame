@@ -40,39 +40,14 @@ layout (push_constant) uniform MaterialBlock
 
 void main()
 {
-	vec3 lightDir = tbnMatrix * -light.direction.xyz;
-	vec3 normal = texture(texSampler[NORMAL_INDEX], fragTexCoord).xyz * 2.0 - 1.0;
-	normal = normalize(normal);
+	vec3 lightDir 	= tbnMatrix * -light.direction.xyz;
+	vec3 normal 	= texture(texSampler[NORMAL_INDEX], fragTexCoord).xyz * 2.0 - 1.0;
+	normal 			= normalize(normal);
 
 	float ldotn = max(0, dot(lightDir, normal));
 
-	// float gamma = 2.2;
 	vec4 tex = texture(texSampler[ALBEDO_INDEX], fragTexCoord);
 	vec3 albedo = tex.rgb;
-	// albedo = pow(albedo, vec3(gamma));	
-
-
-#if 0
-	vec3 ambient 	= light.ambient.rgb;
-	vec3 diffuse 	= ldotn * light.color.rgb;
-
-	vec3 viewDirection = normalize(light.cameraPosition.xyz - fragPosition);
-	viewDirection = tbnMatrix * viewDirection;
-
-	// Note(Leo): invert lightdir so that it points on surface and is reflected properly
-	vec3 reflectDirection = reflect(-lightDir, normal);
-
-	float spec = pow(max(0, dot(viewDirection, reflectDirection)), 128);
-	spec *= 0.5;
-	vec3 specular = spec * light.color.rgb;
-
-	vec3 totalLight = ambient + diffuse + spec;
-
-	outColor.rgb = totalLight * albedo;
-	outColor.a = 1;
-
-	return;
-#endif
 
 	float lightIntensity = ldotn;
 
@@ -88,39 +63,43 @@ void main()
 	lightIntensity = lightIntensity * inLight;
 	lightIntensity = inLight;
 
+
+	vec3 worldSpaceNormal = inverse(tbnMatrix) * normal;
+	// vec3 worldSpaceNormal = inverse(tbnMatrix) * vec3(0,0,1);
+
+	SunAndAmbientLights lights = BETTER_compute_sky_color(worldSpaceNormal);
+
+	// outColor.rgb = lights.ambient;
+	// outColor.a = 1;
+	// return;
+
+	vec3 lightColor = compute_sky_color(worldSpaceNormal);
+
+
 	/// SPECULAR
 	float smoothness 		= material.smoothness;
 	float specularStrength 	= 0.1;//material.specularStrength;
 
 	vec3 viewDirection = normalize(tbnMatrix * (light.cameraPosition.xyz - fragPosition));
-
-#if 0
-	vec3 reflectDirection = reflect(-lightDir, normal);
-	float spec = max(0, dot (viewDirection, reflectDirection));
-#endif
-
 	vec3 halfVector = normalize(lightDir + viewDirection);
 	float spec = max(0, dot (halfVector, normal));
-
 	spec = pow(spec, 256 * smoothness);
-
-	vec3 lightColor = compute_sky_color(normal, lightDir);
-
 	vec3 specularTerm = spec * specularStrength * lightColor * inLightActual;
 
-	// lightIntensity *= 2;
-	vec3 diffuseTerm = mix(light.ambient.rgb, lightColor, lightIntensity);
-	// vec3 diffuseTerm = light.ambient.rgb + light.color.rgb * lightIntensity;
+	/// -------------------------------------------------
 
-	vec3 ambientColor = compute_sky_color(-lightDir, tbnMatrix);
-	diffuseTerm = lightColor * albedo * lightIntensity + ambientColor * albedo;
+	vec3 diffuseTerm = lightColor * albedo * lightIntensity;
 
-	// diffuseTerm *= lightIntensity;
 
-	vec3 color = diffuseTerm + specularTerm;
-	// color = lightColor * albedo;
+	// vec3 ambientColor 		= compute_sky_color(normal, tbnMatrix);
+	vec3 ambientColor 		= lightColor; //compute_sky_color(worldSpaceNormal);
+	// float ambientIntensity 	= 0.3;
+	// vec3 ambientTerm 		= ambientIntensity * ambientColor * albedo;
+	vec3 ambientTerm = lights.ambient * albedo;
+	diffuseTerm = lights.sun * albedo * inLight;
 
-	outColor.rgb = color;
-	outColor.a = tex.a;
 
+	// outColor.rgb 	= diffuseTerm + specularTerm + ambientTerm;
+	outColor.rgb 	= diffuseTerm + ambientTerm;
+	outColor.a 		= tex.a;
 }

@@ -496,7 +496,13 @@ load_mesh_glb(MemoryArena & allocator, GltfFile const & file, char const * model
 	
 	s32 nodeIndex = index_by_name(nodes, modelName);
 	// Assert(nodeIndex >= 0);
-	AssertMsg(nodeIndex >= 0, CStringBuilder("modelName = ") + modelName);
+
+	if (nodeIndex < 0)
+	{
+		// AssertMsg(nodeIndex >= 0, CStringBuilder("modelName = ") + modelName);
+		logDebug(0) << "modelName = " << modelName;
+		Assert(false);
+	}
 
 	Assert(file.json.HasMember("meshes"));
 	Assert(nodes[nodeIndex].HasMember("mesh"));

@@ -27,6 +27,7 @@ layout (location = 2) out vec3 fragNormal;
 layout (location = 3) out vec3 fragPosition;
 layout (location = 4) out vec4 lightCoords;
 layout (location = 5) out mat3 tbnMatrix;
+// layout (location = 6) out vec3 fragTangent;
 
 const float shadowDistance = 90.0;
 const float transitionDistance = 10.0;
@@ -35,10 +36,10 @@ void main ()
 {
 	gl_Position = camera.projection * camera.view * model.model * vec4(inPosition, 1.0);
 
-	// Todo(Leo): Check correctness???
 	fragNormal 	= (transpose(inverse(model.model)) * vec4(inNormal, 0)).xyz;
 	// fragTangent = (transpose(inverse(model.model)) * vec4(inTangent, 0)).xyz;
 
+	// Todo(Leo): Check for mirrored faces with some hacks like -1 on tangent w component etc.
 	// world space tangent, normal and bitangent
 	vec3 t = normalize((model.model * vec4(inTangent, 0)).xyz);
 	vec3 n = normalize((model.model * vec4(inNormal, 0)).xyz);

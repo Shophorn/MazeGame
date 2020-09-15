@@ -6,9 +6,6 @@ Leo Tamminen
 #include "MazegamePlatform.hpp"
 #include "Mazegame.hpp"
 
-#include "string.cpp"
-#include "serialization.cpp"
-
 static PlatformApi * 		platformApi;
 static PlatformGraphics * 	platformGraphics;
 static PlatformWindow * 	platformWindow;
@@ -21,31 +18,17 @@ internal String push_temp_string (s32 capacity)
 	return result;
 };
 
+template<typename ... TArgs>
+internal String push_temp_string_format(s32 capacity, TArgs ... args)
+{
+	String result = push_temp_string(capacity);
+	string_append_format(result, capacity, args...);
+	return result;
+}
+
 constexpr f32 physics_gravity_acceleration = -9.81;
 
-constexpr v4 colour_white 			= {1,1,1,1};
-constexpr v4 colour_black 			= {0,0,0,1};
-
-constexpr v4 colour_aqua_blue 		= colour_v4_from_rgb_255(51, 255, 255);
-constexpr v4 colour_raw_umber 		= colour_v4_from_rgb_255(130, 102, 68);
-
-constexpr v4 colour_bright_red 		= {1.0, 0.0, 0.0, 1.0};
-constexpr v4 colour_bright_blue 	= {0.0, 0.0, 1.0, 1.0};
-constexpr v4 colour_bright_green 	= {0.0, 1.0, 0.0, 1.0};
-constexpr v4 colour_bright_yellow 	= {1.0, 1.0, 0.0, 1.0};
-constexpr v4 colour_bright_purple 	= {1, 0, 1, 1};
-
-constexpr v4 colour_dark_green 		= {0, 0.6, 0, 1};
-constexpr v4 colour_dark_red 		= {0.6, 0, 0, 1};
-
-constexpr v4 colour_bump 			= {0.5, 0.5, 1.0, 0.0};
-
-constexpr v4 colour_muted_red 		= {0.8, 0.2, 0.3, 1.0};
-constexpr v4 colour_muted_green 	= {0.2, 0.8, 0.3, 1.0};
-constexpr v4 colour_muted_blue 		= {0.2, 0.3, 0.8, 1.0};
-constexpr v4 colour_muted_yellow 	= {0.8, 0.8, 0.2, 1.0};
-constexpr v4 color_muted_purple 	= {0.8, 0.2, 0.8, 1};
-
+#include "colour.cpp"
 #include "Debug.cpp"
 
 // Note(Leo): Make unity build here.
@@ -361,4 +344,4 @@ bool32 update_game(
 
 
 // Note(Leo): This makes sure we have actually defined this correctly.
-static_assert(std::is_same_v<GameUpdateFunc, decltype(update_game)>);
+static_assert(is_same_type<GameUpdateFunc, decltype(update_game)>);

@@ -128,7 +128,6 @@ internal void fsvulkan_set_platform_graphics_api(VulkanContext * context, Platfo
 {
  	api->push_mesh          = fsvulkan_resources_push_mesh;
  	api->push_texture       = fsvulkan_resources_push_texture;
- 	api->push_cubemap       = fsvulkan_resources_push_cubemap;
  	api->push_material      = fsvulkan_resources_push_material;
  	api->push_gui_texture 	= fsvulkan_resources_push_gui_texture;
  	api->push_model         = fsvulkan_resources_push_model;

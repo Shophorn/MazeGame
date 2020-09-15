@@ -56,6 +56,7 @@ struct FSVulkanLightingUniformBuffer
 
 	v4 skyBottomColor;
 	v4 skyTopColor;
+	v4 skyGroundColor;
 
 	v4 horizonHaloColorAndFalloff;
 	v4 sunHaloColorAndFalloff;

@@ -16,6 +16,7 @@ struct SkySettings
 
 	v3 skyGradientBottom 	= {};
 	v3 skyGradientTop 		= {};
+	v3 skyGradientGround 	= {};
 	v3 horizonHaloColour 	= {};
 	v3 sunHaloColour 		= {};
 	v3 sunDiscColour 		= {};
@@ -32,6 +33,7 @@ struct SkySettings
 		serialized_property("sunDiscSize", 			&SkySettings::sunDiscSize),
 		serialized_property("sunDiscFalloff", 		&SkySettings::sunDiscFalloff),
 		serialized_property("skyGradientBottom",	&SkySettings::skyGradientBottom),
+		serialized_property("skyGradientGround",	&SkySettings::skyGradientGround),
 		serialized_property("skyGradientTop", 		&SkySettings::skyGradientTop),
 		serialized_property("horizonHaloColour", 	&SkySettings::horizonHaloColour),
 		serialized_property("sunHaloColour", 		&SkySettings::sunHaloColour),
@@ -49,22 +51,23 @@ internal void sky_gui(SkySettings & settings)
 
 	gui_line();
 
-	gui_color_rgb("Sky Gradient Bottom", &settings.skyGradientBottom, GUI_COLOR_FLAGS_HDR);
-	gui_color_rgb("Sky Gradient Top", &settings.skyGradientTop, GUI_COLOR_FLAGS_HDR);
+	gui_colour_rgb("Sky Gradient Ground", &settings.skyGradientGround, GUI_COLOR_FLAGS_HDR);
+	gui_colour_rgb("Sky Gradient Bottom", &settings.skyGradientBottom, GUI_COLOR_FLAGS_HDR);
+	gui_colour_rgb("Sky Gradient Top", &settings.skyGradientTop, GUI_COLOR_FLAGS_HDR);
 
 	gui_line();
 
-	gui_color_rgb("Horizon Halo Color", &settings.horizonHaloColour, GUI_COLOR_FLAGS_HDR);
+	gui_colour_rgb("Horizon Halo Color", &settings.horizonHaloColour, GUI_COLOR_FLAGS_HDR);
 	gui_float_slider("Horizon Halo Falloff", &settings.horizonHaloFalloff, 0.0001, 1);
 
 	gui_line();
 
-	gui_color_rgb("Sun Halo Color", &settings.sunHaloColour, GUI_COLOR_FLAGS_HDR);
+	gui_colour_rgb("Sun Halo Color", &settings.sunHaloColour, GUI_COLOR_FLAGS_HDR);
 	gui_float_slider("Sun Halo Falloff", &settings.sunHaloFalloff, 0.0001, 1);
 
 	gui_line();
 
-	gui_color_rgb("Sun Disc Color", &settings.sunDiscColour, GUI_COLOR_FLAGS_HDR);
+	gui_colour_rgb("Sun Disc Color", &settings.sunDiscColour, GUI_COLOR_FLAGS_HDR);
 	gui_float_slider("Sun Disc Size", &settings.sunDiscSize, 0, 0.01);
 	gui_float_slider("Sun Disc Falloff", &settings.sunDiscFalloff, 0, 1);
 

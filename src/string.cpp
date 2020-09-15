@@ -6,6 +6,7 @@ String, tah-daa
 TODO(LEO): I had some mental designual issues with generic append and parse functions, so I ended up 
 	writing them non generic but also added generic interface for serialization and format needs.
 	Think this throgh, if issues arise.
+	
 */
 
 struct String
@@ -13,17 +14,17 @@ struct String
 	s32 	length;
 	char * 	memory;
 
-	char & last() { return memory[length - 1]; }
-
 	char & operator [] (s32 index) { return memory[index]; }
 	char operator [] (s32 index) const { return memory[index]; }
-
-	char * begin() { return memory; }
-	char * end() { return memory + length; }
-
-	char const * begin() const { return memory; }
-	char const * end() const { return memory + length; }
 };
+
+// Todo(Leo): This is "dangerous", we are casting the const away :) Let's just be careful
+// and not modify contents of this
+constexpr String from_cstring(char const * cstring)
+{
+	String result = {cstring_length(cstring), (char*)cstring};
+	return result;
+}
 
 LogInput & operator << (LogInput & log, String const & string)
 {
@@ -79,7 +80,7 @@ internal void string_eat_leading_spaces(String & string)
 
 internal void string_eat_following_spaces(String & string)
 {
-	while(string.length > 0 && is_whitespace_character(string.last()))
+	while(string.length > 0 && is_whitespace_character(string[string.length - 1]))
 	{
 		string.length -= 1;
 	}
@@ -127,11 +128,7 @@ String string_extract_line(String & source)
 		length += 1;
 	}
 
-	String result = 
-	{
-		.length = length,
-		.memory = source.memory
-	};
+	String result = { length, source.memory };
 	string_eat_spaces(result);
 
 	#ifndef _WIN32
@@ -163,11 +160,7 @@ String string_extract_until_character(String & source, char delimiter)
 		length += 1;
 	}
 
-	String result =
-	{
-		.length = length,
-		.memory = source.memory,
-	};
+	String result = {length, source.memory};
 	string_eat_spaces(result);
 
 	// Note(Leo): Add one for delimiting character
@@ -323,23 +316,17 @@ GENERIC_STRING_PARSE(v3, string_parse_v3);
 internal void string_append_string(String & string, s32 capacity, String other)
 {
 	Assert(capacity - string.length >= other.length);
-	copy_memory(string.end(), other.memory, other.length);
+	copy_memory(&string[string.length], other.memory, other.length);
 	string.length += other.length;
 }
 
 internal void string_append_cstring(String & string, s32 capacity, char const * cstring)
-{
-	// todo(Leo): assert in this or truncate in normal string append, at least do the same thing in both
-	while(string.length < capacity && *cstring != 0)
-	{
-		*string.end() = *cstring;
-
-		string.length 	+= 1;
-		cstring 		+= 1;
-	}
+{	
+	s32 length = cstring_length(cstring);
+	string_append_string(string, capacity, from_cstring(cstring));
 }
 
-internal void string_append_f32(String & string, s32 capacity, f32 value)
+internal void string_append_f32(String & string, s32 capacity, f32 value, s32 precision = 8)
 {	
 	// Todo(Leo): check that range is valid
 
@@ -347,15 +334,15 @@ internal void string_append_f32(String & string, s32 capacity, f32 value)
 
 	// Note(Leo): added one is for possible negative sign
 	char digits[digitCapacity + 1] = {};
-	s32 digitCount = 0;
+	s32 characterCount = 0;
 
-	fill_memory(digits, '0', digitCapacity);
+	fill_memory(digits, '0', array_count(digits));
 	Assert((capacity - string.length) > array_count(digits))
 	
 
 	if (value < 0)
 	{
-		digits[digitCount++] = '-';
+		digits[characterCount++] = '-';
 		value = abs_f32(value);
 	}
 
@@ -404,24 +391,27 @@ internal void string_append_f32(String & string, s32 capacity, f32 value)
 		}
 	}
 
-	digitCount += 1;
+	// Note(Leo): characterCount includes decimal point and minus sign
+	characterCount += 1;
+	s32 digitCount = 1;
 
 	// Note(Leo): second loop to find rest
-	while((digitCount < digitCapacity) && (exponent >= -maxExponent))
+	while((characterCount < array_count(digits)) && (digitCount < precision)  && (exponent >= -maxExponent))
 	{
 		if (exponent == -1)
 		{
-			digits[digitCount] = '.';
-			digitCount++;
+			digits[characterCount] = '.';
+			characterCount++;
 		}
 		
-		digits[digitCount] = get_digit(exponent);
+		digits[characterCount] = get_digit(exponent);
 
+		characterCount++;
 		digitCount++;
 		exponent--;
 	}
 
-	string_append_string(string, capacity, String{digitCount, digits});
+	string_append_string(string, capacity, String{characterCount, digits});
 }
 
 internal void string_append_s32(String & string, s32 capacity, s32 value)
@@ -441,8 +431,9 @@ internal void string_append_s32(String & string, s32 capacity, s32 value)
 
 	if (value == 0)
 	{
-		*string.end() = '0';
-		string.length += 1;
+		string[string.length++] = '0';
+		// *string.end() = '0';
+		// string.length += 1;
 	}
 	else
 	{

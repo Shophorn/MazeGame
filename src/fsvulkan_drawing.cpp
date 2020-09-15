@@ -84,6 +84,7 @@ internal void fsvulkan_drawing_update_lighting(VulkanContext * context, Light co
 
 	lightPtr->skyBottomColor 	= light->skyBottomColor;
 	lightPtr->skyTopColor 		= light->skyTopColor;
+	lightPtr->skyGroundColor 	= light->skyGroundColor;
 
 	lightPtr->horizonHaloColorAndFalloff 	= light->horizonHaloColorAndFalloff;
 	lightPtr->sunHaloColorAndFalloff 		= light->sunHaloColorAndFalloff;
@@ -495,6 +496,7 @@ internal void fsvulkan_drawing_draw_leaves(	VulkanContext * context,
 											s32 instanceCount,
 											m44 const * instanceTransforms,
 											s32 colourIndex,
+											v3 colour,
 											MaterialHandle materialHandle)
 {
 	Assert(instanceCount > 0 && "Vulkan cannot map memory of size 0, and this function should no be called for 0 meshes");
@@ -542,7 +544,16 @@ internal void fsvulkan_drawing_draw_leaves(	VulkanContext * context,
 							4, 1, &context->skyGradientDescriptorSet,
 							0, nullptr);
 
-	vkCmdPushConstants(frame->commandBuffers.scene, pipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(s32), &colourIndex);
+	struct PushConstants
+	{
+		s32 ___;
+		v3 colour;
+	};
+
+	PushConstants pushConstants = {colourIndex, colour};
+
+	vkCmdPushConstants(frame->commandBuffers.scene, pipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(v3), &colour);
+	// vkCmdPushConstants(frame->commandBuffers.scene, pipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(s32), &colourIndex);
 
 	vkCmdBindVertexBuffers(frame->commandBuffers.scene, 0, 1, &context->leafBuffer, &instanceBufferOffset);
 

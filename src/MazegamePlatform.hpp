@@ -39,6 +39,8 @@ Interface definition between Platform and Game.
 
 #include "CStringUtility.cpp"
 #include "SmallString.cpp"
+#include "meta.cpp"
+
 
 // Note(Leo): Before assets...	
 enum GraphicsPipeline : s64
@@ -65,6 +67,11 @@ needs to be specified for compiler. */
 #include "Matrices.cpp"
 
 #include "Memory.cpp"
+
+#include "string.cpp"
+#include "serialization.cpp"
+#include "array2.cpp"
+
 #include "Assets.cpp"
 
 #include "Camera.cpp"
@@ -248,7 +255,6 @@ struct PlatformApi
 	// GRAPHICS SCENE FUNCTIONS
 	MeshHandle 	(*push_mesh) 			(PlatformGraphics*, MeshAsset * asset);
 	TextureHandle (*push_texture) 		(PlatformGraphics*, TextureAsset * asset);
-	TextureHandle (*push_cubemap) 		(PlatformGraphics*, StaticArray<TextureAsset, 6> * asset);
 	MaterialHandle (*push_material) 	(PlatformGraphics*, GraphicsPipeline, s32 textureCount, TextureHandle * textures);
 	GuiTextureHandle (*push_gui_texture) (PlatformGraphics*, TextureAsset * asset);
 
@@ -276,7 +282,7 @@ struct PlatformApi
 									s32 vertexCount, Vertex const * vertices,
 									s32 indexCount, u16 const * indices,
 									m44 transform, MaterialHandle material);
-	void (*draw_leaves)			(PlatformGraphics*, s32 count, m44 const * transforms, s32 colourIndex, MaterialHandle material);
+	void (*draw_leaves)			(PlatformGraphics*, s32 count, m44 const * transforms, s32 colourIndex, v3 colour, MaterialHandle material);
 
 	// WINDOW FUNCTIONS	
 	u32 (*get_window_width) 		(PlatformWindow const *);

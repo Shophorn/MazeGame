@@ -8,7 +8,6 @@ but compulsory design choices, look at:
 	- https://en.cppreference.com/w/cpp/named_req/Container
 =============================================================================*/
 #include <initializer_list>
-#include <type_traits>
 #include <cstring>
 
 #include "Array.hpp"
@@ -35,24 +34,6 @@ void copy_memory (void * destination, void const * source, u64 byteCount)
 {
 	memcpy(destination, source, byteCount);
 };
-
-template<typename T>
-void copy_structs(T * destination, T const * source, s32 count)
-{
-	static_assert(std::is_trivially_destructible<T>::value);
-	memcpy(destination, source, count * sizeof(T));
-}
-
-template<typename T>
-void fill_array(T * memory, u64 count, T value)
-{
-	T * end = memory + count;
-	while(memory < end)
-	{
-		*memory = value;
-		++memory;
-	}
-}
 
 internal void fill_memory(void * memory, char  value, u64 size)
 {
@@ -88,27 +69,6 @@ void swap(T & a, T & b)
 // 		memory++;
 // 	}
 // }
-
-// ----------------------------------------------------------------------------
-
-template<typename T, u32 Count>
-struct StaticArray
-{
-	static_assert(Count != 0, "Why would you do this?");
-
-	T items_ [Count];
-
-	constexpr u32 count () { return Count; }
-
-	T * begin() { return items_; }
-	T * end() 	{ return items_ + Count; }
-
-	T & operator [] (u32 index)
-	{
-		AssertMsg (index < Count, "Index outside StaticArray bounds");
-		return items_[index];
-	}
-};
 
 // ----------------------------------------------------------------------------
 
@@ -212,35 +172,6 @@ internal void pop_memory_checkpoint(MemoryArena & arena)
 
 	arena.used 				= arena.checkpoint;
 	arena.checkpoint 		= previousCheckpoint;
-}
-
-// ---------------------------------------------------------------------------
-// MemoryView is simplest possible dynamic memory container.
-
-template<typename T>
-struct MemoryView
-{
-	s32 capacity;
-	s32 count;
-	T * memory;
-};
-
-template <typename T>
-internal MemoryView<T> push_memory_view(MemoryArena & allocator, s32 capacity)
-{
-	MemoryView<T> result =
-	{
-		capacity,
-		0,
-		push_memory<T>(allocator, capacity, ALLOC_NO_CLEAR)
-	};
-	return result;
-};
-
-template <typename T>
-internal s32 memory_view_available(MemoryView<T> const & memoryView)
-{
-	return memoryView.capacity - memoryView.count;
 }
 
 // ----------------------------------------------------------------------------
@@ -366,4 +297,20 @@ void reverse_array(Array<T> & array)
 		array[i] = array[lastIndex -i];
 		array[lastIndex - i] = temp;
 	}	
+}
+
+/// ----------------------------------------------------------------------
+
+template<typename TFirst, typename ... TOthers>
+internal void push_multiple_memories(MemoryArena & arena, s32 count, s32 flags, TFirst first, TOthers... others)
+{
+	using type = pointer_strip<TFirst>;
+	static_assert(is_same_type<type**, TFirst>, "first must be a pointer to pointer type");
+
+	*first = push_memory<type>(arena, count, flags);
+
+	if constexpr (sizeof...(TOthers) > 0)
+	{
+		push_multiple_memories(arena, count, flags, others...);
+	}
 }

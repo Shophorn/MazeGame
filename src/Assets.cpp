@@ -4,7 +4,7 @@ Leo Tamminen
 Asset things for :MAZEGAME:
 =============================================================================*/
 
-enum HandleType
+enum HandleType : s32
 {
 	INVALID,
 
@@ -87,13 +87,13 @@ make_mesh_asset(Array<Vertex> vertices, Array<u16> indices)
 
 // using u32 = u32;
 
-enum : s32
+enum TextureAddressMode : s32
 {
-	TEXTURE_ADDRESS_MODE_WRAP,
+	TEXTURE_ADDRESS_MODE_REPEAT,
 	TEXTURE_ADDRESS_MODE_CLAMP,
 };
 
-enum : s32
+enum TextureFormat : s32
 {
 	TEXTURE_FORMAT_U8_SRGB,
 	TEXTURE_FORMAT_U8_LINEAR,
@@ -115,9 +115,9 @@ struct TextureAsset
 	s32 	height;
 	s32 	channels;
 
-	s32 	addressMode;
-	s32 	format;
-	s32 	colorMode;
+	TextureAddressMode 	addressMode;
+	TextureFormat 		format;
+	s32 				colorMode_REMOVE;
 };
 
 u32 * get_u32_pixel_memory(TextureAsset & asset)

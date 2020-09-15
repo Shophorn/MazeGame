@@ -23,6 +23,7 @@ struct GuiDrawCall
 
 enum GuiColorFlags : s32
 {
+	GUI_COLOR_FLAGS_NONE 	= 0,
 	GUI_COLOR_FLAGS_HDR 	= 1,
 };
 
@@ -59,7 +60,9 @@ struct Gui
 	v4 	selectedTextColor;
 
 	v4 	lineColor 	= {0.1, 0.1, 0.1, 1.0};
+	// Todo(Leo): Line height actually
 	f32 lineWidth 	= 2;
+
 
 	f32 spacing;
 	f32 padding;
@@ -94,8 +97,19 @@ struct Gui
 	bool32 			panelHasTitle;
 
 	// Todo(Leo): not gonna work with multiple panels...
-	v2 panelCursor;
 	v2 panelSizeLastFrame;
+
+	// f32 panelCursorX;
+	f32 panelCursorY;
+
+	f32 panelCurrentLineLength;
+	f32 panelMaxLineLength;
+
+	f32 panelLeftCursorX;
+	f32 panelCenterCursorX;
+	f32 panelRightCursorX;
+
+	s32 drawCallCountOnLineBegin;
 
 	// s32				frameScreenRectsCapacity;
 	// s32 			frameScreenRectsCount;
@@ -103,9 +117,14 @@ struct Gui
 
 };
 
+// ............................................................................
+// CONSTANT VALUES THAT CAN BE PASSED TO SOME WIDGETS
+
 // Note(Leo): actual value does not matter, we only compare pointers, as long as it is unique
 char const * const GUI_NO_TITLE = "GUI_NO_TITLE";
 constexpr GuiTextureHandle GUI_NO_TEXTURE = {-1};
+
+// ............................................................................
 
 Gui * global_currentGui = nullptr;
 
@@ -128,23 +147,23 @@ internal void gui_text(char const * label);
 internal void gui_image(GuiTextureHandle texture, v2 size, v4 colour = colour_white);
 
 internal bool gui_float_slider(char const * label, f32 * value, f32 minValue, f32 maxValue);
-internal bool gui_float_slider_2(char const * label, f32 * value, f32 minValue, f32 maxValue);
 internal bool gui_float_field(char const * label, f32 * value, GuiClampValuesF32 clamp = {});
 internal bool gui_int_field(char const * label, s32 * value, GuiClampValuesS32 clamp = {});
 
 internal bool gui_vector_2_field(char const * label, v2 * value, GuiClampValuesV2 const & clamp = {});
 
-internal bool gui_color_rgb(char const * label, v3 * color, bool enableHdr);
-// internal bool gui_color_rgba(char const * label, v4 * color, bool enableHdr);
+internal bool gui_colour_rgb(char const * label, v3 * color, GuiColorFlags = GUI_COLOR_FLAGS_NONE);
+// internal bool gui_colour_rgba(char const * label, v4 * color, bool enableHdr);
 internal void gui_line();
 
 
 // Internal
 internal void gui_render_texture(TextureHandle texture, ScreenRect rect);
-internal void gui_render_text(char const * text, v2 position, v4 color);
 internal bool gui_is_under_mouse(v2 position, v2 size);
 internal bool gui_is_selected();
 internal void gui_panel_new_line();
+internal void gui_push_line_width(f32 width);
+internal void gui_label(char const * label, v4 colour);
 
   //////////////////////////////////
  ///  GUI IMPLEMENTATION 		///
@@ -232,122 +251,20 @@ internal v2 gui_transform_screen_size (v2 size)
 	return size;
 };
 
-internal void gui_render_text (char const * text, v2 position, v4 color)
+internal f32 & gui_get_x_cursor(GuiAlignment alignment)
 {
 	Gui & gui = *global_currentGui;
 
-	f32 size 					= gui.textSize;
-	s32 firstCharacter 			= ' ';
-	s32 charactersPerDirection 	= 10;
-	f32 characterUvSize 		= 1.0f / charactersPerDirection;
-
-	ScreenRect rects [512];
-	s32 rectCount = 0;
-
-	while(*text != 0)
+	switch (alignment)
 	{
-		Assert(rectCount < array_count(rects) && "Too little room for such a long text");
-
-		if (*text == ' ')
-		{
-			position.x += size * gui.font.spaceWidth;
-			++text;
-			continue;
-		}
-
-		s32 index = *text - firstCharacter;
-		v2 glyphStart 		= {position.x + gui.font.leftSideBearings[index], position.y};
-
-		// Todo(Leo): also consider glyph's actual height
-		v2 glyphSize 		= {gui.font.characterWidths[index] * size, size};
-
-		rects[rectCount] = 
-		{
-			.position 	= gui_transform_screen_point(glyphStart),
-			.size 		= gui_transform_screen_size(glyphSize),
-			.uvPosition = gui.font.uvPositionsAndSizes[index].xy,
-			.uvSize 	= gui.font.uvPositionsAndSizes[index].zw,
-		};
-
-		++rectCount;
-
-		position.x += size * gui.font.advanceWidths[index];
-		++text;
+		case GUI_ALIGN_RIGHT: return gui.panelRightCursorX;
+		case GUI_ALIGN_LEFT:
+		default:
+			return gui.panelLeftCursorX;
 	}
-	platformApi->draw_screen_rects(platformGraphics, rectCount, rects, gui.font.atlasTexture, color);
-};
-
-internal f32 gui_panel_add_text_draw_call(char const * text, v4 color, bool appendNewLine)
-{
-	Gui & gui = *global_currentGui;
-
-	Assert(gui.isPanelActive == true);
-	Assert(gui.panelDrawCallsCount < gui.panelDrawCallsCapacity);
-
-	f32 size 					= gui.textSize;
-	s32 firstCharacter 			= ' ';
-	s32 charactersPerDirection 	= 10;
-	f32 characterUvSize 		= 1.0f / charactersPerDirection;
-
-	v2 & cursor		= gui.panelCursor;
-	f32 textWidth 	= gui.padding;
-
-	s32 rectCapacity 	= 256;
-	s32 rectCount 		= 0;
-	ScreenRect * rects 	= push_memory<ScreenRect>(*global_transientMemory, rectCapacity, ALLOC_NO_CLEAR);
-
-	while(*text != 0)
-	{
-		Assert(rectCount < rectCapacity && "Too little room for such a long text");
-
-		if (*text == ' ')
-		{
-			cursor.x += size * gui.font.spaceWidth;
-			textWidth += size * gui.font.spaceWidth;
-			++text;
-			continue;
-		}
-
-		s32 index = *text - firstCharacter;
-		v2 glyphStart 		= {cursor.x + gui.font.leftSideBearings[index], cursor.y};
-
-		// Todo(Leo): also consider glyph's actual height
-		v2 glyphSize 		= {gui.font.characterWidths[index] * size, size};
-
-		rects[rectCount] = 
-		{
-			.position 	= (glyphStart),
-			.size 		= (glyphSize),
-			.uvPosition = gui.font.uvPositionsAndSizes[index].xy,
-			.uvSize 	= gui.font.uvPositionsAndSizes[index].zw,
-		};
-
-		++rectCount;
-
-		cursor.x += size * gui.font.advanceWidths[index];
-		textWidth += size * gui.font.advanceWidths[index];
-		++text;
-	}
-
-	gui.panelDrawCalls[gui.panelDrawCallsCount] 	= {rectCount, rects, gui.font.atlasTexture, color};
-	gui.panelDrawCallsCount 						+= 1;
-
-	gui.panelSize.x = max_f32(gui.panelSize.x, textWidth + gui.padding);
-
-	if (appendNewLine)
-	{
-		gui_panel_new_line();
-	}
-	else
-	{
-		cursor.x += gui.padding;
-	}
-
-
-	return textWidth;
 }
 
-internal f32 gui_panel_add_text_draw_call_2(String const & text, v4 color, GuiAlignment alignment)
+internal void gui_panel_add_text_draw_call(String const & text, v4 color, GuiAlignment alignment)
 {
 	Gui & gui = *global_currentGui;
 
@@ -361,9 +278,11 @@ internal f32 gui_panel_add_text_draw_call_2(String const & text, v4 color, GuiAl
 
 	f32 textWidth 	= gui.padding;
 
-	s32 rectCapacity 	= 256;
+	s32 rectCapacity 	= text.length;
 	s32 rectCount 		= 0;
 	ScreenRect * rects 	= push_memory<ScreenRect>(*global_transientMemory, rectCapacity, ALLOC_NO_CLEAR);
+
+	f32 & xCursor = gui_get_x_cursor(alignment);
 
 	for(s32 i = 0; i < text.length; ++i)
 	{
@@ -371,13 +290,13 @@ internal f32 gui_panel_add_text_draw_call_2(String const & text, v4 color, GuiAl
 
 		if (text[i] == ' ')
 		{
-			gui.panelCursor.x += size * gui.font.spaceWidth;
-			textWidth += size * gui.font.spaceWidth;
+			xCursor 	+= size * gui.font.spaceWidth;
+			textWidth 			+= size * gui.font.spaceWidth;
 			continue;
 		}
 
 		s32 index = text[i] - firstCharacter;
-		v2 glyphStart 		= {gui.panelCursor.x + gui.font.leftSideBearings[index], gui.panelCursor.y};
+		v2 glyphStart 		= {xCursor + gui.font.leftSideBearings[index], gui.panelCursorY};
 
 		// Todo(Leo): also consider glyph's actual height
 		v2 glyphSize 		= {gui.font.characterWidths[index] * size, size};
@@ -392,26 +311,19 @@ internal f32 gui_panel_add_text_draw_call_2(String const & text, v4 color, GuiAl
 
 		++rectCount;
 
-		gui.panelCursor.x += size * gui.font.advanceWidths[index];
-		textWidth += size * gui.font.advanceWidths[index];
+		xCursor 		+= size * gui.font.advanceWidths[index];
+		textWidth 		+= size * gui.font.advanceWidths[index];
 	}
 
-	if (alignment == GUI_ALIGN_RIGHT)
-	{
-		for(s32 i = 0; i < rectCount; ++i)
-		{
-			rects[i].position.x -= textWidth;
-		}
-	}
 
 	gui.panelDrawCalls[gui.panelDrawCallsCount] 	= {rectCount, rects, gui.font.atlasTexture, color, alignment};
 	gui.panelDrawCallsCount 						+= 1;
 
-	gui.panelSize.x = max_f32(gui.panelSize.x, textWidth + gui.padding);
+	gui.panelSize.x 			= max_f32(gui.panelSize.x, textWidth + gui.padding);
+	gui.panelCurrentLineLength 	+= textWidth;
+	xCursor 					+= gui.padding;
 
-	gui.panelCursor.x += gui.padding;
-
-	return textWidth;
+	// return textWidth;
 }
 
 internal void gui_start_panel(char const * label, v4 color)
@@ -429,7 +341,12 @@ internal void gui_start_panel(char const * label, v4 color)
 	gui.panelDrawCallsCount 	= 0;
 	gui.panelDrawCalls 			= push_memory<GuiDrawCall>(*global_transientMemory, gui.panelDrawCallsCapacity, ALLOC_NO_CLEAR);
 
-	gui.panelCursor = {0,0};
+	// gui.panelCursorX = 0;
+	gui.panelLeftCursorX = 0;
+	gui.panelCenterCursorX = 0;
+	gui.panelRightCursorX = 0;
+
+	gui.panelCursorY = 0;
 	gui.panelSize 	= {gui.padding, gui.padding};
 
 	if (label == GUI_NO_TITLE)
@@ -438,14 +355,17 @@ internal void gui_start_panel(char const * label, v4 color)
 	}
 	else
 	{
-		gui_panel_add_text_draw_call(label, gui.textColor, false);
+		gui_panel_add_text_draw_call(from_cstring(label), gui.textColor, GUI_ALIGN_LEFT);
 
 		gui.panelHasTitle 	= true;
-		gui.panelCursor.x 	= 0;
-		gui.panelCursor.y 	+= gui.spacing + gui.textSize + gui.spacing + gui.spacing;
+		gui.panelLeftCursorX= 0;
+		gui.panelCursorY 	+= gui.spacing + gui.textSize + gui.spacing + gui.spacing;
 		gui.panelSize.y 	+= gui.spacing + gui.textSize + gui.spacing + gui.spacing;
 	}
 
+	gui.panelCurrentLineLength 	= 0;
+	gui.panelMaxLineLength 		= 0;
+	gui.drawCallCountOnLineBegin = 0;
 }
 
 internal void gui_end_panel()
@@ -457,22 +377,27 @@ internal void gui_end_panel()
 
 	gui.isPanelActive 		= false;
 
-	gui.panelSize.y += gui.padding - gui.spacing;
+	f32 drawAreaWidth = gui.panelMaxLineLength;
 
-	gui.panelSizeLastFrame 	= gui.panelSize;
+	v2 panelSize 	= gui.panelSize;
+	panelSize.x 	= drawAreaWidth + 2 * gui.padding;
+	panelSize.y 	+= gui.padding - gui.spacing;
+
+
+	gui.panelSizeLastFrame 	= panelSize;
 
 	v2 screenSpacePanelPosition 		= gui_transform_screen_point(gui.panelPosition);
 	v2 screenSpacePanelTopLeftOffset 	= screenSpacePanelPosition - v2{-1,-1};
 	v2 screenSpacePanelTopRightOffset 	= screenSpacePanelPosition - v2{1,-1};
 
 	v2 pixelSpaceTopLeft 	= gui.panelPosition + v2{gui.padding, gui.padding};
-	v2 pixelSpaceTopRight 	= gui.panelPosition + v2 {gui.panelSize.x - gui.padding, gui.padding}; 
+	v2 pixelSpaceTopRight 	= gui.panelPosition + v2 {panelSize.x - gui.padding, gui.padding}; 
 
 	ScreenRect panelRects [] =
 	{
-		{screenSpacePanelPosition,	gui_transform_screen_size(gui.panelSize),	{0,0},	{1,1}},
+		{screenSpacePanelPosition,	gui_transform_screen_size(panelSize),	{0,0},	{1,1}},
 		// Todo(Leo): its weird to add only half padding on other side, do something about that
-		{screenSpacePanelPosition,	gui_transform_screen_size({gui.panelSize.x, gui.padding + gui.textSize + gui.padding * 0.5f}), {0,0},	{1,1}},
+		{screenSpacePanelPosition,	gui_transform_screen_size({panelSize.x, gui.padding + gui.textSize + gui.padding * 0.5f}), {0,0},	{1,1}},
 	};
 
 	// Note(Leo): If we do have title, we draw another rect to highlight it. (It becomes darker, since total alpha is more)
@@ -491,10 +416,12 @@ internal void gui_end_panel()
 
 			switch(call.alignment)
 			{
+
 				case GUI_ALIGN_HORIZONTAL_STRETCH:
-					rect.position.x = pixelSpaceTopLeft.x;
+					// Note(Leo): Rect is stretched and its x size is used to shorten it width-wise
+					rect.position.x = pixelSpaceTopLeft.x + rect.size.x;
 					rect.position.y += pixelSpaceTopLeft.y;
-					rect.size.x 	= pixelSpaceTopRight.x - pixelSpaceTopLeft.x;
+					rect.size.x 	= drawAreaWidth - (2 * rect.size.x);
 					break;
 
 				case GUI_ALIGN_LEFT:
@@ -525,15 +452,10 @@ internal bool gui_button(char const * label)
 	Gui & gui 		= *global_currentGui;
 	bool isSelected = gui_is_selected();
 
-	if(gui.isPanelActive)
-	{
-		gui_panel_add_text_draw_call(label, isSelected ? gui.selectedTextColor : gui.textColor, true);
-	}
-	else
-	{
-		gui_render_text(label, gui.currentPosition, isSelected ? gui.selectedTextColor : gui.textColor);
-		gui.currentPosition.y += gui.textSize + gui.padding;
-	}
+	Assert(gui.isPanelActive);
+	gui_panel_add_text_draw_call(from_cstring(label), isSelected ? gui.selectedTextColor : gui.textColor, GUI_ALIGN_LEFT);
+
+	gui_panel_new_line();
 
 	bool result = isSelected && (is_clicked(gui.input.confirm) || is_clicked(gui.input.mouse0));
 	return result;
@@ -541,6 +463,9 @@ internal bool gui_button(char const * label)
 
 internal bool gui_toggle(char const * label, bool32 * value)
 {
+	constexpr String offString 	= from_cstring("OFF");
+	constexpr String onString 	= from_cstring("ON");
+
 	Gui & gui 		= *global_currentGui;
 	Assert(gui.isPanelActive);
 
@@ -549,55 +474,32 @@ internal bool gui_toggle(char const * label, bool32 * value)
 
 	if (isSelected && is_clicked(gui.input.confirm) || is_clicked(gui.input.mouse0))
 	{
-		logDebug(0) << "Toggle toggled";
-
 		*value 		= !*value;
 		modified 	= true;
 	}
 
-	CStringBuilder builder = label;
-	builder.append_cstring(":");
-	
-	char offString [] = "OFF";
-	char onString [] = "ON";
+	String labelString = push_temp_string(128);
+	string_append_format(labelString, 128, label, ": ");
 
-	String valueString = {};
+	String const & valueString 	= *value ? onString : offString;
+	v4 colour 					= isSelected ? gui.selectedTextColor : gui.textColor;
 
-	if (*value)
-	{
-		valueString = {2, onString};
-	}
-	else
-	{
-		valueString = {3, offString};
-	}
-
-	gui_panel_add_text_draw_call(builder, isSelected ? gui.selectedTextColor : gui.textColor, false);
-
-	v2 backUpCursor 	= gui.panelCursor;
-	gui.panelCursor.x 	= 0;
-	gui_panel_add_text_draw_call_2(valueString, isSelected ? gui.selectedTextColor : gui.textColor, GUI_ALIGN_RIGHT);
-	gui.panelCursor 	= backUpCursor;
+	gui_panel_add_text_draw_call(labelString, colour, GUI_ALIGN_LEFT);
+	gui_panel_add_text_draw_call(valueString, colour, GUI_ALIGN_RIGHT);
 
 	gui_panel_new_line();
 
 	return modified;
 }
 
-
 internal void gui_text(char const * text)
 {
 	Gui & gui = *global_currentGui;
 
-	if(gui.isPanelActive)
-	{
-		gui_panel_add_text_draw_call(text, gui.textColor, true);
-	}
-	else
-	{
-		gui_render_text(text, gui.currentPosition, gui.textColor);
-		gui.currentPosition.y += gui.textSize + gui.padding;
-	}
+	Assert (gui.isPanelActive);
+	gui_panel_add_text_draw_call(from_cstring(text), gui.textColor, GUI_ALIGN_LEFT);
+
+	gui_panel_new_line();
 }
 
 internal void gui_image(GuiTextureHandle texture, v2 size, v4 colour)
@@ -648,10 +550,18 @@ internal bool gui_float_slider(char const * label, f32 * value, f32 minValue, f3
 		}
 	}
 
-	v2 position = gui.panelCursor;
-	f32 labelTextWidth = gui_panel_add_text_draw_call(label, isSelected ? gui.selectedTextColor : gui.textColor, false);
-	
+	f32 yPosition 	= gui.panelCursorY;
+	v4 colour 		= isSelected ? gui.selectedTextColor : gui.textColor;
+	gui_label(label, colour);
+
 	*value = clamp_f32(*value, minValue, maxValue);
+
+	String valueFormat = push_temp_string_format(16, *value);
+	f32 backupPanelLineLength = gui.panelCurrentLineLength;
+	gui_panel_add_text_draw_call(valueFormat, {0,0,0,1}, GUI_ALIGN_RIGHT);
+	gui.panelCurrentLineLength = backupPanelLineLength;
+
+	f32 rightCursorOffset = gui.panelRightCursorX;
 
 	constexpr float sliderWidth = 150;
 	float sliderHeight = gui.textSize;
@@ -659,10 +569,8 @@ internal bool gui_float_slider(char const * label, f32 * value, f32 minValue, f3
 	float handleWidth 	= gui.textSize * (5.0f / 8.0f);
 	float handleHeight 	= gui.textSize;
 
-	float sliderRectX = position.x - sliderWidth;
-	float sliderRectY = position.y + (gui.textSize / 2) - (sliderHeight / 2);
-	float sliderRectW = sliderWidth;
-	float sliderRectH = sliderHeight;
+	float sliderRectX = -sliderWidth + rightCursorOffset;
+	float sliderRectY = yPosition + (gui.textSize / 2) - (sliderHeight / 2);
 
 	float handlePositionTime = (*value - minValue) / (maxValue - minValue); 
 
@@ -670,7 +578,7 @@ internal bool gui_float_slider(char const * label, f32 * value, f32 minValue, f3
 	{
 		f32 x = gui.input.mousePosition.x / gui.screenSizeRatio;
 		x -= (sliderRectX + handleWidth / 2) + gui.panelSizeLastFrame.x - sliderWidth;
-		x /= (sliderRectW - handleWidth);
+		x /= (sliderWidth - handleWidth);
 
 		handlePositionTime = x;
 		handlePositionTime = clamp_f32(handlePositionTime, 0, 1);
@@ -678,17 +586,13 @@ internal bool gui_float_slider(char const * label, f32 * value, f32 minValue, f3
 		*value = lerp_f32(minValue, maxValue, handlePositionTime);
 	}
 
-	float handleRectX = position.x + (sliderWidth - handleWidth) * handlePositionTime - sliderWidth;
-	float handleRectY = position.y + (gui.textSize / 2) - (handleHeight / 2);
-	float handleRectW = handleWidth;
-	float handleRectH = handleHeight;
-
-	gui.panelSize.x = max_f32(gui.panelSize.x, labelTextWidth + sliderWidth + 2 * gui.padding);
+	float handleRectX = (sliderWidth - handleWidth) * handlePositionTime - sliderWidth + rightCursorOffset;
+	float handleRectY = yPosition + (gui.textSize / 2) - (handleHeight / 2);
 
 	ScreenRect sliderRect =
 	{ 
 		{sliderRectX, sliderRectY},
-		{sliderRectW, sliderRectH},
+		{sliderWidth, sliderHeight},
 		{0, 0},
 		{1, 1},
 	};
@@ -696,7 +600,7 @@ internal bool gui_float_slider(char const * label, f32 * value, f32 minValue, f3
 	ScreenRect handleRect =
 	{
 		{handleRectX, handleRectY},
-		{handleRectW, handleRectH},
+		{handleWidth, handleHeight},
 		{0, 0},
 		{1, 1}
 	};
@@ -708,110 +612,16 @@ internal bool gui_float_slider(char const * label, f32 * value, f32 minValue, f3
 	rects[0] = sliderRect;
 	rects[1] = handleRect;
 	
-	gui.panelDrawCalls[gui.panelDrawCallsCount] 		= {1, &rects[0], gui.panelTexture, railColour, GUI_ALIGN_RIGHT };
-	gui.panelDrawCalls[gui.panelDrawCallsCount + 1] 	= {1, &rects[1]	, gui.panelTexture, handleColour, GUI_ALIGN_RIGHT };
+	// Todo(Leo): This is totally fukin häxör :D
+	gui.panelDrawCalls[gui.panelDrawCallsCount + 1] = gui.panelDrawCalls[gui.panelDrawCallsCount - 1];
+	gui.panelDrawCalls[gui.panelDrawCallsCount - 1] = {1, &rects[0], gui.panelTexture, railColour, GUI_ALIGN_RIGHT };
+	gui.panelDrawCalls[gui.panelDrawCallsCount] 	= {1, &rects[1]	, gui.panelTexture, handleColour, GUI_ALIGN_RIGHT };
 	gui.panelDrawCallsCount += 2;
 
-	char buffer [16] 	= {};
-	String valueFormat 	= {0, buffer};
-	string_append_f32(valueFormat, 16, *value);
 
-	v2 backUpCursor 	= gui.panelCursor;
-	gui.panelCursor.x 	= 0;
-	gui_panel_add_text_draw_call_2(valueFormat, {0,0,0,1}, GUI_ALIGN_RIGHT);
-	gui.panelCursor 	= backUpCursor;
-
+	gui_push_line_width(sliderWidth);
 	gui_panel_new_line();
 	
-	return modified;
-}
-
-internal bool gui_float_slider_2(char const * label, f32 * value, f32 minValue, f32 maxValue)
-{
-	Gui & gui = *global_currentGui;
-
-	Assert(gui.isPanelActive);
-
-	constexpr f32 sliderMoveSpeed = 1.0;
-	bool isSelected = gui_is_selected();
-
-	bool modified 			= false;
-	bool modifiedByMouse 	= isSelected && is_pressed(gui.input.mouse0);
-
-	if (isSelected)
-	{
-		if (is_pressed(gui.input.left))
-		{
-			*value 		-= sliderMoveSpeed * gui.elapsedTime * (maxValue - minValue);
-			modified 	= true;
-		}
-
-		if (is_pressed(gui.input.right))
-		{
-			*value 		+= sliderMoveSpeed * gui.elapsedTime * (maxValue - minValue);
-			modified 	= true;
-		}
-	}
-	
-	if (modifiedByMouse)
-	{
-		f32 mouseDelta 	= gui.input.mousePosition.x - gui.mousePositionLastFrame.x;
-		*value 			+= mouseDelta / 100;
-	}
-
-	*value = clamp_f32(*value, minValue, maxValue);
-
-	char valueTextBuffer [10] = {};
-	{
-		s32 valueTextIndex = 0;
-	
-		if (*value < 0)
-		{
-			valueTextBuffer[valueTextIndex++] = '-';
-		}
-
-		f32 _value = abs_f32(*value);
-
-		s32 digits [7] = {};
-		digits[0] = ((s32)floor_f32(_value / 1000)) % 10;
-		digits[1] = ((s32)floor_f32(_value / 100)) % 10;
-		digits[2] = ((s32)floor_f32(_value / 10)) % 10;
-		digits[3] = ((s32)floor_f32(_value)) % 10;
-		digits[4] = ((s32)floor_f32(_value * 10)) % 10;
-		digits[5] = ((s32)floor_f32(_value * 100)) % 10;
-		digits[6] = ((s32)floor_f32(_value * 1000)) % 10;
-
-		bool leadingZero = true;
-
-		if (digits[0] > 0)
-		{
-			valueTextBuffer[valueTextIndex++] = '0' + digits[0];
-			leadingZero = false;
-		}
-
-		if(digits[1] > 0 || leadingZero == false)
-		{
-			valueTextBuffer[valueTextIndex++] = '0' + digits[1];
-			leadingZero = false;
-		}
-
-		if (digits[2] > 0 || leadingZero == false)
-		{
-			valueTextBuffer[valueTextIndex++] = '0' + digits[2];
-			leadingZero = false;
-		}
-
-		valueTextBuffer[valueTextIndex++] = '0' + digits[3];
-		valueTextBuffer[valueTextIndex++] = '.';
-		valueTextBuffer[valueTextIndex++] = '0' + digits[4];
-		valueTextBuffer[valueTextIndex++] = '0' + digits[5];
-		valueTextBuffer[valueTextIndex++] = '0' + digits[6];
-	}
-
-	gui_panel_add_text_draw_call(label, isSelected ? gui.selectedTextColor : gui.textColor, false);
-	gui_panel_add_text_draw_call(valueTextBuffer, isSelected ? gui.selectedTextColor : gui.textColor, false);
-	gui_panel_new_line();
-
 	return modified;
 }
 
@@ -826,7 +636,6 @@ internal bool gui_float_field(char const * label, f32 * value, GuiClampValuesF32
 
 	bool modified 			= false;
 	bool modifiedByMouse 	= isSelected && is_pressed(gui.input.mouse0);
-
 
 	if (isSelected)
 	{
@@ -862,18 +671,21 @@ internal bool gui_float_field(char const * label, f32 * value, GuiClampValuesF32
 
 	*value = clamp_f32(*value, clamp.min, clamp.max);
 
+	v4 colour = isSelected ? gui.selectedTextColor : gui.textColor;
+
+	gui_label(label, colour);
+
+	// string_append_format(string, 128, label, ":");
+	// gui_panel_add_text_draw_call(string, isSelected ? gui.selectedTextColor : gui.textColor, GUI_ALIGN_LEFT);
+
 	String string = push_temp_string(128);
-
-	string_append_format(string, 128, label, ":");
-	gui_panel_add_text_draw_call_2(string, isSelected ? gui.selectedTextColor : gui.textColor, GUI_ALIGN_LEFT);
-
-	reset_string(string, 128);
+	// reset_string(string, 128);
 	string_append_f32(string, 128, *value);
 
-	v2 backUpCursor = gui.panelCursor;
-	gui.panelCursor.x = 0;
-	gui_panel_add_text_draw_call_2(string, isSelected ? gui.selectedTextColor : gui.textColor, GUI_ALIGN_RIGHT);
-	gui.panelCursor = backUpCursor;
+	// f32 backUpCursorX = gui.panelCursorX;
+	// gui.panelCursorX = 0;
+	gui_panel_add_text_draw_call(string, colour, GUI_ALIGN_RIGHT);
+	// gui.panelCursorX = backUpCursorX;
 
 	// Todo(Leo): expand panel width
 
@@ -893,7 +705,6 @@ internal bool gui_int_field(char const * label, s32 * value, GuiClampValuesS32 c
 
 	bool modified 			= false;
 	// bool modifiedByMouse 	= isSelected && is_pressed(gui.input.mouse0);
-
 
 	if (isSelected)
 	{
@@ -916,19 +727,22 @@ internal bool gui_int_field(char const * label, s32 * value, GuiClampValuesS32 c
 		logDebug(0) << FILE_ADDRESS << *value;
 	}
 
+	v4 colour = isSelected ? gui.selectedTextColor : gui.textColor;
+
+	// string_append_format(string, 128, label, ":");
+
+	// gui_panel_add_text_draw_call(string, colour, GUI_ALIGN_LEFT);
+
+	gui_label(label, colour);
 
 	String string = push_temp_string(128);
-
-	string_append_format(string, 128, label, ":");
-	gui_panel_add_text_draw_call_2(string, isSelected ? gui.selectedTextColor : gui.textColor, GUI_ALIGN_LEFT);
-
-	reset_string(string, 128);
+	// reset_string(string, 128);
 	string_append_s32(string, 128, *value);
 
-	v2 backUpCursor = gui.panelCursor;
-	gui.panelCursor.x = 0;
-	gui_panel_add_text_draw_call_2(string, isSelected ? gui.selectedTextColor : gui.textColor, GUI_ALIGN_RIGHT);
-	gui.panelCursor = backUpCursor;
+	// f32 backUpCursorX = gui.panelCursorX;
+	// gui.panelCursorX = 0;
+	gui_panel_add_text_draw_call(string, colour, GUI_ALIGN_RIGHT);
+	// gui.panelCursorX = backUpCursorX;
 
 	// Todo(Leo): expand panel width
 
@@ -937,11 +751,75 @@ internal bool gui_int_field(char const * label, s32 * value, GuiClampValuesS32 c
 	return modified;	
 }
 
+internal bool gui_float_value_field(char const * label, f32 * value, GuiClampValuesF32 clamp, GuiAlignment alignment)
+{
+	Gui & gui = *global_currentGui;
+
+	Assert(gui.isPanelActive);
+
+	constexpr f32 sliderMoveSpeed 	= 1.0;
+	bool isSelected 				= gui_is_selected();
+
+	bool modified 			= false;
+	bool modifiedByMouse 	= isSelected && is_pressed(gui.input.mouse0);
+
+	if (isSelected)
+	{
+		if (is_pressed(gui.input.left))
+		{
+			*value 		-= sliderMoveSpeed * gui.elapsedTime;
+			modified 	= true;
+		}
+
+		if (is_pressed(gui.input.right))
+		{
+			*value 		+= sliderMoveSpeed * gui.elapsedTime;
+			modified 	= true;
+		}
+
+		float joystickDelta = gui.input.move.x;
+		if (abs_f32(joystickDelta) >= 0.1)
+		{
+			// Note(Leo): pow3 provides more accuracy closer to zero and preserves sign
+			joystickDelta 	= joystickDelta*joystickDelta*joystickDelta;
+			*value 			+= joystickDelta * sliderMoveSpeed;
+			modified 		= true; 
+		}
+	}
+	
+	constexpr f32 mouseMoveScale = 0.2;
+	if (modifiedByMouse)
+	{
+		f32 mouseDelta 	= gui.input.mousePosition.x - gui.mousePositionLastFrame.x;
+		mouseDelta 		= mouseMoveScale * mouseDelta * mouseDelta;
+		*value 			+= mouseDelta;
+	}
+
+	*value = clamp_f32(*value, clamp.min, clamp.max);
+
+	v4 colour = isSelected ? gui.selectedTextColor : gui.textColor;
+
+	s32 capacity = 16;
+	String string = push_temp_string(capacity);
+	string_append_format(string, capacity, label, ": ");
+	string_append_f32(string, capacity, *value, 4);
+
+	// f32 backUpCursorX = gui.panelCursorX;
+	// gui.panelCursorX = 0;
+	gui_panel_add_text_draw_call(string, colour, alignment);
+	// gui.panelCursorX = backUpCursorX;
+
+	// Todo(Leo): expand panel width
+
+
+	return modified;	
+}
+
 internal bool gui_vector_2_field(char const * label, v2 * value, GuiClampValuesV2 const & clamp)
 {
 	gui_text(label);
 
-	// Note(Leo): this should not short-circuit, or y field is not drawn that frame :)
+	// Note(Leo): this must not short-circuit, or y field is not drawn that frame :)
 	bool xModified 	= gui_float_field("X", &value->x, {clamp.min.x, clamp.max.x});
 	bool yModified 	= gui_float_field("Y", &value->y, {clamp.min.y, clamp.max.y});
 	
@@ -950,20 +828,30 @@ internal bool gui_vector_2_field(char const * label, v2 * value, GuiClampValuesV
 
 
 
-internal bool gui_color_rgb(char const * label, v3 * color, GuiColorFlags flags)
+internal bool gui_colour_rgb(char const * label, v3 * color, GuiColorFlags flags)
 {
 	Gui & gui = *global_currentGui;
 	
-	gui_text(label);
-	
-	v2 startCursor = gui.panelCursor;
+	// gui_text(label);
+	// String labelString = push_temp_string_format(64, label, ": ")
+	// gui_panel_add_text_draw_call(from_cstring(label), gui.textColor, GUI_ALIGN_LEFT);
+	// // gui_panel_new_line();
+	gui_label(label, gui.textColor);
 
+	
 	bool hdr = (flags & GUI_COLOR_FLAGS_HDR) != 0;
 	f32 max = hdr ? 10 : 1;
+	GuiClampValuesF32 clamp = {.min = 0, .max = max};
 
-	bool modified 	= gui_float_slider_2("R:", &color->r, 0, max);
-	modified 		= gui_float_slider_2("G:", &color->g, 0, max) || modified;
-	modified 		= gui_float_slider_2("B:", &color->b, 0, max) || modified;
+	// f32 backUpCursorX = gui.panelCursorX;
+	// gui.panelCursorX = 0;
+	bool modified 	= gui_float_value_field("R", &color->r, clamp, GUI_ALIGN_RIGHT);
+	modified 		= gui_float_value_field("G", &color->g, clamp, GUI_ALIGN_RIGHT) || modified;
+	modified 		= gui_float_value_field("B", &color->b, clamp, GUI_ALIGN_RIGHT) || modified;
+	// gui.panelCursorX = backUpCursorX;
+
+	gui_panel_new_line();
+
 
 	// Todo(Leo): Add this to rgba version of this function
 	// if ((flags & GUI_COLOR_FLAGS_ALPHA) != 0)
@@ -975,29 +863,32 @@ internal bool gui_color_rgb(char const * label, v3 * color, GuiColorFlags flags)
 	displayColor.rgb 	= *color;
 	displayColor.a 		= 1;
 
-	v2 texturePosition = startCursor + v2{200, gui.padding};
 
 	ScreenRect * rect = push_memory<ScreenRect>(*global_transientMemory, 2, 0);
 
+	v2 position = {0, gui.panelCursorY};
+
 	rect[0] = 
 	{
-		.position 	= texturePosition - v2 {gui.lineWidth, gui.lineWidth},
-		.size 		= v2{gui.textSize, gui.textSize} * 3.0f + v2{gui.lineWidth * 2, gui.lineWidth * 2},
+		.position 	= position,
+		.size 		= {0, gui.textSize},
 		.uvPosition = {0,0},
 		.uvSize 	= {1,1},
 	};
 
 	rect[1] = 
 	{
-		.position 	= texturePosition,
-		.size 		= v2{gui.textSize, gui.textSize} * 3.0f,
+		.position 	= position + v2{gui.lineWidth, gui.lineWidth},
+		.size 		= {gui.lineWidth, gui.textSize - 2 * gui.lineWidth},
 		.uvPosition = {0,0},
 		.uvSize 	= {1,1},
 	};
 
-	gui.panelDrawCalls[gui.panelDrawCallsCount++] 	= {1, &rect[0], gui.panelTexture, gui.lineColor};
-	gui.panelDrawCalls[gui.panelDrawCallsCount++] 	= {1, &rect[1], gui.panelTexture, displayColor};
-	// gui.panelDrawCallsCount 						+= 2;
+	gui.panelDrawCalls[gui.panelDrawCallsCount++] 	= {1, &rect[0], gui.panelTexture, gui.lineColor, GUI_ALIGN_HORIZONTAL_STRETCH};
+	gui.panelDrawCalls[gui.panelDrawCallsCount++] 	= {1, &rect[1], gui.panelTexture, displayColor, GUI_ALIGN_HORIZONTAL_STRETCH};
+
+	gui.panelCursorY 	+= gui.textSize + gui.spacing;
+	gui.panelSize.y 	+= gui.textSize + gui.spacing;
 
 	return modified;
 }
@@ -1024,18 +915,16 @@ internal void gui_line()
 	Gui & gui = *global_currentGui;
 	Assert(gui.isPanelActive);
 
-	f32 lineLength 		= 350;
-
 	// Todo(Leo): allocate this to gui in the beninnginnein
 	ScreenRect * rect = push_memory<ScreenRect>(*global_transientMemory, 1, 0);
 
-	v2 position = gui.panelCursor;
+	v2 position = {0, gui.panelCursorY};
 	position.y += gui.padding;
 
 	*rect = 
 	{
 		.position 	= position,
-		.size 		= {lineLength, gui.lineWidth},
+		.size 		= {0, gui.lineWidth},
 		.uvPosition = {0,0},
 		.uvSize 	= {1,1},
 	};
@@ -1043,7 +932,7 @@ internal void gui_line()
 	gui.panelDrawCalls[gui.panelDrawCallsCount] 	= {1, rect, gui.panelTexture, gui.lineColor, GUI_ALIGN_HORIZONTAL_STRETCH};
 	gui.panelDrawCallsCount 						+= 1;
 
-	gui.panelCursor.y 	+= 2 * gui.padding + gui.lineWidth;
+	gui.panelCursorY 	+= 2 * gui.padding + gui.lineWidth;
 	gui.panelSize.y 	+= 2 * gui.padding + gui.lineWidth;
 }
 
@@ -1065,7 +954,7 @@ internal bool gui_is_selected()
 	Gui & gui = *global_currentGui;
 
 	// Todo(Leo): do some kind of "current rect" thing, or pass it here
-	bool isUnderMouse 	= gui_is_under_mouse(gui.panelPosition + v2{gui.padding, gui.padding} + gui.panelCursor, {400, gui.textSize});// || isSelected;
+	bool isUnderMouse 	= false;//gui_is_under_mouse(gui.panelPosition + v2{gui.padding, gui.padding} + v2{gui.panelCursorX, gui.panelCursorY}, {400, gui.textSize});// || isSelected;
 	bool mouseHasMoved 	= magnitude_v2(gui.mousePositionLastFrame - gui.input.mousePosition) > 0.1f;
 
 	if (isUnderMouse && mouseHasMoved)
@@ -1083,7 +972,62 @@ internal void gui_panel_new_line()
 {
 	Gui & gui = *global_currentGui;
 
-	gui.panelCursor.x 	= 0;
-	gui.panelCursor.y 	+= gui.textSize + gui.spacing;
+
+
+	if (gui.panelDrawCallsCount > gui.drawCallCountOnLineBegin)
+	{
+		for (s32 callIndex = gui.drawCallCountOnLineBegin; callIndex < gui.panelDrawCallsCount; ++callIndex)
+		{
+			auto & call = gui.panelDrawCalls[callIndex];
+
+			if (call.alignment == GUI_ALIGN_RIGHT)
+			{
+
+				for(s32 rectIndex = 0; rectIndex < call.count; ++rectIndex)
+				{
+					ScreenRect & rect = call.rects[rectIndex];
+					rect.position.x -= gui.panelRightCursorX;
+				}
+			}
+			
+		}
+	}
+	gui.drawCallCountOnLineBegin = gui.panelDrawCallsCount;
+
+
+
+
+	// f32 lineLength = gui.panelLeftCursorX + gui.panelCenterCursorX + gui.panelRightCursorX;
+
+	// gui.panelMaxLineLength 		= max_f32(lineLength, gui.panelMaxLineLength);
+	gui.panelMaxLineLength 		= max_f32(gui.panelCurrentLineLength, gui.panelMaxLineLength);
+	gui.panelCurrentLineLength 	= 0;
+
+	// gui.panelCursorX 	= 0;
+	gui.panelLeftCursorX = 0;
+	gui.panelCenterCursorX = 0;
+	gui.panelRightCursorX = 0;
+
+	gui.panelCursorY 	+= gui.textSize + gui.spacing;
 	gui.panelSize.y 	+= gui.textSize + gui.spacing;
+
+	gui.panelLeftCursorX 	= 0;
+	gui.panelRightCursorX 	= 0;
+	gui.panelCenterCursorX 	= 0;
+
+
+
+}
+
+internal void gui_push_line_width(f32 width)
+{
+	Gui & gui = *global_currentGui;
+
+	gui.panelCurrentLineLength += width;
+}
+
+internal void gui_label(char const * label, v4 colour)
+{
+	String string = push_temp_string_format(128, label, ":");
+	gui_panel_add_text_draw_call(string, colour, GUI_ALIGN_LEFT);
 }

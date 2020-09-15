@@ -688,7 +688,7 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 			context.skyGradientDescriptorSetLayout,
 		};
 
-		VkPushConstantRange pushConstantRange = {VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(s32)};
+		VkPushConstantRange pushConstantRange = {VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(v3)};
 
 		auto pipelineLayoutCreateInfo = fsvulkan_pipeline_layout_create_info(array_count(descriptorSetLayouts), descriptorSetLayouts, 1, &pushConstantRange);
 		VULKAN_CHECK(vkCreatePipelineLayout (context.device, &pipelineLayoutCreateInfo, nullptr, &context.pipelines[GRAPHICS_PIPELINE_LEAVES].pipelineLayout));

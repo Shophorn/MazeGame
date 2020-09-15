@@ -79,12 +79,14 @@ struct Tree3Settings
 	s32 leafColourIndex 	= 0;
 	s32 leafCountPerBud 	= 3;
 	v2 leafSize 			= {1,1};
+	v3 leafColour           = colour_gray.rgb;
 
 	f32 seedDrawSizeThreshold 	= 1;
 
 	f32 waterDrainSpeed 		= 1;
 	f32 waterUsageSpeed 		= 0.5;
 	f32 waterReservoirCapacity 	= 10;
+
 
 	static constexpr auto serializedProperties = make_property_list
 	(	
@@ -105,8 +107,9 @@ struct Tree3Settings
 		SERIALIZE(apexBranchingProbability),
 		SERIALIZE(leafColourIndex),
 		SERIALIZE(leafCountPerBud),
-		SERIALIZE(seedDrawSizeThreshold),
 		SERIALIZE(leafSize),
+		SERIALIZE(leafColour),
+		SERIALIZE(seedDrawSizeThreshold),
 		SERIALIZE(waterDrainSpeed),
 		SERIALIZE(waterUsageSpeed),
 		SERIALIZE(waterReservoirCapacity)
@@ -691,52 +694,75 @@ internal void tree_gui(Tree3 & tree)
 
 	gui_line();
 
-	gui_text("PROPERTIES");
+	// gui_text("PROPERTIES");
+	static bool32 showProperties = false;
+	gui_toggle("PROPERTIES", &showProperties);
+	if (showProperties)
+	{
+		gui_float_field("Area Grow Speed", &tree.settings->areaGrowthSpeed, {.min = 0});
+		gui_float_field("Length Grow Speed", &tree.settings->lengthGrowthSpeed, {.min = 0});
+		gui_float_field("Tangent Scale", &tree.settings->tangentScale, {.min = 0});
+		gui_float_field("Max Height", &tree.settings->maxHeight, {.min = 0});
+		gui_float_field("Max Height To Width Ratio", &tree.settings->maxHeightToWidthRatio, {.min = 0});
 
-	gui_float_field("Area Grow Speed", &tree.settings->areaGrowthSpeed, {.min = 0});
-	gui_float_field("Length Grow Speed", &tree.settings->lengthGrowthSpeed, {.min = 0});
-	gui_float_field("Tangent Scale", &tree.settings->tangentScale, {.min = 0});
-	gui_float_field("Max Height", &tree.settings->maxHeight, {.min = 0});
-	gui_float_field("Max Height To Width Ratio", &tree.settings->maxHeightToWidthRatio, {.min = 0});
+		gui_float_field("Bud Interval", &tree.settings->budInterval, {.min = 0});
+		gui_float_slider("Bud Interval Randomness", &tree.settings->budIntervalRandomness, 0, 1);
+		gui_float_field("Bud Angle", &tree.settings->budAngle, {.min = 0, .max = 2*π});
+		gui_float_slider("Bud Angle Randomness", &tree.settings->budAngleRandomness, 0, 1);
+		gui_float_field("Bud Terminal Distance From Apex", &tree.settings->budTerminalDistanceFromApex, {.min = 0});
 
-	gui_float_field("Bud Interval", &tree.settings->budInterval, {.min = 0});
-	gui_float_slider("Bud Interval Randomness", &tree.settings->budIntervalRandomness, 0, 1);
-	gui_float_field("Bud Angle", &tree.settings->budAngle, {.min = 0, .max = 2*π});
-	gui_float_slider("Bud Angle Randomness", &tree.settings->budAngleRandomness, 0, 1);
-	gui_float_field("Bud Terminal Distance From Apex", &tree.settings->budTerminalDistanceFromApex, {.min = 0});
-
-	gui_float_slider("Apex Branching Probability", &tree.settings->apexBranchingProbability, 0, 1);
-
-	gui_float_field("Leaf Maturation Time", &tree.settings->leafMaturationTime, {.min = 0});
-	gui_int_field("Leaf Colour Index", &tree.settings->leafColourIndex, {.min = 0, .max = 3});
-	// Note(Leo): this does not need to be set every frame
-	tree.leaves.colourIndex = tree.settings->leafColourIndex;
-
-	gui_int_field("Leaf Count Per Bud", &tree.settings->leafCountPerBud, {.min = 0});
-	gui_vector_2_field("Leaf Size", &tree.settings->leafSize, {.min = {0,0}});
-
-	gui_float_field("Water Drain Speed", &tree.settings->waterDrainSpeed, {.min= 0});
-	gui_float_field("Water Usage Speed", &tree.settings->waterUsageSpeed, {.min= 0});
-	gui_float_field("Water Reservoir Capacity", &tree.settings->waterReservoirCapacity, {.min= 0});
+		gui_float_slider("Apex Branching Probability", &tree.settings->apexBranchingProbability, 0, 1);
+	}
 
 	gui_line();
 
-	s32 budCount 				= tree.buds.count;
-	s32 vertexCount 			= tree.mesh.vertices.count;
-	s32 indexCount 				= tree.mesh.indices.count;
-	s32 leafCount 				= tree.leaves.count;
-	bool32 resourceLimitReached = tree.resourceLimitReached;
+	// static bool32 showLeaves = false;
+	// if (gui_block("LEAVES", &showLeaves))
+	
+	static bool32 showLeaves = false;
+	gui_toggle("LEAVES", &showLeaves);
+	if (showLeaves)
+	{
+		gui_float_field("Leaf Maturation Time", &tree.settings->leafMaturationTime, {.min = 0});
+		gui_colour_rgb("Leaf Colour", &tree.settings->leafColour);
 
-	gui_text("STATS");
-	gui_int_field("Buds", &budCount);
-	gui_int_field("Vertices", &vertexCount);
-	gui_int_field("Indices", &indexCount);
-	gui_int_field("Leaves", &leafCount);
-	gui_toggle("Resources reached", &resourceLimitReached);
 
-	f32 waterReservoir = tree.waterReservoir;
-	gui_float_field("Water", &waterReservoir);
+		gui_int_field("Leaf Count Per Bud", &tree.settings->leafCountPerBud, {.min = 0});
+		gui_vector_2_field("Leaf Size", &tree.settings->leafSize, {.min = {0,0}});
+	}
+	gui_line();
 
+	static bool32 showWater = false;
+	gui_toggle("WATER", &showWater);
+	if (showWater)
+	{
+		gui_float_field("Water Drain Speed", &tree.settings->waterDrainSpeed, {.min= 0});
+		gui_float_field("Water Usage Speed", &tree.settings->waterUsageSpeed, {.min= 0});
+		gui_float_field("Water Reservoir Capacity", &tree.settings->waterReservoirCapacity, {.min= 0});
+	}
+
+
+	gui_line();
+
+	static bool32 showStats = false;
+	gui_toggle("STATS", &showStats);
+	if (showStats)
+	{
+		s32 budCount 				= tree.buds.count;
+		s32 vertexCount 			= tree.mesh.vertices.count;
+		s32 indexCount 				= tree.mesh.indices.count;
+		s32 leafCount 				= tree.leaves.count;
+		bool32 resourceLimitReached = tree.resourceLimitReached;
+
+		gui_int_field("Buds", &budCount);
+		gui_int_field("Vertices", &vertexCount);
+		gui_int_field("Indices", &indexCount);
+		gui_int_field("Leaves", &leafCount);
+		gui_toggle("Resources reached", &resourceLimitReached);
+
+		f32 waterReservoir = tree.waterReservoir;
+		gui_float_field("Water", &waterReservoir);
+	}
 
 	gui_line();
 

@@ -11,12 +11,10 @@ Scene description for 3d development scene
 #include "scene3d_monuments.cpp"
 #include "scene3d_trees.cpp"
 
-
 #include "metaballs.cpp"
 
-#include "array2.cpp"
+// #include "array2.cpp"
 #include "experimental.cpp"
-
 
 struct GetWaterFunc
 {
@@ -45,7 +43,7 @@ struct GetWaterFunc
 		}
 
 		f32 amount 				= 0;
-		f32 distanceThreshold	= 1;
+		f32 distanceThreshold	= 2;
 
 		if (closestDistance < distanceThreshold)
 		{
@@ -190,7 +188,7 @@ struct Scene3d
 		// s32 * 			lSystemsPotIndices;
 
 		// MaterialHandle 	lSystemTreeMaterial;
-		MaterialHandle treeMaterials[TREE_TYPE_COUNT];
+		MaterialHandle treeMaterials[3];
 
 		MaterialHandle crystalTreeMaterials	[4];
 	// ------------------------------------------------------
@@ -666,6 +664,7 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 		light.skyColorSelection = scene->skySettings.skyColourSelection;
 
+		light.skyGroundColor.rgb 	= scene->skySettings.skyGradientGround;
 		light.skyBottomColor.rgb 	= scene->skySettings.skyGradientBottom;
 		light.skyTopColor.rgb 		= scene->skySettings.skyGradientTop;
 
@@ -1397,7 +1396,7 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 	{
 		for (auto & tree : scene->trees)
 		{
-			draw_leaves(tree.leaves, scaledTime, tree.settings->leafSize);
+			draw_leaves(tree.leaves, scaledTime, tree.settings->leafSize, tree.settings->leafColour);
 		}
 	}
 
@@ -1476,21 +1475,25 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 
 	u32 whitePixelColour		= 0xffffffff;
 	u32 blackPixelColour 		= 0xff000000;
-	u32 neutralBumpPixelColour 	= colour_rgba_u32(colour_bump);
 	u32 waterBluePixelColour 	= colour_rgb_alpha_32(colour_aqua_blue.rgb, 0.4);
 	u32 seedBrownPixelColour 	= 0xff003399;
 
 	TextureAsset whiteTextureAsset 			= make_texture_asset(&whitePixelColour, 1, 1, 4);
 	TextureAsset blackTextureAsset	 		= make_texture_asset(&blackPixelColour, 1, 1, 4);
-	TextureAsset neutralBumpTextureAsset 	= make_texture_asset(&neutralBumpPixelColour, 1, 1, 4);
 	TextureAsset waterBlueTextureAsset 		= make_texture_asset(&waterBluePixelColour, 1, 1, 4);
 	TextureAsset seedBrownTextureAsset 		= make_texture_asset(&seedBrownPixelColour, 1, 1, 4);
 
 	TextureHandle whiteTexture 			= platformApi->push_texture(platformGraphics, &whiteTextureAsset);
 	TextureHandle blackTexture 			= platformApi->push_texture(platformGraphics, &blackTextureAsset);
-	TextureHandle neutralBumpTexture 	= platformApi->push_texture(platformGraphics, &neutralBumpTextureAsset);
 	TextureHandle waterTextureHandle	= platformApi->push_texture(platformGraphics, &waterBlueTextureAsset);
 	TextureHandle seedTextureHandle		= platformApi->push_texture(platformGraphics, &seedBrownTextureAsset);
+
+	u32 neutralBumpPixelColour 				= colour_rgba_u32(colour_bump);
+	TextureAsset neutralBumpTextureAsset 	= make_texture_asset(&neutralBumpPixelColour, 1, 1, 4);
+	neutralBumpTextureAsset.addressMode 	= TEXTURE_ADDRESS_MODE_REPEAT;
+	neutralBumpTextureAsset.format 			= TEXTURE_FORMAT_U8_LINEAR;
+
+	TextureHandle neutralBumpTexture 	= platformApi->push_texture(platformGraphics, &neutralBumpTextureAsset);
 
 	auto push_material = [](GraphicsPipeline pipeline, TextureHandle a, TextureHandle b, TextureHandle c) -> MaterialHandle
 	{
@@ -1499,14 +1502,33 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 		return handle;
 	};
 
+	auto push_normal_map_texture = [](char const * path)
+	{
+		auto asset 		= load_texture_asset(*global_transientMemory, path);
+		asset.format 	= TEXTURE_FORMAT_U8_LINEAR;
+		auto texture 	= platformApi->push_texture(platformGraphics, &asset);
+		return texture;
+	};
+
 	// Create MateriaLs
 	{
 		auto tilesAlbedo 	= load_and_push_texture("assets/textures/tiles.png");
-		auto tilesNormal 	= load_and_push_texture("assets/textures/tiles_normal.png");
 		auto groundAlbedo 	= load_and_push_texture("assets/textures/ground.png");
-		auto groundNormal 	= load_and_push_texture("assets/textures/ground_normal.png");
 		auto redTilesAlbedo	= load_and_push_texture("assets/textures/tiles_red.png");
 		auto faceTexture 	= load_and_push_texture("assets/textures/texture.jpg");
+
+		// auto groundNormal 	= load_and_push_texture("assets/textures/ground_normal.png");
+		// auto groundNormalAsset 		= load_texture_asset(*global_transientMemory, "assets/textures/ground_normal.png");
+		// groundNormalAsset.format 	= TEXTURE_FORMAT_U8_LINEAR;
+		// auto groundNormal 			= platformApi->push_texture(platformGraphics, &groundNormalAsset);
+		auto groundNormal = push_normal_map_texture("assets/textures/ground_normal.png");
+
+		// auto tilesNormal 	= load_and_push_texture("assets/textures/tiles_normal.png");
+		// auto tilesNormalAsset 		= load_texture_asset(*global_transientMemory, "assets/textures/tiles_normal.png");
+		// tilesNormalAsset.format 	= TEXTURE_FORMAT_U8_LINEAR;
+		// auto tilesNormal 			= platformApi->push_texture(platformGraphics, &groundNormalAsset);
+		auto tilesNormal = push_normal_map_texture("assets/textures/tiles_normal.png");
+
 
 
 		materials =
@@ -1802,11 +1824,15 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 		{
 			scene->raccoonEmptyAnimation = {};
 
-			scene->raccoonCount 			= 4;
-			scene->raccoonModes 			= push_memory<s32>(persistentMemory, scene->raccoonCount, ALLOC_CLEAR);
-			scene->raccoonTransforms 		= push_memory<Transform3D>(persistentMemory, scene->raccoonCount, ALLOC_CLEAR);
-			scene->raccoonTargetPositions 	= push_memory<v3>(persistentMemory, scene->raccoonCount, ALLOC_CLEAR);
-			scene->raccoonCharacterMotors	= push_memory<CharacterMotor>(persistentMemory, scene->raccoonCount, ALLOC_CLEAR);
+			scene->raccoonCount = 4;
+			push_multiple_memories(	persistentMemory,
+									scene->raccoonCount,
+									ALLOC_CLEAR,
+									
+									&scene->raccoonModes,
+									&scene->raccoonTransforms,
+									&scene->raccoonTargetPositions,
+									&scene->raccoonCharacterMotors);
 
 			for (s32 i = 0; i < scene->raccoonCount; ++i)
 			{
@@ -1886,7 +1912,8 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 			auto mesh 				= platformApi->push_mesh(platformGraphics, &meshAsset);
 
 			auto albedo 			= load_and_push_texture("assets/textures/Robot_53_albedo_4k.png");
-			auto normal 			= load_and_push_texture("assets/textures/Robot_53_normal_4k.png");
+			auto normal 			= push_normal_map_texture("assets/textures/Robot_53_normal_4k.png");
+			// auto normal 			= load_and_push_texture("assets/textures/Robot_53_normal_4k.png");
 			auto material 			= push_material(GRAPHICS_PIPELINE_NORMAL, albedo, normal, blackTexture);
 
 			auto model 				= push_model(mesh, material);
@@ -1905,8 +1932,10 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 				file_read_struct(saveFile, &scene->potCapacity);
 				file_read_struct(saveFile, &scene->potCount);
 
-				scene->potTransforms = push_memory<Transform3D>(persistentMemory, scene->potCapacity, ALLOC_NO_CLEAR);
-				scene->potWaterLevels = push_memory<f32>(persistentMemory, scene->potCapacity, ALLOC_NO_CLEAR);
+				push_multiple_memories(persistentMemory, scene->potCapacity, ALLOC_NO_CLEAR, &scene->potTransforms, &scene->potWaterLevels);
+
+				// scene->potTransforms = push_memory<Transform3D>(persistentMemory, scene->potCapacity, ALLOC_NO_CLEAR);
+				// scene->potWaterLevels = push_memory<f32>(persistentMemory, scene->potCapacity, ALLOC_NO_CLEAR);
 
 				file_read_memory(saveFile, scene->potCount, scene->potTransforms);
 				file_read_memory(saveFile, scene->potCount, scene->potWaterLevels);
@@ -2105,6 +2134,7 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 		// Todo(Leo): textures are copied too many times: from file to stb, from stb to TextureAsset, from TextureAsset to graphics.
 		TextureAsset albedo = load_texture_asset(*global_transientMemory, "assets/textures/bark.png");
 		TextureAsset normal = load_texture_asset(*global_transientMemory, "assets/textures/bark_normal.png");
+		normal.format = TEXTURE_FORMAT_U8_LINEAR;
 
 		TextureHandle treeTextures [] =
 		{	
@@ -2114,9 +2144,9 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 		};
 		// scene->lSystemTreeMaterial = platformApi->push_material(platformGraphics, GRAPHICS_PIPELINE_NORMAL, 3, treeTextures);
 		MaterialHandle treeMaterial = platformApi->push_material(platformGraphics, GRAPHICS_PIPELINE_NORMAL, 3, treeTextures);
-		scene->treeMaterials[TREE_TYPE_1] = treeMaterial;
-		scene->treeMaterials[TREE_TYPE_2] = treeMaterial;
-		scene->treeMaterials[TREE_TYPE_CRYSTAL] = scene->waterMaterial;
+		scene->treeMaterials[0] = treeMaterial;
+		scene->treeMaterials[1] = treeMaterial;
+		scene->treeMaterials[2] = scene->waterMaterial;
 
 		MeshHandle tree1SeedMesh = seedMesh1;
 		MeshHandle tree2SeedMesh = seedMesh2;
@@ -2191,8 +2221,8 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 			platformApi->push_texture(platformGraphics, &albedo),
 		};
 		scene->metaballMaterial = platformApi->push_material(platformGraphics, GRAPHICS_PIPELINE_TRIPLANAR, 1, treeTextures);
-		scene->treeMaterials[TREE_TYPE_1] = scene->metaballMaterial;
-		scene->treeMaterials[TREE_TYPE_2] = scene->metaballMaterial;
+		scene->treeMaterials[0] = scene->metaballMaterial;
+		scene->treeMaterials[1] = scene->metaballMaterial;
 
 		// ----------------------------------------------------------------------------------
 

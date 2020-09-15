@@ -147,6 +147,8 @@ quaternion operator * (quaternion lhs, quaternion rhs)
 		.w 		= lhs.w * rhs.w - dot_v3(lhs.vector, rhs.vector)
 	};
 
+	
+
 	return result;
 }
 

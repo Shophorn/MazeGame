@@ -8,10 +8,10 @@ const int SKY_GRADIENT_SET 	= 4;
 layout(binding = 0, set = 2) uniform sampler2D lightMap;
 layout(binding = 0, set = 3) uniform sampler2D maskTexture;
 
-layout(push_constant) uniform Block
+layout(push_constant) uniform ColorBlock
 {
-	int colourIndex;
-} colourIndex;
+	vec3 colour;
+} colour;
 
 layout(location = 0) in vec2 fragTexCoord;
 layout(location = 1) in vec3 fragNormal;
@@ -80,13 +80,8 @@ void main()
 
 	ldotn = abs(ldotn);
 	// ldotn = max(0, ldotn);
-	vec3 albedo = green;
+	vec3 albedo = colour.colour;
 
-	// albedo = mix(vec3(0,0,0), vec3(0,1,1), fragTexCoord.y + 0.5);
-	// albedo = mix(darkerGreen, lighterGreen, fragTexCoord.y + 0.5);
-	albedo = mix(	darkerColours[colourIndex.colourIndex],
-					lighterColours[colourIndex.colourIndex],
-					fragTexCoord.y + 0.5);
 	albedo = pow(albedo, vec3(gamma));
 
 	float lightIntensity = ldotn;
@@ -102,8 +97,8 @@ void main()
 
 	// Note(Leo): try these two
 	// vec3 lightColor = mix(light.ambient.rgb, light.color.rgb, lightIntensity);
-	vec3 lightColor 	= compute_sky_color(normal, lightDir);
-	vec3 diffuseTerm 	= mix(light.ambient.rgb, lightColor, lightIntensity) * albedo;
+	// vec3 lightColor 	= compute_sky_color(normal, lightDir);
+	// vec3 diffuseTerm 	= mix(light.ambient.rgb, lightColor, lightIntensity) * albedo;
 
 	vec3 viewDirection 		= normalize(light.cameraPosition.xyz - fragPosition);
 
@@ -116,15 +111,21 @@ void main()
 	const float epsilon = 0.0001;
 
 	float inLightActual 	= 1.0 - step(lightDepthFromTexture + epsilon, lightCoords.z);
-	vec3 specularTerm 		= spec * specularStrength * lightColor * inLightActual;
+	// vec3 specularTerm 		= spec * specularStrength * lightColor * inLightActual;
 
 
 	// vec3 lightColor = light.ambient.rgb + light.color.rgb * lightIntensity;
+
+	SunAndAmbientLights lights = BETTER_compute_sky_color(normal);
+	vec3 diffuseTerm = albedo * lights.sun * lightIntensity;	
+	vec3 ambientTerm = albedo * lights.ambient;
+
 	
-	vec3 color = diffuseTerm + specularTerm;
+	// vec3 color = diffuseTerm + specularTerm;
+
 
 	// color *= step(distanceFromCenter, 1.0);
 
-	outColor.rgb = color;
+	outColor.rgb = diffuseTerm + ambientTerm;
 	outColor.a 					= 1;
 }

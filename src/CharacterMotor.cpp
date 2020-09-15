@@ -135,12 +135,12 @@ update_character_motor( CharacterMotor & 	motor,
 			logDebug() << "Bad value";
 		}
 
-		AssertMsg(-0.00001f <= value && value <= 1.00001f, CStringBuilder("Input weight is: ") + value);
+		Assert(-0.00001f <= value && value <= 1.00001f);// CStringBuilder("Input weight is: ") + value);
 		for (int i = 0; i < ANIMATION_COUNT; ++i)
 		{
 			weights[i] *= 1 - value;
 
-			AssertMsg(-0.00001f <= weights[i] && weights[i] <= 1.00001f, CStringBuilder("Weight is: ") + weights[i]);
+			Assert(-0.00001f <= weights[i] && weights[i] <= 1.00001f);//, CStringBuilder("Weight is: ") + weights[i]);
 			if (i == animation)
 			{
 				weights[i] += value;

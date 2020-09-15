@@ -138,7 +138,7 @@ read_binary_file(MemoryArena & memoryArena, const char * filename)
 {
 	auto file = std::ifstream (filename, std::ios::in|std::ios::binary);
 
-	AssertMsg(file.good(), CStringBuilder("Could not load file: ") + filename);
+	Assert(file.good());//, CStringBuilder("Could not load file: ") + filename);
 
 	u64 size 		= get_ifstream_length(file);
 	auto result 	= allocate_array<byte>(memoryArena, size);

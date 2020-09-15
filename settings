@@ -1,29 +1,30 @@
 sky = 
 [
-	sunHeightAngle = -0.07877
-	sunOrbitAngle = 0.335789
+	sunHeightAngle = 0.264165
+	sunOrbitAngle = 0.439874
 	skyColourSelection = 0.000000
-	hdrExposure = 1.473387
-	hdrContrast = 0.197874
-	horizonHaloFalloff = 0.129695
-	sunHaloFalloff = 0.245150
-	sunDiscSize = 0.002249
-	sunDiscFalloff = 1.008008
+	hdrExposure = 0.780084
+	hdrContrast = 0.176062
+	horizonHaloFalloff = 0.092959
+	sunHaloFalloff = 0.068498
+	sunDiscSize = 0.000474
+	sunDiscFalloff = 1.009000
 	skyGradientBottom = 0.000000, 0.145990, 0.769999
-	skyGradientTop = 0.000000, 0.000000, 0.739966
-	horizonHaloColour = 0.900000, 0.900000, 0.900000
-	sunHaloColour = 1.609157, 1.972833, 0.967364
-	sunDiscColour = 0.000000, 0.000000, 5.000000
+	skyGradientGround = 0.205578, 0.307428, 0.409515
+	skyGradientTop = 0.000000, 0.000000, 0.740980
+	horizonHaloColour = 0.419705, 0.488543, 0.455321
+	sunHaloColour = 0.885056, 0.777756, 0.797288
+	sunDiscColour = 8.064433, 8.099060, 8.024273
 ]
 
 tree_0 = 
 [
-	maxHeight = 30.54009
+	maxHeight = 30.540090
 	growSpeedScale = 0.719206
-	tangentScale = 17.92717
+	tangentScale = 17.927170
 	areaGrowthSpeed = 0.010851
 	lengthGrowthSpeed = 2.048389
-	maxHeightToWidthRatio = 41.54451
+	maxHeightToWidthRatio = 41.544520
 	budInterval = 0.587787
 	budIntervalRandomness = 0.318480
 	budTerminalDistanceFromApex = 1.008008
@@ -33,21 +34,22 @@ tree_0 =
 	apexBranchingProbability = 0.000000
 	leafColourIndex = 1
 	leafCountPerBud = 3
-	seedDrawSizeThreshold = 1.008008
 	leafSize = 0.877916, 0.865639
+	leafColour = 0.103981, 0.320451, 0.082721
+	seedDrawSizeThreshold = 1.008008
 	waterDrainSpeed = 0.609000
-	waterUsageSpeed = 0.068809
-	waterReservoirCapacity = 10.47868
+	waterUsageSpeed = 0.068808
+	waterReservoirCapacity = 10.478680
 ]
 
 tree_1 = 
 [
-	maxHeight = 30.54009
+	maxHeight = 30.540090
 	growSpeedScale = 0.719206
-	tangentScale = 17.92717
+	tangentScale = 17.927170
 	areaGrowthSpeed = 0.010851
 	lengthGrowthSpeed = 2.048389
-	maxHeightToWidthRatio = 41.54451
+	maxHeightToWidthRatio = 41.544520
 	budInterval = 0.587787
 	budIntervalRandomness = 0.318480
 	budTerminalDistanceFromApex = 1.008008
@@ -57,10 +59,11 @@ tree_1 =
 	apexBranchingProbability = 0.306092
 	leafColourIndex = 2
 	leafCountPerBud = 3
+	leafSize = 0.702146, 0.632692
+	leafColour = 0.116737, 0.556685, 0.236187
 	seedDrawSizeThreshold = 1.008008
-	leafSize = 0.702146, 0.632694
 	waterDrainSpeed = 0.609000
-	waterUsageSpeed = 0.069000
-	waterReservoirCapacity = 10.00000
+	waterUsageSpeed = 0.067000
+	waterReservoirCapacity = 10.000000
 ]
 

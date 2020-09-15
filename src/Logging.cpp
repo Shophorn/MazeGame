@@ -6,6 +6,7 @@ struct LogInput
 	// Todo(Leo): Do make use of our own string classes at some point
 	// todo(Leo): these allocate randomly from wherever. It probably doesn't matter, since these should be disabled on
 	// release anyway
+	// Todo(Leo): Just to make a point, get output from platform layer
 	std::stringstream 	buffer;
 	std::ostream * 		output;
 
