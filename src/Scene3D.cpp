@@ -349,7 +349,7 @@ internal void read_settings_file(Scene3d * scene)
 
 		String block = string_extract_until_character(fileAsString, ']');
 
-		auto try_deserialize = [&identifier, &block](char const * name, auto & serializedProperties)
+		auto deserialize_if_id_matches = [&identifier, &block](char const * name, auto & serializedProperties)
 		{
 			if(string_equals(identifier, name))
 			{
@@ -357,9 +357,9 @@ internal void read_settings_file(Scene3d * scene)
 			}
 		};
 
-		try_deserialize("sky", scene->skySettings);
-		try_deserialize("tree_0", scene->treeSettings[0]);
-		try_deserialize("tree_1", scene->treeSettings[1]);
+		deserialize_if_id_matches("sky", scene->skySettings);
+		deserialize_if_id_matches("tree_0", scene->treeSettings[0]);
+		deserialize_if_id_matches("tree_1", scene->treeSettings[1]);
 
 		string_eat_leading_spaces_and_lines(fileAsString);
 	}
@@ -394,13 +394,13 @@ internal void write_settings_file(Scene3d * scene)
 }
 
 
-struct Scene3dSaveLoad
-{
-	s32 playerLocation;
-	s32 watersLocation;
-	s32 treesLocation;
-	s32 potsLocation;
-};
+// struct Scene3dSaveLoad
+// {
+// 	s32 playerLocation;
+// 	s32 watersLocation;
+// 	s32 treesLocation;
+// 	s32 potsLocation;
+// };
 
 template <typename T>
 internal inline void file_write_struct(PlatformFileHandle file, T * value)
@@ -428,8 +428,8 @@ internal inline void file_read_memory(PlatformFileHandle file, s32 count, T * me
 
 internal void write_save_file(Scene3d * scene)
 {
-	/*
 	auto file = platformApi->open_file("save_game.fssave", FILE_MODE_WRITE);
+	/*
 
 	// Note(Leo): as we go, set values to this struct, and write this to file last.
 	Scene3dSaveLoad save;
@@ -1415,15 +1415,6 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle saveFile)
 {
-	Scene3dSaveLoad save;
-	if (saveFile != nullptr)
-	{
-		logDebug(0) << "Loading saved game";
-
-		platformApi->set_file_position(saveFile, 0);
-		file_read_struct(saveFile, &save);
-	}
-
 	Scene3d * scene = push_memory<Scene3d>(persistentMemory, 1, ALLOC_CLEAR);
 	*scene 			= {};
 
@@ -1616,12 +1607,6 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 		// --------------------------------------------------------------------
 	
 		scene->playerCharacterTransform = {.position = {10, 0, 5}};
-
-		if (saveFile != nullptr)
-		{
-			platformApi->set_file_position(saveFile, save.playerLocation);
-			file_read_struct(saveFile, &scene->playerCharacterTransform);
-		}
 
 		auto * motor 		= &scene->playerCharacterMotor;
 		motor->transform 	= &scene->playerCharacterTransform;
@@ -1926,21 +1911,6 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 			scene->potMesh 			= platformApi->push_mesh(platformGraphics, &smallPotMeshAsset);
 			scene->potMaterial 		= materials.environment;
 
-			if (saveFile != nullptr)
-			{
-				platformApi->set_file_position(saveFile, save.potsLocation);
-				file_read_struct(saveFile, &scene->potCapacity);
-				file_read_struct(saveFile, &scene->potCount);
-
-				push_multiple_memories(persistentMemory, scene->potCapacity, ALLOC_NO_CLEAR, &scene->potTransforms, &scene->potWaterLevels);
-
-				// scene->potTransforms = push_memory<Transform3D>(persistentMemory, scene->potCapacity, ALLOC_NO_CLEAR);
-				// scene->potWaterLevels = push_memory<f32>(persistentMemory, scene->potCapacity, ALLOC_NO_CLEAR);
-
-				file_read_memory(saveFile, scene->potCount, scene->potTransforms);
-				file_read_memory(saveFile, scene->potCount, scene->potWaterLevels);
-			}
-			else
 			{
 				scene->potCapacity 			= 10;
 				scene->potCount 		= scene->potCapacity;
@@ -1984,19 +1954,6 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 				TextureHandle waterTextures [] 	= {waterTextureHandle, neutralBumpTexture, blackTexture};
 				scene->waterMaterial 		= platformApi->push_material(platformGraphics, GRAPHICS_PIPELINE_WATER, 3, waterTextures);
 
-				if (saveFile != nullptr)
-				{
-					platformApi->set_file_position(saveFile, save.watersLocation);
-					platformApi->read_file(saveFile, sizeof(scene->waters.capacity), &scene->waters.capacity);
-					platformApi->read_file(saveFile, sizeof(scene->waters.count), &scene->waters.count);
-
-					scene->waters.transforms 	= push_memory<Transform3D>(persistentMemory, scene->waters.capacity, 0);
-					scene->waters.levels 		= push_memory<f32>(persistentMemory, scene->waters.capacity, 0);
-
-					platformApi->read_file(saveFile, sizeof(scene->waters.transforms[0]) * scene->waters.count, scene->waters.transforms);					
-					platformApi->read_file(saveFile, sizeof(scene->waters.levels[0]) * scene->waters.count, scene->waters.levels);					
-				}
-				else
 				{				
 					scene->waters.capacity 		= 200;
 					scene->waters.count 		= 20;
@@ -2255,7 +2212,6 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 		{
 			v3 position = random_on_unit_circle_xy() * random_value() * 50;
 			position.z = get_terrain_height(scene->collisionSystem, position.xy);
-
 
 			initialize_test_tree_3(persistentMemory, tree, position, &scene->treeSettings[0]);
 			build_tree_3_mesh(tree);

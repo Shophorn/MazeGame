@@ -800,5 +800,5 @@ internal void update_tree_3(Tree3 & tree, f32 elapsedTime, GetWaterFunc & get_wa
 		// 		FS_DEBUG_ALWAYS(debug_draw_circle_xy(bud.position + tree.position, 0.5, colour_bright_red));
 		// 	}
 		// }
-	}
+	}	
 }
