@@ -12,7 +12,7 @@ UnsupportedValue(const char * messge, ValueType value)
     return ss.str();
 }
 
-static std::string 
+internal char const * 
 WinApiWaveFormatTagString(WORD value)
 {
     switch (value)
@@ -26,8 +26,7 @@ WinApiWaveFormatTagString(WORD value)
     }
 }
     
-static std::string
-WinApiErrorString(long long error)
+internal char const * WinApiErrorString(long long error)
 {
     switch(error)
     {
@@ -230,7 +229,7 @@ WinApiErrorString(long long error)
 
    
         default:
-            return UnsupportedValue("Unsupported Error", error);
+            return "Unsupported Error";
     }
 
 }

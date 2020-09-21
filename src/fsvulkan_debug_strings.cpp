@@ -1,32 +1,4 @@
-namespace vulkan
-{
-	char const * to_str(VkSampleCountFlagBits);
-	char const * to_str(VkResult);
-	// char const * to_str(VkFormat);
-	char const * to_str(VkImageLayout);
-
-	template <typename TVulkanEnum>
-	std::ostream & insert_stream(std::ostream & os, TVulkanEnum value)
-	{
-		os << to_str(value) << "(" << (u64)value << ")";
-		return os;
-	}
-	
-	#define STREAM_OP(TVulkanEnum) std::ostream & operator << (std::ostream & os, TVulkanEnum value) { return insert_stream(os, value); }
-
-
-	STREAM_OP(VkSampleCountFlagBits);
-	STREAM_OP(VkResult);
-	STREAM_OP(VkImageLayout);
-
-
-
-	#undef STREAM_OP
-}
-
-
-char const *
-vulkan::to_str (VkSampleCountFlagBits value)
+internal char const * fsvulkan_sample_count_flag_bits_string (VkSampleCountFlagBits value)
 {
 	switch(value)
 	{
@@ -44,8 +16,7 @@ vulkan::to_str (VkSampleCountFlagBits value)
 	}
 }
 
-char const *
-vulkan::to_str (VkResult value)
+internal char const * fsvulkan_result_string (VkResult value)
 {
 	switch(value)
 	{	
@@ -87,8 +58,6 @@ vulkan::to_str (VkResult value)
 	}
 }
 
-// char const *
-// vulkan::to_str(VkFormat format)
 internal char const * fsvulkan_format_string(VkFormat format)
 {
 	switch (format)
@@ -379,8 +348,7 @@ internal char const * fsvulkan_format_string(VkFormat format)
 	}
 }
 
-char const *
-vulkan::to_str (VkImageLayout layout)
+internal char const * fsvulkan_image_layout_string (VkImageLayout layout)
 {
 	switch(layout)
 	{

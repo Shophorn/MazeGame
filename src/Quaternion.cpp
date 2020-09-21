@@ -290,12 +290,28 @@ quaternion quaternion_from_to(v3 from, v3 to)
 	return result;
 }
 
-#if MAZEGAME_INCLUDE_STD_IOSTREAM
+// ---------------- String overloads -------------------------
 
-std::ostream & operator << (std::ostream & os, quaternion q)
+internal void string_parse(String string, quaternion * outValue)
 {
-	os << "(" << q.vector << ", " << q.w << ")";
-	return os;
+	String part0 = string_extract_until_character(string, ',');
+	String part1 = string_extract_until_character(string, ',');
+	String part2 = string_extract_until_character(string, ',');
+	String part3 = string;
+
+	string_parse(part0, &outValue->x);
+	string_parse(part1, &outValue->y);
+	string_parse(part2, &outValue->z);
+	string_parse(part3, &outValue->w);
 }
 
-#endif
+internal void string_append(String & string, s32 capacity, quaternion value)
+{
+	string_append_f32(string, capacity, value.x);
+	string_append_cstring(string, capacity, ", ");
+	string_append_f32(string, capacity, value.y);
+	string_append_cstring(string, capacity, ", ");
+	string_append_f32(string, capacity, value.z);
+	string_append_cstring(string, capacity, ", ");
+	string_append_f32(string, capacity, value.w);
+}

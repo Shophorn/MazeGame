@@ -1,14 +1,26 @@
-#include <sstream>
-#include <ostream>
+// Todo(Leo): we use internal macro all around, but this also uses it
+#undef internal
+#include <iostream>
+#define internal static
+
+
+struct LogOutput
+{
+	void * outputHandle;
+	void (*outputFunc)(void * outputHandle, String const & message);
+
+	void operator()(String const & message)
+	{
+		outputFunc(outputHandle, message);
+	}
+};
 
 struct LogInput
 {
-	// Todo(Leo): Do make use of our own string classes at some point
-	// todo(Leo): these allocate randomly from wherever. It probably doesn't matter, since these should be disabled on
-	// release anyway
-	// Todo(Leo): Just to make a point, get output from platform layer
-	std::stringstream 	buffer;
-	std::ostream * 		output;
+	char bufferMemory[1024];
+	String buffer2;
+
+	LogOutput output2;
 
 	struct FileAddress
 	{
@@ -31,7 +43,10 @@ struct LogInput
 	LogInput & operator << (T const & value)
 	{
 		if (doPrint)
-			buffer << value;
+		{
+			string_append(buffer2, array_count(bufferMemory), value);
+		}
+
 	
 		return *this;
 	}
@@ -49,27 +64,18 @@ struct LogInput
 	{
 		if (doPrint)
 		{
-			std::stringstream header;
-			header << "[" << title << ":" << verbosity;
+			local_persist thread_local char outputMemory [1024];
+			String outputString {0, outputMemory};
+			string_append_format(outputString, array_count(outputMemory), "[", title);
+
 			if (hasFileAddress)
 			{
-				header << ":" << address.file << ":" << address.line;
+				string_append_format(outputString, array_count(outputMemory), ":", address.file, ":", address.line);
 			}
-			header << "]: ";	
 
-			buffer << "\n";
+			string_append_format(outputString, array_count(outputMemory), "]: ", buffer2, "\n");
 
-			*output << header.str() << buffer.str();
-
-			// // Note(Leo): We flush so we get immediate output to file.
-			// // Todo(Leo): Heard this is unnecessay though, so find out more. Probably has to do with dctor not called when aborting or crashing..
-			*output << std::flush;
-
-
-			if (verbosity == 0 && output != & std::cout)
-			{
-				std::cout << header.str() << buffer.str();
-			}
+			output2(outputString);
 		}
 	}
 };
@@ -79,8 +85,7 @@ struct LogChannel
 	char const * 	title;
 	s32 			verbosity;
 
-	// Todo(Leo): this is platform thing
-	std::ostream * 	output = &std::cout;
+	LogOutput output2;
 
 	LogInput operator()(int verbosity = 1)
 	{
@@ -90,7 +95,9 @@ struct LogChannel
 		{
 			result.title 		= title;
 			result.verbosity 	= verbosity;
-			result.output 		= output;
+			result.output2 		= output2;
+
+			result.buffer2 		= {0, result.bufferMemory};
 		}
 		else
 		{
@@ -98,6 +105,17 @@ struct LogChannel
 		}
 
 		return result;
+	}
+
+	template<typename ... Args>
+	void operator() (int verbosity, Args ... args)
+	{
+		local_persist thread_local char bufferMemory[1024];
+		String buffer = {0, bufferMemory};
+
+		string_append_format(buffer, array_count(bufferMemory), "[", title, "]: ", args..., "\n");
+
+		output2(buffer);
 	}
 };
 
@@ -113,3 +131,37 @@ LogChannel logNetwork	= {"NETWORK", 5};
 LogChannel logAudio		= {"AUDIO", 5};
 
 #define FILE_ADDRESS LogInput::FileAddress{__FILE__, __LINE__}
+
+
+LogInput & operator << (LogInput & log, String const & string)
+{
+	for (s32 i = 0; i < string.length; ++i)
+	{
+		log << string[i];
+	}
+
+	return log;
+}
+
+
+
+
+
+
+
+
+
+
+#if MAZEGAME_DEVELOPMENT
+void log_assert(char const * filename, int line, char const * message, char const * expression)
+{
+	auto log = logDebug(0);
+	log << LogInput::FileAddress{filename, line} << "Assertion failed: ";
+
+	if (message)
+		log << message;
+
+	if (expression)
+		log << " (" << expression << ")";
+}
+#endif

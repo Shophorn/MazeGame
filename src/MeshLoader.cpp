@@ -472,7 +472,7 @@ load_skeleton_glb(MemoryArena & allocator, GltfFile const & file, char const * m
 		skeleton.bones.push(make_bone(boneSpaceTransform, inverseBindMatrix, parent));
 
 		// Note(Leo): Name is not essential...
-		skeleton.bones.last().name = node.HasMember("name") ? node["name"].GetString() : "nameless bone";
+		// skeleton.bones.last().name = node.HasMember("name") ? node["name"].GetString() : "nameless bone";
 	}
 
 	/* Note(Leo): Check that parent always comes before bone itself. Currently we have no mechanism

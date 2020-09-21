@@ -1,8 +1,13 @@
-/*=============================================================================
+/*
 Leo Tamminen
 
-Windows platform layer for mazegame
-=============================================================================*/
+Windows platform implementation layer for Friendsimulator.
+
+This is the first file to compile, and everything is included from here.
+*/
+
+#include "fs_essentials.hpp"
+#include "fs_platform_interface.hpp"
 
 #include <WinSock2.h>
 #include <Windows.h>
@@ -13,25 +18,9 @@ Windows platform layer for mazegame
 #include <mmdeviceapi.h>
 #include <audioclient.h>
 
-#define VK_USE_PLATFORM_WIN32_KHR
-#include <vulkan/vulkan.h>
-
 // Todo(Leo): Get rid of these :)
 #include <vector>
 #include <fstream>
-
-// TODO(Leo): Make sure that arrays for getting extensions ana layers are large enough
-// TOdo(Leo): Combine to fewer functions and remove throws, but return specific enum value instead
-
-/* TODO(Leo) extra: Use separate queuefamily thing for transfering between vertex
-staging buffer and actual vertex buffer. https://vulkan-tutorial.com/en/Vertex_buffers/Staging_buffer */
-
-/* STUDY(Leo):
-	http://asawicki.info/news_1698_vulkan_sparse_binding_-_a_quick_overview.html
-*/
-
-#include "MazegamePlatform.hpp"
-
 
 /// PLATFORM TIME IMPLEMENTATION
 PlatformTimePoint fswin32_current_time () 
@@ -48,7 +37,8 @@ f64 fswin32_elapsed_seconds(PlatformTimePoint start, PlatformTimePoint end)
 		LARGE_INTEGER frequency;
 		QueryPerformanceFrequency(&frequency);
 		
-		logConsole(0) << "performance frequency = " << frequency.QuadPart;
+		// Todo(Leo): actually append bigger values also
+		logConsole(0) << "performance frequency = " << (s32)frequency.QuadPart;
 
 		return frequency.QuadPart;
 	}();
@@ -163,14 +153,30 @@ s32 fswin32_read_file_until(PlatformFileHandle file, char delimiter, s32 memoryS
 	return count;
 }
 
+struct PlatformLogContext
+{
+	HANDLE console;
+};
+
+void fswin32_log(PlatformLogContext * context, int id, String message)
+{
+	// String idString = from_cstring("LOGGER");
+
+	// // Todo(Leo): we do not yet have access to temp memory here
+	// char buffer [512] = {};
+	// String output = {0, buffer};
+
+	// string_append_format(output, 512, "[", idString, "]: ", message, "\n");
+
+	WriteConsole(context->console, message.memory, message.length, nullptr, nullptr);
+}
 
 // Todo(Leo): hack to get two controller on single pc and use only 1st controller when online
 global_variable int globalXinputControllerIndex;
 
-#include "winapi_VulkanDebugStrings.cpp"
 #include "winapi_WinSocketDebugStrings.cpp"
 #include "winapi_ErrorStrings.hpp"
-#include "winapi_Mazegame.hpp"
+#include "fswin32_friendsimulator.hpp"
 
 // Todo(Leo): Vulkan implementation depends on this, not cool
 using BinaryAsset = std::vector<u8>;
@@ -199,29 +205,60 @@ BAD_read_binary_file (const char * filename)
 
 #include "fsvulkan.cpp"
 
-internal void
-Run(HINSTANCE hInstance)
+/* Todo(Leo): We could/should use WinMain, but it allocates no console
+by default so currently we use this */
+int main()
 {
+	HINSTANCE hInstance = GetModuleHandle(nullptr);
+	
 	SYSTEMTIME time_;
 	GetLocalTime(&time_);
 
-	SmallString timestamp   = make_timestamp(time_.wHour, time_.wMinute, time_.wSecond);
-	auto logFileName        = SmallString("logs/log_").append(timestamp).append(".log");
 
-	auto logFile = std::ofstream(logFileName.data());
+	std::ofstream logFile;
+	{
+		char timeStampMemory[64];
+		String timestamp = {0, timeStampMemory};
+		
+		s32 hours 	= time_.wHour;
+		s32 minutes = time_.wMinute;
+		s32 seconds = time_.wSecond;
 
-	logDebug.output     = &logFile;
-	logAnim.output      = &logFile;
-	logVulkan.output    = &logFile;
-	logWindow.output    = &logFile;
-	logSystem.output    = &logFile;
-	logNetwork.output   = &logFile;
-	logAudio.output     = &logFile;
+		string_append_format(timestamp, array_count(timeStampMemory), hours, "_", minutes, "_", seconds);
 
+		// Note(Leo): initializing memory to zero effectively gives us null terminator for free if memory is enough
+		char logFilenameMemory [128] = {};
+		String logFilename = {0, logFilenameMemory};
+
+		string_append_format(logFilename, array_count(logFilenameMemory) - 1, "logs/log_", timestamp, ".log");
+
+		logFile = std::ofstream(logFilename.memory);
+	}
+
+	PlatformLogContext logContext = {};
+	logContext.console = GetStdHandle(STD_OUTPUT_HANDLE);
+
+	LogOutput logOutput = {&logContext, [](void * context, String const & message)
+	{
+		fswin32_log(reinterpret_cast<PlatformLogContext*>(context), 0, message);
+	}};
+
+	logDebug.output2     = logOutput;
+	logAnim.output2      = logOutput;
+	logVulkan.output2    = logOutput;
+	logWindow.output2    = logOutput;
+	logSystem.output2    = logOutput;
+	logNetwork.output2   = logOutput;
+	logAudio.output2     = logOutput;
+	logConsole.output2    = logOutput;
+
+
+	logSystem(0, "Testing log template, (", 56, ")");
 
 	logSystem(0) << "\n"
 				<< "\t----- FriendSimulator -----\n"
 				<< "\tBuild time: " << BUILD_DATE_TIME << "\n";
+
 
 	// ----------------------------------------------------------------------------------
 
@@ -263,6 +300,8 @@ Run(HINSTANCE hInstance)
 		platformApi.read_file 			= fswin32_read_file;
 		platformApi.get_file_length 	= fswin32_get_file_length;
 		platformApi.read_file_until 	= fswin32_read_file_until;
+
+		platformApi.log = fswin32_log;
 
 		Assert(platform_all_functions_set(&platformApi));
 	}
@@ -306,6 +345,8 @@ Run(HINSTANCE hInstance)
 	winapi::Game game = {};
 	winapi::load_game(&game);
 	logSystem() << "Game dll loaded";
+
+
 
 	  ////////////////////////////////////////////////////
 	 ///             MAIN LOOP                        ///
@@ -420,6 +461,8 @@ Run(HINSTANCE hInstance)
 												&vulkanContext,
 												&window,
 												&platformApi,
+												&logContext,
+
 												&logFile);
 					break;
 
@@ -507,33 +550,6 @@ Run(HINSTANCE hInstance)
 		logWindow(0) << "shut down\n";
 	}
 
-}
-
-
-// int CALLBACK
-// WinMain(
-//     HINSTANCE   hInstance,
-//     HINSTANCE   previousWinInstance,
-//     LPSTR       cmdLine,
-//     int         showCommand)
-// {
-
-
-
-int main()
-{
-	/* Todo(Leo): we should make a decision about how we handle errors etc.
-	Currently there are exceptions (which lead here) and asserts mixed ;)
-
-	Maybe, put a goto on asserts, so they would come here too? */
-	try {
-
-		HMODULE module = GetModuleHandle(nullptr);
-		Run(module);
-	} catch (const std::exception& e) {
-		std::cerr << e.what() << std::endl;
-		return EXIT_FAILURE;
-	}
-
 	return EXIT_SUCCESS;
+
 }

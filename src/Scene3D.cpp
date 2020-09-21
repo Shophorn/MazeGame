@@ -12,8 +12,6 @@ Scene description for 3d development scene
 #include "scene3d_trees.cpp"
 
 #include "metaballs.cpp"
-
-// #include "array2.cpp"
 #include "experimental.cpp"
 
 struct GetWaterFunc
@@ -1623,7 +1621,8 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 			scene->characterAnimations[FALL]	= load_animation_glb(persistentMemory, animationFile, "JumpDown");
 			scene->characterAnimations[CROUCH] 	= load_animation_glb(persistentMemory, animationFile, "Crouch");
 
-			logSystem(1) << "Loading all 6 animations took: " << platformApi->elapsed_seconds(startTime, platformApi->current_time()) << " s";
+			// Todo(Leo): Log bigger numbers
+			logSystem(1) << "Loading all 6 animations took: " << static_cast<f32>(platformApi->elapsed_seconds(startTime, platformApi->current_time())) << " s";
 
 			motor->animations[WALK] 	= &scene->characterAnimations[WALK];
 			motor->animations[RUN] 		= &scene->characterAnimations[RUN];
@@ -1635,7 +1634,7 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 
 		auto startTime = platformApi->current_time();
 
-		logSystem(1) << "Loading skeleton took: " << platformApi->elapsed_seconds(startTime, platformApi->current_time()) << " s";
+		logSystem(1) << "Loading skeleton took: " << static_cast<f32>(platformApi->elapsed_seconds(startTime, platformApi->current_time())) << " s";
 
 		scene->playerSkeletonAnimator = 
 		{

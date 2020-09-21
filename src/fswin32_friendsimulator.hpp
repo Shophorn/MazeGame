@@ -38,9 +38,9 @@ get_file_write_time(const char * fileName)
 
 
 // Todo(Leo): Change to wide strings???
-constexpr static char GAMECODE_DLL_FILE_NAME [] = "Mazegame.dll";
-constexpr static char GAMECODE_DLL_FILE_NAME_TEMP [] = "Mazegame_temp.dll";
-constexpr static char GAMECODE_UPDATE_FUNC_NAME [] = "update_game";
+constexpr static char const * GAMECODE_DLL_FILE_NAME        = "friendsimulator.dll";
+constexpr static char const * GAMECODE_DLL_FILE_NAME_TEMP   = "friendsimulator_temp.dll";
+constexpr static char const * GAMECODE_UPDATE_FUNC_NAME     = "update_game";
 
 namespace winapi
 {

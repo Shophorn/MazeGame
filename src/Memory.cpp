@@ -12,7 +12,7 @@ but compulsory design choices, look at:
 
 #include "Array.hpp"
 
-// Note(Leo): We kinda hav expected to always use 64 bit systems.
+// Note(Leo): We kinda have expected to always use 64 bit systems.
 static_assert(sizeof(void*) == sizeof(u64));
 
 internal u64
@@ -35,7 +35,7 @@ void copy_memory (void * destination, void const * source, u64 byteCount)
 	memcpy(destination, source, byteCount);
 };
 
-internal void fill_memory(void * memory, char  value, u64 size)
+internal void memory_fill(void * memory, char  value, u64 size)
 {
 	memset(memory, value, size);
 }

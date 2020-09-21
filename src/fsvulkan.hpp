@@ -1,21 +1,34 @@
-/*=============================================================================
+/*
 Leo Tamminen
-shophorn @ internet
-
 
 Windows-Vulkan interface. And lots of rubbish at the moment.
 
+// TODO(Leo): Make sure that arrays for getting extensions ana layers are large enough
+
+TODO(Leo) extra: Use separate queuefamily thing for transfering between vertex
+staging buffer and actual vertex buffer. https://vulkan-tutorial.com/en/Vertex_buffers/Staging_buffer
+
+STUDY(Leo):
+	http://asawicki.info/news_1698_vulkan_sparse_binding_-_a_quick_overview.html
+
+
 STUDY: https://devblogs.nvidia.com/vulkan-dos-donts/
-=============================================================================*/
+*/
 
 #ifndef WIN_VULKAN_HPP
+
+#define VK_USE_PLATFORM_WIN32_KHR
+#include <vulkan/vulkan.h>
+
+#include "fsvulkan_debug_strings.cpp"
+
 
 using VulkanContext = PlatformGraphics;
 
 internal void 
 print_vulkan_assert(LogInput::FileAddress address, VkResult result)
 {
-    logVulkan(0) << address << "Vulkan check failed " << vulkan::to_str(result) << "(" << result << ")\n";
+    logVulkan(0) << address << "Vulkan check failed " << fsvulkan_result_string(result) << "(" << result << ")\n";
 }
 
 #define VULKAN_CHECK(result) if (result != VK_SUCCESS) { print_vulkan_assert(FILE_ADDRESS, result); abort();}

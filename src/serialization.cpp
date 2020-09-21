@@ -87,7 +87,7 @@ internal void deserialize_properties(T & data, String serializedString)
 			{
 				if (string_equals(id, property.name))
 				{	
-					generic_string_parse(line, &(data.*property.address));
+					string_parse(line, &(data.*property.address));
 				}
 			},
 			data.serializedProperties

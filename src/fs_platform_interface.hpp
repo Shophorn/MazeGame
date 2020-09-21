@@ -6,41 +6,6 @@ Interface definition between Platform and Game.
 
 #if !defined MAZEGAME_PLATFORM_HPP
 
-#define MAZEGAME_INCLUDE_STD_IOSTREAM 1
-#include <iostream>
-
-#include "MazegameEssentials.hpp"
-#include "Logging.cpp"
-
-#if MAZEGAME_DEVELOPMENT
-	void log_assert(LogInput::FileAddress fileAddress, char const * message, char const * expression)
-	{
-		auto log = logDebug(0);
-		log << fileAddress << "Assertion failed: ";
-
-		if (message)
-			log << message;
-
-		if (expression)
-			log << " (" << expression << ")";
-	}
-
-	#define Assert(expr) if(!(expr)) { log_assert(FILE_ADDRESS, nullptr, #expr); 			abort(); }
-	#define AssertMsg(expr, msg) if(!(expr)) { log_assert(FILE_ADDRESS, msg, #expr); 	abort(); }
-
-	// Note(Leo): Some things need to asserted in production too, this is a reminder for those only.
-	#define AssertRelease AssertMsg
-#else
-	#define Assert(expr)
-	#define AssertMsg(expr, msg)
-	#define AssertRelease AssertMsg
-
-#endif
-
-#include "CStringUtility.cpp"
-#include "SmallString.cpp"
-#include "meta.cpp"
-
 
 // Note(Leo): Before assets...	
 enum GraphicsPipeline : s64
@@ -55,23 +20,6 @@ enum GraphicsPipeline : s64
 
 	GRAPHICS_PIPELINE_COUNT
 };
-
-
-/* Note(Leo): This is called 'Unity-build'. Basically import all things in single
-translation unit(??) to reduce pressure on linker and enable more optimizations.
-Also makes actual build commands a lot cleaner and easier, since only this file
-needs to be specified for compiler. */
-#include "Math.cpp"
-#include "Vectors.cpp"
-#include "Quaternion.cpp"
-#include "Matrices.cpp"
-
-#include "Memory.cpp"
-
-#include "string.cpp"
-#include "serialization.cpp"
-#include "array2.cpp"
-
 #include "Assets.cpp"
 
 #include "Camera.cpp"
@@ -103,6 +51,7 @@ game layer. */
 
 struct PlatformGraphics;
 struct PlatformWindow;
+struct PlatformLogContext;
 // struct PlatformNetwork;
 // struct PlatformAudio;
 
@@ -306,6 +255,9 @@ struct PlatformApi
 	s32 (*get_file_length)			(PlatformFileHandle);
 
 	s32 (*read_file_until)			(PlatformFileHandle, char delimiter, s32 memorySize, void * memory);
+
+	// LOGGING
+	void (*log)	(PlatformLogContext*, int id, String message);
 };
 
 internal bool32 platform_all_functions_set(PlatformApi const * api)
@@ -339,30 +291,9 @@ using GameUpdateFunc = bool32(	const PlatformInput *,
 								PlatformWindow *,
 								PlatformApi *,
 
+								PlatformLogContext *,
+
 								std::ofstream * logFile);
-
-
-
-#if MAZEGAME_INCLUDE_STD_IOSTREAM
-namespace std
-{
-	ostream & operator << (ostream & os, ButtonState buttonState)
-	{
-		switch (buttonState)
-		{
-			case ButtonState::IsUp: 		os << "IsUp"; 		break;
-			case ButtonState::WentDown: 	os << "WentDown"; 	break;
-			case ButtonState::WentUp: 	os << "WentUp"; 	break;
-			case ButtonState::IsDown: 	os << "IsDown"; 	break;
-
-			default: os << "INVALID ButtonState VALUE";
-		}
-
-		return os;
-	}
-}
-
-#endif
 
 
 #define MAZEGAME_PLATFORM_HPP

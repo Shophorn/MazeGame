@@ -286,12 +286,7 @@ internal void fsvulkan_drawing_finish_frame(VulkanContext * context)
 	};
 	vkCmdSetScissor(frame->commandBuffers.master, 0, 1, &scissor);
 
-	local_persist s32 debugged = 0;
-	if (context->virtualFrameIndex == 0 && debugged < 2)
-	{
-		debugged += 1;
-		logDebug(0) << "hdr framebuffer: " << frame->passThroughFramebuffer << ", " << (frame->passThroughFramebuffer == VK_NULL_HANDLE);
-	}
+	// ------------------------------------------------------------
 
 	vkDestroyFramebuffer(context->device, frame->passThroughFramebuffer, nullptr);
 	frame->passThroughFramebuffer = vulkan::make_vk_framebuffer(context->device,
@@ -362,7 +357,7 @@ internal void fsvulkan_drawing_finish_frame(VulkanContext * context)
 	VkResult result = vkQueuePresentKHR(context->presentQueue, &presentInfo);
 	if (result != VK_SUCCESS)
 	{
-		logVulkan() << FILE_ADDRESS << "Present result = " << vulkan::to_str(result);
+		logVulkan() << FILE_ADDRESS << "Present result = " << fsvulkan_result_string(result);
 	}
 
 	/// ADVANCE VIRTUAL FRAME INDEX

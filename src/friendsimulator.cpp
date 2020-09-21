@@ -1,25 +1,26 @@
-/*=============================================================================
+/*
 Leo Tamminen
 
-:MAZEGAME: game code main file.
-=============================================================================*/
-#include "MazegamePlatform.hpp"
-#include "Mazegame.hpp"
+Friendsimulator game code main file.
+*/
+
+#include "fs_essentials.hpp"
+#include "fs_platform_interface.hpp"
 
 static PlatformApi * 		platformApi;
 static PlatformGraphics * 	platformGraphics;
 static PlatformWindow * 	platformWindow;
 
-static MemoryArena * global_transientMemory;
+static MemoryArena * 		global_transientMemory;
 
-internal String push_temp_string (s32 capacity)
+static String push_temp_string (s32 capacity)
 {
 	String result = {0, push_memory<char>(*global_transientMemory, capacity, ALLOC_CLEAR)};
 	return result;
 };
 
 template<typename ... TArgs>
-internal String push_temp_string_format(s32 capacity, TArgs ... args)
+static String push_temp_string_format(s32 capacity, TArgs ... args)
 {
 	String result = push_temp_string(capacity);
 	string_append_format(result, capacity, args...);
@@ -95,7 +96,7 @@ AudioClip load_audio_clip(char const * filepath)
 	return clip;
 }
 
-internal PlatformStereoSoundSample get_next_sample(AudioClip * clip)
+static PlatformStereoSoundSample get_next_sample(AudioClip * clip)
 {
 	PlatformStereoSoundSample sample = {
 		.left = clip->file.samples[0][clip->sampleIndex],
@@ -133,7 +134,7 @@ struct GameState
 	AudioClip backgroundAudio;
 };
 
-internal Gui make_main_menu_gui(MemoryArena & allocator)
+static Gui make_main_menu_gui(MemoryArena & allocator)
 {
 	Gui gui 				= {};
 	gui.textSize 			= 40;
@@ -154,7 +155,7 @@ internal Gui make_main_menu_gui(MemoryArena & allocator)
 	return gui;
 }
 
-internal void initialize_game_state(GameState * state, PlatformMemory * memory)
+static void initialize_game_state(GameState * state, PlatformMemory * memory)
 {
 	*state = {};
 
@@ -194,6 +195,7 @@ bool32 update_game(
 	PlatformGraphics * 		graphics,
 	PlatformWindow * 		window,
 	PlatformApi * 			api,
+	PlatformLogContext *	logContext,
 
 	std::ofstream * logFile)
 {
@@ -217,13 +219,20 @@ bool32 update_game(
 	{
 		initialize_game_state (state, memory);
 
-		logDebug.output     = logFile;
-		logWarning.output 	= logFile;
-		logAnim.output      = logFile;
-		logVulkan.output    = logFile;
-		logWindow.output    = logFile;
-		logSystem.output    = logFile;
-		logNetwork.output   = logFile;
+		LogOutput logOutput = {&logContext, [](void * context, String const & message)
+		{
+			platformApi->log(reinterpret_cast<PlatformLogContext*>(context), 0, message);
+		}};
+
+
+		logDebug.output2     	= logOutput;
+		logWarning.output2 		= logOutput;
+		logAnim.output2      	= logOutput;
+		logVulkan.output2    	= logOutput;
+		logWindow.output2    	= logOutput;
+		logSystem.output2    	= logOutput;
+		logNetwork.output2   	= logOutput;
+		logConsole.output2   	= logOutput;
 	}
 	
 	bool32 gameIsAlive = true;

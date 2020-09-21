@@ -26,19 +26,10 @@ constexpr String from_cstring(char const * cstring)
 	return result;
 }
 
-LogInput & operator << (LogInput & log, String const & string)
-{
-	for (s32 i = 0; i < string.length; ++i)
-	{
-		log << string[i];
-	}
-
-	return log;
-}
 
 internal void reset_string(String & string, s32 capacity)
 {
-	fill_memory(string.memory, 0, capacity);
+	memory_fill(string.memory, 0, capacity);
 	string.length = 0;
 }
 
@@ -204,7 +195,8 @@ internal bool32 string_equals(String string, char const * cstring)
 	}
 }
 
-internal void string_parse_f32(String string, f32 * outValue)
+
+internal void string_parse(String string, f32 * outValue)
 {
 	// Note(Leo): We get 'string' as a copy, since it is just int and a pointer, so we can modify it
 	// Todo(Leo): prevent modifying contents though
@@ -252,7 +244,7 @@ internal void string_parse_f32(String string, f32 * outValue)
 	*outValue = sign * value;
 }
 
-internal void string_parse_s32(String string, s32 * outValue)
+internal void string_parse(String string, s32 * outValue)
 {
 	// Note(Leo): We get 'string' as a copy, since it is just int and a pointer, so we can modify it
 	// Todo(Leo): prevent modifying contents though
@@ -283,36 +275,6 @@ internal void string_parse_s32(String string, s32 * outValue)
 	*outValue = sign * value;
 }
 
-internal void string_parse_v2(String string, v2 * outValue)
-{
-	String part0 = string_extract_until_character(string, ',');
-	String part1 = string;
-
-	string_parse_f32(part0, &outValue->x);
-	string_parse_f32(part1, &outValue->y);
-}
-
-
-internal void string_parse_v3(String string, v3 * outValue)
-{
-	String part0 = string_extract_until_character(string, ',');
-	String part1 = string_extract_until_character(string, ',');
-	String part2 = string;
-
-	string_parse_f32(part0, &outValue->x);
-	string_parse_f32(part1, &outValue->y);
-	string_parse_f32(part2, &outValue->z);
-}
-
-#define GENERIC_STRING_PARSE(type, func) internal void generic_string_parse(String const & string, type * outValue) {func(string, outValue);}
-
-GENERIC_STRING_PARSE(f32, string_parse_f32);
-GENERIC_STRING_PARSE(s32, string_parse_s32);
-GENERIC_STRING_PARSE(v2, string_parse_v2);
-GENERIC_STRING_PARSE(v3, string_parse_v3);
-
-#undef GENERIC_STRING_PARSE
-
 internal void string_append_string(String & string, s32 capacity, String other)
 {
 	Assert(capacity - string.length >= other.length);
@@ -336,7 +298,7 @@ internal void string_append_f32(String & string, s32 capacity, f32 value, s32 pr
 	char digits[digitCapacity + 1] = {};
 	s32 characterCount = 0;
 
-	fill_memory(digits, '0', array_count(digits));
+	memory_fill(digits, '0', array_count(digits));
 	Assert((capacity - string.length) > array_count(digits))
 	
 
@@ -424,7 +386,7 @@ internal void string_append_s32(String & string, s32 capacity, s32 value)
 
 	// Note(Leo): added one is for possible negative sign
 	char digits[digitCapacity + 1] = {};
-	fill_memory(digits, '0', array_count(digits));
+	memory_fill(digits, '0', array_count(digits));
 	s32 digitCount = 0;
 
 	Assert((capacity - string.length) > array_count(digits));
@@ -463,38 +425,21 @@ internal void string_append_s32(String & string, s32 capacity, s32 value)
 	}
 }
 
-internal void string_append_v2(String & string, s32 capacity, v2 value)
-{
-	string_append_f32(string, capacity, value.x);	
-	string_append_cstring(string, capacity, ", ");
-	string_append_f32(string, capacity, value.y);	
-}
-
-internal void string_append_v3(String & string, s32 capacity, v3 value)
-{
-	string_append_f32(string, capacity, value.x);
-	string_append_cstring(string, capacity, ", ");
-	string_append_f32(string, capacity, value.y);
-	string_append_cstring(string, capacity, ", ");
-	string_append_f32(string, capacity, value.z);
-}
 
 
-#define GENERIC_STRING_APPEND(type, func) internal void generic_string_append(String & string, s32 capacity, type value) { func(string, capacity, value); }
+#define GENERIC_STRING_APPEND(type, func) internal void string_append(String & string, s32 capacity, type value) { func(string, capacity, value); }
 
 GENERIC_STRING_APPEND(String, string_append_string);
 GENERIC_STRING_APPEND(char const *, string_append_cstring);
 GENERIC_STRING_APPEND(f32, string_append_f32);
 GENERIC_STRING_APPEND(s32, string_append_s32);
-GENERIC_STRING_APPEND(v2, string_append_v2);
-GENERIC_STRING_APPEND(v3, string_append_v3);
 
 #undef GENERIC_STRING_APPEND
 
 template<typename TFirst, typename ... TOthers>
 internal void string_append_format(String & string, s32 capacity, TFirst first, TOthers ... others)
 {
-	generic_string_append(string, capacity, first);
+	string_append(string, capacity, first);
 
 	if constexpr (sizeof... (others) > 0)
 	{

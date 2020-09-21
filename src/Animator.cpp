@@ -76,7 +76,7 @@ struct AnimatedBone
 	s32 		parent;
 
 	// For debugging only
-	SmallString name;
+	// SmallString name;
 };
 
 internal AnimatedBone

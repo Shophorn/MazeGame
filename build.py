@@ -24,8 +24,8 @@ compile_game = 1
 
 for proc in psutil.process_iter():
 	try:
-		if 'mazegame' in proc.name().lower():
-			print("Mazegame running, not building platform layer.")
+		if 'friendsimulator' in proc.name().lower():
+			print("Friendsimulator running, not building platform layer.")
 			compile_platform = 0;
 	except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
 		pass
@@ -69,7 +69,7 @@ if compiler == 'clang++':
 	platform_result = 0
 	if compile_platform:
 		# Specify '-mwindows' to get .exe to launch without console
-		platform_call = "{} {} {} {} -o winapi_Mazegame.exe src/winapi_Mazegame.cpp {} {}".format(
+		platform_call = "{} {} {} {} -o win32_friendsimulator.exe src/fswin32_friendsimulator.cpp {} {}".format(
 					compiler_path, flags, definitions, includePath, libPath, libLinks)
 		
 		platform_result = compile(platform_call)
@@ -77,7 +77,7 @@ if compiler == 'clang++':
 	### COMPILE GAME CODE DLL
 	game_result = 0
 	if compile_game:
-		game_call = "{} -shared {} {} {} -o Mazegame.dll src/Mazegame.cpp -DLL".format(
+		game_call = "{} -shared {} {} {} -o friendsimulator.dll src/friendsimulator.cpp -DLL".format(
 					compiler_path, flags, definitions, includePath)
 
 		game_result = compile(game_call)

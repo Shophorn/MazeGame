@@ -974,7 +974,6 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 														&allocateInfo,
 														&context.virtualFrames[i].resolveImageDescriptor));
 
-				logVulkan(0) << "Allocated: " << context.virtualFrames[i].resolveImageDescriptor;
 
 				VkDescriptorImageInfo info = 
 				{

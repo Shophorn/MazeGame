@@ -365,24 +365,64 @@ v4 v4_lerp(v4 const & a, v4 const & b, float t)
 	return result;
 }
 
-#if MAZEGAME_INCLUDE_STD_IOSTREAM
+// ----------- Overloads for Vector types -------------------
 
-std::ostream & operator << (std::ostream & os, v2 vec)
+internal void string_parse(String string, v2 * outValue)
 {
-	os << "(" << vec.x << "," << vec.y << ")";
-	return os;
+	String part0 = string_extract_until_character(string, ',');
+	String part1 = string;
+
+	string_parse(part0, &outValue->x);
+	string_parse(part1, &outValue->y);
 }
 
-std::ostream & operator << (std::ostream & os, v3 vec)
+internal void string_append(String & string, s32 capacity, v2 value)
 {
-	os << "(" << vec.x << "," << vec.y << "," << vec.z << ")";
-	return os;
+	string_append_f32(string, capacity, value.x);	
+	string_append_cstring(string, capacity, ", ");
+	string_append_f32(string, capacity, value.y);	
 }
 
-std::ostream & operator << (std::ostream & os, v4 vec)
+internal void string_parse(String string, v3 * outValue)
 {
-	os << "(" << vec.x << "," << vec.y << "," << vec.z << "," << vec.w << ")";
-	return os;
+	String part0 = string_extract_until_character(string, ',');
+	String part1 = string_extract_until_character(string, ',');
+	String part2 = string;
+
+	string_parse(part0, &outValue->x);
+	string_parse(part1, &outValue->y);
+	string_parse(part2, &outValue->z);
 }
 
-#endif
+internal void string_append(String & string, s32 capacity, v3 value)
+{
+	string_append_f32(string, capacity, value.x);
+	string_append_cstring(string, capacity, ", ");
+	string_append_f32(string, capacity, value.y);
+	string_append_cstring(string, capacity, ", ");
+	string_append_f32(string, capacity, value.z);
+}
+
+internal void string_parse(String string, v4 * outValue)
+{
+	String part0 = string_extract_until_character(string, ',');
+	String part1 = string_extract_until_character(string, ',');
+	String part2 = string_extract_until_character(string, ',');
+	String part3 = string;
+
+	string_parse(part0, &outValue->x);
+	string_parse(part1, &outValue->y);
+	string_parse(part2, &outValue->z);
+	string_parse(part3, &outValue->w);
+}
+
+internal void string_append(String & string, s32 capacity, v4 value)
+{
+	string_append_f32(string, capacity, value.x);
+	string_append_cstring(string, capacity, ", ");
+	string_append_f32(string, capacity, value.y);
+	string_append_cstring(string, capacity, ", ");
+	string_append_f32(string, capacity, value.z);
+	string_append_cstring(string, capacity, ", ");
+	string_append_f32(string, capacity, value.w);
+}

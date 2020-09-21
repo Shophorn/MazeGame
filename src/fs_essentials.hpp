@@ -1,11 +1,15 @@
-/*=============================================================================
+/*
 Leo Tamminen
 
-Common essentials used all around in :MAZEGAME: project
-===============================================================================*/
+Common essentials used all around in Friendsimulator project
+*/
 
-#if !defined MAZEGAME_ESSENTIALS_HPP
+#if !defined FS_ESSENTIALS_HPP
 
+
+
+
+// Todo(Leo): Find where these come from
 #undef min
 #undef max
 
@@ -15,7 +19,6 @@ Common essentials used all around in :MAZEGAME: project
 
 // Todo(Leo): this might not e good idea... Or good name anyway, some libraries seem to use it internaly (rapidjson at least)
 #define internal static
-
 
 /// SENSIBLE SIMPLE TYPES
 // Todo(Leo): These should come from platform layer, since that is where they are defined anyway
@@ -67,26 +70,40 @@ constexpr u32 array_count(const _ (&array)[Count])
 {
     return Count;
 }
-    
+
+#if MAZEGAME_DEVELOPMENT
+	#define Assert(expr) if(!(expr)) { log_assert(__FILE__, __LINE__, nullptr, #expr); 			abort(); }
+	#define AssertMsg(expr, msg) if(!(expr)) { log_assert(__FILE__, __LINE__, msg, #expr); 	abort(); }
+	// Note(Leo): Some things need to asserted in production too, this is a reminder for those only.
+	#define AssertRelease AssertMsg
+
+	void log_assert(char const * filename, int line, char const * message, char const * expression);
+
+#else
+	#define Assert(expr) 			((void)0);
+	#define AssertMsg(expr, msg)	((void)0);
+	#define AssertRelease 			((void)0);
+
+#endif
 
 
-const char * 
-bool_str(bool value)
-{
-	return (value ? "True" : "False");
-}
+#include "Math.cpp"
+#include "Memory.cpp"
+
+#include "CStringUtility.cpp"
+#include "string.cpp"
+#include "meta.cpp"
+#include "SmallString.cpp"
+
+#include "Logging.cpp"
+
+#include "Vectors.cpp"
+#include "Quaternion.cpp"
+#include "Matrices.cpp"
 
 
-// Todo(Leo): this makes no sense, remove it.
-template<typename T>
-u64 get_size_of()
-{ 
-    return sizeof(T);
-}
+#include "serialization.cpp"
+#include "array2.cpp"
 
-/* Note(Leo): I am thinking of moving back to regular datatype names, int etc. These
-are here to make sure they behave as expected. */
-static_assert(sizeof(int) == 4, "Inconvenient size for int");
-
-#define MAZEGAME_ESSENTIALS_HPP
+#define FS_ESSENTIALS_HPP
 #endif
