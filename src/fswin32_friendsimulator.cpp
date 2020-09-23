@@ -255,6 +255,11 @@ int main()
 
 	logSystem(0, "Testing log template, (", 56, ")");
 
+	logSystem(0,"\n",
+				"\t----- FriendSimulator -----\n",
+				"\tBuild time: ", BUILD_DATE_TIME, "\n");
+
+
 	logSystem(0) << "\n"
 				<< "\t----- FriendSimulator -----\n"
 				<< "\tBuild time: " << BUILD_DATE_TIME << "\n";

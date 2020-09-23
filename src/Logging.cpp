@@ -110,6 +110,8 @@ struct LogChannel
 	template<typename ... Args>
 	void operator() (int verbosity, Args ... args)
 	{
+		// Todo(Leo): handle file address, and verbosity
+		// Todo(Leo): add temp string support
 		local_persist thread_local char bufferMemory[1024];
 		String buffer = {0, bufferMemory};
 
