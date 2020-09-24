@@ -21,7 +21,7 @@ internal void gui_set_cursor_visible(bool menuVisible)
 	bool cursorVisible = !windowIsFullscreen || menuVisible;
 	platform_window_set_cursor_visible(platformWindow, cursorVisible);
 
-	logDebug(0, "Set cursor visible: ", (cursorVisible ? "True" : "False"));
+	log_debug(0, "Set cursor visible: ", (cursorVisible ? "True" : "False"));
 }
 
 

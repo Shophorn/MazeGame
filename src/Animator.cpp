@@ -420,7 +420,7 @@ void update_skeleton_animator(SkeletonAnimator & animator, f32 elapsedTime)
 			}
 			else
 			{
-				logAnim(0, "Unexpected interpolation mode: ", channel.interpolationMode);
+				log_animation(0, "Unexpected interpolation mode: ", channel.interpolationMode);
 				Assert(false);
 			}
 
@@ -473,7 +473,7 @@ void update_skeleton_animator(SkeletonAnimator & animator, f32 elapsedTime)
 
 				default:
 				{
-					logAnim(0, "Unexpected interpolation mode: ", channel.interpolationMode);
+					log_animation(0, "Unexpected interpolation mode: ", channel.interpolationMode);
 					Assert(false);
 				} break;
 			}

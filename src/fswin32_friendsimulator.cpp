@@ -38,7 +38,7 @@ WinApiLog(const char * message, HRESULT result)
     #if MAZEGAME_DEVELOPMENT
     if (result != S_OK)
     {
-    	logDebug(1, message, "(", WinApiErrorString(result), ")");
+    	log_debug(1, message, "(", WinApiErrorString(result), ")");
     }
     #endif
 }
@@ -61,7 +61,7 @@ int main()
 	SYSTEMTIME time_;
 	GetLocalTime(&time_);
 
-	logSystem(0,"\n",
+	log_application(0,"\n",
 				"\t----- FriendSimulator -----\n",
 				"\tBuild time: ", BUILD_DATE_TIME, "\n");
 
@@ -115,7 +115,7 @@ int main()
 	// Note(Leo): Only load game dynamically in development.
 	Win32Game game = {};
 	fswin32_game_load_dll(&game);
-	logSystem(1, "Game dll loaded");
+	log_application(1, "Game dll loaded");
 
 
 
@@ -140,12 +140,12 @@ int main()
 		FILETIME dllLatestWriteTime = fswin32_file_get_write_time(GAMECODE_DLL_FILE_NAME);
 		if (CompareFileTime(&dllLatestWriteTime, &game.dllWriteTime) > 0)
 		{
-			logSystem(0, "Attempting to reload game");
+			log_application(0, "Attempting to reload game");
 
 			fswin32_game_unload_dll(&game);
 			fswin32_game_load_dll(&game);
 
-			logSystem(0, "Reloaded game");
+			log_application(0, "Reloaded game");
 
 			gameShouldReInitializeGlobalVariables = true;
 		}
@@ -201,7 +201,7 @@ int main()
 			if (networkIsRuined)
 			{
 				auto error = WSAGetLastError();
-				logNetwork(1, "failed: ", WinSocketErrorString(error), " (", error, ")"); 
+				log_network(1, "failed: ", WinSocketErrorString(error), " (", error, ")"); 
 				break;
 			}
 
@@ -311,7 +311,7 @@ int main()
 			frameFlipTime           = now;
 
 			// approxAvgFrameTime = interpolate(approxAvgFrameTime, lastFrameElapsedSeconds, approxAvgFrameTimeAlpha);
-			// logConsole(0) << approxAvgFrameTime;
+			// log_console(0) << approxAvgFrameTime;
 		}
 	}
 	///////////////////////////////////////
@@ -329,7 +329,7 @@ int main()
 	/// ----- Cleanup Windows
 	{
 		// Note(Leo): Windows will mostly clean up after us once process exits :)
-		logWindow(0, "shut down");
+		log_application(0, "shut down");
 	}
 
 	return EXIT_SUCCESS;

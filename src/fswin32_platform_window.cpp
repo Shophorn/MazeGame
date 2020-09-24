@@ -186,7 +186,7 @@ internal LRESULT CALLBACK fswin32_window_callback (HWND hwnd, UINT message, WPAR
             auto * state = fswin32_get_user_pointer(hwnd);
             if (state == nullptr)
             {
-                logSystem(1, "Skipping first WM_SIZE message due to no user pointer set yet.");
+                log_application(1, "Skipping first WM_SIZE message due to no user pointer set yet.");
                 result = DefWindowProcW(hwnd, message, wParam, lParam);
                 break;
             }

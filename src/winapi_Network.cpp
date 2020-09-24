@@ -106,7 +106,7 @@ winapi::CreateNetwork()
         u_long mode = NON_BLOCKING_MODE;
         ioctlsocket(network.connectedSocket, FIONBIO, &mode);
 
-        logNetwork(1, "Connected on startup");
+        log_network(1, "Connected on startup");
     }
     else
     {
@@ -129,7 +129,7 @@ winapi::CreateNetwork()
         u_long mode = NON_BLOCKING_MODE;
         ioctlsocket(network.listeningSocket, FIONBIO, &mode);
 
-        logNetwork(1, "Listening for incoming connections");
+        log_network(1, "Listening for incoming connections");
     }
 
     return network;
@@ -140,7 +140,7 @@ winapi::NetworkSend(WinApiNetwork * network, PlatformNetworkPackage * packageToS
 {
 	if (network->isConnected == false)
 	{
-		logNetwork(1, "Trying to send but we are not connected.");
+		log_network(1, "Trying to send but we are not connected.");
 		return;
 	}
 
@@ -156,7 +156,7 @@ winapi::NetworkReceive(WinApiNetwork * network, PlatformNetworkPackage * resultA
 {
 	if (network->isConnected == false)
 	{
-		logNetwork(1, "We are trying to receive but are not connected.");
+		log_network(1, "We are trying to receive but are not connected.");
 		return;
 	}
 
@@ -171,7 +171,7 @@ winapi::NetworkReceive(WinApiNetwork * network, PlatformNetworkPackage * resultA
     {
         if (RESULT == 0)
         {
-            logNetwork(1, "Other side disconnected");
+            log_network(1, "Other side disconnected");
             closesocket(network->connectedSocket);
             network->isConnected = false;
         }
@@ -187,7 +187,7 @@ winapi::NetworkReceive(WinApiNetwork * network, PlatformNetworkPackage * resultA
 
                 case WSAECONNABORTED:
                     // Todo(Leo): This shouldn't occur when we exit other side
-                    logNetwork(0, "RECEIVE error (handled): ", WinSocketErrorString(error), " (", error, ")");
+                    log_network(0, "RECEIVE error (handled): ", WinSocketErrorString(error), " (", error, ")");
                     RESULT = shutdown(network->connectedSocket, SD_BOTH);
                     RESULT = closesocket(network->connectedSocket);
                         
@@ -197,7 +197,7 @@ winapi::NetworkReceive(WinApiNetwork * network, PlatformNetworkPackage * resultA
 
                 case WSAECONNRESET:
                     // Todo(Leo): This shouldn't occur when we exit other side
-                    logNetwork(0, "RECEIVE error (handled): ", WinSocketErrorString(error), " (", error, ")");
+                    log_network(0, "RECEIVE error (handled): ", WinSocketErrorString(error), " (", error, ")");
                     RESULT = shutdown(network->connectedSocket, SD_BOTH);
                     RESULT = closesocket(network->connectedSocket);
                         
@@ -207,7 +207,7 @@ winapi::NetworkReceive(WinApiNetwork * network, PlatformNetworkPackage * resultA
 
 
                 default:
-                    logNetwork(0, "RECEIVE error: ", WinSocketErrorString(error), " (", error, ")");
+                    log_network(0, "RECEIVE error: ", WinSocketErrorString(error), " (", error, ")");
                     networkIsRuined = true;
                     break;
             }
@@ -220,7 +220,7 @@ winapi::NetworkListen(WinApiNetwork * network)
 {
     if (network->isListening == false)
     {
-    	logNetwork(1, "We are trying to listen but we are not listening.");
+    	log_network(1, "We are trying to listen but we are not listening.");
     	return;
     }
 
@@ -240,7 +240,7 @@ winapi::NetworkListen(WinApiNetwork * network)
         RESULT = WSAGetLastError();
         if (RESULT != WSAEWOULDBLOCK)
         {
-            logNetwork(1, "Listening socket accept error: ", WinSocketErrorString(RESULT), "(", RESULT, ")");
+            log_network(1, "Listening socket accept error: ", WinSocketErrorString(RESULT), "(", RESULT, ")");
             networkIsRuined = true;
         }
     }
@@ -264,5 +264,5 @@ winapi::CloseNetwork(WinApiNetwork * network)
 
     *network = {};
 
-    logNetwork(0, "Shut down");
+    log_network(0, "Shut down");
 }

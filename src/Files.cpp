@@ -146,7 +146,7 @@ struct GltfFile
 internal GltfFile
 read_gltf_file(MemoryArena & memoryArena, char const * filename)
 {
-	logSystem(2, "Reading gltf file from: ", filename);
+	log_asset(2, "Reading gltf file from: ", filename);
 	
 	auto memory = read_binary_file(memoryArena, filename);
 

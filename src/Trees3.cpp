@@ -395,7 +395,7 @@ internal void grow_tree_3(Tree3 & tree, f32 elapsedTime, GetWaterFunc & get_wate
 		or 	used_percent(tree.branches) > tree.resourceLimitThresholdValue)
 	{
 		tree.resourceLimitReached = true;
-		logDebug(0, "tree resource limit reached");
+		log_debug(0, "tree resource limit reached");
 	}
 }
 
@@ -640,7 +640,7 @@ internal void build_tree_3_mesh(Tree3 & tree)
 		or 	used_percent(mesh.indices) > tree.resourceLimitThresholdValue)
 	{
 		tree.resourceLimitReached = true;
-		logDebug(0, "tree resource limit reached");
+		log_debug(0, "tree resource limit reached");
 	}
 }
 

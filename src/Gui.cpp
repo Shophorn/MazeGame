@@ -724,7 +724,7 @@ internal bool gui_int_field(char const * label, s32 * value, GuiClampValuesS32 c
 
 	if (modified)
 	{
-		logDebug(0, FILE_ADDRESS, *value);
+		log_debug(0, FILE_ADDRESS, *value);
 	}
 
 	v4 colour = isSelected ? gui.selectedTextColor : gui.textColor;

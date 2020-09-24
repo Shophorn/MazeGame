@@ -596,7 +596,7 @@ VKAPI_ATTR VkBool32 VKAPI_CALL fsvulkan_debug_callback (VkDebugUtilsMessageSever
 														const VkDebugUtilsMessengerCallbackDataEXT * 	data,
 														void * 											userData)
 {
-	logVulkan(0, data->pMessage);
+	log_graphics(0, data->pMessage);
 	return VK_FALSE;
 }
 
@@ -762,7 +762,7 @@ winapi::create_vulkan_context(Win32Window * window)
 	}
 
 
-	logVulkan(1, "Initialized succesfully");
+	log_graphics(1, "Initialized succesfully");
 
 	return context;
 }
@@ -785,7 +785,7 @@ winapi::destroy_vulkan_context(VulkanContext * context)
 	vkDestroySurfaceKHR (context->instance, context->surface, nullptr);
 	vkDestroyInstance   (context->instance, nullptr);
 	
-	logVulkan(1, "Shut down");
+	log_graphics(1, "Shut down");
 }
 
 internal void 
@@ -822,7 +822,7 @@ winapi_vulkan_internal_::create_vk_instance()
 			Assert(layerFound);
 		}
 		
-		logVulkan(0, "Validation layers ok!");
+		log_graphics(0, "Validation layers ok!");
 	}
 
 

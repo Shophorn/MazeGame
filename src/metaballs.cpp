@@ -243,7 +243,7 @@ internal f32 sample_test_voxel_field(v3 pos, void const * dataPtr)
 	s32 y = floor_f32(pos.y) * fieldSize.x;
 	s32 z = floor_f32(pos.z) * fieldSize.x * fieldSize.y;
 
-	// logDebug(0) << pos << ", " << x << ", " << y << ", " << z;
+	// log_debug(0) << pos << ", " << x << ", " << y << ", " << z;
 
 	u8 value = field[x + y + z];
 
@@ -676,16 +676,16 @@ internal void generate_mesh_marching_cubes(	s32 vertexCapacity, Vertex * vertice
 
 				if (c.vertexCount == 0 && caseId != 0 && caseId != 255)
 				{
-					logDebug(0, "Missing case: ", (u32)caseId);
+					log_debug(0, "Missing case: ", (u32)caseId);
 				}
 			}
 		}
 	}
 
-	// logDebug(0) << "zCount = " << zCount;
+	// log_debug(0) << "zCount = " << zCount;
 
-	// logDebug(0) << "Marching Cubes Took: " << platformApi->elapsed_seconds(startTime, platformApi->current_time()) << " s";
-	// logDebug(0) << "Vertices: " << vertexCount << "/" << vertexCapacity << ", indices: " << indexCount << "/" << indexCapacity;
+	// log_debug(0) << "Marching Cubes Took: " << platformApi->elapsed_seconds(startTime, platformApi->current_time()) << " s";
+	// log_debug(0) << "Vertices: " << vertexCount << "/" << vertexCapacity << ", indices: " << indexCount << "/" << indexCapacity;
 
 	mesh_generate_normals(vertexCount, vertices, indexCount, indices);
 	mesh_generate_tangents(vertexCount, vertices, indexCount, indices);

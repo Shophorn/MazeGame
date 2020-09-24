@@ -91,7 +91,7 @@ internal WinApiAudio fswin32_create_audio ()
 
     #if 1
     // Todo(Leo): this ugly comma formatting is result from past, fix pls
-    logAudio(1
+    log_audio(1
         , "|======================================|\n"
         , "Selected device format:\n"
         , "\tformat: "             , WinApiWaveFormatTagString(UNKNOWN_GetFormatTag(audio.pFormat)) , "\n"

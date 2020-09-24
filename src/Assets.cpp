@@ -180,8 +180,8 @@ internal v4 colour_rgba_v4(u32 pixel)
 	};
 
 
-	// logDebug(0) << "colour_rgba_v4(): " << pixel << ", " << colour;
-	// logDebug(0, "colour_rgba_v4(): ", pixel, ", ", colour);
+	// log_debug(0) << "colour_rgba_v4(): " << pixel << ", " << colour;
+	// log_debug(0, "colour_rgba_v4(): ", pixel, ", ", colour);
 	return colour;
 }
 

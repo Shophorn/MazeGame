@@ -1278,7 +1278,7 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 										sample_heightmap_for_mc, &scene->collisionSystem.terrainCollider, scene->metaballGridScale);
 
 		FS_DEBUG_ALWAYS(debug_draw_circle_xy(multiply_point(scene->metaballTransform2, scene->metaballVertices2[0].position), 5.0f, colour_bright_green));
-		// logDebug(0) << multiply_point(scene->metaballTransform2, scene->metaballVertices2[0].position);
+		// log_debug(0) << multiply_point(scene->metaballTransform2, scene->metaballVertices2[0].position);
 
 		if (scene->metaballVertexCount2 > 0 && scene->metaballIndexCount2 > 0)
 		{
@@ -1439,7 +1439,7 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 	scene->fallingObjectCount = 0;
 	scene->fallingObjects = push_memory<FallingObject>(persistentMemory, scene->fallingObjectCapacity, ALLOC_CLEAR);
 
-	logSystem(1, "Allocations succesful! :)");
+	log_application(1, "Allocations succesful! :)");
 
 	// ----------------------------------------------------------------------------------
 
@@ -1622,7 +1622,7 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 			scene->characterAnimations[CROUCH] 	= load_animation_glb(persistentMemory, animationFile, "Crouch");
 
 			// Todo(Leo): Log bigger numbers
-			logSystem(1, "Loading all 6 animations took: ", static_cast<f32>(platform_time_elapsed_seconds(startTime, platform_time_now())), " s");
+			log_application(1, "Loading all 6 animations took: ", static_cast<f32>(platform_time_elapsed_seconds(startTime, platform_time_now())), " s");
 
 			motor->animations[WALK] 	= &scene->characterAnimations[WALK];
 			motor->animations[RUN] 		= &scene->characterAnimations[RUN];
@@ -1634,7 +1634,7 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 
 		auto startTime = platform_time_now();
 
-		logSystem(1, "Loading skeleton took: ", static_cast<f32>(platform_time_elapsed_seconds(startTime, platform_time_now())), " s");
+		log_application(1, "Loading skeleton took: ", static_cast<f32>(platform_time_elapsed_seconds(startTime, platform_time_now())), " s");
 
 		scene->playerSkeletonAnimator = 
 		{
@@ -2053,7 +2053,7 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 													// Note(Leo): we brake, so acceleration term is negative
 													- 0.5f * scene->trainAcceleration * timeToBrakeBeforeStation * timeToBrakeBeforeStation;
 
-			logDebug(0, "brake time: ", timeToBrakeBeforeStation, ", distance: ", scene->trainBrakeBeforeStationDistance);
+			log_debug(0, "brake time: ", timeToBrakeBeforeStation, ", distance: ", scene->trainBrakeBeforeStationDistance);
 
 			scene->trainCurrentWaitTime = 0;
 			scene->trainCurrentSpeed 	= 0;
@@ -2240,8 +2240,8 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 
 	// ----------------------------------------------------------------------------------
 
-	logSystem(0, "Scene3d loaded, ", used_percent(*global_transientMemory) * 100, "% of transient memory used.");
-	logSystem(0, "Scene3d loaded, ", used_percent(persistentMemory) * 100, "% of persistent memory used.");
+	log_application(0, "Scene3d loaded, ", used_percent(*global_transientMemory) * 100, "% of transient memory used.");
+	log_application(0, "Scene3d loaded, ", used_percent(persistentMemory) * 100, "% of persistent memory used.");
 
 	return scene;
 }

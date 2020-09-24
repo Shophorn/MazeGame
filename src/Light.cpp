@@ -160,7 +160,7 @@ get_light_view_projection(Light const * directionalLight, Camera const * camera)
 	f32 shadowBoxHeight = -500;
 
 
-	// logDebug(0) << "ShadowBox = " << shadowBoxWidth << "*" << shadowBoxDepth << "*" << shadowBoxHeight; 
+	// log_debug(0) << "ShadowBox = " << shadowBoxWidth << "*" << shadowBoxDepth << "*" << shadowBoxHeight; 
 
 	m44 lightProjection =
 	{

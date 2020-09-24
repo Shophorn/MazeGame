@@ -18,7 +18,7 @@ f64 platform_time_elapsed_seconds(PlatformTimePoint start, PlatformTimePoint end
 		QueryPerformanceFrequency(&frequency);
 		
 		// Todo(Leo): actually append bigger values also
-		// logConsole(0, "performance frequency = ", (s32)frequency.QuadPart);
+		// log_console(0, "performance frequency = ", (s32)frequency.QuadPart);
 
 		return frequency.QuadPart;
 	}();

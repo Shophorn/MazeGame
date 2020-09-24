@@ -39,7 +39,7 @@ internal TextureAsset load_texture_asset(MemoryArena & allocator, const char * f
     u64 pixelMemorySize = width * height * channels;
 
     // // Note(Leo): this is only supported number
-    // logDebug(0) << filename << ": " << channels;
+    // log_debug(0) << filename << ": " << channels;
     // AssertMsg(channels == 4, filename);
 
     TextureAsset result = {};

@@ -46,24 +46,24 @@ internal VkSurfaceFormatKHR fsvulkan_choose_swapchain_surface_format(std::vector
 	constexpr VkFormat preferredFormat              = VK_FORMAT_B8G8R8A8_SRGB;
 	constexpr VkColorSpaceKHR preferredColorSpace   = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
 
-	logVulkan(0, "surface format preferred, format = ", fsvulkan_format_string(preferredFormat), " color space = ", fsvulkan_color_space_khr_string(preferredColorSpace));
+	log_graphics(0, "surface format preferred, format = ", fsvulkan_format_string(preferredFormat), " color space = ", fsvulkan_color_space_khr_string(preferredColorSpace));
 
 	VkSurfaceFormatKHR result = availableFormats [0];
 	s32 resultFormatIndex;
 	for (s32 i = 0; i < availableFormats.size(); ++i)
 	{	
-		logVulkan(0, i, ": surface format prospect, format = ", fsvulkan_format_string(availableFormats[i].format), " color space = ", fsvulkan_color_space_khr_string(availableFormats[i].colorSpace));
+		log_graphics(0, i, ": surface format prospect, format = ", fsvulkan_format_string(availableFormats[i].format), " color space = ", fsvulkan_color_space_khr_string(availableFormats[i].colorSpace));
 
 		if (availableFormats[i].format == preferredFormat && availableFormats[i].colorSpace == preferredColorSpace)
 		{
-			logVulkan(0, i, ": preferred surface format found, format = ", fsvulkan_format_string(availableFormats[i].format), " color space = ", fsvulkan_color_space_khr_string(availableFormats[i].colorSpace));
+			log_graphics(0, i, ": preferred surface format found, format = ", fsvulkan_format_string(availableFormats[i].format), " color space = ", fsvulkan_color_space_khr_string(availableFormats[i].colorSpace));
 
 			resultFormatIndex 	= i;
 			result 				= availableFormats [i];
 		}   
 	}
 
-	logVulkan(0, "result format index = ", resultFormatIndex);
+	log_graphics(0, "result format index = ", resultFormatIndex);
 
 	return result;
 }
@@ -153,7 +153,7 @@ vulkan::create_drawing_resources(VulkanContext * context, u32 width, u32 height)
 
 
 	context->swapchainImageFormat = surfaceFormat.format;
-	logVulkan(0, "Swapchain format is ", fsvulkan_format_string(surfaceFormat.format));
+	log_graphics(0, "Swapchain format is ", fsvulkan_format_string(surfaceFormat.format));
 
 
 	// TODO(Leo): following imageCount variable is reusing one from previous definition, maybe bug

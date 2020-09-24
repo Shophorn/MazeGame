@@ -344,7 +344,7 @@ internal void * load_scene_2d(MemoryArena & persistentMemory)
 			};
 		}
 
-		logDebug(0) << "Ladders done";
+		log_debug(0) << "Ladders done";
 
 		if (addPlatforms)
 		{
@@ -399,6 +399,6 @@ internal void * load_scene_2d(MemoryArena & persistentMemory)
 		}
 	}
 
-	logDebug(0) << "Loaded 2D scene";
+	log_debug(0) << "Loaded 2D scene";
 	return scenePtr;
 }

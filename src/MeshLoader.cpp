@@ -184,7 +184,7 @@ load_animation_glb(MemoryArena & allocator, GltfFile const & file, char const * 
 		String logMessage = push_temp_string(logMessageCapacity);
 		string_append_format(logMessage, logMessageCapacity, "Animation not found. Requested: ", animationName, ", available: \n");
 
-		// auto log = logDebug();
+		// auto log = log_debug();
 		// log << "Animation not found. Requested: " << animationName << ", available:\n";
 		for (auto const & anim : animArray)
 		{
@@ -301,8 +301,6 @@ load_animation_glb(MemoryArena & allocator, GltfFile const & file, char const * 
 		{
 			case ANIMATION_CHANNEL_TRANSLATION:
 			{
-				logDebug(1, "translation channel for bone ", targetIndex);
-
 				v3 const * start 		= get_buffer_start<v3>(file, outputAccessor);
 				v3 const * end 			= start + valueCount;
 
@@ -332,8 +330,6 @@ load_animation_glb(MemoryArena & allocator, GltfFile const & file, char const * 
 
 			case ANIMATION_CHANNEL_ROTATION:
 			{
-				logDebug(1, "rotation channel for bone ", targetIndex);
-		
 				quaternion const * start 	= get_buffer_start<quaternion>(file, outputAccessor);
 				quaternion const * end 		= start + valueCount;
 
@@ -374,14 +370,14 @@ load_animation_glb(MemoryArena & allocator, GltfFile const & file, char const * 
 			} break;
 
 			default:
-				logDebug(1, FILE_ADDRESS, "Invalid or unimplemented animation channel: '", channelType, "' for bone ", targetIndex);
+				log_debug(1, FILE_ADDRESS, "Invalid or unimplemented animation channel: '", channelType, "' for bone ", targetIndex);
 				continue;
 
 		}
 	}
 	result.duration = maxTime - minTime;
 
-	logDebug(1, "Animation loaded, duration: ", result.duration);
+	log_animation(1, "Animation loaded, duration: ", result.duration);
 
 	AssertMsg(minTime == 0, "Probably need to implement support animations that do not start at 0");
 
@@ -495,8 +491,6 @@ load_skeleton_glb(MemoryArena & allocator, GltfFile const & file, char const * m
 internal MeshAsset
 load_mesh_glb(MemoryArena & allocator, GltfFile const & file, char const * modelName)
 {
-	logDebug(1, "modelName = ", modelName); 
-
 	auto nodes = file.json["nodes"].GetArray();
 	
 	s32 nodeIndex = index_by_name(nodes, modelName);
@@ -504,7 +498,7 @@ load_mesh_glb(MemoryArena & allocator, GltfFile const & file, char const * model
 
 	if (nodeIndex < 0)
 	{
-		logDebug(0, "modelName = ", modelName);
+		log_debug(0, "Asset not found! modelName = ", modelName);
 		Assert(false);
 	}
 

@@ -28,7 +28,7 @@ using VulkanContext = PlatformGraphics;
 internal void 
 print_vulkan_assert(LogFileAddress address, VkResult result)
 {
-    logVulkan(0, address, "Vulkan check failed ", fsvulkan_result_string(result), "(", result, ")");
+    log_graphics(0, address, "Vulkan check failed ", fsvulkan_result_string(result), "(", result, ")");
 }
 
 #define VULKAN_CHECK(result) if (result != VK_SUCCESS) { print_vulkan_assert(FILE_ADDRESS, result); abort();}
