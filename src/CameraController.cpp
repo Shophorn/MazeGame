@@ -42,8 +42,8 @@ update_camera_system(	Camera * camera,
 {
 	/* Note(Leo): Update aspect ratio each frame, in case screen size has changed.
 	This probably costs us less than checking if it has :D */
-    camera->aspectRatio = (f32)platformApi->get_window_width(window) / (f32)platformApi->get_window_height(window);
-    platformApi->update_camera(graphics, camera);
+    camera->aspectRatio = (f32)platform_window_get_width(window) / (f32)platform_window_get_height(window);
+    graphics_drawing_update_camera(graphics, camera);
 }
 
 struct PlayerCameraController

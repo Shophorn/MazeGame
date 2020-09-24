@@ -236,14 +236,14 @@ BAD_VULKAN_convert_index_type(IndexType type)
 	};
 }
 
-internal TextureHandle fsvulkan_resources_push_texture(VulkanContext * context, TextureAsset * texture)
+internal TextureHandle graphics_memory_push_texture(VulkanContext * context, TextureAsset * texture)
 {
 	TextureHandle handle = { (s64)context->loadedTextures.size() };
 	context->loadedTextures.push_back(BAD_VULKAN_make_texture(context, texture));
 	return handle;
 }
 
-internal GuiTextureHandle fsvulkan_resources_push_gui_texture(VulkanContext * context, TextureAsset * asset)
+internal GuiTextureHandle graphics_memory_push_gui_texture(VulkanContext * context, TextureAsset * asset)
 {
 	VulkanTexture texture 			= BAD_VULKAN_make_texture(context, asset);
 	VkDescriptorSet descriptorSet 	= fsvulkan_make_texture_descriptor_set(	context,	
@@ -256,7 +256,7 @@ internal GuiTextureHandle fsvulkan_resources_push_gui_texture(VulkanContext * co
 	return {index};
 }
 
-internal MaterialHandle fsvulkan_resources_push_material (	VulkanContext *     context,
+internal MaterialHandle graphics_memory_push_material (	VulkanContext *     context,
 															GraphicsPipeline    pipeline,
 															s32                 textureCount,
 															TextureHandle *     textures)
@@ -292,7 +292,7 @@ internal MaterialHandle fsvulkan_resources_push_material (	VulkanContext *     c
 	return {index};
 }
 
-internal MeshHandle fsvulkan_resources_push_mesh(VulkanContext * context, MeshAsset * mesh)
+internal MeshHandle graphics_memory_push_mesh(VulkanContext * context, MeshAsset * mesh)
 {
 	// Todo(Leo): this is messy af
 	// at least map staging buffer persitently
@@ -344,7 +344,7 @@ internal MeshHandle fsvulkan_resources_push_mesh(VulkanContext * context, MeshAs
 	return resultHandle;
 }
 
-internal ModelHandle fsvulkan_resources_push_model (VulkanContext * context, MeshHandle mesh, MaterialHandle material)
+internal ModelHandle graphics_memory_push_model (VulkanContext * context, MeshHandle mesh, MaterialHandle material)
 {
 	u32 objectIndex = context->loadedModels.size();
 
@@ -361,7 +361,7 @@ internal ModelHandle fsvulkan_resources_push_model (VulkanContext * context, Mes
 }
 
 
-internal void fsvulkan_resources_unload_resources(VulkanContext * context)
+internal void graphics_memory_unload(VulkanContext * context)
 {
 	vkDeviceWaitIdle(context->device);
 
@@ -597,7 +597,7 @@ make_shadow_texture(VulkanContext * context, u32 width, u32 height, VkFormat for
 	return resultTexture;
 }
 
-internal void fsvulkan_resources_update_texture(VulkanContext * context, TextureHandle textureHandle, TextureAsset * asset)
+internal void graphics_development_update_texture(VulkanContext * context, TextureHandle textureHandle, TextureAsset * asset)
 {
 	using namespace fsvulkan_resources_internal_;
 

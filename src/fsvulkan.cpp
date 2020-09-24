@@ -94,16 +94,13 @@ internal PlatformGraphicsFrameResult fsvulkan_prepare_frame(VulkanContext * cont
     }
 }
 
-internal void fsvulkan_reload_shaders(VulkanContext * context)
+internal void graphics_development_reload_shaders(VulkanContext * context)
 {
 	system("compile-shaders.py");
 
 	context->onPostRender = [](VulkanContext * context)
 	{
 		VkDevice device = context->device;
-
-		logVulkan(0) << "Hello";
-
 		vkResetDescriptorPool(context->device, context->persistentDescriptorPool, 0);
 
 		fsvulkan_cleanup_pipelines(context);
@@ -119,36 +116,7 @@ internal void fsvulkan_reload_shaders(VulkanContext * context)
 																					context->shadowTextureSampler,
 																					VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 		}
-
-		logVulkan(0) << "Hello2";
 	};
-}
-
-internal void fsvulkan_set_platform_graphics_api(VulkanContext * context, PlatformApi * api)
-{
- 	api->push_mesh          = fsvulkan_resources_push_mesh;
- 	api->push_texture       = fsvulkan_resources_push_texture;
- 	api->push_material      = fsvulkan_resources_push_material;
- 	api->push_gui_texture 	= fsvulkan_resources_push_gui_texture;
- 	api->push_model         = fsvulkan_resources_push_model;
- 	api->unload_scene       = fsvulkan_resources_unload_resources;
-
- 	api->update_texture		= fsvulkan_resources_update_texture;
-
- 	api->reload_shaders 	= fsvulkan_reload_shaders;
-
- 	api->prepare_frame      	= fsvulkan_drawing_prepare_frame;
- 	api->finish_frame       	= fsvulkan_drawing_finish_frame;
- 	api->update_camera      	= fsvulkan_drawing_update_camera;
- 	api->update_lighting		= fsvulkan_drawing_update_lighting;
- 	api->update_hdr_settings 	= fsvulkan_drawing_update_hdr_settings;
- 	
- 	api->draw_model         	= fsvulkan_drawing_draw_model;
- 	api->draw_meshes 			= fsvulkan_drawing_draw_meshes;
- 	api->draw_screen_rects		= fsvulkan_drawing_draw_screen_rects;
- 	api->draw_lines 			= fsvulkan_drawing_draw_lines;
- 	api->draw_procedural_mesh 	= fsvulkan_drawing_draw_procedural_mesh;
- 	api->draw_leaves 			= fsvulkan_drawing_draw_leaves;
 }
 
 internal VkFormat
@@ -628,7 +596,7 @@ VKAPI_ATTR VkBool32 VKAPI_CALL fsvulkan_debug_callback (VkDebugUtilsMessageSever
 														const VkDebugUtilsMessengerCallbackDataEXT * 	data,
 														void * 											userData)
 {
-	logVulkan(0) << data->pMessage;
+	logVulkan(0, data->pMessage);
 	return VK_FALSE;
 }
 
@@ -638,7 +606,7 @@ VKAPI_ATTR VkBool32 VKAPI_CALL fsvulkan_debug_callback (VkDebugUtilsMessageSever
 Make better separation between windows part of this and vulkan part of this. */
 namespace winapi
 {
-	internal VulkanContext create_vulkan_context  (WinAPIWindow*);
+	internal VulkanContext create_vulkan_context  (Win32Window*);
 	internal void destroy_vulkan_context        (VulkanContext*);
 }
 
@@ -649,7 +617,7 @@ namespace winapi_vulkan_internal_
 	internal void add_cleanup(VulkanContext*, VulkanContext::CleanupFunc * cleanupFunc);
 
 	internal VkInstance             create_vk_instance();
-	internal VkSurfaceKHR           create_vk_surface(VkInstance, WinAPIWindow*);
+	internal VkSurfaceKHR           create_vk_surface(VkInstance, Win32Window*);
 	internal VkPhysicalDevice       create_vk_physical_device(VkInstance, VkSurfaceKHR);
 	internal VkDevice               create_vk_device(VkPhysicalDevice, VkSurfaceKHR);
 	internal VkSampleCountFlagBits  get_max_usable_msaa_samplecount(VkPhysicalDevice);
@@ -665,7 +633,7 @@ namespace winapi_vulkan_internal_
 }
 
 internal VulkanContext
-winapi::create_vulkan_context(WinAPIWindow * window)
+winapi::create_vulkan_context(Win32Window * window)
 {
 	// Note(Leo): This is actual winapi part of vulkan context
 	VulkanContext context = {};
@@ -794,7 +762,7 @@ winapi::create_vulkan_context(WinAPIWindow * window)
 	}
 
 
-	logVulkan() << "Initialized succesfully";
+	logVulkan(1, "Initialized succesfully");
 
 	return context;
 }
@@ -805,7 +773,7 @@ winapi::destroy_vulkan_context(VulkanContext * context)
 	// Note(Leo): All draw frame operations are asynchronous, must wait for them to finish
 	vkDeviceWaitIdle(context->device);
 
-	fsvulkan_resources_unload_resources(context);
+	graphics_memory_unload(context);
 
 	while(context->cleanups.size() > 0)
 	{
@@ -817,7 +785,7 @@ winapi::destroy_vulkan_context(VulkanContext * context)
 	vkDestroySurfaceKHR (context->instance, context->surface, nullptr);
 	vkDestroyInstance   (context->instance, nullptr);
 	
-	logVulkan() << "Shut down\n";
+	logVulkan(1, "Shut down");
 }
 
 internal void 
@@ -854,7 +822,7 @@ winapi_vulkan_internal_::create_vk_instance()
 			Assert(layerFound);
 		}
 		
-		logVulkan(0) << "Validation layers ok!";
+		logVulkan(0, "Validation layers ok!");
 	}
 
 
@@ -900,7 +868,7 @@ winapi_vulkan_internal_::create_vk_instance()
 }
 
 internal VkSurfaceKHR
-winapi_vulkan_internal_::create_vk_surface(VkInstance instance, WinAPIWindow * window)
+winapi_vulkan_internal_::create_vk_surface(VkInstance instance, Win32Window * window)
 {
 	VkWin32SurfaceCreateInfoKHR surfaceCreateInfo =
 	{

@@ -26,9 +26,9 @@ STUDY: https://devblogs.nvidia.com/vulkan-dos-donts/
 using VulkanContext = PlatformGraphics;
 
 internal void 
-print_vulkan_assert(LogInput::FileAddress address, VkResult result)
+print_vulkan_assert(LogFileAddress address, VkResult result)
 {
-    logVulkan(0) << address << "Vulkan check failed " << fsvulkan_result_string(result) << "(" << result << ")\n";
+    logVulkan(0, address, "Vulkan check failed ", fsvulkan_result_string(result), "(", result, ")");
 }
 
 #define VULKAN_CHECK(result) if (result != VK_SUCCESS) { print_vulkan_assert(FILE_ADDRESS, result); abort();}
@@ -186,15 +186,7 @@ struct VulkanModel
 	MaterialHandle 	material;
 };
 
-struct VulkanLoadedPipeline
-{
-	// Note(Leo): we need info for recreating pipelines after swapchain recreation
-	VkPipeline 				pipeline;
-	VkPipelineLayout 		layout;
-	VkDescriptorSetLayout	materialLayout;
-};
-
-struct FSVulkanPipeline
+struct VulkanPipeline
 {
 	VkPipeline 				pipeline;
 	VkPipelineLayout 		pipelineLayout;
@@ -367,7 +359,7 @@ struct PlatformGraphics
 	std::vector<VulkanGuiTexture> 	loadedGuiTextures;
 
 
-	FSVulkanPipeline pipelines [GRAPHICS_PIPELINE_COUNT];
+	VulkanPipeline pipelines [GRAPHICS_PIPELINE_COUNT];
 
 	VkPipeline 				linePipeline;
 	VkPipelineLayout 		linePipelineLayout;

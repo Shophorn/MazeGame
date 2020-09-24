@@ -326,15 +326,15 @@ struct Scene3d
 
 internal void read_settings_file(Scene3d * scene)
 {
-	PlatformFileHandle file = platformApi->open_file("settings", FILE_MODE_READ);
+	PlatformFileHandle file = platform_file_open("settings", FILE_MODE_READ);
 
-	s32 fileLength 	= platformApi->get_file_length(file);
-	char * buffer 	= push_memory<char>(*global_transientMemory, fileLength, 0);
+	s32 fileSize 	= platform_file_get_size(file);
+	char * buffer 	= push_memory<char>(*global_transientMemory, fileSize, 0);
 
-	platformApi->read_file(file, fileLength, buffer);
-	platformApi->close_file(file);	
+	platform_file_read(file, fileSize, buffer);
+	platform_file_close(file);	
 
-	String fileAsString = {fileLength, buffer};
+	String fileAsString = {fileSize, buffer};
 	String originalString = fileAsString;
 
 	while(fileAsString.length > 0)
@@ -365,7 +365,7 @@ internal void read_settings_file(Scene3d * scene)
 
 internal void write_settings_file(Scene3d * scene)
 {
-	PlatformFileHandle file = platformApi->open_file("settings", FILE_MODE_WRITE);
+	PlatformFileHandle file = platform_file_open("settings", FILE_MODE_WRITE);
 
 	auto serialize = [file](char const * label, auto const & serializedData)
 	{
@@ -378,7 +378,7 @@ internal void write_settings_file(Scene3d * scene)
 		serialize_properties(serializedData, serializedFormatString, capacity);
 		string_append_cstring(serializedFormatString, capacity, "]\n\n");
 
-		platformApi->write_file(file, serializedFormatString.length, serializedFormatString.memory);
+		platform_file_write(file, serializedFormatString.length, serializedFormatString.memory);
 
 		pop_memory_checkpoint(*global_transientMemory);
 	};
@@ -388,7 +388,7 @@ internal void write_settings_file(Scene3d * scene)
 	serialize("tree_1", scene->treeSettings[1]);
 
 
-	platformApi->close_file(file);
+	platform_file_close(file);
 }
 
 
@@ -426,7 +426,7 @@ internal inline void file_read_memory(PlatformFileHandle file, s32 count, T * me
 
 internal void write_save_file(Scene3d * scene)
 {
-	auto file = platformApi->open_file("save_game.fssave", FILE_MODE_WRITE);
+	auto file = platform_file_open("save_game.fssave", FILE_MODE_WRITE);
 	/*
 
 	// Note(Leo): as we go, set values to this struct, and write this to file last.
@@ -568,7 +568,7 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 	/* Sadly, we need to draw skybox before game logic, because otherwise
 	debug lines would be hidden. This can be fixed though, just make debug pipeline similar to shadows. */ 
-	platformApi->draw_model(platformGraphics, scene->skybox, identity_m44, false, nullptr, 0);
+	graphics_draw_model(platformGraphics, scene->skybox, identity_m44, false, nullptr, 0);
 
 	// Game Logic section
 	switch (scene->cameraMode)
@@ -676,13 +676,13 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 		light.sunDiscSizeAndFalloff.xy 	= {	scene->skySettings.sunDiscSize,
 											scene->skySettings.sunDiscFalloff };
 
-		platformApi->update_lighting(platformGraphics, &light, &scene->worldCamera, ambient);
+		graphics_drawing_update_lighting(platformGraphics, &light, &scene->worldCamera, ambient);
 		HdrSettings hdrSettings = 
 		{
 			scene->skySettings.hdrExposure,
 			scene->skySettings.hdrContrast,
 		};
-		platformApi->update_hdr_settings(platformGraphics, &hdrSettings);
+		graphics_drawing_update_hdr_settings(platformGraphics, &hdrSettings);
 	}
 
 	/// *******************************************************************************************
@@ -1138,19 +1138,19 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 		{
 			potTransformMatrices[i] = transform_matrix(scene->potTransforms[i]);
 		}
-		platformApi->draw_meshes(platformGraphics, scene->potCount, potTransformMatrices, scene->potMesh, scene->potMaterial);
+		graphics_draw_meshes(platformGraphics, scene->potCount, potTransformMatrices, scene->potMesh, scene->potMaterial);
 	}
 
 	/// DRAW STATIC SCENERY
 	{
-		platformApi->draw_meshes(platformGraphics, scene->cubePyramidCount, scene->cubePyramidTransforms, scene->cubePyramidMesh, scene->cubePyramidMaterial);
+		graphics_draw_meshes(platformGraphics, scene->cubePyramidCount, scene->cubePyramidTransforms, scene->cubePyramidMesh, scene->cubePyramidMaterial);
 
 		for(s32 i = 0; i < scene->terrainCount; ++i)
 		{
-			platformApi->draw_meshes(platformGraphics, 1, scene->terrainTransforms + i, scene->terrainMeshes[i], scene->terrainMaterial);
+			graphics_draw_meshes(platformGraphics, 1, scene->terrainTransforms + i, scene->terrainMeshes[i], scene->terrainMaterial);
 		}
 
-		platformApi->draw_meshes(platformGraphics, 1, &scene->seaTransform, scene->seaMesh, scene->seaMaterial);
+		graphics_draw_meshes(platformGraphics, 1, &scene->seaTransform, scene->seaMesh, scene->seaMaterial);
 
 		scene3d_draw_monuments(scene->monuments);
 	}
@@ -1198,7 +1198,7 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 	{
 		v3 position = multiply_point(scene->metaballTransform, {0,0,0});
 		// debug_draw_circle_xy(position, 4, {1,0,1,1}, DEBUG_LEVEL_ALWAYS);
-		// platformApi->draw_meshes(platformGraphics, 1, &scene->metaballTransform, scene->metaballMesh, scene->metaballMaterial);
+		// graphics_draw_meshes(platformGraphics, 1, &scene->metaballTransform, scene->metaballMesh, scene->metaballMaterial);
 
 		local_persist f32 testX = 0;
 		local_persist f32 testY = 0;
@@ -1222,7 +1222,7 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 										scene->metaballIndexCapacity, scene->metaballIndices, &scene->metaballIndexCount,
 										sample_four_sdf_balls, positions, scene->metaballGridScale);
 
-		platformApi->draw_procedural_mesh(	platformGraphics,
+		graphics_draw_procedural_mesh(	platformGraphics,
 											scene->metaballVertexCount, scene->metaballVertices,
 											scene->metaballIndexCount, scene->metaballIndices,
 											scene->metaballTransform,
@@ -1282,7 +1282,7 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 		if (scene->metaballVertexCount2 > 0 && scene->metaballIndexCount2 > 0)
 		{
-			platformApi->draw_procedural_mesh(	platformGraphics,
+			graphics_draw_procedural_mesh(	platformGraphics,
 												scene->metaballVertexCount2, scene->metaballVertices2,
 												scene->metaballIndexCount2, scene->metaballIndices2,
 												scene->metaballTransform2,
@@ -1292,7 +1292,7 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 	{
 		m44 trainTransformMatrix = transform_matrix(scene->trainTransform);
-		platformApi->draw_meshes(platformGraphics, 1, &trainTransformMatrix, scene->trainMesh, scene->trainMaterial);
+		graphics_draw_meshes(platformGraphics, 1, &trainTransformMatrix, scene->trainMesh, scene->trainMaterial);
 	}
 
 	/// DRAW RACCOONS
@@ -1302,12 +1302,12 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 		{
 			raccoonTransformMatrices[i] = transform_matrix(scene->raccoonTransforms[i]);
 		}
-		platformApi->draw_meshes(platformGraphics, scene->raccoonCount, raccoonTransformMatrices, scene->raccoonMesh, scene->raccoonMaterial);
+		graphics_draw_meshes(platformGraphics, scene->raccoonCount, raccoonTransformMatrices, scene->raccoonMesh, scene->raccoonMaterial);
 	}
 
 	for (auto & renderer : scene->renderers)
 	{
-		platformApi->draw_model(platformGraphics, renderer.model,
+		graphics_draw_model(platformGraphics, renderer.model,
 								transform_matrix(*renderer.transform),
 								renderer.castShadows,
 								nullptr, 0);
@@ -1324,7 +1324,7 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 		update_animated_renderer(boneTransformMatrices, scene->playerAnimaterRenderer.skeleton->bones);
 
-		platformApi->draw_model(platformGraphics,
+		graphics_draw_model(platformGraphics,
 								scene->playerAnimaterRenderer.model,
 								transform_matrix(scene->playerCharacterTransform),
 								scene->playerAnimaterRenderer.castShadows,
@@ -1335,7 +1335,7 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 		update_animated_renderer(boneTransformMatrices, scene->noblePersonAnimatedRenderer.skeleton->bones);
 
-		platformApi->draw_model(platformGraphics,
+		graphics_draw_model(platformGraphics,
 								scene->noblePersonAnimatedRenderer.model,
 								transform_matrix(scene->noblePersonTransform),
 								scene->noblePersonAnimatedRenderer.castShadows,
@@ -1354,7 +1354,7 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 													scene->waters.transforms[i].rotation,
 													make_uniform_v3(scene->waters.levels[i] / scene->fullWaterLevel));
 		}
-		platformApi->draw_meshes(platformGraphics, scene->waters.count, waterTransforms, scene->waterMesh, scene->waterMaterial);
+		graphics_draw_meshes(platformGraphics, scene->waters.count, waterTransforms, scene->waterMesh, scene->waterMaterial);
 	}
 
 	for (auto & tree : scene->trees)
@@ -1370,7 +1370,7 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 		// Todo(Leo): make some kind of SLOPPY_ASSERT macro thing
 		if (tree.mesh.vertices.count > 0 || tree.mesh.indices.count > 0)
 		{
-			platformApi->draw_procedural_mesh(	platformGraphics,
+			graphics_draw_procedural_mesh(	platformGraphics,
 												tree.mesh.vertices.count, tree.mesh.vertices.memory,
 												tree.mesh.indices.count, tree.mesh.indices.memory,
 												transform, scene->treeMaterials[0]);
@@ -1378,7 +1378,7 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 		if (tree.drawSeed)
 		{
-			platformApi->draw_meshes(platformGraphics, 1, &transform, tree.seedMesh, tree.seedMaterial);
+			graphics_draw_meshes(platformGraphics, 1, &transform, tree.seedMesh, tree.seedMaterial);
 		}
 
 		FS_DEBUG_BACKGROUND(debug_draw_circle_xy(tree.position, 2, colour_bright_red));
@@ -1439,13 +1439,13 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 	scene->fallingObjectCount = 0;
 	scene->fallingObjects = push_memory<FallingObject>(persistentMemory, scene->fallingObjectCapacity, ALLOC_CLEAR);
 
-	logSystem() << "Allocations succesful! :)";
+	logSystem(1, "Allocations succesful! :)");
 
 	// ----------------------------------------------------------------------------------
 
 	{
 		TextureAsset testGuiAsset 	= load_texture_asset(*global_transientMemory, "assets/textures/tiles.png");
-		scene->guiPanelImage 		= platformApi->push_gui_texture(platformGraphics, &testGuiAsset);
+		scene->guiPanelImage 		= graphics_memory_push_gui_texture(platformGraphics, &testGuiAsset);
 		scene->guiPanelColour 		= colour_rgb_alpha(colour_aqua_blue.rgb, 0.5);
 	}
 
@@ -1458,7 +1458,7 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 	auto load_and_push_texture = [](const char * path) -> TextureHandle
 	{
 		auto asset = load_texture_asset(*global_transientMemory, path);
-		auto result = platformApi->push_texture(platformGraphics, &asset);
+		auto result = graphics_memory_push_texture(platformGraphics, &asset);
 		return result;
 	};
 
@@ -1472,22 +1472,22 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 	TextureAsset waterBlueTextureAsset 		= make_texture_asset(&waterBluePixelColour, 1, 1, 4);
 	TextureAsset seedBrownTextureAsset 		= make_texture_asset(&seedBrownPixelColour, 1, 1, 4);
 
-	TextureHandle whiteTexture 			= platformApi->push_texture(platformGraphics, &whiteTextureAsset);
-	TextureHandle blackTexture 			= platformApi->push_texture(platformGraphics, &blackTextureAsset);
-	TextureHandle waterTextureHandle	= platformApi->push_texture(platformGraphics, &waterBlueTextureAsset);
-	TextureHandle seedTextureHandle		= platformApi->push_texture(platformGraphics, &seedBrownTextureAsset);
+	TextureHandle whiteTexture 			= graphics_memory_push_texture(platformGraphics, &whiteTextureAsset);
+	TextureHandle blackTexture 			= graphics_memory_push_texture(platformGraphics, &blackTextureAsset);
+	TextureHandle waterTextureHandle	= graphics_memory_push_texture(platformGraphics, &waterBlueTextureAsset);
+	TextureHandle seedTextureHandle		= graphics_memory_push_texture(platformGraphics, &seedBrownTextureAsset);
 
 	u32 neutralBumpPixelColour 				= colour_rgba_u32(colour_bump);
 	TextureAsset neutralBumpTextureAsset 	= make_texture_asset(&neutralBumpPixelColour, 1, 1, 4);
 	neutralBumpTextureAsset.addressMode 	= TEXTURE_ADDRESS_MODE_REPEAT;
 	neutralBumpTextureAsset.format 			= TEXTURE_FORMAT_U8_LINEAR;
 
-	TextureHandle neutralBumpTexture 	= platformApi->push_texture(platformGraphics, &neutralBumpTextureAsset);
+	TextureHandle neutralBumpTexture 	= graphics_memory_push_texture(platformGraphics, &neutralBumpTextureAsset);
 
 	auto push_material = [](GraphicsPipeline pipeline, TextureHandle a, TextureHandle b, TextureHandle c) -> MaterialHandle
 	{
 		TextureHandle textures [] = {a, b, c};
-		MaterialHandle handle = platformApi->push_material(platformGraphics, pipeline, 3, textures);
+		MaterialHandle handle = graphics_memory_push_material(platformGraphics, pipeline, 3, textures);
 		return handle;
 	};
 
@@ -1495,7 +1495,7 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 	{
 		auto asset 		= load_texture_asset(*global_transientMemory, path);
 		asset.format 	= TEXTURE_FORMAT_U8_LINEAR;
-		auto texture 	= platformApi->push_texture(platformGraphics, &asset);
+		auto texture 	= graphics_memory_push_texture(platformGraphics, &asset);
 		return texture;
 	};
 
@@ -1509,13 +1509,13 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 		// auto groundNormal 	= load_and_push_texture("assets/textures/ground_normal.png");
 		// auto groundNormalAsset 		= load_texture_asset(*global_transientMemory, "assets/textures/ground_normal.png");
 		// groundNormalAsset.format 	= TEXTURE_FORMAT_U8_LINEAR;
-		// auto groundNormal 			= platformApi->push_texture(platformGraphics, &groundNormalAsset);
+		// auto groundNormal 			= graphics_memory_push_texture(platformGraphics, &groundNormalAsset);
 		auto groundNormal = push_normal_map_texture("assets/textures/ground_normal.png");
 
 		// auto tilesNormal 	= load_and_push_texture("assets/textures/tiles_normal.png");
 		// auto tilesNormalAsset 		= load_texture_asset(*global_transientMemory, "assets/textures/tiles_normal.png");
 		// tilesNormalAsset.format 	= TEXTURE_FORMAT_U8_LINEAR;
-		// auto tilesNormal 			= platformApi->push_texture(platformGraphics, &groundNormalAsset);
+		// auto tilesNormal 			= graphics_memory_push_texture(platformGraphics, &groundNormalAsset);
 		auto tilesNormal = push_normal_map_texture("assets/textures/tiles_normal.png");
 
 
@@ -1545,7 +1545,7 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 
 			TextureAsset niceSkyGradientAsset 	= generate_gradient(*global_transientMemory, 128, scene->niceSkyGradient);
 			niceSkyGradientAsset.addressMode 	= TEXTURE_ADDRESS_MODE_CLAMP;
-			scene->niceSkyGradientTexture		= platformApi->push_texture(platformGraphics, &niceSkyGradientAsset);
+			scene->niceSkyGradientTexture		= graphics_memory_push_texture(platformGraphics, &niceSkyGradientAsset);
 
 			////------------------------------------------------------------------------------------------
 
@@ -1568,17 +1568,17 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 
 			TextureAsset meanSkyGradientAsset 	= generate_gradient(*global_transientMemory, 128, scene->meanSkyGradient);
 			meanSkyGradientAsset.addressMode 	= TEXTURE_ADDRESS_MODE_CLAMP;
-			scene->meanSkyGradientTexture		= platformApi->push_texture(platformGraphics, &meanSkyGradientAsset);
+			scene->meanSkyGradientTexture		= graphics_memory_push_texture(platformGraphics, &meanSkyGradientAsset);
 
 			TextureHandle skyGradientTextures [] 	= {scene->niceSkyGradientTexture, scene->meanSkyGradientTexture};
 
-			scene->skyMaterial 						= platformApi->push_material(platformGraphics, GRAPHICS_PIPELINE_SKYBOX, 2, skyGradientTextures);
+			scene->skyMaterial 						= graphics_memory_push_material(platformGraphics, GRAPHICS_PIPELINE_SKYBOX, 2, skyGradientTextures);
 		}
 	}
 
 	auto push_model = [](MeshHandle mesh, MaterialHandle material) -> ModelHandle
 	{
-		auto handle = platformApi->push_model(platformGraphics, mesh, material);
+		auto handle = graphics_memory_push_model(platformGraphics, mesh, material);
 		return handle;
 	};
 
@@ -1586,7 +1586,7 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 	{
 		// auto meshAsset 	= create_skybox_mesh(global_transientMemory);
 		auto meshAsset 	= load_mesh_glb(*global_transientMemory, read_gltf_file(*global_transientMemory, "assets/models/skysphere.glb"), "skysphere");
-		auto meshHandle = platformApi->push_mesh(platformGraphics, &meshAsset);
+		auto meshHandle = graphics_memory_push_mesh(platformGraphics, &meshAsset);
 		scene->skybox 	= push_model(meshHandle, scene->skyMaterial);
 	}
 
@@ -1600,7 +1600,7 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 		auto const animationFile 	= read_gltf_file(*global_transientMemory, "assets/models/cube_head_v3.glb");
 
 		auto girlMeshAsset 	= load_mesh_glb(*global_transientMemory, gltfFile, "cube_head");
-		auto girlMesh 		= platformApi->push_mesh(platformGraphics, &girlMeshAsset);
+		auto girlMesh 		= graphics_memory_push_mesh(platformGraphics, &girlMeshAsset);
 
 		// --------------------------------------------------------------------
 	
@@ -1612,7 +1612,7 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 		{
 			using namespace CharacterAnimations;			
 
-			auto startTime = platformApi->current_time();
+			auto startTime = platform_time_now();
 
 			scene->characterAnimations[WALK] 	= load_animation_glb(persistentMemory, animationFile, "Walk");
 			scene->characterAnimations[RUN] 	= load_animation_glb(persistentMemory, animationFile, "Run");
@@ -1622,7 +1622,7 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 			scene->characterAnimations[CROUCH] 	= load_animation_glb(persistentMemory, animationFile, "Crouch");
 
 			// Todo(Leo): Log bigger numbers
-			logSystem(1) << "Loading all 6 animations took: " << static_cast<f32>(platformApi->elapsed_seconds(startTime, platformApi->current_time())) << " s";
+			logSystem(1, "Loading all 6 animations took: ", static_cast<f32>(platform_time_elapsed_seconds(startTime, platform_time_now())), " s");
 
 			motor->animations[WALK] 	= &scene->characterAnimations[WALK];
 			motor->animations[RUN] 		= &scene->characterAnimations[RUN];
@@ -1632,9 +1632,9 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 			motor->animations[CROUCH] 	= &scene->characterAnimations[CROUCH];
 		}
 
-		auto startTime = platformApi->current_time();
+		auto startTime = platform_time_now();
 
-		logSystem(1) << "Loading skeleton took: " << static_cast<f32>(platformApi->elapsed_seconds(startTime, platformApi->current_time())) << " s";
+		logSystem(1, "Loading skeleton took: ", static_cast<f32>(platform_time_elapsed_seconds(startTime, platform_time_now())), " s");
 
 		scene->playerSkeletonAnimator = 
 		{
@@ -1736,7 +1736,7 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 					v2 size 	= { chunkSize, chunkSize };
 
 					auto groundMeshAsset 	= generate_terrain(*global_transientMemory, heightmap, position, size, chunkResolution, 20);
-					scene->terrainMeshes[i] = platformApi->push_mesh(platformGraphics, &groundMeshAsset);
+					scene->terrainMeshes[i] = graphics_memory_push_mesh(platformGraphics, &groundMeshAsset);
 				}
 			
 				pop_memory_checkpoint(*global_transientMemory);
@@ -1776,7 +1776,7 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 				seaMeshAsset.indexType = IndexType::UInt16;
 			}
 			mesh_generate_tangents(seaMeshAsset);
-			scene->seaMesh 			= platformApi->push_mesh(platformGraphics, &seaMeshAsset);
+			scene->seaMesh 			= graphics_memory_push_mesh(platformGraphics, &seaMeshAsset);
 			scene->seaMaterial 		= push_material(GRAPHICS_PIPELINE_NORMAL, waterTextureHandle, neutralBumpTexture, blackTexture);
 			scene->seaTransform 	= transform_matrix({0,0,0}, identity_quaternion, {mapSize, mapSize, 1});
 		}
@@ -1784,7 +1784,7 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 		/// TOTEMS
 		{
 			auto totemMesh 			= load_mesh_glb(*global_transientMemory, read_gltf_file(*global_transientMemory, "assets/models/totem.glb"), "totem");
-			auto totemMeshHandle 	= platformApi->push_mesh(platformGraphics, &totemMesh);
+			auto totemMeshHandle 	= graphics_memory_push_mesh(platformGraphics, &totemMesh);
 			auto model = push_model(totemMeshHandle, materials.environment);
 
 			Transform3D * transform = scene->transforms.push_return_pointer({});
@@ -1848,12 +1848,12 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 
 			auto raccoonGltfFile 	= read_gltf_file(*global_transientMemory, "assets/models/raccoon.glb");
 			auto raccoonMeshAsset 	= load_mesh_glb(*global_transientMemory, raccoonGltfFile, "raccoon");
-			scene->raccoonMesh 		= platformApi->push_mesh(platformGraphics, &raccoonMeshAsset);
+			scene->raccoonMesh 		= graphics_memory_push_mesh(platformGraphics, &raccoonMeshAsset);
 
 			auto albedoTexture = load_and_push_texture("assets/textures/RaccoonAlbedo.png");
 			TextureHandle textures [] =	{albedoTexture, neutralBumpTexture, blackTexture};
 
-			scene->raccoonMaterial = platformApi->push_material(platformGraphics, GRAPHICS_PIPELINE_NORMAL, 3, textures);
+			scene->raccoonMaterial = graphics_memory_push_material(platformGraphics, GRAPHICS_PIPELINE_NORMAL, 3, textures);
 
 
 
@@ -1893,7 +1893,7 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 
 			char const * filename 	= "assets/models/Robot53.glb";
 			auto meshAsset 			= load_mesh_glb(*global_transientMemory, read_gltf_file(*global_transientMemory, filename), "model_rigged");	
-			auto mesh 				= platformApi->push_mesh(platformGraphics, &meshAsset);
+			auto mesh 				= graphics_memory_push_mesh(platformGraphics, &meshAsset);
 
 			auto albedo 			= load_and_push_texture("assets/textures/Robot_53_albedo_4k.png");
 			auto normal 			= push_normal_map_texture("assets/textures/Robot_53_normal_4k.png");
@@ -1907,7 +1907,7 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 		/// SMALL SCENERY OBJECTS
 		{			
 			auto smallPotMeshAsset 	= load_mesh_glb(*global_transientMemory, sceneryFile, "small_pot");
-			scene->potMesh 			= platformApi->push_mesh(platformGraphics, &smallPotMeshAsset);
+			scene->potMesh 			= graphics_memory_push_mesh(platformGraphics, &smallPotMeshAsset);
 			scene->potMaterial 		= materials.environment;
 
 			{
@@ -1927,12 +1927,12 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 			// ----------------------------------------------------------------	
 
 			auto bigPotMeshAsset 	= load_mesh_glb(*global_transientMemory, sceneryFile, "big_pot");
-			auto bigPotMesh 		= platformApi->push_mesh(platformGraphics, &bigPotMeshAsset);
+			auto bigPotMesh 		= graphics_memory_push_mesh(platformGraphics, &bigPotMeshAsset);
 
 			s32 bigPotCount = 5;
 			for (s32 i = 0; i < bigPotCount; ++i)
 			{
-				ModelHandle model 		= platformApi->push_model(platformGraphics, bigPotMesh, materials.environment);
+				ModelHandle model 		= graphics_memory_push_model(platformGraphics, bigPotMesh, materials.environment);
 				Transform3D * transform = scene->transforms.push_return_pointer({13, 2.0f + i * 4.0f, 0});
 
 				transform->position.z 	= get_terrain_height(scene->collisionSystem, transform->position.xy);
@@ -1948,10 +1948,10 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 			/// WATERS
 			{
 				MeshAsset dropMeshAsset = load_mesh_glb(*global_transientMemory, sceneryFile, "water_drop");
-				scene->waterMesh 		= platformApi->push_mesh(platformGraphics, &dropMeshAsset);
+				scene->waterMesh 		= graphics_memory_push_mesh(platformGraphics, &dropMeshAsset);
 
 				TextureHandle waterTextures [] 	= {waterTextureHandle, neutralBumpTexture, blackTexture};
-				scene->waterMaterial 		= platformApi->push_material(platformGraphics, GRAPHICS_PIPELINE_WATER, 3, waterTextures);
+				scene->waterMaterial 		= graphics_memory_push_material(platformGraphics, GRAPHICS_PIPELINE_WATER, 3, waterTextures);
 
 				{				
 					scene->waters.capacity 		= 200;
@@ -1980,7 +1980,7 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 			// Pyramid thing
 			{
 				auto meshAsset = load_mesh_glb(*global_transientMemory, file, "CubePyramid");
-				auto meshHandle = platformApi->push_mesh(platformGraphics, &meshAsset);
+				auto meshHandle = graphics_memory_push_mesh(platformGraphics, &meshAsset);
 
 				Array<BoxCollider> colliders = {};
 				auto transformsArray = load_all_transforms_glb(*global_transientMemory, file, "CubePyramid", &colliders);
@@ -1995,11 +1995,11 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 				scene->cubePyramidMesh = meshHandle;
 
 				auto textureAsset = load_texture_asset(*global_transientMemory, "assets/textures/concrete_XX.png");
-				auto texture = platformApi->push_texture(platformGraphics, &textureAsset);
+				auto texture = graphics_memory_push_texture(platformGraphics, &textureAsset);
 
 
 				TextureHandle textures [] = {texture, neutralBumpTexture, blackTexture};
-				scene->cubePyramidMaterial = platformApi->push_material(platformGraphics, GRAPHICS_PIPELINE_NORMAL, 3, textures);
+				scene->cubePyramidMaterial = graphics_memory_push_material(platformGraphics, GRAPHICS_PIPELINE_NORMAL, 3, textures);
 
 				for (auto collider : colliders)
 				{
@@ -2013,7 +2013,7 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 		{
 			auto file 				= read_gltf_file(*global_transientMemory, "assets/models/train.glb");
 			auto meshAsset 			= load_mesh_glb(*global_transientMemory, file, "train");
-			scene->trainMesh 		= platformApi->push_mesh(platformGraphics, &meshAsset);
+			scene->trainMesh 		= graphics_memory_push_mesh(platformGraphics, &meshAsset);
 			scene->trainMaterial 	= materials.environment;
 
 			// ----------------------------------------------------------------------------------
@@ -2053,7 +2053,7 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 													// Note(Leo): we brake, so acceleration term is negative
 													- 0.5f * scene->trainAcceleration * timeToBrakeBeforeStation * timeToBrakeBeforeStation;
 
-			logDebug(0) << "brake time: " << timeToBrakeBeforeStation << ", distance: " << scene->trainBrakeBeforeStationDistance;
+			logDebug(0, "brake time: ", timeToBrakeBeforeStation, ", distance: ", scene->trainBrakeBeforeStationDistance);
 
 			scene->trainCurrentWaitTime = 0;
 			scene->trainCurrentSpeed 	= 0;
@@ -2076,14 +2076,14 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 		/// SEEDS
 		{
 			MeshAsset seedMeshAsset 		= load_mesh_glb(*global_transientMemory, sceneryFile, "acorn");
-			seedMesh1 						= platformApi->push_mesh(platformGraphics, &seedMeshAsset);
+			seedMesh1 						= graphics_memory_push_mesh(platformGraphics, &seedMeshAsset);
 			seedMesh2 						= scene->waterMesh;
 
 			TextureAsset seedAlbedoAsset 	= load_texture_asset(*global_transientMemory, "assets/textures/Acorn_albedo.png");
-			TextureHandle seedAlbedo 		= platformApi->push_texture(platformGraphics, &seedAlbedoAsset);
+			TextureHandle seedAlbedo 		= graphics_memory_push_texture(platformGraphics, &seedAlbedoAsset);
 			TextureHandle seedTextures [] 	= {seedAlbedo, neutralBumpTexture, blackTexture};
 
-			seedMaterial1 					= platformApi->push_material(platformGraphics, GRAPHICS_PIPELINE_NORMAL, 3, seedTextures);
+			seedMaterial1 					= graphics_memory_push_material(platformGraphics, GRAPHICS_PIPELINE_NORMAL, 3, seedTextures);
 			seedMaterial2 					= seedMaterial1;
 		}
 
@@ -2094,12 +2094,12 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 
 		TextureHandle treeTextures [] =
 		{	
-			platformApi->push_texture(platformGraphics, &albedo),
-			platformApi->push_texture(platformGraphics, &normal),
+			graphics_memory_push_texture(platformGraphics, &albedo),
+			graphics_memory_push_texture(platformGraphics, &normal),
 			blackTexture
 		};
-		// scene->lSystemTreeMaterial = platformApi->push_material(platformGraphics, GRAPHICS_PIPELINE_NORMAL, 3, treeTextures);
-		MaterialHandle treeMaterial = platformApi->push_material(platformGraphics, GRAPHICS_PIPELINE_NORMAL, 3, treeTextures);
+		// scene->lSystemTreeMaterial = graphics_memory_push_material(platformGraphics, GRAPHICS_PIPELINE_NORMAL, 3, treeTextures);
+		MaterialHandle treeMaterial = graphics_memory_push_material(platformGraphics, GRAPHICS_PIPELINE_NORMAL, 3, treeTextures);
 		scene->treeMaterials[0] = treeMaterial;
 		scene->treeMaterials[1] = treeMaterial;
 		scene->treeMaterials[2] = scene->waterMaterial;
@@ -2112,8 +2112,8 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 
 		{
 			auto leafTextureAsset 	= load_texture_asset(*global_transientMemory, "assets/textures/leaf_mask.png");
-			auto leavesTexture 		= platformApi->push_texture(platformGraphics, &leafTextureAsset);
-			leavesMaterial 			= platformApi->push_material(platformGraphics, GRAPHICS_PIPELINE_LEAVES, 1, &leavesTexture);
+			auto leavesTexture 		= graphics_memory_push_texture(platformGraphics, &leafTextureAsset);
+			leavesMaterial 			= graphics_memory_push_material(platformGraphics, GRAPHICS_PIPELINE_LEAVES, 1, &leavesTexture);
 		}
 		
 		/// CRYSTAL TREE MATERIALS
@@ -2130,10 +2130,10 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 			{
 				u32 pixelColour = colour_rgba_u32(regionColours[i]);
 				auto asset = make_texture_asset(&pixelColour, 1, 1, 4);
-				auto texture = platformApi->push_texture(platformGraphics, &asset);
+				auto texture = graphics_memory_push_texture(platformGraphics, &asset);
 
 				TextureHandle treeTextures [] = {texture, treeTextures[1], blackTexture};
-				scene->crystalTreeMaterials[i] = platformApi->push_material(platformGraphics, GRAPHICS_PIPELINE_WATER, 3, treeTextures);
+				scene->crystalTreeMaterials[i] = graphics_memory_push_material(platformGraphics, GRAPHICS_PIPELINE_WATER, 3, treeTextures);
 			}
 		}
 	}
@@ -2174,9 +2174,9 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 
 		TextureHandle treeTextures [] =
 		{	
-			platformApi->push_texture(platformGraphics, &albedo),
+			graphics_memory_push_texture(platformGraphics, &albedo),
 		};
-		scene->metaballMaterial = platformApi->push_material(platformGraphics, GRAPHICS_PIPELINE_TRIPLANAR, 1, treeTextures);
+		scene->metaballMaterial = graphics_memory_push_material(platformGraphics, GRAPHICS_PIPELINE_TRIPLANAR, 1, treeTextures);
 		scene->treeMaterials[0] = scene->metaballMaterial;
 		scene->treeMaterials[1] = scene->metaballMaterial;
 
@@ -2240,8 +2240,8 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 
 	// ----------------------------------------------------------------------------------
 
-	logSystem(0) << "Scene3d loaded, " << used_percent(*global_transientMemory) * 100 << "% of transient memory used.";
-	logSystem(0) << "Scene3d loaded, " << used_percent(persistentMemory) * 100 << "% of persistent memory used.";
+	logSystem(0, "Scene3d loaded, ", used_percent(*global_transientMemory) * 100, "% of transient memory used.");
+	logSystem(0, "Scene3d loaded, ", used_percent(persistentMemory) * 100, "% of persistent memory used.");
 
 	return scene;
 }

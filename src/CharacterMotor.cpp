@@ -132,7 +132,7 @@ update_character_motor( CharacterMotor & 	motor,
 	{
 		if (-0.00001f > value || value > 1.00001f)
 		{
-			logDebug() << "Bad value";
+			logDebug(1, "Bad value");
 		}
 
 		Assert(-0.00001f <= value && value <= 1.00001f);// CStringBuilder("Input weight is: ") + value);

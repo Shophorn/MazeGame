@@ -1,4 +1,8 @@
-#include <vector>
+/*
+Leo Tamminen
+
+Old, nasty, not nice and flexible array
+*/
 
 template<typename T>
 struct Array

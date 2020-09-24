@@ -7,10 +7,6 @@ While we are not aiming to satisfy any standard per se, when making irrelevant
 but compulsory design choices, look at: 
 	- https://en.cppreference.com/w/cpp/named_req/Container
 =============================================================================*/
-#include <initializer_list>
-#include <cstring>
-
-#include "Array.hpp"
 
 // Note(Leo): We kinda have expected to always use 64 bit systems.
 static_assert(sizeof(void*) == sizeof(u64));
@@ -116,7 +112,7 @@ allocate(MemoryArena & allocator, u64 size, s32 flags = 0)
 
 	if (!noClear || yesClear)
 	{
-		std::memset(result, 0, size);
+		memset(result, 0, size);
 	}
 
 	return result;

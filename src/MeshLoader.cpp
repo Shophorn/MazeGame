@@ -180,11 +180,16 @@ load_animation_glb(MemoryArena & allocator, GltfFile const & file, char const * 
 
 	if(animationIndex < 0)
 	{
-		auto log = logDebug();
-		log << "Animation not found. Requested: " << animationName << ", available:\n";
+		s32 logMessageCapacity = 2048;
+		String logMessage = push_temp_string(logMessageCapacity);
+		string_append_format(logMessage, logMessageCapacity, "Animation not found. Requested: ", animationName, ", available: \n");
+
+		// auto log = logDebug();
+		// log << "Animation not found. Requested: " << animationName << ", available:\n";
 		for (auto const & anim : animArray)
 		{
-			log << "\t" << anim["name"].GetString() << "\n";
+			string_append_format(logMessage, logMessageCapacity, "\t", anim["name"].GetString(), "\n");
+			// log << "\t" << anim["name"].GetString() << "\n";
 		}
 	}
 	Assert(animationIndex >= 0);
@@ -296,7 +301,7 @@ load_animation_glb(MemoryArena & allocator, GltfFile const & file, char const * 
 		{
 			case ANIMATION_CHANNEL_TRANSLATION:
 			{
-				logDebug(1) << "translation channel for bone " << targetIndex;
+				logDebug(1, "translation channel for bone ", targetIndex);
 
 				v3 const * start 		= get_buffer_start<v3>(file, outputAccessor);
 				v3 const * end 			= start + valueCount;
@@ -327,7 +332,7 @@ load_animation_glb(MemoryArena & allocator, GltfFile const & file, char const * 
 
 			case ANIMATION_CHANNEL_ROTATION:
 			{
-				logDebug(1) << "rotation channel for bone " << targetIndex;
+				logDebug(1, "rotation channel for bone ", targetIndex);
 		
 				quaternion const * start 	= get_buffer_start<quaternion>(file, outputAccessor);
 				quaternion const * end 		= start + valueCount;
@@ -369,14 +374,14 @@ load_animation_glb(MemoryArena & allocator, GltfFile const & file, char const * 
 			} break;
 
 			default:
-				logDebug(1) << FILE_ADDRESS << "Invalid or unimplemented animation channel: '" << channelType << "' for bone " << targetIndex;
+				logDebug(1, FILE_ADDRESS, "Invalid or unimplemented animation channel: '", channelType, "' for bone ", targetIndex);
 				continue;
 
 		}
 	}
 	result.duration = maxTime - minTime;
 
-	logDebug(1) << "Animation loaded, duration: " << result.duration << "\n";
+	logDebug(1, "Animation loaded, duration: ", result.duration);
 
 	AssertMsg(minTime == 0, "Probably need to implement support animations that do not start at 0");
 
@@ -490,7 +495,7 @@ load_skeleton_glb(MemoryArena & allocator, GltfFile const & file, char const * m
 internal MeshAsset
 load_mesh_glb(MemoryArena & allocator, GltfFile const & file, char const * modelName)
 {
-	logDebug() << "modelName = " << modelName; 
+	logDebug(1, "modelName = ", modelName); 
 
 	auto nodes = file.json["nodes"].GetArray();
 	
@@ -499,8 +504,7 @@ load_mesh_glb(MemoryArena & allocator, GltfFile const & file, char const * model
 
 	if (nodeIndex < 0)
 	{
-		// AssertMsg(nodeIndex >= 0, CStringBuilder("modelName = ") + modelName);
-		logDebug(0) << "modelName = " << modelName;
+		logDebug(0, "modelName = ", modelName);
 		Assert(false);
 	}
 

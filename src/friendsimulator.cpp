@@ -4,10 +4,16 @@ Leo Tamminen
 Friendsimulator game code main file.
 */
 
-#include "fs_essentials.hpp"
-#include "fs_platform_interface.hpp"
+#if !defined FRIENDSIMLATOR_PLATFORM
+	#define FRIENDSIMULATOR_GAME_DLL
+#endif
 
-static PlatformApi * 		platformApi;
+// Todo(Leo): these should be other way around, platform interface cannot be dependant of c/c++ files
+#include "fs_essentials.hpp"
+
+#include "fs_platform_interface.hpp"
+#include "logging.cpp"
+
 static PlatformGraphics * 	platformGraphics;
 static PlatformWindow * 	platformWindow;
 
@@ -72,12 +78,6 @@ struct Font
 #include "TextureLoader.cpp"
 
 #include "Gui.cpp"
-
-/* Todo(Leo): Haxor: these should be in different translation units, and only include
-headers here. For now, 2d scene does not include its stuff because 3d scene does before it
-and both are still missing some because they are listed above.
-
-Also, no 2d scene anymore*/
 #include "Scene3D.cpp"
 
 struct AudioClip
@@ -145,12 +145,12 @@ static Gui make_main_menu_gui(MemoryArena & allocator)
 
 	u32 pixelColor 					= 0xffffffff;
 	TextureAsset guiTextureAsset 	= make_texture_asset(&pixelColor, 1, 1, 4);
-	gui.panelTexture				= platformApi->push_gui_texture(platformGraphics, &guiTextureAsset);
+	gui.panelTexture				= graphics_memory_push_gui_texture(platformGraphics, &guiTextureAsset);
 
 	// Todo(Leo): this has nothing to do with gui, but this function is called appropriately :)
 	// move away or change function name
 	HdrSettings hdr = {1, 0};
-	platformApi->update_hdr_settings(platformGraphics, &hdr);
+	graphics_drawing_update_hdr_settings(platformGraphics, &hdr);
 
 	return gui;
 }
@@ -173,7 +173,7 @@ static void initialize_game_state(GameState * state, PlatformMemory * memory)
 
 	state->gui 					= make_main_menu_gui(state->persistentMemoryArena);
 	auto backGroundImageAsset 	= load_texture_asset(*global_transientMemory, "assets/textures/NighestNouKeyArt.png");
-	state->backgroundImage		= platformApi->push_gui_texture(platformGraphics, &backGroundImageAsset);
+	state->backgroundImage		= graphics_memory_push_gui_texture(platformGraphics, &backGroundImageAsset);
 
 	state->isInitialized = true;
 }
@@ -194,15 +194,19 @@ bool32 update_game(
 
 	PlatformGraphics * 		graphics,
 	PlatformWindow * 		window,
-	PlatformApi * 			api,
-	PlatformLogContext *	logContext,
+	PlatformApiDescription * apiDescripition,
 
-	std::ofstream * logFile)
+	bool32 gameShouldReInitializeGlobalVariables)
 {
-	// Note(Leo): Set these each frame, they are reset if game is reloaded, and we do not know about that
-	platformApi 		= api;
-	platformGraphics 	= graphics;
-	platformWindow 		= window;
+	if (gameShouldReInitializeGlobalVariables)
+	{
+		platformGraphics 	= graphics;
+		platformWindow 		= window;
+
+		platform_set_api(apiDescripition);
+
+		logDebug(0, "Reinitialized global variables");
+	}	
 
 	/* Note(Leo): This is reinterpreted each frame, we don't know and don't care
 	if it has been moved or whatever in platform layer*/
@@ -218,21 +222,6 @@ bool32 update_game(
 	if (state->isInitialized == false)
 	{
 		initialize_game_state (state, memory);
-
-		LogOutput logOutput = {&logContext, [](void * context, String const & message)
-		{
-			platformApi->log(reinterpret_cast<PlatformLogContext*>(context), 0, message);
-		}};
-
-
-		logDebug.output2     	= logOutput;
-		logWarning.output2 		= logOutput;
-		logAnim.output2      	= logOutput;
-		logVulkan.output2    	= logOutput;
-		logWindow.output2    	= logOutput;
-		logSystem.output2    	= logOutput;
-		logNetwork.output2   	= logOutput;
-		logConsole.output2   	= logOutput;
 	}
 	
 	bool32 gameIsAlive = true;
@@ -240,7 +229,7 @@ bool32 update_game(
 
 	enum { ACTION_NONE, ACTION_NEW_GAME, ACTION_LOAD_GAME, ACTION_QUIT } action = ACTION_NONE;
 
-	platformApi->prepare_frame(graphics);
+	graphics_drawing_prepare_frame(graphics);
 
 	if (state->loadedScene != nullptr)
 	{
@@ -289,7 +278,7 @@ bool32 update_game(
 	because we have at this point issued commands to vulkan command buffers,
 	and we currently have no mechanism to abort those. */
 	// Todo(Leo): We maybe could use onpostrender on this
-	platformApi->finish_frame(graphics);
+	graphics_drawing_finish_frame(graphics);
 
 	if(action == ACTION_NEW_GAME)
 	{
@@ -298,15 +287,15 @@ bool32 update_game(
 	}	
 	else if (action == ACTION_LOAD_GAME)
 	{
-		PlatformFileHandle saveFile = platformApi->open_file("save_game.fssave", FILE_MODE_READ);
+		PlatformFileHandle saveFile = platform_file_open("save_game.fssave", FILE_MODE_READ);
 		state->loadedScene 			= load_scene_3d(state->persistentMemoryArena, saveFile);
 		state->loadedSceneType 		= LOADED_SCENE_3D;
-		platformApi->close_file(saveFile);
+		platform_file_close(saveFile);
 	}
 
 	if (sceneIsAlive == false)
 	{
-		platformApi->unload_scene(platformGraphics);
+		graphics_memory_unload(platformGraphics);
 		flush_memory_arena(&state->persistentMemoryArena);
 
 		state->loadedScene 		= nullptr;
@@ -315,16 +304,16 @@ bool32 update_game(
 		// Todo(Leo): this is a hack, unload_scene also unloads main gui, which is rather unwanted...
 		state->gui 					= make_main_menu_gui(state->persistentMemoryArena);	
 		auto backGroundImageAsset 	= load_texture_asset(*global_transientMemory, "assets/textures/NighestNouKeyArt.png");
-		state->backgroundImage		= platformApi->push_gui_texture(platformGraphics, &backGroundImageAsset);
+		state->backgroundImage		= graphics_memory_push_gui_texture(platformGraphics, &backGroundImageAsset);
 
 	}
 
 	// Todo(Leo): These still MAYBE do not belong here
 	if (is_clicked(input->select))
 	{
-		bool isFullScreen = !platformApi->is_window_fullscreen(platformWindow);
-		platformApi->set_window_fullscreen(platformWindow, isFullScreen);
-		platformApi->set_cursor_visible(platformWindow, !isFullScreen);
+		bool isFullScreen = platform_window_is_fullscreen(platformWindow);
+		platform_window_set_fullscreen(platformWindow, !isFullScreen);
+		platform_window_set_cursor_visible(platformWindow, isFullScreen);
 	}
 
 
@@ -353,4 +342,4 @@ bool32 update_game(
 
 
 // Note(Leo): This makes sure we have actually defined this correctly.
-static_assert(is_same_type<GameUpdateFunc, decltype(update_game)>);
+static_assert(is_same_type<UpdateGameFunc, decltype(update_game)>);

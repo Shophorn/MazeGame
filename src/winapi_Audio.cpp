@@ -40,7 +40,7 @@ constexpr s64 REFERENCE_TIMES_PER_MILLISECOND = 10000;   // milliseconds to REFE
 
 /* Todo(Leo): copied from web, forgot where, thats why it is UNKNOWN.
 Extracts actual format tag if it is hidden behind WAVEFORMATEXTENSIBLE struct */
-inline uint32_t
+inline u32
 UNKNOWN_GetFormatTag( const WAVEFORMATEX* wfx )
 {
     if ( wfx->wFormatTag == WAVE_FORMAT_EXTENSIBLE )
@@ -90,16 +90,17 @@ internal WinApiAudio fswin32_create_audio ()
     WinApiLog("Get audio format", audio.pClient->GetMixFormat(&audio.pFormat));
 
     #if 1
-    logAudio()
-        << "|======================================|\n"
-        << "Selected device format:\n"
-        << "\tformat: "             << WinApiWaveFormatTagString(UNKNOWN_GetFormatTag(audio.pFormat)) << "\n"
-        << "\tchannels: "           << audio.pFormat->nChannels << "\n"
-        << "\tsamples per sec: "    << audio.pFormat->nSamplesPerSec << "\n"
-        << "\tavg bytes per sec: "  << audio.pFormat->nAvgBytesPerSec << "\n"
-        << "\tblock align: "        << audio.pFormat->nBlockAlign << "\n"
-        << "\tbits per sample: "    << audio.pFormat->wBitsPerSample << "\n"
-        << "|======================================|\n";
+    // Todo(Leo): this ugly comma formatting is result from past, fix pls
+    logAudio(1
+        , "|======================================|\n"
+        , "Selected device format:\n"
+        , "\tformat: "             , WinApiWaveFormatTagString(UNKNOWN_GetFormatTag(audio.pFormat)) , "\n"
+        , "\tchannels: "           , audio.pFormat->nChannels , "\n"
+        , "\tsamples per sec: "    , audio.pFormat->nSamplesPerSec , "\n"
+        , "\tavg bytes per sec: "  , audio.pFormat->nAvgBytesPerSec , "\n"
+        , "\tblock align: "        , audio.pFormat->nBlockAlign , "\n"
+        , "\tbits per sample: "    , audio.pFormat->wBitsPerSample , "\n"
+        , "|======================================|\n");
     #endif
 
     REFERENCE_TIME requestedDuration = 1 * REFERENCE_TIMES_PER_SECOND;
@@ -132,11 +133,13 @@ internal void fswin32_release_audio(WinApiAudio * audio)
     CoUninitialize();
 }
 
+// Todo(Leo): this seems unnecessary function
 internal void fswin32_start_playing(WinApiAudio * audio)
 {
     WinApiLog("Start playing audio", audio->pClient->Start());
 }
 
+// Todo(Leo): this seems unnecessary function
 internal void fswin32_stop_playing(WinApiAudio * audio)
 {
     WinApiLog("Stop playing audio", audio->pClient->Stop());

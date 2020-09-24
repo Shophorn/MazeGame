@@ -4,10 +4,11 @@ Leo Tamminen
 Interface definition between Platform and Game.
 ===============================================================================*/
 
-#if !defined MAZEGAME_PLATFORM_HPP
+#if !defined FS_PLATFORM_INTERFACE_HPP
 
 
-// Note(Leo): Before assets...	
+
+// Todo(Leo): Assets use these, thats why that is still here	
 enum GraphicsPipeline : s64
 {
 	GRAPHICS_PIPELINE_NORMAL,
@@ -22,8 +23,6 @@ enum GraphicsPipeline : s64
 };
 #include "Assets.cpp"
 
-#include "Camera.cpp"
-#include "Light.cpp"
 
 // Todo(Leo): Maybe post process
 struct HdrSettings
@@ -49,9 +48,11 @@ constexpr GuiTextureHandle GRAPHICS_RESOURCE_SHADOWMAP_GUI_TEXTURE = {-1};
 can (and are supposed to) be used as opaque handles in
 game layer. */
 
+// Note(Leo): this represents graphics api, which is unknown
 struct PlatformGraphics;
+
+// Note(Leo): this represents windowing system, which is os dependent, and therefore unknown
 struct PlatformWindow;
-struct PlatformLogContext;
 // struct PlatformNetwork;
 // struct PlatformAudio;
 
@@ -74,7 +75,6 @@ struct PlatformNetworkPackage
 
 constexpr s32 NETWORK_PACKAGE_SIZE = sizeof(PlatformNetworkPackage);
 static_assert(NETWORK_PACKAGE_SIZE <= 512, "Time to deal with bigger network packages");
-
 
 enum PlatformGraphicsFrameResult
 {
@@ -138,6 +138,7 @@ struct PlatformTimePoint
 /// ***********************************************************************
 /// PLATFORM POINTER TYPES
 
+// Todo(Leo): input is done rarely, this should be similar opaque handle like pointer like windows and graphics
 struct PlatformInput
 {
 	v2 move;
@@ -175,8 +176,8 @@ struct PlatformTime
 
 struct PlatformMemory
 {
-	void * memory;
-	u64 size;
+	void * 	memory;
+	u64 	size;
 };
 
 struct PlatformNetwork
@@ -199,89 +200,165 @@ struct PlatformSoundOutput
 /// ***********************************************************************
 /// PLATFORM API DESCRIPTION
 
-struct PlatformApi
-{
-	// GRAPHICS SCENE FUNCTIONS
-	MeshHandle 	(*push_mesh) 			(PlatformGraphics*, MeshAsset * asset);
-	TextureHandle (*push_texture) 		(PlatformGraphics*, TextureAsset * asset);
-	MaterialHandle (*push_material) 	(PlatformGraphics*, GraphicsPipeline, s32 textureCount, TextureHandle * textures);
-	GuiTextureHandle (*push_gui_texture) (PlatformGraphics*, TextureAsset * asset);
+#if defined FRIENDSIMULATOR_PLATFORM
+	#if defined FRIENDSIMULATOR_GAME_DLL
+		#error "Both FRIENDSIMULATOR_PLATFORM and FRIENDSIMULATOR_GAME_DLL are defined!"
+	#endif
 
-	// Note(Leo): this may be needed for development only, should it be handled differently
-	void (*update_texture) (PlatformGraphics*, TextureHandle, TextureAsset*);
+	#define FS_PLATFORM_API(func) func
+	#define FS_PLATFORM_API_TYPE(func) decltype(func)*
+	#define FS_PLATFORM_API_SET_FUNCTION(func, ptr) ptr = func
 
+#elif defined FRIENDSIMULATOR_GAME_DLL
+
+	#define FS_PLATFORM_API(func) (*func)
+	#define FS_PLATFORM_API_TYPE(func) decltype(func)
+	#define FS_PLATFORM_API_SET_FUNCTION(func, ptr) func = ptr
+
+#else
+	#error "FRIENDSIMULATOR_PLATFORM or FRIENDSIMULATOR_GAME_DLL must be defined!"
+#endif
+
+PlatformFileHandle FS_PLATFORM_API(platform_file_open) (char const * filename, FileMode);
+void FS_PLATFORM_API(platform_file_close) (PlatformFileHandle);
+s64 FS_PLATFORM_API(platform_file_get_size) (PlatformFileHandle);
+void FS_PLATFORM_API(platform_file_read) (PlatformFileHandle, s64 count, void * memory);
+void FS_PLATFORM_API(platform_file_write) (PlatformFileHandle, s64 count, void * memory);
+void FS_PLATFORM_API(platform_file_set_position) (PlatformFileHandle, s64 position);
+s64 FS_PLATFORM_API(platform_file_get_position) (PlatformFileHandle);
+
+void FS_PLATFORM_API(platform_log_write) (s32 count, char const * buffer);
+
+PlatformTimePoint FS_PLATFORM_API(platform_time_now) ();
+f64 FS_PLATFORM_API(platform_time_elapsed_seconds)(PlatformTimePoint start, PlatformTimePoint end);
+
+u32 FS_PLATFORM_API(platform_window_get_width) (PlatformWindow const *);
+u32 FS_PLATFORM_API(platform_window_get_height) (PlatformWindow const *);
+bool32 FS_PLATFORM_API(platform_window_is_fullscreen) (PlatformWindow const *);
+void FS_PLATFORM_API(platform_window_set_fullscreen) (PlatformWindow*, bool32 value);
+void FS_PLATFORM_API(platform_window_set_cursor_visible) (PlatformWindow*, bool32 value);
+
+void FS_PLATFORM_API(graphics_drawing_prepare_frame)(PlatformGraphics*);
+void FS_PLATFORM_API(graphics_drawing_finish_frame)(PlatformGraphics*);
+
+void FS_PLATFORM_API(graphics_drawing_update_camera)(PlatformGraphics*, Camera const *);
+void FS_PLATFORM_API(graphics_drawing_update_lighting)(PlatformGraphics*, Light const *, Camera const * camera, v3 ambient);
+void FS_PLATFORM_API(graphics_drawing_update_hdr_settings)(PlatformGraphics*, HdrSettings const *);
+
+void FS_PLATFORM_API(graphics_draw_model) (PlatformGraphics*, ModelHandle model, m44 transform, bool32 castShadow, m44 const * bones, u32 boneCount);
+void FS_PLATFORM_API(graphics_draw_meshes) (PlatformGraphics*, s32 count, m44 const * transforms, MeshHandle mesh, MaterialHandle material);
+void FS_PLATFORM_API(graphics_draw_screen_rects) (PlatformGraphics*, s32 count, ScreenRect const * rects, GuiTextureHandle texture, v4 color);
+void FS_PLATFORM_API(graphics_draw_lines) (PlatformGraphics*, s32 pointCount, v3 const * points, v4 color);
+void FS_PLATFORM_API(graphics_draw_procedural_mesh)(	PlatformGraphics*,
+								s32 vertexCount, Vertex const * vertices,
+								s32 indexCount, u16 const * indices,
+								m44 transform, MaterialHandle material);
+void FS_PLATFORM_API(graphics_draw_leaves) (PlatformGraphics*, s32 count, m44 const * transforms, s32 colourIndex, v3 colour, MaterialHandle material);
+
+MeshHandle FS_PLATFORM_API(graphics_memory_push_mesh) (PlatformGraphics*, MeshAsset * asset);
+TextureHandle FS_PLATFORM_API(graphics_memory_push_texture) (PlatformGraphics*, TextureAsset * asset);
+MaterialHandle FS_PLATFORM_API(graphics_memory_push_material) (PlatformGraphics*, GraphicsPipeline, s32 textureCount, TextureHandle * textures);
+GuiTextureHandle FS_PLATFORM_API(graphics_memory_push_gui_texture) (PlatformGraphics*, TextureAsset * asset);
 	// Todo(Leo): Maybe remove 'push_model', we can render also just passing mesh and material handles directly
-	ModelHandle (*push_model) (PlatformGraphics*, MeshHandle mesh, MaterialHandle material);
+ModelHandle FS_PLATFORM_API(graphics_memory_push_model) (PlatformGraphics*, MeshHandle mesh, MaterialHandle material);
+void FS_PLATFORM_API(graphics_memory_unload) (PlatformGraphics*);
 
-	void (*unload_scene) 	(PlatformGraphics*);
-	void (*reload_shaders) 	(PlatformGraphics*);
-
-	// GRAPHICS DRAW FUNCTIONS
-	void (*prepare_frame) 	(PlatformGraphics*);
-	void (*finish_frame) 	(PlatformGraphics*);
-	void (*update_camera) 	(PlatformGraphics*, Camera const *);
-	void (*update_lighting)	(PlatformGraphics*, Light const *, Camera const * camera, v3 ambient);
-	void (*update_hdr_settings) (PlatformGraphics*, HdrSettings const*);
-	void (*draw_model) 		(PlatformGraphics*, ModelHandle model, m44 transform, bool32 castShadow, m44 const * bones, u32 boneCount);
-
-	void (*draw_meshes)			(PlatformGraphics*, s32 count, m44 const * transforms, MeshHandle mesh, MaterialHandle material);
-	void (*draw_screen_rects)	(PlatformGraphics*, s32 count, ScreenRect const * rects, GuiTextureHandle texture, v4 color);
-	void (*draw_lines)			(PlatformGraphics*, s32 pointCount, v3 const * points, v4 color);
-	void (*draw_procedural_mesh)(	PlatformGraphics*,
-									s32 vertexCount, Vertex const * vertices,
-									s32 indexCount, u16 const * indices,
-									m44 transform, MaterialHandle material);
-	void (*draw_leaves)			(PlatformGraphics*, s32 count, m44 const * transforms, s32 colourIndex, v3 colour, MaterialHandle material);
-
-	// WINDOW FUNCTIONS	
-	u32 (*get_window_width) 		(PlatformWindow const *);
-	u32 (*get_window_height) 		(PlatformWindow const *);
-	bool32 (*is_window_fullscreen) 	(PlatformWindow const *);
-	void (*set_window_fullscreen) 	(PlatformWindow*, bool32 value);
-	void (*set_cursor_visible)		(PlatformWindow*, bool32 visible);
+// Note(Leo): this may be needed for development only, should it be handled differently
+void FS_PLATFORM_API(graphics_development_update_texture) (PlatformGraphics*, TextureHandle, TextureAsset*);
+void FS_PLATFORM_API(graphics_development_reload_shaders) (PlatformGraphics*);
 
 
-	// TIME FUNCTIONS
-	PlatformTimePoint (*current_time) 	();
-	f64 (*elapsed_seconds)				(PlatformTimePoint start, PlatformTimePoint end);
-
-	// FILE FUNCTIONS
-	PlatformFileHandle (*open_file)	(char const * filename, FileMode filemode);
-	void (*close_file)				(PlatformFileHandle);
-	void (*set_file_position)		(PlatformFileHandle, s32 position);
-	s32 (*get_file_position)		(PlatformFileHandle);
-	void (*write_file) 				(PlatformFileHandle, s32 count, void * memory);
-	void (*read_file) 				(PlatformFileHandle, s32 count, void * memory);
-	s32 (*get_file_length)			(PlatformFileHandle);
-
-	s32 (*read_file_until)			(PlatformFileHandle, char delimiter, s32 memorySize, void * memory);
-
-	// LOGGING
-	void (*log)	(PlatformLogContext*, int id, String message);
-};
-
-internal bool32 platform_all_functions_set(PlatformApi const * api)
+struct PlatformApiDescription
 {
-	/* Note(Leo): this assumes that sizeof each pointer is same. 
-	This site suggests that it is so, but I'm still not 100% sure.
-	https://docs.oracle.com/cd/E19059-01/wrkshp50/805-4956/6j4mh6goi/index.html */
+	FS_PLATFORM_API_TYPE(platform_file_open) fileOpen;
+	FS_PLATFORM_API_TYPE(platform_file_close) fileClose;
+	FS_PLATFORM_API_TYPE(platform_file_get_size) fileSize;
+	FS_PLATFORM_API_TYPE(platform_file_read) fileRead;
+	FS_PLATFORM_API_TYPE(platform_file_write) fileWrite;
+	FS_PLATFORM_API_TYPE(platform_file_set_position) fileSetPosition;
+	FS_PLATFORM_API_TYPE(platform_file_get_position) fileGetPosition;
 
-	using 			function_ptr = void(*)();
-	u32 constexpr 	numFunctions = sizeof(PlatformApi) / sizeof(function_ptr);
+	FS_PLATFORM_API_TYPE(platform_log_write) logWrite;
 
-	auto * funcArray = reinterpret_cast<function_ptr const *>(api);
-	for (u32 i = 0; i < numFunctions; ++i)
-	{
-		if (funcArray[i] == nullptr)
-		{
-			logSystem() << FILE_ADDRESS << "Unset function at '" << i << "'\n";
-			return false;
-		}
-	}
-	return true;
+	FS_PLATFORM_API_TYPE(platform_time_now) timeNow;
+	FS_PLATFORM_API_TYPE(platform_time_elapsed_seconds) timeElapsedSeconds;
+
+	FS_PLATFORM_API_TYPE(platform_window_get_width) windowGetWidth;
+	FS_PLATFORM_API_TYPE(platform_window_get_height) windowGetHeight;
+	FS_PLATFORM_API_TYPE(platform_window_is_fullscreen) windowIsFullscreen;
+	FS_PLATFORM_API_TYPE(platform_window_set_fullscreen) windowSetFullscreen;
+	FS_PLATFORM_API_TYPE(platform_window_set_cursor_visible) windowSetCursorVisible;
+
+	FS_PLATFORM_API_TYPE(graphics_drawing_prepare_frame) drawingPrepareFrame;
+	FS_PLATFORM_API_TYPE(graphics_drawing_finish_frame) drawingFinishFrame;
+	FS_PLATFORM_API_TYPE(graphics_drawing_update_camera) drawingUpdateCamera;
+	FS_PLATFORM_API_TYPE(graphics_drawing_update_lighting) drawingUpdateLighting;
+	FS_PLATFORM_API_TYPE(graphics_drawing_update_hdr_settings) drawingUpdateHdrSettings;
+
+	FS_PLATFORM_API_TYPE(graphics_draw_model) drawModel;
+	FS_PLATFORM_API_TYPE(graphics_draw_meshes) drawMeshes;
+	FS_PLATFORM_API_TYPE(graphics_draw_screen_rects) drawScreenRects;
+	FS_PLATFORM_API_TYPE(graphics_draw_lines) drawLines;
+	FS_PLATFORM_API_TYPE(graphics_draw_procedural_mesh) drawProceduralMesh;
+	FS_PLATFORM_API_TYPE(graphics_draw_leaves) drawLeaves;
+
+	FS_PLATFORM_API_TYPE(graphics_memory_push_mesh) memoryPushMesh;
+	FS_PLATFORM_API_TYPE(graphics_memory_push_texture) memoryPushTexture;
+	FS_PLATFORM_API_TYPE(graphics_memory_push_material) memoryPushMaterial;
+	FS_PLATFORM_API_TYPE(graphics_memory_push_gui_texture) memoryPushGuiTexture;
+	FS_PLATFORM_API_TYPE(graphics_memory_push_model) memoryPushModel;
+	FS_PLATFORM_API_TYPE(graphics_memory_unload) memoryUnload;
+
+	FS_PLATFORM_API_TYPE(graphics_development_update_texture) developmentUpdateTexture;
+	FS_PLATFORM_API_TYPE(graphics_development_reload_shaders) developmentReloadShaders;
 };
 
-using GameUpdateFunc = bool32(	const PlatformInput *,
+void platform_set_api(PlatformApiDescription * api)
+{
+	FS_PLATFORM_API_SET_FUNCTION(platform_file_open, api->fileOpen);
+	FS_PLATFORM_API_SET_FUNCTION(platform_file_close, api->fileClose);
+	FS_PLATFORM_API_SET_FUNCTION(platform_file_get_size, api->fileSize);
+	FS_PLATFORM_API_SET_FUNCTION(platform_file_read, api->fileRead);
+	FS_PLATFORM_API_SET_FUNCTION(platform_file_write, api->fileWrite);
+	FS_PLATFORM_API_SET_FUNCTION(platform_file_set_position, api->fileSetPosition);
+	FS_PLATFORM_API_SET_FUNCTION(platform_file_get_position, api->fileGetPosition);
+
+	FS_PLATFORM_API_SET_FUNCTION(platform_log_write, api->logWrite);
+
+	FS_PLATFORM_API_SET_FUNCTION(platform_time_now, api->timeNow);
+	FS_PLATFORM_API_SET_FUNCTION(platform_time_elapsed_seconds, api->timeElapsedSeconds);
+
+	FS_PLATFORM_API_SET_FUNCTION(platform_window_get_width, api->windowGetWidth);
+	FS_PLATFORM_API_SET_FUNCTION(platform_window_get_height, api->windowGetHeight);
+	FS_PLATFORM_API_SET_FUNCTION(platform_window_is_fullscreen, api->windowIsFullscreen);
+	FS_PLATFORM_API_SET_FUNCTION(platform_window_set_fullscreen, api->windowSetFullscreen);
+	FS_PLATFORM_API_SET_FUNCTION(platform_window_set_cursor_visible, api->windowSetCursorVisible);
+
+	FS_PLATFORM_API_SET_FUNCTION(graphics_drawing_prepare_frame, api->drawingPrepareFrame);
+	FS_PLATFORM_API_SET_FUNCTION(graphics_drawing_finish_frame, api->drawingFinishFrame);
+	FS_PLATFORM_API_SET_FUNCTION(graphics_drawing_update_camera, api->drawingUpdateCamera);
+	FS_PLATFORM_API_SET_FUNCTION(graphics_drawing_update_lighting, api->drawingUpdateLighting);
+	FS_PLATFORM_API_SET_FUNCTION(graphics_drawing_update_hdr_settings, api->drawingUpdateHdrSettings);
+
+	FS_PLATFORM_API_SET_FUNCTION(graphics_draw_model, api->drawModel);
+	FS_PLATFORM_API_SET_FUNCTION(graphics_draw_meshes, api->drawMeshes);
+	FS_PLATFORM_API_SET_FUNCTION(graphics_draw_screen_rects, api->drawScreenRects);
+	FS_PLATFORM_API_SET_FUNCTION(graphics_draw_lines, api->drawLines);
+	FS_PLATFORM_API_SET_FUNCTION(graphics_draw_procedural_mesh, api->drawProceduralMesh);
+	FS_PLATFORM_API_SET_FUNCTION(graphics_draw_leaves, api->drawLeaves);
+
+	FS_PLATFORM_API_SET_FUNCTION(graphics_memory_push_mesh, api->memoryPushMesh);
+	FS_PLATFORM_API_SET_FUNCTION(graphics_memory_push_texture, api->memoryPushTexture);
+	FS_PLATFORM_API_SET_FUNCTION(graphics_memory_push_material, api->memoryPushMaterial);
+	FS_PLATFORM_API_SET_FUNCTION(graphics_memory_push_gui_texture, api->memoryPushGuiTexture);
+	FS_PLATFORM_API_SET_FUNCTION(graphics_memory_push_model, api->memoryPushModel);
+	FS_PLATFORM_API_SET_FUNCTION(graphics_memory_unload, api->memoryUnload);
+
+	FS_PLATFORM_API_SET_FUNCTION(graphics_development_update_texture, api->developmentUpdateTexture);
+	FS_PLATFORM_API_SET_FUNCTION(graphics_development_reload_shaders, api->developmentReloadShaders);
+}
+
+using UpdateGameFunc = bool32(	const PlatformInput *,
 								const PlatformTime *,
 								PlatformMemory *,
 								PlatformNetwork *,
@@ -289,12 +366,8 @@ using GameUpdateFunc = bool32(	const PlatformInput *,
 
 								PlatformGraphics *,
 								PlatformWindow *,
-								PlatformApi *,
+								PlatformApiDescription *,
+								bool32 reInitializeGlobalVariables);
 
-								PlatformLogContext *,
-
-								std::ofstream * logFile);
-
-
-#define MAZEGAME_PLATFORM_HPP
+#define FS_PLATFORM_INTERFACE_HPP
 #endif

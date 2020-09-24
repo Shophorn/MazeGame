@@ -25,12 +25,12 @@ struct Monuments
 
 internal void scene3d_draw_monuments(Monuments const & monuments)
 {
-	platformApi->draw_meshes(platformGraphics, monuments.baseCount, monuments.baseTransforms, monuments.baseMesh, monuments.baseMaterial);
-	platformApi->draw_meshes(platformGraphics, monuments.archCount, monuments.archTransforms, monuments.archMesh, monuments.archMaterial);
+	graphics_draw_meshes(platformGraphics, monuments.baseCount, monuments.baseTransforms, monuments.baseMesh, monuments.baseMaterial);
+	graphics_draw_meshes(platformGraphics, monuments.archCount, monuments.archTransforms, monuments.archMesh, monuments.archMaterial);
 
 	for (s32 i = 0; i < monuments.ornamentTypeCount; ++i)
 	{
-		platformApi->draw_meshes(platformGraphics, 	monuments.ornamentCounts[i],
+		graphics_draw_meshes(platformGraphics, 	monuments.ornamentCounts[i],
 													monuments.ornamentTransforms[i],
 													monuments.ornamentMeshes[i],
 													monuments.ornamentMaterials[i]);
@@ -142,12 +142,12 @@ internal Monuments scene3d_load_monuments(MemoryArena & persistentMemory, Materi
 
 	monuments.baseCount 		= totalMonumentCount;
 	monuments.baseTransforms 	= transforms;
-	monuments.baseMesh 			= platformApi->push_mesh(platformGraphics, &baseMeshAsset);
+	monuments.baseMesh 			= graphics_memory_push_mesh(platformGraphics, &baseMeshAsset);
 	monuments.baseMaterial 		= environmentMaterial;
 
 	monuments.archCount 		= totalMonumentCount;
 	monuments.archTransforms 	= transforms;
-	monuments.archMesh 			= platformApi->push_mesh(platformGraphics, &archesMeshAsset);
+	monuments.archMesh 			= graphics_memory_push_mesh(platformGraphics, &archesMeshAsset);
 	monuments.archMaterial 		= environmentMaterial;
 
 	monuments.ornamentTypeCount 	= ornamentTypeCount;
@@ -160,7 +160,7 @@ internal Monuments scene3d_load_monuments(MemoryArena & persistentMemory, Materi
 	{
 		monuments.ornamentCounts[i] 	= counts[i];
 		monuments.ornamentTransforms[i] = transforms + offsets[i];
-		monuments.ornamentMeshes[i] 	= platformApi->push_mesh(platformGraphics, &ornamentMeshAssets[i]);
+		monuments.ornamentMeshes[i] 	= graphics_memory_push_mesh(platformGraphics, &ornamentMeshAssets[i]);
 		monuments.ornamentMaterials[i] 	= environmentMaterial;
 	}
 

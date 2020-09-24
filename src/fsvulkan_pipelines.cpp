@@ -33,19 +33,30 @@ internal VkDescriptorSetLayout fsvulkan_make_material_descriptor_set_layout(VkDe
 }
 
 
-internal VkShaderModule fsvulkan_make_shader_module(VkDevice device, BinaryAsset code)
+
+internal VkShaderModule fsvulkan_make_shader_module(VkDevice device, char const * sourceFilename)
 {
+	PlatformFileHandle file = platform_file_open(sourceFilename, FILE_MODE_READ);
+	s64 fileSize 			= platform_file_get_size(file);
+
+	u32 * memory = reinterpret_cast<u32*>(malloc(fileSize));
+	platform_file_read(file, fileSize, memory);
+
 	VkShaderModuleCreateInfo createInfo = {};
-	createInfo.sType 					= VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-	createInfo.codeSize 				= code.size();
-	createInfo.pCode 					= reinterpret_cast<u32*>(code.data());
+	createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+	createInfo.codeSize = fileSize;
+	createInfo.pCode = memory;
+
 
 	VkShaderModule result;
-	VULKAN_CHECK(vkCreateShaderModule (device, &createInfo, nullptr, &result));
+	VULKAN_CHECK(vkCreateShaderModule(device, &createInfo, nullptr, &result));
+
+
+	platform_file_close(file);
+	free(memory);
 
 	return result;
 }
-
 
 // *************************************************************************
 /// GOOD INITIALIZERS
@@ -339,8 +350,8 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 
 		VULKAN_CHECK(vkCreatePipelineLayout (context.device, &pipelineLayoutCreateInfo, nullptr, &context.pipelines[GRAPHICS_PIPELINE_NORMAL].pipelineLayout));
 
-		VkShaderModule vertexShaderModule 	= fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/vert.spv"));
-		VkShaderModule fragmentShaderModule = fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/frag.spv"));
+		VkShaderModule vertexShaderModule 	= fsvulkan_make_shader_module(context.device, "assets/shaders/vert.spv");
+		VkShaderModule fragmentShaderModule = fsvulkan_make_shader_module(context.device, "assets/shaders/frag.spv");
 
 		VkPipelineShaderStageCreateInfo shaderStages [] =
 		{
@@ -411,8 +422,8 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 
 		VULKAN_CHECK(vkCreatePipelineLayout (context.device, &pipelineLayoutCreateInfo, nullptr, &context.pipelines[GRAPHICS_PIPELINE_TRIPLANAR].pipelineLayout));
 
-		VkShaderModule vertexShaderModule 	= fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/vert.spv"));
-		VkShaderModule fragmentShaderModule = fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/triplanar_frag.spv"));
+		VkShaderModule vertexShaderModule 	= fsvulkan_make_shader_module(context.device, "assets/shaders/vert.spv");
+		VkShaderModule fragmentShaderModule = fsvulkan_make_shader_module(context.device, "assets/shaders/triplanar_frag.spv");
 
 		VkPipelineShaderStageCreateInfo shaderStages [] =
 		{
@@ -484,8 +495,8 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 
 		VULKAN_CHECK(vkCreatePipelineLayout (context.device, &pipelineLayoutCreateInfo, nullptr, &context.pipelines[GRAPHICS_PIPELINE_ANIMATED].pipelineLayout));
 
-		VkShaderModule vertexShaderModule 	= fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/animated_vert.spv"));
-		VkShaderModule fragmentShaderModule = fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/frag.spv"));
+		VkShaderModule vertexShaderModule 	= fsvulkan_make_shader_module(context.device, "assets/shaders/animated_vert.spv");
+		VkShaderModule fragmentShaderModule = fsvulkan_make_shader_module(context.device, "assets/shaders/frag.spv");
 
 		VkPipelineShaderStageCreateInfo shaderStages [] =
 		{
@@ -552,8 +563,8 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 
 		// --------------------------------------------------------------------------------------------
 
-		VkShaderModule vertexShaderModule 	= fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/vert_sky.spv"));
-		VkShaderModule fragmentShaderModule = fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/frag_sky.spv"));
+		VkShaderModule vertexShaderModule 	= fsvulkan_make_shader_module(context.device, "assets/shaders/vert_sky.spv");
+		VkShaderModule fragmentShaderModule = fsvulkan_make_shader_module(context.device, "assets/shaders/frag_sky.spv");
 
 		VkPipelineShaderStageCreateInfo shaderStages [] =
 		{
@@ -613,8 +624,8 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 
 		// ---------------------------------------------------------------------------------------------------------------------------
 
-		VkShaderModule vertexShaderModule 	= fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/gui_vert.spv"));
-		VkShaderModule fragmentShaderModule = fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/gui_frag.spv"));
+		VkShaderModule vertexShaderModule 	= fsvulkan_make_shader_module(context.device, "assets/shaders/gui_vert.spv");
+		VkShaderModule fragmentShaderModule = fsvulkan_make_shader_module(context.device, "assets/shaders/gui_frag.spv");
 
 		VkPipelineShaderStageCreateInfo shaderStages [] =
 		{
@@ -704,8 +715,8 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 			{ 3, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 3 * sizeof(v4)},
 		};
 		
-		VkShaderModule vertexShaderModule 	= fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/leaves_vert.spv"));
-		VkShaderModule fragmentShaderModule = fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/leaves_frag.spv"));
+		VkShaderModule vertexShaderModule 	= fsvulkan_make_shader_module(context.device, "assets/shaders/leaves_vert.spv");
+		VkShaderModule fragmentShaderModule = fsvulkan_make_shader_module(context.device, "assets/shaders/leaves_frag.spv");
 
 		VkPipelineShaderStageCreateInfo shaderStages [] =
 		{
@@ -772,8 +783,8 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 
 		VULKAN_CHECK(vkCreatePipelineLayout (context.device, &pipelineLayoutCreateInfo, nullptr, &context.pipelines[GRAPHICS_PIPELINE_WATER].pipelineLayout));
 
-		VkShaderModule vertexShaderModule 	= fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/vert.spv"));
-		VkShaderModule fragmentShaderModule = fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/frag.spv"));
+		VkShaderModule vertexShaderModule 	= fsvulkan_make_shader_module(context.device, "assets/shaders/vert.spv");
+		VkShaderModule fragmentShaderModule = fsvulkan_make_shader_module(context.device, "assets/shaders/frag.spv");
 
 		VkPipelineShaderStageCreateInfo shaderStages [] =
 		{
@@ -856,8 +867,8 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 		};
 
 		// Note(Leo): Always remember to destroy these :)
-		VkShaderModule vertexShaderModule 	= fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/line_vert.spv"));
-		VkShaderModule fragmentShaderModule = fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/line_frag.spv"));
+		VkShaderModule vertexShaderModule 	= fsvulkan_make_shader_module(context.device, "assets/shaders/line_vert.spv");
+		VkShaderModule fragmentShaderModule = fsvulkan_make_shader_module(context.device, "assets/shaders/line_frag.spv");
 
 		VkPipelineShaderStageCreateInfo shaderStages [] =
 		{
@@ -919,8 +930,8 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 
 		// ---------------------------------------------------------------------------------------------------------------------------
 
-		VkShaderModule vertexShaderModule 	= fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/hdr_vert.spv"));
-		VkShaderModule fragmentShaderModule = fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/hdr_frag.spv"));
+		VkShaderModule vertexShaderModule 	= fsvulkan_make_shader_module(context.device, "assets/shaders/hdr_vert.spv");
+		VkShaderModule fragmentShaderModule = fsvulkan_make_shader_module(context.device, "assets/shaders/hdr_frag.spv");
 
 		VkPipelineShaderStageCreateInfo shaderStages [] =
 		{
@@ -1002,7 +1013,7 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 
 internal void fsvulkan_initialize_shadow_pipeline(VulkanContext & context)
 {
-	VkShaderModule vertexShaderModule = fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/shadow_vert.spv"));
+	VkShaderModule vertexShaderModule = fsvulkan_make_shader_module(context.device, "assets/shaders/shadow_vert.spv");
 
 	auto vertexShaderStage 	= fsvulkan_pipeline_shader_stage_create_info(VK_SHADER_STAGE_VERTEX_BIT, vertexShaderModule, "main");
 
@@ -1070,8 +1081,8 @@ internal void fsvulkan_initialize_leaves_shadow_pipeline(VulkanContext & context
 
 	/// ----------------------------------------------------------------------------------------------
 
-	VkShaderModule vertexShaderModule	= fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/leaves_shadow_vert.spv"));
-	VkShaderModule fragmentShaderModule = fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/leaves_shadow_frag.spv"));
+	VkShaderModule vertexShaderModule	= fsvulkan_make_shader_module(context.device, "assets/shaders/leaves_shadow_vert.spv");
+	VkShaderModule fragmentShaderModule = fsvulkan_make_shader_module(context.device, "assets/shaders/leaves_shadow_frag.spv");
 
 	VkPipelineShaderStageCreateInfo shaderStages [] =
 	{

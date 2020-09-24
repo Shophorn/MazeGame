@@ -141,7 +141,7 @@ internal Font load_font(char const * fontFilePath)
     }
 
     auto atlasAsset = make_texture_asset(std::move(fontBitMap), width, height, 4);
-    result.atlasTexture = platformApi->push_gui_texture(platformGraphics, &atlasAsset);
+    result.atlasTexture = graphics_memory_push_gui_texture(platformGraphics, &atlasAsset);
 
     return result;
 }

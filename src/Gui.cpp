@@ -198,8 +198,8 @@ internal void gui_start_frame(Gui & gui, PlatformInput const & input, f32 elapse
 		}
 	}
 
-	gui.screenSize = { 	(f32)platformApi->get_window_width(platformWindow),
-						(f32)platformApi->get_window_height(platformWindow) };
+	gui.screenSize = { 	(f32)platform_window_get_width(platformWindow),
+						(f32)platform_window_get_height(platformWindow) };
 
 	gui.screenSizeRatio = gui.screenSize.x / gui.referenceScreenSize.x;
 }
@@ -403,7 +403,7 @@ internal void gui_end_panel()
 	// Note(Leo): If we do have title, we draw another rect to highlight it. (It becomes darker, since total alpha is more)
 	s32 backrgroundDrawCount = gui.panelHasTitle ? 2 : 1;
 
-	platformApi->draw_screen_rects(platformGraphics, backrgroundDrawCount, panelRects, gui.panelTexture, gui.panelColor);
+	graphics_draw_screen_rects(platformGraphics, backrgroundDrawCount, panelRects, gui.panelTexture, gui.panelColor);
 
 	/// TRANSFORM PANEL DRAW CALLS
 	for (s32 callIndex = 0; callIndex < gui.panelDrawCallsCount; ++callIndex)
@@ -443,7 +443,7 @@ internal void gui_end_panel()
 	for (s32 i = 0; i < gui.panelDrawCallsCount; ++i)
 	{
 		auto & call = gui.panelDrawCalls[i];
-		platformApi->draw_screen_rects(platformGraphics, call.count, call.rects, call.texture, call.color);
+		graphics_draw_screen_rects(platformGraphics, call.count, call.rects, call.texture, call.color);
 	}
 }
 
@@ -520,7 +520,7 @@ internal void gui_image(GuiTextureHandle texture, v2 size, v4 colour)
 		texture = gui.panelTexture;
 	}
 
-	platformApi->draw_screen_rects(platformGraphics, 1, &rect, texture, colour);
+	graphics_draw_screen_rects(platformGraphics, 1, &rect, texture, colour);
 }
 
 internal bool gui_float_slider(char const * label, f32 * value, f32 minValue, f32 maxValue)
@@ -724,7 +724,7 @@ internal bool gui_int_field(char const * label, s32 * value, GuiClampValuesS32 c
 
 	if (modified)
 	{
-		logDebug(0) << FILE_ADDRESS << *value;
+		logDebug(0, FILE_ADDRESS, *value);
 	}
 
 	v4 colour = isSelected ? gui.selectedTextColor : gui.textColor;
@@ -907,7 +907,7 @@ internal void gui_background_image(GuiTextureHandle texture, s32 rows, v4 colour
 
 	ScreenRect rect = {position, size, {0, 0}, {1, 1}};
 
-	platformApi->draw_screen_rects(platformGraphics, 1, &rect, texture, colour);
+	graphics_draw_screen_rects(platformGraphics, 1, &rect, texture, colour);
 }
 
 internal void gui_line()

@@ -57,7 +57,7 @@ internal bool32 update_scene_2d(void * scenePtr, PlatformInput const & input, Pl
 
 	for (auto & renderer : scene->renderSystem)
 	{
-		platformApi->draw_model(platformGraphics, renderer.model,
+		graphics_draw_model(platformGraphics, renderer.model,
 								transform_matrix(*renderer.transform),
 								renderer.castShadows,
 								nullptr, 0);
@@ -147,13 +147,13 @@ internal void * load_scene_2d(MemoryArena & persistentMemory)
 		TextureAsset whiteTextureAsset = make_texture_asset(&whiteTexturePixelColour, 1, 1, 4);
 		TextureAsset blackTextureAsset = make_texture_asset(&blackTexturePixelColour, 1, 1, 4);
 
-		TextureHandle whiteTexture = platformApi->push_texture(platformGraphics, &whiteTextureAsset);
-		TextureHandle blackTexture = platformApi->push_texture(platformGraphics, &blackTextureAsset);
+		TextureHandle whiteTexture = graphics_memory_push_texture(platformGraphics, &whiteTextureAsset);
+		TextureHandle blackTexture = graphics_memory_push_texture(platformGraphics, &blackTextureAsset);
 
 		auto load_and_push_texture = [](const char * filename) -> TextureHandle
 		{
 			auto asset = load_texture_asset(*global_transientMemory, filename);
-			auto result = platformApi->push_texture(platformGraphics, &asset);
+			auto result = graphics_memory_push_texture(platformGraphics, &asset);
 			return result;
 		};
 
@@ -164,7 +164,7 @@ internal void * load_scene_2d(MemoryArena & persistentMemory)
 		auto push_material = [](TextureHandle a, TextureHandle b, TextureHandle c) -> MaterialHandle
 		{
 			TextureHandle textures [] = {a,b,c};
-			MaterialHandle handle = platformApi->push_material(platformGraphics, GRAPHICS_PIPELINE_NORMAL, 3, textures);
+			MaterialHandle handle = graphics_memory_push_material(platformGraphics, GRAPHICS_PIPELINE_NORMAL, 3, textures);
 			return handle;
 		};
 
@@ -182,7 +182,7 @@ internal void * load_scene_2d(MemoryArena & persistentMemory)
 
     auto push_model = [] (MeshHandle mesh, MaterialHandle material) -> ModelHandle
     {
-    	auto handle = platformApi->push_model(platformGraphics, mesh, material);
+    	auto handle = graphics_memory_push_model(platformGraphics, mesh, material);
     	return handle;
     };
 
@@ -190,7 +190,7 @@ internal void * load_scene_2d(MemoryArena & persistentMemory)
 	Transform3D* characterTransform = {};
 	{
 		auto characterMesh 			= load_mesh_glb(*global_transientMemory, read_gltf_file(*global_transientMemory, "assets/models/cube_head.glb"), "cube_head");
-		auto characterMeshHandle 	= platformApi->push_mesh(platformGraphics, &characterMesh);
+		auto characterMeshHandle 	= graphics_memory_push_mesh(platformGraphics, &characterMesh);
 
 		// Our dude
 		auto transform = allocate_transform(scene->transformStorage, {});
@@ -242,7 +242,7 @@ internal void * load_scene_2d(MemoryArena & persistentMemory)
 			mesh_ops::transform(&groundQuad, meshTransform);
 			mesh_ops::transform_tex_coords(&groundQuad, {0,0}, {width / 2, depth / 2});
 
-			auto groundQuadHandle 	= platformApi->push_mesh(platformGraphics, &groundQuad);
+			auto groundQuadHandle 	= graphics_memory_push_mesh(platformGraphics, &groundQuad);
 			auto model 			= push_model(groundQuadHandle, materials.environment);
 			auto transform 			= allocate_transform(scene->transformStorage, {});
 
@@ -253,7 +253,7 @@ internal void * load_scene_2d(MemoryArena & persistentMemory)
 		if (addPillars)
 		{
 			auto pillarMesh 		= load_mesh_glb(*global_transientMemory, read_gltf_file(*global_transientMemory, "assets/models/big_pillar.glb"), "big_pillar");
-			auto pillarMeshHandle 	= platformApi->push_mesh(platformGraphics, &pillarMesh);
+			auto pillarMeshHandle 	= graphics_memory_push_mesh(platformGraphics, &pillarMesh);
 
 			auto model 	= push_model(pillarMeshHandle, materials.environment);
 			auto transform 	= allocate_transform(scene->transformStorage, {-width / 4, 0, 0});
@@ -271,7 +271,7 @@ internal void * load_scene_2d(MemoryArena & persistentMemory)
 		if (addLadders)
 		{
 			auto ladderMesh 		= load_mesh_glb(*global_transientMemory, read_gltf_file(*global_transientMemory, "assets/models/ladder.glb"), "LadderSection");
-			auto ladderMeshHandle 	= platformApi->push_mesh(platformGraphics, &ladderMesh);
+			auto ladderMeshHandle 	= graphics_memory_push_mesh(platformGraphics, &ladderMesh);
 
 			auto root1 	= allocate_transform(scene->transformStorage, {0, 0.5f, -ladderHeight});
 			auto root2 	= allocate_transform(scene->transformStorage, {10, 0.5f, 6 - ladderHeight});
@@ -367,7 +367,7 @@ internal void * load_scene_2d(MemoryArena & persistentMemory)
 			};
 
 			auto platformMeshAsset 	= load_mesh_glb(*global_transientMemory, read_gltf_file(*global_transientMemory, "assets/models/platform.glb"), "platform");
-			auto platformMeshHandle = platformApi->push_mesh(platformGraphics, &platformMeshAsset);
+			auto platformMeshHandle = graphics_memory_push_mesh(platformGraphics, &platformMeshAsset);
 
 			int platformCount = 12;
 			for (int platformIndex = 0; platformIndex < platformCount; ++platformIndex)
@@ -383,7 +383,7 @@ internal void * load_scene_2d(MemoryArena & persistentMemory)
 		if(addButtons)
 		{
 			auto keyholeMeshAsset 	= load_mesh_glb(*global_transientMemory, read_gltf_file(*global_transientMemory, "assets/models/keyhole.glb"), "keyhole");
-			auto keyholeMeshHandle 	= platformApi->push_mesh(platformGraphics, &keyholeMeshAsset);
+			auto keyholeMeshHandle 	= graphics_memory_push_mesh(platformGraphics, &keyholeMeshAsset);
 
 			auto model 	= push_model(keyholeMeshHandle, materials.environment);
 			auto transform 	= allocate_transform(scene->transformStorage, {.position = v3{5, 0, 0}, .rotation = axis_angle_quaternion(up_v3, to_radians(180))});

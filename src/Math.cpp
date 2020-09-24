@@ -1,8 +1,12 @@
-// TODO(Leo): Proper unit testing!!
-// Note(Leo): Thesee use standard math for now. Actually implement these ourself, for the kicks of course.
-#include <cmath>
+/*
+Leo Tamminen
 
-#include <limits>
+Scalar types math wrapper
+
+TODO(Leo): Proper unit testing!!
+*/
+
+
 constexpr f32 highest_f32   = std::numeric_limits<f32>::max();
 constexpr f32 lowest_f32    = std::numeric_limits<f32>::lowest();
 constexpr f32 smallest_f32  = std::numeric_limits<f32>::min();

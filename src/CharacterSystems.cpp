@@ -4,7 +4,6 @@ shophorn@protonmail.com
 
 Player Character Systems
 =============================================================================*/
-#include <functional>
 
 struct CharacterControllerSideScroller
 {

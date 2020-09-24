@@ -1,11 +1,5 @@
-namespace winapi
-{
-	const char * WindowMessageString(u32 message);
-}
-
 // https://wiki.winehq.org/List_Of_Windows_Messages
-const char *
-winapi::WindowMessageString(u32 message)
+internal const char * fswin32_window_message_string(u32 message)
 {
 	switch(message)
 	{

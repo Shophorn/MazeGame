@@ -3,7 +3,6 @@ Leo Tamminen
 
 File things.
 =============================================================================*/
-#include <fstream>
 
 namespace glTF
 {
@@ -105,7 +104,8 @@ libraries.
 #else
 #undef internal
 
-// Todo(Leo): Move this to platform side, so we do not need to link against anything in game code
+// Todo(Leo): make proper asset baker with external library like assimp etc. and just use simple
+// internal format here
 #define RAPIDJSON_ASSERT(expr) Assert(expr)
 #include <rapidjson/document.h>
 
@@ -116,35 +116,20 @@ using JsonDocument 	= rapidjson::Document;
 using JsonValue 	= rapidjson::Value;
 using JsonArray 	= rapidjson::GenericArray<true, JsonValue>;
 
-internal u64
-get_ifstream_length(std::ifstream & stream)
-{
-	std::streampos current = stream.tellg();
-
-	stream.seekg(0, std::ios::beg);
-	std::streampos begin = stream.tellg();
-
-	stream.seekg(0, std::ios::end);
-	std::streampos end = stream.tellg();
-
-	stream.seekg(current);
-	
-	u64 size = end - begin;
-	return size;
-}
-
 internal Array<byte>
 read_binary_file(MemoryArena & memoryArena, const char * filename)
 {
-	auto file = std::ifstream (filename, std::ios::in|std::ios::binary);
+	PlatformFileHandle file = platform_file_open(filename, FILE_MODE_READ);
 
-	Assert(file.good());//, CStringBuilder("Could not load file: ") + filename);
+	Assert(file != nullptr);
 
-	u64 size 		= get_ifstream_length(file);
-	auto result 	= allocate_array<byte>(memoryArena, size);
-	auto bufferPtr 	= reinterpret_cast<char *>(result.begin());
+	s64 size 				= platform_file_get_size(file);
+	auto result 			= allocate_array<byte>(memoryArena, size);
+	auto bufferPtr 			= reinterpret_cast<char *>(result.begin());
 
-	file.read(bufferPtr, size);
+	platform_file_read(file, size, bufferPtr);
+	
+	platform_file_close(file);
 	return result;
 }
 
@@ -161,7 +146,7 @@ struct GltfFile
 internal GltfFile
 read_gltf_file(MemoryArena & memoryArena, char const * filename)
 {
-	logSystem(2) << "Reading gltf file from: " << filename;
+	logSystem(2, "Reading gltf file from: ", filename);
 	
 	auto memory = read_binary_file(memoryArena, filename);
 

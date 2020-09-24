@@ -1,6 +1,6 @@
-#include "winapi_WindowMessages.cpp"
+#include "fswin32_window_message_string.cpp"
 
-using WinAPIWindow = PlatformWindow;
+using Win32Window = PlatformWindow;
 
 struct PlatformWindow
 {
@@ -9,7 +9,7 @@ struct PlatformWindow
     bool32 isFullscreen;
     bool32 isMinimized;
 
-    bool32 shouldClose;
+    bool32 isCursorVisible = true;
 
     // Lol(Leo): maybe this is acceptable name.
     HWND            hwnd;
@@ -20,27 +20,11 @@ struct PlatformWindow
 };
 
 
-struct HWNDUserPointer
-{
-    WinAPIWindow * window;
 
-    // Only for now
-    winapi::State * state;
-
-    // Todo(Leo): set to Input struct like Window and Graphics are now
-    // KeyboardInput * input;
-};
+// ---------- Platform API functions --------------------------
 
 
-internal bool32 fswin32_is_window_drawable(WinAPIWindow const * window)
-{
-    bool32 isDrawable = (window->isMinimized == false)
-                        && (window->width > 0)
-                        && (window->height > 0);
-    return isDrawable;
-}
-
-internal void fswin32_set_window_fullscreen(WinAPIWindow * window, bool32 setFullscreen)
+internal void platform_window_set_fullscreen(Win32Window * window, bool32 setFullscreen)
 {
     // Study(Leo): https://devblogs.microsoft.com/oldnewthing/20100412-00/?p=14353
     DWORD style = GetWindowLongPtr(window->hwnd, GWL_STYLE);
@@ -83,15 +67,61 @@ internal void fswin32_set_window_fullscreen(WinAPIWindow * window, bool32 setFul
     }
 }
 
-internal void fswin32_set_cursor_visible(PlatformWindow*, bool32 visible)
+internal void platform_window_set_cursor_visible(PlatformWindow * window, bool32 visible)
 {
-    ShowCursor(visible);
+    if (window->isCursorVisible != visible)
+    {
+        window->isCursorVisible = visible;
+        ShowCursor(visible);
+    }
 }
 
-internal HWNDUserPointer * fswin32_get_user_pointer(HWND hwnd)
+internal u32 platform_window_get_width(PlatformWindow const * window)
+{
+    return window->width;
+}
+
+internal u32 platform_window_get_height(PlatformWindow const * window)
+{
+    return window->height;
+}
+
+internal bool32 platform_window_is_fullscreen(PlatformWindow const * window)
+{
+    return window->isFullscreen;
+}
+
+
+// --------- Not platform api functions --------
+
+internal bool32 fswin32_is_window_drawable(Win32Window const * window)
+{
+    bool32 isDrawable = (window->isMinimized == false)
+                        && (window->width > 0)
+                        && (window->height > 0);
+    return isDrawable;
+}
+
+struct Win32ApplicationState
+{
+    bool32 shouldClose;
+
+    // Input
+    bool32 keyboardInputIsUsed;
+    bool32 xinputIsUsed;
+
+    Win32XInput         gamepadInput;
+    Win32KeyboardInput  keyboardInput;
+
+    Win32Window *       window;
+};  
+
+
+
+internal Win32ApplicationState * fswin32_get_user_pointer(HWND hwnd)
 {
     LONG_PTR value = GetWindowLongPtrW(hwnd, GWLP_USERDATA);
-    return reinterpret_cast<HWNDUserPointer*>(value);
+    return reinterpret_cast<Win32ApplicationState*>(value);
 }
 
 // Note(Leo): CALLBACK specifies calling convention for 32-bit applications
@@ -99,59 +129,64 @@ internal HWNDUserPointer * fswin32_get_user_pointer(HWND hwnd)
 internal LRESULT CALLBACK fswin32_window_callback (HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
     LRESULT result = 0;
-    using namespace winapi;
 
     switch (message)
     {
         case WM_MOUSEMOVE:
         {
-            winapi::State & state = *fswin32_get_user_pointer(hwnd)->state;
-            state.mousePosition.x = GET_X_LPARAM(lParam);
-            state.mousePosition.y = GET_Y_LPARAM(lParam);
+            Win32ApplicationState & state = *fswin32_get_user_pointer(hwnd);
+            state.keyboardInput.mousePosition.x = GET_X_LPARAM(lParam);
+            state.keyboardInput.mousePosition.y = GET_Y_LPARAM(lParam);
         } break;
 
         case WM_LBUTTONDOWN:
         {
-            winapi::State & state       = *fswin32_get_user_pointer(hwnd)->state;
-            state.leftMouseButtonDown   = true;
+            Win32ApplicationState & state       = *fswin32_get_user_pointer(hwnd);
+            state.keyboardInput.leftMouseButtonDown   = true;
         } break;
 
         case WM_LBUTTONUP:
         {
-            winapi::State & state       = *fswin32_get_user_pointer(hwnd)->state;
-            state.leftMouseButtonDown   = false;
+            Win32ApplicationState & state       = *fswin32_get_user_pointer(hwnd);
+            state.keyboardInput.leftMouseButtonDown   = false;
         } break;
 
         case WM_MOUSEWHEEL:
         {
             constexpr f32 windowsScrollConstant = 120;
             
-            winapi::State & state   = *fswin32_get_user_pointer(hwnd)->state;
-            state.mouseScroll       += GET_WHEEL_DELTA_WPARAM(wParam) / windowsScrollConstant;
+            Win32ApplicationState & state   = *fswin32_get_user_pointer(hwnd);
+            state.keyboardInput.mouseScroll       += GET_WHEEL_DELTA_WPARAM(wParam) / windowsScrollConstant;
         } break;
 
         case WM_KEYDOWN:
-            process_keyboard_input(fswin32_get_user_pointer(hwnd)->state, wParam, true);
-            break;
+        {
+            Win32ApplicationState * state = fswin32_get_user_pointer(hwnd);
+            process_keyboard_input(state->keyboardInput, wParam, true);
+            state->keyboardInputIsUsed = true;
+        } break;
 
         case WM_KEYUP:
-            process_keyboard_input(fswin32_get_user_pointer(hwnd)->state, wParam, false);
-            break;
+        {
+            Win32ApplicationState * state = fswin32_get_user_pointer(hwnd);
+            process_keyboard_input(state->keyboardInput, wParam, false);
+            state->keyboardInputIsUsed = true;
+        } break;
 
         // case WM_CREATE:
         // {
         //     // CREATESTRUCTW * pCreate = reinterpret_cast<CREATESTRUCTW *>(lParam);
-        //     // HWNDUserPointer * userPointer = reinterpret_cast<HWNDUserPointer*>(pCreate->lpCreateParams); 
-        //     // // winapi::State * state = reinterpret_cast<winapi::State *>(pCreate->lpCreateParams);
-        //     // SetWindowLongPtrW (hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(userPointer));
+        //     // HWNDUserPointer * state = reinterpret_cast<HWNDUserPointer*>(pCreate->lpCreateParams); 
+        //     // // Win32ApplicationState * state = reinterpret_cast<Win32ApplicationState *>(pCreate->lpCreateParams);
+        //     // SetWindowLongPtrW (hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(state));
         // } break;
 
         case WM_SIZE:
         {
-            auto * userPointer = fswin32_get_user_pointer(hwnd);
-            if (userPointer == nullptr)
+            auto * state = fswin32_get_user_pointer(hwnd);
+            if (state == nullptr)
             {
-                logSystem() << "Skipping first WM_SIZE message due to no user pointer set. Yet.";
+                logSystem(1, "Skipping first WM_SIZE message due to no user pointer set yet.");
                 result = DefWindowProcW(hwnd, message, wParam, lParam);
                 break;
             }
@@ -159,7 +194,7 @@ internal LRESULT CALLBACK fswin32_window_callback (HWND hwnd, UINT message, WPAR
             /* Todo(Leo): we should recreate vulkan swapchain
             again ourselves instead of waiting for vulkan to ask. */
 
-            auto * window   = userPointer->window;
+            auto * window   = state->window;
             window->width   = LOWORD(lParam);
             window->height  = HIWORD(lParam);
 
@@ -179,23 +214,23 @@ internal LRESULT CALLBACK fswin32_window_callback (HWND hwnd, UINT message, WPAR
 
         case WM_CLOSE:
         {
-            fswin32_get_user_pointer(hwnd)->window->shouldClose = true;
+            fswin32_get_user_pointer(hwnd)->shouldClose = true;
         } break;
 
-        // case WM_EXITSIZEMOVE:
+        // case platform_window_set_cursor_visible:
         // {
         // } break;
 
         default:
+
+// --------- Not platform api functions --------
             result = DefWindowProcW(hwnd, message, wParam, lParam);
     }
     return result;
 }
 
-internal void fswin32_process_pending_messages(winapi::State * state, HWND winWindow)
+internal void fswin32_process_pending_messages(Win32ApplicationState * state, HWND winWindow)
 {
-    // Note(Leo): Apparently Windows requires us to do this.
-
     MSG message;
     while (PeekMessageW(&message, winWindow, 0, 0, PM_REMOVE))
     {
@@ -204,7 +239,7 @@ internal void fswin32_process_pending_messages(winapi::State * state, HWND winWi
     }
 }
 
-internal WinAPIWindow fswin32_make_window(HINSTANCE winInstance, u32 width, u32 height)
+internal Win32Window fswin32_make_window(HINSTANCE winInstance, u32 width, u32 height)
 {
     wchar windowClassName [] = L"FriendSimulatorWindowClass";
     wchar windowTitle [] = L"FriendSimulator";
@@ -234,7 +269,7 @@ internal WinAPIWindow fswin32_make_window(HINSTANCE winInstance, u32 width, u32 
     RECT windowRect;
     GetWindowRect(hwnd, &windowRect);
 
-    WinAPIWindow window = {};
+    Win32Window window = {};
 
 
     window.width        = windowRect.right - windowRect.left;

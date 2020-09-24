@@ -12,16 +12,16 @@ internal void scene_3d_initialize_gui(Scene3d * scene)
 
 	u32 guiTexturePixelColor 		= 0xffffffff;
 	TextureAsset guiTextureAsset 	= make_texture_asset(&guiTexturePixelColor, 1, 1, 4);
-	gui.panelTexture				= platformApi->push_gui_texture(platformGraphics, &guiTextureAsset);
+	gui.panelTexture				= graphics_memory_push_gui_texture(platformGraphics, &guiTextureAsset);
 }
 
 internal void gui_set_cursor_visible(bool menuVisible)
 {
-	bool windowIsFullscreen = platformApi->is_window_fullscreen(platformWindow);
+	bool windowIsFullscreen = platform_window_is_fullscreen(platformWindow);
 	bool cursorVisible = !windowIsFullscreen || menuVisible;
-	platformApi->set_cursor_visible(platformWindow, cursorVisible);
+	platform_window_set_cursor_visible(platformWindow, cursorVisible);
 
-	logDebug(0) << "Set cursor visible: " << (cursorVisible ? "True" : "False");
+	logDebug(0, "Set cursor visible: ", (cursorVisible ? "True" : "False"));
 }
 
 
@@ -122,7 +122,7 @@ bool32 do_gui(Scene3d * scene, PlatformInput const & input)
 
 			if (gui_button("Reload Shaders"))
 			{
-				platformApi->reload_shaders(platformGraphics);
+				graphics_development_reload_shaders(platformGraphics);
 			}
 
 			char const * const timeScaleLabels [scene->timeScaleCount] =

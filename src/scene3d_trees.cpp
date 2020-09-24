@@ -66,7 +66,7 @@ internal void draw_leaves(Leaves & leaves, f32 elapsedTime, v2 leafScale = {1,1}
 		leafTransforms[i] 		= transform_matrix(	position, rotation,	scale);
 	}
 
-	platformApi->draw_leaves(platformGraphics, drawCount, leafTransforms, leaves.colourIndex, colour, leaves.material);
+	graphics_draw_leaves(platformGraphics, drawCount, leafTransforms, leaves.colourIndex, colour, leaves.material);
 }
 
 

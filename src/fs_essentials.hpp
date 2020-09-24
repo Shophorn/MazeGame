@@ -6,9 +6,6 @@ Common essentials used all around in Friendsimulator project
 
 #if !defined FS_ESSENTIALS_HPP
 
-
-
-
 // Todo(Leo): Find where these come from
 #undef min
 #undef max
@@ -72,7 +69,7 @@ constexpr u32 array_count(const _ (&array)[Count])
 }
 
 #if MAZEGAME_DEVELOPMENT
-	#define Assert(expr) if(!(expr)) { log_assert(__FILE__, __LINE__, nullptr, #expr); 			abort(); }
+	#define Assert(expr) if(!(expr)) { log_assert(__FILE__, __LINE__, nullptr, #expr);		abort(); }
 	#define AssertMsg(expr, msg) if(!(expr)) { log_assert(__FILE__, __LINE__, msg, #expr); 	abort(); }
 	// Note(Leo): Some things need to asserted in production too, this is a reminder for those only.
 	#define AssertRelease AssertMsg
@@ -86,24 +83,33 @@ constexpr u32 array_count(const _ (&array)[Count])
 
 #endif
 
+#include <type_traits>
+
+// Note(Leo): These use standard math for now. Actually implement these ourself, for the kicks of course.
+#include <cmath>
+#include <limits>
+
 
 #include "Math.cpp"
+
+// Todo(Leo): worse array
+#include "Array.hpp"
+
 #include "Memory.cpp"
 
 #include "CStringUtility.cpp"
 #include "string.cpp"
 #include "meta.cpp"
-#include "SmallString.cpp"
-
-#include "Logging.cpp"
 
 #include "Vectors.cpp"
 #include "Quaternion.cpp"
 #include "Matrices.cpp"
 
+#include "Camera.cpp"
+#include "Light.cpp"
 
-#include "serialization.cpp"
 #include "array2.cpp"
+#include "serialization.cpp"
 
 #define FS_ESSENTIALS_HPP
 #endif

@@ -32,13 +32,13 @@ void debug_draw_axes(m44 transform, float radius)
 	v3 points [2] = {rayStart};
 
 	points[1] = rayRight;
-	platformApi->draw_lines(platformGraphics, 2, points, {1, 0, 0, 1});
+	graphics_draw_lines(platformGraphics, 2, points, {1, 0, 0, 1});
 
 	points[1] = rayForward;
-	platformApi->draw_lines(platformGraphics, 2, points, {0, 1, 0, 1});
+	graphics_draw_lines(platformGraphics, 2, points, {0, 1, 0, 1});
 
 	points[1] = rayUp;
-	platformApi->draw_lines(platformGraphics, 2, points, {0, 0, 1, 1});			
+	graphics_draw_lines(platformGraphics, 2, points, {0, 0, 1, 1});			
 };
 
 void debug_draw_diamond(m44 transform, v4 color)
@@ -73,7 +73,7 @@ void debug_draw_diamond(m44 transform, v4 color)
 		zPos, yNeg,
 	};
 
-	platformApi->draw_lines(platformGraphics, 24, points, color);
+	graphics_draw_lines(platformGraphics, 24, points, color);
 }
 
 void debug_draw_circle_xy(v3 position, f32 radius, v4 color)
@@ -93,7 +93,7 @@ void debug_draw_circle_xy(v3 position, f32 radius, v4 color)
 		s32 next = (line + 1) % lineCount;
 		points[point + 1] = v3{cosine(next * angle) * radius, sine(next * angle) * radius} + position;
 	}
-	platformApi->draw_lines(platformGraphics, 32, points, color);
+	graphics_draw_lines(platformGraphics, 32, points, color);
 
 }
 
@@ -136,7 +136,7 @@ void debug_draw_diamond_xy(m44 transform, v4 color)
 		corners[3], corners[0],
 	};
 
-	platformApi->draw_lines(platformGraphics, 8, points, color);
+	graphics_draw_lines(platformGraphics, 8, points, color);
 }
 
 void debug_draw_diamond_xz(m44 transform, v4 color)
@@ -157,7 +157,7 @@ void debug_draw_diamond_xz(m44 transform, v4 color)
 		corners[3], corners[0],
 	};
 
-	platformApi->draw_lines(platformGraphics, 8, points, color);
+	graphics_draw_lines(platformGraphics, 8, points, color);
 }
 
 void debug_draw_diamond_yz(m44 transform, v4 color)
@@ -178,12 +178,12 @@ void debug_draw_diamond_yz(m44 transform, v4 color)
 		corners[3], corners[0],
 	};
 
-	platformApi->draw_lines(platformGraphics, 8, points, color);
+	graphics_draw_lines(platformGraphics, 8, points, color);
 }
 
 void debug_draw_lines(s32 pointsCount, v3 * points, v4 color)
 {
-	platformApi->draw_lines(platformGraphics, pointsCount, points, color);
+	graphics_draw_lines(platformGraphics, pointsCount, points, color);
 }
 
 void debug_draw_vector(v3 position, v3 vector, v4 color)
@@ -207,7 +207,7 @@ void debug_draw_vector(v3 position, v3 vector, v4 color)
 		cornerA, cornerB
 	};
 
-	platformApi->draw_lines(platformGraphics, 8, points, color);
+	graphics_draw_lines(platformGraphics, 8, points, color);
 
 }
 
@@ -244,7 +244,7 @@ void debug_draw_box(m44 transform, v4 color)
 		corners[3], corners[7],
 	};
 
-	platformApi->draw_lines(platformGraphics, 24, lines, color);
+	graphics_draw_lines(platformGraphics, 24, lines, color);
 }
 
 void debug_draw_cross_xy(v3 position, f32 radius, v4 color)
@@ -257,11 +257,11 @@ void debug_draw_cross_xy(v3 position, f32 radius, v4 color)
 		position + v3{0, radius, 0}
 	};
 
-	platformApi->draw_lines(platformGraphics, 4, points, color);
+	graphics_draw_lines(platformGraphics, 4, points, color);
 }
 
 void debug_draw_line(v3 a, v3 b, v4 color)
 {
 	v3 points [] = {a, b};
-	platformApi->draw_lines(platformGraphics, 2, points, color);	
+	graphics_draw_lines(platformGraphics, 2, points, color);	
 }

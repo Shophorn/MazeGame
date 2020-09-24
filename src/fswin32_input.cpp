@@ -1,32 +1,34 @@
-/*=============================================================================
+/*
 Leo Tamminen
-shophorn @ internet
 
 Windows platform input functions
-=============================================================================*/
+*/
+
+struct Win32KeyboardInput
+{
+    bool32 left, right, up, down;
+    bool32 space;
+    bool32 enter, escape;
+
+    v2      mousePosition;
+    f32     mouseScroll;
+    bool32  leftMouseButtonDown;
+};
+
+struct Win32XInput
+{
+    DWORD xinputLastPacketNumber;
+};
+
+// Todo(Leo): hack to get two controller on single pc and use only 1st controller when online
+global_variable int globalXinputControllerIndex;
 
 // XInput things.
 using XInputGetStateFunc = decltype(XInputGetState);
-internal XInputGetStateFunc * XInputGetState_;
-DWORD WINAPI XInputGetStateStub (DWORD, XINPUT_STATE *)
-{
-    return ERROR_DEVICE_NOT_CONNECTED;
-}
-
-/*Todo(Leo): see if we should get rid of #define below by creating
-a proper named struct/namespace to hold this pointer */
-#define XInputGetState XInputGetState_
+internal XInputGetStateFunc * xinput_get_state;
 
 using XInputSetStateFunc = decltype(XInputSetState);
-internal XInputSetStateFunc * XInputSetState_;
-DWORD WINAPI XInputSetStateStub (DWORD, XINPUT_VIBRATION *)
-{
-    return ERROR_DEVICE_NOT_CONNECTED;
-}
-
-/*Todo(Leo): see if we should get rid of #define below by creating
-a proper named struct/namespace to hold this pointer */
-#define XInputSetState XInputSetState_
+internal XInputSetStateFunc * xinput_set_state;
 
 internal void
 load_xinput()
@@ -36,13 +38,13 @@ load_xinput()
 
     if (xinputModule != nullptr)
     {
-        XInputGetState_ = reinterpret_cast<XInputGetStateFunc *> (GetProcAddress(xinputModule, "XInputGetState"));
-        XInputSetState_ = reinterpret_cast<XInputSetStateFunc *> (GetProcAddress(xinputModule, "XInputSetState"));
+        xinput_get_state = reinterpret_cast<XInputGetStateFunc *> (GetProcAddress(xinputModule, "XInputGetState"));
+        xinput_set_state = reinterpret_cast<XInputSetStateFunc *> (GetProcAddress(xinputModule, "XInputSetState"));
     }
     else
     {
-        XInputGetState_ = XInputGetStateStub;
-        XInputSetState_ = XInputSetStateStub;
+        xinput_get_state = [](DWORD, XINPUT_STATE*){ return (DWORD)ERROR_DEVICE_NOT_CONNECTED; };
+        xinput_set_state = [](DWORD, XINPUT_VIBRATION*){ return (DWORD)ERROR_DEVICE_NOT_CONNECTED; };
     }
 }
 
@@ -63,18 +65,18 @@ xinput_convert_joystick_value(s16 value)
 }
 
 internal bool32
-xinput_is_used(winapi::State * winState, XINPUT_STATE * xinputState)
+xinput_is_used(Win32XInput & currentInputState, XINPUT_STATE & xinputState)
 {
-    bool32 used = (xinputState->Gamepad.wButtons != 0)
-                || (xinputState->Gamepad.bLeftTrigger != 0)
-                || (xinputState->Gamepad.bRightTrigger != 0)
-                || (abs_f32(xinput_convert_joystick_value(xinputState->Gamepad.sThumbLX)) > 0.0f)
-                || (abs_f32(xinput_convert_joystick_value(xinputState->Gamepad.sThumbLY)) > 0.0f)
-                || (abs_f32(xinput_convert_joystick_value(xinputState->Gamepad.sThumbRX)) > 0.0f)
-                || (abs_f32(xinput_convert_joystick_value(xinputState->Gamepad.sThumbRY)) > 0.0f);
+    bool32 used = (xinputState.Gamepad.wButtons != 0)
+                || (xinputState.Gamepad.bLeftTrigger != 0)
+                || (xinputState.Gamepad.bRightTrigger != 0)
+                || (abs_f32(xinput_convert_joystick_value(xinputState.Gamepad.sThumbLX)) > 0.0f)
+                || (abs_f32(xinput_convert_joystick_value(xinputState.Gamepad.sThumbLY)) > 0.0f)
+                || (abs_f32(xinput_convert_joystick_value(xinputState.Gamepad.sThumbRX)) > 0.0f)
+                || (abs_f32(xinput_convert_joystick_value(xinputState.Gamepad.sThumbRY)) > 0.0f);
 
-    used = used || winState->xinputLastPacketNumber != xinputState->dwPacketNumber;
-    winState->xinputLastPacketNumber = xinputState->dwPacketNumber;
+    used = used || currentInputState.xinputLastPacketNumber != xinputState.dwPacketNumber;
+    currentInputState.xinputLastPacketNumber = xinputState.dwPacketNumber;
 
     return used;
 }
@@ -130,55 +132,55 @@ update_controller_input(PlatformInput * input, XINPUT_STATE * xinput)
 /* Todo(Leo): this may not be thread-safe because windows callbacks can probably come anytime.
 Maybe make 2 structs and toggle between them, so when we start reading, we use the other one for writing*/
 internal void
-update_keyboard_input(PlatformInput * gameInput, winapi::KeyboardInput * keyboardInput)
+update_keyboard_input(PlatformInput * platformInput, Win32KeyboardInput * keyboardInput)
 {
     auto bool_to_float = [](bool32 value) { return value ? 1.0f : 0.1f; };
 
-    gameInput->move = 
+    platformInput->move = 
     {
         .x = bool_to_float(keyboardInput->right) - bool_to_float(keyboardInput->left),
         .y = bool_to_float(keyboardInput->up) - bool_to_float(keyboardInput->down),
     };
-    gameInput->look = {};
+    platformInput->look = {};
 
-    gameInput->jump     = update_button_state(gameInput->jump,      keyboardInput->space);
-    gameInput->confirm  = update_button_state(gameInput->confirm,   keyboardInput->enter);
-    gameInput->interact = update_button_state(gameInput->interact,  false);
+    platformInput->jump     = update_button_state(platformInput->jump,      keyboardInput->space);
+    platformInput->confirm  = update_button_state(platformInput->confirm,   keyboardInput->enter);
+    platformInput->interact = update_button_state(platformInput->interact,  false);
 
-    gameInput->start    = update_button_state(gameInput->start,     keyboardInput->escape);
-    gameInput->select   = update_button_state(gameInput->select,    false);
-    gameInput->zoomIn   = update_button_state(gameInput->zoomIn,    false);
-    gameInput->zoomOut  = update_button_state(gameInput->zoomOut,   false);
+    platformInput->start    = update_button_state(platformInput->start,     keyboardInput->escape);
+    platformInput->select   = update_button_state(platformInput->select,    false);
+    platformInput->zoomIn   = update_button_state(platformInput->zoomIn,    false);
+    platformInput->zoomOut  = update_button_state(platformInput->zoomOut,   false);
 
-    gameInput->left     = update_button_state(gameInput->left,      keyboardInput->left);
-    gameInput->right    = update_button_state(gameInput->right,     keyboardInput->right);
-    gameInput->down     = update_button_state(gameInput->down,      keyboardInput->down);
-    gameInput->up       = update_button_state(gameInput->up,        keyboardInput->up);
+    platformInput->left     = update_button_state(platformInput->left,      keyboardInput->left);
+    platformInput->right    = update_button_state(platformInput->right,     keyboardInput->right);
+    platformInput->down     = update_button_state(platformInput->down,      keyboardInput->down);
+    platformInput->up       = update_button_state(platformInput->up,        keyboardInput->up);
 }
 
 internal void
-update_unused_input(PlatformInput * gameInput)
+update_unused_input(PlatformInput * platformInput)
 {
-    gameInput->move = {};
-    gameInput->look = {};
+    platformInput->move = {};
+    platformInput->look = {};
 
-    gameInput->jump     = update_button_state(gameInput->jump,      false);
-    gameInput->confirm  = update_button_state(gameInput->confirm,   false);
-    gameInput->interact = gameInput->confirm;
+    platformInput->jump     = update_button_state(platformInput->jump,      false);
+    platformInput->confirm  = update_button_state(platformInput->confirm,   false);
+    platformInput->interact = platformInput->confirm;
 
-    gameInput->start    = update_button_state(gameInput->start,     false);
-    gameInput->select   = update_button_state(gameInput->select,    false);
-    gameInput->zoomIn   = update_button_state(gameInput->zoomIn,    false);
-    gameInput->zoomOut  = update_button_state(gameInput->zoomOut,   false);
+    platformInput->start    = update_button_state(platformInput->start,     false);
+    platformInput->select   = update_button_state(platformInput->select,    false);
+    platformInput->zoomIn   = update_button_state(platformInput->zoomIn,    false);
+    platformInput->zoomOut  = update_button_state(platformInput->zoomOut,   false);
 
-    gameInput->left     = update_button_state(gameInput->left,      false);
-    gameInput->right    = update_button_state(gameInput->right,     false);
-    gameInput->down     = update_button_state(gameInput->down,      false);
-    gameInput->up       = update_button_state(gameInput->up,        false);
+    platformInput->left     = update_button_state(platformInput->left,      false);
+    platformInput->right    = update_button_state(platformInput->right,     false);
+    platformInput->down     = update_button_state(platformInput->down,      false);
+    platformInput->up       = update_button_state(platformInput->up,        false);
 }
 
 internal void
-process_keyboard_input(winapi::State * state, WPARAM keycode, bool32 isDown)
+process_keyboard_input(Win32KeyboardInput & keyboardInput, WPARAM keycode, bool32 isDown)
 {
     enum : WPARAM
     {
@@ -192,36 +194,34 @@ process_keyboard_input(winapi::State * state, WPARAM keycode, bool32 isDown)
     {
         case VKEY_A:
         case VK_LEFT:
-            state->keyboardInput.left = isDown;
+            keyboardInput.left = isDown;
             break;
 
         case VKEY_D:
         case VK_RIGHT:
-            state->keyboardInput.right = isDown;
+            keyboardInput.right = isDown;
             break;
 
         case VKEY_W:
         case VK_UP:
-            state->keyboardInput.up = isDown;
+            keyboardInput.up = isDown;
             break;
 
         case VKEY_S:
         case VK_DOWN:
-            state->keyboardInput.down = isDown;
+            keyboardInput.down = isDown;
             break;
 
         case VK_RETURN:
-            state->keyboardInput.enter = isDown;
+            keyboardInput.enter = isDown;
             break;
 
         case VK_ESCAPE:
-            state->keyboardInput.escape = isDown;
+            keyboardInput.escape = isDown;
             break;
 
         case VK_SPACE:
-            state->keyboardInput.space = isDown;
+            keyboardInput.space = isDown;
             break;
     }
-
-    state->keyboardInputIsUsed = true;
 }

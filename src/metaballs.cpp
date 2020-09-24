@@ -277,7 +277,7 @@ internal void generate_mesh_marching_cubes(	s32 vertexCapacity, Vertex * vertice
 	u32 vertexCount = 0;
 	u32 indexCount = 0;
 
-	PlatformTimePoint startTime = platformApi->current_time();
+	PlatformTimePoint startTime = platform_time_now();
 
 	constexpr s32 edges [24][2] = 
 	{
@@ -676,7 +676,7 @@ internal void generate_mesh_marching_cubes(	s32 vertexCapacity, Vertex * vertice
 
 				if (c.vertexCount == 0 && caseId != 0 && caseId != 255)
 				{
-					logDebug(0) << "Missing case: " << (u32)caseId;
+					logDebug(0, "Missing case: ", (u32)caseId);
 				}
 			}
 		}

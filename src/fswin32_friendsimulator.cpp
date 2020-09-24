@@ -2,12 +2,8 @@
 Leo Tamminen
 
 Windows platform implementation layer for Friendsimulator.
-
 This is the first file to compile, and everything is included from here.
 */
-
-#include "fs_essentials.hpp"
-#include "fs_platform_interface.hpp"
 
 #include <WinSock2.h>
 #include <Windows.h>
@@ -18,191 +14,42 @@ This is the first file to compile, and everything is included from here.
 #include <mmdeviceapi.h>
 #include <audioclient.h>
 
-// Todo(Leo): Get rid of these :)
-#include <vector>
-#include <fstream>
 
-/// PLATFORM TIME IMPLEMENTATION
-PlatformTimePoint fswin32_current_time () 
+#define FRIENDSIMULATOR_PLATFORM
+// Todo(Leo): these should be in different order
+#include "fs_essentials.hpp"
+#include "fs_platform_interface.hpp"
+
+#include "logging.cpp"
+
+#include "fswin32_platform_log.cpp"
+#include "fswin32_platform_time.cpp"
+#include "fswin32_platform_file.cpp"
+#include "fswin32_input.cpp"
+
+#include "fswin32_platform_window.cpp"
+#include "fswin32_game_dll.cpp"
+
+// Todo(Leo): Proper logging and severity system. Severe prints always, and mild only on error
+#include "winapi_ErrorStrings.hpp"
+internal void
+WinApiLog(const char * message, HRESULT result)
 {
-	LARGE_INTEGER t;
-	QueryPerformanceCounter(&t);
-	return {t.QuadPart};
+    #if MAZEGAME_DEVELOPMENT
+    if (result != S_OK)
+    {
+    	logDebug(1, message, "(", WinApiErrorString(result), ")");
+    }
+    #endif
 }
 
-f64 fswin32_elapsed_seconds(PlatformTimePoint start, PlatformTimePoint end)
-{
-	local_persist s64 frequency = []()
-	{
-		LARGE_INTEGER frequency;
-		QueryPerformanceFrequency(&frequency);
-		
-		// Todo(Leo): actually append bigger values also
-		logConsole(0) << "performance frequency = " << (s32)frequency.QuadPart;
-
-		return frequency.QuadPart;
-	}();
-
-	f64 seconds = (f64)(end.value - start.value) / frequency;
-	return seconds;
-}
-
-/// PLATFORM FILE IMPLEMENTATION
-PlatformFileHandle fswin32_open_file(char const * filename, FileMode fileMode)
-{
-	DWORD access;
-	if(fileMode == FILE_MODE_READ)
-	{
-		access = GENERIC_READ;
-	}
-	else if (fileMode == FILE_MODE_WRITE)
-	{
-		access = GENERIC_WRITE;
-	}
-
-	// Todo(Leo): check lpSecurityAttributes
-	HANDLE file = CreateFile(	filename,
-								access,
-								0,
-								nullptr,
-								OPEN_ALWAYS,
-								FILE_ATTRIBUTE_NORMAL,
-								nullptr);
-
-	SetFilePointer((HANDLE)file, 0, nullptr, FILE_BEGIN);
-
-	// Todo(Leo): this may be unwanted
-	if (fileMode == FILE_MODE_WRITE)
-	{
-		SetEndOfFile((HANDLE)file);
-	}
-
-	PlatformFileHandle result 	= (PlatformFileHandle)file;
-	return result;
-
-}
-
-void fswin32_close_file(PlatformFileHandle file)
-{
-	CloseHandle((HANDLE)file);
-}
-
-void fswin32_set_file_position(PlatformFileHandle file, s32 location)
-{
-	SetFilePointer((HANDLE)file, location, nullptr, FILE_BEGIN);
-}
-
-s32 fswin32_get_file_position(PlatformFileHandle file)
-{
-	DWORD position = SetFilePointer((HANDLE)file, 0, nullptr, FILE_CURRENT);
-	return (s32)position;
-}
-
-void fswin32_write_file (PlatformFileHandle file, s32 count, void * memory)
-{
-	DWORD bytesWritten;
-	WriteFile((HANDLE)file, memory, count, &bytesWritten, nullptr);
-}
-
-void fswin32_read_file (PlatformFileHandle file, s32 count, void * memory)
-{
-	// Todo(Leo): test if ReadFile also moves file pointer, WriteFile does
-	DWORD bytesRead;
-	ReadFile((HANDLE)file, memory, count, &bytesRead, nullptr);
-
-	SetFilePointer((HANDLE)file, count, nullptr, FILE_CURRENT);
-}
-
-s32 fswin32_get_file_length(PlatformFileHandle file)
-{
-	LARGE_INTEGER fileSize;
-	GetFileSizeEx((HANDLE)file, &fileSize);
-
-	Assert(fileSize.QuadPart < max_value_s32);
-
-	return (s32)fileSize.QuadPart;
-}
-
-/* Note(Leo): read file until delimiter is found, or memory size is reached */
-s32 fswin32_read_file_until(PlatformFileHandle file, char delimiter, s32 memorySize, void * memory)
-{
-	char * buffer = (char*)memory;
-	s32 count = 0;
-
-	while(count < memorySize)
-	{
-		DWORD bytesRead;
-		ReadFile((HANDLE)file, (void*)buffer, 1, &bytesRead, nullptr);
-		
-		if (bytesRead == 0)
-		{
-			break;
-		}
-
-		SetFilePointer((HANDLE)file, 1, nullptr, FILE_CURRENT);
-
-		if (*buffer == delimiter)
-		{
-			break;
-		}
-
-		++buffer;
-		++count;
-	}
-
-	return count;
-}
-
-struct PlatformLogContext
-{
-	HANDLE console;
-};
-
-void fswin32_log(PlatformLogContext * context, int id, String message)
-{
-	// String idString = from_cstring("LOGGER");
-
-	// // Todo(Leo): we do not yet have access to temp memory here
-	// char buffer [512] = {};
-	// String output = {0, buffer};
-
-	// string_append_format(output, 512, "[", idString, "]: ", message, "\n");
-
-	WriteConsole(context->console, message.memory, message.length, nullptr, nullptr);
-}
-
-// Todo(Leo): hack to get two controller on single pc and use only 1st controller when online
-global_variable int globalXinputControllerIndex;
 
 #include "winapi_WinSocketDebugStrings.cpp"
-#include "winapi_ErrorStrings.hpp"
-#include "fswin32_friendsimulator.hpp"
-
-// Todo(Leo): Vulkan implementation depends on this, not cool
-using BinaryAsset = std::vector<u8>;
-BinaryAsset
-BAD_read_binary_file (const char * filename)
-{
-	std::ifstream file (filename, std::ios::ate | std::ios::binary);
-
-	AssertMsg(file.is_open(), filename);
-
-	size_t fileSize = file.tellg();
-	BinaryAsset result (fileSize);
-
-	file.seekg(0);
-	file.read(reinterpret_cast<char*>(result.data()), fileSize);
-
-	file.close();
-	return result;    
-}
-
-// Note(Leo): make unity build
-#include "fswin32_input.cpp"
-#include "fswin32_window.cpp"
 #include "winapi_Audio.cpp"
 #include "winapi_Network.cpp"
 
+// Todo(Leo): Get rid of this :) It is used in some stupid places anyway
+#include <vector>
 #include "fsvulkan.cpp"
 
 /* Todo(Leo): We could/should use WinMain, but it allocates no console
@@ -214,103 +61,22 @@ int main()
 	SYSTEMTIME time_;
 	GetLocalTime(&time_);
 
-
-	std::ofstream logFile;
-	{
-		char timeStampMemory[64];
-		String timestamp = {0, timeStampMemory};
-		
-		s32 hours 	= time_.wHour;
-		s32 minutes = time_.wMinute;
-		s32 seconds = time_.wSecond;
-
-		string_append_format(timestamp, array_count(timeStampMemory), hours, "_", minutes, "_", seconds);
-
-		// Note(Leo): initializing memory to zero effectively gives us null terminator for free if memory is enough
-		char logFilenameMemory [128] = {};
-		String logFilename = {0, logFilenameMemory};
-
-		string_append_format(logFilename, array_count(logFilenameMemory) - 1, "logs/log_", timestamp, ".log");
-
-		logFile = std::ofstream(logFilename.memory);
-	}
-
-	PlatformLogContext logContext = {};
-	logContext.console = GetStdHandle(STD_OUTPUT_HANDLE);
-
-	LogOutput logOutput = {&logContext, [](void * context, String const & message)
-	{
-		fswin32_log(reinterpret_cast<PlatformLogContext*>(context), 0, message);
-	}};
-
-	logDebug.output2     = logOutput;
-	logAnim.output2      = logOutput;
-	logVulkan.output2    = logOutput;
-	logWindow.output2    = logOutput;
-	logSystem.output2    = logOutput;
-	logNetwork.output2   = logOutput;
-	logAudio.output2     = logOutput;
-	logConsole.output2    = logOutput;
-
-
-	logSystem(0, "Testing log template, (", 56, ")");
-
 	logSystem(0,"\n",
 				"\t----- FriendSimulator -----\n",
 				"\tBuild time: ", BUILD_DATE_TIME, "\n");
 
-
-	logSystem(0) << "\n"
-				<< "\t----- FriendSimulator -----\n"
-				<< "\tBuild time: " << BUILD_DATE_TIME << "\n";
-
-
 	// ----------------------------------------------------------------------------------
 
-	winapi::State state = {};
+	Win32ApplicationState state = {};
 	load_xinput();
 
 	// ---------- INITIALIZE PLATFORM ------------
-	PlatformWindow window = fswin32_make_window(hInstance, 960, 540);
-	
+	PlatformWindow window 	= fswin32_make_window(hInstance, 960, 540);
+	state.window 			= &window;
+	SetWindowLongPtrW(window.hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(&state));
+
 	VulkanContext vulkanContext = winapi::create_vulkan_context(&window);
-	HWNDUserPointer userPointer = 
-	{
-		.window = &window,
-		.state = &state,
-	};
-	SetWindowLongPtrW(window.hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(&userPointer));
    
-	PlatformApi platformApi = {};
-
-	// SETTING FUNCTION POINTERS
-	{
-		// WINDOW FUNCTIONS
-		platformApi.get_window_width        = [](PlatformWindow const * window) { return window->width; };
-		platformApi.get_window_height       = [](PlatformWindow const * window) { return window->height; };
-		platformApi.is_window_fullscreen    = [](PlatformWindow const * window) { return window->isFullscreen; };
-		platformApi.set_window_fullscreen   = fswin32_set_window_fullscreen;
-		platformApi.set_cursor_visible 		= fswin32_set_cursor_visible;
-
-		fsvulkan_set_platform_graphics_api(&vulkanContext, &platformApi);
-
-		platformApi.current_time 	= fswin32_current_time;
-		platformApi.elapsed_seconds = fswin32_elapsed_seconds;
-
-		platformApi.open_file 			= fswin32_open_file;
-		platformApi.close_file 			= fswin32_close_file;
-		platformApi.set_file_position 	= fswin32_set_file_position;
-		platformApi.get_file_position 	= fswin32_get_file_position;
-		platformApi.write_file 			= fswin32_write_file;
-		platformApi.read_file 			= fswin32_read_file;
-		platformApi.get_file_length 	= fswin32_get_file_length;
-		platformApi.read_file_until 	= fswin32_read_file_until;
-
-		platformApi.log = fswin32_log;
-
-		Assert(platform_all_functions_set(&platformApi));
-	}
-
 	// ------- MEMORY ---------------------------
 	PlatformMemory platformMemory = {};
 	{
@@ -347,9 +113,9 @@ int main()
 
 	/// ---------- LOAD GAME CODE ----------------------
 	// Note(Leo): Only load game dynamically in development.
-	winapi::Game game = {};
-	winapi::load_game(&game);
-	logSystem() << "Game dll loaded";
+	Win32Game game = {};
+	fswin32_game_load_dll(&game);
+	logSystem(1, "Game dll loaded");
 
 
 
@@ -364,18 +130,24 @@ int main()
 	PlatformTimePoint frameFlipTime;
 	f64 lastFrameElapsedSeconds;
 
+	// Note(Leo): Set to true for the first frame
+	bool32 gameShouldReInitializeGlobalVariables = true;
+
 	while(gameIsRunning)
 	{
 		/// ----- RELOAD GAME CODE -----
-		FILETIME dllLatestWriteTime = get_file_write_time(GAMECODE_DLL_FILE_NAME);
+
+		FILETIME dllLatestWriteTime = fswin32_file_get_write_time(GAMECODE_DLL_FILE_NAME);
 		if (CompareFileTime(&dllLatestWriteTime, &game.dllWriteTime) > 0)
 		{
-			logSystem(0) << "Attempting to reload game";
+			logSystem(0, "Attempting to reload game");
 
-			winapi::unload_game(&game);
-			winapi::load_game(&game);
+			fswin32_game_unload_dll(&game);
+			fswin32_game_load_dll(&game);
 
-			logSystem(0) << "Reloaded game";
+			logSystem(0, "Reloaded game");
+
+			gameShouldReInitializeGlobalVariables = true;
 		}
 
 		/// ----- HANDLE INPUT -----
@@ -393,8 +165,8 @@ int main()
 			disconnected */
 
 			XINPUT_STATE xinputState;
-			bool32 xinputReceived = XInputGetState(globalXinputControllerIndex, &xinputState) == ERROR_SUCCESS;
-			bool32 xinputUsed = xinputReceived && xinput_is_used(&state, &xinputState);
+			bool32 xinputReceived = xinput_get_state(globalXinputControllerIndex, &xinputState) == ERROR_SUCCESS;
+			bool32 xinputUsed = xinputReceived && xinput_is_used(state.gamepadInput, xinputState);
 
 			if (windowIsActive == false)
 			{
@@ -414,11 +186,11 @@ int main()
 				update_unused_input(&platformInput);
 			}
 
-			platformInput.mousePosition = state.mousePosition;
-    		platformInput.mouse0   		= update_button_state(platformInput.mouse0, state.leftMouseButtonDown);
-    		platformInput.mouseZoom 	= state.mouseScroll;
+			platformInput.mousePosition = state.keyboardInput.mousePosition;
+    		platformInput.mouse0   		= update_button_state(platformInput.mouse0, state.keyboardInput.leftMouseButtonDown);
+    		platformInput.mouseZoom 	= state.keyboardInput.mouseScroll;
 
-    		state.mouseScroll = 0;
+    		state.keyboardInput.mouseScroll = 0;
 
 		}
 
@@ -429,7 +201,7 @@ int main()
 			if (networkIsRuined)
 			{
 				auto error = WSAGetLastError();
-				logNetwork() << "failed: " << WinSocketErrorString(error) << " (" << error << ")"; 
+				logNetwork(1, "failed: ", WinSocketErrorString(error), " (", error, ")"); 
 				break;
 			}
 
@@ -457,7 +229,9 @@ int main()
 			switch(fsvulkan_prepare_frame(&vulkanContext))
 			{
 				case PGFR_FRAME_OK:
-					gameIsRunning = game.Update(&platformInput, 
+					PlatformApiDescription apiDescription;
+					platform_set_api(&apiDescription);
+					gameIsRunning = game.update(&platformInput, 
 												&platformTime,
 												&platformMemory,
 												&platformNetwork,
@@ -465,11 +239,14 @@ int main()
 												
 												&vulkanContext,
 												&window,
-												&platformApi,
-												&logContext,
+												&apiDescription,
+												gameShouldReInitializeGlobalVariables);
 
-												&logFile);
+					// Note(Leo): We must set this to false if we actually have passed it to dll function
+					gameShouldReInitializeGlobalVariables = false;
+
 					break;
+
 
 				case PGFR_FRAME_RECREATE:
 					fsvulkan_recreate_drawing_resources(&vulkanContext, window.width, window.height);
@@ -484,7 +261,7 @@ int main()
 
 			fswin32_release_audio_buffer(&audio, gameSoundOutput.sampleCount);
 			// Note(Leo): It doesn't so much matter where this is checked.
-			if (window.shouldClose)
+			if (state.shouldClose)
 			{
 				gameIsRunning = false;
 			}
@@ -503,8 +280,8 @@ int main()
 
 		// ----- MEASURE ELAPSED TIME ----- 
 		{
-			PlatformTimePoint now   = fswin32_current_time();
-			lastFrameElapsedSeconds = fswin32_elapsed_seconds(frameFlipTime, now);
+			PlatformTimePoint now   = platform_time_now();
+			lastFrameElapsedSeconds = platform_time_elapsed_seconds(frameFlipTime, now);
 
 		#if 1
 			// Restrict framerate so we do not burn our computer
@@ -528,8 +305,8 @@ int main()
 				timeEndPeriod(1);
 			}
 
-			now   					= fswin32_current_time();
-			lastFrameElapsedSeconds = fswin32_elapsed_seconds(frameFlipTime, now);
+			now   					= platform_time_now();
+			lastFrameElapsedSeconds = platform_time_elapsed_seconds(frameFlipTime, now);
 		#endif
 			frameFlipTime           = now;
 
@@ -552,7 +329,7 @@ int main()
 	/// ----- Cleanup Windows
 	{
 		// Note(Leo): Windows will mostly clean up after us once process exits :)
-		logWindow(0) << "shut down\n";
+		logWindow(0, "shut down");
 	}
 
 	return EXIT_SUCCESS;

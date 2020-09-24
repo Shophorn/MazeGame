@@ -14,7 +14,6 @@ static_assert(std::is_trivial_v<quaternion>, "");
 
 internal constexpr quaternion identity_quaternion = {0, 0, 0, 1};
 
-
 quaternion operator * (quaternion lhs, quaternion rhs);
 
 
@@ -186,7 +185,8 @@ quaternion interpolate_quaternion(quaternion from, quaternion to, f32 t)
 	// Assert(t == t && "probably a nan");
 	if (t < -0.00001f || t > 1.00001f)
 	{
-		logDebug(0) << "häx: " << t;
+		// logDebug(0, "häx: ", t);
+		// logDebug(0) << "häx: " << t;
 		Assert(false);
 	}
 	Assert(from.x == from.x && from.y == from.y && from.z == from.z && from.w == from.w && "probably a nan");
@@ -227,7 +227,8 @@ quaternion interpolate_quaternion(quaternion from, quaternion to, f32 t)
 		}
 		else
 		{
-			logDebug(0) << "invalid interpolate quaternion, from: " << from << ", to: " << to << ", t: " << t;
+			// logDebug(0) << "invalid interpolate quaternion, from: " << from << ", to: " << to << ", t: " << t;
+			// logDebug(0, "invalid interpolate quaternion, from: ", from, ", to: ", to, ", t: ", t);
 			Assert(false);
 		}
 		// Assert(result.x == result.x && result.y == result.y && result.z == result.z && result.w == result.w && "probably a nan");

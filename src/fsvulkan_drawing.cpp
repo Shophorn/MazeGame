@@ -64,7 +64,7 @@ internal void fsvulkan_reset_uniform_buffer(VulkanContext & context)
 	context.modelUniformBuffer.used = 0;
 }
 
-internal void fsvulkan_drawing_update_camera(VulkanContext * context, Camera const * camera)
+internal void graphics_drawing_update_camera(VulkanContext * context, Camera const * camera)
 {
 	FSVulkanCameraUniformBuffer * pUbo = context->persistentMappedCameraUniformBufferMemory[context->virtualFrameIndex];
 
@@ -72,7 +72,7 @@ internal void fsvulkan_drawing_update_camera(VulkanContext * context, Camera con
 	pUbo->projection 	= camera_projection_matrix(camera);
 }
 
-internal void fsvulkan_drawing_update_lighting(VulkanContext * context, Light const * light, Camera const * camera, v3 ambient)
+internal void graphics_drawing_update_lighting(VulkanContext * context, Light const * light, Camera const * camera, v3 ambient)
 {
 	FSVulkanLightingUniformBuffer * lightPtr = context->persistentMappedLightingUniformBufferMemory[context->virtualFrameIndex];
 
@@ -103,13 +103,13 @@ internal void fsvulkan_drawing_update_lighting(VulkanContext * context, Light co
 	pUbo->shadowTransitionDistance 	= light->shadowTransitionDistance;
 }
 
-internal void fsvulkan_drawing_update_hdr_settings(VulkanContext * context, HdrSettings const * hdrSettings)
+internal void graphics_drawing_update_hdr_settings(VulkanContext * context, HdrSettings const * hdrSettings)
 {
 	context->hdrSettings.exposure = hdrSettings->exposure;
 	context->hdrSettings.contrast = hdrSettings->contrast;
 }
 
-internal void fsvulkan_drawing_prepare_frame(VulkanContext * context)
+internal void graphics_drawing_prepare_frame(VulkanContext * context)
 {
 	AssertMsg((context->canDraw == false), "Invalid call to prepare_drawing() when finish_drawing() has not been called.")
 	context->canDraw = true;
@@ -185,7 +185,7 @@ internal void fsvulkan_drawing_prepare_frame(VulkanContext * context)
 	vkCmdBindPipeline(frame->commandBuffers.offscreen, VK_PIPELINE_BIND_POINT_GRAPHICS, context->shadowPipeline);
 }
 
-internal void fsvulkan_drawing_finish_frame(VulkanContext * context)
+internal void graphics_drawing_finish_frame(VulkanContext * context)
 {
 	Assert(context->canDraw);
 	context->canDraw = false;
@@ -357,7 +357,7 @@ internal void fsvulkan_drawing_finish_frame(VulkanContext * context)
 	VkResult result = vkQueuePresentKHR(context->presentQueue, &presentInfo);
 	if (result != VK_SUCCESS)
 	{
-		logVulkan() << FILE_ADDRESS << "Present result = " << fsvulkan_result_string(result);
+		logVulkan(1, FILE_ADDRESS, "Present result = ", fsvulkan_result_string(result));
 	}
 
 	/// ADVANCE VIRTUAL FRAME INDEX
@@ -376,7 +376,7 @@ internal void fsvulkan_drawing_finish_frame(VulkanContext * context)
 	}
 }
 
-internal void fsvulkan_drawing_draw_model(VulkanContext * context, ModelHandle model, m44 transform, bool32 castShadow, m44 const * bones, u32 bonesCount)
+internal void graphics_draw_model(VulkanContext * context, ModelHandle model, m44 transform, bool32 castShadow, m44 const * bones, u32 bonesCount)
 {
 	Assert(context->canDraw);
 
@@ -475,7 +475,7 @@ internal void fsvulkan_drawing_draw_model(VulkanContext * context, ModelHandle m
 // 	return context->persistentMappedLeafBufferMemory;
 // }
 
-// internal void fsvulkan_drawing_draw_leaves(VulkanContext * context, s64 count, s64 bufferOffset)
+// internal void graphics_draw_leaves(VulkanContext * context, s64 count, s64 bufferOffset)
 // {
 // 	// bind camera
 // 	// bind material
@@ -487,7 +487,7 @@ internal void fsvulkan_drawing_draw_model(VulkanContext * context, ModelHandle m
 // 	vkCmdDraw(commandBuffer, 4, count, 0, 0);
 // }
 
-internal void fsvulkan_drawing_draw_leaves(	VulkanContext * context,
+internal void graphics_draw_leaves(	VulkanContext * context,
 											s32 instanceCount,
 											m44 const * instanceTransforms,
 											s32 colourIndex,
@@ -576,7 +576,7 @@ internal void fsvulkan_drawing_draw_leaves(	VulkanContext * context,
 	vkCmdDraw(frame->commandBuffers.offscreen, leafVertexCount, instanceCount, 0, 0);
 }
 
-internal void fsvulkan_drawing_draw_meshes(VulkanContext * context, s32 count, m44 const * transforms, MeshHandle meshHandle, MaterialHandle materialHandle)
+internal void graphics_draw_meshes(VulkanContext * context, s32 count, m44 const * transforms, MeshHandle meshHandle, MaterialHandle materialHandle)
 {
 	Assert(count > 0 && "Vulkan cannot map memory of size 0, and this function should no be called for 0 meshes");
 	Assert(context->canDraw);
@@ -686,7 +686,7 @@ internal void fsvulkan_drawing_draw_meshes(VulkanContext * context, s32 count, m
 	} 
 }
 
-internal void fsvulkan_drawing_draw_procedural_mesh(VulkanContext * context,
+internal void graphics_draw_procedural_mesh(VulkanContext * context,
 													s32 vertexCount, Vertex const * vertices,
 													s32 indexCount, u16 const * indices,
 													m44 transform, MaterialHandle materialHandle)
@@ -784,7 +784,7 @@ internal void fsvulkan_drawing_draw_procedural_mesh(VulkanContext * context,
 	vkCmdDrawIndexed(frame->commandBuffers.offscreen, indexCount, 1, 0, 0, 0);
 }
 
-internal void fsvulkan_drawing_draw_lines(VulkanContext * context, s32 pointCount, v3 const * points, v4 color)
+internal void graphics_draw_lines(VulkanContext * context, s32 pointCount, v3 const * points, v4 color)
 {
 
 	// Note(Leo): call prepare_drawing() first
@@ -819,7 +819,7 @@ internal void fsvulkan_drawing_draw_lines(VulkanContext * context, s32 pointCoun
 	vkCmdDraw(commandBuffer, pointCount, 1, 0, 0);
 }
 
-internal void fsvulkan_drawing_draw_screen_rects(VulkanContext * context, s32 count, ScreenRect const * rects, GuiTextureHandle textureHandle, v4 color)
+internal void graphics_draw_screen_rects(VulkanContext * context, s32 count, ScreenRect const * rects, GuiTextureHandle textureHandle, v4 color)
 {
 	// /*
 	// vulkan bufferless drawing

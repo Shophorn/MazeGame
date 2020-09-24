@@ -1,19 +1,6 @@
 #if !defined HACKED_WIN_ERRORS_TO_STRING_HPP
 
-#include <string>
-#include <sstream>
-
-template<typename ValueType>
-static std::string
-UnsupportedValue(const char * messge, ValueType value)
-{
-    std::stringstream ss;
-    ss << messge << ": " << value;
-    return ss.str();
-}
-
-internal char const * 
-WinApiWaveFormatTagString(WORD value)
+internal char const * WinApiWaveFormatTagString(WORD value)
 {
     switch (value)
     {
