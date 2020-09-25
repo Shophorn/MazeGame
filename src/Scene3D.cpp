@@ -122,8 +122,260 @@ enum MenuView : s32
 	MENU_SAVE_COMPLETE,
 };
 
+enum MeshAssetId : s32
+{
+	MESH_ASSET_CHARACTER,
+	MESH_ASSET_RACCOON,
+	MESH_ASSET_ROBOT,
+	MESH_ASSET_SKYSPHERE,
+	MESH_ASSET_TOTEM,
+	MESH_ASSET_SMALL_POT,
+	MESH_ASSET_BIG_POT,
+	MESH_ASSET_SEED,
+	MESH_ASSET_WATER_DROP,
+	MESH_ASSET_TRAIN,
+
+	MESH_ASSET_COUNT
+};
+
+enum TextureAssetId : s32
+{
+	TEXTURE_ASSET_GROUND_ALBEDO,
+	TEXTURE_ASSET_TILES_ALBEDO,
+	TEXTURE_ASSET_RED_TILES_ALBEDO,
+	TEXTURE_ASSET_SEED_ALBEDO,
+	TEXTURE_ASSET_BARK_ALBEDO,
+	TEXTURE_ASSET_RACCOON_ALBEDO,
+	TEXTURE_ASSET_ROBOT_ALBEDO,
+
+	TEXTURE_ASSET_LEAVES_MASK,
+
+	TEXTURE_ASSET_GROUND_NORMAL,
+	TEXTURE_ASSET_TILES_NORMAL,
+	TEXTURE_ASSET_BARK_NORMAL,
+	TEXTURE_ASSET_ROBOT_NORMAL,
+
+	TEXTURE_ASSET_WHITE,
+	TEXTURE_ASSET_BLACK,
+	TEXTURE_ASSET_FLAT_NORMAL,
+	TEXTURE_ASSET_WATER_BLUE,
+
+	TEXTURE_ASSET_COUNT
+};
+
+enum MaterialAssetId : s32
+{
+	MATERIAL_ASSET_GROUND,
+	MATERIAL_ASSET_ENVIRONMENT,
+	MATERIAL_ASSET_SKY,
+	MATERIAL_ASSET_CHARACTER,
+	MATERIAL_ASSET_SEED,
+	MATERIAL_ASSET_TREE,
+	MATERIAL_ASSET_WATER,
+	MATERIAL_ASSET_RACCOON,
+	MATERIAL_ASSET_ROBOT,
+	MATERIAL_ASSET_SEA,
+	MATERIAL_ASSET_LEAVES,
+
+	MATERIAL_ASSET_COUNT	
+};
+
+struct MeshLoadInfo
+{
+	char const * filename;
+	char const * gltfNodeName;
+};
+
+struct TextureLoadInfo
+{
+	TextureFormat 		format;
+	TextureAddressMode 	addressMode;
+	
+	bool generateAssetData;
+	
+	char const * filename;
+	
+	v4 generatedTextureColour;	
+};
+
+struct MaterialLoadInfo
+{
+	static constexpr int max_texture_count = 5;
+
+	GraphicsPipeline 	pipeline;
+	TextureAssetId 		textures[max_texture_count];
+};
+
+struct GameAssets
+{
+	MeshHandle 			meshes [MESH_ASSET_COUNT];
+	MeshLoadInfo 		meshAssetLoadInfo [MESH_ASSET_COUNT];
+
+	TextureHandle 		textures [TEXTURE_ASSET_COUNT];
+	TextureLoadInfo 	textureLoadInfos [TEXTURE_ASSET_COUNT];	
+
+	MaterialHandle 		materials [MATERIAL_ASSET_COUNT];
+	MaterialLoadInfo 	materialLoadInfos [MATERIAL_ASSET_COUNT];
+};
+
+internal GameAssets init_game_assets(MemoryArena & allocator)
+{
+	// Note(Leo): apparently this does indeed set MeshHandles to -1, I do not know why
+	GameAssets assets = {};
+
+	assets.meshAssetLoadInfo[MESH_ASSET_RACCOON] 	= {"assets/models/raccoon.glb", "raccoon"};
+	assets.meshAssetLoadInfo[MESH_ASSET_ROBOT] 		= {"assets/models/Robot53.glb", "model_rigged"};
+	assets.meshAssetLoadInfo[MESH_ASSET_CHARACTER] 	= {"assets/models/cube_head_v4.glb", "cube_head"};
+	assets.meshAssetLoadInfo[MESH_ASSET_SKYSPHERE] 	= {"assets/models/skysphere.glb", "skysphere"};
+	assets.meshAssetLoadInfo[MESH_ASSET_TOTEM] 		= {"assets/models/totem.glb", "totem"};
+	assets.meshAssetLoadInfo[MESH_ASSET_SMALL_POT] 	= {"assets/models/scenery.glb", "small_pot"};
+	assets.meshAssetLoadInfo[MESH_ASSET_BIG_POT] 	= {"assets/models/scenery.glb", "big_pot"};
+	assets.meshAssetLoadInfo[MESH_ASSET_SEED] 		= {"assets/models/scenery.glb", "acorn"};
+	assets.meshAssetLoadInfo[MESH_ASSET_WATER_DROP] = {"assets/models/scenery.glb", "water_drop"};
+	assets.meshAssetLoadInfo[MESH_ASSET_TRAIN] 		= {"assets/models/train.glb", "train"};
+
+	auto load_from_file = [](char const * filename, TextureFormat format = {}, TextureAddressMode addressMode = {}) -> TextureLoadInfo
+	{
+		TextureLoadInfo result 		= {};
+		result.generateAssetData 	= false;
+		result.filename 			= filename;
+		result.format 				= format;
+		result.addressMode 			= addressMode;
+		return result;
+	};
+
+	auto load_generated = [](v4 colour, TextureFormat format = {}, TextureAddressMode addressMode = {}) -> TextureLoadInfo
+	{
+		TextureLoadInfo result 			= {};
+		result.generateAssetData 		= true;
+		result.generatedTextureColour 	= colour;
+		result.format 					= format;
+		result.addressMode 				= addressMode;
+		return result;
+	};
+
+	assets.textureLoadInfos[TEXTURE_ASSET_GROUND_ALBEDO] 	= load_from_file("assets/textures/ground.png");
+	assets.textureLoadInfos[TEXTURE_ASSET_TILES_ALBEDO] 	= load_from_file("assets/textures/tiles.png");
+	assets.textureLoadInfos[TEXTURE_ASSET_RED_TILES_ALBEDO] = load_from_file("assets/textures/tiles_red.png");
+	assets.textureLoadInfos[TEXTURE_ASSET_SEED_ALBEDO] 		= load_from_file("assets/textures/Acorn_albedo.png");
+	assets.textureLoadInfos[TEXTURE_ASSET_BARK_ALBEDO]		= load_from_file("assets/textures/bark.png");
+	assets.textureLoadInfos[TEXTURE_ASSET_RACCOON_ALBEDO]	= load_from_file("assets/textures/RaccoonAlbedo.png");
+	assets.textureLoadInfos[TEXTURE_ASSET_ROBOT_ALBEDO] 	= load_from_file("assets/textures/Robot_53_albedo_4k.png");
+	
+	assets.textureLoadInfos[TEXTURE_ASSET_LEAVES_MASK]			= load_from_file("assets/textures/leaf_mask.png");
+
+	assets.textureLoadInfos[TEXTURE_ASSET_GROUND_NORMAL] 	= load_from_file("assets/textures/ground_normal.png", TEXTURE_FORMAT_U8_LINEAR);
+	assets.textureLoadInfos[TEXTURE_ASSET_TILES_NORMAL] 	= load_from_file("assets/textures/tiles_normal.png", TEXTURE_FORMAT_U8_LINEAR);
+	assets.textureLoadInfos[TEXTURE_ASSET_BARK_NORMAL]		= load_from_file("assets/textures/bark_normal.png", TEXTURE_FORMAT_U8_LINEAR);
+	assets.textureLoadInfos[TEXTURE_ASSET_ROBOT_NORMAL] 	= load_from_file("assets/textures/Robot_53_normal_4k.png");
+
+	assets.textureLoadInfos[TEXTURE_ASSET_WHITE] 		= load_generated(colour_white, TEXTURE_FORMAT_U8_SRGB);
+	assets.textureLoadInfos[TEXTURE_ASSET_BLACK] 		= load_generated(colour_black, TEXTURE_FORMAT_U8_SRGB);
+	assets.textureLoadInfos[TEXTURE_ASSET_FLAT_NORMAL] 	= load_generated(colour_bump, TEXTURE_FORMAT_U8_LINEAR);
+	assets.textureLoadInfos[TEXTURE_ASSET_WATER_BLUE] 	= load_generated(colour_rgb_alpha(colour_aqua_blue.rgb, 0.4), TEXTURE_FORMAT_U8_SRGB);
+
+	// ----------- MATERIALS -------------------
+
+	assets.materialLoadInfos[MATERIAL_ASSET_GROUND] 		= {GRAPHICS_PIPELINE_NORMAL, TEXTURE_ASSET_RED_TILES_ALBEDO, TEXTURE_ASSET_GROUND_NORMAL, TEXTURE_ASSET_BLACK};
+	assets.materialLoadInfos[MATERIAL_ASSET_ENVIRONMENT] 	= {GRAPHICS_PIPELINE_NORMAL, TEXTURE_ASSET_TILES_ALBEDO, TEXTURE_ASSET_TILES_NORMAL, TEXTURE_ASSET_BLACK};
+	assets.materialLoadInfos[MATERIAL_ASSET_SEED] 			= {GRAPHICS_PIPELINE_NORMAL, TEXTURE_ASSET_SEED_ALBEDO, TEXTURE_ASSET_FLAT_NORMAL, TEXTURE_ASSET_BLACK};
+	assets.materialLoadInfos[MATERIAL_ASSET_TREE]			= {GRAPHICS_PIPELINE_NORMAL, TEXTURE_ASSET_BARK_ALBEDO, TEXTURE_ASSET_BARK_NORMAL, TEXTURE_ASSET_BLACK};
+	assets.materialLoadInfos[MATERIAL_ASSET_RACCOON] 		= {GRAPHICS_PIPELINE_NORMAL, TEXTURE_ASSET_RACCOON_ALBEDO, TEXTURE_ASSET_FLAT_NORMAL, TEXTURE_ASSET_BLACK};
+	assets.materialLoadInfos[MATERIAL_ASSET_ROBOT]			= {GRAPHICS_PIPELINE_NORMAL, TEXTURE_ASSET_ROBOT_ALBEDO, TEXTURE_ASSET_ROBOT_NORMAL, TEXTURE_ASSET_BLACK};
+	
+	assets.materialLoadInfos[MATERIAL_ASSET_CHARACTER] 		= {GRAPHICS_PIPELINE_ANIMATED, TEXTURE_ASSET_RED_TILES_ALBEDO, TEXTURE_ASSET_TILES_NORMAL, TEXTURE_ASSET_BLACK};
+	
+	assets.materialLoadInfos[MATERIAL_ASSET_WATER] 			= {GRAPHICS_PIPELINE_WATER, TEXTURE_ASSET_WATER_BLUE, TEXTURE_ASSET_FLAT_NORMAL, TEXTURE_ASSET_BLACK};
+	assets.materialLoadInfos[MATERIAL_ASSET_SEA] 			= {GRAPHICS_PIPELINE_WATER, TEXTURE_ASSET_WATER_BLUE, TEXTURE_ASSET_FLAT_NORMAL, TEXTURE_ASSET_BLACK};
+	
+	assets.materialLoadInfos[MATERIAL_ASSET_LEAVES] 		= {GRAPHICS_PIPELINE_LEAVES, TEXTURE_ASSET_LEAVES_MASK};
+
+	assets.materialLoadInfos[MATERIAL_ASSET_SKY] 			= {GRAPHICS_PIPELINE_SKYBOX, TEXTURE_ASSET_BLACK, TEXTURE_ASSET_BLACK};
+	
+
+
+
+	return assets;
+}
+
+internal MeshHandle assets_get_mesh(GameAssets & assets, MeshAssetId id)
+{
+	MeshHandle handle = assets.meshes[id];
+	
+	if (is_valid_handle(handle) == false)
+	{
+		auto file 			= read_gltf_file(*global_transientMemory, assets.meshAssetLoadInfo[id].filename);
+		auto assetData 		= load_mesh_glb(*global_transientMemory, file, assets.meshAssetLoadInfo[id].gltfNodeName);
+		assets.meshes[id] 	= graphics_memory_push_mesh(platformGraphics, &assetData);
+		handle 				= assets.meshes[id];
+	}
+
+	return handle;
+}
+
+internal TextureHandle assets_get_texture(GameAssets & assets, TextureAssetId id)
+{
+	// Todo(Leo): textures are copied too many times: from file to stb, from stb to TextureAsset, from TextureAsset to graphics.
+	TextureHandle handle = assets.textures[id];
+
+	if (is_valid_handle(handle) == false)
+	{
+		TextureLoadInfo & loadInfo = assets.textureLoadInfos[id];
+		TextureAsset assetData;
+		if (loadInfo.generateAssetData == false)
+		{
+			assetData = load_texture_asset(*global_transientMemory, loadInfo.filename);
+		}
+		else
+		{
+			u32 textureColour 	= colour_rgba_u32(loadInfo.generatedTextureColour);
+			assetData 			= make_texture_asset(&textureColour, 1, 1, 4);
+		}
+
+		assetData.format 		= loadInfo.format;
+		assetData.addressMode 	= loadInfo.addressMode;
+		assets.textures[id] 	= graphics_memory_push_texture(platformGraphics, &assetData);
+		handle 					= assets.textures[id];
+	}
+
+	return handle;
+}
+
+internal MaterialHandle assets_get_material(GameAssets & assets, MaterialAssetId id)
+{
+	MaterialHandle handle = assets.materials[id];
+
+	if (is_valid_handle(handle) == false)
+	{
+		MaterialLoadInfo & loadInfo = assets.materialLoadInfos[id];
+
+		s32 textureCount = 3;
+		if (loadInfo.pipeline == GRAPHICS_PIPELINE_SKYBOX)
+		{
+			textureCount = 2;
+		}
+		else if (loadInfo.pipeline == GRAPHICS_PIPELINE_LEAVES)
+		{
+			textureCount = 1;
+		}
+
+		TextureHandle textures [loadInfo.max_texture_count] = {};
+		for (s32 i = 0; i < textureCount; ++i)
+		{
+			textures[i] = assets_get_texture(assets, loadInfo.textures[i]);
+		}
+
+		handle 					= graphics_memory_push_material(platformGraphics, loadInfo.pipeline, textureCount, textures);
+		assets.materials[id] 	= handle;
+	}
+	return handle;
+}
+
 struct Scene3d
 {
+	GameAssets assets;
+
+
 	SkySettings skySettings;
 
 	// ---------------------------------------
@@ -243,11 +495,6 @@ struct Scene3d
 	v3 trainCurrentDirection;
 
 	// ------------------------------------------------------
-
-	s32 			cubePyramidCount;
-	m44 *			cubePyramidTransforms;
-	MeshHandle 		cubePyramidMesh;
-	MaterialHandle 	cubePyramidMaterial;
 
 	// Note(Leo): There are multiple mesh handles here
 	s32 			terrainCount;
@@ -494,6 +741,8 @@ struct SnapOnGround
 };
 
 
+// Todo(Leo): add this to syntax higlight, so that 'GAME UPDATE' is different color
+/// ------------------ GAME UPDATE -------------------------
 internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, PlatformTime const & time)
 {
 	Scene3d * scene = reinterpret_cast<Scene3d*>(scenePtr);
@@ -1143,8 +1392,6 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 	/// DRAW STATIC SCENERY
 	{
-		graphics_draw_meshes(platformGraphics, scene->cubePyramidCount, scene->cubePyramidTransforms, scene->cubePyramidMesh, scene->cubePyramidMaterial);
-
 		for(s32 i = 0; i < scene->terrainCount; ++i)
 		{
 			graphics_draw_meshes(platformGraphics, 1, scene->terrainTransforms + i, scene->terrainMeshes[i], scene->terrainMaterial);
@@ -1426,6 +1673,8 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 
 	// ----------------------------------------------------------------------------------
 
+	scene->assets = init_game_assets(persistentMemory);
+
 	// TODO(Leo): these should probably all go away
 	// Note(Leo): amounts are SWAG, rethink.
 	scene->transforms 			= allocate_array<Transform3D>(persistentMemory, 1200);
@@ -1444,151 +1693,17 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 	// ----------------------------------------------------------------------------------
 
 	{
+		// Todo(Leo): gui assets to systemtic asset things also
 		TextureAsset testGuiAsset 	= load_texture_asset(*global_transientMemory, "assets/textures/tiles.png");
 		scene->guiPanelImage 		= graphics_memory_push_gui_texture(platformGraphics, &testGuiAsset);
 		scene->guiPanelColour 		= colour_rgb_alpha(colour_aqua_blue.rgb, 0.5);
 	}
 
-	struct MaterialCollection {
-		MaterialHandle character;
-		MaterialHandle environment;
-		MaterialHandle ground;
-	} materials;
 
-	auto load_and_push_texture = [](const char * path) -> TextureHandle
-	{
-		auto asset = load_texture_asset(*global_transientMemory, path);
-		auto result = graphics_memory_push_texture(platformGraphics, &asset);
-		return result;
-	};
-
-	u32 whitePixelColour		= 0xffffffff;
-	u32 blackPixelColour 		= 0xff000000;
-	u32 waterBluePixelColour 	= colour_rgb_alpha_32(colour_aqua_blue.rgb, 0.4);
-	u32 seedBrownPixelColour 	= 0xff003399;
-
-	TextureAsset whiteTextureAsset 			= make_texture_asset(&whitePixelColour, 1, 1, 4);
-	TextureAsset blackTextureAsset	 		= make_texture_asset(&blackPixelColour, 1, 1, 4);
-	TextureAsset waterBlueTextureAsset 		= make_texture_asset(&waterBluePixelColour, 1, 1, 4);
-	TextureAsset seedBrownTextureAsset 		= make_texture_asset(&seedBrownPixelColour, 1, 1, 4);
-
-	TextureHandle whiteTexture 			= graphics_memory_push_texture(platformGraphics, &whiteTextureAsset);
-	TextureHandle blackTexture 			= graphics_memory_push_texture(platformGraphics, &blackTextureAsset);
-	TextureHandle waterTextureHandle	= graphics_memory_push_texture(platformGraphics, &waterBlueTextureAsset);
-	TextureHandle seedTextureHandle		= graphics_memory_push_texture(platformGraphics, &seedBrownTextureAsset);
-
-	u32 neutralBumpPixelColour 				= colour_rgba_u32(colour_bump);
-	TextureAsset neutralBumpTextureAsset 	= make_texture_asset(&neutralBumpPixelColour, 1, 1, 4);
-	neutralBumpTextureAsset.addressMode 	= TEXTURE_ADDRESS_MODE_REPEAT;
-	neutralBumpTextureAsset.format 			= TEXTURE_FORMAT_U8_LINEAR;
-
-	TextureHandle neutralBumpTexture 	= graphics_memory_push_texture(platformGraphics, &neutralBumpTextureAsset);
-
-	auto push_material = [](GraphicsPipeline pipeline, TextureHandle a, TextureHandle b, TextureHandle c) -> MaterialHandle
-	{
-		TextureHandle textures [] = {a, b, c};
-		MaterialHandle handle = graphics_memory_push_material(platformGraphics, pipeline, 3, textures);
-		return handle;
-	};
-
-	auto push_normal_map_texture = [](char const * path)
-	{
-		auto asset 		= load_texture_asset(*global_transientMemory, path);
-		asset.format 	= TEXTURE_FORMAT_U8_LINEAR;
-		auto texture 	= graphics_memory_push_texture(platformGraphics, &asset);
-		return texture;
-	};
-
-	// Create MateriaLs
-	{
-		auto tilesAlbedo 	= load_and_push_texture("assets/textures/tiles.png");
-		auto groundAlbedo 	= load_and_push_texture("assets/textures/ground.png");
-		auto redTilesAlbedo	= load_and_push_texture("assets/textures/tiles_red.png");
-		auto faceTexture 	= load_and_push_texture("assets/textures/texture.jpg");
-
-		// auto groundNormal 	= load_and_push_texture("assets/textures/ground_normal.png");
-		// auto groundNormalAsset 		= load_texture_asset(*global_transientMemory, "assets/textures/ground_normal.png");
-		// groundNormalAsset.format 	= TEXTURE_FORMAT_U8_LINEAR;
-		// auto groundNormal 			= graphics_memory_push_texture(platformGraphics, &groundNormalAsset);
-		auto groundNormal = push_normal_map_texture("assets/textures/ground_normal.png");
-
-		// auto tilesNormal 	= load_and_push_texture("assets/textures/tiles_normal.png");
-		// auto tilesNormalAsset 		= load_texture_asset(*global_transientMemory, "assets/textures/tiles_normal.png");
-		// tilesNormalAsset.format 	= TEXTURE_FORMAT_U8_LINEAR;
-		// auto tilesNormal 			= graphics_memory_push_texture(platformGraphics, &groundNormalAsset);
-		auto tilesNormal = push_normal_map_texture("assets/textures/tiles_normal.png");
-
-
-
-		materials =
-		{
-			.character 		= push_material(GRAPHICS_PIPELINE_ANIMATED, redTilesAlbedo, tilesNormal, blackTexture),
-			.environment 	= push_material(GRAPHICS_PIPELINE_NORMAL, tilesAlbedo, tilesNormal, blackTexture),
-			.ground 		= push_material(GRAPHICS_PIPELINE_NORMAL, groundAlbedo, groundNormal, blackTexture),
-		};
-		
-		{
-			scene->niceSkyGradient.capacity = 10;
-			scene->niceSkyGradient.count 	= 4;
-			scene->niceSkyGradient.colours 	= push_memory<v4>(persistentMemory, scene->niceSkyGradient.capacity, ALLOC_CLEAR);
-			scene->niceSkyGradient.times 	= push_memory<f32>(persistentMemory, scene->niceSkyGradient.capacity, ALLOC_CLEAR);
-
-			scene->niceSkyGradient.colours[0] = {0.11, 0.07, 0.25, 	1.0};
-			scene->niceSkyGradient.colours[1] = {0.4, 0.9, 1.2,		1.0};
-			scene->niceSkyGradient.colours[2] = {0.8, 0.99, 1.2,	1.0};
-			scene->niceSkyGradient.colours[3] = {2,2,2, 			1.0};
-
-			scene->niceSkyGradient.times[0] = 0.1;
-			scene->niceSkyGradient.times[1] = 0.3;
-			scene->niceSkyGradient.times[2] = 0.9;
-			scene->niceSkyGradient.times[3] = 0.998;
-
-			TextureAsset niceSkyGradientAsset 	= generate_gradient(*global_transientMemory, 128, scene->niceSkyGradient);
-			niceSkyGradientAsset.addressMode 	= TEXTURE_ADDRESS_MODE_CLAMP;
-			scene->niceSkyGradientTexture		= graphics_memory_push_texture(platformGraphics, &niceSkyGradientAsset);
-
-			////------------------------------------------------------------------------------------------
-
-			scene->meanSkyGradient.capacity = 10;
-			scene->meanSkyGradient.count 	= 5;
-			scene->meanSkyGradient.colours 	= push_memory<v4>(persistentMemory, scene->meanSkyGradient.capacity, ALLOC_CLEAR);
-			scene->meanSkyGradient.times 	= push_memory<f32>(persistentMemory, scene->meanSkyGradient.capacity, ALLOC_CLEAR);
-
-			scene->meanSkyGradient.colours[0] = {0.1,0.05,0.05,		1.0};
-			scene->meanSkyGradient.colours[1] = {1.1, 0.1, 0.05,	1.0};
-			scene->meanSkyGradient.colours[2] = {1.1, 0.1, 0.05,	1.0};
-			scene->meanSkyGradient.colours[3] = {1.4, 0.95, 0.8,	1.0};
-			scene->meanSkyGradient.colours[4] = {2, 1.2, 1.2, 		1.0};
-
-			scene->meanSkyGradient.times[0] = 0.1;
-			scene->meanSkyGradient.times[1] = 0.3;
-			scene->meanSkyGradient.times[2] = 0.7;
-			scene->meanSkyGradient.times[3] = 0.9;
-			scene->meanSkyGradient.times[4] = 0.998;
-
-			TextureAsset meanSkyGradientAsset 	= generate_gradient(*global_transientMemory, 128, scene->meanSkyGradient);
-			meanSkyGradientAsset.addressMode 	= TEXTURE_ADDRESS_MODE_CLAMP;
-			scene->meanSkyGradientTexture		= graphics_memory_push_texture(platformGraphics, &meanSkyGradientAsset);
-
-			TextureHandle skyGradientTextures [] 	= {scene->niceSkyGradientTexture, scene->meanSkyGradientTexture};
-
-			scene->skyMaterial 						= graphics_memory_push_material(platformGraphics, GRAPHICS_PIPELINE_SKYBOX, 2, skyGradientTextures);
-		}
-	}
-
-	auto push_model = [](MeshHandle mesh, MaterialHandle material) -> ModelHandle
-	{
-		auto handle = graphics_memory_push_model(platformGraphics, mesh, material);
-		return handle;
-	};
-
-	// Skybox
-	{
-		// auto meshAsset 	= create_skybox_mesh(global_transientMemory);
-		auto meshAsset 	= load_mesh_glb(*global_transientMemory, read_gltf_file(*global_transientMemory, "assets/models/skysphere.glb"), "skysphere");
-		auto meshHandle = graphics_memory_push_mesh(platformGraphics, &meshAsset);
-		scene->skybox 	= push_model(meshHandle, scene->skyMaterial);
-	}
+	// Skysphere
+	scene->skybox = graphics_memory_push_model(	platformGraphics,
+												assets_get_mesh(scene->assets, MESH_ASSET_SKYSPHERE),
+												assets_get_material(scene->assets, MATERIAL_ASSET_SKY));
 
 	// Characters
 	{
@@ -1596,11 +1711,10 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 
 		auto const gltfFile 		= read_gltf_file(*global_transientMemory, "assets/models/cube_head_v4.glb");
 
-		// Exporting animations from blender is not easy, this file has working animations, previous has proper model
+		// Todo(Leo): Exporting animations from blender is not easy, this file has working animations, previous has proper model
 		auto const animationFile 	= read_gltf_file(*global_transientMemory, "assets/models/cube_head_v3.glb");
 
-		auto girlMeshAsset 	= load_mesh_glb(*global_transientMemory, gltfFile, "cube_head");
-		auto girlMesh 		= graphics_memory_push_mesh(platformGraphics, &girlMeshAsset);
+		auto girlMesh = assets_get_mesh(scene->assets, MESH_ASSET_CHARACTER);
 
 		// --------------------------------------------------------------------
 	
@@ -1647,7 +1761,7 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 		// Note(Leo): take the reference here, so we can easily copy this down below.
 		auto & cubeHeadSkeleton = scene->playerSkeletonAnimator.skeleton;
 
-		auto model = push_model(girlMesh, materials.character);
+		auto model = graphics_memory_push_model(platformGraphics, girlMesh, assets_get_material(scene->assets, MATERIAL_ASSET_CHARACTER));
 		scene->playerAnimaterRenderer = make_animated_renderer(&scene->playerCharacterTransform, &cubeHeadSkeleton, model);
 
 		// --------------------------------------------------------------------
@@ -1681,7 +1795,7 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 				.animationCount = CharacterAnimations::ANIMATION_COUNT
 			};
 
-			auto model = push_model(girlMesh, materials.character); 
+			auto model = graphics_memory_push_model(platformGraphics, girlMesh, assets_get_material(scene->assets, MATERIAL_ASSET_CHARACTER)); 
 			scene->noblePersonAnimatedRenderer = make_animated_renderer(&scene->noblePersonTransform, &scene->noblePersonSkeletonAnimator.skeleton, model);
 
 		}
@@ -1691,8 +1805,6 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 	scene->playerCamera 			= {};
 	scene->playerCamera.baseOffset 	= {0, 0, 2};
 	scene->playerCamera.distance 	= 5;
-
-	auto sceneryFile 		= read_gltf_file(*global_transientMemory, "assets/models/scenery.glb");
 
 	// Environment
 	{
@@ -1712,6 +1824,7 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 			push_memory_checkpoint(*global_transientMemory);
 			s32 heightmapResolution = 1024;
 
+			// todo(Leo): put to asset system thing
 			auto heightmapTexture 	= load_texture_asset(*global_transientMemory, "assets/textures/heightmap_island.png");
 			auto heightmap 			= make_heightmap(&persistentMemory, &heightmapTexture, heightmapResolution, mapSize, minTerrainElevation, maxTerrainElevation);
 
@@ -1721,7 +1834,7 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 			scene->terrainCount 		= terrainCount;
 			scene->terrainTransforms 	= push_memory<m44>(persistentMemory, terrainCount, ALLOC_NO_CLEAR);
 			scene->terrainMeshes 		= push_memory<MeshHandle>(persistentMemory, terrainCount, ALLOC_NO_CLEAR);
-			scene->terrainMaterial 		= materials.ground;
+			scene->terrainMaterial 		= assets_get_material(scene->assets, MATERIAL_ASSET_GROUND);
 
 			/// GENERATE GROUND MESH
 			{
@@ -1756,9 +1869,9 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 
 			auto transform = scene->transforms.push_return_pointer({{-mapSize / 2, -mapSize / 2, 0}});
 
+			// Todo(Leo): use better(dumber but smarter) thing to get rid of std move
 			scene->collisionSystem.terrainCollider 	= std::move(heightmap);
 			scene->collisionSystem.terrainTransform = transform;
-
 
 			MeshAsset seaMeshAsset = {};
 			{
@@ -1776,19 +1889,18 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 				seaMeshAsset.indexType = IndexType::UInt16;
 			}
 			mesh_generate_tangents(seaMeshAsset);
-			scene->seaMesh 			= graphics_memory_push_mesh(platformGraphics, &seaMeshAsset);
-			scene->seaMaterial 		= push_material(GRAPHICS_PIPELINE_NORMAL, waterTextureHandle, neutralBumpTexture, blackTexture);
-			scene->seaTransform 	= transform_matrix({0,0,0}, identity_quaternion, {mapSize, mapSize, 1});
+			scene->seaMesh 		= graphics_memory_push_mesh(platformGraphics, &seaMeshAsset);
+			scene->seaMaterial 	= assets_get_material(scene->assets, MATERIAL_ASSET_SEA);
+			scene->seaTransform = transform_matrix({0,0,0}, identity_quaternion, {mapSize, mapSize, 1});
 		}
 
 		/// TOTEMS
 		{
-			auto totemMesh 			= load_mesh_glb(*global_transientMemory, read_gltf_file(*global_transientMemory, "assets/models/totem.glb"), "totem");
-			auto totemMeshHandle 	= graphics_memory_push_mesh(platformGraphics, &totemMesh);
-			auto model = push_model(totemMeshHandle, materials.environment);
+			auto totemMesh 	= assets_get_mesh(scene->assets, MESH_ASSET_TOTEM);
+			auto model 		= graphics_memory_push_model(platformGraphics, totemMesh, assets_get_material(scene->assets, MATERIAL_ASSET_ENVIRONMENT));
 
 			Transform3D * transform = scene->transforms.push_return_pointer({});
-			transform->position.z = get_terrain_height(scene->collisionSystem, transform->position.xy) - 0.5f;
+			transform->position.z 	= get_terrain_height(scene->collisionSystem, transform->position.xy) - 0.5f;
 			scene->renderers.push({transform, model});
 			push_box_collider(	scene->collisionSystem,
 								v3 {1.0, 1.0, 5.0},
@@ -1846,14 +1958,8 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 				}
 			}
 
-			auto raccoonGltfFile 	= read_gltf_file(*global_transientMemory, "assets/models/raccoon.glb");
-			auto raccoonMeshAsset 	= load_mesh_glb(*global_transientMemory, raccoonGltfFile, "raccoon");
-			scene->raccoonMesh 		= graphics_memory_push_mesh(platformGraphics, &raccoonMeshAsset);
-
-			auto albedoTexture = load_and_push_texture("assets/textures/RaccoonAlbedo.png");
-			TextureHandle textures [] =	{albedoTexture, neutralBumpTexture, blackTexture};
-
-			scene->raccoonMaterial = graphics_memory_push_material(platformGraphics, GRAPHICS_PIPELINE_NORMAL, 3, textures);
+			scene->raccoonMesh 		= assets_get_mesh(scene->assets, MESH_ASSET_RACCOON);
+			scene->raccoonMaterial	= assets_get_material(scene->assets, MATERIAL_ASSET_RACCOON);
 
 
 
@@ -1866,7 +1972,7 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 			// 	.animationCount = CharacterAnimations::ANIMATION_COUNT
 			// };
 
-			// auto model = push_model(girlMesh, materials.character); 
+			// auto model = graphics_memory_push_model(platformGraphics, girlMesh, materials.character); 
 			// scene->noblePersonAnimatedRenderer = make_animated_renderer(&scene->noblePersonTransform, &scene->noblePersonSkeletonAnimator.skeleton, model);
 
 		}
@@ -1883,32 +1989,25 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 								transform);
 		}
 
-		scene->monuments = scene3d_load_monuments(persistentMemory, materials.environment, scene->collisionSystem);
+		scene->monuments = scene3d_load_monuments(persistentMemory, assets_get_material(scene->assets, MATERIAL_ASSET_ENVIRONMENT), scene->collisionSystem);
 
 		// TEST ROBOT
 		{
-			v3 position 			= {21, 10, 0};
-			position.z 				= get_terrain_height(scene->collisionSystem, position.xy);
-			auto * transform 		= scene->transforms.push_return_pointer({.position = position});
+			v3 position 		= {21, 10, 0};
+			position.z 			= get_terrain_height(scene->collisionSystem, position.xy);
+			auto * transform 	= scene->transforms.push_return_pointer({.position = position});
 
-			char const * filename 	= "assets/models/Robot53.glb";
-			auto meshAsset 			= load_mesh_glb(*global_transientMemory, read_gltf_file(*global_transientMemory, filename), "model_rigged");	
-			auto mesh 				= graphics_memory_push_mesh(platformGraphics, &meshAsset);
+			auto mesh 		= assets_get_mesh(scene->assets, MESH_ASSET_ROBOT);
+			auto material 	= assets_get_material(scene->assets, MATERIAL_ASSET_ROBOT);
+			auto model 		= graphics_memory_push_model(platformGraphics, mesh, material);
 
-			auto albedo 			= load_and_push_texture("assets/textures/Robot_53_albedo_4k.png");
-			auto normal 			= push_normal_map_texture("assets/textures/Robot_53_normal_4k.png");
-			// auto normal 			= load_and_push_texture("assets/textures/Robot_53_normal_4k.png");
-			auto material 			= push_material(GRAPHICS_PIPELINE_NORMAL, albedo, normal, blackTexture);
-
-			auto model 				= push_model(mesh, material);
 			scene->renderers.push({transform, model});
 		}
 
 		/// SMALL SCENERY OBJECTS
 		{			
-			auto smallPotMeshAsset 	= load_mesh_glb(*global_transientMemory, sceneryFile, "small_pot");
-			scene->potMesh 			= graphics_memory_push_mesh(platformGraphics, &smallPotMeshAsset);
-			scene->potMaterial 		= materials.environment;
+			scene->potMesh 		= assets_get_mesh(scene->assets, MESH_ASSET_SMALL_POT);
+			scene->potMaterial 	= assets_get_material(scene->assets, MATERIAL_ASSET_ENVIRONMENT);
 
 			{
 				scene->potCapacity 			= 10;
@@ -1926,13 +2025,12 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 
 			// ----------------------------------------------------------------	
 
-			auto bigPotMeshAsset 	= load_mesh_glb(*global_transientMemory, sceneryFile, "big_pot");
-			auto bigPotMesh 		= graphics_memory_push_mesh(platformGraphics, &bigPotMeshAsset);
+			auto bigPotMesh = assets_get_mesh(scene->assets, MESH_ASSET_BIG_POT);
 
 			s32 bigPotCount = 5;
 			for (s32 i = 0; i < bigPotCount; ++i)
 			{
-				ModelHandle model 		= graphics_memory_push_model(platformGraphics, bigPotMesh, materials.environment);
+				ModelHandle model 		= graphics_memory_push_model(platformGraphics, bigPotMesh, assets_get_material(scene->assets, MATERIAL_ASSET_ENVIRONMENT));
 				Transform3D * transform = scene->transforms.push_return_pointer({13, 2.0f + i * 4.0f, 0});
 
 				transform->position.z 	= get_terrain_height(scene->collisionSystem, transform->position.xy);
@@ -1947,10 +2045,9 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 
 			/// WATERS
 			{
-				MeshAsset dropMeshAsset = load_mesh_glb(*global_transientMemory, sceneryFile, "water_drop");
-				scene->waterMesh 		= graphics_memory_push_mesh(platformGraphics, &dropMeshAsset);
+				scene->waterMesh = assets_get_mesh(scene->assets, MESH_ASSET_WATER_DROP);
 
-				TextureHandle waterTextures [] 	= {waterTextureHandle, neutralBumpTexture, blackTexture};
+				TextureHandle waterTextures [] 	= {assets_get_texture(scene->assets, TEXTURE_ASSET_WATER_BLUE), assets_get_texture(scene->assets, TEXTURE_ASSET_FLAT_NORMAL), assets_get_texture(scene->assets, TEXTURE_ASSET_BLACK)};
 				scene->waterMaterial 		= graphics_memory_push_material(platformGraphics, GRAPHICS_PIPELINE_WATER, 3, waterTextures);
 
 				{				
@@ -1973,48 +2070,10 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 
 		}
 
-		/// BIG SCENERY THINGS
-		{
-			auto file = read_gltf_file(*global_transientMemory, "assets/models/stonewalls.glb");
-
-			// Pyramid thing
-			{
-				auto meshAsset = load_mesh_glb(*global_transientMemory, file, "CubePyramid");
-				auto meshHandle = graphics_memory_push_mesh(platformGraphics, &meshAsset);
-
-				Array<BoxCollider> colliders = {};
-				auto transformsArray = load_all_transforms_glb(*global_transientMemory, file, "CubePyramid", &colliders);
-				scene->cubePyramidCount = transformsArray.count();
-
-				scene->cubePyramidTransforms = push_memory<m44>(persistentMemory, scene->cubePyramidCount, ALLOC_NO_CLEAR);
-				for (s32 i = 0; i < scene->cubePyramidCount; ++i)
-				{
-					scene->cubePyramidTransforms[i] = transform_matrix(transformsArray[i]);
-				}
-
-				scene->cubePyramidMesh = meshHandle;
-
-				auto textureAsset = load_texture_asset(*global_transientMemory, "assets/textures/concrete_XX.png");
-				auto texture = graphics_memory_push_texture(platformGraphics, &textureAsset);
-
-
-				TextureHandle textures [] = {texture, neutralBumpTexture, blackTexture};
-				scene->cubePyramidMaterial = graphics_memory_push_material(platformGraphics, GRAPHICS_PIPELINE_NORMAL, 3, textures);
-
-				for (auto collider : colliders)
-				{
-					scene->collisionSystem.staticBoxColliders.push({compute_collider_transform(collider),
-																	compute_inverse_collider_transform(collider)});
-				}
-			}
-		}
-
 		/// TRAIN
 		{
-			auto file 				= read_gltf_file(*global_transientMemory, "assets/models/train.glb");
-			auto meshAsset 			= load_mesh_glb(*global_transientMemory, file, "train");
-			scene->trainMesh 		= graphics_memory_push_mesh(platformGraphics, &meshAsset);
-			scene->trainMaterial 	= materials.environment;
+			scene->trainMesh 		= assets_get_mesh(scene->assets, MESH_ASSET_TRAIN);
+			scene->trainMaterial 	= assets_get_material(scene->assets, MATERIAL_ASSET_ENVIRONMENT);
 
 			// ----------------------------------------------------------------------------------
 
@@ -2064,7 +2123,6 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 	// ----------------------------------------------------------------------------------
 
 	/// LSYSTEM TREES	
-	MaterialHandle leavesMaterial;
 	// Todo(Leo): I forgot this. what does this comment mean?
 	// TODO(Leo): fukin häx
 	MeshHandle seedMesh1;
@@ -2075,33 +2133,15 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 	{
 		/// SEEDS
 		{
-			MeshAsset seedMeshAsset 		= load_mesh_glb(*global_transientMemory, sceneryFile, "acorn");
-			seedMesh1 						= graphics_memory_push_mesh(platformGraphics, &seedMeshAsset);
-			seedMesh2 						= scene->waterMesh;
+			seedMesh1 = assets_get_mesh(scene->assets, MESH_ASSET_SEED);
+			seedMesh2 = assets_get_mesh(scene->assets, MESH_ASSET_WATER_DROP);
 
-			TextureAsset seedAlbedoAsset 	= load_texture_asset(*global_transientMemory, "assets/textures/Acorn_albedo.png");
-			TextureHandle seedAlbedo 		= graphics_memory_push_texture(platformGraphics, &seedAlbedoAsset);
-			TextureHandle seedTextures [] 	= {seedAlbedo, neutralBumpTexture, blackTexture};
-
-			seedMaterial1 					= graphics_memory_push_material(platformGraphics, GRAPHICS_PIPELINE_NORMAL, 3, seedTextures);
-			seedMaterial2 					= seedMaterial1;
+			seedMaterial1 = assets_get_material(scene->assets, MATERIAL_ASSET_SEED);
+			seedMaterial2 = assets_get_material(scene->assets, MATERIAL_ASSET_SEED);
 		}
 
-		// Todo(Leo): textures are copied too many times: from file to stb, from stb to TextureAsset, from TextureAsset to graphics.
-		TextureAsset albedo = load_texture_asset(*global_transientMemory, "assets/textures/bark.png");
-		TextureAsset normal = load_texture_asset(*global_transientMemory, "assets/textures/bark_normal.png");
-		normal.format = TEXTURE_FORMAT_U8_LINEAR;
-
-		TextureHandle treeTextures [] =
-		{	
-			graphics_memory_push_texture(platformGraphics, &albedo),
-			graphics_memory_push_texture(platformGraphics, &normal),
-			blackTexture
-		};
-		// scene->lSystemTreeMaterial = graphics_memory_push_material(platformGraphics, GRAPHICS_PIPELINE_NORMAL, 3, treeTextures);
-		MaterialHandle treeMaterial = graphics_memory_push_material(platformGraphics, GRAPHICS_PIPELINE_NORMAL, 3, treeTextures);
-		scene->treeMaterials[0] = treeMaterial;
-		scene->treeMaterials[1] = treeMaterial;
+		scene->treeMaterials[0] = assets_get_material(scene->assets, MATERIAL_ASSET_TREE);
+		scene->treeMaterials[1] = assets_get_material(scene->assets, MATERIAL_ASSET_TREE);
 		scene->treeMaterials[2] = scene->waterMaterial;
 
 		MeshHandle tree1SeedMesh = seedMesh1;
@@ -2110,11 +2150,6 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 		MaterialHandle tree1SeedMaterial = seedMaterial1;
 		MaterialHandle tree2SeedMaterial = seedMaterial2;
 
-		{
-			auto leafTextureAsset 	= load_texture_asset(*global_transientMemory, "assets/textures/leaf_mask.png");
-			auto leavesTexture 		= graphics_memory_push_texture(platformGraphics, &leafTextureAsset);
-			leavesMaterial 			= graphics_memory_push_material(platformGraphics, GRAPHICS_PIPELINE_LEAVES, 1, &leavesTexture);
-		}
 		
 		/// CRYSTAL TREE MATERIALS
 		{
@@ -2132,7 +2167,7 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 				auto asset = make_texture_asset(&pixelColour, 1, 1, 4);
 				auto texture = graphics_memory_push_texture(platformGraphics, &asset);
 
-				TextureHandle treeTextures [] = {texture, treeTextures[1], blackTexture};
+				TextureHandle treeTextures [] = {texture, treeTextures[1], assets_get_texture(scene->assets, TEXTURE_ASSET_BLACK)};
 				scene->crystalTreeMaterials[i] = graphics_memory_push_material(platformGraphics, GRAPHICS_PIPELINE_WATER, 3, treeTextures);
 			}
 		}
@@ -2215,7 +2250,7 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 			initialize_test_tree_3(persistentMemory, tree, position, &scene->treeSettings[0]);
 			build_tree_3_mesh(tree);
 
-			tree.leaves.material 	= leavesMaterial;
+			tree.leaves.material 	= assets_get_material(scene->assets, MATERIAL_ASSET_LEAVES);
 			tree.leaves.colourIndex = tree.settings->leafColourIndex;
 			tree.seedMesh 			= seedMesh1;
 			tree.seedMaterial 		= seedMaterial1;
@@ -2231,7 +2266,7 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 			initialize_test_tree_3(persistentMemory, tree, position, &scene->treeSettings[1]);
 			build_tree_3_mesh(tree);
 
-			tree.leaves.material 	= leavesMaterial;
+			tree.leaves.material 	= assets_get_material(scene->assets, MATERIAL_ASSET_LEAVES);
 			tree.leaves.colourIndex = tree.settings->leafColourIndex;
 			tree.seedMesh 			= seedMesh2;
 			tree.seedMaterial 		= seedMaterial2;
