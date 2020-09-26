@@ -16,31 +16,22 @@ enum HandleType : s32
 };
 
 template<HandleType T>
-struct BaseHandle
+struct AssetHandle
 {
 	s64 index_ =  -1;
 	operator s64() const { return index_; }	
-	static constexpr HandleType type = T;
-
-	inline static const BaseHandle Null = {};
 };
 
-using MeshHandle  		= BaseHandle<MESH>;
-using TextureHandle  	= BaseHandle<TEXTURE>;
-using MaterialHandle  	= BaseHandle<MATERIAL>;
-using ModelHandle  		= BaseHandle<MODEL>;
-using GuiTextureHandle 	= BaseHandle<GUITEXTURE>;
+using MeshHandle  		= AssetHandle<MESH>;
+using TextureHandle  	= AssetHandle<TEXTURE>;
+using MaterialHandle  	= AssetHandle<MATERIAL>;
+using ModelHandle  		= AssetHandle<MODEL>;
+using GuiTextureHandle 	= AssetHandle<GUITEXTURE>;
 
 template<HandleType T>
-bool32 is_valid_handle(BaseHandle<T> handle)
+bool32 is_valid_handle(AssetHandle<T> handle)
 {
-	return (BaseHandle<T>::Null.index_ != handle.index_);
-}
-
-template <HandleType T>
-bool32 operator==(BaseHandle<T> a, BaseHandle<T> b)
-{
-	return a.index_ == b.index_;
+	return handle >= 0;
 }
 
 struct Vertex
@@ -58,8 +49,11 @@ struct Vertex
 
 enum struct IndexType : u32 { UInt16, UInt32 };
 
-struct MeshAsset
+struct MeshAssetData
 {
+	// s64 	vertexCount;
+	// Vertex * vertices;
+
 	Array<Vertex> vertices;
 	Array<u16> indices;
 
@@ -73,10 +67,10 @@ struct MeshAsset
 	IndexType indexType = IndexType::UInt16;
 };
 
-internal MeshAsset
+internal MeshAssetData
 make_mesh_asset(Array<Vertex> vertices, Array<u16> indices)
 {
-	MeshAsset result =
+	MeshAssetData result =
 	{
 		.vertices 	= std::move(vertices),
 		.indices 	= std::move(indices),
@@ -84,8 +78,6 @@ make_mesh_asset(Array<Vertex> vertices, Array<u16> indices)
 	};
 	return result;
 }
-
-// using u32 = u32;
 
 enum TextureAddressMode : s32
 {
@@ -107,7 +99,7 @@ constexpr u64 textureComponentSizeTable [] =
 	sizeof(f32),
 };
 
-struct TextureAsset
+struct TextureAssetData
 {
 	void * 	pixelMemory;
 
@@ -120,20 +112,13 @@ struct TextureAsset
 	s32 				colorMode_REMOVE;
 };
 
-u32 * get_u32_pixel_memory(TextureAsset & asset)
+u32 * get_u32_pixel_memory(TextureAssetData & asset)
 {
 	Assert(asset.format == TEXTURE_FORMAT_U8_SRGB || asset.format == TEXTURE_FORMAT_U8_LINEAR);
 	return (u32*)asset.pixelMemory;
 }
 
-// Todo(Leo): unused
-// f32 * get_f32_pixel_memory(TextureAsset & asset)
-// {
-// 	Assert(asset.format == TEXTURE_FORMAT_F32);
-// 	return (f32*)asset.pixelMemory;
-// }
-
-u64 get_texture_asset_memory_size(TextureAsset & asset)
+u64 get_texture_asset_memory_size(TextureAssetData & asset)
 {
 	Assert(asset.channels == 4);
 
@@ -145,8 +130,7 @@ u64 get_texture_asset_memory_size(TextureAsset & asset)
 	return memorySize;
 }
 
-inline u32 
-get_pixel(TextureAsset * texture, u32 x, u32 y)
+inline u32 get_pixel(TextureAssetData * texture, u32 x, u32 y)
 {
 	AssertMsg(x < texture->width && y < texture->height, "Invalid pixel coordinates!");
 
@@ -210,19 +194,3 @@ internal v4 colour_multiply(v4 a, v4 b)
 			a.a * b.a};
 	return a;
 }
-
-// internal u32
-// get_closest_pixel(TextureAsset * texture, v2 texcoord)
-// {
-// 	u32 u = (u32)round_f32(texture->width * texcoord.x) % texture->width;
-// 	u32 v = (u32)round_f32(texture->height * texcoord.y) % texture->height;
-
-// 	s64 index = u + v * texture->width;
-// 	return get_u32_pixel_memory(*texture)[index];
-// }
-
-struct MaterialAsset
-{
-    GraphicsPipeline 	pipeline;
-    Array<TextureHandle> textures;
-};

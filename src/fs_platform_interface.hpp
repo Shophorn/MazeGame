@@ -255,16 +255,16 @@ void FS_PLATFORM_API(graphics_draw_procedural_mesh)(	PlatformGraphics*,
 								m44 transform, MaterialHandle material);
 void FS_PLATFORM_API(graphics_draw_leaves) (PlatformGraphics*, s32 count, m44 const * transforms, s32 colourIndex, v3 colour, MaterialHandle material);
 
-MeshHandle FS_PLATFORM_API(graphics_memory_push_mesh) (PlatformGraphics*, MeshAsset * asset);
-TextureHandle FS_PLATFORM_API(graphics_memory_push_texture) (PlatformGraphics*, TextureAsset * asset);
+MeshHandle FS_PLATFORM_API(graphics_memory_push_mesh) (PlatformGraphics*, MeshAssetData * asset);
+TextureHandle FS_PLATFORM_API(graphics_memory_push_texture) (PlatformGraphics*, TextureAssetData * asset);
 MaterialHandle FS_PLATFORM_API(graphics_memory_push_material) (PlatformGraphics*, GraphicsPipeline, s32 textureCount, TextureHandle * textures);
-GuiTextureHandle FS_PLATFORM_API(graphics_memory_push_gui_texture) (PlatformGraphics*, TextureAsset * asset);
+GuiTextureHandle FS_PLATFORM_API(graphics_memory_push_gui_texture) (PlatformGraphics*, TextureAssetData * asset);
 	// Todo(Leo): Maybe remove 'push_model', we can render also just passing mesh and material handles directly
 ModelHandle FS_PLATFORM_API(graphics_memory_push_model) (PlatformGraphics*, MeshHandle mesh, MaterialHandle material);
 void FS_PLATFORM_API(graphics_memory_unload) (PlatformGraphics*);
 
 // Note(Leo): this may be needed for development only, should it be handled differently
-void FS_PLATFORM_API(graphics_development_update_texture) (PlatformGraphics*, TextureHandle, TextureAsset*);
+void FS_PLATFORM_API(graphics_development_update_texture) (PlatformGraphics*, TextureHandle, TextureAssetData*);
 void FS_PLATFORM_API(graphics_development_reload_shaders) (PlatformGraphics*);
 
 

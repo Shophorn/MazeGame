@@ -74,7 +74,7 @@ internal VkDescriptorSet fsvulkan_make_texture_descriptor_set(  VulkanContext * 
 	return resultSet;
 }
 
-internal VulkanTexture BAD_VULKAN_make_texture(VulkanContext * context, TextureAsset * asset)
+internal VulkanTexture BAD_VULKAN_make_texture(VulkanContext * context, TextureAssetData * asset)
 {
 	using namespace fsvulkan_resources_internal_;
 
@@ -236,14 +236,14 @@ BAD_VULKAN_convert_index_type(IndexType type)
 	};
 }
 
-internal TextureHandle graphics_memory_push_texture(VulkanContext * context, TextureAsset * texture)
+internal TextureHandle graphics_memory_push_texture(VulkanContext * context, TextureAssetData * texture)
 {
 	TextureHandle handle = { (s64)context->loadedTextures.size() };
 	context->loadedTextures.push_back(BAD_VULKAN_make_texture(context, texture));
 	return handle;
 }
 
-internal GuiTextureHandle graphics_memory_push_gui_texture(VulkanContext * context, TextureAsset * asset)
+internal GuiTextureHandle graphics_memory_push_gui_texture(VulkanContext * context, TextureAssetData * asset)
 {
 	VulkanTexture texture 			= BAD_VULKAN_make_texture(context, asset);
 	VkDescriptorSet descriptorSet 	= fsvulkan_make_texture_descriptor_set(	context,	
@@ -292,7 +292,7 @@ internal MaterialHandle graphics_memory_push_material (	VulkanContext *     cont
 	return {index};
 }
 
-internal MeshHandle graphics_memory_push_mesh(VulkanContext * context, MeshAsset * mesh)
+internal MeshHandle graphics_memory_push_mesh(VulkanContext * context, MeshAssetData * mesh)
 {
 	// Todo(Leo): this is messy af
 	// at least map staging buffer persitently
@@ -597,7 +597,7 @@ make_shadow_texture(VulkanContext * context, u32 width, u32 height, VkFormat for
 	return resultTexture;
 }
 
-internal void graphics_development_update_texture(VulkanContext * context, TextureHandle textureHandle, TextureAsset * asset)
+internal void graphics_development_update_texture(VulkanContext * context, TextureHandle textureHandle, TextureAssetData * asset)
 {
 	using namespace fsvulkan_resources_internal_;
 

@@ -390,7 +390,8 @@ internal void graphics_draw_model(VulkanContext * context, ModelHandle model, m4
 	VkDeviceSize uniformBufferOffset = fsvulkan_get_uniform_memory(*context, sizeof(FSVulkanModelUniformBuffer));
 	FSVulkanModelUniformBuffer * pBuffer;
 
-	// Optimize(Leo): Just map this once when rendering starts
+	// Todo(Leo): Just map this once when rendering starts
+	// Todo(Leo): or even better, get this pointer to game code and write directly to buffer, no copy needed
 	vkMapMemory(context->device, context->modelUniformBuffer.memory, uniformBufferOffset, uniformBufferSize, 0, (void**)&pBuffer);
 	
 	pBuffer->localToWorld = transform;

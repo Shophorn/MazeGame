@@ -128,7 +128,7 @@ internal Monuments scene3d_load_monuments(MemoryArena & persistentMemory, Materi
 	auto archesMeshAsset 	= load_mesh_glb(*global_transientMemory, gltfFile, "monument_arches");
 	auto baseMeshAsset 		= load_mesh_glb(*global_transientMemory, gltfFile, "monument_base");
 
-	MeshAsset ornamentMeshAssets[ornamentTypeCount] = 
+	MeshAssetData ornamentMeshAssets[ornamentTypeCount] = 
 	{
 		load_mesh_glb(*global_transientMemory, gltfFile, "monument_ornament_01"),
 		load_mesh_glb(*global_transientMemory, gltfFile, "monument_ornament_02"),

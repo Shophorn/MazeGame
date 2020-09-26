@@ -53,7 +53,7 @@ get_height_at(HeightMap const * map, v2 worldScalePosition)
 }
 
 internal HeightMap
-make_heightmap(MemoryArena * memory, TextureAsset * texture, u32 gridSize, f32 worldSize, f32 minHeight, f32 maxHeight)
+make_heightmap(MemoryArena * memory, TextureAssetData * texture, u32 gridSize, f32 worldSize, f32 minHeight, f32 maxHeight)
 {
 	u64 pixelCount 		= gridSize * gridSize;
 	auto heightValues 	= allocate_array<f32>(*memory, pixelCount, ALLOC_FILL | ALLOC_NO_CLEAR);
@@ -153,7 +153,7 @@ internal void mesh_generate_tangents(s32 vertexCount, Vertex * vertices, s32 ind
 	}
 }
 
-internal void mesh_generate_tangents(MeshAsset & mesh)
+internal void mesh_generate_tangents(MeshAssetData & mesh)
 {
 	mesh_generate_tangents(mesh.vertices.count(), mesh.vertices.data(), mesh.indices.count(), mesh.indices.data());
 }
@@ -188,7 +188,7 @@ internal void mesh_generate_normals(s32 vertexCount, Vertex * vertices, s32 inde
 	}	
 }
 
-internal void mesh_generate_normals (MeshAsset & mesh)
+internal void mesh_generate_normals (MeshAssetData & mesh)
 {
 	// Todo(Leo): why this
 	Assert(mesh.indices.count() <= max_value_u32);
@@ -224,7 +224,7 @@ internal void mesh_generate_normals (MeshAsset & mesh)
 	}
 }
 
-internal MeshAsset generate_terrain(MemoryArena & 	allocator,
+internal MeshAssetData generate_terrain(MemoryArena & 	allocator,
 									HeightMap & 	heightMap,
 
 									/// Note(Leo): relative to scale of map
@@ -290,7 +290,7 @@ internal MeshAsset generate_terrain(MemoryArena & 	allocator,
 
 
 	// Todo(Leo): Stop using array in mesh asset
-	MeshAsset result = make_mesh_asset(	Array<Vertex>(vertices, vertexCount, vertexCount),
+	MeshAssetData result = make_mesh_asset(	Array<Vertex>(vertices, vertexCount, vertexCount),
 										Array<u16>(indices, triangleIndexCount, triangleIndexCount));
 
 	mesh_generate_normals(result);
@@ -299,7 +299,7 @@ internal MeshAsset generate_terrain(MemoryArena & 	allocator,
 	return std::move(result);
 }
 
-internal MeshAsset generate_terrain(MemoryArena * 	memory, 
+internal MeshAssetData generate_terrain(MemoryArena * 	memory, 
 									f32 			texcoordScale,
 									HeightMap * 	heightMap)
 {
@@ -365,7 +365,7 @@ internal MeshAsset generate_terrain(MemoryArena * 	memory,
 		}
 	}
 
-	MeshAsset result = make_mesh_asset(std::move(vertices), std::move(indices));
+	MeshAssetData result = make_mesh_asset(std::move(vertices), std::move(indices));
 
 	mesh_generate_normals(result);
 	mesh_generate_tangents(result);

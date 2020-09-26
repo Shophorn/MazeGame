@@ -1,9 +1,12 @@
-/*=============================================================================
+/*
 Leo Tamminen
 shophorn @ internet
 
 Scene description for 3d development scene
-=============================================================================*/
+
+Todo(Leo):
+	crystal trees 
+*/
 #include "CharacterMotor.cpp"
 #include "PlayerController3rdPerson.cpp"
 #include "FollowerController.cpp"
@@ -180,6 +183,26 @@ enum MaterialAssetId : s32
 	MATERIAL_ASSET_COUNT	
 };
 
+enum AnimationAssetId : s32
+{
+	AAID_RACCOON_EMPTY,
+
+	AAID_CHARACTER_IDLE,
+	AAID_CHARACTER_CROUCH,
+	AAID_CHARACTER_WALK,
+	AAID_CHARACTER_RUN,
+	AAID_CHARACTER_JUMP,
+	AAID_CHARACTER_FALL,
+
+	AAID_COUNT
+};
+
+enum SkeletonAssetId : s32
+{
+	SAID_CHARACTER,
+	SAID_COUNT
+};
+
 struct MeshLoadInfo
 {
 	char const * filename;
@@ -206,8 +229,21 @@ struct MaterialLoadInfo
 	TextureAssetId 		textures[max_texture_count];
 };
 
+struct AnimationLoadInfo
+{
+	char const * filename;
+	char const * gltfNodeName;
+};
+
+struct AnimatedSkeletonLoadInfo
+{
+	char const * filename;
+	char const * gltfNodeName;
+};
+
 struct GameAssets
 {
+	// GPU MEMORY
 	MeshHandle 			meshes [MESH_ASSET_COUNT];
 	MeshLoadInfo 		meshAssetLoadInfo [MESH_ASSET_COUNT];
 
@@ -216,12 +252,22 @@ struct GameAssets
 
 	MaterialHandle 		materials [MATERIAL_ASSET_COUNT];
 	MaterialLoadInfo 	materialLoadInfos [MATERIAL_ASSET_COUNT];
+
+	// CPU MEMORY
+	MemoryArena * allocator;
+
+	Animation *			animations [AAID_COUNT];
+	AnimationLoadInfo 	animationLoadInfos [AAID_COUNT];
+
+	AnimatedSkeleton * 			skeletons [SAID_COUNT];
+	AnimatedSkeletonLoadInfo 	skeletonLoadInfos [SAID_COUNT];
 };
 
-internal GameAssets init_game_assets(MemoryArena & allocator)
+internal GameAssets init_game_assets(MemoryArena * allocator)
 {
-	// Note(Leo): apparently this does indeed set MeshHandles to -1, I do not know why
-	GameAssets assets = {};
+	// Note(Leo): apparently this does indeed set MeshHandles to -1, which is what we want. I do not know why, though.
+	GameAssets assets 	= {};
+	assets.allocator 	= allocator;
 
 	assets.meshAssetLoadInfo[MESH_ASSET_RACCOON] 	= {"assets/models/raccoon.glb", "raccoon"};
 	assets.meshAssetLoadInfo[MESH_ASSET_ROBOT] 		= {"assets/models/Robot53.glb", "model_rigged"};
@@ -276,10 +322,9 @@ internal GameAssets init_game_assets(MemoryArena & allocator)
 
 	// ----------- MATERIALS -------------------
 
-	assets.materialLoadInfos[MATERIAL_ASSET_GROUND] 		= {GRAPHICS_PIPELINE_NORMAL, TEXTURE_ASSET_RED_TILES_ALBEDO, TEXTURE_ASSET_GROUND_NORMAL, TEXTURE_ASSET_BLACK};
+	assets.materialLoadInfos[MATERIAL_ASSET_GROUND] 		= {GRAPHICS_PIPELINE_NORMAL, TEXTURE_ASSET_GROUND_ALBEDO, TEXTURE_ASSET_GROUND_NORMAL, TEXTURE_ASSET_BLACK};
 	assets.materialLoadInfos[MATERIAL_ASSET_ENVIRONMENT] 	= {GRAPHICS_PIPELINE_NORMAL, TEXTURE_ASSET_TILES_ALBEDO, TEXTURE_ASSET_TILES_NORMAL, TEXTURE_ASSET_BLACK};
 	assets.materialLoadInfos[MATERIAL_ASSET_SEED] 			= {GRAPHICS_PIPELINE_NORMAL, TEXTURE_ASSET_SEED_ALBEDO, TEXTURE_ASSET_FLAT_NORMAL, TEXTURE_ASSET_BLACK};
-	assets.materialLoadInfos[MATERIAL_ASSET_TREE]			= {GRAPHICS_PIPELINE_NORMAL, TEXTURE_ASSET_BARK_ALBEDO, TEXTURE_ASSET_BARK_NORMAL, TEXTURE_ASSET_BLACK};
 	assets.materialLoadInfos[MATERIAL_ASSET_RACCOON] 		= {GRAPHICS_PIPELINE_NORMAL, TEXTURE_ASSET_RACCOON_ALBEDO, TEXTURE_ASSET_FLAT_NORMAL, TEXTURE_ASSET_BLACK};
 	assets.materialLoadInfos[MATERIAL_ASSET_ROBOT]			= {GRAPHICS_PIPELINE_NORMAL, TEXTURE_ASSET_ROBOT_ALBEDO, TEXTURE_ASSET_ROBOT_NORMAL, TEXTURE_ASSET_BLACK};
 	
@@ -292,8 +337,22 @@ internal GameAssets init_game_assets(MemoryArena & allocator)
 
 	assets.materialLoadInfos[MATERIAL_ASSET_SKY] 			= {GRAPHICS_PIPELINE_SKYBOX, TEXTURE_ASSET_BLACK, TEXTURE_ASSET_BLACK};
 	
+	assets.materialLoadInfos[MATERIAL_ASSET_TREE]			= {GRAPHICS_PIPELINE_TRIPLANAR, TEXTURE_ASSET_TILES_ALBEDO};
 
+	// ------------- ANIMATIONS ---------------------
 
+	assets.animationLoadInfos[AAID_CHARACTER_IDLE]		= {"assets/models/cube_head_v3.glb", "Idle"};
+	assets.animationLoadInfos[AAID_CHARACTER_WALK]		= {"assets/models/cube_head_v3.glb", "Walk"};
+	assets.animationLoadInfos[AAID_CHARACTER_RUN]		= {"assets/models/cube_head_v3.glb", "Run"};
+	assets.animationLoadInfos[AAID_CHARACTER_JUMP]		= {"assets/models/cube_head_v3.glb", "JumpUp"};
+	assets.animationLoadInfos[AAID_CHARACTER_FALL]		= {"assets/models/cube_head_v3.glb", "JumpDown"};
+	assets.animationLoadInfos[AAID_CHARACTER_CROUCH] 	= {"assets/models/cube_head_v3.glb", "Crouch"};
+
+	assets.animationLoadInfos[AAID_RACCOON_EMPTY] = {};
+
+	// ------------- SKELETONS ----------------------------
+
+	assets.skeletonLoadInfos[SAID_CHARACTER] = {"assets/models/cube_head_v4.glb", "cube_head"};
 
 	return assets;
 }
@@ -315,13 +374,13 @@ internal MeshHandle assets_get_mesh(GameAssets & assets, MeshAssetId id)
 
 internal TextureHandle assets_get_texture(GameAssets & assets, TextureAssetId id)
 {
-	// Todo(Leo): textures are copied too many times: from file to stb, from stb to TextureAsset, from TextureAsset to graphics.
+	// Todo(Leo): textures are copied too many times: from file to stb, from stb to TextureAssetData, from TextureAssetData to graphics.
 	TextureHandle handle = assets.textures[id];
 
 	if (is_valid_handle(handle) == false)
 	{
 		TextureLoadInfo & loadInfo = assets.textureLoadInfos[id];
-		TextureAsset assetData;
+		TextureAssetData assetData;
 		if (loadInfo.generateAssetData == false)
 		{
 			assetData = load_texture_asset(*global_transientMemory, loadInfo.filename);
@@ -354,7 +413,7 @@ internal MaterialHandle assets_get_material(GameAssets & assets, MaterialAssetId
 		{
 			textureCount = 2;
 		}
-		else if (loadInfo.pipeline == GRAPHICS_PIPELINE_LEAVES)
+		else if (loadInfo.pipeline == GRAPHICS_PIPELINE_LEAVES || loadInfo.pipeline == GRAPHICS_PIPELINE_TRIPLANAR)
 		{
 			textureCount = 1;
 		}
@@ -371,10 +430,55 @@ internal MaterialHandle assets_get_material(GameAssets & assets, MaterialAssetId
 	return handle;
 }
 
+internal Animation * assets_get_animation(GameAssets & assets, AnimationAssetId id)
+{
+	Animation * animation = assets.animations[id];
+
+	if (animation == nullptr)
+	{
+		auto & loadInfo = assets.animationLoadInfos[id];
+		animation 		= push_memory<Animation>(*assets.allocator, 1, ALLOC_CLEAR);
+
+		if (loadInfo.filename && loadInfo.gltfNodeName)
+		{
+			auto file 	= read_gltf_file(*global_transientMemory, loadInfo.filename);
+			*animation 	= load_animation_glb(*assets.allocator, file, loadInfo.gltfNodeName);
+		}
+		else
+		{
+			log_debug(0, FILE_ADDRESS, "Loading empty animation");
+			*animation 	= {};
+		}
+
+		assets.animations[id] = animation;
+	}
+
+	return animation;
+
+}
+
+internal AnimatedSkeleton * assets_get_skeleton(GameAssets & assets, SkeletonAssetId id)
+{
+	AnimatedSkeleton * skeleton = assets.skeletons[id];
+
+	if (skeleton == nullptr)
+	{
+		auto & loadInfo = assets.skeletonLoadInfos[id];
+
+		skeleton 		= push_memory<AnimatedSkeleton>(*assets.allocator, 1, ALLOC_CLEAR);
+		auto file 		= read_gltf_file(*global_transientMemory, loadInfo.filename);
+		*skeleton 		= load_skeleton_glb(*assets.allocator, file, loadInfo.gltfNodeName);
+		
+		assets.skeletons[id] = skeleton;
+	}	
+
+	return skeleton;
+}
+
 struct Scene3d
 {
 	GameAssets assets;
-
+	AnimatedSkeleton characterAnimatedSkeleton;
 
 	SkySettings skySettings;
 
@@ -391,7 +495,7 @@ struct Scene3d
 	Transform3D 		playerCharacterTransform;
 	CharacterMotor 		playerCharacterMotor;
 	SkeletonAnimator 	playerSkeletonAnimator;
-	AnimatedRenderer 	playerAnimaterRenderer;
+	AnimatedRenderer 	playerAnimatedRenderer;
 
 	PlayerInputState	playerInputState;
 
@@ -428,19 +532,6 @@ struct Scene3d
 
 		MeshHandle 		potMesh;
 		MaterialHandle 	potMaterial;
-
-	/// TREES ------------------------------------
-		// s32 			lSystemCapacity;
-		// s32 			lSystemCount;
-		// TimedLSystem * 	lSystems;
-		// Leaves * 		lSystemLeavess;
-		
-		// s32 * 			lSystemsPotIndices;
-
-		// MaterialHandle 	lSystemTreeMaterial;
-		MaterialHandle treeMaterials[3];
-
-		MaterialHandle crystalTreeMaterials	[4];
 	// ------------------------------------------------------
 
 	Monuments monuments;
@@ -455,8 +546,6 @@ struct Scene3d
 
 	MeshHandle 		raccoonMesh;
 	MaterialHandle 	raccoonMaterial;
-
-	Animation 		raccoonEmptyAnimation;
 
 	// ------------------------------------------------------
 
@@ -537,17 +626,8 @@ struct Scene3d
 
 	// ----------------------------------------------------------
 
-	// Data
-	Animation characterAnimations [CharacterAnimations::ANIMATION_COUNT];
-
 	// Sky
-	Gradient 		niceSkyGradient;
-	Gradient 		meanSkyGradient;
 	ModelHandle 	skybox;
-	MaterialHandle 	skyMaterial;
-	TextureHandle 	niceSkyGradientTexture;
-	TextureHandle 	meanSkyGradientTexture;
-
 
 	// Random
 	bool32 		getSkyColorFromTreeDistance;
@@ -1569,25 +1649,21 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 		
 		// -------------------------------------------------------------------------------
 
-		update_animated_renderer(boneTransformMatrices, scene->playerAnimaterRenderer.skeleton->bones);
+		update_animated_renderer(boneTransformMatrices, scene->playerSkeletonAnimator);
 
-		graphics_draw_model(platformGraphics,
-								scene->playerAnimaterRenderer.model,
-								transform_matrix(scene->playerCharacterTransform),
-								scene->playerAnimaterRenderer.castShadows,
-								boneTransformMatrices,
-								array_count(boneTransformMatrices));
+		graphics_draw_model(platformGraphics, 	scene->playerAnimatedRenderer.model,
+												transform_matrix(scene->playerCharacterTransform),
+												true,
+												boneTransformMatrices, array_count(boneTransformMatrices));
 
 		// -------------------------------------------------------------------------------
 
-		update_animated_renderer(boneTransformMatrices, scene->noblePersonAnimatedRenderer.skeleton->bones);
+		update_animated_renderer(boneTransformMatrices, scene->noblePersonSkeletonAnimator);
 
-		graphics_draw_model(platformGraphics,
-								scene->noblePersonAnimatedRenderer.model,
-								transform_matrix(scene->noblePersonTransform),
-								scene->noblePersonAnimatedRenderer.castShadows,
-								boneTransformMatrices,
-								array_count(boneTransformMatrices));
+		graphics_draw_model(platformGraphics, 	scene->playerAnimatedRenderer.model,
+												transform_matrix(scene->noblePersonTransform),
+												true,
+												boneTransformMatrices, array_count(boneTransformMatrices));
 	}
 
 
@@ -1618,9 +1694,9 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 		if (tree.mesh.vertices.count > 0 || tree.mesh.indices.count > 0)
 		{
 			graphics_draw_procedural_mesh(	platformGraphics,
-												tree.mesh.vertices.count, tree.mesh.vertices.memory,
-												tree.mesh.indices.count, tree.mesh.indices.memory,
-												transform, scene->treeMaterials[0]);
+											tree.mesh.vertices.count, tree.mesh.vertices.memory,
+											tree.mesh.indices.count, tree.mesh.indices.memory,
+											transform, assets_get_material(scene->assets, MATERIAL_ASSET_TREE));
 		}
 
 		if (tree.drawSeed)
@@ -1632,6 +1708,8 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 	}
 
 	/// DRAW LEAVES FOR BOTH LSYSTEM ARRAYS IN THE END BECAUSE OF LEAF SHDADOW INCONVENIENCE
+	// Todo(Leo): leaves are drawn last, so we can bind their shadow pipeline once, and not rebind the normal shadow thing. Fix this inconvenience!
+	// Todo(Leo): leaves are drawn last, so we can bind their shadow pipeline once, and not rebind the normal shadow thing. Fix this inconvenience!
 	// Todo(Leo): leaves are drawn last, so we can bind their shadow pipeline once, and not rebind the normal shadow thing. Fix this inconvenience!
 	// Todo(Leo): leaves are drawn last, so we can bind their shadow pipeline once, and not rebind the normal shadow thing. Fix this inconvenience!
 	// Todo(Leo): leaves are drawn last, so we can bind their shadow pipeline once, and not rebind the normal shadow thing. Fix this inconvenience!
@@ -1673,12 +1751,14 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 
 	// ----------------------------------------------------------------------------------
 
-	scene->assets = init_game_assets(persistentMemory);
+	// Todo(Leo): Think more about implications of storing pointer to persistent memory here
+	// Note(Leo): We have not previously used persistent allocation elsewhere than in this load function
+	scene->assets = init_game_assets(&persistentMemory);
 
 	// TODO(Leo): these should probably all go away
 	// Note(Leo): amounts are SWAG, rethink.
-	scene->transforms 			= allocate_array<Transform3D>(persistentMemory, 1200);
-	scene->renderers 			= allocate_array<Renderer>(persistentMemory, 600);
+	scene->transforms 	= allocate_array<Transform3D>(persistentMemory, 1200);
+	scene->renderers 	= allocate_array<Renderer>(persistentMemory, 600);
 
 	scene->collisionSystem.boxColliders 		= allocate_array<BoxCollider>(persistentMemory, 600);
 	scene->collisionSystem.cylinderColliders 	= allocate_array<CylinderCollider>(persistentMemory, 600);
@@ -1694,7 +1774,7 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 
 	{
 		// Todo(Leo): gui assets to systemtic asset things also
-		TextureAsset testGuiAsset 	= load_texture_asset(*global_transientMemory, "assets/textures/tiles.png");
+		TextureAssetData testGuiAsset 	= load_texture_asset(*global_transientMemory, "assets/textures/tiles.png");
 		scene->guiPanelImage 		= graphics_memory_push_gui_texture(platformGraphics, &testGuiAsset);
 		scene->guiPanelColour 		= colour_rgb_alpha(colour_aqua_blue.rgb, 0.5);
 	}
@@ -1707,98 +1787,83 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 
 	// Characters
 	{
-		scene->playerCarryState = CARRY_NONE;
-
-		auto const gltfFile 		= read_gltf_file(*global_transientMemory, "assets/models/cube_head_v4.glb");
-
-		// Todo(Leo): Exporting animations from blender is not easy, this file has working animations, previous has proper model
-		auto const animationFile 	= read_gltf_file(*global_transientMemory, "assets/models/cube_head_v3.glb");
-
-		auto girlMesh = assets_get_mesh(scene->assets, MESH_ASSET_CHARACTER);
-
-		// --------------------------------------------------------------------
-	
+		scene->playerCarryState 		= CARRY_NONE;
 		scene->playerCharacterTransform = {.position = {10, 0, 5}};
 
-		auto * motor 		= &scene->playerCharacterMotor;
-		motor->transform 	= &scene->playerCharacterTransform;
+		auto & motor 	= scene->playerCharacterMotor;
+		motor.transform = &scene->playerCharacterTransform;
 
 		{
 			using namespace CharacterAnimations;			
 
-			auto startTime = platform_time_now();
-
-			scene->characterAnimations[WALK] 	= load_animation_glb(persistentMemory, animationFile, "Walk");
-			scene->characterAnimations[RUN] 	= load_animation_glb(persistentMemory, animationFile, "Run");
-			scene->characterAnimations[IDLE] 	= load_animation_glb(persistentMemory, animationFile, "Idle");
-			scene->characterAnimations[JUMP]	= load_animation_glb(persistentMemory, animationFile, "JumpUp");
-			scene->characterAnimations[FALL]	= load_animation_glb(persistentMemory, animationFile, "JumpDown");
-			scene->characterAnimations[CROUCH] 	= load_animation_glb(persistentMemory, animationFile, "Crouch");
-
-			// Todo(Leo): Log bigger numbers
-			log_application(1, "Loading all 6 animations took: ", static_cast<f32>(platform_time_elapsed_seconds(startTime, platform_time_now())), " s");
-
-			motor->animations[WALK] 	= &scene->characterAnimations[WALK];
-			motor->animations[RUN] 		= &scene->characterAnimations[RUN];
-			motor->animations[IDLE] 	= &scene->characterAnimations[IDLE];
-			motor->animations[JUMP]		= &scene->characterAnimations[JUMP];
-			motor->animations[FALL]		= &scene->characterAnimations[FALL];
-			motor->animations[CROUCH] 	= &scene->characterAnimations[CROUCH];
+			motor.animations[WALK] 		= assets_get_animation(scene->assets, AAID_CHARACTER_WALK);
+			motor.animations[RUN] 		= assets_get_animation(scene->assets, AAID_CHARACTER_RUN);
+			motor.animations[IDLE] 		= assets_get_animation(scene->assets, AAID_CHARACTER_IDLE);
+			motor.animations[JUMP]		= assets_get_animation(scene->assets, AAID_CHARACTER_JUMP);
+			motor.animations[FALL]		= assets_get_animation(scene->assets, AAID_CHARACTER_FALL);
+			motor.animations[CROUCH] 	= assets_get_animation(scene->assets, AAID_CHARACTER_CROUCH);
 		}
-
-		auto startTime = platform_time_now();
-
-		log_application(1, "Loading skeleton took: ", static_cast<f32>(platform_time_elapsed_seconds(startTime, platform_time_now())), " s");
 
 		scene->playerSkeletonAnimator = 
 		{
-			.skeleton 		= load_skeleton_glb(persistentMemory, gltfFile, "cube_head"),
-			.animations 	= motor->animations,
-			.weights 		= motor->animationWeights,
+			.skeleton 		= assets_get_skeleton(scene->assets, SAID_CHARACTER),
+			.animations 	= motor.animations,
+			.weights 		= motor.animationWeights,
 			.animationCount = CharacterAnimations::ANIMATION_COUNT
 		};
 
-		// Note(Leo): take the reference here, so we can easily copy this down below.
-		auto & cubeHeadSkeleton = scene->playerSkeletonAnimator.skeleton;
+		scene->playerSkeletonAnimator.boneBoneSpaceTransforms = push_array_2<Transform3D>(	persistentMemory,
+																							scene->playerSkeletonAnimator.skeleton->bones.count,
+																							ALLOC_CLEAR);
+		array_2_fill_with_value(scene->playerSkeletonAnimator.boneBoneSpaceTransforms, identity_transform);
 
-		auto model = graphics_memory_push_model(platformGraphics, girlMesh, assets_get_material(scene->assets, MATERIAL_ASSET_CHARACTER));
-		scene->playerAnimaterRenderer = make_animated_renderer(&scene->playerCharacterTransform, &cubeHeadSkeleton, model);
+		auto model = graphics_memory_push_model(platformGraphics,
+												assets_get_mesh(scene->assets, MESH_ASSET_CHARACTER),
+												assets_get_material(scene->assets, MATERIAL_ASSET_CHARACTER));
+		scene->playerAnimatedRenderer = make_animated_renderer(&scene->playerCharacterTransform, scene->playerSkeletonAnimator.skeleton, model);
 
-		// --------------------------------------------------------------------
+	}
+
+	// NOBLE PERSON GUY
+	{
+		v3 position = {random_range(-99, 99), random_range(-99, 99), 0};
+		v3 scale 	= make_uniform_v3(random_range(0.8f, 1.5f));
+
+		scene->noblePersonTransform.position 	= position;
+		scene->noblePersonTransform.scale 		= scale;
+
+		scene->noblePersonCharacterMotor = {};
+		scene->noblePersonCharacterMotor.transform = &scene->noblePersonTransform;
 
 		{
-			v3 position = {random_range(-99, 99), random_range(-99, 99), 0};
-			v3 scale 	= make_uniform_v3(random_range(0.8f, 1.5f));
-
-			scene->noblePersonTransform.position 	= position;
-			scene->noblePersonTransform.scale 		= scale;
-
-			scene->noblePersonCharacterMotor = {};
-			scene->noblePersonCharacterMotor.transform = &scene->noblePersonTransform;
-
-			{
-				using namespace CharacterAnimations;
-				
-				scene->noblePersonCharacterMotor.animations[WALK] 	= &scene->characterAnimations[WALK];
-				scene->noblePersonCharacterMotor.animations[RUN] 	= &scene->characterAnimations[RUN];
-				scene->noblePersonCharacterMotor.animations[IDLE]	= &scene->characterAnimations[IDLE];
-				scene->noblePersonCharacterMotor.animations[JUMP] 	= &scene->characterAnimations[JUMP];
-				scene->noblePersonCharacterMotor.animations[FALL] 	= &scene->characterAnimations[FALL];
-				scene->noblePersonCharacterMotor.animations[CROUCH] = &scene->characterAnimations[CROUCH];
-			}
-
-			scene-> noblePersonSkeletonAnimator = 
-			{
-				.skeleton 		= { .bones = copy_array(persistentMemory, cubeHeadSkeleton.bones) },
-				.animations 	= scene->noblePersonCharacterMotor.animations,
-				.weights 		= scene->noblePersonCharacterMotor.animationWeights,
-				.animationCount = CharacterAnimations::ANIMATION_COUNT
-			};
-
-			auto model = graphics_memory_push_model(platformGraphics, girlMesh, assets_get_material(scene->assets, MATERIAL_ASSET_CHARACTER)); 
-			scene->noblePersonAnimatedRenderer = make_animated_renderer(&scene->noblePersonTransform, &scene->noblePersonSkeletonAnimator.skeleton, model);
-
+			using namespace CharacterAnimations;
+			
+			scene->noblePersonCharacterMotor.animations[WALK] 	= assets_get_animation(scene->assets, AAID_CHARACTER_WALK);
+			scene->noblePersonCharacterMotor.animations[RUN] 	= assets_get_animation(scene->assets, AAID_CHARACTER_RUN);
+			scene->noblePersonCharacterMotor.animations[IDLE]	= assets_get_animation(scene->assets, AAID_CHARACTER_IDLE);
+			scene->noblePersonCharacterMotor.animations[JUMP] 	= assets_get_animation(scene->assets, AAID_CHARACTER_JUMP);
+			scene->noblePersonCharacterMotor.animations[FALL] 	= assets_get_animation(scene->assets, AAID_CHARACTER_FALL);
+			scene->noblePersonCharacterMotor.animations[CROUCH] = assets_get_animation(scene->assets, AAID_CHARACTER_CROUCH);
 		}
+
+		scene->noblePersonSkeletonAnimator = 
+		{
+			.skeleton 		= assets_get_skeleton(scene->assets, SAID_CHARACTER),
+			.animations 	= scene->noblePersonCharacterMotor.animations,
+			.weights 		= scene->noblePersonCharacterMotor.animationWeights,
+			.animationCount = CharacterAnimations::ANIMATION_COUNT
+		};
+		scene->noblePersonSkeletonAnimator.boneBoneSpaceTransforms = push_array_2<Transform3D>(	persistentMemory,
+																								scene->noblePersonSkeletonAnimator.skeleton->bones.count,
+																								ALLOC_CLEAR);
+		array_2_fill_with_value(scene->noblePersonSkeletonAnimator.boneBoneSpaceTransforms, identity_transform);
+
+		auto model = graphics_memory_push_model(platformGraphics,
+												assets_get_mesh(scene->assets, MESH_ASSET_CHARACTER), 
+												assets_get_material(scene->assets, MATERIAL_ASSET_CHARACTER)); 
+
+		scene->noblePersonAnimatedRenderer = make_animated_renderer(&scene->noblePersonTransform, scene->noblePersonSkeletonAnimator.skeleton, model);
+
 	}
 
 	scene->worldCamera 				= make_camera(60, 0.1f, 1000.0f);
@@ -1826,6 +1891,8 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 
 			// todo(Leo): put to asset system thing
 			auto heightmapTexture 	= load_texture_asset(*global_transientMemory, "assets/textures/heightmap_island.png");
+
+			// auto heightmapTexture	= assets_get_texture_data(scene->assets, *global_transientMemory, TEXTURE_ASSET_ISLAND_HEIGHTMAP);
 			auto heightmap 			= make_heightmap(&persistentMemory, &heightmapTexture, heightmapResolution, mapSize, minTerrainElevation, maxTerrainElevation);
 
 			pop_memory_checkpoint(*global_transientMemory);
@@ -1873,7 +1940,7 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 			scene->collisionSystem.terrainCollider 	= std::move(heightmap);
 			scene->collisionSystem.terrainTransform = transform;
 
-			MeshAsset seaMeshAsset = {};
+			MeshAssetData seaMeshAsset = {};
 			{
 				seaMeshAsset.vertices = allocate_array<Vertex>(*global_transientMemory, 
 				{
@@ -1918,8 +1985,6 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 
 		/// RACCOONS
 		{
-			scene->raccoonEmptyAnimation = {};
-
 			scene->raccoonCount = 4;
 			push_multiple_memories(	persistentMemory,
 									scene->raccoonCount,
@@ -1949,32 +2014,17 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 				{
 					using namespace CharacterAnimations;
 
-					scene->raccoonCharacterMotors[i].animations[WALK] 		= &scene->raccoonEmptyAnimation;
-					scene->raccoonCharacterMotors[i].animations[RUN] 		= &scene->raccoonEmptyAnimation;
-					scene->raccoonCharacterMotors[i].animations[IDLE]		= &scene->raccoonEmptyAnimation;
-					scene->raccoonCharacterMotors[i].animations[JUMP] 		= &scene->raccoonEmptyAnimation;
-					scene->raccoonCharacterMotors[i].animations[FALL] 		= &scene->raccoonEmptyAnimation;
-					scene->raccoonCharacterMotors[i].animations[CROUCH] 	= &scene->raccoonEmptyAnimation;
+					scene->raccoonCharacterMotors[i].animations[WALK] 		= assets_get_animation(scene->assets, AAID_RACCOON_EMPTY);
+					scene->raccoonCharacterMotors[i].animations[RUN] 		= assets_get_animation(scene->assets, AAID_RACCOON_EMPTY);
+					scene->raccoonCharacterMotors[i].animations[IDLE]		= assets_get_animation(scene->assets, AAID_RACCOON_EMPTY);
+					scene->raccoonCharacterMotors[i].animations[JUMP] 		= assets_get_animation(scene->assets, AAID_RACCOON_EMPTY);
+					scene->raccoonCharacterMotors[i].animations[FALL] 		= assets_get_animation(scene->assets, AAID_RACCOON_EMPTY);
+					scene->raccoonCharacterMotors[i].animations[CROUCH] 	= assets_get_animation(scene->assets, AAID_RACCOON_EMPTY);
 				}
 			}
 
 			scene->raccoonMesh 		= assets_get_mesh(scene->assets, MESH_ASSET_RACCOON);
 			scene->raccoonMaterial	= assets_get_material(scene->assets, MATERIAL_ASSET_RACCOON);
-
-
-
-
-			// scene-> noblePersonSkeletonAnimator = 
-			// {
-			// 	.skeleton 		= { .bones = copy_array(persistentMemory, cubeHeadSkeleton.bones) },
-			// 	.animations 	= scene->noblePersonCharacterMotor.animations,
-			// 	.weights 		= scene->noblePersonCharacterMotor.animationWeights,
-			// 	.animationCount = CharacterAnimations::ANIMATION_COUNT
-			// };
-
-			// auto model = graphics_memory_push_model(platformGraphics, girlMesh, materials.character); 
-			// scene->noblePersonAnimatedRenderer = make_animated_renderer(&scene->noblePersonTransform, &scene->noblePersonSkeletonAnimator.skeleton, model);
-
 		}
 
 		/// INVISIBLE TEST COLLIDER
@@ -2017,8 +2067,8 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 
 				for(s32 i = 0; i < scene->potCapacity; ++i)
 				{
-					v3 position 					= {15, i * 5.0f, 0};
-					position.z 						= get_terrain_height(scene->collisionSystem, position.xy);
+					v3 position 			= {15, i * 5.0f, 0};
+					position.z 				= get_terrain_height(scene->collisionSystem, position.xy);
 					scene->potTransforms[i]	= { .position = position };
 				}
 			}
@@ -2045,10 +2095,8 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 
 			/// WATERS
 			{
-				scene->waterMesh = assets_get_mesh(scene->assets, MESH_ASSET_WATER_DROP);
-
-				TextureHandle waterTextures [] 	= {assets_get_texture(scene->assets, TEXTURE_ASSET_WATER_BLUE), assets_get_texture(scene->assets, TEXTURE_ASSET_FLAT_NORMAL), assets_get_texture(scene->assets, TEXTURE_ASSET_BLACK)};
-				scene->waterMaterial 		= graphics_memory_push_material(platformGraphics, GRAPHICS_PIPELINE_WATER, 3, waterTextures);
+				scene->waterMesh 		= assets_get_mesh(scene->assets, MESH_ASSET_WATER_DROP);
+				scene->waterMaterial 	= assets_get_material(scene->assets, MATERIAL_ASSET_WATER);
 
 				{				
 					scene->waters.capacity 		= 200;
@@ -2122,57 +2170,6 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 
 	// ----------------------------------------------------------------------------------
 
-	/// LSYSTEM TREES	
-	// Todo(Leo): I forgot this. what does this comment mean?
-	// TODO(Leo): fukin häx
-	MeshHandle seedMesh1;
-	MeshHandle seedMesh2;
-
-	MaterialHandle seedMaterial1;
-	MaterialHandle seedMaterial2;
-	{
-		/// SEEDS
-		{
-			seedMesh1 = assets_get_mesh(scene->assets, MESH_ASSET_SEED);
-			seedMesh2 = assets_get_mesh(scene->assets, MESH_ASSET_WATER_DROP);
-
-			seedMaterial1 = assets_get_material(scene->assets, MATERIAL_ASSET_SEED);
-			seedMaterial2 = assets_get_material(scene->assets, MATERIAL_ASSET_SEED);
-		}
-
-		scene->treeMaterials[0] = assets_get_material(scene->assets, MATERIAL_ASSET_TREE);
-		scene->treeMaterials[1] = assets_get_material(scene->assets, MATERIAL_ASSET_TREE);
-		scene->treeMaterials[2] = scene->waterMaterial;
-
-		MeshHandle tree1SeedMesh = seedMesh1;
-		MeshHandle tree2SeedMesh = seedMesh2;
-
-		MaterialHandle tree1SeedMaterial = seedMaterial1;
-		MaterialHandle tree2SeedMaterial = seedMaterial2;
-
-		
-		/// CRYSTAL TREE MATERIALS
-		{
-			v4 regionColours [] =
-			{
-				{0.62, 0.3, 0.8, 0.6},
-				{0.3, 0.62, 0.8, 0.6},
-				{0.47, 0.7, 0.40, 0.6},
-				{1.0, 0.7, 0.8, 0.6},
-			};
-
-			for (s32 i = 0; i < 4; ++i)
-			{
-				u32 pixelColour = colour_rgba_u32(regionColours[i]);
-				auto asset = make_texture_asset(&pixelColour, 1, 1, 4);
-				auto texture = graphics_memory_push_texture(platformGraphics, &asset);
-
-				TextureHandle treeTextures [] = {texture, treeTextures[1], assets_get_texture(scene->assets, TEXTURE_ASSET_BLACK)};
-				scene->crystalTreeMaterials[i] = graphics_memory_push_material(platformGraphics, GRAPHICS_PIPELINE_WATER, 3, treeTextures);
-			}
-		}
-	}
-
 	/// MARCHING CUBES AND METABALLS TESTING
 	{
 		v3 position = {-10, -30, 0};
@@ -2203,17 +2200,7 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 
 		scene->metaballTransform 	= translation_matrix(position);
 
-		// Todo(Leo): textures are copied too many times: from file to stb, from stb to TextureAsset, from TextureAsset to graphics.
-		TextureAsset albedo = load_texture_asset(*global_transientMemory, "assets/textures/tiles.png");
-		// TextureAsset normal = load_texture_asset(*global_transientMemory, "assets/textures/ground_normal.png");
-
-		TextureHandle treeTextures [] =
-		{	
-			graphics_memory_push_texture(platformGraphics, &albedo),
-		};
-		scene->metaballMaterial = graphics_memory_push_material(platformGraphics, GRAPHICS_PIPELINE_TRIPLANAR, 1, treeTextures);
-		scene->treeMaterials[0] = scene->metaballMaterial;
-		scene->treeMaterials[1] = scene->metaballMaterial;
+		scene->metaballMaterial = assets_get_material(scene->assets, MATERIAL_ASSET_TREE);
 
 		// ----------------------------------------------------------------------------------
 
@@ -2240,7 +2227,6 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 
 		scene->treeIndex 	= 0;
 
-
 		s32 halfCapacity 	= scene->trees.capacity / 2;
 		for (auto & tree : experimental::array_2_range(scene->trees, 0, halfCapacity))
 		{
@@ -2252,8 +2238,8 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 
 			tree.leaves.material 	= assets_get_material(scene->assets, MATERIAL_ASSET_LEAVES);
 			tree.leaves.colourIndex = tree.settings->leafColourIndex;
-			tree.seedMesh 			= seedMesh1;
-			tree.seedMaterial 		= seedMaterial1;
+			tree.seedMesh 			= assets_get_mesh(scene->assets, MESH_ASSET_SEED);
+			tree.seedMaterial 		= assets_get_material(scene->assets, MATERIAL_ASSET_SEED);
 		}
 
 		// ----------------------------------------------------------------------------------
@@ -2268,8 +2254,8 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 
 			tree.leaves.material 	= assets_get_material(scene->assets, MATERIAL_ASSET_LEAVES);
 			tree.leaves.colourIndex = tree.settings->leafColourIndex;
-			tree.seedMesh 			= seedMesh2;
-			tree.seedMaterial 		= seedMaterial2;
+			tree.seedMesh 			= assets_get_mesh(scene->assets, MESH_ASSET_SEED);
+			tree.seedMaterial 		= assets_get_material(scene->assets, MATERIAL_ASSET_SEED);
 		}
 	}
 

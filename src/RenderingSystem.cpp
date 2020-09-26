@@ -11,8 +11,6 @@ struct Renderer
 
 struct AnimatedRenderer
 {
-	// References to external resources
-	// Transform3D	* 		transform;
 	AnimatedSkeleton * 	skeleton;
 	ModelHandle 		model;
 
@@ -32,7 +30,7 @@ AnimatedRenderer make_animated_renderer (	Transform3D * transform,
 	return result;		
 }
 
-void update_animated_renderer(m44 * boneTransformMatrices, Array<AnimatedBone> const & skeletonBones)
+void update_animated_renderer(m44 * boneTransformMatrices, SkeletonAnimator const & animator)//AnimatedSkeleton const & skeleton)//Array<AnimatedBone> const & skeletonBones)
 {
 	/* Note(Leo): Vertex shader where actual deforming happens, needs to know
 	transform from bind position aka default position (i.e. the original position
@@ -50,18 +48,20 @@ void update_animated_renderer(m44 * boneTransformMatrices, Array<AnimatedBone> c
 	use same array to store "own" transforms and check parent transform, that has been
 	previously set in loop. */
 
-	s32 boneCount = skeletonBones.count();
+	auto const & boneSpaceTransforms 	= animator.boneBoneSpaceTransforms;
+	auto const & skeleton 				= *animator.skeleton;
 
-	boneTransformMatrices[0] = transform_matrix(skeletonBones[0].boneSpaceTransform);
+	s32 boneCount = skeleton.bones.count;
+
+	boneTransformMatrices[0] = transform_matrix(boneSpaceTransforms[0]);
 	for (s32 i = 1; i < boneCount; ++i)
 	{
-		s32 parentIndex = skeletonBones[i].parent;
-		boneTransformMatrices[i] = boneTransformMatrices[parentIndex] * transform_matrix(skeletonBones[i].boneSpaceTransform);
+		s32 parentIndex 			= skeleton.bones[i].parent;
+		boneTransformMatrices[i] 	= boneTransformMatrices[parentIndex] * transform_matrix(boneSpaceTransforms[i]);
 	}
 
 	for (s32 i = 0; i < boneCount; ++i)
 	{
-		boneTransformMatrices[i] = boneTransformMatrices[i] * skeletonBones[i].inverseBindMatrix;
-		// boneTransformMatrices[i] = boneTransformMatrices[i] * skeleton.inverseBindMatrices[i];
+		boneTransformMatrices[i] = boneTransformMatrices[i] * skeleton.bones[i].inverseBindMatrix;
 	}
 }

@@ -186,30 +186,11 @@ SunAndAmbientLights BETTER_compute_sky_color(vec3 normal)
 	// -------------------------------------------------
 
 	SunAndAmbientLights result;
-	result.ambient = skyGradientColor;// + horizonHaloColor;
+	result.ambient = light.	skyBottomColor.rgb;//skyGradientColor;// + horizonHaloColor;
 
 
 	result.sun = max(0, dotLight) * light.sunDiscColor.rgb;
 
 	return result;
 
-}
-
-
-// For leaves, for now
-vec3 compute_sky_color(vec3 normal, vec3 lightDir)
-{
-	float d = dot(lightDir, normal);
-	
-	d = (d + 1) / 2;
-	d = max(0, d);
-
-	vec2 uv = vec2(d, 0);
-
-	vec3 colorA = texture(skyGradients[0], uv).rgb;
-	return colorA;
-	// vec3 colorB = texture(skyGradients[1], uv).rgb;
-
-	// vec3 color = mix(colorA, colorB, light.skyColourSelection);
-	// return color;
 }

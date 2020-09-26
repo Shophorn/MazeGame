@@ -11,7 +11,7 @@ internal void scene_3d_initialize_gui(Scene3d * scene)
 	gui.font 				= load_font("assets/SourceCodePro-Regular.ttf");
 
 	u32 guiTexturePixelColor 		= 0xffffffff;
-	TextureAsset guiTextureAsset 	= make_texture_asset(&guiTexturePixelColor, 1, 1, 4);
+	TextureAssetData guiTextureAsset 	= make_texture_asset(&guiTexturePixelColor, 1, 1, 4);
 	gui.panelTexture				= graphics_memory_push_gui_texture(platformGraphics, &guiTextureAsset);
 }
 

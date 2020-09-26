@@ -10,10 +10,10 @@ Todo(Leo):
 #define STBI_ASSERT(x) Assert((x))
 #include "external/stb_image.h"
 
-internal TextureAsset
+internal TextureAssetData
 make_texture_asset(u32 * pixelMemory, s32 width, s32 height, s32 channels)
 {
-    TextureAsset result = 
+    TextureAssetData result = 
     {
         .pixelMemory     = pixelMemory,
         .width      = width,
@@ -24,7 +24,7 @@ make_texture_asset(u32 * pixelMemory, s32 width, s32 height, s32 channels)
 }
 
 // Todo(Leo): Make stb here use our allocator, OR use this only in asset cooker
-internal TextureAsset load_texture_asset(MemoryArena & allocator, const char * filename)
+internal TextureAssetData load_texture_asset(MemoryArena & allocator, const char * filename)
 {
     s32 width, height, channels;
     stbi_uc * stbi_pixels = stbi_load(filename, &width, &height, &channels, STBI_rgb_alpha);
@@ -42,7 +42,7 @@ internal TextureAsset load_texture_asset(MemoryArena & allocator, const char * f
     // log_debug(0) << filename << ": " << channels;
     // AssertMsg(channels == 4, filename);
 
-    TextureAsset result = {};
+    TextureAssetData result = {};
     result.pixelMemory = push_memory<u32>(allocator, pixelCount, 0);
     copy_memory(result.pixelMemory, stbi_pixels, pixelMemorySize);
 
@@ -154,7 +154,7 @@ struct Gradient
     f32 *   times;
 };
 
-internal TextureAsset generate_gradient(MemoryArena & allocator, s32 pixelCount, Gradient const & gradient)
+internal TextureAssetData generate_gradient(MemoryArena & allocator, s32 pixelCount, Gradient const & gradient)
 {
     v4 * pixelMemory = push_memory<v4>(allocator, pixelCount, 0);
 
@@ -210,7 +210,7 @@ internal TextureAsset generate_gradient(MemoryArena & allocator, s32 pixelCount,
         time += timeStep;
     }
 
-    TextureAsset result = { pixelMemory, pixelCount, 1, 4 };
+    TextureAssetData result = { pixelMemory, pixelCount, 1, 4 };
     result.format       = TEXTURE_FORMAT_F32;
     result.addressMode  = TEXTURE_ADDRESS_MODE_CLAMP;
     return result;

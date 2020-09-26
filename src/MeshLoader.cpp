@@ -215,8 +215,8 @@ load_animation_glb(MemoryArena & allocator, GltfFile const & file, char const * 
 	}
 
 	Animation result = {};
-	result.translationChannels 	= allocate_array<TranslationChannel>(allocator, translationChannelCount);
-	result.rotationChannels 	= allocate_array<RotationChannel>(allocator, rotationChannelCount);
+	result.translationChannels 	= push_array_2<TranslationChannel>(allocator, translationChannelCount, ALLOC_CLEAR);
+	result.rotationChannels 	= push_array_2<RotationChannel>(allocator, rotationChannelCount, ALLOC_CLEAR);
 
 	float minTime = highest_f32;
 	float maxTime = lowest_f32;
@@ -288,8 +288,9 @@ load_animation_glb(MemoryArena & allocator, GltfFile const & file, char const * 
 		int keyframeCount = accessors[inputAccessor]["count"].GetInt();
 
 		float const * timesStart = get_buffer_start<float>(file, inputAccessor);
-		float const * timesEnd 	= timesStart + keyframeCount;
-		Array<f32> times 			= allocate_array<float>(allocator, timesStart, timesEnd);
+		// float const * timesEnd 	= timesStart + keyframeCount;
+		Array2<f32> times = push_array_2<float>(allocator, keyframeCount, 0);//timesStart, timesEnd);
+		array_2_fill_from_memory(times, keyframeCount, timesStart);
 
 		/* Note(Leo): CUBICSPLINE interpolation has three values in total: inTangent,
 		splineVertex(aka actual keyframe value) and outTangent. */
@@ -305,27 +306,33 @@ load_animation_glb(MemoryArena & allocator, GltfFile const & file, char const * 
 				v3 const * end 			= start + valueCount;
 
 				TranslationChannel channel 	= {};
-				channel.times 				= std::move(times);
+				channel.times 				= times;
 
 				// Note(Leo): We do not yet support cubicspline interpolation, so we do not need the data for it, convert to linear				
 				if (interpolationMode == INTERPOLATION_MODE_CUBICSPLINE)
 				{
-					channel.translations = allocate_array<v3>(allocator, keyframeCount, ALLOC_FILL | ALLOC_NO_CLEAR);
+					interpolationMode = INTERPOLATION_MODE_LINEAR;
+					
+					channel.translations = push_array_2<v3>(allocator, keyframeCount, 0);
+					array_2_fill_uninitialized(channel.translations);
+
 					for (s32 keyframeIndex = 0; keyframeIndex < keyframeCount; ++keyframeIndex)
 					{
 						s32 valueIndex = keyframeIndex * 3 + 1;
 						channel.translations[keyframeIndex] = start[valueIndex];
 					}					
-					channel.interpolationMode = INTERPOLATION_MODE_LINEAR;
 				}
 				else
 				{
-					channel.translations		= allocate_array<v3>(allocator, start, end);
-					channel.interpolationMode 	= interpolationMode;
+					channel.translations = push_array_2<v3>(allocator, keyframeCount, 0);
+					array_2_fill_from_memory(channel.translations, keyframeCount, start);
+
 				}
+			  	
+			  	channel.interpolationMode = interpolationMode;
 				channel.targetIndex 		= targetIndex;
 
-				result.translationChannels.push(std::move(channel));
+				result.translationChannels.push(channel);
 			} break;
 
 			case ANIMATION_CHANNEL_ROTATION:
@@ -339,20 +346,24 @@ load_animation_glb(MemoryArena & allocator, GltfFile const & file, char const * 
 				// Note(Leo): We do not yet support cubicspline interpolation, so we do not need the data for it, convert to linear				
 				if (interpolationMode == INTERPOLATION_MODE_CUBICSPLINE)
 				{
-					channel.rotations = allocate_array<quaternion>(allocator, keyframeCount, ALLOC_FILL | ALLOC_NO_CLEAR);
+					interpolationMode = INTERPOLATION_MODE_LINEAR;
+					
+					channel.rotations = push_array_2<quaternion>(allocator, keyframeCount, 0);
+					array_2_fill_uninitialized(channel.rotations);
 
 					for (s32 keyframeIndex = 0; keyframeIndex < keyframeCount; ++keyframeIndex)
 					{
 						s32 valueIndex = keyframeIndex * 3 + 1;
 						channel.rotations[keyframeIndex] = start[valueIndex];
 					}
-					channel.interpolationMode = INTERPOLATION_MODE_LINEAR;
 				}
 				else
 				{
-					channel.rotations 			= allocate_array<quaternion>(allocator, start, end);
-					channel.interpolationMode 	= interpolationMode;
+					channel.rotations = push_array_2<quaternion>(allocator, keyframeCount, 0);
+					array_2_fill_from_memory(channel.rotations, keyframeCount, start);
 				}
+				
+				channel.interpolationMode 	= interpolationMode;
 				channel.targetIndex 		= targetIndex;
 
 
@@ -366,7 +377,7 @@ load_animation_glb(MemoryArena & allocator, GltfFile const & file, char const * 
 					rotation = inverse_non_unit_quaternion(rotation);
 				}
 
-				result.rotationChannels.push(std::move(channel));
+				result.rotationChannels.push(channel);
 			} break;
 
 			default:
@@ -406,7 +417,7 @@ load_skeleton_glb(MemoryArena & allocator, GltfFile const & file, char const * m
 	m44 const * inverseBindMatrices = get_buffer_start<m44>(file, skin["inverseBindMatrices"].GetInt());
 
 	AnimatedSkeleton skeleton = {};
-	skeleton.bones = allocate_array<AnimatedBone>(allocator, boneCount, ALLOC_NO_CLEAR);
+	skeleton.bones = push_array_2<AnimatedBone>(allocator, boneCount, ALLOC_CLEAR);
 	
 	for (int boneIndex = 0; boneIndex < boneCount; ++boneIndex)
 	{
@@ -471,16 +482,13 @@ load_skeleton_glb(MemoryArena & allocator, GltfFile const & file, char const * m
 
 		m44 inverseBindMatrix = inverseBindMatrices[boneIndex];
 		skeleton.bones.push(make_bone(boneSpaceTransform, inverseBindMatrix, parent));
-
-		// Note(Leo): Name is not essential...
-		// skeleton.bones.last().name = node.HasMember("name") ? node["name"].GetString() : "nameless bone";
 	}
 
-	/* Note(Leo): Check that parent always comes before bone itself. Currently we have no mechanism
+	/* Todo(Leo): Check that parent always comes before bone itself. Currently we have no mechanism
 	to fix the situation, so we just abort.*/
 	Assert(skeleton.bones[0].parent < 0);
 
-	for (s32 i = 1; i < skeleton.bones.count(); ++i)
+	for (s32 i = 1; i < skeleton.bones.count; ++i)
 	{
 		Assert((skeleton.bones[i].parent < i) && skeleton.bones[i].parent >= 0);
 	}
@@ -488,7 +496,7 @@ load_skeleton_glb(MemoryArena & allocator, GltfFile const & file, char const * m
 	return skeleton;
 }
 
-internal MeshAsset
+internal MeshAssetData
 load_mesh_glb(MemoryArena & allocator, GltfFile const & file, char const * modelName)
 {
 	auto nodes = file.json["nodes"].GetArray();
@@ -648,12 +656,12 @@ load_mesh_glb(MemoryArena & allocator, GltfFile const & file, char const * model
 
 	// ----------------------------------------------------------------------------------
 
-	MeshAsset result = make_mesh_asset(std::move(vertices), std::move(indices));
+	MeshAssetData result = make_mesh_asset(std::move(vertices), std::move(indices));
 	return result;
 }
 
 
-internal MeshAsset
+internal MeshAssetData
 load_mesh_glb(MemoryArena & allocator, char const * filename, char const * modelName)
 {
 	GltfFile file = read_gltf_file(*global_transientMemory, filename);
@@ -663,7 +671,7 @@ load_mesh_glb(MemoryArena & allocator, char const * filename, char const * model
 namespace mesh_ops
 {
 	internal void
-	transform(MeshAsset * mesh, const m44 & transform)
+	transform(MeshAssetData * mesh, const m44 & transform)
 	{
 		int vertexCount = mesh->vertices.count();
 		for (int vertexIndex = 0; vertexIndex < vertexCount; ++vertexIndex)
@@ -673,7 +681,7 @@ namespace mesh_ops
 	}
 
 	internal void
-	transform_tex_coords(MeshAsset * mesh, const v2 translation, const v2 scale)
+	transform_tex_coords(MeshAssetData * mesh, const v2 translation, const v2 scale)
 	{
 		int vertexCount = mesh->vertices.count();
 		for(int vertexIndex = 0; vertexIndex < vertexCount; ++vertexIndex)
@@ -689,9 +697,9 @@ namespace mesh_primitives
 {
 	constexpr f32 radius = 0.5f;
 
-	MeshAsset create_quad(MemoryArena * allocator, bool32 flipIndices)
+	MeshAssetData create_quad(MemoryArena * allocator, bool32 flipIndices)
 	{
-		MeshAsset result = {};
+		MeshAssetData result = {};
 		result.indexType = IndexType::UInt16;
 
 		int vertexCount = 4;
@@ -723,7 +731,7 @@ namespace mesh_primitives
 	}
 
 	/*
-	MeshAsset cube = {
+	MeshAssetData cube = {
 		/// VERTICES
 		{
 			/// LEFT face

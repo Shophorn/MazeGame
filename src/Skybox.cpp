@@ -5,7 +5,7 @@ shophorn @ internet
 Skybox mesh creation and drawing.
 =============================================================================*/
 
-internal MeshAsset
+internal MeshAssetData
 create_skybox_mesh(MemoryArena * arena)
 {
 	auto vertices = allocate_array<Vertex>(*arena, 
