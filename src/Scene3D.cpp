@@ -1942,17 +1942,20 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 
 			MeshAssetData seaMeshAsset = {};
 			{
-				seaMeshAsset.vertices = allocate_array<Vertex>(*global_transientMemory, 
+				Vertex vertices []
 				{
 					{-0.5, -0.5, 0, 0, 0, 1, 1,1,1, 0, 0},
 					{ 0.5, -0.5, 0, 0, 0, 1, 1,1,1, 1, 0},
 					{-0.5,  0.5, 0, 0, 0, 1, 1,1,1, 0, 1},
 					{ 0.5,  0.5, 0, 0, 0, 1, 1,1,1, 1, 1},
-				});
-				seaMeshAsset.indices = allocate_array<u16>(*global_transientMemory,
-				{
-					0, 1, 2, 2, 1, 3
-				});
+				};
+				seaMeshAsset.vertices = push_memory<Vertex>(*global_transientMemory, array_count(vertices), 0); 
+				copy_memory(seaMeshAsset.vertices, vertices, sizeof(Vertex) * array_count(vertices));
+
+				u16 indices [] 			= {0,1,2,2,1,3};
+				seaMeshAsset.indexCount = array_count(indices);
+				seaMeshAsset.indices 	= push_and_copy_memory(*global_transientMemory, array_count(indices), indices, 0);
+
 				seaMeshAsset.indexType = IndexType::UInt16;
 			}
 			mesh_generate_tangents(seaMeshAsset);

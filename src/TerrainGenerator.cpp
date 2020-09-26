@@ -155,7 +155,7 @@ internal void mesh_generate_tangents(s32 vertexCount, Vertex * vertices, s32 ind
 
 internal void mesh_generate_tangents(MeshAssetData & mesh)
 {
-	mesh_generate_tangents(mesh.vertices.count(), mesh.vertices.data(), mesh.indices.count(), mesh.indices.data());
+	mesh_generate_tangents(mesh.vertexCount, mesh.vertices, mesh.indexCount, mesh.indices);
 }
 
 internal void mesh_generate_normals(s32 vertexCount, Vertex * vertices, s32 indexCount, u16 * indices)
@@ -190,11 +190,11 @@ internal void mesh_generate_normals(s32 vertexCount, Vertex * vertices, s32 inde
 
 internal void mesh_generate_normals (MeshAssetData & mesh)
 {
-	// Todo(Leo): why this
-	Assert(mesh.indices.count() <= max_value_u32);
+	// Todo(Leo): why does this exist?? 
+	Assert(mesh.indexCount <= max_value_u32);
 
-	u32 vertexCount = mesh.vertices.count();
-	u32 indexCount 	= mesh.indices.count();
+	u32 vertexCount = mesh.vertexCount;
+	u32 indexCount 	= mesh.indexCount;
 
 	v3 * normals = push_memory<v3>(*global_transientMemory, vertexCount, 0);
 
@@ -290,82 +290,13 @@ internal MeshAssetData generate_terrain(MemoryArena & 	allocator,
 
 
 	// Todo(Leo): Stop using array in mesh asset
-	MeshAssetData result = make_mesh_asset(	Array<Vertex>(vertices, vertexCount, vertexCount),
-										Array<u16>(indices, triangleIndexCount, triangleIndexCount));
+	MeshAssetData result 	= {}; 
+	
+	result.vertexCount 	= vertexCount;
+	result.vertices 	= vertices;
 
-	mesh_generate_normals(result);
-	mesh_generate_tangents(result);
-
-	return std::move(result);
-}
-
-internal MeshAssetData generate_terrain(MemoryArena * 	memory, 
-									f32 			texcoordScale,
-									HeightMap * 	heightMap)
-{
-	s32 vertexCountPerSide 	= heightMap->gridSize;
-	s32 vertexCount 			= vertexCountPerSide * vertexCountPerSide;
-
-	s32 quadCountPerSide 		= heightMap->gridSize - 1;
-	s32 triangleIndexCount 	= 6 * quadCountPerSide * quadCountPerSide;
-
-	Array<Vertex> vertices = allocate_array<Vertex>(*memory, vertexCount);
-	Array<u16> indices	= allocate_array<u16>(*memory, triangleIndexCount);
-
-	texcoordScale = texcoordScale / heightMap->gridSize;
-
-	auto get_clamped_height = [heightMap](u32 x, u32 y) -> f32
-	{
-		x = clamp_f32(x, 0u, heightMap->gridSize - 1);
-		y = clamp_f32(y, 0u, heightMap->gridSize - 1);
-
-		u32 valueIndex = x + y * heightMap->gridSize;
-		f32 result = interpolate(	heightMap->minHeight,
-									heightMap->maxHeight,
-									heightMap->values[valueIndex]);
-		return result;
-	};
-
-	f32 gridTileSize = heightMap->worldSize / heightMap->gridSize;
-
-	for (s32 y = 0; y < vertexCountPerSide; ++y)
-	{
-		for (s32 x = 0; x < vertexCountPerSide; ++x)
-		{
-			/* Note(Leo): for normals, use "Finite Differece Method".
-		 	https://stackoverflow.com/questions/13983189/opengl-how-to-calculate-normals-in-a-terrain-height-grid
-
-			Study(Leo): This is supposed to be more accurate. Also look wikipedia.
-			https://stackoverflow.com/questions/6656358/calculating-normals-in-a-triangle-mesh/21660173#21660173
-
-			Note(Leo): Do study this, but now we are genrating normals from triangle normals
-			*/
-			f32 height 		= get_clamped_height(x, y);
-
-			Vertex vertex = 
-			{
-				.position 	= {x * gridTileSize, y * gridTileSize, height},
-				.texCoord 	= {x * texcoordScale, y * texcoordScale},
-			};
-			vertices.push(vertex);
-		}
-	}
-
-	for (s32 y = 0; y < quadCountPerSide; ++y)
-	{
-		for (int x = 0; x < quadCountPerSide; ++x)
-		{
-			u16 a = x + vertexCountPerSide * y;
-
-			u16 b = a + 1;
-			u16 c = a + vertexCountPerSide;
-			u16 d = a + 1 + vertexCountPerSide;
-
-			indices.push_many({a, b, c, c, b, d});
-		}
-	}
-
-	MeshAssetData result = make_mesh_asset(std::move(vertices), std::move(indices));
+	result.indexCount 	= triangleIndexCount;
+	result.indices 		= indices;
 
 	mesh_generate_normals(result);
 	mesh_generate_tangents(result);

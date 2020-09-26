@@ -51,33 +51,21 @@ enum struct IndexType : u32 { UInt16, UInt32 };
 
 struct MeshAssetData
 {
-	// s64 	vertexCount;
-	// Vertex * vertices;
+	s64 		vertexCount;
+	Vertex * 	vertices;
 
-	Array<Vertex> vertices;
-	Array<u16> indices;
+	s64 	indexCount;
+	u16 * 	indices;
 
-	// TODO(Leo): would this be a good way to deal with different index types?
-	// union
-	// {
-	// 	Array<u16> indices16;
-	// 	Array<u32> indices32;
-	// };
 
 	IndexType indexType = IndexType::UInt16;
-};
 
-internal MeshAssetData
-make_mesh_asset(Array<Vertex> vertices, Array<u16> indices)
-{
-	MeshAssetData result =
-	{
-		.vertices 	= std::move(vertices),
-		.indices 	= std::move(indices),
-		.indexType 	= IndexType::UInt16,
-	};
-	return result;
-}
+	/*
+	TODO(Leo): would this be a good way to deal with different index types?
+	u16 * indices_u16() { Assert(indexType == IndexType::UInt16); return reinterpret_cast<u16*>(indices); }
+	u32 * indices_u32() { Assert(indexType == IndexType::UInt32); return reinterpret_cast<u32*>(indices); }
+	*/
+};
 
 enum TextureAddressMode : s32
 {

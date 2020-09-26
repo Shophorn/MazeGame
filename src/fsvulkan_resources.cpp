@@ -298,8 +298,9 @@ internal MeshHandle graphics_memory_push_mesh(VulkanContext * context, MeshAsset
 	// at least map staging buffer persitently
 
 
-	u64 indexBufferSize  = mesh->indices.count() * sizeof(mesh->indices[0]);
-	u64 vertexBufferSize = mesh->vertices.count() * sizeof(mesh->vertices[0]);
+	u64 indexBufferSize  = mesh->indexCount * sizeof(mesh->indices[0]);
+	u64 vertexBufferSize = mesh->vertexCount * sizeof(mesh->vertices[0]);
+	// u64 vertexBufferSize = mesh->vertices.count() * sizeof(mesh->vertices[0]);
 
 	// Todo(Leo): Currently we align on 4 on both indices and vertices, indices maybe wouldn't need to,
 	// and vertices maybe have something else sometimes.
@@ -312,8 +313,8 @@ internal MeshHandle graphics_memory_push_mesh(VulkanContext * context, MeshAsset
 	u64 vertexOffset = alignedIndexBufferSize;
 
 	Assert(totalBufferSize <= context->stagingBufferCapacity);
-	copy_memory(context->persistentMappedStagingBufferMemory, mesh->indices.data(), indexBufferSize);
-	copy_memory(context->persistentMappedStagingBufferMemory + vertexOffset, mesh->vertices.data(), vertexBufferSize);
+	copy_memory(context->persistentMappedStagingBufferMemory, mesh->indices, indexBufferSize);
+	copy_memory(context->persistentMappedStagingBufferMemory + vertexOffset, mesh->vertices, vertexBufferSize);
 
 	VkCommandBuffer commandBuffer = vulkan::begin_command_buffer(context->device, context->commandPool);
 
@@ -332,7 +333,7 @@ internal MeshHandle graphics_memory_push_mesh(VulkanContext * context, MeshAsset
 	
 	context->staticMeshPool.used += totalBufferSize;
 
-	model.indexCount = mesh->indices.count();
+	model.indexCount = mesh->indexCount;
 	model.indexType = BAD_VULKAN_convert_index_type(mesh->indexType);
 
 	u32 modelIndex = context->loadedMeshes.size();

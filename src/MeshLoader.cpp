@@ -560,7 +560,8 @@ load_mesh_glb(MemoryArena & allocator, GltfFile const & file, char const * model
 	u32 vertexCount = positionCount;
 
 	// -----------------------------------------------------------------------------
-	auto vertices = allocate_array<Vertex>(allocator, vertexCount, ALLOC_FILL | ALLOC_NO_CLEAR);
+	// auto vertices = allocate_array<Vertex>(allocator, vertexCount, ALLOC_FILL | ALLOC_NO_CLEAR);
+	Vertex * vertices = push_memory<Vertex>(allocator, vertexCount, 0);
 
 	v3 const * positions 	= get_buffer_start<v3>(file, positionAccessor);
 	v3 const * normals 		= get_buffer_start<v3>(file, normalAccessor);
@@ -609,8 +610,7 @@ load_mesh_glb(MemoryArena & allocator, GltfFile const & file, char const * model
 	s32 indexCount 		= accessors[indexAccessor]["count"].GetInt();
 
 	u16 const * indexStart 	= get_buffer_start<u16>(file, indexAccessor);
-	u16 const * indexEnd 	= indexStart + indexCount;
-	Array<u16> indices 		= allocate_array<u16>(allocator, indexStart, indexEnd);
+	u16 * indices 			= push_and_copy_memory(allocator, indexCount, indexStart, 0);
 
 	// ----------------------------------------------------------------------------------
 
@@ -656,7 +656,12 @@ load_mesh_glb(MemoryArena & allocator, GltfFile const & file, char const * model
 
 	// ----------------------------------------------------------------------------------
 
-	MeshAssetData result = make_mesh_asset(std::move(vertices), std::move(indices));
+	MeshAssetData result 	= {};
+	result.vertexCount		= vertexCount;
+	result.vertices 		= vertices;
+
+	result.indexCount 	= indexCount;
+	result.indices 		= indices;
 	return result;
 }
 
@@ -673,7 +678,7 @@ namespace mesh_ops
 	internal void
 	transform(MeshAssetData * mesh, const m44 & transform)
 	{
-		int vertexCount = mesh->vertices.count();
+		int vertexCount = mesh->vertexCount;
 		for (int vertexIndex = 0; vertexIndex < vertexCount; ++vertexIndex)
 		{
 			mesh->vertices[vertexIndex].position = multiply_point(transform, mesh->vertices[vertexIndex].position); 
@@ -683,7 +688,7 @@ namespace mesh_ops
 	internal void
 	transform_tex_coords(MeshAssetData * mesh, const v2 translation, const v2 scale)
 	{
-		int vertexCount = mesh->vertices.count();
+		int vertexCount = mesh->vertexCount;
 		for(int vertexIndex = 0; vertexIndex < vertexCount; ++vertexIndex)
 		{
 
@@ -702,13 +707,9 @@ namespace mesh_primitives
 		MeshAssetData result = {};
 		result.indexType = IndexType::UInt16;
 
-		int vertexCount = 4;
-		result.vertices = allocate_array<Vertex>(*allocator, vertexCount, ALLOC_FILL | ALLOC_NO_CLEAR);
+		result.vertexCount 	= 4;
+		result.vertices 	= push_memory<Vertex>(*allocator, result.vertexCount, 0);
 
-		// result.vertices[0] = Vertex{.position = {0,0,0}, .normal = {0,0,1}, .color = {1,1,1}, .texCoord = {0,0}};
-		// result.vertices[0] = Vertex{.position = {1,0,0}, .normal = {0,0,1}, .color = {1,1,1}, .texCoord = {1,0}};
-		// result.vertices[0] = Vertex{.position = {0,1,0}, .normal = {0,0,1}, .color = {1,1,1}, .texCoord = {0,1}};
-		// result.vertices[0] = Vertex{.position = {1,1,0}, .normal = {0,0,1}, .color = {1,1,1}, .texCoord = {1,1}};
 		// 					  position 		normal   	color    	uv
 		result.vertices[0] = {0, 0, 0, 		0, 0, 1, 	1, 1, 1, 	0, 0};
 		result.vertices[1] = {1, 0, 0, 		0, 0, 1, 	1, 1, 1, 	1, 0};
@@ -720,11 +721,16 @@ namespace mesh_primitives
 		if (flipIndices)
 		{
 			// Note(Leo): These seem to backwardsm but it because currently our gui is viewed from behind.
-			result.indices = allocate_array<u16>(*allocator, {0, 2, 1, 1, 2, 3});
+			u16 indices [] 		= {0, 2, 1, 1, 2, 3};
+			result.indexCount 	= array_count(indices);
+			result.indices 		= push_and_copy_memory(*allocator, array_count(indices), indices, 0);
 		}
 		else
 		{
-			result.indices = allocate_array<u16>(*allocator, {0, 1, 2, 2, 1, 3});
+			u16 indices [] 		= {0, 1, 2, 2, 1, 3};
+			result.indexCount 	= array_count(indices);
+			result.indices 		= push_and_copy_memory(*allocator, array_count(indices), indices, 0);
+
 		}
 
 		return result;

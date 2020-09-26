@@ -126,6 +126,14 @@ internal T* push_memory(MemoryArena & arena, s32 count, s32 flags)
 	return result;	
 }
 
+template <typename T>
+internal T * push_and_copy_memory(MemoryArena & arena, s32 count, T const * source, s32 flags)
+{
+	T * result = push_memory<T>(arena, count, flags);
+	copy_memory(result, source, count * sizeof(T));
+	return result;
+};
+
 internal MemoryArena
 make_memory_arena(byte * memory, u64 size)
 {
