@@ -80,11 +80,11 @@ void log_assert(char const * filename, int line, char const * message, char cons
 	// Todo(Leo): lol
 	if (message && expression)
 	{
-		log_debug(LogFileAddress{filename, line}, "Assertion failed!", message, ", (", expression, ")");
+		log_debug(LogFileAddress{filename, line}, "Assertion failed! ", message, ", (", expression, ")");
 	}
 	else if(message)
 	{
-		log_debug(LogFileAddress{filename, line}, "Assertion failed!", message);
+		log_debug(LogFileAddress{filename, line}, "Assertion failed! ", message);
 	}
 	else if(expression)
 	{

@@ -340,6 +340,7 @@ internal void string_append_f32(String & string, s32 capacity, f32 value, s32 pr
 
 	s32 exponent 	= maxExponent;
 
+	bool addedValueAboveOne = false;
 	// Note(Leo): first loop to find first number, so we don't write leading zeros wastefully
 	while(exponent >= 0)
 	{
@@ -348,13 +349,18 @@ internal void string_append_f32(String & string, s32 capacity, f32 value, s32 pr
 
 		if (digit != '0')
 		{
-			digits[0] = digit;
+			// Note(Leo): characterCount includes decimal point and minus sign
+			digits[characterCount++] 	= digit;
+			addedValueAboveOne 			= true;
 			break;
 		}
 	}
 
-	// Note(Leo): characterCount includes decimal point and minus sign
-	characterCount += 1;
+	if (!addedValueAboveOne)
+	{
+		digits[characterCount++] = '0';
+	}
+
 	s32 digitCount = 1;
 
 	// Note(Leo): second loop to find rest
@@ -362,13 +368,11 @@ internal void string_append_f32(String & string, s32 capacity, f32 value, s32 pr
 	{
 		if (exponent == -1)
 		{
-			digits[characterCount] = '.';
-			characterCount++;
+			digits[characterCount++] = '.';
 		}
 		
-		digits[characterCount] = get_digit(exponent);
+		digits[characterCount++] = get_digit(exponent);
 
-		characterCount++;
 		digitCount++;
 		exponent--;
 	}

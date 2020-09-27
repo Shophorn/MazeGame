@@ -94,3 +94,10 @@ internal void array_2_fill_with_value(Array2<T> & array, T value)
 		element = value;
 	}
 }
+
+template<typename T>
+internal void array_2_unordered_remove(Array2<T> & array, s32 index)
+{
+	array[index] = array[array.count - 1];
+	array.count -= 1;
+}

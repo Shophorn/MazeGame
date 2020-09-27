@@ -722,15 +722,10 @@ internal bool gui_int_field(char const * label, s32 * value, GuiClampValuesS32 c
 	}
 	*value = clamp_s32(*value, clamp.min, clamp.max);
 
-	if (modified)
-	{
-		log_debug(FILE_ADDRESS, *value);
-	}
 
 	v4 colour = isSelected ? gui.selectedTextColor : gui.textColor;
 
 	// string_append_format(string, 128, label, ":");
-
 	// gui_panel_add_text_draw_call(string, colour, GUI_ALIGN_LEFT);
 
 	gui_label(label, colour);

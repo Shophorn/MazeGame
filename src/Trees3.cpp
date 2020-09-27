@@ -184,7 +184,6 @@ struct Tree3
 	// Todo(Leo): this is not used yet, make it so that it is
 	// quaternion rotation;
 
-	bool32 isCarried;
 	bool32 drawSeed = true;
 	bool32 enabled;
 	bool32 drawGizmos;
@@ -200,7 +199,12 @@ struct Tree3
 	f32 	fruitAge;
 	v3 		fruitPosition;
 
+	s32 			typeIndex;
 	Tree3Settings * settings;
+
+
+	// Todo(Leo): I would like not to include this here, but we do need connection to falling system etc.
+	Game * game;
 };
 bool32 Tree3::globalEnabled = true;
 
@@ -829,7 +833,7 @@ internal void update_tree_3(Tree3 & tree, f32 elapsedTime, GetWaterFunc & get_wa
 		tree.breakOnUpdate = false;
 	}
 
-	if (Tree3::globalEnabled && tree.enabled && !tree.resourceLimitReached && !tree.isCarried)
+	if (Tree3::globalEnabled && tree.enabled && !tree.resourceLimitReached)
 	{
 		grow_tree_3(tree, elapsedTime, get_water);
 		build_tree_3_mesh(tree);
@@ -848,6 +852,8 @@ internal void update_tree_3(Tree3 & tree, f32 elapsedTime, GetWaterFunc & get_wa
 
 		if (tree.fruitAge > tree.fruitMaturationTime)
 		{
+			game_spawn_tree(*tree.game, tree.fruitPosition + tree.position, tree.typeIndex);
+
 			s32 budIndex = random_range(0, tree.buds.count);
 			v3 fruitPosition = tree.buds[budIndex].position;
 

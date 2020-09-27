@@ -7,6 +7,12 @@ Scene description for 3d development game
 Todo(Leo):
 	crystal trees 
 */
+
+// Todo(Leo): Maybe try to get rid of this forward declaration
+struct Game;
+internal void game_spawn_tree(Game & game, v3 position, s32 treeTypeIndex);
+
+
 #include "CharacterMotor.cpp"
 #include "PlayerController3rdPerson.cpp"
 #include "FollowerController.cpp"
@@ -31,13 +37,13 @@ enum CameraMode : s32
 	CAMERA_MODE_COUNT
 };
 
-enum CarryMode : s32
+enum GameObjectType : s32
 { 	
-	CARRY_NONE,
-	CARRY_POT,
-	CARRY_WATER,
-	CARRY_RACCOON,
-	CARRY_TREE_3,
+	GO_NONE,
+	GO_POT,
+	GO_WATER,
+	GO_RACCOON,
+	GO_TREE_3,
 };
 
 enum TrainState : s32
@@ -61,11 +67,11 @@ enum RaccoonMode : s32
 	RACCOON_CARRIED,
 };
 
-struct FallingObject
+struct PhysicsObject
 {
-	s32 type;
-	s32 index;
-	f32 fallSpeed;
+	GameObjectType 	type;
+	s32 			index;
+	f32 			velocity;
 };
 
 enum MenuView : s32
@@ -84,9 +90,8 @@ enum MenuView : s32
 
 struct Game
 {
-	MemoryArena * persistentMemory;
-
-	GameAssets assets;
+	MemoryArena * 	persistentMemory;
+	GameAssets 		assets;
 
 	SkySettings skySettings;
 
@@ -160,9 +165,7 @@ struct Game
 	s32 playerCarryState;
 	s32 carriedItemIndex;
 
-	s32 			fallingObjectCapacity;
-	s32 			fallingObjectCount;
-	FallingObject * fallingObjects;
+	Array2<PhysicsObject> physicsObjects;
 
 	// ------------------------------------------------------
 
@@ -289,19 +292,36 @@ internal void game_spawn_water(Game & game, s32 count)
 	}
 }
 
-internal void trees_spawn_tree(Game & game, v3 position, s32 treeTypeIndex)
+internal void push_physics_object(Array2<PhysicsObject> & array, GameObjectType type, s32 index)
 {
-	Assert(game.trees.count < game.trees.capacity);
+	Assert(array.count < array.capacity);
+	array[array.count++] = {type, index};
+}
+
+internal void game_spawn_tree(Game & game, v3 position, s32 treeTypeIndex)
+{
+	// Assert(game.trees.count < game.trees.capacity);
+	if (game.trees.count >= game.trees.capacity)
+	{
+		// Todo(Leo): do something more interesting
+		log_debug(FILE_ADDRESS, "Trying to spawn tree, but out of tree capacity");
+		return;
+	}
 
 	Tree3 & tree = game.trees[game.trees.count++];
 
 	initialize_test_tree_3(*game.persistentMemory, tree, position, &game.treeSettings[treeTypeIndex]);
+
+	tree.typeIndex 	= treeTypeIndex;
+	tree.game 		= &game;
 
 	MeshAssetId seedMesh = treeTypeIndex == 0 ? MESH_ASSET_SEED : MESH_ASSET_WATER_DROP;
 
 	tree.leaves.material 	= assets_get_material(game.assets, MATERIAL_ASSET_LEAVES);
 	tree.seedMesh 			= assets_get_mesh(game.assets, seedMesh);
 	tree.seedMaterial		= assets_get_material(game.assets, MATERIAL_ASSET_SEED);
+
+	push_physics_object(game.physicsObjects, GO_TREE_3, game.trees.count -1);
 }
 
 internal void game_spawn_tree_on_player(Game & game)
@@ -319,7 +339,7 @@ internal void game_spawn_tree_on_player(Game & game)
 
 	local_persist s32 treeTypeIndex = 0;
 
-	trees_spawn_tree(game, position, treeTypeIndex);
+	game_spawn_tree(game, position, treeTypeIndex);
 
 	treeTypeIndex += 1;
 	treeTypeIndex %= 2;
@@ -503,23 +523,12 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 	/// PICKUP OR DROP
 	if (playerInputAvailable && is_clicked(input.A))
 	{
-		auto push_falling_object = [fallingObjects 			= game->fallingObjects,
-									fallingObjectCapacity 	= game->fallingObjectCapacity,
-									&fallingObjectCount 	= game->fallingObjectCount]
-									(s32 type, s32 index)
-		{
-			Assert(fallingObjectCount < fallingObjectCapacity);
-
-			fallingObjects[fallingObjectCount] 	= {type, index, 0};
-			fallingObjectCount 					+= 1;
-		};
-
 		v3 playerPosition = game->playerCharacterTransform.position;
 		f32 grabDistance = 1.0f;
 
 		switch(game->playerCarryState)
 		{
-			case CARRY_NONE: {
+			case GO_NONE: {
 				/* Todo(Leo): Do this properly, taking into account player facing direction and distances etc. */
 				auto check_pickup = [	playerPosition 		= game->playerCharacterTransform.position,
 										&playerCarryState 	= game->playerCarryState,
@@ -537,9 +546,9 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 					}
 				};
 
-				check_pickup(game->potCount, game->potTransforms, CARRY_POT);
-				check_pickup(game->waters.count, game->waters.transforms, CARRY_WATER);
-				check_pickup(game->raccoonCount, game->raccoonTransforms, CARRY_RACCOON);
+				check_pickup(game->potCount, game->potTransforms, GO_POT);
+				check_pickup(game->waters.count, game->waters.transforms, GO_WATER);
+				check_pickup(game->raccoonCount, game->raccoonTransforms, GO_RACCOON);
 
 				{
 					for (auto & tree : game->trees)
@@ -552,9 +561,8 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 							// if (isGrabbable)
 							{
-								game->playerCarryState = CARRY_TREE_3;
+								game->playerCarryState = GO_TREE_3;
 								game->carriedItemIndex = array_2_get_index_of(game->trees, tree);
-								tree.isCarried = true;
 							}
 						}
 					}
@@ -562,20 +570,20 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 			} break;
 
-			case CARRY_POT:
-				push_falling_object(CARRY_POT, game->carriedItemIndex);
+			case GO_POT:
+				push_physics_object(game->physicsObjects, GO_POT, game->carriedItemIndex);
 				game->carriedItemIndex = -1;
-				game->playerCarryState = CARRY_NONE;
+				game->playerCarryState = GO_NONE;
 
 				break;
 	
-			case CARRY_WATER:
+			case GO_WATER:
 			{
 				Transform3D & waterTransform = game->waters.transforms[game->carriedItemIndex];
 
-				push_falling_object(CARRY_WATER, game->carriedItemIndex);
+				push_physics_object(game->physicsObjects, GO_WATER, game->carriedItemIndex);
 				game->carriedItemIndex = -1;
-				game->playerCarryState = CARRY_NONE;
+				game->playerCarryState = GO_NONE;
 
 				constexpr f32 waterSnapDistance 	= 0.5f;
 				constexpr f32 smallPotMaxWaterLevel = 1.0f;
@@ -601,20 +609,20 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 			} break;
 
-			case CARRY_RACCOON:
+			case GO_RACCOON:
 			{
 				game->raccoonTransforms[game->carriedItemIndex].rotation = identity_quaternion;
-				push_falling_object(CARRY_RACCOON, game->carriedItemIndex);
+				push_physics_object(game->physicsObjects, GO_RACCOON, game->carriedItemIndex);
 				game->carriedItemIndex = -1;
-				game->playerCarryState = CARRY_NONE;
+				game->playerCarryState = GO_NONE;
 
 			} break;
 
-			case CARRY_TREE_3:
+			case GO_TREE_3:
 			{	
-				push_falling_object(CARRY_TREE_3, game->carriedItemIndex);
+				push_physics_object(game->physicsObjects, GO_TREE_3, game->carriedItemIndex);
 				game->carriedItemIndex = -1;
-				game->playerCarryState = CARRY_NONE;
+				game->playerCarryState = GO_NONE;
 			} break;
 		}
 	} // endif input
@@ -624,17 +632,17 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 	quaternion carriedRotation 	= game->playerCharacterTransform.rotation;
 	switch(game->playerCarryState)
 	{
-		case CARRY_POT:
+		case GO_POT:
 			game->potTransforms[game->carriedItemIndex].position = carriedPosition;
 			game->potTransforms[game->carriedItemIndex].rotation = carriedRotation;
 			break;
 
-		case CARRY_WATER:
+		case GO_WATER:
 			game->waters.transforms[game->carriedItemIndex].position = carriedPosition;
 			game->waters.transforms[game->carriedItemIndex].rotation = carriedRotation;
 			break;
 
-		case CARRY_RACCOON:
+		case GO_RACCOON:
 		{
 			game->raccoonTransforms[game->carriedItemIndex].position 	= carriedPosition + v3{0,0,0.2};
 
@@ -644,11 +652,11 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 		} break;
 
-		case CARRY_TREE_3:
+		case GO_TREE_3:
 			game->trees[game->carriedItemIndex].position = carriedPosition;
 			break;
 
-		case CARRY_NONE:
+		case GO_NONE:
 			break;
 
 
@@ -660,48 +668,67 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 	/// UPDATE TREES IN POTS POSITIONS
 	// Todo(Leo):...
 
-	// UPDATE falling objects
+	// UPDATE physics objects
 	{
-		for (s32 i = 0; i < game->fallingObjectCount; ++i)
+		for (s32 i = 0; i < game->physicsObjects.count; ++i)
 		{
-			s32 index 		= game->fallingObjects[i].index;
+			s32 index 		= game->physicsObjects[i].index;
 			bool cancelFall = index == game->carriedItemIndex;
 
-			f32 & fallSpeed = game->fallingObjects[i].fallSpeed;
-
+			f32 & velocity = game->physicsObjects[i].velocity;
 			v3 * position;
 
-			switch (game->fallingObjects[i].type)
+			switch (game->physicsObjects[i].type)
 			{
-				case CARRY_RACCOON:	position = &game->raccoonTransforms[index].position; 	break;
-				case CARRY_WATER: 	position = &game->waters.transforms[index].position; 	break;
-				case CARRY_POT:		position = &game->potTransforms[index].position;		break;
-				case CARRY_TREE_3: 	position = &game->trees[index].position; 				break;
+				case GO_RACCOON:	position = &game->raccoonTransforms[index].position; 	break;
+				case GO_WATER: 		position = &game->waters.transforms[index].position; 	break;
+				case GO_POT:		position = &game->potTransforms[index].position;		break;
+				case GO_TREE_3: 	position = &game->trees[index].position; 				break;
+
+				default:
+					Assert(false && "That item has not physics properties");
 			}
 		
-			f32 targetHeight 	= get_terrain_height(game->collisionSystem, position->xy);
+			f32 groundHeight = get_terrain_height(game->collisionSystem, position->xy);
 
-			if (position->z < targetHeight or cancelFall)
+			if (cancelFall)
 			{
-				if (game->fallingObjects[i].type == CARRY_TREE_3)
+				array_2_unordered_remove(game->physicsObjects, i);
+				i -= 1;
+
+				continue;
+			}
+
+			// Todo(Leo): this is in reality dependent on frame rate, this works for development capped 30 ms frame time
+			// but is lower when frametime is lower
+			constexpr f32 physicsSleepThreshold = 0.2;
+
+			if (velocity < 0 && position->z < groundHeight)
+			{
+				position->z = groundHeight;
+
+				f32 velocityBefore = velocity;
+
+				f32 bounceFactor 	= 0.5;
+				velocity 			= -velocity * bounceFactor;
+
+				if (velocity < physicsSleepThreshold)
 				{
-					game->trees[index].isCarried = false;
+					array_2_unordered_remove(game->physicsObjects, i);
+					i -= 1;
 				}
 
-				if(!cancelFall)
-				{
-					position->z = targetHeight;
-				}
-
-				/// POP falling object
-				game->fallingObjects[i] = game->fallingObjects[game->fallingObjectCount];
-				game->fallingObjectCount -= 1;
-				i--;
 			}
 			else
 			{
-				fallSpeed 			+= scaledTime * physics_gravity_acceleration;
-				position->z 		+= scaledTime * fallSpeed;
+				f32 gravity = physics_gravity_acceleration;
+
+				f32 deltaSpeed 	= scaledTime * gravity;
+				velocity 		+= deltaSpeed;
+
+				position->z += scaledTime * velocity;
+
+				log_debug(FILE_ADDRESS, "Added velocity: ", deltaSpeed, ", ", scaledTime, ", ", gravity);
 			}
 		}
 	}
@@ -847,7 +874,7 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 			raccoonCharacterMotorInput = {input, false, false};
 
-			bool isCarried = (game->playerCarryState == CARRY_RACCOON) && (game->carriedItemIndex == i);
+			bool isCarried = (game->playerCarryState == GO_RACCOON) && (game->carriedItemIndex == i);
 
 			if (isCarried == false)
 			{
@@ -1131,7 +1158,7 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 	for (auto & tree : game->trees)
 	{
-		GetWaterFunc get_water = {game->waters, game->carriedItemIndex, game->playerCarryState == CARRY_WATER };
+		GetWaterFunc get_water = {game->waters, game->carriedItemIndex, game->playerCarryState == GO_WATER };
 		update_tree_3(tree, scaledTime, get_water);
 		
 		tree.leaves.position = tree.position;
@@ -1228,9 +1255,7 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 	game->collisionSystem.cylinderColliders 	= allocate_array<CylinderCollider>(persistentMemory, 600);
 	game->collisionSystem.staticBoxColliders 	= allocate_array<StaticBoxCollider>(persistentMemory, 2000);
 
-	game->fallingObjectCapacity = 100;
-	game->fallingObjectCount = 0;
-	game->fallingObjects = push_memory<FallingObject>(persistentMemory, game->fallingObjectCapacity, ALLOC_CLEAR);
+	game->physicsObjects = push_array_2<PhysicsObject>(persistentMemory, 100, ALLOC_CLEAR);
 
 	log_application(1, "Allocations succesful! :)");
 
@@ -1251,7 +1276,7 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 
 	// Characters
 	{
-		game->playerCarryState 		= CARRY_NONE;
+		game->playerCarryState 		= GO_NONE;
 		game->playerCharacterTransform = {.position = {10, 0, 5}};
 
 		auto & motor 	= game->playerCharacterMotor;
@@ -1698,7 +1723,7 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 			v3 position = random_on_unit_circle_xy() * random_value() * 50;
 			position.z = get_terrain_height(game->collisionSystem, position.xy);
 
-			trees_spawn_tree(*game, position, 0);
+			game_spawn_tree(*game, position, 0);
 		}
 
 		// ----------------------------------------------------------------------------------
@@ -1708,7 +1733,7 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 			v3 position = random_on_unit_circle_xy() * random_value() * 50;
 			position.z = get_terrain_height(game->collisionSystem, position.xy);
 			
-			trees_spawn_tree(*game, position, 1);
+			game_spawn_tree(*game, position, 1);
 		}
 	
 		game->inspectedTreeIndex 	= 0;
