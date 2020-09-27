@@ -1,5 +1,10 @@
 todo
 
+Alloc options:
+	ALLOC_GARBAGE
+	ALLOC_ZERO_MEMORY
+	ALLOC_DEFAULT_INITIALIZE
+
 trees bear fruit
 vulkan memory management
 	-> also stupid not working shadow buffer things

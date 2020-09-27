@@ -1,6 +1,6 @@
-internal void scene_3d_initialize_gui(Scene3d * scene)
+internal void scene_3d_initialize_gui(Game * game)
 {
-	Gui & gui = scene->gui;
+	Gui & gui = game->gui;
 
 	gui 					= {};
 	gui.textSize 			= 20;
@@ -25,7 +25,7 @@ internal void gui_set_cursor_visible(bool menuVisible)
 }
 
 
-bool32 do_gui(Scene3d * scene, PlatformInput const & input)
+bool32 do_gui(Game * game, PlatformInput const & input)
 {	
 	constexpr v2 cornerPosition = {30, 30};
 	constexpr v2 centerPosition = {850, 400};
@@ -33,15 +33,15 @@ bool32 do_gui(Scene3d * scene, PlatformInput const & input)
 
 	if (is_clicked(input.start))
 	{
-		if (scene->menuView == MENU_OFF)
+		if (game->menuView == MENU_OFF)
 		{
-			scene->menuView = MENU_MAIN;
+			game->menuView = MENU_MAIN;
 			gui_reset_selection();
 			gui_set_cursor_visible(true);
 		}
-		else if (scene->menuView == MENU_MAIN)
+		else if (game->menuView == MENU_MAIN)
 		{
-			scene->menuView = MENU_OFF;
+			game->menuView = MENU_OFF;
 			gui_set_cursor_visible(false);
 		}
 	}
@@ -49,7 +49,7 @@ bool32 do_gui(Scene3d * scene, PlatformInput const & input)
 	bool32 keepScene = true;
 	
 	v4 menuColor = colour_rgb_alpha(colour_bright_blue.rgb, 0.5);
-	switch(scene->menuView)
+	switch(game->menuView)
 	{	
 		case MENU_OFF:
 			// Nothing to do
@@ -68,7 +68,7 @@ bool32 do_gui(Scene3d * scene, PlatformInput const & input)
 
 			if (gui_button("No"))
 			{
-				scene->menuView = MENU_MAIN;
+				game->menuView = MENU_MAIN;
 				gui_reset_selection();
 			}
 
@@ -88,7 +88,7 @@ bool32 do_gui(Scene3d * scene, PlatformInput const & input)
 
 			if (gui_button("Continue"))
 			{
-				scene->menuView = MENU_OFF;
+				game->menuView = MENU_OFF;
 				gui_set_cursor_visible(false);
 			}
 
@@ -99,9 +99,9 @@ bool32 do_gui(Scene3d * scene, PlatformInput const & input)
 				"Camera Mode: Mouse",
 			};
 			
-			if (gui_button(cameraModeLabels[scene->cameraMode]))
+			if (gui_button(cameraModeLabels[game->cameraMode]))
 			{
-				scene->cameraMode = (CameraMode)((scene->cameraMode + 1) % CAMERA_MODE_COUNT);
+				game->cameraMode = (CameraMode)((game->cameraMode + 1) % CAMERA_MODE_COUNT);
 			}
 
 			char const * const debugLevelButtonLabels [] =
@@ -118,66 +118,57 @@ bool32 do_gui(Scene3d * scene, PlatformInput const & input)
 				global_debugLevel %= DEBUG_LEVEL_COUNT;
 			}
 
-			gui_toggle("Debug Shadow", &scene->drawDebugShadowTexture);
+			gui_toggle("Debug Shadow", &game->drawDebugShadowTexture);
 
 			if (gui_button("Reload Shaders"))
 			{
 				graphics_development_reload_shaders(platformGraphics);
 			}
 
-			char const * const timeScaleLabels [scene->timeScaleCount] =
+			char const * const timeScaleLabels [game->timeScaleCount] =
 			{
 				"Time Scale: 1.0",
 				"Time Scale: 0.1",
 				"Time Scale: 0.5",
 			};
 
-			if (gui_button(timeScaleLabels[scene->timeScaleIndex]))
+			if (gui_button(timeScaleLabels[game->timeScaleIndex]))
 			{
-				scene->timeScaleIndex += 1;
-				scene->timeScaleIndex %= scene->timeScaleCount;
-			}
-
-			if (gui_button("Save Game"))
-			{
-				// Todo(Leo): Show some response
-				write_save_file(scene);
-
-				scene->menuView = MENU_SAVE_COMPLETE;
-				gui_reset_selection();
+				game->timeScaleIndex += 1;
+				game->timeScaleIndex %= game->timeScaleCount;
 			}
 
 			if (gui_button("Edit Sky"))
 			{
-				scene->menuView = MENU_EDIT_SKY;
+				game->menuView = MENU_EDIT_SKY;
 				gui_reset_selection();
 			}
 
 			if (gui_button("Edit Mesh Generation"))
 			{
-				scene->menuView = MENU_EDIT_MESH_GENERATION;
+				game->menuView = MENU_EDIT_MESH_GENERATION;
 				gui_reset_selection();
 			}
 
 			if (gui_button("Edit Trees"))
 			{
-				scene->menuView = MENU_EDIT_TREE;
+				game->menuView = MENU_EDIT_TREE;
 				gui_reset_selection();
 			}
 
 			if (gui_button("Read Settings"))
 			{
-				read_settings_file(scene);
+				read_settings_file(game->skySettings, game->treeSettings[0], game->treeSettings[1]);
 			}
 
 			if (gui_button("Write Settings"))
 			{
-				write_settings_file(scene);
+				write_settings_file(game->skySettings, game->treeSettings[0], game->treeSettings[1]);
 			}
 
 			if (gui_button("Exit Scene"))
 			{
-				scene->menuView = MENU_CONFIRM_EXIT;
+				game->menuView = MENU_CONFIRM_EXIT;
 				gui_reset_selection();
 			}
 
@@ -200,12 +191,12 @@ bool32 do_gui(Scene3d * scene, PlatformInput const & input)
 			gui_position(cornerPosition);	
 
 			gui_start_panel("EDIT MESH GENERATION", menuColor);
-			gui_float_slider("Grid Scale", &scene->metaballGridScale, 0.2, 1);
-			gui_toggle("Draw", &scene->drawMCStuff);
+			gui_float_slider("Grid Scale", &game->metaballGridScale, 0.2, 1);
+			gui_toggle("Draw", &game->drawMCStuff);
 
 			if (gui_button("Back") || is_clicked(input.start))
 			{
-				scene->menuView = MENU_MAIN;
+				game->menuView = MENU_MAIN;
 				gui_reset_selection();
 			}
 
@@ -217,14 +208,14 @@ bool32 do_gui(Scene3d * scene, PlatformInput const & input)
 			gui_position(cornerPosition);	
 			gui_start_panel("EDIT TREES", menuColor);
 		
-			gui_int_field("Tree Index", &scene->treeIndex, {.min = 0, .max = (s32)scene->trees.count - 1});	
+			gui_int_field("Tree Index", &game->inspectedTreeIndex, {.min = 0, .max = (s32)game->trees.count - 1});	
 
-			tree_gui(scene->trees[scene->treeIndex]);
+			tree_gui(game->trees[game->inspectedTreeIndex]);
 			
 			gui_line();
 			if (gui_button("Back") || is_clicked(input.start))
 			{
-				scene->menuView = MENU_MAIN;
+				game->menuView = MENU_MAIN;
 				gui_reset_selection();
 			}
 			gui_end_panel();
@@ -238,7 +229,7 @@ bool32 do_gui(Scene3d * scene, PlatformInput const & input)
 
 			if (gui_button("Ok"))
 			{
-				scene->menuView = MENU_MAIN;
+				game->menuView = MENU_MAIN;
 				gui_reset_selection();
 			}
 
@@ -254,14 +245,14 @@ bool32 do_gui(Scene3d * scene, PlatformInput const & input)
 
 			if (gui_button("Yes"))
 			{
-				scene->playerCharacterTransform.position = scene->freeCamera.position;
-				scene->menuView = MENU_OFF;
-				scene->cameraMode = CAMERA_MODE_PLAYER;
+				game->playerCharacterTransform.position = game->freeCamera.position;
+				game->menuView = MENU_OFF;
+				game->cameraMode = CAMERA_MODE_PLAYER;
 			}
 
 			if (gui_button("No"))
 			{
-				scene->menuView = MENU_OFF;
+				game->menuView = MENU_OFF;
 			}
 
 			gui_end_panel();
@@ -269,19 +260,43 @@ bool32 do_gui(Scene3d * scene, PlatformInput const & input)
 
 		case MENU_EDIT_SKY:
 		{
-			SkySettings & settings = scene->skySettings;
+			SkySettings & settings = game->skySettings;
 
 			gui_position(cornerPosition);
 
 			gui_start_panel("EDIT SKY", menuColor);
 
-			sky_gui(scene->skySettings);
+			sky_gui(game->skySettings);
 
 			gui_line();
 
 			if (gui_button("Back") || is_clicked(input.start))
 			{
-				scene->menuView = MENU_MAIN;
+				game->menuView = MENU_MAIN;
+			}
+
+			gui_end_panel();
+
+		} break;
+
+		case MENU_SPAWN:
+		{
+			gui_position(centerPosition);
+			gui_start_panel("SPAWN", menuColor);
+
+			if (gui_button("10 Waters"))
+			{
+				game_spawn_water(*game, 10);
+			}
+
+			if (gui_button("1 Tree"))
+			{
+				game_spawn_tree_on_player(*game);
+			}
+
+			if (is_clicked(input.start))
+			{
+				game->menuView = MENU_OFF;
 			}
 
 			gui_end_panel();
@@ -298,7 +313,7 @@ bool32 do_gui(Scene3d * scene, PlatformInput const & input)
 	// gui_image(shadowTexture, {300, 300});
 
 	gui_position({1550, 30});
-	if (scene->drawDebugShadowTexture)
+	if (game->drawDebugShadowTexture)
 	{
 		gui_image(GRAPHICS_RESOURCE_SHADOWMAP_GUI_TEXTURE, {300, 300});
 	}

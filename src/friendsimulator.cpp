@@ -77,7 +77,7 @@ struct Font
 #include "TextureLoader.cpp"
 
 #include "Gui.cpp"
-#include "Scene3D.cpp"
+#include "Game.cpp"
 
 struct AudioClip
 {

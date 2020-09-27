@@ -19,6 +19,54 @@ DONE:
 	- leaves from buds age separately from tree growth
 */
 
+// Todo(Leo): This is maybe stupid(as in unnecessary) that this is functor
+struct GetWaterFunc
+{
+	Waters & 	waters;
+	s32 		carriedItemIndex;
+	bool32 		waterIsCarried;
+
+	f32 operator()(v3 position, f32 requestedAmount)
+	{
+		s32 closestIndex;
+		f32 closestDistance = highest_f32;
+
+		for (s32 i = 0; i < waters.count; ++i)
+		{
+			if (carriedItemIndex == i && waterIsCarried)
+			{
+				continue;
+			}
+
+			f32 distance = magnitude_v3(waters.transforms[i].position - position);
+			if (distance < closestDistance)
+			{
+				closestDistance = distance;
+				closestIndex 	= i;
+			}
+		}
+
+		f32 amount 				= 0;
+		f32 distanceThreshold	= 2;
+
+		if (closestDistance < distanceThreshold)
+		{
+			waters.levels[closestIndex] -= requestedAmount;
+			if (waters.levels[closestIndex] < 0)
+			{
+				waters.count -= 1;
+				waters.transforms[closestIndex] 	= waters.transforms[waters.count];
+				waters.levels[closestIndex] 		= waters.levels[waters.count];
+			}
+
+			amount = requestedAmount;
+		}
+
+		return amount;
+	};
+};
+
+
 struct Tree3Node
 {
 	v3 			position;
@@ -147,9 +195,15 @@ struct Tree3
 	bool32 resourceLimitReached 	= false;
 	f32 resourceLimitThresholdValue = 0.8;
 
+	static constexpr f32 fruitMaturationTime = 5; 
+	bool32 	hasFruit;
+	f32 	fruitAge;
+	v3 		fruitPosition;
+
 	Tree3Settings * settings;
 };
-bool32 Tree3::globalEnabled = false;
+bool32 Tree3::globalEnabled = true;
+
 
 internal void tree_3_add_branch(Tree3 & tree, s64 parentBranchIndex, v3 position, quaternion rotation, f32 distanceFromParentStartNode)
 {
@@ -198,7 +252,6 @@ internal void tree_3_add_branch(Tree3 & tree, s64 parentBranchIndex, v3 position
 
 	tree.branches[parentBranchIndex].childBranchCount += 1;
 }
-
 
 internal void grow_tree_3(Tree3 & tree, f32 elapsedTime, GetWaterFunc & get_water)
 {
@@ -671,7 +724,7 @@ internal void initialize_test_tree_3(MemoryArena & allocator, Tree3 & tree, v3 p
 	tree.nodes 		= push_array_2<Tree3Node>(allocator, 1000, ALLOC_CLEAR);
 	tree.buds 		= push_array_2<Tree3Bud>(allocator, 1000, ALLOC_CLEAR);
 	tree.branches 	= push_array_2<Tree3Branch>(allocator, 1000, ALLOC_CLEAR);
-	tree.leaves 	= make_leaves(allocator, 4000);
+	tree.leaves 	= make_leaves(allocator, 2000);
 	tree.mesh 		= push_dynamic_mesh(allocator, 10000, 40000);
 
 	tree.position = position;
@@ -780,6 +833,27 @@ internal void update_tree_3(Tree3 & tree, f32 elapsedTime, GetWaterFunc & get_wa
 	{
 		grow_tree_3(tree, elapsedTime, get_water);
 		build_tree_3_mesh(tree);
+	}
+
+	if (tree.resourceLimitReached)
+	{
+		if (tree.hasFruit == false)
+		{
+			tree.hasFruit 		= true;
+			tree.fruitPosition 	= {3,3,3};
+			tree.fruitAge 		= 0;
+		}
+
+		tree.fruitAge += elapsedTime;
+
+		if (tree.fruitAge > tree.fruitMaturationTime)
+		{
+			s32 budIndex = random_range(0, tree.buds.count);
+			v3 fruitPosition = tree.buds[budIndex].position;
+
+			tree.fruitPosition 	= fruitPosition;
+			tree.fruitAge 		= 0;
+		}
 	}
 
 	if (tree.drawGizmos)

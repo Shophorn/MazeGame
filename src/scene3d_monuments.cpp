@@ -23,7 +23,7 @@ struct Monuments
 	MaterialHandle * 	ornamentMaterials;
 };
 
-internal void scene3d_draw_monuments(Monuments const & monuments)
+internal void Game_draw_monuments(Monuments const & monuments)
 {
 	graphics_draw_meshes(platformGraphics, monuments.baseCount, monuments.baseTransforms, monuments.baseMesh, monuments.baseMaterial);
 	graphics_draw_meshes(platformGraphics, monuments.archCount, monuments.archTransforms, monuments.archMesh, monuments.archMaterial);
@@ -37,7 +37,7 @@ internal void scene3d_draw_monuments(Monuments const & monuments)
 	}
 }
 
-internal Monuments scene3d_load_monuments(MemoryArena & persistentMemory, MaterialHandle environmentMaterial, CollisionSystem3D & collisionSystem)
+internal Monuments Game_load_monuments(MemoryArena & persistentMemory, MaterialHandle environmentMaterial, CollisionSystem3D & collisionSystem)
 {
 	push_memory_checkpoint(*global_transientMemory);
 
