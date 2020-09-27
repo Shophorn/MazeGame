@@ -1,0 +1,13 @@
+/*
+Leo Tamminen
+
+Vertex attribute locations, include to both glsl and c++ files
+*/
+
+#define VERTEX_POSITION_LOCATION 0
+#define VERTEX_NORMAL_LOCATION 1
+#define VERTEX_TANGENT_LOCATION 6
+#define VERTEX_COLOR_LOCATION 2
+#define VERTEX_TEXCOORD_LOCATION 3
+#define VERTEX_BONE_INDEX_LOCATION 4
+#define VERTEX_BONE_WEIGHT_LOCATION 5

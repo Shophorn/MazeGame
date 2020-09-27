@@ -292,29 +292,38 @@ internal MaterialHandle graphics_memory_push_material (	VulkanContext *     cont
 	return {index};
 }
 
-internal MeshHandle graphics_memory_push_mesh(VulkanContext * context, MeshAssetData * mesh)
+internal MeshHandle graphics_memory_push_mesh(VulkanContext * context, MeshAssetData * assetData)
 {
-	// Todo(Leo): this is messy af
-	// at least map staging buffer persitently
+	bool hasSkinning = assetData->skinning != nullptr;
 
+	u64 indexBufferSize  = assetData->indexCount * sizeof(assetData->indices[0]);
+	u64 vertexBufferSize = assetData->vertexCount * sizeof(assetData->vertices[0]);
 
-	u64 indexBufferSize  = mesh->indexCount * sizeof(mesh->indices[0]);
-	u64 vertexBufferSize = mesh->vertexCount * sizeof(mesh->vertices[0]);
-	// u64 vertexBufferSize = mesh->vertices.count() * sizeof(mesh->vertices[0]);
+	u64 skinningBufferSize = 0;
+	if (hasSkinning)
+	{
+		skinningBufferSize = assetData->vertexCount * sizeof(assetData->skinning[0]);
+	}
+
+	// u64 vertexBufferSize = assetData->vertices.count() * sizeof(assetData->vertices[0]);
 
 	// Todo(Leo): Currently we align on 4 on both indices and vertices, indices maybe wouldn't need to,
 	// and vertices maybe have something else sometimes.
 	u64 alignedIndexBufferSize = align_up(indexBufferSize, 4);
 	u64 alignedVertexBufferSize = align_up(vertexBufferSize, 4);
 
-	u64 totalBufferSize = alignedIndexBufferSize + alignedVertexBufferSize;
+	u64 alignedSkinningBufferSize = skinningBufferSize == 0 ? 0 : align_up(skinningBufferSize, 4);
 
-	u64 indexOffset = 0;
-	u64 vertexOffset = alignedIndexBufferSize;
+	u64 totalBufferSize = alignedIndexBufferSize + alignedSkinningBufferSize + alignedVertexBufferSize;
+
+	u64 indexOffset 	= 0;
+	u64 vertexOffset 	= indexOffset + alignedIndexBufferSize;
+	u64 skinningOffset 	= vertexOffset + alignedVertexBufferSize;
 
 	Assert(totalBufferSize <= context->stagingBufferCapacity);
-	copy_memory(context->persistentMappedStagingBufferMemory, mesh->indices, indexBufferSize);
-	copy_memory(context->persistentMappedStagingBufferMemory + vertexOffset, mesh->vertices, vertexBufferSize);
+	copy_memory(context->persistentMappedStagingBufferMemory, assetData->indices, indexBufferSize);
+	copy_memory(context->persistentMappedStagingBufferMemory + vertexOffset, assetData->vertices, vertexBufferSize);
+	copy_memory(context->persistentMappedStagingBufferMemory + skinningOffset, assetData->skinning, skinningBufferSize);
 
 	VkCommandBuffer commandBuffer = vulkan::begin_command_buffer(context->device, context->commandPool);
 
@@ -323,24 +332,24 @@ internal MeshHandle graphics_memory_push_mesh(VulkanContext * context, MeshAsset
 
 	vulkan::execute_command_buffer(commandBuffer,context->device, context->commandPool, context->graphicsQueue);
 
-	VulkanMesh model = {};
+	VulkanMesh mesh = {};
+	mesh.hasSkinning = hasSkinning;
 
-	model.bufferReference = context->staticMeshPool.buffer;
-	// model.memoryReference = context->staticMeshPool.memory;
+	mesh.bufferReference = context->staticMeshPool.buffer;
+	// mesh.memoryReference = context->staticMeshPool.memory;
 
-	model.vertexOffset = context->staticMeshPool.used + vertexOffset;
-	model.indexOffset = context->staticMeshPool.used + indexOffset;
+	// Todo(Leo): make MemoryArena like interface for this
+	mesh.indexOffset 		= context->staticMeshPool.used + indexOffset;
+	mesh.vertexOffset 		= context->staticMeshPool.used + vertexOffset;
+	mesh.skinningOffset 	= context->staticMeshPool.used + skinningOffset;
 	
 	context->staticMeshPool.used += totalBufferSize;
 
-	model.indexCount = mesh->indexCount;
-	model.indexType = BAD_VULKAN_convert_index_type(mesh->indexType);
+	mesh.indexCount = assetData->indexCount;
+	mesh.indexType = BAD_VULKAN_convert_index_type(assetData->indexType);
 
-	u32 modelIndex = context->loadedMeshes.size();
-
-	context->loadedMeshes.push_back(model);
-
-	MeshHandle resultHandle = { modelIndex };
+	MeshHandle resultHandle = {(s64)context->loadedMeshes.size()};
+	context->loadedMeshes.push_back(mesh);
 
 	return resultHandle;
 }

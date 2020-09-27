@@ -164,12 +164,15 @@ struct VulkanGuiTexture
 struct VulkanMesh
 {
     VkBuffer        bufferReference;
-    // VkDeviceMemory  memoryReference;
 
-    VkDeviceSize    vertexOffset;
-    VkDeviceSize    indexOffset;
     u32             indexCount;
     VkIndexType     indexType;
+
+    VkDeviceSize    indexOffset;
+    VkDeviceSize    vertexOffset;
+    VkDeviceSize 	skinningOffset;
+
+    bool 			hasSkinning;
 };
 
 struct VulkanMaterial

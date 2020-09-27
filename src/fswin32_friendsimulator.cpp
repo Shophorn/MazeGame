@@ -38,7 +38,7 @@ WinApiLog(const char * message, HRESULT result)
     #if MAZEGAME_DEVELOPMENT
     if (result != S_OK)
     {
-    	log_debug(1, message, "(", WinApiErrorString(result), ")");
+    	log_debug(FILE_ADDRESS, message, "(", WinApiErrorString(result), ")");
     }
     #endif
 }

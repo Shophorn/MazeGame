@@ -204,7 +204,7 @@ bool32 update_game(
 
 		platform_set_api(apiDescripition);
 
-		log_debug(0, "Reinitialized global variables");
+		log_application(1, "Reinitialized global variables");
 	}	
 
 	/* Note(Leo): This is reinterpreted each frame, we don't know and don't care

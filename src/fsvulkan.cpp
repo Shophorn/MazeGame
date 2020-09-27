@@ -1435,10 +1435,10 @@ winapi_vulkan_internal_::init_virtual_frames(VulkanContext * context)
 	});
 }
 
+
+
 void winapi_vulkan_internal_::init_shadow_pass(VulkanContext * context, u32 width, u32 height)
 {
-		// init_shadow_pass(&context, 1024 * 4, 1024 * 4);
-
 	using namespace vulkan;
 
 	// Todo(Leo): This may not be a valid format, query support or check if vulkan spec requires this.

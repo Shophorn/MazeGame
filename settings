@@ -9,12 +9,12 @@ sky =
 	sunHaloFalloff = 0.022371
 	sunDiscSize = 0.000129
 	sunDiscFalloff = 1.009000
-	skyGradientBottom = 0.000000, 0.145990, 0.769999
+	skyGradientBottom = 0.173307, 0.771010, 1.398932
 	skyGradientGround = 0.205578, 0.307428, 0.409515
 	skyGradientTop = 0.000000, 0.000000, 0.740980
-	horizonHaloColour = 0.068428, 0.101142, 0.136663
-	sunHaloColour = 0.100772, 0.166839, 0.149597
-	sunDiscColour = 8.064432, 8.099060, 8.024273
+	horizonHaloColour = 0.068427, 0.101142, 0.136662
+	sunHaloColour = 0.100771, 0.166838, 0.149597
+	sunDiscColour = 8.064431, 8.099060, 8.024273
 ]
 
 tree_0 = 
@@ -35,7 +35,7 @@ tree_0 =
 	leafColourIndex = 1
 	leafCountPerBud = 3
 	leafSize = 0.877916, 0.865639
-	leafColour = 0.103980, 0.320451, 0.082720
+	leafColour = 0.103980, 0.320451, 0.082719
 	seedDrawSizeThreshold = 1.008008
 	waterDrainSpeed = 0.609000
 	waterUsageSpeed = 0.068808

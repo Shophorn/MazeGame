@@ -381,7 +381,7 @@ load_animation_glb(MemoryArena & allocator, GltfFile const & file, char const * 
 			} break;
 
 			default:
-				log_debug(1, FILE_ADDRESS, "Invalid or unimplemented animation channel: '", channelType, "' for bone ", targetIndex);
+				log_debug(FILE_ADDRESS, "Invalid or unimplemented animation channel: '", channelType, "' for bone ", targetIndex);
 				continue;
 
 		}
@@ -506,7 +506,7 @@ load_mesh_glb(MemoryArena & allocator, GltfFile const & file, char const * model
 
 	if (nodeIndex < 0)
 	{
-		log_debug(0, "Asset not found! modelName = ", modelName);
+		log_debug(FILE_ADDRESS, "Asset not found! modelName = ", modelName);
 		Assert(false);
 	}
 
@@ -560,8 +560,9 @@ load_mesh_glb(MemoryArena & allocator, GltfFile const & file, char const * model
 	u32 vertexCount = positionCount;
 
 	// -----------------------------------------------------------------------------
-	// auto vertices = allocate_array<Vertex>(allocator, vertexCount, ALLOC_FILL | ALLOC_NO_CLEAR);
-	Vertex * vertices = push_memory<Vertex>(allocator, vertexCount, 0);
+
+	Vertex * vertices 			= push_memory<Vertex>(allocator, vertexCount, 0);
+	VertexSkinData * skinning 	= nullptr;
 
 	v3 const * positions 	= get_buffer_start<v3>(file, positionAccessor);
 	v3 const * normals 		= get_buffer_start<v3>(file, normalAccessor);
@@ -580,6 +581,8 @@ load_mesh_glb(MemoryArena & allocator, GltfFile const & file, char const * model
 
 	if (hasSkin)
 	{
+		skinning = push_memory<VertexSkinData>(allocator, vertexCount, 0);
+
 		s32 bonesAccessorIndex 		= attribObject["JOINTS_0"].GetInt();
 		s32 boneWeightsAccessorIndex = attribObject["WEIGHTS_0"].GetInt();
 
@@ -597,11 +600,12 @@ load_mesh_glb(MemoryArena & allocator, GltfFile const & file, char const * model
 			copy_memory(bonesFromBuffer, bones + (vertexIndex * 4), sizeof(bonesFromBuffer));
 			for(s32 boneIndexIndex = 0; boneIndexIndex < 4; ++boneIndexIndex)
 			{
-				vertices[vertexIndex].boneIndices[boneIndexIndex] = static_cast<u32>(bonesFromBuffer[boneIndexIndex]);
+				skinning[vertexIndex].boneIndices[boneIndexIndex] = static_cast<u32>(bonesFromBuffer[boneIndexIndex]);
 			}
 
-			copy_memory(&vertices[vertexIndex].boneWeights, weights + (vertexIndex * 4), sizeof(vertices[vertexIndex].boneWeights));
+			copy_memory(&skinning[vertexIndex].boneWeights, weights + (vertexIndex * 4), sizeof(skinning[vertexIndex].boneWeights));
 		} 
+
 	}
 
 	// ----------------------------------------------------------------------------------
@@ -659,6 +663,7 @@ load_mesh_glb(MemoryArena & allocator, GltfFile const & file, char const * model
 	MeshAssetData result 	= {};
 	result.vertexCount		= vertexCount;
 	result.vertices 		= vertices;
+	result.skinning 		= skinning;
 
 	result.indexCount 	= indexCount;
 	result.indices 		= indices;

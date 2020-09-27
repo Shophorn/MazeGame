@@ -62,18 +62,29 @@ internal VkShaderModule fsvulkan_make_shader_module(VkDevice device, char const 
 /// GOOD INITIALIZERS
 // Note(Leo): Only expose from these functions properties we are interested to change
 
-constexpr VkVertexInputBindingDescription fsvulkan_defaultVertexBinding = { 0, sizeof(Vertex), VK_VERTEX_INPUT_RATE_VERTEX };
+constexpr VkVertexInputBindingDescription fsvulkan_defaultVertexBinding [] =
+{ 
+	{ 0, sizeof(Vertex), VK_VERTEX_INPUT_RATE_VERTEX },
+	{ 1, sizeof(VertexSkinData), VK_VERTEX_INPUT_RATE_VERTEX },
+};
 
 constexpr VkVertexInputAttributeDescription fsvulkan_defaultVertexAttributes [] =
 {
 	{0, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, position)},
 	{1, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, normal)},
-	{2, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, color)},
+	{2, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, tangent)},
 	{3, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(Vertex, texCoord)},
-	{4, 0, VK_FORMAT_R32G32B32A32_UINT, offsetof(Vertex, boneIndices)},
-	{5, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(Vertex, boneWeights)},
-	{6, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, tangent)},
+
+	{4, 1, VK_FORMAT_R32G32B32A32_UINT, offsetof(VertexSkinData, boneIndices)},
+	{5, 1, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(VertexSkinData, boneWeights)},
 };
+
+constexpr s32 normalBindingCount = 1;
+constexpr s32 animatedBindingCount = 2;
+
+constexpr s32 normalAttributeCount = 4;
+constexpr s32 animatedAttributeCount = 6;
+
 
 
 // Note(Leo): We can specify zero viewport and scissors now since we use dynamic state on those,
@@ -329,6 +340,7 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 	context.skyGradientDescriptorSetLayout = fsvulkan_make_material_descriptor_set_layout(context.device, 2);
 
 	/// GRAPHICS_PIPELINE_NORMAL
+	log_graphics(1, "Initializing Normal Pipeline");
 	{
 		auto materialLayout = fsvulkan_make_material_descriptor_set_layout(context.device, 3);
 
@@ -359,8 +371,8 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 			fsvulkan_pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, fragmentShaderModule, "main"),
 		};
 
-		auto vertexInputState 	= fsvulkan_pipeline_vertex_input_state_create_info	(1, &fsvulkan_defaultVertexBinding,
-																					array_count(fsvulkan_defaultVertexAttributes), fsvulkan_defaultVertexAttributes);
+		auto vertexInputState 	= fsvulkan_pipeline_vertex_input_state_create_info	(normalBindingCount, fsvulkan_defaultVertexBinding,
+																					normalAttributeCount, fsvulkan_defaultVertexAttributes);
 		auto inputAssemblyState = fsvulkan_pipeline_input_assembly_create_info		(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
 		auto viewportState 		= fsvulkan_pipeline_viewport_state_create_info		(1, &fsvulkan_zero_viewport, 1, &fsvulkan_zero_scissor);
 
@@ -402,6 +414,7 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 	}
 
 	/// GRAPHICS_PIPELINE_TRIPLANAR
+	log_graphics(1, "Initializing Triplanar Pipeline");
 	{
 		s32 textureCount = 1;
 		auto materialLayout = fsvulkan_make_material_descriptor_set_layout(context.device, textureCount);
@@ -431,8 +444,8 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 			fsvulkan_pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, fragmentShaderModule, "main"),
 		};
 
-		auto vertexInputState 	= fsvulkan_pipeline_vertex_input_state_create_info	(1, &fsvulkan_defaultVertexBinding,
-																					array_count(fsvulkan_defaultVertexAttributes), fsvulkan_defaultVertexAttributes);
+		auto vertexInputState 	= fsvulkan_pipeline_vertex_input_state_create_info	(normalBindingCount, fsvulkan_defaultVertexBinding,
+																					normalAttributeCount, fsvulkan_defaultVertexAttributes);
 		auto inputAssemblyState = fsvulkan_pipeline_input_assembly_create_info		(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
 		auto viewportState 		= fsvulkan_pipeline_viewport_state_create_info		(1, &fsvulkan_zero_viewport, 1, &fsvulkan_zero_scissor);
 
@@ -474,6 +487,7 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 	}
 
 	/// GRAPHICS_PIPELINE_ANIMATED
+	log_graphics(1, "Initializing Animated Pipeline");
 	{
 		auto materialLayout = fsvulkan_make_material_descriptor_set_layout(context.device, 3);
 
@@ -504,8 +518,8 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 			fsvulkan_pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, fragmentShaderModule, "main"),
 		};
 
-		auto vertexInputState 	= fsvulkan_pipeline_vertex_input_state_create_info	(1, &fsvulkan_defaultVertexBinding,
-																					array_count(fsvulkan_defaultVertexAttributes), fsvulkan_defaultVertexAttributes);
+		auto vertexInputState 	= fsvulkan_pipeline_vertex_input_state_create_info	(animatedBindingCount, fsvulkan_defaultVertexBinding,
+																					animatedAttributeCount, fsvulkan_defaultVertexAttributes);
 		auto inputAssemblyState = fsvulkan_pipeline_input_assembly_create_info		(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
 		auto viewportState 		= fsvulkan_pipeline_viewport_state_create_info		(1, &fsvulkan_zero_viewport, 1, &fsvulkan_zero_scissor);
 		auto rasterizationState = fsvulkan_pipeline_rasterization_state_create_info	(VK_CULL_MODE_BACK_BIT);
@@ -544,6 +558,7 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 	}
 
 	/// GRAPHICS_PIPELINE_SKYBOX
+	log_graphics(1, "Initializing Skybox Pipeline");
 	{
 		constexpr s32 gradientTextureCount = 2;
 		auto materialLayout = fsvulkan_make_material_descriptor_set_layout(context.device, gradientTextureCount);
@@ -572,8 +587,11 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 			fsvulkan_pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, fragmentShaderModule, "main"),
 		};
 
-		auto vertexInputState 	= fsvulkan_pipeline_vertex_input_state_create_info	(1, &fsvulkan_defaultVertexBinding,
-																					array_count(fsvulkan_defaultVertexAttributes), fsvulkan_defaultVertexAttributes);
+		VkVertexInputBindingDescription vertexInputBinding 		= {0, sizeof(Vertex), VK_VERTEX_INPUT_RATE_VERTEX};
+		VkVertexInputAttributeDescription attributeDescription 	= {0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0};
+
+		auto vertexInputState 	= fsvulkan_pipeline_vertex_input_state_create_info	(1, &vertexInputBinding,
+																					1, &attributeDescription);
 		auto inputAssemblyState = fsvulkan_pipeline_input_assembly_create_info		(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
 		auto viewportState 		= fsvulkan_pipeline_viewport_state_create_info		(1, &fsvulkan_zero_viewport, 1, &fsvulkan_zero_scissor);
 		auto rasterizationState = fsvulkan_pipeline_rasterization_state_create_info	(VK_CULL_MODE_NONE);
@@ -609,6 +627,7 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 	}
 
 	/// GRAPHICS_PIPELINE_SCREEN_GUI
+	log_graphics(1, "Initializing Screen Gui Pipeline");
 	{
 		auto materialLayout = fsvulkan_make_material_descriptor_set_layout(context.device, 1);
 
@@ -687,6 +706,7 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 	}
 
 	/// GRAPHICS_PIPELINE_LEAVES
+	log_graphics(1, "Initializing Leaves Pipeline");
 	{
 		auto materialLayout = fsvulkan_make_material_descriptor_set_layout(context.device, 1);
 
@@ -762,6 +782,7 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 	}
 
 	/// GRAPHICS_PIPELINE_WATER
+	log_graphics(1, "Initializing Water Pipeline");
 	{
 		auto materialLayout = fsvulkan_make_material_descriptor_set_layout(context.device, 3);
 
@@ -792,8 +813,8 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 			fsvulkan_pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, fragmentShaderModule, "main"),
 		};
 
-		auto vertexInputState 	= fsvulkan_pipeline_vertex_input_state_create_info	(1, &fsvulkan_defaultVertexBinding,
-																					array_count(fsvulkan_defaultVertexAttributes), fsvulkan_defaultVertexAttributes);
+		auto vertexInputState 	= fsvulkan_pipeline_vertex_input_state_create_info	(normalBindingCount, fsvulkan_defaultVertexBinding,
+																					normalAttributeCount, fsvulkan_defaultVertexAttributes);
 		auto inputAssemblyState = fsvulkan_pipeline_input_assembly_create_info		(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
 		auto viewportState 		= fsvulkan_pipeline_viewport_state_create_info		(1, &fsvulkan_zero_viewport, 1, &fsvulkan_zero_scissor);
 		auto rasterizationState = fsvulkan_pipeline_rasterization_state_create_info	(VK_CULL_MODE_BACK_BIT);
@@ -847,6 +868,7 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 	}
 
 	/// INTERNAL LINE PIPELINE
+	log_graphics(1, "Initializing Line Pipeline");
 	{
 		/*
 		Document(Leo): Lines are drawn by building line lists on demand. List
@@ -915,6 +937,7 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 	}
 
 	/// INTERNAL HDR TONEMAP PIPELINE
+	log_graphics(1, "Initializing Postprocess Pipeline");
 	{
 		auto materialLayout 			= fsvulkan_make_material_descriptor_set_layout(context.device, 1);
 
@@ -1017,8 +1040,17 @@ internal void fsvulkan_initialize_shadow_pipeline(VulkanContext & context)
 
 	auto vertexShaderStage 	= fsvulkan_pipeline_shader_stage_create_info(VK_SHADER_STAGE_VERTEX_BIT, vertexShaderModule, "main");
 
-	auto vertexInputState 	= fsvulkan_pipeline_vertex_input_state_create_info(1, &fsvulkan_defaultVertexBinding,
-																			array_count(fsvulkan_defaultVertexAttributes), fsvulkan_defaultVertexAttributes);
+
+	constexpr VkVertexInputAttributeDescription attributeDescriptions [] =
+	{
+		{0, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, position)},
+
+		{5, 1, VK_FORMAT_R32G32B32A32_UINT, offsetof(VertexSkinData, boneIndices)},
+		{6, 1, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(VertexSkinData, boneWeights)},
+	};
+
+	auto vertexInputState 	= fsvulkan_pipeline_vertex_input_state_create_info(animatedBindingCount, fsvulkan_defaultVertexBinding,
+																				array_count(attributeDescriptions), attributeDescriptions);
 	auto inputAssemblyState	= fsvulkan_pipeline_input_assembly_create_info(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
 
 	VkViewport viewport 	= {0, 0, (f32)context.shadowTextureWidth, (f32)context.shadowTextureHeight, 0, 1};

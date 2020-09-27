@@ -1,35 +1,32 @@
-/*=============================================================================
+/*
 Leo Tamminen
 
-Asset things for :MAZEGAME:
-=============================================================================*/
+Asset things for Friendsimulator
+*/
 
-enum HandleType : s32
-{
-	INVALID,
-
-	MESH,
-	TEXTURE,
-	MATERIAL,
-	MODEL,
-	GUITEXTURE,
-};
-
-template<HandleType T>
 struct AssetHandle
 {
-	s64 index_ =  -1;
-	operator s64() const { return index_; }	
+	s64 index =  -1;
+
+	operator s64() const
+	{
+		return index;
+	}	
 };
 
-using MeshHandle  		= AssetHandle<MESH>;
-using TextureHandle  	= AssetHandle<TEXTURE>;
-using MaterialHandle  	= AssetHandle<MATERIAL>;
-using ModelHandle  		= AssetHandle<MODEL>;
-using GuiTextureHandle 	= AssetHandle<GUITEXTURE>;
+struct MeshHandle : AssetHandle {};
+struct TextureHandle : AssetHandle {};
+struct MaterialHandle : AssetHandle {};
+struct ModelHandle : AssetHandle {};
+struct GuiTextureHandle : AssetHandle {};
 
-template<HandleType T>
-bool32 is_valid_handle(AssetHandle<T> handle)
+static_assert(sizeof(MeshHandle) == 8);
+static_assert(sizeof(TextureHandle) == 8);
+static_assert(sizeof(MaterialHandle) == 8);
+static_assert(sizeof(ModelHandle) == 8);
+static_assert(sizeof(GuiTextureHandle) == 8);
+
+bool32 is_valid_handle(AssetHandle handle)
 {
 	return handle >= 0;
 }
@@ -39,24 +36,25 @@ struct Vertex
 	v3 position;
 	v3 normal;
 	v3 tangent;
-
 	v2 texCoord;
-	v3 color;
+};
 
+struct VertexSkinData
+{
 	u32 boneIndices[4];
-	f32 boneWeights[4];
+	f32 boneWeights[4];	
 };
 
 enum struct IndexType : u32 { UInt16, UInt32 };
 
 struct MeshAssetData
 {
-	s64 		vertexCount;
-	Vertex * 	vertices;
+	s64 				vertexCount;
+	Vertex * 			vertices;
+	VertexSkinData * 	skinning;
 
 	s64 	indexCount;
 	u16 * 	indices;
-
 
 	IndexType indexType = IndexType::UInt16;
 
@@ -80,12 +78,17 @@ enum TextureFormat : s32
 	TEXTURE_FORMAT_F32,
 };
 
-constexpr u64 textureComponentSizeTable [] =
+constexpr u64 get_texture_component_size(TextureFormat format)
 {
-	sizeof(u8),
-	sizeof(u8),
-	sizeof(f32),
-};
+	switch(format)
+	{	
+		case TEXTURE_FORMAT_U8_SRGB: 	return sizeof(u8);
+		case TEXTURE_FORMAT_U8_LINEAR: 	return sizeof(u8);
+		case TEXTURE_FORMAT_F32: 		return sizeof(f32);
+	}
+	Assert(false && "Invalid texture formmat");
+	return 0;	
+}
 
 struct TextureAssetData
 {
@@ -97,7 +100,6 @@ struct TextureAssetData
 
 	TextureAddressMode 	addressMode;
 	TextureFormat 		format;
-	s32 				colorMode_REMOVE;
 };
 
 u32 * get_u32_pixel_memory(TextureAssetData & asset)
@@ -112,7 +114,7 @@ u64 get_texture_asset_memory_size(TextureAssetData & asset)
 
 	u64 pixelCount 		= asset.width * asset.height;
 	u64 componenCount 	= pixelCount * asset.channels;
-	u64 componentSize  	= textureComponentSizeTable[asset.format];
+	u64 componentSize  	= get_texture_component_size(asset.format);
 
 	u64 memorySize 		=  componentSize * componenCount;
 	return memorySize;

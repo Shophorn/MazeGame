@@ -8,9 +8,16 @@ struct enabled_LogChannel
 {
 	char const * 	title;
 
+	constexpr static s32 verbosityLevel = 0;
+
 	template<typename TFirst, typename ... TOthers>
 	void operator() (int verbosity, TFirst first, TOthers ... others)
 	{
+		if (verbosity > verbosityLevel)
+		{
+			return;
+		}
+
 		// Todo(Leo): handle verbosity
 		// Todo(Leo): add temp string support
 		local_persist thread_local char bufferMemory[1024] = {};
@@ -30,6 +37,24 @@ struct enabled_LogChannel
 	}
 };
 
+struct debug_LogChannel
+{
+	char const * 	title;
+
+	template<typename ... TOthers>
+	void operator() (LogFileAddress address, TOthers ... others)
+	{
+		// Todo(Leo): handle verbosity
+		// Todo(Leo): add temp string support
+		local_persist thread_local char bufferMemory[1024] = {};
+		String buffer = {0, bufferMemory};
+
+		string_append_format(buffer, array_count(bufferMemory), "[", title, ":", address.file, ":", address.line, "]: ", others..., "\n");
+		
+		platform_log_write(buffer.length, buffer.memory);
+	}
+};
+
 struct disabled_LogChannel
 {
 	char const * title;
@@ -38,7 +63,7 @@ struct disabled_LogChannel
 	void operator() (int verbosity, TFirst first, TOthers ... others) {}	
 };
 
-enabled_LogChannel log_debug 		= {"DEBUG"};
+debug_LogChannel log_debug 		= {"DEBUG"};
 enabled_LogChannel log_graphics 	= {"GRAPHICS"};
 enabled_LogChannel log_application	= {"APPLICATION"};
 
@@ -55,19 +80,19 @@ void log_assert(char const * filename, int line, char const * message, char cons
 	// Todo(Leo): lol
 	if (message && expression)
 	{
-		log_debug(0, LogFileAddress{filename, line}, "Assertion failed!", message, ", (", expression, ")");
+		log_debug(LogFileAddress{filename, line}, "Assertion failed!", message, ", (", expression, ")");
 	}
 	else if(message)
 	{
-		log_debug(0, LogFileAddress{filename, line}, "Assertion failed!", message);
+		log_debug(LogFileAddress{filename, line}, "Assertion failed!", message);
 	}
 	else if(expression)
 	{
-		log_debug(0, LogFileAddress{filename, line}, "Assertion failed! (", expression, ")");
+		log_debug(LogFileAddress{filename, line}, "Assertion failed! (", expression, ")");
 	}
 	else
 	{
-		log_debug(0, LogFileAddress{filename, line}, "Asssertion failed!");
+		log_debug(LogFileAddress{filename, line}, "Asssertion failed!");
 	}
 }
 #endif

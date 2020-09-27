@@ -446,7 +446,7 @@ internal Animation * assets_get_animation(GameAssets & assets, AnimationAssetId 
 		}
 		else
 		{
-			log_debug(0, FILE_ADDRESS, "Loading empty animation");
+			log_debug(FILE_ADDRESS, "Loading empty animation");
 			*animation 	= {};
 		}
 
@@ -2162,8 +2162,6 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 			scene->trainBrakeBeforeStationDistance 	= scene->trainFullSpeed * timeToBrakeBeforeStation
 													// Note(Leo): we brake, so acceleration term is negative
 													- 0.5f * scene->trainAcceleration * timeToBrakeBeforeStation * timeToBrakeBeforeStation;
-
-			log_debug(0, "brake time: ", timeToBrakeBeforeStation, ", distance: ", scene->trainBrakeBeforeStationDistance);
 
 			scene->trainCurrentWaitTime = 0;
 			scene->trainCurrentSpeed 	= 0;

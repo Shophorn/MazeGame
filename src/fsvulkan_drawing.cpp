@@ -436,7 +436,11 @@ internal void graphics_draw_model(VulkanContext * context, ModelHandle model, m4
 							array_count(dynamicOffsets), dynamicOffsets);
 
 
-	vkCmdBindVertexBuffers(frame->commandBuffers.scene, 0, 1, &mesh->bufferReference, &mesh->vertexOffset);
+	VkBuffer vertexBuffers [] 		= {mesh->bufferReference, mesh->bufferReference};
+	VkDeviceSize vertexOffsets [] 	= {mesh->vertexOffset, mesh->skinningOffset};
+	s32 vertexBindingCount 			= mesh->hasSkinning ? 2 : 1;
+	vkCmdBindVertexBuffers(frame->commandBuffers.scene, 0, vertexBindingCount, vertexBuffers, vertexOffsets);
+
 	vkCmdBindIndexBuffer(frame->commandBuffers.scene, mesh->bufferReference, mesh->indexOffset, mesh->indexType);
 
 	Assert(mesh->indexCount > 0);
@@ -449,7 +453,7 @@ internal void graphics_draw_model(VulkanContext * context, ModelHandle model, m4
 	///////////////////////////
 	if (castShadow)
 	{
-		vkCmdBindVertexBuffers(frame->commandBuffers.offscreen, 0, 1, &mesh->bufferReference, &mesh->vertexOffset);
+		vkCmdBindVertexBuffers(frame->commandBuffers.offscreen, 0, vertexBindingCount, vertexBuffers, vertexOffsets);
 		vkCmdBindIndexBuffer(frame->commandBuffers.offscreen, mesh->bufferReference, mesh->indexOffset, mesh->indexType);
 
 		VkDescriptorSet shadowSets [] =
@@ -662,7 +666,10 @@ internal void graphics_draw_meshes(VulkanContext * context, s32 count, m44 const
 	bool castShadow = true;
 	if (castShadow)
 	{
-		vkCmdBindVertexBuffers(frame->commandBuffers.offscreen, 0, 1, &mesh->bufferReference, &mesh->vertexOffset);
+		VkDeviceSize vertexOffsets [] 	= {mesh->vertexOffset, 0};
+		VkBuffer vertexBuffers [] 		= {mesh->bufferReference, mesh->bufferReference};
+
+		vkCmdBindVertexBuffers(frame->commandBuffers.offscreen, 0, 2, vertexBuffers, vertexOffsets);
 		vkCmdBindIndexBuffer(frame->commandBuffers.offscreen, mesh->bufferReference, mesh->indexOffset, mesh->indexType);
 
 		VkDescriptorSet shadowSets [] =
@@ -688,9 +695,9 @@ internal void graphics_draw_meshes(VulkanContext * context, s32 count, m44 const
 }
 
 internal void graphics_draw_procedural_mesh(VulkanContext * context,
-													s32 vertexCount, Vertex const * vertices,
-													s32 indexCount, u16 const * indices,
-													m44 transform, MaterialHandle materialHandle)
+											s32 vertexCount, Vertex const * vertices,
+											s32 indexCount, u16 const * indices,
+											m44 transform, MaterialHandle materialHandle)
 {
 	// Note(Leo): call prepare_drawing() first
 	Assert(context->canDraw);
@@ -764,7 +771,10 @@ internal void graphics_draw_procedural_mesh(VulkanContext * context,
 	// ****************************************************************
 	/// SHADOWS
 
-	vkCmdBindVertexBuffers(frame->commandBuffers.offscreen, 0, 1, &context->modelUniformBuffer.buffer, &vertexBufferOffset);
+	VkDeviceSize vertexOffsets [] 	= {vertexBufferOffset, 0};
+	VkBuffer vertexBuffers [] 		= {context->modelUniformBuffer.buffer, context->modelUniformBuffer.buffer};
+
+	vkCmdBindVertexBuffers(frame->commandBuffers.offscreen, 0, 2, vertexBuffers, vertexOffsets);
 	vkCmdBindIndexBuffer(frame->commandBuffers.offscreen, context->modelUniformBuffer.buffer, indexBufferOffset, VK_INDEX_TYPE_UINT16);
 
 	VkDescriptorSet shadowSets [] =
