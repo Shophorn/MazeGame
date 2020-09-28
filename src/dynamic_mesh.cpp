@@ -8,8 +8,8 @@ internal DynamicMesh push_dynamic_mesh(MemoryArena & allocator, u64 vertexCapaci
 {
 	DynamicMesh mesh =
 	{
-		.vertices 	= push_array_2<Vertex>(allocator, vertexCapacity, ALLOC_CLEAR),
-		.indices 	= push_array_2<u16>(allocator, indexCapacity, ALLOC_CLEAR)
+		.vertices 	= push_array_2<Vertex>(allocator, vertexCapacity, ALLOC_ZERO_MEMORY),
+		.indices 	= push_array_2<u16>(allocator, indexCapacity, ALLOC_ZERO_MEMORY)
 	};
 	return mesh;
 }

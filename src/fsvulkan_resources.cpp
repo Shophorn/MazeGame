@@ -85,7 +85,7 @@ internal VulkanTexture BAD_VULKAN_make_texture(VulkanContext * context, TextureA
 	VkDeviceSize textureMemorySize = get_texture_asset_memory_size(*asset);
 
 	Assert(textureMemorySize <= context->stagingBufferCapacity);
-	copy_memory(context->persistentMappedStagingBufferMemory, asset->pixelMemory, textureMemorySize);
+	memory_copy(context->persistentMappedStagingBufferMemory, asset->pixelMemory, textureMemorySize);
 
 	constexpr VkFormat formatTable [] =
 	{
@@ -309,10 +309,10 @@ internal MeshHandle graphics_memory_push_mesh(VulkanContext * context, MeshAsset
 
 	// Todo(Leo): Currently we align on 4 on both indices and vertices, indices maybe wouldn't need to,
 	// and vertices maybe have something else sometimes.
-	u64 alignedIndexBufferSize = align_up(indexBufferSize, 4);
-	u64 alignedVertexBufferSize = align_up(vertexBufferSize, 4);
+	u64 alignedIndexBufferSize = memory_align_up(indexBufferSize, 4);
+	u64 alignedVertexBufferSize = memory_align_up(vertexBufferSize, 4);
 
-	u64 alignedSkinningBufferSize = skinningBufferSize == 0 ? 0 : align_up(skinningBufferSize, 4);
+	u64 alignedSkinningBufferSize = skinningBufferSize == 0 ? 0 : memory_align_up(skinningBufferSize, 4);
 
 	u64 totalBufferSize = alignedIndexBufferSize + alignedSkinningBufferSize + alignedVertexBufferSize;
 
@@ -321,9 +321,9 @@ internal MeshHandle graphics_memory_push_mesh(VulkanContext * context, MeshAsset
 	u64 skinningOffset 	= vertexOffset + alignedVertexBufferSize;
 
 	Assert(totalBufferSize <= context->stagingBufferCapacity);
-	copy_memory(context->persistentMappedStagingBufferMemory, assetData->indices, indexBufferSize);
-	copy_memory(context->persistentMappedStagingBufferMemory + vertexOffset, assetData->vertices, vertexBufferSize);
-	copy_memory(context->persistentMappedStagingBufferMemory + skinningOffset, assetData->skinning, skinningBufferSize);
+	memory_copy(context->persistentMappedStagingBufferMemory, assetData->indices, indexBufferSize);
+	memory_copy(context->persistentMappedStagingBufferMemory + vertexOffset, assetData->vertices, vertexBufferSize);
+	memory_copy(context->persistentMappedStagingBufferMemory + skinningOffset, assetData->skinning, skinningBufferSize);
 
 	VkCommandBuffer commandBuffer = vulkan::begin_command_buffer(context->device, context->commandPool);
 
@@ -621,7 +621,7 @@ internal void graphics_development_update_texture(VulkanContext * context, Textu
 	VkDeviceSize textureMemorySize = get_texture_asset_memory_size(*asset);
 
 	Assert(textureMemorySize <= context->stagingBufferCapacity);
-	copy_memory(context->persistentMappedStagingBufferMemory, asset->pixelMemory, textureMemorySize);
+	memory_copy(context->persistentMappedStagingBufferMemory, asset->pixelMemory, textureMemorySize);
 
 	VkCommandBuffer cmd 	= vulkan::begin_command_buffer(context->device, context->commandPool);
 	

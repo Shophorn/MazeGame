@@ -21,7 +21,7 @@ static MemoryArena * 		global_transientMemory;
 
 static String push_temp_string (s32 capacity)
 {
-	String result = {0, push_memory<char>(*global_transientMemory, capacity, ALLOC_CLEAR)};
+	String result = {0, push_memory<char>(*global_transientMemory, capacity, ALLOC_ZERO_MEMORY)};
 	return result;
 };
 
@@ -159,14 +159,14 @@ static void initialize_game_state(GameState * state, PlatformMemory * memory)
 	*state = {};
 
 	// // Note(Leo): Create persistent arena in the same memoryblock as game state, right after it.
-	u64 gameStateSize 				= align_up(sizeof(GameState), MemoryArena::defaultAlignment);
+	u64 gameStateSize 				= memory_align_up(sizeof(GameState), MemoryArena::defaultAlignment);
 	byte * persistentMemory 		= reinterpret_cast<byte *>(memory->memory) + gameStateSize;
 	u64 persistentMemorySize 		= (memory->size / 2) - gameStateSize;
-	state->persistentMemoryArena 	= make_memory_arena(persistentMemory, persistentMemorySize); 
+	state->persistentMemoryArena 	= memory_arena(persistentMemory, persistentMemorySize); 
 
 	byte * transientMemory 			= reinterpret_cast<byte*>(memory->memory) + gameStateSize + persistentMemorySize;
 	u64 transientMemorySize 		= memory->size / 2;
-	state->transientMemoryArena 	= make_memory_arena(transientMemory, transientMemorySize);
+	state->transientMemoryArena 	= memory_arena(transientMemory, transientMemorySize);
 
 	state->backgroundAudio = load_audio_clip("assets/sounds/Wind-Mark_DiAngelo-1940285615.wav");
 

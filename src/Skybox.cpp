@@ -71,9 +71,9 @@ create_skybox_mesh(MemoryArena * allocator)
 	MeshAssetData result = {};
 
 	result.vertexCount 	= array_count(vertices);
-	result.vertices 	= push_and_copy_memory(*allocator, array_count(vertices), vertices, 0);
+	result.vertices 	= push_and_copy_memory(*allocator, array_count(vertices), vertices);
 
 	result.indexCount 	= array_count(indices);
-	result.indices 		= push_and_copy_memory(*allocator, array_count(indices), indices, 0);
+	result.indices 		= push_and_copy_memory(*allocator, array_count(indices), indices);
 	return result;
 }

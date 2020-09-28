@@ -29,7 +29,7 @@ constexpr String from_cstring(char const * cstring)
 
 internal void reset_string(String & string, s32 capacity)
 {
-	memory_fill(string.memory, 0, capacity);
+	memory_set(string.memory, 0, capacity);
 	string.length = 0;
 }
 
@@ -278,7 +278,7 @@ internal void string_parse(String string, s32 * outValue)
 internal void string_append_string(String & string, s32 capacity, String other)
 {
 	Assert(capacity - string.length >= other.length);
-	copy_memory(&string[string.length], other.memory, other.length);
+	memory_copy(&string[string.length], other.memory, other.length);
 	string.length += other.length;
 }
 
@@ -298,7 +298,7 @@ internal void string_append_f32(String & string, s32 capacity, f32 value, s32 pr
 	char digits[digitCapacity + 1] = {};
 	s32 characterCount = 0;
 
-	memory_fill(digits, '0', array_count(digits));
+	memory_set(digits, '0', array_count(digits));
 	Assert((capacity - string.length) > array_count(digits))
 	
 
@@ -390,7 +390,7 @@ internal void string_append_s32(String & string, s32 capacity, s32 value)
 
 	// Note(Leo): added one is for possible negative sign
 	char digits[digitCapacity + 1] = {};
-	memory_fill(digits, '0', array_count(digits));
+	memory_set(digits, '0', array_count(digits));
 	s32 digitCount = 0;
 
 	Assert((capacity - string.length) > array_count(digits));

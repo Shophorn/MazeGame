@@ -1,14 +1,9 @@
-/*=============================================================================
+/*
 Leo Tamminen
 shophorn @ internet
-=============================================================================*/
-struct Renderer
-{
-	Transform3D * 	transform;
-	ModelHandle 	model;
-	bool32 			castShadows = true;
-};
 
+Some excuse for a rendering system
+*/
 struct AnimatedRenderer
 {
 	AnimatedSkeleton * 	skeleton;
@@ -30,7 +25,7 @@ AnimatedRenderer make_animated_renderer (	Transform3D * transform,
 	return result;		
 }
 
-void update_animated_renderer(m44 * boneTransformMatrices, SkeletonAnimator const & animator)//AnimatedSkeleton const & skeleton)//Array<AnimatedBone> const & skeletonBones)
+void update_animated_renderer(m44 * boneTransformMatrices, SkeletonAnimator const & animator)
 {
 	/* Note(Leo): Vertex shader where actual deforming happens, needs to know
 	transform from bind position aka default position (i.e. the original position

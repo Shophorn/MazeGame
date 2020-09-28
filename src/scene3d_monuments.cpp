@@ -23,7 +23,7 @@ struct Monuments
 	MaterialHandle * 	ornamentMaterials;
 };
 
-internal void Game_draw_monuments(Monuments const & monuments)
+internal void game_draw_monuments(Monuments const & monuments)
 {
 	graphics_draw_meshes(platformGraphics, monuments.baseCount, monuments.baseTransforms, monuments.baseMesh, monuments.baseMaterial);
 	graphics_draw_meshes(platformGraphics, monuments.archCount, monuments.archTransforms, monuments.archMesh, monuments.archMaterial);
@@ -39,7 +39,7 @@ internal void Game_draw_monuments(Monuments const & monuments)
 
 internal Monuments Game_load_monuments(MemoryArena & persistentMemory, MaterialHandle environmentMaterial, CollisionSystem3D & collisionSystem)
 {
-	push_memory_checkpoint(*global_transientMemory);
+	auto checkpoint = memory_push_checkpoint(*global_transientMemory);
 
 	constexpr s32 ornamentTypeCount = 3;
 
@@ -53,8 +53,8 @@ internal Monuments Game_load_monuments(MemoryArena & persistentMemory, MaterialH
 	s32 counts[ornamentTypeCount] 	= {};
 	s32 offsets[ornamentTypeCount] 	= {};
 
-	m44 * tempTransforms 	= push_memory<m44>(persistentMemory, maxMonumentCapacity, 0);
-	m44 * inverseTransforms 		= push_memory<m44>(*global_transientMemory, maxMonumentCapacity, 0);
+	m44 * tempTransforms 	= push_memory<m44>(persistentMemory, maxMonumentCapacity, ALLOC_GARBAGE);
+	m44 * inverseTransforms = push_memory<m44>(*global_transientMemory, maxMonumentCapacity, ALLOC_GARBAGE);
 
 	s32 totalMonumentCount 	= 0;
 
@@ -135,8 +135,8 @@ internal Monuments Game_load_monuments(MemoryArena & persistentMemory, MaterialH
 		load_mesh_glb(*global_transientMemory, gltfFile, "monument_ornament_03"),
 	};
 
-	m44 * transforms = push_memory<m44>(persistentMemory, totalMonumentCount, ALLOC_NO_CLEAR);
-	copy_memory(transforms, tempTransforms, sizeof(m44) * totalMonumentCount);
+	m44 * transforms = push_memory<m44>(persistentMemory, totalMonumentCount, ALLOC_GARBAGE);
+	memory_copy(transforms, tempTransforms, sizeof(m44) * totalMonumentCount);
 
 	Monuments monuments = {};
 
@@ -151,10 +151,10 @@ internal Monuments Game_load_monuments(MemoryArena & persistentMemory, MaterialH
 	monuments.archMaterial 		= environmentMaterial;
 
 	monuments.ornamentTypeCount 	= ornamentTypeCount;
-	monuments.ornamentCounts 		= push_memory<s32>(persistentMemory, monuments.ornamentTypeCount, 0);
-	monuments.ornamentTransforms 	= push_memory<m44*>(persistentMemory, monuments.ornamentTypeCount, 0);
-	monuments.ornamentMeshes 		= push_memory<MeshHandle>(persistentMemory, monuments.ornamentTypeCount, 0);
-	monuments.ornamentMaterials 	= push_memory<MaterialHandle>(persistentMemory, monuments.ornamentTypeCount, 0);
+	monuments.ornamentCounts 		= push_memory<s32>(persistentMemory, monuments.ornamentTypeCount, ALLOC_GARBAGE);
+	monuments.ornamentTransforms 	= push_memory<m44*>(persistentMemory, monuments.ornamentTypeCount, ALLOC_GARBAGE);
+	monuments.ornamentMeshes 		= push_memory<MeshHandle>(persistentMemory, monuments.ornamentTypeCount, ALLOC_GARBAGE);
+	monuments.ornamentMaterials 	= push_memory<MaterialHandle>(persistentMemory, monuments.ornamentTypeCount, ALLOC_GARBAGE);
 
 	for (s32 i = 0; i < monuments.ornamentTypeCount; ++i)
 	{
@@ -164,10 +164,10 @@ internal Monuments Game_load_monuments(MemoryArena & persistentMemory, MaterialH
 		monuments.ornamentMaterials[i] 	= environmentMaterial;
 	}
 
-	Array<BoxCollider> archColliders = {};
+	Array2<BoxCollider> archColliders = {};
 	load_all_transforms_glb(*global_transientMemory, gltfFile, "monument_arches", &archColliders);
 
-	Array<BoxCollider> baseColliders = {};
+	Array2<BoxCollider> baseColliders = {};
 	load_all_transforms_glb(*global_transientMemory, gltfFile, "monument_base", &baseColliders);
 
 	for (s32 i = 0; i < monuments.baseCount; ++i)
@@ -191,7 +191,7 @@ internal Monuments Game_load_monuments(MemoryArena & persistentMemory, MaterialH
 		}
 	}
 
-	pop_memory_checkpoint(*global_transientMemory);
+	memory_pop_checkpoint(*global_transientMemory, checkpoint);
 
 	return monuments;
 }

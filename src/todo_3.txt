@@ -1,11 +1,6 @@
 todo
 
-Alloc options:
-	ALLOC_GARBAGE
-	ALLOC_ZERO_MEMORY
-	ALLOC_DEFAULT_INITIALIZE
 
-trees bear fruit
 vulkan memory management
 	-> also stupid not working shadow buffer things
 
@@ -43,3 +38,13 @@ assets:
 	road under the train
 		would not work with the planet idea...
 	graveyard	
+
+
+DONE:
+
+27.8
+trees bear fruit
+Alloc options:
+	ALLOC_GARBAGE
+	ALLOC_ZERO_MEMORY
+	ALLOC_DEFAULT_INITIALIZE

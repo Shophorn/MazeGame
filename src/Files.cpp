@@ -116,15 +116,15 @@ using JsonDocument 	= rapidjson::Document;
 using JsonValue 	= rapidjson::Value;
 using JsonArray 	= rapidjson::GenericArray<true, JsonValue>;
 
-internal Array<byte>
-read_binary_file(MemoryArena & memoryArena, const char * filename)
+internal Array2<byte>
+read_binary_file(MemoryArena & allocator, const char * filename)
 {
 	PlatformFileHandle file = platform_file_open(filename, FILE_MODE_READ);
 
 	Assert(file != nullptr);
 
 	s64 size 				= platform_file_get_size(file);
-	auto result 			= allocate_array<byte>(memoryArena, size);
+	auto result 			= push_array_2<byte>(allocator, size, ALLOC_GARBAGE);
 	auto bufferPtr 			= reinterpret_cast<char *>(result.begin());
 
 	platform_file_read(file, size, bufferPtr);
@@ -135,60 +135,60 @@ read_binary_file(MemoryArena & memoryArena, const char * filename)
 
 struct GltfFile
 {
-	Array<byte> 	memory;
+	Array2<byte> 	memory;
 	JsonDocument 	json;
 	u64 			binaryChunkOffset;
 
-	byte const * binary() const { return memory.data() + binaryChunkOffset; }
+	byte const * binary() const { return memory.memory + binaryChunkOffset; }
 };
 
 
 internal GltfFile
-read_gltf_file(MemoryArena & memoryArena, char const * filename)
+read_gltf_file(MemoryArena & allocator, char const * filename)
 {
 	log_asset(2, "Reading gltf file from: ", filename);
 	
-	auto memory = read_binary_file(memoryArena, filename);
+	auto memory = read_binary_file(allocator, filename);
 
 	/* Note(Leo): We copy json textchunk out of buffer, because we need to append a null terminator
 	in the end for rapidjson. We do not need to care for it later, rapidjson seems to do its thing 
 	and then also not care. */
-	Array<char> jsonChunk = {};
 	
 	u64 jsonChunkOffset	= glTF::headerLength;
-	u32 jsonChunkLength = convert_bytes<u32>(memory.data(), jsonChunkOffset + glTF::chunkLengthPosition);
+	u32 jsonChunkSize 	= memory_convert_bytes_to<u32>(memory.memory, jsonChunkOffset + glTF::chunkLengthPosition);
 	
 	{
-		auto chunkType = convert_bytes<glTF::ChunkType>(memory.data(), jsonChunkOffset + glTF::chunkTypePosition);
+		auto chunkType = memory_convert_bytes_to<glTF::ChunkType>(memory.memory, jsonChunkOffset + glTF::chunkTypePosition);
 		Assert(chunkType == glTF::CHUNK_TYPE_JSON);
 	}
 
-	char const * start = reinterpret_cast<char const *>(memory.data()) + jsonChunkOffset + glTF::chunkInfoLength;
-	char const * end = start + jsonChunkLength + 1;
+	char const * start = reinterpret_cast<char const *>(memory.memory) + jsonChunkOffset + glTF::chunkInfoLength;
+	// char const * end = start + jsonChunkSize + 1;
 
-	jsonChunk = allocate_array<char>(memoryArena, start, end);
-	jsonChunk.last() = 0;
+	Array2<char> jsonChunk = push_array_2<char>(allocator, jsonChunkSize + 1, ALLOC_ZERO_MEMORY);
+	array_2_fill_from_memory(jsonChunk, jsonChunkSize, start);
+	jsonChunk.push(0);
 
 	// ----------------------------------------------------------------------------------------------------------------
 
-	u64 binaryChunkOffset = glTF::headerLength + glTF::chunkInfoLength + jsonChunkLength;
+	u64 binaryChunkOffset = glTF::headerLength + glTF::chunkInfoLength + jsonChunkSize;
 	{
-		auto chunkType = convert_bytes<glTF::ChunkType>(memory.data(), binaryChunkOffset + glTF::chunkTypePosition);
+		auto chunkType = memory_convert_bytes_to<glTF::ChunkType>(memory.memory, binaryChunkOffset + glTF::chunkTypePosition);
 		Assert(chunkType == glTF::CHUNK_TYPE_BINARY);
 	}
 
 	// ----------------------------------------------------------------------------------------------------------------
 
-	GltfFile file = {};
-	file.memory 			= std::move(memory);
+	GltfFile file 			= {};
+	file.memory 			= memory;
 	file.binaryChunkOffset 	= binaryChunkOffset + glTF::chunkInfoLength;
 
-	file.json.Parse(jsonChunk.data());
+	file.json.Parse(jsonChunk.memory);
 
 	{
 		/* Note(Leo): Clear this so we can be sure this is not used in meaningful way after this in rapidjson things, 
 		and therefore we can just forget about it. */
-		memset(jsonChunk.data(), 0, jsonChunk.count());
+		memset(jsonChunk.memory, 0, jsonChunk.count);
 	}
 
 	// Note(Leo): Assert these once here, so we don't have to do that in every call hereafter.

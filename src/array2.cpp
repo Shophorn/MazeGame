@@ -36,15 +36,9 @@ struct Array2
 };
 
 template<typename T>
-internal Array2<T> push_array_2(MemoryArena & allocator, s64 capacity, s32 flags)
+internal Array2<T> push_array_2(MemoryArena & allocator, s64 capacity, AllocOperation options)
 {
-	Array2<T> result = {capacity, 0, push_memory<T>(allocator, capacity, flags)};
-
-	if (flags & ALLOC_FILL)
-	{
-		result.count = capacity;
-	}
-
+	Array2<T> result = {capacity, 0, push_memory<T>(allocator, capacity, options)};
 	return result;
 }
 
@@ -76,7 +70,7 @@ internal void array_2_fill_from_memory(Array2<T> & array, s32 sourceCount, T con
 	Assert(sourceCount <= array.capacity);
 	
 	array.count = sourceCount;
-	copy_memory(array.memory, source, sizeof(T) * sourceCount);
+	memory_copy(array.memory, source, sizeof(T) * sourceCount);
 }
 
 template<typename T>

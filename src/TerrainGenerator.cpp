@@ -8,11 +8,11 @@ Terrain generator prototype
 struct HeightMap
 {
 	// gridSize rows and gridSize colums
-	Array<f32> 	values;
-	u32 		gridSize;
-	f32			worldSize;
-	f32 		minHeight;
-	f32			maxHeight;
+	f32 * 	values;
+	u32 	gridSize;
+	f32		worldSize;
+	f32 	minHeight;
+	f32		maxHeight;
 };
 
 internal f32
@@ -56,7 +56,7 @@ internal HeightMap
 make_heightmap(MemoryArena * memory, TextureAssetData * texture, u32 gridSize, f32 worldSize, f32 minHeight, f32 maxHeight)
 {
 	u64 pixelCount 		= gridSize * gridSize;
-	auto heightValues 	= allocate_array<f32>(*memory, pixelCount, ALLOC_FILL | ALLOC_NO_CLEAR);
+	auto heightValues 	= push_memory<f32>(*memory, pixelCount, ALLOC_GARBAGE);
 
 	f32 textureScale 	= 1.0f / gridSize;
 
@@ -98,7 +98,7 @@ make_heightmap(MemoryArena * memory, TextureAssetData * texture, u32 gridSize, f
 	}
 
 	return {
-		.values 	= std::move(heightValues),
+		.values 	= heightValues,
 		.gridSize 	= gridSize,
 		.worldSize 	= worldSize,
 
@@ -112,7 +112,7 @@ internal void mesh_generate_tangents(s32 vertexCount, Vertex * vertices, s32 ind
 {
 	s64 triangleCount = indexCount / 3;
 
-	v3 * vertexTangents = push_memory<v3>(*global_transientMemory, vertexCount, 0);
+	v3 * vertexTangents = push_memory<v3>(*global_transientMemory, vertexCount, ALLOC_ZERO_MEMORY);
 	
 	for(s64 i = 0; i < triangleCount; ++i)
 	{
@@ -160,7 +160,7 @@ internal void mesh_generate_tangents(MeshAssetData & mesh)
 
 internal void mesh_generate_normals(s32 vertexCount, Vertex * vertices, s32 indexCount, u16 * indices)
 {
-	v3 * normals = push_memory<v3>(*global_transientMemory, vertexCount, 0);
+	v3 * normals = push_memory<v3>(*global_transientMemory, vertexCount, ALLOC_ZERO_MEMORY);
 
 	for (u32 i = 0; i < indexCount; i += 3)
 	{
@@ -196,7 +196,7 @@ internal void mesh_generate_normals (MeshAssetData & mesh)
 	u32 vertexCount = mesh.vertexCount;
 	u32 indexCount 	= mesh.indexCount;
 
-	v3 * normals = push_memory<v3>(*global_transientMemory, vertexCount, 0);
+	v3 * normals = push_memory<v3>(*global_transientMemory, vertexCount, ALLOC_ZERO_MEMORY);
 
 	for (u32 i = 0; i < indexCount; i += 3)
 	{
@@ -241,8 +241,8 @@ internal MeshAssetData generate_terrain(MemoryArena & 	allocator,
 	s32 triangleIndexCount 	= 6 * (meshResolution - 1) * (meshResolution - 1);
 
 	// Note(Leo): Clear vertices so that attributes we do not set here are initialized to zero
-	Vertex * vertices 	= push_memory<Vertex>(allocator, vertexCount, 0);
-	u16 * indices 		= push_memory<u16> (allocator, triangleIndexCount, ALLOC_NO_CLEAR); 
+	Vertex * vertices 	= push_memory<Vertex>(allocator, vertexCount, ALLOC_ZERO_MEMORY);
+	u16 * indices 		= push_memory<u16> (allocator, triangleIndexCount, ALLOC_ZERO_MEMORY); 
 
 	/// FILL VERTICES
 	for (s32 y = 0; y < meshResolution; ++y)

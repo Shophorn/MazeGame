@@ -33,7 +33,7 @@ internal VkDeviceSize
 fsvulkan_get_aligned_uniform_buffer_size(VulkanContext * context, VkDeviceSize size)
 {
 	auto alignment = context->physicalDeviceProperties.limits.minUniformBufferOffsetAlignment;
-	return align_up(size, alignment);
+	return memory_align_up(size, alignment);
 } 
 
 
@@ -45,7 +45,7 @@ internal VkDeviceSize fsvulkan_get_uniform_memory(VulkanContext & context, VkDev
 	VkDeviceSize frameOffset = frameSize * context.virtualFrameIndex;
 
 	auto alignment 	= context.physicalDeviceProperties.limits.minUniformBufferOffsetAlignment;
-	size 			= align_up(size, alignment);
+	size 			= memory_align_up(size, alignment);
 
 	VkDeviceSize currentOffset = context.modelUniformBuffer.used;
 
@@ -398,7 +398,7 @@ internal void graphics_draw_model(VulkanContext * context, ModelHandle model, m4
 	pBuffer->isAnimated = bonesCount;
 
 	Assert(bonesCount <= array_count(pBuffer->bonesToLocal));    
-	copy_memory(pBuffer->bonesToLocal, bones, sizeof(m44) * bonesCount);
+	memory_copy(pBuffer->bonesToLocal, bones, sizeof(m44) * bonesCount);
 
 	vkUnmapMemory(context->device, context->modelUniformBuffer.memory);
 
@@ -514,7 +514,7 @@ internal void graphics_draw_leaves(	VulkanContext * context,
 	Assert(context->leafBufferUsed[context->virtualFrameIndex] <= context->leafBufferCapacity);
 
 	void * bufferPointer = (u8*)context->persistentMappedLeafBufferMemory + instanceBufferOffset;
-	copy_memory(bufferPointer, instanceTransforms, instanceCount * sizeof(m44));
+	memory_copy(bufferPointer, instanceTransforms, instanceCount * sizeof(m44));
 
 	VkPipeline pipeline 			= context->pipelines[GRAPHICS_PIPELINE_LEAVES].pipeline;
 	VkPipelineLayout pipelineLayout = context->pipelines[GRAPHICS_PIPELINE_LEAVES].pipelineLayout;
@@ -748,7 +748,7 @@ internal void graphics_draw_procedural_mesh(VulkanContext * context,
 	// Todo(Leo): check map results
 	VkResult result = vkMapMemory(context->device, context->modelUniformBuffer.memory, vertexBufferOffset, vertexBufferSize, 0, (void**)&vertexData);
 
-	copy_memory(vertexData, vertices, sizeof(Vertex) * vertexCount);
+	memory_copy(vertexData, vertices, sizeof(Vertex) * vertexCount);
 
 	vkUnmapMemory(context->device, context->modelUniformBuffer.memory);
 
@@ -758,7 +758,7 @@ internal void graphics_draw_procedural_mesh(VulkanContext * context,
 
 	VULKAN_CHECK(vkMapMemory(context->device, context->modelUniformBuffer.memory, indexBufferOffset, indexBufferSize, 0, (void**)&indexData));
 
-	copy_memory(indexData, indices, sizeof(u16) *indexCount);
+	memory_copy(indexData, indices, sizeof(u16) *indexCount);
 
 	vkUnmapMemory(context->device, context->modelUniformBuffer.memory);
 

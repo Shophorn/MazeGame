@@ -310,7 +310,7 @@ internal Animation * assets_get_animation(GameAssets & assets, AnimationAssetId 
 	if (animation == nullptr)
 	{
 		auto & loadInfo = assets.animationLoadInfos[id];
-		animation 		= push_memory<Animation>(*assets.allocator, 1, ALLOC_CLEAR);
+		animation 		= push_memory<Animation>(*assets.allocator, 1, ALLOC_ZERO_MEMORY);
 
 		if (loadInfo.filename && loadInfo.gltfNodeName)
 		{
@@ -338,7 +338,7 @@ internal AnimatedSkeleton * assets_get_skeleton(GameAssets & assets, SkeletonAss
 	{
 		auto & loadInfo = assets.skeletonLoadInfos[id];
 
-		skeleton 		= push_memory<AnimatedSkeleton>(*assets.allocator, 1, ALLOC_CLEAR);
+		skeleton 		= push_memory<AnimatedSkeleton>(*assets.allocator, 1, ALLOC_ZERO_MEMORY);
 		auto file 		= read_gltf_file(*global_transientMemory, loadInfo.filename);
 		*skeleton 		= load_skeleton_glb(*assets.allocator, file, loadInfo.gltfNodeName);
 		

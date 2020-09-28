@@ -88,6 +88,18 @@ enum MenuView : s32
 	MENU_SPAWN,
 };
 
+internal m44 * compute_transform_matrices(MemoryArena & allocator, s32 count, Transform3D * transforms)
+{
+	m44 * result = push_memory<m44>(allocator, count, ALLOC_GARBAGE);
+
+	for (s32 i = 0; i < count; ++i)
+	{
+		result[i] = transform_matrix(transforms[i]);
+	}
+
+	return result;
+}
+
 struct Game
 {
 	MemoryArena * 	persistentMemory;
@@ -96,10 +108,6 @@ struct Game
 	SkySettings skySettings;
 
 	// ---------------------------------------
-
-	// Todo(Leo): Remove these "component" arrays, they are stupidly generic solution, that hide away actual data location, at least the way they are now used
-	Array<Transform3D> 			transforms;
-	Array<Renderer> 			renderers;
 
 	CollisionSystem3D 			collisionSystem;
 
@@ -145,9 +153,18 @@ struct Game
 
 		MeshHandle 		potMesh;
 		MaterialHandle 	potMaterial;
+
+		MeshHandle 			bigPotMesh;
+		MaterialHandle		bigPotMaterial;
+		Array2<Transform3D> bigPotTransforms;
+
 	// ------------------------------------------------------
 
 	Monuments monuments;
+
+	MeshHandle 		totemMesh;
+	MaterialHandle 	totemMaterial;
+	Transform3D 	totemTransforms [2];
 
 	// ------------------------------------------------------
 
@@ -159,6 +176,10 @@ struct Game
 
 	MeshHandle 		raccoonMesh;
 	MaterialHandle 	raccoonMaterial;
+
+	Transform3D 	robotTransform;
+	MeshHandle 		robotMesh;
+	MaterialHandle 	robotMaterial;
 
 	// ------------------------------------------------------
 
@@ -429,7 +450,6 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 			FS_DEBUG_NPC(debug_draw_circle_xy(game->nobleWanderTargetPosition + v3{0,0,0.5}, 1.0, colour_bright_green));
 			FS_DEBUG_NPC(debug_draw_circle_xy(game->nobleWanderTargetPosition + v3{0,0,0.5}, 0.9, colour_bright_green));
-
 		} break;
 
 		case CAMERA_MODE_ELEVATOR:
@@ -721,14 +741,8 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 			}
 			else
 			{
-				f32 gravity = physics_gravity_acceleration;
-
-				f32 deltaSpeed 	= scaledTime * gravity;
-				velocity 		+= deltaSpeed;
-
-				position->z += scaledTime * velocity;
-
-				log_debug(FILE_ADDRESS, "Added velocity: ", deltaSpeed, ", ", scaledTime, ", ", gravity);
+				velocity 		+= scaledTime * physics_gravity_acceleration;
+				position->z 	+= scaledTime * velocity;
 			}
 		}
 	}
@@ -938,7 +952,7 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 	/// DRAW POTS
 	{
 		// Todo(Leo): store these as matrices, we can easily retrieve position (that is needed somwhere) from that too.
-		m44 * potTransformMatrices = push_memory<m44>(*global_transientMemory, game->potCount, ALLOC_NO_CLEAR);
+		m44 * potTransformMatrices = push_memory<m44>(*global_transientMemory, game->potCount, ALLOC_GARBAGE);
 		for(s32 i = 0; i < game->potCount; ++i)
 		{
 			potTransformMatrices[i] = transform_matrix(game->potTransforms[i]);
@@ -955,7 +969,16 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 		graphics_draw_meshes(platformGraphics, 1, &game->seaTransform, game->seaMesh, game->seaMaterial);
 
-		Game_draw_monuments(game->monuments);
+		m44 * totemTransforms = compute_transform_matrices(*global_transientMemory, array_count(game->totemTransforms), game->totemTransforms);
+		graphics_draw_meshes(platformGraphics, array_count(game->totemTransforms), totemTransforms, game->totemMesh, game->totemMaterial);		
+
+		m44 * bigPotTransforms = compute_transform_matrices(*global_transientMemory, game->bigPotTransforms.count, game->bigPotTransforms.memory);
+		graphics_draw_meshes(platformGraphics, game->bigPotTransforms.count, bigPotTransforms, game->bigPotMesh, game->bigPotMaterial);		
+
+		m44 * robotTransforms = compute_transform_matrices(*global_transientMemory, 1, &game->robotTransform);
+		graphics_draw_meshes(platformGraphics, 1, robotTransforms, game->robotMesh, game->robotMaterial);
+
+		game_draw_monuments(game->monuments);
 	}
 
 
@@ -1100,20 +1123,12 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 	/// DRAW RACCOONS
 	{
-		m44 * raccoonTransformMatrices = push_memory<m44>(*global_transientMemory, game->raccoonCount, ALLOC_NO_CLEAR);
+		m44 * raccoonTransformMatrices = push_memory<m44>(*global_transientMemory, game->raccoonCount, ALLOC_GARBAGE);
 		for (s32 i = 0; i < game->raccoonCount; ++i)
 		{
 			raccoonTransformMatrices[i] = transform_matrix(game->raccoonTransforms[i]);
 		}
 		graphics_draw_meshes(platformGraphics, game->raccoonCount, raccoonTransformMatrices, game->raccoonMesh, game->raccoonMaterial);
-	}
-
-	for (auto & renderer : game->renderers)
-	{
-		graphics_draw_model(platformGraphics, renderer.model,
-								transform_matrix(*renderer.transform),
-								renderer.castShadows,
-								nullptr, 0);
 	}
 
 
@@ -1146,7 +1161,7 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 	/// DRAW UNUSED WATER
 	if (game->waters.count > 0)
 	{
-		m44 * waterTransforms = push_memory<m44>(*global_transientMemory, game->waters.count, ALLOC_NO_CLEAR);
+		m44 * waterTransforms = push_memory<m44>(*global_transientMemory, game->waters.count, ALLOC_GARBAGE);
 		for (s32 i = 0; i < game->waters.count; ++i)
 		{
 			waterTransforms[i] = transform_matrix(	game->waters.transforms[i].position,
@@ -1228,7 +1243,7 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle saveFile)
 {
-	Game * game = push_memory<Game>(persistentMemory, 1, ALLOC_CLEAR);
+	Game * game = push_memory<Game>(persistentMemory, 1, ALLOC_ZERO_MEMORY);
 	*game = {};
 	game->persistentMemory = &persistentMemory;
 
@@ -1246,16 +1261,11 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 	// Note(Leo): We have not previously used persistent allocation elsewhere than in this load function
 	game->assets = init_game_assets(&persistentMemory);
 
-	// TODO(Leo): these should probably all go away
-	// Note(Leo): amounts are SWAG, rethink.
-	game->transforms 	= allocate_array<Transform3D>(persistentMemory, 1200);
-	game->renderers 	= allocate_array<Renderer>(persistentMemory, 600);
+	game->collisionSystem.boxColliders 			= push_array_2<BoxCollider>(persistentMemory, 600, ALLOC_GARBAGE);
+	game->collisionSystem.cylinderColliders 	= push_array_2<CylinderCollider>(persistentMemory, 600, ALLOC_GARBAGE);
+	game->collisionSystem.staticBoxColliders 	= push_array_2<StaticBoxCollider>(persistentMemory, 2000, ALLOC_GARBAGE);
 
-	game->collisionSystem.boxColliders 		= allocate_array<BoxCollider>(persistentMemory, 600);
-	game->collisionSystem.cylinderColliders 	= allocate_array<CylinderCollider>(persistentMemory, 600);
-	game->collisionSystem.staticBoxColliders 	= allocate_array<StaticBoxCollider>(persistentMemory, 2000);
-
-	game->physicsObjects = push_array_2<PhysicsObject>(persistentMemory, 100, ALLOC_CLEAR);
+	game->physicsObjects = push_array_2<PhysicsObject>(persistentMemory, 100, ALLOC_ZERO_MEMORY);
 
 	log_application(1, "Allocations succesful! :)");
 
@@ -1303,7 +1313,7 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 
 		game->playerSkeletonAnimator.boneBoneSpaceTransforms = push_array_2<Transform3D>(	persistentMemory,
 																							game->playerSkeletonAnimator.skeleton->bones.count,
-																							ALLOC_CLEAR);
+																							ALLOC_ZERO_MEMORY);
 		array_2_fill_with_value(game->playerSkeletonAnimator.boneBoneSpaceTransforms, identity_transform);
 
 		auto model = graphics_memory_push_model(platformGraphics,
@@ -1344,7 +1354,7 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 		};
 		game->noblePersonSkeletonAnimator.boneBoneSpaceTransforms = push_array_2<Transform3D>(	persistentMemory,
 																								game->noblePersonSkeletonAnimator.skeleton->bones.count,
-																								ALLOC_CLEAR);
+																								ALLOC_ZERO_MEMORY);
 		array_2_fill_with_value(game->noblePersonSkeletonAnimator.boneBoneSpaceTransforms, identity_transform);
 
 		auto model = graphics_memory_push_model(platformGraphics,
@@ -1375,26 +1385,29 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 			f32 chunkSize 				= 1.0f / chunkCountPerDirection;
 			f32 chunkWorldSize 			= chunkSize * mapSize;
 
-			push_memory_checkpoint(*global_transientMemory);
-			s32 heightmapResolution = 1024;
+			HeightMap heightmap;
+			{
+				auto checkpoint = memory_push_checkpoint(*global_transientMemory);
+				
+				s32 heightmapResolution = 1024;
 
-			// todo(Leo): put to asset system thing
-			auto heightmapTexture 	= load_texture_asset(*global_transientMemory, "assets/textures/heightmap_island.png");
+				// todo(Leo): put to asset system thing
+				auto heightmapTexture 	= load_texture_asset(*global_transientMemory, "assets/textures/heightmap_island.png");
+				heightmap 				= make_heightmap(&persistentMemory, &heightmapTexture, heightmapResolution, mapSize, minTerrainElevation, maxTerrainElevation);
 
-			// auto heightmapTexture	= assets_get_texture_data(game->assets, *global_transientMemory, TEXTURE_ASSET_ISLAND_HEIGHTMAP);
-			auto heightmap 			= make_heightmap(&persistentMemory, &heightmapTexture, heightmapResolution, mapSize, minTerrainElevation, maxTerrainElevation);
-
-			pop_memory_checkpoint(*global_transientMemory);
+				memory_pop_checkpoint(*global_transientMemory, checkpoint);
+			}
 
 			s32 terrainCount 			= chunkCountPerDirection * chunkCountPerDirection;
 			game->terrainCount 		= terrainCount;
-			game->terrainTransforms 	= push_memory<m44>(persistentMemory, terrainCount, ALLOC_NO_CLEAR);
-			game->terrainMeshes 		= push_memory<MeshHandle>(persistentMemory, terrainCount, ALLOC_NO_CLEAR);
+			game->terrainTransforms 	= push_memory<m44>(persistentMemory, terrainCount, ALLOC_GARBAGE);
+			game->terrainMeshes 		= push_memory<MeshHandle>(persistentMemory, terrainCount, ALLOC_GARBAGE);
 			game->terrainMaterial 		= assets_get_material(game->assets, MATERIAL_ASSET_GROUND);
 
 			/// GENERATE GROUND MESH
 			{
-				push_memory_checkpoint(*global_transientMemory);
+				auto checkpoint = memory_push_checkpoint(*global_transientMemory);
+				// push_memory_checkpoint(*global_transientMemory);
 			
 				for (s32 i = 0; i < terrainCount; ++i)
 				{
@@ -1408,7 +1421,8 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 					game->terrainMeshes[i] = graphics_memory_push_mesh(platformGraphics, &groundMeshAsset);
 				}
 			
-				pop_memory_checkpoint(*global_transientMemory);
+				memory_pop_checkpoint(*global_transientMemory, checkpoint);
+				// pop_memory_checkpoint(*global_transientMemory);
 			}
 
 			f32 halfMapSize = mapSize / 2;
@@ -1423,11 +1437,9 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 				game->terrainTransforms[i] = translation_matrix(leftBackCornerPosition);
 			}
 
-			auto transform = game->transforms.push_return_pointer({{-mapSize / 2, -mapSize / 2, 0}});
-
 			// Todo(Leo): use better(dumber but smarter) thing to get rid of std move
 			game->collisionSystem.terrainCollider 	= std::move(heightmap);
-			game->collisionSystem.terrainTransform = transform;
+			game->collisionSystem.terrainOffset = {{-mapSize / 2, -mapSize / 2, 0}};
 
 			MeshAssetData seaMeshAsset = {};
 			{
@@ -1438,12 +1450,11 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 					{-0.5,  0.5, 0, 0, 0, 1, 1,1,1, 0, 1},
 					{ 0.5,  0.5, 0, 0, 0, 1, 1,1,1, 1, 1},
 				};
-				seaMeshAsset.vertices = push_memory<Vertex>(*global_transientMemory, array_count(vertices), 0); 
-				copy_memory(seaMeshAsset.vertices, vertices, sizeof(Vertex) * array_count(vertices));
+				seaMeshAsset.vertices 	= push_and_copy_memory(*global_transientMemory, array_count(vertices), vertices); 
 
 				u16 indices [] 			= {0,1,2,2,1,3};
 				seaMeshAsset.indexCount = array_count(indices);
-				seaMeshAsset.indices 	= push_and_copy_memory(*global_transientMemory, array_count(indices), indices, 0);
+				seaMeshAsset.indices 	= push_and_copy_memory(*global_transientMemory, array_count(indices), indices);
 
 				seaMeshAsset.indexType = IndexType::UInt16;
 			}
@@ -1455,24 +1466,24 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 
 		/// TOTEMS
 		{
-			auto totemMesh 	= assets_get_mesh(game->assets, MESH_ASSET_TOTEM);
-			auto model 		= graphics_memory_push_model(platformGraphics, totemMesh, assets_get_material(game->assets, MATERIAL_ASSET_ENVIRONMENT));
+			game->totemMesh 	= assets_get_mesh(game->assets, MESH_ASSET_TOTEM);
+			game->totemMaterial = assets_get_material(game->assets, MATERIAL_ASSET_ENVIRONMENT);
 
-			Transform3D * transform = game->transforms.push_return_pointer({});
-			transform->position.z 	= get_terrain_height(game->collisionSystem, transform->position.xy) - 0.5f;
-			game->renderers.push({transform, model});
+			v3 position0 = {0,0,0}; 	position0.z = get_terrain_height(game->collisionSystem, position0.xy);
+			v3 position1 = {0,5,0}; 	position1.z = get_terrain_height(game->collisionSystem, position1.xy);
+
+			game->totemTransforms[0] = {position0, {1,1,1}, identity_quaternion};
+			game->totemTransforms[1] = {position1, {0.5, 0.5, 0.5}, identity_quaternion};
+
 			push_box_collider(	game->collisionSystem,
 								v3 {1.0, 1.0, 5.0},
 								v3 {0,0,2},
-								transform);
+								&game->totemTransforms[0]);
 
-			transform = game->transforms.push_return_pointer({.position = {0, 5, 0} , .scale =  {0.5, 0.5, 0.5}});
-			transform->position.z = get_terrain_height(game->collisionSystem, transform->position.xy) - 0.25f;
-			game->renderers.push({transform, model});
 			push_box_collider(	game->collisionSystem,
 								v3{0.5, 0.5, 2.5},
 								v3{0,0,1},
-								transform);
+								&game->totemTransforms[1]);
 		}
 
 		/// RACCOONS
@@ -1480,7 +1491,7 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 			game->raccoonCount = 4;
 			push_multiple_memories(	persistentMemory,
 									game->raccoonCount,
-									ALLOC_CLEAR,
+									ALLOC_ZERO_MEMORY,
 									
 									&game->raccoonModes,
 									&game->raccoonTransforms,
@@ -1519,31 +1530,28 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 			game->raccoonMaterial	= assets_get_material(game->assets, MATERIAL_ASSET_RACCOON);
 		}
 
-		/// INVISIBLE TEST COLLIDER
-		{
-			Transform3D * transform = game->transforms.push_return_pointer({});
-			transform->position = {21, 15};
-			transform->position.z = get_terrain_height(game->collisionSystem, {20, 20});
+		// /// INVISIBLE TEST COLLIDER
+		// {
+		// 	Transform3D * transform = game->transforms.push_return_pointer({});
+		// 	transform->position = {21, 15};
+		// 	transform->position.z = get_terrain_height(game->collisionSystem, {20, 20});
 
-			push_box_collider( 	game->collisionSystem,
-								v3{2.0f, 0.05f,5.0f},
-								v3{0,0, 2.0f},
-								transform);
-		}
+		// 	push_box_collider( 	game->collisionSystem,
+		// 						v3{2.0f, 0.05f,5.0f},
+		// 						v3{0,0, 2.0f},
+		// 						transform);
+		// }
 
 		game->monuments = Game_load_monuments(persistentMemory, assets_get_material(game->assets, MATERIAL_ASSET_ENVIRONMENT), game->collisionSystem);
 
 		// TEST ROBOT
 		{
-			v3 position 		= {21, 10, 0};
-			position.z 			= get_terrain_height(game->collisionSystem, position.xy);
-			auto * transform 	= game->transforms.push_return_pointer({.position = position});
+			v3 position 			= {21, 10, 0};
+			position.z 				= get_terrain_height(game->collisionSystem, position.xy);
+			game->robotTransform 	= {position};
 
-			auto mesh 		= assets_get_mesh(game->assets, MESH_ASSET_ROBOT);
-			auto material 	= assets_get_material(game->assets, MATERIAL_ASSET_ROBOT);
-			auto model 		= graphics_memory_push_model(platformGraphics, mesh, material);
-
-			game->renderers.push({transform, model});
+			game->robotMesh 		= assets_get_mesh(game->assets, MESH_ASSET_ROBOT);
+			game->robotMaterial 	= assets_get_material(game->assets, MATERIAL_ASSET_ROBOT);
 		}
 
 		/// SMALL SCENERY OBJECTS
@@ -1552,10 +1560,10 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 			game->potMaterial 	= assets_get_material(game->assets, MATERIAL_ASSET_ENVIRONMENT);
 
 			{
-				game->potCapacity 			= 10;
-				game->potCount 		= game->potCapacity;
-				game->potTransforms 	= push_memory<Transform3D>(persistentMemory, game->potCapacity, ALLOC_NO_CLEAR);
-				game->potWaterLevels 	= push_memory<f32>(persistentMemory, game->potCapacity, 0);
+				game->potCapacity 		= 10;
+				game->potCount 			= game->potCapacity;
+				game->potTransforms 	= push_memory<Transform3D>(persistentMemory, game->potCapacity, ALLOC_GARBAGE);
+				game->potWaterLevels 	= push_memory<f32>(persistentMemory, game->potCapacity, ALLOC_GARBAGE);
 
 				for(s32 i = 0; i < game->potCapacity; ++i)
 				{
@@ -1570,14 +1578,20 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 			auto bigPotMesh = assets_get_mesh(game->assets, MESH_ASSET_BIG_POT);
 
 			s32 bigPotCount = 5;
+
+			game->bigPotMesh 		= assets_get_mesh(game->assets, MESH_ASSET_BIG_POT);
+			game->bigPotMaterial 	= assets_get_material(game->assets, MATERIAL_ASSET_ENVIRONMENT);
+			game->bigPotTransforms 	= push_array_2<Transform3D>(persistentMemory, bigPotCount, ALLOC_GARBAGE);
+			game->bigPotTransforms.count = bigPotCount;
+
 			for (s32 i = 0; i < bigPotCount; ++i)
 			{
-				ModelHandle model 		= graphics_memory_push_model(platformGraphics, bigPotMesh, assets_get_material(game->assets, MATERIAL_ASSET_ENVIRONMENT));
-				Transform3D * transform = game->transforms.push_return_pointer({13, 2.0f + i * 4.0f, 0});
+				v3 position = {13, 2.0f + i * 4.0f}; 		position.z = get_terrain_height(game->collisionSystem, position.xy);
 
-				transform->position.z 	= get_terrain_height(game->collisionSystem, transform->position.xy);
+				Transform3D * transform = &game->bigPotTransforms[i];
+				*transform 				= identity_transform;
+				transform->position 	= position;
 
-				game->renderers.push({transform, model});
 				f32 colliderHeight = 1.16;
 				push_cylinder_collider(game->collisionSystem, 0.6, colliderHeight, v3{0,0,colliderHeight / 2}, transform);
 			}
@@ -1593,8 +1607,8 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 				{				
 					game->waters.capacity 		= 200;
 					game->waters.count 		= 20;
-					game->waters.transforms 	= push_memory<Transform3D>(persistentMemory, game->waters.capacity, 0);
-					game->waters.levels 		= push_memory<f32>(persistentMemory, game->waters.capacity, 0);
+					game->waters.transforms 	= push_memory<Transform3D>(persistentMemory, game->waters.capacity, ALLOC_GARBAGE);
+					game->waters.levels 		= push_memory<f32>(persistentMemory, game->waters.capacity, ALLOC_GARBAGE);
 
 					for (s32 i = 0; i < game->waters.count; ++i)
 					{
@@ -1671,8 +1685,8 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 		s32 vertexCapacity 		= vertexCountPerCube * cubeCapacity;
 		s32 indexCapacity 		= indexCountPerCube * cubeCapacity;
 
-		Vertex * vertices 	= push_memory<Vertex>(persistentMemory, vertexCapacity, ALLOC_NO_CLEAR);
-		u16 * indices 		= push_memory<u16>(persistentMemory, indexCapacity, ALLOC_NO_CLEAR);
+		Vertex * vertices 	= push_memory<Vertex>(persistentMemory, vertexCapacity, ALLOC_GARBAGE);
+		u16 * indices 		= push_memory<u16>(persistentMemory, indexCapacity, ALLOC_GARBAGE);
 
 		u32 vertexCount;
 		u32 indexCount;
@@ -1696,11 +1710,11 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 
 		game->metaballVertexCapacity2 	= vertexCapacity;
 		game->metaballVertexCount2 	= 0;
-		game->metaballVertices2 		= push_memory<Vertex>(persistentMemory, vertexCapacity, ALLOC_NO_CLEAR);
+		game->metaballVertices2 		= push_memory<Vertex>(persistentMemory, vertexCapacity, ALLOC_GARBAGE);
 
 		game->metaballIndexCapacity2 	= vertexCapacity;
 		game->metaballIndexCount2 		= 0;
-		game->metaballIndices2 		= push_memory<u16>(persistentMemory, indexCapacity, ALLOC_NO_CLEAR);
+		game->metaballIndices2 		= push_memory<u16>(persistentMemory, indexCapacity, ALLOC_GARBAGE);
 
 		v3 position2 				= {0, -30, 0};
 		position2.z 				= get_terrain_height(game->collisionSystem, position2.xy) + 3;
@@ -1712,7 +1726,7 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 	
 	{	
 		s32 treeCapacity 	= 50;	
-		game->trees 		= push_array_2<Tree3>(persistentMemory, treeCapacity, ALLOC_CLEAR);
+		game->trees 		= push_array_2<Tree3>(persistentMemory, treeCapacity, ALLOC_ZERO_MEMORY);
 
 
 		s32 initialTreesCount 	= 10;

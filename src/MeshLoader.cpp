@@ -40,8 +40,8 @@ s32 index_by_name(JsonArray & nodes, char const * name)
 	return -1;
 }
 
-internal Array<Transform3D>
-load_all_transforms_glb(MemoryArena & allocator, GltfFile const & file, char const * nodeName, Array<BoxCollider> * outColliders)
+internal Array2<Transform3D>
+load_all_transforms_glb(MemoryArena & allocator, GltfFile const & file, char const * nodeName, Array2<BoxCollider> * outColliders)
 {
 	auto nodes = file.json["nodes"].GetArray();
 
@@ -60,9 +60,9 @@ load_all_transforms_glb(MemoryArena & allocator, GltfFile const & file, char con
 		}
 	}
 
-	Array<Transform3D> transforms = allocate_array<Transform3D>(allocator, transformCount, ALLOC_NO_CLEAR);
-	Array<BoxCollider> colliders = allocate_array<BoxCollider>(allocator, colliderCount, ALLOC_NO_CLEAR);
-	Array<Transform3D> colliderFinalTransforms = allocate_array<Transform3D>(allocator, colliderCount, ALLOC_NO_CLEAR);
+	Array2<Transform3D> transforms 				= push_array_2<Transform3D>(allocator, transformCount, ALLOC_GARBAGE);
+	Array2<BoxCollider> colliders 				= push_array_2<BoxCollider>(allocator, colliderCount, ALLOC_GARBAGE);
+	Array2<Transform3D> colliderFinalTransforms = push_array_2<Transform3D>(allocator, colliderCount, ALLOC_GARBAGE);
 
 	for (auto const & node : nodes)
 	{
@@ -148,10 +148,10 @@ load_all_transforms_glb(MemoryArena & allocator, GltfFile const & file, char con
 							extents.z = scaleArray[2].GetFloat();
 						}
 
-						colliders.push({ 	.extents = extents,
-											.center = center,
-											.orientation = localRotation,
-											.transform = &transforms.last()});
+						colliders.push({ 	.extents 		= extents,
+											.center 		= center,
+											.orientation 	= localRotation,
+											.transform 		= &transforms[transforms.count - 1]});
 
 						// v3 finalPosition 			= multiply_point(parentTransform, center);
 						// quaternion finalRotation 	= parentRotation * rotation;
@@ -215,8 +215,8 @@ load_animation_glb(MemoryArena & allocator, GltfFile const & file, char const * 
 	}
 
 	Animation result = {};
-	result.translationChannels 	= push_array_2<TranslationChannel>(allocator, translationChannelCount, ALLOC_CLEAR);
-	result.rotationChannels 	= push_array_2<RotationChannel>(allocator, rotationChannelCount, ALLOC_CLEAR);
+	result.translationChannels 	= push_array_2<TranslationChannel>(allocator, translationChannelCount, ALLOC_ZERO_MEMORY);
+	result.rotationChannels 	= push_array_2<RotationChannel>(allocator, rotationChannelCount, ALLOC_ZERO_MEMORY);
 
 	float minTime = highest_f32;
 	float maxTime = lowest_f32;
@@ -289,7 +289,7 @@ load_animation_glb(MemoryArena & allocator, GltfFile const & file, char const * 
 
 		float const * timesStart = get_buffer_start<float>(file, inputAccessor);
 		// float const * timesEnd 	= timesStart + keyframeCount;
-		Array2<f32> times = push_array_2<float>(allocator, keyframeCount, 0);//timesStart, timesEnd);
+		Array2<f32> times = push_array_2<float>(allocator, keyframeCount, ALLOC_GARBAGE);
 		array_2_fill_from_memory(times, keyframeCount, timesStart);
 
 		/* Note(Leo): CUBICSPLINE interpolation has three values in total: inTangent,
@@ -313,7 +313,7 @@ load_animation_glb(MemoryArena & allocator, GltfFile const & file, char const * 
 				{
 					interpolationMode = INTERPOLATION_MODE_LINEAR;
 					
-					channel.translations = push_array_2<v3>(allocator, keyframeCount, 0);
+					channel.translations = push_array_2<v3>(allocator, keyframeCount, ALLOC_GARBAGE);
 					array_2_fill_uninitialized(channel.translations);
 
 					for (s32 keyframeIndex = 0; keyframeIndex < keyframeCount; ++keyframeIndex)
@@ -324,7 +324,7 @@ load_animation_glb(MemoryArena & allocator, GltfFile const & file, char const * 
 				}
 				else
 				{
-					channel.translations = push_array_2<v3>(allocator, keyframeCount, 0);
+					channel.translations = push_array_2<v3>(allocator, keyframeCount, ALLOC_GARBAGE);
 					array_2_fill_from_memory(channel.translations, keyframeCount, start);
 
 				}
@@ -348,7 +348,7 @@ load_animation_glb(MemoryArena & allocator, GltfFile const & file, char const * 
 				{
 					interpolationMode = INTERPOLATION_MODE_LINEAR;
 					
-					channel.rotations = push_array_2<quaternion>(allocator, keyframeCount, 0);
+					channel.rotations = push_array_2<quaternion>(allocator, keyframeCount, ALLOC_GARBAGE);
 					array_2_fill_uninitialized(channel.rotations);
 
 					for (s32 keyframeIndex = 0; keyframeIndex < keyframeCount; ++keyframeIndex)
@@ -359,7 +359,7 @@ load_animation_glb(MemoryArena & allocator, GltfFile const & file, char const * 
 				}
 				else
 				{
-					channel.rotations = push_array_2<quaternion>(allocator, keyframeCount, 0);
+					channel.rotations = push_array_2<quaternion>(allocator, keyframeCount, ALLOC_GARBAGE);
 					array_2_fill_from_memory(channel.rotations, keyframeCount, start);
 				}
 				
@@ -417,7 +417,7 @@ load_skeleton_glb(MemoryArena & allocator, GltfFile const & file, char const * m
 	m44 const * inverseBindMatrices = get_buffer_start<m44>(file, skin["inverseBindMatrices"].GetInt());
 
 	AnimatedSkeleton skeleton = {};
-	skeleton.bones = push_array_2<AnimatedBone>(allocator, boneCount, ALLOC_CLEAR);
+	skeleton.bones = push_array_2<AnimatedBone>(allocator, boneCount, ALLOC_ZERO_MEMORY);
 	
 	for (int boneIndex = 0; boneIndex < boneCount; ++boneIndex)
 	{
@@ -561,7 +561,7 @@ load_mesh_glb(MemoryArena & allocator, GltfFile const & file, char const * model
 
 	// -----------------------------------------------------------------------------
 
-	Vertex * vertices 			= push_memory<Vertex>(allocator, vertexCount, 0);
+	Vertex * vertices 			= push_memory<Vertex>(allocator, vertexCount, ALLOC_GARBAGE);
 	VertexSkinData * skinning 	= nullptr;
 
 	v3 const * positions 	= get_buffer_start<v3>(file, positionAccessor);
@@ -581,7 +581,7 @@ load_mesh_glb(MemoryArena & allocator, GltfFile const & file, char const * model
 
 	if (hasSkin)
 	{
-		skinning = push_memory<VertexSkinData>(allocator, vertexCount, 0);
+		skinning = push_memory<VertexSkinData>(allocator, vertexCount, ALLOC_GARBAGE);
 
 		s32 bonesAccessorIndex 		= attribObject["JOINTS_0"].GetInt();
 		s32 boneWeightsAccessorIndex = attribObject["WEIGHTS_0"].GetInt();
@@ -597,13 +597,13 @@ load_mesh_glb(MemoryArena & allocator, GltfFile const & file, char const * model
 		{
 			// Note(Leo): joints are stored as UINT16 in file, but we use UINT32, hence the intermediary buffer
 			u16 bonesFromBuffer [4];
-			copy_memory(bonesFromBuffer, bones + (vertexIndex * 4), sizeof(bonesFromBuffer));
+			memory_copy(bonesFromBuffer, bones + (vertexIndex * 4), sizeof(bonesFromBuffer));
 			for(s32 boneIndexIndex = 0; boneIndexIndex < 4; ++boneIndexIndex)
 			{
 				skinning[vertexIndex].boneIndices[boneIndexIndex] = static_cast<u32>(bonesFromBuffer[boneIndexIndex]);
 			}
 
-			copy_memory(&skinning[vertexIndex].boneWeights, weights + (vertexIndex * 4), sizeof(skinning[vertexIndex].boneWeights));
+			memory_copy(&skinning[vertexIndex].boneWeights, weights + (vertexIndex * 4), sizeof(skinning[vertexIndex].boneWeights));
 		} 
 
 	}
@@ -614,49 +614,7 @@ load_mesh_glb(MemoryArena & allocator, GltfFile const & file, char const * model
 	s32 indexCount 		= accessors[indexAccessor]["count"].GetInt();
 
 	u16 const * indexStart 	= get_buffer_start<u16>(file, indexAccessor);
-	u16 * indices 			= push_and_copy_memory(allocator, indexCount, indexStart, 0);
-
-	// ----------------------------------------------------------------------------------
-
-	// Todo(Leo): We have a function for this, use that
-	s32 triangleCount = indexCount / 3;
-	v3 * vertexTangents = push_memory<v3>(*global_transientMemory, vertexCount, 0);
-	
-	for (s32 i = 0; i < triangleCount; ++i)
-	{
-		s32 index0 = indices[i * 3];
-		s32 index1 = indices[i * 3 + 1];
-		s32 index2 = indices[i * 3 + 2];
-
-		v3 p0 = vertices[index0].position;
-		v3 p1 = vertices[index1].position;
-		v3 p2 = vertices[index2].position;
-
-		v3 p01 = p1 - p0;
-		v3 p02 = p2 - p0;
-
-		v2 uv0 = vertices[index0].texCoord;
-		v2 uv1 = vertices[index1].texCoord;
-		v2 uv2 = vertices[index2].texCoord;
-
-		v2 uv01 = uv1 - uv0;
-		v2 uv02 = uv2 - uv0;
-
-		f32 r = 1.0f / (uv01.x * uv02.y - uv01.y * uv02.x);
-
-		v3 tangent 	= (p01 * uv02.y - p02 * uv01.y) * r;
-		tangent 	= normalize_v3(tangent);
-
-		vertexTangents[index0] += tangent;
-		vertexTangents[index1] += tangent;
-		vertexTangents[index2] += tangent;
-	}
-
-	for (s32 i = 0; i < vertexCount; ++i)
-	{
-		vertices[i].tangent = normalize_v3(vertexTangents[i]);
-	}
-
+	u16 * indices 			= push_and_copy_memory(allocator, indexCount, indexStart);
 
 	// ----------------------------------------------------------------------------------
 
@@ -667,6 +625,9 @@ load_mesh_glb(MemoryArena & allocator, GltfFile const & file, char const * model
 
 	result.indexCount 	= indexCount;
 	result.indices 		= indices;
+
+	mesh_generate_tangents(result);
+
 	return result;
 }
 
@@ -713,7 +674,7 @@ namespace mesh_primitives
 		result.indexType = IndexType::UInt16;
 
 		result.vertexCount 	= 4;
-		result.vertices 	= push_memory<Vertex>(*allocator, result.vertexCount, 0);
+		result.vertices 	= push_memory<Vertex>(*allocator, result.vertexCount, ALLOC_GARBAGE);
 
 		// 					  position 		normal   	color    	uv
 		result.vertices[0] = {0, 0, 0, 		0, 0, 1, 	1, 1, 1, 	0, 0};
@@ -728,13 +689,13 @@ namespace mesh_primitives
 			// Note(Leo): These seem to backwardsm but it because currently our gui is viewed from behind.
 			u16 indices [] 		= {0, 2, 1, 1, 2, 3};
 			result.indexCount 	= array_count(indices);
-			result.indices 		= push_and_copy_memory(*allocator, array_count(indices), indices, 0);
+			result.indices 		= push_and_copy_memory(*allocator, array_count(indices), indices);
 		}
 		else
 		{
 			u16 indices [] 		= {0, 1, 2, 2, 1, 3};
 			result.indexCount 	= array_count(indices);
-			result.indices 		= push_and_copy_memory(*allocator, array_count(indices), indices, 0);
+			result.indices 		= push_and_copy_memory(*allocator, array_count(indices), indices);
 
 		}
 

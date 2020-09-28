@@ -44,18 +44,19 @@ struct StaticBoxCollider
 
 struct CollisionSystem3D
 {
-	Array<BoxCollider> 	boxColliders;
-	Array<CylinderCollider> cylinderColliders;
+	Array2<BoxCollider> 	boxColliders;
+	Array2<CylinderCollider> cylinderColliders;
 
-	Array<StaticBoxCollider> staticBoxColliders;
-	Array<StaticBoxCollider> precomputedBoxColliders;
+	Array2<StaticBoxCollider> staticBoxColliders;
+	Array2<StaticBoxCollider> precomputedBoxColliders;
 
-	Array<BETTER_CylinderCollider> precomputedCylinderColliders;
-	Array<BETTER_CylinderCollider> submittedCylinderColliders;
+	Array2<BETTER_CylinderCollider> precomputedCylinderColliders;
+	Array2<BETTER_CylinderCollider> submittedCylinderColliders;
 
 	// Todo(Leo): include these to above
 	HeightMap terrainCollider;
-	Transform3D * terrainTransform;
+	v3 terrainOffset;
+	// Transform3D * terrainTransform;
 };
 
 internal m44 compute_collider_transform(BoxCollider const & collider)
@@ -82,38 +83,44 @@ internal void submit_cylinder_collider(CollisionSystem3D & system, f32 radius, f
 
 internal void precompute_colliders(CollisionSystem3D & system)
 {
-	s32 boxColliderCount = system.boxColliders.count();
-	reset_array(system.precomputedBoxColliders);
-	system.precomputedBoxColliders = allocate_array<StaticBoxCollider>(*global_transientMemory, boxColliderCount, ALLOC_NO_CLEAR | ALLOC_FILL);
+	s32 boxColliderCount = system.boxColliders.count;
+	// reset_array(system.precomputedBoxColliders);
+	system.precomputedBoxColliders = push_array_2<StaticBoxCollider>(*global_transientMemory, boxColliderCount, ALLOC_GARBAGE);
 
 	for (s32 i = 0; i < boxColliderCount; ++i)
 	{
 		const BoxCollider & collider = system.boxColliders[i];
 
-		system.precomputedBoxColliders[i].transform 		= compute_collider_transform(collider);
-		system.precomputedBoxColliders[i].inverseTransform = compute_inverse_collider_transform(collider);
+		system.precomputedBoxColliders.push(
+		{
+			compute_collider_transform(collider),
+			compute_inverse_collider_transform(collider)
+		});
 	}
 
 	// --------------------------------------------------------------------------------------------------
 
-	s32 cylinderColliderCount = system.cylinderColliders.count();
-	reset_array(system.precomputedCylinderColliders);
-	system.precomputedCylinderColliders = allocate_array<BETTER_CylinderCollider>(*global_transientMemory, cylinderColliderCount, ALLOC_NO_CLEAR | ALLOC_FILL);
+	s32 cylinderColliderCount = system.cylinderColliders.count;
+	// reset_array(system.precomputedCylinderColliders);
+	system.precomputedCylinderColliders = push_array_2<BETTER_CylinderCollider>(*global_transientMemory, cylinderColliderCount,  ALLOC_GARBAGE);
 
 	for (s32 i = 0; i < cylinderColliderCount; ++i)
 	{
 		CylinderCollider const & collider = system.cylinderColliders[i];
 
-		system.precomputedCylinderColliders[i].radius = collider.radius; 
-		system.precomputedCylinderColliders[i].halfHeight = collider.height / 2; 
-		system.precomputedCylinderColliders[i].center = collider.transform->position + collider.center; 
+		system.precomputedCylinderColliders.push(
+		{
+		 	collider.radius, 
+			collider.height / 2, 
+			collider.transform->position + collider.center
+		});
 	}
 
 	// --------------------------------------------------------------------------------------------------
 
 	// Todo(Leo): this does not semantically belong here....
-	reset_array(system.submittedCylinderColliders);
-	system.submittedCylinderColliders = allocate_array<BETTER_CylinderCollider>(*global_transientMemory, 100, ALLOC_NO_CLEAR);
+	// reset_array(system.submittedCylinderColliders);
+	system.submittedCylinderColliders = push_array_2<BETTER_CylinderCollider>(*global_transientMemory, 100, ALLOC_GARBAGE);
 }
 
 internal void push_box_collider (	CollisionSystem3D & system,
@@ -136,13 +143,13 @@ internal void push_cylinder_collider ( 	CollisionSystem3D & system,
 
 internal f32 get_terrain_height(CollisionSystem3D const & system, v2 position)
 {
-	position.x -= system.terrainTransform->position.x;
-	position.y -= system.terrainTransform->position.y;
+	position.x -= system.terrainOffset.x;
+	position.y -= system.terrainOffset.y;
 	f32 value = get_height_at(&system.terrainCollider, position);
 	return value;
 }
 
-internal bool32 ray_box_collisions(	Array<StaticBoxCollider> & colliders,
+internal bool32 ray_box_collisions(	Array2<StaticBoxCollider> & colliders,
 									v3 rayStart,
 									v3 normalizedRayDirection,
 									f32 rayLength,
@@ -175,21 +182,21 @@ internal bool32 ray_box_collisions(	Array<StaticBoxCollider> & colliders,
 		f32 xDistanceToMax = (max.x - colliderSpaceRayStart.x) * inverseDirection.x;
 		if (inverseDirection.x < 0)
 		{
-			swap(xDistanceToMin, xDistanceToMax);
+			memory_swap(xDistanceToMin, xDistanceToMax);
 		}
 
 		f32 yDistanceToMin = (min.y - colliderSpaceRayStart.y) * inverseDirection.y;
 		f32 yDistanceToMax = (max.y - colliderSpaceRayStart.y) * inverseDirection.y;
 		if (inverseDirection.y < 0)
 		{
-			swap(yDistanceToMin, yDistanceToMax);
+			memory_swap(yDistanceToMin, yDistanceToMax);
 		}
 		
 		f32 zDistanceToMin = (min.z - colliderSpaceRayStart.z) * inverseDirection.z;
 		f32 zDistanceToMax = (max.z - colliderSpaceRayStart.z) * inverseDirection.z;
 		if (inverseDirection.z < 0)
 		{
-			swap(zDistanceToMin, zDistanceToMax);
+			memory_swap(zDistanceToMin, zDistanceToMax);
 		}
 
 		// Note(Leo): if any min distance is more than any max distance
@@ -262,14 +269,14 @@ internal bool32 ray_box_collisions(	Array<StaticBoxCollider> & colliders,
 	return hit;
 }
 
-internal bool32 ray_cylinder_collisions (s32 count, BETTER_CylinderCollider * colliders, Ray ray, RaycastResult * outResult, f32 * rayHitSquareDistance)
+internal bool32 ray_cylinder_collisions (Array2<BETTER_CylinderCollider> colliders, Ray ray, RaycastResult * outResult, f32 * rayHitSquareDistance)
 {
 	bool32 hit = false;
 
-	// for (auto const & collider : system->precomputedCylinderColliders)
-	for (s32 i = 0; i < count; ++i)
+	for (auto const & collider : colliders)
+	// for (s32 i = 0; i < count; ++i)
 	{
-		auto & collider = colliders[i];
+		// auto & collider = colliders[i];
 
 		v3 const center = collider.center;
 		v3 const p = ray.start - center;
@@ -372,14 +379,12 @@ raycast_3d(	CollisionSystem3D * system,
 	hit = hit || ray_box_collisions(system->precomputedBoxColliders, rayStart, normalizedRayDirection, rayLength, outResult, &rayHitSquareDistance);
 	hit = hit || ray_box_collisions(system->staticBoxColliders, rayStart, normalizedRayDirection, rayLength, outResult, &rayHitSquareDistance);
 
-	hit = hit || ray_cylinder_collisions(	system->precomputedCylinderColliders.count(),
-											system->precomputedCylinderColliders.data(),
+	hit = hit || ray_cylinder_collisions(	system->precomputedCylinderColliders,
 											{rayStart, normalizedRayDirection, rayLength},
 											outResult,
 											&rayHitSquareDistance);
 
-	hit = hit || ray_cylinder_collisions(	system->submittedCylinderColliders.count(),
-											system->submittedCylinderColliders.data(),
+	hit = hit || ray_cylinder_collisions(	system->submittedCylinderColliders,
 											{rayStart, normalizedRayDirection, rayLength},
 											outResult,
 											&rayHitSquareDistance);

@@ -43,8 +43,8 @@ internal TextureAssetData load_texture_asset(MemoryArena & allocator, const char
     // AssertMsg(channels == 4, filename);
 
     TextureAssetData result = {};
-    result.pixelMemory = push_memory<u32>(allocator, pixelCount, 0);
-    copy_memory(result.pixelMemory, stbi_pixels, pixelMemorySize);
+    result.pixelMemory = push_memory<u32>(allocator, pixelCount, ALLOC_GARBAGE);
+    memory_copy(result.pixelMemory, stbi_pixels, pixelMemorySize);
 
     result.width    = width;
     result.height   = height;
@@ -68,10 +68,10 @@ internal TextureAssetData load_texture_asset(MemoryArena & allocator, const char
 // platform, which is against convention elsewhere
 internal Font load_font(char const * fontFilePath)
 {
-    Array<byte> fontFile = read_binary_file(*global_transientMemory, fontFilePath);
+    Array2<byte> fontFile = read_binary_file(*global_transientMemory, fontFilePath);
 
     stbtt_fontinfo fontInfo;
-    stbtt_InitFont(&fontInfo, fontFile.data(), stbtt_GetFontOffsetForIndex(fontFile.data(), 0));
+    stbtt_InitFont(&fontInfo, fontFile.memory, stbtt_GetFontOffsetForIndex(fontFile.memory, 0));
     
     u8 firstCharacter = 32;
     u8 lastCharacter = 125;
@@ -84,7 +84,9 @@ internal Font load_font(char const * fontFilePath)
     s32 width = characterSize * charactersPerDirection;
     s32 height = characterSize * charactersPerDirection;
 
-    u8 * monoColorBitmap = (u8*)allocate(*global_transientMemory, width * height, true);
+    s64 memorySize = width * height;
+    u8 * monoColorBitmap = push_memory<u8>(*global_transientMemory, memorySize, ALLOC_ZERO_MEMORY);
+    // u8 * monoColorBitmap = (u8*)allocate(*global_transientMemory, width * height, true);
 
     f32 scale = stbtt_ScaleForPixelHeight(&fontInfo, 64.0f);
 
@@ -127,8 +129,7 @@ internal Font load_font(char const * fontFilePath)
         stbtt_MakeCodepointBitmap(&fontInfo, monoColorBitmap + byteOffset, ix1 - ix0, iy1 - iy0, width, scale, scale, character);
     }
 
-    // Array<u32> fontBitMap = allocate_array<u32>(*global_transientMemory, width * height, ALLOC_FILL);
-    u32 * fontBitMap = push_memory<u32>(*global_transientMemory, width * height, 0);
+    u32 * fontBitMap = push_memory<u32>(*global_transientMemory, width * height, ALLOC_GARBAGE);
 
     for (s32 y = 0; y < height; ++y)
     {
@@ -156,7 +157,7 @@ struct Gradient
 
 internal TextureAssetData generate_gradient(MemoryArena & allocator, s32 pixelCount, Gradient const & gradient)
 {
-    v4 * pixelMemory = push_memory<v4>(allocator, pixelCount, 0);
+    v4 * pixelMemory = push_memory<v4>(allocator, pixelCount, ALLOC_GARBAGE);
 
     s32 pixelIndex  = 0;
     s32 colourIndex = 0;

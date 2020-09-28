@@ -377,15 +377,15 @@ vulkan_swapchain_internal_::create_attachments(VulkanContext * context)
 	/// 2. ALLOCATE MEMORY
 	VkMemoryRequirements colorMemReqs;
 	vkGetImageMemoryRequirements(context->device, context->virtualFrames[0].colorImage, &colorMemReqs);
-	u64 colorMemorySize = align_up(colorMemReqs.size, colorMemReqs.alignment);
+	u64 colorMemorySize = memory_align_up(colorMemReqs.size, colorMemReqs.alignment);
 
 	VkMemoryRequirements depthMemReqs;
 	vkGetImageMemoryRequirements(context->device, context->virtualFrames[0].depthImage, &depthMemReqs);
-	u64 depthMemorySize = align_up(depthMemReqs.size, depthMemReqs.alignment);
+	u64 depthMemorySize = memory_align_up(depthMemReqs.size, depthMemReqs.alignment);
 
 	VkMemoryRequirements resolveMemoryRequirements;
 	vkGetImageMemoryRequirements(context->device, context->virtualFrames[0].resolveImage, &resolveMemoryRequirements);
-	u64 resolveMemorySize = align_up(resolveMemoryRequirements.size, resolveMemoryRequirements.alignment);
+	u64 resolveMemorySize = memory_align_up(resolveMemoryRequirements.size, resolveMemoryRequirements.alignment);
 
 
 	// Todo(Leo): this is required for naive alignment stuff below, it should be changed

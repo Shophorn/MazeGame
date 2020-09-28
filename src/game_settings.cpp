@@ -3,7 +3,7 @@ internal void read_settings_file(SkySettings & skySettings, Tree3Settings & tree
 	PlatformFileHandle file = platform_file_open("settings", FILE_MODE_READ);
 
 	s32 fileSize 	= platform_file_get_size(file);
-	char * buffer 	= push_memory<char>(*global_transientMemory, fileSize, 0);
+	char * buffer 	= push_memory<char>(*global_transientMemory, fileSize, ALLOC_GARBAGE);
 
 	platform_file_read(file, fileSize, buffer);
 	platform_file_close(file);	
@@ -45,7 +45,7 @@ internal void write_settings_file(	SkySettings const & skySettings,
 
 	auto serialize = [file](char const * label, auto const & serializedData)
 	{
-		push_memory_checkpoint(*global_transientMemory);
+		auto checkpoint = memory_push_checkpoint(*global_transientMemory);
 	
 		constexpr s32 capacity 			= 2000;
 		String serializedFormatString 	= push_temp_string(capacity);
@@ -56,7 +56,7 @@ internal void write_settings_file(	SkySettings const & skySettings,
 
 		platform_file_write(file, serializedFormatString.length, serializedFormatString.memory);
 
-		pop_memory_checkpoint(*global_transientMemory);
+		memory_pop_checkpoint(*global_transientMemory, checkpoint);
 	};
 
 	serialize("sky", skySettings);

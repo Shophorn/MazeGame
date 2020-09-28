@@ -138,13 +138,19 @@ void update_skeleton_animator(SkeletonAnimator & animator, f32 elapsedTime)
 		f32 time;
 	};
 
-	auto translationChannelInfos = allocate_nested_arrays<ChannelInfo>(	*global_transientMemory,
-																		skeleton.bones.count,
-																		animationCount);
+	auto translationChannelInfos 	= push_array_2<Array2<ChannelInfo>>(*global_transientMemory, skeleton.bones.count, ALLOC_GARBAGE);
+	translationChannelInfos.count 	= translationChannelInfos.capacity;
+	for (auto & array : translationChannelInfos)
+	{
+		array = push_array_2<ChannelInfo>(*global_transientMemory, animationCount, ALLOC_GARBAGE);
+	}
 
-	auto rotationChannelInfos = allocate_nested_arrays<ChannelInfo>(	*global_transientMemory,
-																		skeleton.bones.count,
-																		animationCount);
+	auto rotationChannelInfos 	= push_array_2<Array2<ChannelInfo>>(*global_transientMemory, skeleton.bones.count, ALLOC_GARBAGE);
+	rotationChannelInfos.count 	= rotationChannelInfos.capacity;
+	for (auto & array : rotationChannelInfos)
+	{
+		array = push_array_2<ChannelInfo>(*global_transientMemory, animationCount, ALLOC_GARBAGE);
+	}
 
 	for (s32 animationIndex = 0; animationIndex < animationCount; ++animationIndex)
 	{
@@ -169,8 +175,6 @@ void update_skeleton_animator(SkeletonAnimator & animator, f32 elapsedTime)
 			rotationChannelInfos[channel.targetIndex].push({&channel, duration, weight, time});
 		}
 	}
-
-	// ------------------------------------------------------------------------
 
 	// ----- ANIMATE TRANSLATION -----
 

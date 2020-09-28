@@ -725,9 +725,9 @@ internal void initialize_test_tree_3(MemoryArena & allocator, Tree3 & tree, v3 p
 {
 	tree = {};
 
-	tree.nodes 		= push_array_2<Tree3Node>(allocator, 1000, ALLOC_CLEAR);
-	tree.buds 		= push_array_2<Tree3Bud>(allocator, 1000, ALLOC_CLEAR);
-	tree.branches 	= push_array_2<Tree3Branch>(allocator, 1000, ALLOC_CLEAR);
+	tree.nodes 		= push_array_2<Tree3Node>(allocator, 1000, ALLOC_ZERO_MEMORY);
+	tree.buds 		= push_array_2<Tree3Bud>(allocator, 1000, ALLOC_ZERO_MEMORY);
+	tree.branches 	= push_array_2<Tree3Branch>(allocator, 1000, ALLOC_ZERO_MEMORY);
 	tree.leaves 	= make_leaves(allocator, 2000);
 	tree.mesh 		= push_dynamic_mesh(allocator, 10000, 40000);
 

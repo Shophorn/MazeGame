@@ -91,10 +91,6 @@ constexpr u32 array_count(const _ (&array)[Count])
 
 
 #include "Math.cpp"
-
-// Todo(Leo): worse array
-#include "Array.hpp"
-
 #include "Memory.cpp"
 
 #include "CStringUtility.cpp"

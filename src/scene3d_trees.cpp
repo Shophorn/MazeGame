@@ -35,11 +35,11 @@ internal Leaves make_leaves(MemoryArena & allocator, s32 capacity)
 	Leaves leaves 			= {};
 
 	leaves.capacity 		= capacity;
-	leaves.localPositions 	= push_memory<v3>(allocator, leaves.capacity, ALLOC_NO_CLEAR);
-	leaves.localRotations 	= push_memory<quaternion>(allocator, leaves.capacity, ALLOC_NO_CLEAR);
-	leaves.localScales 		= push_memory<f32>(allocator, leaves.capacity, ALLOC_NO_CLEAR);
-	leaves.swayPositions 	= push_memory<f32>(allocator, leaves.capacity, ALLOC_NO_CLEAR);
-	leaves.swayAxes 		= push_memory<v3>(allocator, leaves.capacity, ALLOC_NO_CLEAR);
+	leaves.localPositions 	= push_memory<v3>(allocator, leaves.capacity, ALLOC_GARBAGE);
+	leaves.localRotations 	= push_memory<quaternion>(allocator, leaves.capacity, ALLOC_GARBAGE);
+	leaves.localScales 		= push_memory<f32>(allocator, leaves.capacity, ALLOC_GARBAGE);
+	leaves.swayPositions 	= push_memory<f32>(allocator, leaves.capacity, ALLOC_GARBAGE);
+	leaves.swayAxes 		= push_memory<v3>(allocator, leaves.capacity, ALLOC_GARBAGE);
 
 	return leaves;
 }
@@ -48,7 +48,7 @@ internal void draw_leaves(Leaves & leaves, f32 elapsedTime, v2 leafScale = {1,1}
 {
 	s32 drawCount = min_f32(leaves.capacity, leaves.count);
 
-	m44 * leafTransforms = push_memory<m44>(*global_transientMemory, drawCount, ALLOC_NO_CLEAR);
+	m44 * leafTransforms = push_memory<m44>(*global_transientMemory, drawCount, ALLOC_GARBAGE);
 	for (s32 i = 0; i < drawCount; ++i)
 	{
 		v3 position 			= leaves.position + rotate_v3(leaves.rotation, leaves.localPositions[i]);
@@ -446,8 +446,8 @@ struct Waters
 
 // 	lSystem.wordCapacity 	= wordCapacity;
 // 	lSystem.wordCount 		= 0;
-// 	lSystem.aWord 			= push_memory<Module>(allocator, lSystem.wordCapacity, ALLOC_NO_CLEAR);
-// 	lSystem.bWord 			= push_memory<Module>(allocator, lSystem.wordCapacity, ALLOC_NO_CLEAR);
+// 	lSystem.aWord 			= push_memory<Module>(allocator, lSystem.wordCapacity, ALLOC_GARBAGE);
+// 	lSystem.bWord 			= push_memory<Module>(allocator, lSystem.wordCapacity, ALLOC_GARBAGE);
 
 // 	Module axiom 		= {'X', 0, 0.7};
 // 	lSystem.aWord[0] 		= axiom;
@@ -1071,7 +1071,7 @@ struct Waters
 // 						{'A'},
 // 					{']'},
 // 				};
-// 				copy_memory(word + wordLength, production, sizeof(production));
+// 				memory_copy(word + wordLength, production, sizeof(production));
 // 				wordLength += array_count(production);
 // 			} break;
 		
@@ -1083,7 +1083,7 @@ struct Waters
 // 					{'<', 5 * angle},
 // 					{'F', scale},
 // 				};
-// 				copy_memory(word + wordLength, production, sizeof(production));
+// 				memory_copy(word + wordLength, production, sizeof(production));
 // 				wordLength += array_count(production);
 // 			} break;
 
@@ -1094,7 +1094,7 @@ struct Waters
 // 					{'F', scale},
 // 					{'L'},
 // 				};
-// 				copy_memory(word + wordLength, production, sizeof(production));
+// 				memory_copy(word + wordLength, production, sizeof(production));
 // 				wordLength += array_count(production);
 // 			} break;
 
@@ -1107,7 +1107,7 @@ struct Waters
 // 						{'f', scale},
 // 					{']'},
 // 				};
-// 				copy_memory(word + wordLength, production, sizeof(production));
+// 				memory_copy(word + wordLength, production, sizeof(production));
 // 				wordLength += array_count(production);
 // 			} break;
 
@@ -1148,7 +1148,7 @@ struct Waters
 // 					{'<', d},
 // 					{'A', length * r1}
 // 				};
-// 				copy_memory(word + wordLength, production, sizeof(production));
+// 				memory_copy(word + wordLength, production, sizeof(production));
 // 				wordLength += array_count(production);
 // 			} break;
 		
@@ -1166,7 +1166,7 @@ struct Waters
 // 				};
 
 
-// 				copy_memory(word + wordLength, production, sizeof(production));
+// 				memory_copy(word + wordLength, production, sizeof(production));
 // 				wordLength += array_count(production);
 // 			} break;
 
@@ -1182,7 +1182,7 @@ struct Waters
 // 					{']'},
 // 					{'B', length * r1}
 // 				};
-// 				copy_memory(word + wordLength, production, sizeof(production));
+// 				memory_copy(word + wordLength, production, sizeof(production));
 // 				wordLength += array_count(production);
 // 			} break;
 

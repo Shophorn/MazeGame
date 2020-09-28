@@ -280,7 +280,7 @@ internal void gui_panel_add_text_draw_call(String const & text, v4 color, GuiAli
 
 	s32 rectCapacity 	= text.length;
 	s32 rectCount 		= 0;
-	ScreenRect * rects 	= push_memory<ScreenRect>(*global_transientMemory, rectCapacity, ALLOC_NO_CLEAR);
+	ScreenRect * rects 	= push_memory<ScreenRect>(*global_transientMemory, rectCapacity, ALLOC_GARBAGE);
 
 	f32 & xCursor = gui_get_x_cursor(alignment);
 
@@ -339,7 +339,7 @@ internal void gui_start_panel(char const * label, v4 color)
 
 	gui.panelDrawCallsCapacity 	= 100;
 	gui.panelDrawCallsCount 	= 0;
-	gui.panelDrawCalls 			= push_memory<GuiDrawCall>(*global_transientMemory, gui.panelDrawCallsCapacity, ALLOC_NO_CLEAR);
+	gui.panelDrawCalls 			= push_memory<GuiDrawCall>(*global_transientMemory, gui.panelDrawCallsCapacity, ALLOC_GARBAGE);
 
 	// gui.panelCursorX = 0;
 	gui.panelLeftCursorX = 0;
@@ -608,7 +608,7 @@ internal bool gui_float_slider(char const * label, f32 * value, f32 minValue, f3
 	v4 railColour = colour_multiply({0.3, 0.3, 0.3, 0.6}, isSelected ? gui.selectedTextColor : gui.textColor);
 	v4 handleColour = colour_multiply({0.8, 0.8, 0.8, 1.0}, isSelected ? gui.selectedTextColor : gui.textColor);
 
-	ScreenRect * rects = push_memory<ScreenRect>(*global_transientMemory, 2, ALLOC_NO_CLEAR);
+	ScreenRect * rects = push_memory<ScreenRect>(*global_transientMemory, 2, ALLOC_GARBAGE);
 	rects[0] = sliderRect;
 	rects[1] = handleRect;
 	
@@ -859,7 +859,7 @@ internal bool gui_colour_rgb(char const * label, v3 * color, GuiColorFlags flags
 	displayColor.a 		= 1;
 
 
-	ScreenRect * rect = push_memory<ScreenRect>(*global_transientMemory, 2, 0);
+	ScreenRect * rect = push_memory<ScreenRect>(*global_transientMemory, 2, ALLOC_GARBAGE);
 
 	v2 position = {0, gui.panelCursorY};
 
@@ -911,7 +911,7 @@ internal void gui_line()
 	Assert(gui.isPanelActive);
 
 	// Todo(Leo): allocate this to gui in the beninnginnein
-	ScreenRect * rect = push_memory<ScreenRect>(*global_transientMemory, 1, 0);
+	ScreenRect * rect = push_memory<ScreenRect>(*global_transientMemory, 1, ALLOC_GARBAGE);
 
 	v2 position = {0, gui.panelCursorY};
 	position.y += gui.padding;
