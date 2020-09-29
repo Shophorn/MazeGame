@@ -138,7 +138,7 @@ struct Tree3Settings
 
 	static constexpr auto serializedProperties = make_property_list
 	(	
-		#define SERIALIZE(name) serialized_property(#name, &Tree3Settings::name)
+		#define SERIALIZE(name) serialize_property(#name, &Tree3Settings::name)
 
 		SERIALIZE(maxHeight),
 		SERIALIZE(growSpeedScale),
@@ -328,7 +328,7 @@ internal void grow_tree_3(Tree3 & tree, f32 elapsedTime, GetWaterFunc & get_wate
 			f32 growFactor  		= hFactor * hwFactor * tree.settings->lengthGrowthSpeed * elapsedTime;
 			growFactor 				*= waterGrowthFactor;
 
-			v3 direction 			= rotate_v3(endNode.rotation, up_v3);
+			v3 direction 			= rotate_v3(endNode.rotation, v3_up);
 			endNode.position 		+= direction * growFactor;
 			
 			f32 ratioToNextBud 		= (branch.nextBudPosition - distanceFromStart) / tree.settings->budInterval;
@@ -357,7 +357,7 @@ internal void grow_tree_3(Tree3 & tree, f32 elapsedTime, GetWaterFunc & get_wate
 					tree.buds[branch.budIndex].parentBranchIndex 		= branchIndex;
 					tree.buds[branch.budIndex].size 					= 1;
 
-					v3 branchDirection 		= rotate_v3(endNode.rotation, up_v3);
+					v3 branchDirection 		= rotate_v3(endNode.rotation, v3_up);
 					f32 axisRotationAngle 	= tree.settings->budAngle + random_range(-tree.settings->budAngleRandomness, tree.settings->budAngleRandomness);
 					branch.nextBudRotation 	= branch.nextBudRotation * axis_angle_quaternion(branchDirection, axisRotationAngle);
 				}
@@ -372,10 +372,10 @@ internal void grow_tree_3(Tree3 & tree, f32 elapsedTime, GetWaterFunc & get_wate
 					for(s32 newBranchIndex = 0; newBranchIndex < newApexBranchesCount; ++newBranchIndex)
 					{
 						f32 angle 			= newBranchIndex * 2 * π / newApexBranchesCount * (1 + random_range(-0.15, 0.15));
-						v3 direction 		= rotate_v3(branch.nextBudRotation, up_v3);
+						v3 direction 		= rotate_v3(branch.nextBudRotation, v3_up);
 						quaternion rotation = branch.nextBudRotation * axis_angle_quaternion(direction, angle);
-						// quaternion rotation = endNode.rotation * axis_angle_quaternion(rotate_v3(endNode.rotation, up_v3), angle);
-						v3 axis 			= rotate_v3(rotation, forward_v3);
+						// quaternion rotation = endNode.rotation * axis_angle_quaternion(rotate_v3(endNode.rotation, v3_up), angle);
+						v3 axis 			= rotate_v3(rotation, v3_forward);
 						rotation 			= rotation * axis_angle_quaternion(axis, 0.5);
 
 						tree_3_add_branch(tree, branchIndex, endNode.position, rotation, distanceFromRoot);
@@ -420,7 +420,7 @@ internal void grow_tree_3(Tree3 & tree, f32 elapsedTime, GetWaterFunc & get_wate
 				}
 			}
 
-			v3 axis 			= rotate_v3(bud.rotation, forward_v3);
+			v3 axis 			= rotate_v3(bud.rotation, v3_forward);
 			quaternion rotation = bud.rotation * axis_angle_quaternion(axis, 0.25 * π);
 
 			Assert(tree.nodes.has_room_for(2));
@@ -438,11 +438,11 @@ internal void grow_tree_3(Tree3 & tree, f32 elapsedTime, GetWaterFunc & get_wate
 				tree.leaves.localPositions[l] 	= bud.position;
 
 				f32 angle 						= leafIndex * 2 * π / tree.settings->leafCountPerBud;
-				quaternion rotation 			= bud.rotation * axis_angle_quaternion(rotate_v3(bud.rotation, up_v3), angle);
+				quaternion rotation 			= bud.rotation * axis_angle_quaternion(rotate_v3(bud.rotation, v3_up), angle);
 				tree.leaves.localRotations[l] 	= rotation;
 
 				tree.leaves.localScales[l] 		= clamp_f32(bud.age / tree.settings->leafMaturationTime, 0, 1) * bud.size;
-				tree.leaves.swayAxes[l] 		= rotate_v3(rotation, forward_v3);
+				tree.leaves.swayAxes[l] 		= rotate_v3(rotation, v3_forward);
 			}
 		}
 	}
@@ -519,7 +519,7 @@ internal void build_tree_3_mesh(Tree3 & tree)
 			quaternion nodeRotation = startNode.rotation;
 			f32 radius 				= startNode.radius;
 
-			v3 downDirection 		= rotate_v3(nodeRotation, -up_v3);
+			v3 downDirection 		= rotate_v3(nodeRotation, -v3_up);
 
 			s32 bottomVertexIndex = mesh.vertices.count++;
 			mesh.vertices[bottomVertexIndex] = { .position = nodePosition + downDirection * radius };
@@ -576,8 +576,8 @@ internal void build_tree_3_mesh(Tree3 & tree)
 			f32 nextTangentLength 		= min_f32(maxTangentLength, endNode.radius * tangentScale);
 
 			v3 bezier0 = startNode.position;
-			v3 bezier1 = startNode.position + previousTangentLength * rotate_v3(startNode.rotation, up_v3);
-			v3 bezier2 = endNode.position - nextTangentLength * rotate_v3(endNode.rotation, up_v3);
+			v3 bezier1 = startNode.position + previousTangentLength * rotate_v3(startNode.rotation, v3_up);
+			v3 bezier2 = endNode.position - nextTangentLength * rotate_v3(endNode.rotation, v3_up);
 			v3 bezier3 = endNode.position;
 
 			auto bezier_lerp_v3 = [&](f32 t) -> v3
@@ -639,7 +639,7 @@ internal void build_tree_3_mesh(Tree3 & tree)
 			quaternion rotation = endNode.rotation;
 			f32 radius 			= endNode.radius;
 
-			v3 upDirection = rotate_v3(rotation, up_v3);
+			v3 upDirection = rotate_v3(rotation, v3_up);
 
 
 			f32 fullAngle 			= 0.5f * π;

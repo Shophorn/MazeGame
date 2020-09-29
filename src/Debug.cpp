@@ -12,7 +12,7 @@ enum DebugLevel: s32
 
 s32 global_debugLevel = DEBUG_LEVEL_OFF;
 
-#define FS_DEBUG(level, op) 		if (global_debugLevel >= level) {op;}
+#define FS_DEBUG(level, op) 		{if (global_debugLevel >= level) {op;}}
 
 #define FS_DEBUG_ALWAYS(op) 		FS_DEBUG(DEBUG_LEVEL_ALWAYS, op)
 #define FS_DEBUG_OFF(op) 			FS_DEBUG(DEBUG_LEVEL_OFF, op)
@@ -21,7 +21,7 @@ s32 global_debugLevel = DEBUG_LEVEL_OFF;
 #define FS_DEBUG_BACKGROUND(op) 	FS_DEBUG(DEBUG_LEVEL_BACKGROUND, op)
 
 
-void debug_draw_axes(m44 transform, float radius)
+internal void debug_draw_axes(m44 transform, float radius)
 {
 	v3 rayStart 	= multiply_point(transform, {0,0,0});
 
@@ -41,7 +41,7 @@ void debug_draw_axes(m44 transform, float radius)
 	graphics_draw_lines(platformGraphics, 2, points, {0, 0, 1, 1});			
 };
 
-void debug_draw_diamond(m44 transform, v4 color)
+internal void debug_draw_diamond(m44 transform, v4 color)
 {
 	v3 xNeg = multiply_point(transform, v3{-1, 0, 0});
 	v3 xPos = multiply_point(transform, v3{1, 0, 0});
@@ -76,7 +76,7 @@ void debug_draw_diamond(m44 transform, v4 color)
 	graphics_draw_lines(platformGraphics, 24, points, color);
 }
 
-void debug_draw_circle_xy(v3 position, f32 radius, v4 color)
+internal void debug_draw_circle_xy(v3 position, f32 radius, v4 color)
 {
 	v3 points[32];
 	s32 pointCount = array_count(points);
@@ -98,7 +98,7 @@ void debug_draw_circle_xy(v3 position, f32 radius, v4 color)
 }
 
 // Note(Leo): this was wrong but it yielded a nice pattern so I saved it :)
-// void debug_draw_circle_xy(v3 position, f32 radius, v4 color, s32 level)
+// internal void debug_draw_circle_xy(v3 position, f32 radius, v4 color, s32 level)
 // {
 // 	Line lines [16] = {};
 // 	f32 angle = tau / 16;
@@ -118,7 +118,7 @@ void debug_draw_circle_xy(v3 position, f32 radius, v4 color)
 // 	debug_draw_lines(lines, 16, color);
 // }
 
-void debug_draw_diamond_xy(m44 transform, v4 color)
+internal void debug_draw_diamond_xy(m44 transform, v4 color)
 {
 	v3 corners [4] =
 	{
@@ -139,7 +139,7 @@ void debug_draw_diamond_xy(m44 transform, v4 color)
 	graphics_draw_lines(platformGraphics, 8, points, color);
 }
 
-void debug_draw_diamond_xz(m44 transform, v4 color)
+internal void debug_draw_diamond_xz(m44 transform, v4 color)
 {
 	v3 corners [4] =
 	{
@@ -160,7 +160,7 @@ void debug_draw_diamond_xz(m44 transform, v4 color)
 	graphics_draw_lines(platformGraphics, 8, points, color);
 }
 
-void debug_draw_diamond_yz(m44 transform, v4 color)
+internal void debug_draw_diamond_yz(m44 transform, v4 color)
 {
 	v3 corners [4] =
 	{
@@ -181,18 +181,18 @@ void debug_draw_diamond_yz(m44 transform, v4 color)
 	graphics_draw_lines(platformGraphics, 8, points, color);
 }
 
-void debug_draw_lines(s32 pointsCount, v3 * points, v4 color)
+internal void debug_draw_lines(s32 pointsCount, v3 * points, v4 color)
 {
 	graphics_draw_lines(platformGraphics, pointsCount, points, color);
 }
 
-void debug_draw_vector(v3 position, v3 vector, v4 color)
+internal void debug_draw_vector(v3 position, v3 vector, v4 color)
 {
 	f32 size 		= 0.1f; 
 	f32 length 		= magnitude_v3(vector);
 	size 			= min_f32(size, length / 2);
 
-	v3 binormal 	= cross_v3(vector, up_v3);
+	v3 binormal 	= cross_v3(vector, v3_up);
 	v3 up 			= normalize_v3(cross_v3(vector, binormal));
 
 	v3 direction 	= normalize_v3(vector);
@@ -211,7 +211,7 @@ void debug_draw_vector(v3 position, v3 vector, v4 color)
 
 }
 
-void debug_draw_box(m44 transform, v4 color)
+internal void debug_draw_box(m44 transform, v4 color)
 {
 	v3 corners [] =
 	{
@@ -247,7 +247,7 @@ void debug_draw_box(m44 transform, v4 color)
 	graphics_draw_lines(platformGraphics, 24, lines, color);
 }
 
-void debug_draw_cross_xy(v3 position, f32 radius, v4 color)
+internal void debug_draw_cross_xy(v3 position, f32 radius, v4 color)
 {
 	v3 points [] = 
 	{
@@ -260,7 +260,7 @@ void debug_draw_cross_xy(v3 position, f32 radius, v4 color)
 	graphics_draw_lines(platformGraphics, 4, points, color);
 }
 
-void debug_draw_line(v3 a, v3 b, v4 color)
+internal void debug_draw_line(v3 a, v3 b, v4 color)
 {
 	v3 points [] = {a, b};
 	graphics_draw_lines(platformGraphics, 2, points, color);	

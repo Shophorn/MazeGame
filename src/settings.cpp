@@ -23,21 +23,21 @@ struct SkySettings
 	
 	static constexpr auto serializedProperties = make_property_list
 	(
-		serialized_property("sunHeightAngle", 		&SkySettings::sunHeightAngle),
-		serialized_property("sunOrbitAngle", 		&SkySettings::sunOrbitAngle),
-		serialized_property("skyColourSelection", 	&SkySettings::skyColourSelection),
-		serialized_property("hdrExposure", 			&SkySettings::hdrExposure),
-		serialized_property("hdrContrast", 			&SkySettings::hdrContrast),
-		serialized_property("horizonHaloFalloff", 	&SkySettings::horizonHaloFalloff),
-		serialized_property("sunHaloFalloff", 		&SkySettings::sunHaloFalloff),
-		serialized_property("sunDiscSize", 			&SkySettings::sunDiscSize),
-		serialized_property("sunDiscFalloff", 		&SkySettings::sunDiscFalloff),
-		serialized_property("skyGradientBottom",	&SkySettings::skyGradientBottom),
-		serialized_property("skyGradientGround",	&SkySettings::skyGradientGround),
-		serialized_property("skyGradientTop", 		&SkySettings::skyGradientTop),
-		serialized_property("horizonHaloColour", 	&SkySettings::horizonHaloColour),
-		serialized_property("sunHaloColour", 		&SkySettings::sunHaloColour),
-		serialized_property("sunDiscColour", 		&SkySettings::sunDiscColour)
+		serialize_property("sunHeightAngle", 		&SkySettings::sunHeightAngle),
+		serialize_property("sunOrbitAngle", 		&SkySettings::sunOrbitAngle),
+		serialize_property("skyColourSelection", 	&SkySettings::skyColourSelection),
+		serialize_property("hdrExposure", 			&SkySettings::hdrExposure),
+		serialize_property("hdrContrast", 			&SkySettings::hdrContrast),
+		serialize_property("horizonHaloFalloff", 	&SkySettings::horizonHaloFalloff),
+		serialize_property("sunHaloFalloff", 		&SkySettings::sunHaloFalloff),
+		serialize_property("sunDiscSize", 			&SkySettings::sunDiscSize),
+		serialize_property("sunDiscFalloff", 		&SkySettings::sunDiscFalloff),
+		serialize_property("skyGradientBottom",		&SkySettings::skyGradientBottom),
+		serialize_property("skyGradientGround",		&SkySettings::skyGradientGround),
+		serialize_property("skyGradientTop", 		&SkySettings::skyGradientTop),
+		serialize_property("horizonHaloColour", 	&SkySettings::horizonHaloColour),
+		serialize_property("sunHaloColour", 		&SkySettings::sunHaloColour),
+		serialize_property("sunDiscColour", 		&SkySettings::sunDiscColour)
 	);
 };
 

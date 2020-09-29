@@ -1,4 +1,13 @@
-internal void read_settings_file(SkySettings & skySettings, Tree3Settings & tree0, Tree3Settings & tree1)
+/*
+Leo Tamminen
+
+Friendsimulator game specific serialized objects
+*/
+
+
+
+template<typename ... Ts>
+internal void read_settings_file(SerializedPropertyList<Ts...> serializedObjects)
 {
 	PlatformFileHandle file = platform_file_open("settings", FILE_MODE_READ);
 
@@ -21,47 +30,44 @@ internal void read_settings_file(SkySettings & skySettings, Tree3Settings & tree
 
 		String block = string_extract_until_character(fileAsString, ']');
 
-		auto deserialize_if_id_matches = [&identifier, &block](char const * name, auto & serializedProperties)
-		{
-			if(string_equals(identifier, name))
+		for_each_property (
+			[&identifier, &block](auto serializedObject)
 			{
-				deserialize_properties(serializedProperties, block);
-			}
-		};
-
-		deserialize_if_id_matches("sky", skySettings);
-		deserialize_if_id_matches("tree_0", tree0);
-		deserialize_if_id_matches("tree_1", tree1);
+				if (string_equals(identifier, serializedObject.name))
+				{
+					deserialize_properties(serializedObject.data, block);
+				}
+			},
+			serializedObjects
+		);
 
 		string_eat_leading_spaces_and_lines(fileAsString);
 	}
 }
 
-internal void write_settings_file(	SkySettings const & skySettings,
-									Tree3Settings const & tree0,
-									Tree3Settings const & tree1)
+template<typename ... Ts>
+internal void write_settings_file(PlatformFileHandle file, SerializedPropertyList<Ts...> serializedObjects)
 {
-	PlatformFileHandle file = platform_file_open("settings", FILE_MODE_WRITE);
 
-	auto serialize = [file](char const * label, auto const & serializedData)
-	{
-		auto checkpoint = memory_push_checkpoint(*global_transientMemory);
-	
-		constexpr s32 capacity 			= 2000;
-		String serializedFormatString 	= push_temp_string(capacity);
+	for_each_property (
+		[file](auto serializedObject)
+		{
+			auto checkpoint = memory_push_checkpoint(*global_transientMemory);
+		
+			// Todo(Leo): Maybe we should put capacity into string itself, hmm, hmm
+			constexpr s32 capacity 			= 2000;
+			String serializedFormatString 	= push_temp_string(capacity);
 
-		string_append_format(serializedFormatString, capacity, label, " = \n[\n");
-		serialize_properties(serializedData, serializedFormatString, capacity);
-		string_append_cstring(serializedFormatString, capacity, "]\n\n");
+			char const * label = serializedObject.name;
 
-		platform_file_write(file, serializedFormatString.length, serializedFormatString.memory);
+			string_append_format(serializedFormatString, capacity, label, " = \n[\n");
+			serialize_properties(serializedObject.data, serializedFormatString, capacity);
+			string_append_cstring(serializedFormatString, capacity, "]\n\n");
 
-		memory_pop_checkpoint(*global_transientMemory, checkpoint);
-	};
+			platform_file_write(file, serializedFormatString.length, serializedFormatString.memory);
 
-	serialize("sky", skySettings);
-	serialize("tree_0", tree0);
-	serialize("tree_1", tree1);
-
-	platform_file_close(file);
+			memory_pop_checkpoint(*global_transientMemory, checkpoint);
+		},	
+		serializedObjects
+	);
 }

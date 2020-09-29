@@ -7,6 +7,8 @@ Memory managing things in Friendsimulator
 // Note(Leo): We kinda have expected to always use 64 bit systems.
 static_assert(sizeof(void*) == sizeof(u64));
 
+/// ----------------- RANDOM UTITLITES --------------------------------
+
 internal u64
 memory_align_up(u64 size, u64 alignment)
 {
@@ -51,7 +53,7 @@ void memory_swap(T & a, T & b)
 	b 		= temp;
 }
 
-// ----------------------------------------------------------------------------
+// ------------- MEMORY ARENA ----------------------------------------
 
 struct MemoryArena
 {
@@ -136,6 +138,25 @@ internal void memory_pop_checkpoint(MemoryArena & arena, MemoryCheckpoint & chec
 }
 
 
+// internal void push_memory_checkpoint(MemoryArena & arena)
+// {
+// 	u64 used 				= arena.used;
+// 	u64 * checkpointMemory 	= push_memory<u64>(arena, 1, ALLOC_GARBAGE);
+// 	*checkpointMemory 		= arena.checkpoint;
+// 	arena.checkpoint 		= used;
+// }
+
+// internal void pop_memory_checkpoint(MemoryArena & arena)
+// {
+// 	Assert(arena.checkpoint > 0 && "Cannot pop memory checkpoint at 0");
+
+// 	u64 * checkpointMemory 	= (u64*)(arena.memory + arena.checkpoint);
+// 	u64 previousCheckpoint 	= *checkpointMemory;
+
+// 	arena.used 				= arena.checkpoint;
+// 	arena.checkpoint 		= previousCheckpoint;
+// }
+
 /// ------------- PUSH MEMORY FUNCTIONS ---------------------------------------
 
 enum AllocOperation : s32
@@ -192,22 +213,3 @@ internal void push_multiple_memories(MemoryArena & arena, s32 count, AllocOperat
 
 // ----------------------------------------------------------------------------
 
-
-// internal void push_memory_checkpoint(MemoryArena & arena)
-// {
-// 	u64 used 				= arena.used;
-// 	u64 * checkpointMemory 	= push_memory<u64>(arena, 1, ALLOC_GARBAGE);
-// 	*checkpointMemory 		= arena.checkpoint;
-// 	arena.checkpoint 		= used;
-// }
-
-// internal void pop_memory_checkpoint(MemoryArena & arena)
-// {
-// 	Assert(arena.checkpoint > 0 && "Cannot pop memory checkpoint at 0");
-
-// 	u64 * checkpointMemory 	= (u64*)(arena.memory + arena.checkpoint);
-// 	u64 previousCheckpoint 	= *checkpointMemory;
-
-// 	arena.used 				= arena.checkpoint;
-// 	arena.checkpoint 		= previousCheckpoint;
-// }

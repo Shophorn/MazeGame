@@ -40,135 +40,135 @@ s32 index_by_name(JsonArray & nodes, char const * name)
 	return -1;
 }
 
-internal Array2<Transform3D>
-load_all_transforms_glb(MemoryArena & allocator, GltfFile const & file, char const * nodeName, Array2<BoxCollider> * outColliders)
-{
-	auto nodes = file.json["nodes"].GetArray();
+// internal Array2<Transform3D>
+// load_all_transforms_glb_XXX(MemoryArena & allocator, GltfFile const & file, char const * nodeName, Array2<BoxCollider> * outColliders)
+// {
+// 	auto nodes = file.json["nodes"].GetArray();
 
-	s32 transformCount = 0;
-	s32 colliderCount = 0;
+// 	s32 transformCount = 0;
+// 	s32 colliderCount = 0;
 
-	for (auto const & node : nodes)
-	{
-		if (cstring_begins_with(node["name"].GetString(), nodeName))
-		{
-			transformCount += 1;
-		}
-		else if (cstring_begins_with(node["name"].GetString(), "BoxCollider"))
-		{
-			colliderCount += 1;
-		}
-	}
+// 	for (auto const & node : nodes)
+// 	{
+// 		if (cstring_begins_with(node["name"].GetString(), nodeName))
+// 		{
+// 			transformCount += 1;
+// 		}
+// 		else if (cstring_begins_with(node["name"].GetString(), "BoxCollider"))
+// 		{
+// 			colliderCount += 1;
+// 		}
+// 	}
 
-	Array2<Transform3D> transforms 				= push_array_2<Transform3D>(allocator, transformCount, ALLOC_GARBAGE);
-	Array2<BoxCollider> colliders 				= push_array_2<BoxCollider>(allocator, colliderCount, ALLOC_GARBAGE);
-	Array2<Transform3D> colliderFinalTransforms = push_array_2<Transform3D>(allocator, colliderCount, ALLOC_GARBAGE);
+// 	Array2<Transform3D> transforms 				= push_array_2<Transform3D>(allocator, transformCount, ALLOC_GARBAGE);
+// 	Array2<BoxCollider> colliders 				= push_array_2<BoxCollider>(allocator, colliderCount, ALLOC_GARBAGE);
+// 	Array2<Transform3D> colliderFinalTransforms = push_array_2<Transform3D>(allocator, colliderCount, ALLOC_GARBAGE);
 
-	for (auto const & node : nodes)
-	{
-		if (cstring_begins_with(node["name"].GetString(), nodeName))
-		{
-			Transform3D transform;
+// 	for (auto const & node : nodes)
+// 	{
+// 		if (cstring_begins_with(node["name"].GetString(), nodeName))
+// 		{
+// 			Transform3D transform;
 
-			if(node.HasMember("translation"))
-			{
-				auto translationArray = node["translation"].GetArray();
-				transform.position.x = translationArray[0].GetFloat();
-				transform.position.y = translationArray[1].GetFloat();
-				transform.position.z = translationArray[2].GetFloat();
-			}
-			else
-			{
-				transform.position = {0, 0, 0};
-			}
+// 			if(node.HasMember("translation"))
+// 			{
+// 				auto translationArray = node["translation"].GetArray();
+// 				transform.position.x = translationArray[0].GetFloat();
+// 				transform.position.y = translationArray[1].GetFloat();
+// 				transform.position.z = translationArray[2].GetFloat();
+// 			}
+// 			else
+// 			{
+// 				transform.position = {0, 0, 0};
+// 			}
 
-			if (node.HasMember("rotation"))
-			{
-				auto rotationArray = node["rotation"].GetArray();
-				transform.rotation.x = rotationArray[0].GetFloat();
-				transform.rotation.y = rotationArray[1].GetFloat();
-				transform.rotation.z = rotationArray[2].GetFloat();
-				transform.rotation.w = rotationArray[3].GetFloat();
+// 			if (node.HasMember("rotation"))
+// 			{
+// 				auto rotationArray = node["rotation"].GetArray();
+// 				transform.rotation.x = rotationArray[0].GetFloat();
+// 				transform.rotation.y = rotationArray[1].GetFloat();
+// 				transform.rotation.z = rotationArray[2].GetFloat();
+// 				transform.rotation.w = rotationArray[3].GetFloat();
 
-				transform.rotation = inverse_quaternion(transform.rotation);
-			}
-			else
-			{
-				transform.rotation = identity_quaternion;
-			}
+// 				transform.rotation = inverse_quaternion(transform.rotation);
+// 			}
+// 			else
+// 			{
+// 				transform.rotation = identity_quaternion;
+// 			}
 
-			transform.scale = {1,1,1};
+// 			transform.scale = {1,1,1};
 
-			transforms.push(transform);
+// 			transforms.push(transform);
 
 
-			if(node.HasMember("children"))
-			{
-				auto const & childArray = node["children"].GetArray();
+// 			if(node.HasMember("children"))
+// 			{
+// 				auto const & childArray = node["children"].GetArray();
 
-				s32 childCount = childArray.Size();
-				m44 parentTransform = transform_matrix(transform);
-				quaternion parentRotation = transform.rotation;
+// 				s32 childCount = childArray.Size();
+// 				m44 parentTransform = transform_matrix(transform);
+// 				quaternion parentRotation = transform.rotation;
 
-				for (s32 i = 0; i < childCount; ++i)
-				{
-					auto const & child = nodes[childArray[i].GetInt()].GetObject();
-					Assert(child.HasMember("name"));
+// 				for (s32 i = 0; i < childCount; ++i)
+// 				{
+// 					auto const & child = nodes[childArray[i].GetInt()].GetObject();
+// 					Assert(child.HasMember("name"));
 
-					if (cstring_begins_with(child["name"].GetString(), "BoxCollider"))
-					{
-						v3 center 					= {0,0,0};
-						v3 extents 					= {0,0,0};
-						quaternion localRotation 	= {0,0,0,1};
+// 					if (cstring_begins_with(child["name"].GetString(), "BoxCollider"))
+// 					{
+// 						v3 center 					= {0,0,0};
+// 						v3 extents 					= {0,0,0};
+// 						quaternion localRotation 	= {0,0,0,1};
 
-						if (child.HasMember("translation"))
-						{
-							auto translationArray = child["translation"].GetArray();
-							center.x = translationArray[0].GetFloat();
-							center.y = translationArray[1].GetFloat();
-							center.z = translationArray[2].GetFloat();
-						}
+// 						if (child.HasMember("translation"))
+// 						{
+// 							auto translationArray = child["translation"].GetArray();
+// 							center.x = translationArray[0].GetFloat();
+// 							center.y = translationArray[1].GetFloat();
+// 							center.z = translationArray[2].GetFloat();
+// 						}
 
-						if (child.HasMember("rotation"))
-						{
-							auto rotationArray = child["rotation"].GetArray();
-							localRotation.x = rotationArray[0].GetFloat();
-							localRotation.y = rotationArray[1].GetFloat();
-							localRotation.z = rotationArray[2].GetFloat();
-							localRotation.w = rotationArray[3].GetFloat();
+// 						if (child.HasMember("rotation"))
+// 						{
+// 							auto rotationArray = child["rotation"].GetArray();
+// 							localRotation.x = rotationArray[0].GetFloat();
+// 							localRotation.y = rotationArray[1].GetFloat();
+// 							localRotation.z = rotationArray[2].GetFloat();
+// 							localRotation.w = rotationArray[3].GetFloat();
 
-							localRotation = inverse_quaternion(localRotation);
-						}
+// 							localRotation = inverse_quaternion(localRotation);
+// 						}
 
-						if (child.HasMember("scale"))
-						{
-							auto scaleArray = child["scale"].GetArray();
-							extents.x = scaleArray[0].GetFloat();
-							extents.y = scaleArray[1].GetFloat();
-							extents.z = scaleArray[2].GetFloat();
-						}
+// 						if (child.HasMember("scale"))
+// 						{
+// 							auto scaleArray = child["scale"].GetArray();
+// 							extents.x = scaleArray[0].GetFloat();
+// 							extents.y = scaleArray[1].GetFloat();
+// 							extents.z = scaleArray[2].GetFloat();
+// 						}
 
-						colliders.push({ 	.extents 		= extents,
-											.center 		= center,
-											.orientation 	= localRotation,
-											.transform 		= &transforms[transforms.count - 1]});
+// 						colliders.push({ 	.extents 		= extents,
+// 											.center 		= center,
+// 											.orientation 	= localRotation,
+// 											.transform 		= &transforms[transforms.count - 1]});
 
-						// v3 finalPosition 			= multiply_point(parentTransform, center);
-						// quaternion finalRotation 	= parentRotation * rotation;
-						// // v3 finalScale 				= extents;
+// 						// v3 finalPosition 			= multiply_point(parentTransform, center);
+// 						// quaternion finalRotation 	= parentRotation * rotation;
+// 						// // v3 finalScale 				= extents;
 
-						// m44 colliderTransform = 
+// 						// m44 colliderTransform = 
 
-					}
-				}
-			}
+// 					}
+// 				}
+// 			}
 
-		}
-	}
+// 		}
+// 	}
 
-	*outColliders = std::move(colliders);
-	return transforms;
-}
+// 	*outColliders = std::move(colliders);
+// 	return transforms;
+// }
 
 internal Animation
 load_animation_glb(MemoryArena & allocator, GltfFile const & file, char const * animationName)

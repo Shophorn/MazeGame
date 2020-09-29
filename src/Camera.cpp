@@ -2,7 +2,7 @@ struct Camera
 {
 	v3 position;
 	// Todo(Leo): change to quaternion, maybe
-	v3 direction = forward_v3;
+	v3 direction = v3_forward;
 
 	float verticalFieldOfView;
 	float nearClipPlane;
@@ -69,11 +69,11 @@ internal m44 camera_view_matrix(v3 position, v3 direction)
 	// Study: https://www.3dgep.com/understanding-the-view-matrix/
 	// Todo(Leo): try to undeerstand why this is negative
 	v3 yAxis 	= -direction;
-	v3 xAxis 	= normalize_v3(cross_v3(up_v3, yAxis));
+	v3 xAxis 	= normalize_v3(cross_v3(v3_up, yAxis));
 
 	/* Note(Leo): this is not normalized because both components are unit length,
 	AND they are orthogonal so they produce a unit length vector anyway.
-	They are surely orthogonal because xAxis was a cross product from yAxis(with up_v3) */
+	They are surely orthogonal because xAxis was a cross product from yAxis(with v3_up) */
 	v3 zAxis 	= cross_v3(yAxis, xAxis);
 
 	m44 orientation = {
@@ -104,5 +104,5 @@ v3 get_up(Camera const * camera)
 
 v3 get_right(Camera const * camera)
 {
-	return normalize_v3(cross_v3(camera->direction, up_v3));
+	return normalize_v3(cross_v3(camera->direction, v3_up));
 }

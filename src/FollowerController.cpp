@@ -36,7 +36,7 @@ void update_follower_input(	FollowerController 		& controller,
 	toTarget.z 				= 0;
 	f32 distanceToTarget 	= magnitude_v3(toTarget);
 
-	m44 gizmoTransform = make_transform_matrix(	controller.transform->position + up_v3 * controller.transform->scale.z * 2.0f, 
+	m44 gizmoTransform = make_transform_matrix(	controller.transform->position + v3_up * controller.transform->scale.z * 2.0f, 
 												controller.transform->rotation,
 												0.2f);
 	if (distanceToTarget < controller.stopFollowDistance)
@@ -150,7 +150,7 @@ void update_random_walker_input(RandomWalkController & controller,
 		}
 
 
-		m44 gizmoTransform = make_transform_matrix(	controller.transform->position + up_v3 * controller.transform->scale.z * 2.0f, 
+		m44 gizmoTransform = make_transform_matrix(	controller.transform->position + v3_up * controller.transform->scale.z * 2.0f, 
 													controller.transform->rotation,
 													controller.waitTimer);
 		FS_DEBUG_NPC(debug_draw_diamond_xz(gizmoTransform, colour_muted_red));

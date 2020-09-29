@@ -17,11 +17,27 @@ struct SerializedMemberProperty
 };
 
 template<typename TStruct, typename TProp>
-constexpr SerializedMemberProperty<TStruct, TProp> serialized_property(char const * name, TProp TStruct::* address)
+constexpr auto serialize_property(char const * name, TProp TStruct::* address)
 {
 	SerializedMemberProperty<TStruct, TProp> prop = {name, address};
 	return prop;
 }
+
+template<typename T>
+struct SerializedObject
+{
+	char const * 	name;
+	T & 			data;
+};
+
+template<typename T>
+constexpr auto serialize_object(char const * name, T & data)
+{
+	SerializedObject<T> object = {name, data};
+	return object;
+}
+
+////////////////////////////////////////////////////////////
 
 template <typename ... TProps>
 struct SerializedPropertyList {};
@@ -35,7 +51,7 @@ struct SerializedPropertyList<TProp>
 template<typename TProp, typename ... TOthers>
 struct SerializedPropertyList<TProp, TOthers...>
 {
-	TProp 						property;
+	TProp 								property;
 	SerializedPropertyList<TOthers...> 	others;
 };
 
@@ -45,20 +61,17 @@ constexpr auto make_property_list(TProps ... args)
 	return SerializedPropertyList<TProps...>{args...};
 }
 
+//////////////////////////////////////////////////////////
+
 template<typename TFunc, typename ... TProps>
 void for_each_property(TFunc func, SerializedPropertyList<TProps...> list)
 {
 	func(list.property);
-	for_each_property(func, list.others);
+	if constexpr(sizeof...(TProps) > 1)
+	{
+		for_each_property(func, list.others);
+	}
 };
-
-
-template<typename TFunc, typename TProp>
-void for_each_property(TFunc func, SerializedPropertyList<TProp> list)
-{
-	func(list.property);
-};
-
 
 template<typename T>
 void serialize_properties(T const & data, String & serializedString, s32 capacity)
@@ -69,7 +82,7 @@ void serialize_properties(T const & data, String & serializedString, s32 capacit
 		{
 			string_append_format(serializedString, capacity, "\t", property.name, " = ", data.*property.address, "\n");
 		},
-		data.serializedProperties
+		T::serializedProperties
 	);
 }
 
@@ -90,7 +103,7 @@ internal void deserialize_properties(T & data, String serializedString)
 					string_parse(line, &(data.*property.address));
 				}
 			},
-			data.serializedProperties
+			T::serializedProperties
 		);
 	}
 }

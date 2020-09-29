@@ -153,9 +153,9 @@ union v3
 	struct { v2 xy; f32 ignored_; };
 };
 
-constexpr v3 right_v3 	= {1,0,0};
-constexpr v3 forward_v3 = {0,1,0};
-constexpr v3 up_v3 		= {0,0,1};
+constexpr v3 v3_right 	= {1,0,0};
+constexpr v3 v3_forward = {0,1,0};
+constexpr v3 v3_up 		= {0,0,1};
 
 v3 operator + (v3 a, v3 b)
 {

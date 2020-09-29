@@ -12,21 +12,22 @@ Todo(Leo):
 struct Game;
 internal void game_spawn_tree(Game & game, v3 position, s32 treeTypeIndex);
 
+#include "experimental.cpp"
+#include "game_settings.cpp"
+
 
 #include "CharacterMotor.cpp"
 #include "PlayerController3rdPerson.cpp"
 #include "FollowerController.cpp"
 
+#include "game_assets.cpp"
 #include "scene3d_monuments.cpp"
 #include "scene3d_trees.cpp"
 
 #include "metaballs.cpp"
-#include "experimental.cpp"
 #include "dynamic_mesh.cpp"
 #include "Trees3.cpp"
 #include "settings.cpp" // Todo(Leo): this is sky, name and reorganize properly
-#include "game_assets.cpp"
-#include "game_settings.cpp"
 
 enum CameraMode : s32
 { 
@@ -84,6 +85,7 @@ enum MenuView : s32
 	MENU_EDIT_MESH_GENERATION,
 	MENU_EDIT_TREE,
 	MENU_SAVE_COMPLETE,
+	MENU_EDIT_MONUMENTS,
 
 	MENU_SPAWN,
 };
@@ -284,6 +286,18 @@ struct Game
 	s32 			inspectedTreeIndex;
 };
 
+internal auto game_get_serialized_objects(Game & game)
+{
+	auto serializedObjects = make_property_list
+	(
+		serialize_object("sky", game.skySettings),
+		serialize_object("tree_0", game.treeSettings[0]),
+		serialize_object("tree_1", game.treeSettings[1])
+	);
+
+	return serializedObjects;
+}
+
 internal void game_spawn_water(Game & game, s32 count)
 {
 	Waters & waters = game.waters;
@@ -367,9 +381,9 @@ internal void game_spawn_tree_on_player(Game & game)
 }
 
 
+// Note(Leo): These seem to naturally depend on the game struct, so they are here.
+// Todo(Leo): This may be a case for header file, at least for game itself
 #include "game_gui.cpp"
-
-
 
 // Todo(Leo): add this to syntax higlight, so that 'GAME UPDATE' is different color
 /// ------------------ GAME UPDATE -------------------------
@@ -412,6 +426,11 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 	/* Sadly, we need to draw skybox before game logic, because otherwise
 	debug lines would be hidden. This can be fixed though, just make debug pipeline similar to shadows. */ 
 	graphics_draw_model(platformGraphics, game->skybox, identity_m44, false, nullptr, 0);
+	// graphics_draw_meshes(platformGraphics,
+	// 					1, &identity_m44,
+	// 					assets_get_mesh(game->assets, MESH_ASSET_SKYSPHERE),
+	// 					assets_get_material(game->assets, MATERIAL_ASSET_SKY));
+
 
 	// Game Logic section
 	switch (game->cameraMode)
@@ -500,8 +519,8 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 	{
 		v3 lightDirection = {0,0,1};
-		lightDirection = rotate_v3(axis_angle_quaternion(right_v3, game->skySettings.sunHeightAngle * π), lightDirection);
-		lightDirection = rotate_v3(axis_angle_quaternion(up_v3, game->skySettings.sunOrbitAngle * 2 * π), lightDirection);
+		lightDirection = rotate_v3(axis_angle_quaternion(v3_right, game->skySettings.sunHeightAngle * π), lightDirection);
+		lightDirection = rotate_v3(axis_angle_quaternion(v3_up, game->skySettings.sunOrbitAngle * 2 * π), lightDirection);
 		lightDirection = normalize_v3(-lightDirection);
 
 		Light light = { .direction 	= lightDirection, //normalize_v3({-1, 1.2, -8}), 
@@ -666,7 +685,7 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 		{
 			game->raccoonTransforms[game->carriedItemIndex].position 	= carriedPosition + v3{0,0,0.2};
 
-			v3 right = rotate_v3(carriedRotation, right_v3);
+			v3 right = rotate_v3(carriedRotation, v3_right);
 			game->raccoonTransforms[game->carriedItemIndex].rotation 	= carriedRotation * axis_angle_quaternion(right, 1.4f);
 
 
@@ -826,7 +845,7 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 					}
 
 
-					m44 gizmoTransform = make_transform_matrix(	game->noblePersonTransform.position + up_v3 * game->noblePersonTransform.scale.z * 2.0f, 
+					m44 gizmoTransform = make_transform_matrix(	game->noblePersonTransform.position + v3_up * game->noblePersonTransform.scale.z * 2.0f, 
 																game->noblePersonTransform.rotation,
 																game->nobleWanderWaitTimer);
 					FS_DEBUG_NPC(debug_draw_diamond_xz(gizmoTransform, colour_muted_red));
@@ -907,12 +926,12 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 	// -----------------------------------------------------------------------------------------------------------
 
-	// Todo(Leo): Rather use something like submit_collider() with what every collider can decide themselves, if they want to
-	// contribute to collisions this frame or not.
-	precompute_colliders(game->collisionSystem);
 
 	/// SUBMIT COLLIDERS
 	{
+		clear_colliders(game->collisionSystem);
+		monuments_submit_colliders(game->monuments, game->collisionSystem);
+
 		// Todo(Leo): Maybe make something like that these would have predetermined range, that is only updated when
 		// tree has grown a certain amount or somthing. These are kinda semi-permanent by nature.
 
@@ -920,7 +939,7 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 		{
 			for (s32 i = 0; i < count; ++i)
 			{
-				submit_cylinder_collider(collisionSystem, radius, halfHeight, transforms[i].position + v3{0,0,halfHeight});
+				submit_cylinder_collider(collisionSystem, {radius, halfHeight, v3{0, 0, halfHeight}}, transforms[i]);
 			}
 		};
 
@@ -929,18 +948,23 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 		f32 smallPotHalfHeight = smallPotColliderHeight / 2;
 		submit_cylinder_colliders(smallPotColliderRadius, smallPotHalfHeight, game->potCount, game->potTransforms);
 
-		constexpr f32 baseRadius = 0.12;
-		constexpr f32 baseHeight = 2;
+		f32 bigPotColliderRadius 	= 0.6;
+		f32 bigPotColliderHeight 	= 1.16;
+		f32 bigPotHalfHeight 		= bigPotColliderHeight / 2;
+		submit_cylinder_colliders(bigPotColliderRadius, bigPotHalfHeight, game->bigPotTransforms.count, game->bigPotTransforms.memory);
+
 
 		// NEW TREES 3
 		for (auto tree : game->trees)
 		{
-			constexpr f32 colliderHalfHeight = 1.0f;
-			constexpr v3 colliderOffset = {0, 0, colliderHalfHeight};
-			submit_cylinder_collider(	game->collisionSystem,
-										tree.nodes[tree.branches[0].startNodeIndex].radius,
-										colliderHalfHeight,
-										tree.position + colliderOffset);
+			CylinderCollider collider =
+			{
+				.radius 	= tree.nodes[tree.branches[0].startNodeIndex].radius,
+				.halfHeight = 1.0f,
+				.center 	= {0,0,1}
+			};
+
+			submit_cylinder_collider(game->collisionSystem, collider, {tree.position, identity_quaternion, {1,1,1}});
 		}
 	}
 
@@ -978,34 +1002,13 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 		m44 * robotTransforms = compute_transform_matrices(*global_transientMemory, 1, &game->robotTransform);
 		graphics_draw_meshes(platformGraphics, 1, robotTransforms, game->robotMesh, game->robotMaterial);
 
-		game_draw_monuments(game->monuments);
+		monuments_draw(game->monuments, game->assets);
 	}
 
 
 	/// DEBUG DRAW COLLIDERS
 	{
-		for (auto const & collider : game->collisionSystem.precomputedBoxColliders)
-		{
-			FS_DEBUG_BACKGROUND(debug_draw_box(collider.transform, colour_muted_green));
-		}
-
-		for (auto const & collider : game->collisionSystem.staticBoxColliders)
-		{
-			FS_DEBUG_BACKGROUND(debug_draw_box(collider.transform, colour_dark_green));
-		}
-
-		for (auto const & collider : game->collisionSystem.precomputedCylinderColliders)
-		{
-			FS_DEBUG_BACKGROUND(debug_draw_circle_xy(collider.center - v3{0, 0, collider.halfHeight}, collider.radius, colour_bright_green));
-			FS_DEBUG_BACKGROUND(debug_draw_circle_xy(collider.center + v3{0, 0, collider.halfHeight}, collider.radius, colour_bright_green));
-		}
-
-		for (auto const & collider : game->collisionSystem.submittedCylinderColliders)
-		{
-			FS_DEBUG_BACKGROUND(debug_draw_circle_xy(collider.center - v3{0, 0, collider.halfHeight}, collider.radius, colour_bright_green));
-			FS_DEBUG_BACKGROUND(debug_draw_circle_xy(collider.center + v3{0, 0, collider.halfHeight}, collider.radius, colour_bright_green));
-		}
-
+		FS_DEBUG_BACKGROUND(collisions_debug_draw_colliders(game->collisionSystem));
 		FS_DEBUG_PLAYER(debug_draw_circle_xy(game->playerCharacterTransform.position + v3{0,0,0.7}, 0.25f, colour_bright_green));
 	}
 
@@ -1249,23 +1252,20 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 
 	// Note(Leo): We currently only have statically allocated stuff (or rather allocated with game),
 	// this can be read here, at the top. If we need to allocate some stuff, we need to reconsider.
-	read_settings_file(game->skySettings, game->treeSettings[0], game->treeSettings[1]);
+	read_settings_file(game_get_serialized_objects(*game));
 
 	// ----------------------------------------------------------------------------------
 
-	scene_3d_initialize_gui(game);
+	game->gui = init_game_gui();
 
 	// ----------------------------------------------------------------------------------
 
 	// Todo(Leo): Think more about implications of storing pointer to persistent memory here
 	// Note(Leo): We have not previously used persistent allocation elsewhere than in this load function
-	game->assets = init_game_assets(&persistentMemory);
+	game->assets 			= init_game_assets(&persistentMemory);
+	game->collisionSystem 	= init_collision_system(persistentMemory);
 
-	game->collisionSystem.boxColliders 			= push_array_2<BoxCollider>(persistentMemory, 600, ALLOC_GARBAGE);
-	game->collisionSystem.cylinderColliders 	= push_array_2<CylinderCollider>(persistentMemory, 600, ALLOC_GARBAGE);
-	game->collisionSystem.staticBoxColliders 	= push_array_2<StaticBoxCollider>(persistentMemory, 2000, ALLOC_GARBAGE);
-
-	game->physicsObjects = push_array_2<PhysicsObject>(persistentMemory, 100, ALLOC_ZERO_MEMORY);
+	game->physicsObjects 	= push_array_2<PhysicsObject>(persistentMemory, 100, ALLOC_ZERO_MEMORY);
 
 	log_application(1, "Allocations succesful! :)");
 
@@ -1472,18 +1472,13 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 			v3 position0 = {0,0,0}; 	position0.z = get_terrain_height(game->collisionSystem, position0.xy);
 			v3 position1 = {0,5,0}; 	position1.z = get_terrain_height(game->collisionSystem, position1.xy);
 
-			game->totemTransforms[0] = {position0, {1,1,1}, identity_quaternion};
-			game->totemTransforms[1] = {position1, {0.5, 0.5, 0.5}, identity_quaternion};
+			game->totemTransforms[0] = {position0, identity_quaternion, {1,1,1}};
+			game->totemTransforms[1] = {position1, identity_quaternion, {0.5, 0.5, 0.5}};
 
-			push_box_collider(	game->collisionSystem,
-								v3 {1.0, 1.0, 5.0},
-								v3 {0,0,2},
-								&game->totemTransforms[0]);
+			BoxCollider totemCollider = {v3{1,1,5}, identity_quaternion, v3{0,0,2}};
 
-			push_box_collider(	game->collisionSystem,
-								v3{0.5, 0.5, 2.5},
-								v3{0,0,1},
-								&game->totemTransforms[1]);
+			push_static_box_collider(game->collisionSystem, totemCollider, game->totemTransforms[0]);
+			push_static_box_collider(game->collisionSystem, totemCollider, game->totemTransforms[1]);
 		}
 
 		/// RACCOONS
@@ -1542,7 +1537,7 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 		// 						transform);
 		// }
 
-		game->monuments = Game_load_monuments(persistentMemory, assets_get_material(game->assets, MATERIAL_ASSET_ENVIRONMENT), game->collisionSystem);
+		game->monuments = init_monuments(persistentMemory, game->assets, game->collisionSystem);
 
 		// TEST ROBOT
 		{
@@ -1592,8 +1587,8 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 				*transform 				= identity_transform;
 				transform->position 	= position;
 
-				f32 colliderHeight = 1.16;
-				push_cylinder_collider(game->collisionSystem, 0.6, colliderHeight, v3{0,0,colliderHeight / 2}, transform);
+				// f32 colliderHeight = 1.16;
+				// push_cylinder_collider(game->collisionSystem, 0.6, colliderHeight, v3{0,0,colliderHeight / 2}, transform);
 			}
 
 

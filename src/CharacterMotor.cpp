@@ -291,7 +291,7 @@ update_character_motor( CharacterMotor & 	motor,
 	{
 		/* Note(Leo): input is inverted, because negative input means left,
 		but in our right handed coordinate system, negative rotation means right */
-		quaternion rotation = axis_angle_quaternion(up_v3, -rightInput * motor.rotationSpeed * elapsedTime);
+		quaternion rotation = axis_angle_quaternion(v3_up, -rightInput * motor.rotationSpeed * elapsedTime);
 		motor.transform->rotation = motor.transform->rotation * rotation;
 	}
 
@@ -325,7 +325,7 @@ update_character_motor( CharacterMotor & 	motor,
 	{
 		f32 groundRaySkinWidth 	= 1.0f;
 		v3 groundRayStart 		= motor.transform->position + v3{0,0,groundRaySkinWidth};
-		v3 groundRayDirection 	= -up_v3;
+		v3 groundRayDirection 	= -v3_up;
 		f32 groundRayLength 	= groundRaySkinWidth + max_f32(0.1f, abs_f32(motor.zSpeed));
 
 		RaycastResult rayResult;

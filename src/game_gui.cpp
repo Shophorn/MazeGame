@@ -1,6 +1,6 @@
-internal void scene_3d_initialize_gui(Game * game)
+internal Gui init_game_gui()
 {
-	Gui & gui = game->gui;
+	Gui gui = {};
 
 	gui 					= {};
 	gui.textSize 			= 20;
@@ -13,6 +13,8 @@ internal void scene_3d_initialize_gui(Game * game)
 	u32 guiTexturePixelColor 		= 0xffffffff;
 	TextureAssetData guiTextureAsset 	= make_texture_asset(&guiTexturePixelColor, 1, 1, 4);
 	gui.panelTexture				= graphics_memory_push_gui_texture(platformGraphics, &guiTextureAsset);
+
+	return gui;
 }
 
 internal void gui_set_cursor_visible(bool menuVisible)
@@ -156,14 +158,29 @@ bool32 do_gui(Game * game, PlatformInput const & input)
 				gui_reset_selection();
 			}
 
+			if (gui_button("Edit Monuments"))
+			{
+				game->menuView = MENU_EDIT_MONUMENTS;
+				gui_reset_selection();
+			}
+
+
 			if (gui_button("Read Settings"))
 			{
-				read_settings_file(game->skySettings, game->treeSettings[0], game->treeSettings[1]);
+				read_settings_file(game_get_serialized_objects(*game));
+				
+				read_settings_file(monuments_get_serialized_objects(game->monuments));
+				monuments_refresh_transforms(game->monuments, game->collisionSystem);
 			}
 
 			if (gui_button("Write Settings"))
 			{
-				write_settings_file(game->skySettings, game->treeSettings[0], game->treeSettings[1]);
+				PlatformFileHandle file = platform_file_open("settings", FILE_MODE_WRITE);
+
+				write_settings_file(file, game_get_serialized_objects(*game));
+				write_settings_file(file, monuments_get_serialized_objects(game->monuments));
+
+				platform_file_close(file);
 			}
 
 			if (gui_button("Exit Scene"))
@@ -172,16 +189,6 @@ bool32 do_gui(Game * game, PlatformInput const & input)
 				gui_reset_selection();
 			}
 
-			// {
-			// 	char const * mouseOnStrings[] = {"Mouse: Off", "Mouse: On"};
-			// 	local_persist bool32 mouseOn = true;
-
-			// 	if (gui_button(mouseOnStrings[mouseOn]))
-			// 	{
-			// 		mouseOn = !mouseOn;
-			// 		platformApi->set_cursor_visible(platformWindow, mouseOn);
-			// 	}
-			// }
 
 			gui_end_panel();
 		} break;
@@ -297,6 +304,83 @@ bool32 do_gui(Game * game, PlatformInput const & input)
 			if (is_clicked(input.start))
 			{
 				game->menuView = MENU_OFF;
+			}
+
+			gui_end_panel();
+
+		} break;
+
+		case MENU_EDIT_MONUMENTS:
+		{
+			gui_position(cornerPosition);
+			gui_start_panel("MONUMENTS", menuColor);
+
+			constexpr char const * labels [] =
+			{	
+				"Monument 1",
+				"Monument 2",
+				"Monument 3",
+				"Monument 4",
+				"Monument 5",
+			};
+
+			for (s32 i = 0; i < game->monuments.count; ++i)
+			{
+				gui_text(labels[i]);
+
+				float rotation = game->monuments.monuments[i].rotation;
+				if (gui_float_field("Rotation", &rotation))
+				{
+					if (rotation > 360)
+					{
+						rotation = mod_f32(rotation, 360);
+					}
+
+					if (rotation < 0)
+					{
+						rotation = 360 - mod_f32(rotation, 360);
+					}
+	
+					game->monuments.monuments[i].rotation = rotation;
+					game->monuments.transforms[i].rotation 	= axis_angle_quaternion(v3_up, to_radians(rotation));
+				}
+
+				v2 xy = game->monuments.monuments[i].position;
+				if (gui_vector_2_field("Position", &xy))
+				{
+					v3 position = {xy.x, xy.y, get_terrain_height(game->collisionSystem, xy)};
+					game->monuments.monuments[i].position = position.xy;
+					game->monuments.transforms[i].position = position;
+				}
+
+
+				FS_DEBUG_ALWAYS
+				(
+					v3 position = (game->monuments.transforms[i].position + v3{0,0,30});
+
+					v3 right = rotate_v3(game->monuments.transforms[i].rotation, v3_right);
+					debug_draw_line(position - right * 300, position + right * 300, colour_bright_red);										
+
+					v3 forward = rotate_v3(game->monuments.transforms[i].rotation, v3_forward);
+					debug_draw_line(position - forward * 300, position + forward * 300, colour_bright_red);
+
+
+					if ((game->gui.selectedIndex / 3) == i)
+					{
+						debug_draw_circle_xy(game->monuments.transforms[i].position + v3{0,0, 30}, 16, colour_bright_red);
+					}
+				)
+
+
+				gui_line();
+			}
+
+			float dummy;
+			gui_float_field("Dummy", &dummy);
+
+			if (gui_button("Back") || is_clicked(input.start))
+			{
+				game->menuView = MENU_MAIN;
 			}
 
 			gui_end_panel();

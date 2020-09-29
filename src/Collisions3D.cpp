@@ -1,10 +1,8 @@
 struct BoxCollider
 {
 	v3 			extents;
-	v3 			center; 
 	quaternion 	orientation;
-
-	Transform3D * transform;
+	v3 			center; 
 };
 
 struct Ray
@@ -23,15 +21,6 @@ struct RaycastResult
 struct CylinderCollider
 {
 	f32 radius;
-	f32 height;
-	v3 center;
-
-	Transform3D * transform;
-};
-
-struct BETTER_CylinderCollider
-{
-	f32 radius;
 	f32 halfHeight;
 	v3 center;
 };
@@ -44,102 +33,69 @@ struct StaticBoxCollider
 
 struct CollisionSystem3D
 {
-	Array2<BoxCollider> 	boxColliders;
-	Array2<CylinderCollider> cylinderColliders;
+	Array2<StaticBoxCollider> 	staticBoxColliders;
+	Array2<CylinderCollider> 	staticCylinderColliders;
 
-	Array2<StaticBoxCollider> staticBoxColliders;
-	Array2<StaticBoxCollider> precomputedBoxColliders;
+	Array2<StaticBoxCollider> 	submittedBoxColliders;
+	Array2<CylinderCollider> 	submittedCylinderColliders;
 
-	Array2<BETTER_CylinderCollider> precomputedCylinderColliders;
-	Array2<BETTER_CylinderCollider> submittedCylinderColliders;
-
-	// Todo(Leo): include these to above
-	HeightMap terrainCollider;
-	v3 terrainOffset;
-	// Transform3D * terrainTransform;
+	HeightMap 	terrainCollider;
+	v3 			terrainOffset;
 };
 
-internal m44 compute_collider_transform(BoxCollider const & collider)
+internal CollisionSystem3D init_collision_system(MemoryArena & allocator)
 {
-	m44 transformMatrix = transform_matrix(collider.transform->position, collider.transform->rotation, {1,1,1});
+	CollisionSystem3D system = {};
+
+	system.staticBoxColliders = push_array_2<StaticBoxCollider>(allocator, 100, ALLOC_GARBAGE);
+
+	return system;
+}
+
+internal m44 compute_box_collider_transform(BoxCollider const & collider, Transform3D const & transform)
+{
+	m44 transformMatrix = transform_matrix(transform);
 	m44 colliderMatrix 	= transform_matrix(collider.center, collider.orientation, collider.extents);
 
 	return transformMatrix * colliderMatrix;
 }
 
-internal m44 compute_inverse_collider_transform(BoxCollider const & collider)
+internal m44 compute_inverse_box_collider_transform(BoxCollider const & collider, Transform3D const & transform)
 {
 	m44 colliderMatrix = inverse_transform_matrix(collider.center, collider.orientation, collider.extents);
-	m44 transformMatrix = inverse_transform_matrix(collider.transform->position, collider.transform->rotation, {1,1,1});
+	m44 transformMatrix = inverse_transform_matrix(transform);
 
 	return colliderMatrix * transformMatrix;
 }
 
-
-internal void submit_cylinder_collider(CollisionSystem3D & system, f32 radius, f32 halfHeight, v3 center)
+internal void clear_colliders(CollisionSystem3D & system)
 {
-	system.submittedCylinderColliders.push({radius, halfHeight, center});
+	// Note(Leo): This is reseted, so that it is empty for the new frame
+	system.submittedBoxColliders 		= push_array_2<StaticBoxCollider>(*global_transientMemory, 100, ALLOC_GARBAGE);
+	system.submittedCylinderColliders 	= push_array_2<CylinderCollider>(*global_transientMemory, 100, ALLOC_GARBAGE);
 }
 
-internal void precompute_colliders(CollisionSystem3D & system)
+internal void submit_cylinder_collider(CollisionSystem3D & system, CylinderCollider collider, Transform3D const & transform)
 {
-	s32 boxColliderCount = system.boxColliders.count;
-	// reset_array(system.precomputedBoxColliders);
-	system.precomputedBoxColliders = push_array_2<StaticBoxCollider>(*global_transientMemory, boxColliderCount, ALLOC_GARBAGE);
+	// Todo(Leo): we should assert these, but there are too many things, so I dont care today
+	// Assert(transform.rotation.w == 1 && "We do not currently support rotated cylinder colliders");
+	// Assert(abs_f32(transform.scale.x - transform.scale.y) < 0.00001f && "Scaling on xy plane must be uniform");
 
-	for (s32 i = 0; i < boxColliderCount; ++i)
-	{
-		const BoxCollider & collider = system.boxColliders[i];
-
-		system.precomputedBoxColliders.push(
-		{
-			compute_collider_transform(collider),
-			compute_inverse_collider_transform(collider)
-		});
-	}
-
-	// --------------------------------------------------------------------------------------------------
-
-	s32 cylinderColliderCount = system.cylinderColliders.count;
-	// reset_array(system.precomputedCylinderColliders);
-	system.precomputedCylinderColliders = push_array_2<BETTER_CylinderCollider>(*global_transientMemory, cylinderColliderCount,  ALLOC_GARBAGE);
-
-	for (s32 i = 0; i < cylinderColliderCount; ++i)
-	{
-		CylinderCollider const & collider = system.cylinderColliders[i];
-
-		system.precomputedCylinderColliders.push(
-		{
-		 	collider.radius, 
-			collider.height / 2, 
-			collider.transform->position + collider.center
-		});
-	}
-
-	// --------------------------------------------------------------------------------------------------
-
-	// Todo(Leo): this does not semantically belong here....
-	// reset_array(system.submittedCylinderColliders);
-	system.submittedCylinderColliders = push_array_2<BETTER_CylinderCollider>(*global_transientMemory, 100, ALLOC_GARBAGE);
+	collider.center 	+= transform.position;
+	collider.radius 	*= transform.scale.x;
+	collider.halfHeight *= transform.scale.z;
+	
+	system.submittedCylinderColliders.push(collider);
 }
 
-internal void push_box_collider (	CollisionSystem3D & system,
-									v3 					extents,
-									v3 					center,
-									Transform3D * 		transform)
+internal void push_static_box_collider(CollisionSystem3D & system, BoxCollider collider, Transform3D const & transform)
 {
-	system.boxColliders.push({extents, center, identity_quaternion, transform});
-}
+	m44 transformMatrix = compute_box_collider_transform(collider, transform);
+	m44 inverseMatrix 	= compute_inverse_box_collider_transform(collider, transform);
+	system.staticBoxColliders.push({transformMatrix, inverseMatrix});
+}	
 
-
-internal void push_cylinder_collider ( 	CollisionSystem3D & system,
-										f32 radius,
-										f32 height,
-										v3 center,
-										Transform3D * transform)
-{
-	system.cylinderColliders.push({radius, height, center, transform});
-}
+/// -------------- TERRAIN ---------------
 
 internal f32 get_terrain_height(CollisionSystem3D const & system, v2 position)
 {
@@ -148,6 +104,8 @@ internal f32 get_terrain_height(CollisionSystem3D const & system, v2 position)
 	f32 value = get_height_at(&system.terrainCollider, position);
 	return value;
 }
+
+/// ----------- COLLISION MATH ---------------
 
 internal bool32 ray_box_collisions(	Array2<StaticBoxCollider> & colliders,
 									v3 rayStart,
@@ -255,7 +213,7 @@ internal bool32 ray_box_collisions(	Array2<StaticBoxCollider> & colliders,
 					outResult->hitPosition = multiply_point(collider.transform, outResult->hitPosition);
 
 					outResult->hitNormal = multiply_direction(collider.transform, outResult->hitNormal);
-					outResult->hitNormal = normalize_v3(outResult->hitNormal);//*= colliderSpaceRayLengthMultiplier;
+					outResult->hitNormal = normalize_v3(outResult->hitNormal);
 				}
 
 			}
@@ -269,7 +227,7 @@ internal bool32 ray_box_collisions(	Array2<StaticBoxCollider> & colliders,
 	return hit;
 }
 
-internal bool32 ray_cylinder_collisions (Array2<BETTER_CylinderCollider> colliders, Ray ray, RaycastResult * outResult, f32 * rayHitSquareDistance)
+internal bool32 ray_cylinder_collisions (Array2<CylinderCollider> colliders, Ray ray, RaycastResult * outResult, f32 * rayHitSquareDistance)
 {
 	bool32 hit = false;
 
@@ -376,10 +334,10 @@ raycast_3d(	CollisionSystem3D * system,
 	f32 rayHitSquareDistance 	= highest_f32;
 	bool32 hit 					= false;
 
-	hit = hit || ray_box_collisions(system->precomputedBoxColliders, rayStart, normalizedRayDirection, rayLength, outResult, &rayHitSquareDistance);
+	hit = hit || ray_box_collisions(system->submittedBoxColliders, rayStart, normalizedRayDirection, rayLength, outResult, &rayHitSquareDistance);
 	hit = hit || ray_box_collisions(system->staticBoxColliders, rayStart, normalizedRayDirection, rayLength, outResult, &rayHitSquareDistance);
 
-	hit = hit || ray_cylinder_collisions(	system->precomputedCylinderColliders,
+	hit = hit || ray_cylinder_collisions(	system->staticCylinderColliders,
 											{rayStart, normalizedRayDirection, rayLength},
 											outResult,
 											&rayHitSquareDistance);
@@ -389,93 +347,31 @@ raycast_3d(	CollisionSystem3D * system,
 											outResult,
 											&rayHitSquareDistance);
 
-	// for (auto const & collider : system->precomputedCylinderColliders)
-	// {
-	// 	using namespace math;
-
-	// 	v3 const center = collider.center;//collider.transform->position + collider.center;
-	// 	v3 const p = rayStart - center;
-	// 	v3 const v = normalizedRayDirection;
-	// 	f32 const halfHeight = collider.halfHeight;
-
-	// 	f32 vt0 = (halfHeight - p.z) / v.z;
-	// 	f32 vt1 = (-halfHeight - p.z) / v.z;
-
-	// 	f32 vtMin = math::min(vt0, vt1);
-
-	// 	if (vtMin > 0.00001f && vtMin < rayLength)
-	// 	{
-	// 		v3 pAtVttMin = p + v * vtMin;
-	// 		f32 distanceFromCenter = magnitude_v2(pAtVttMin.xy);
-	// 		if (distanceFromCenter < collider.radius)
-	// 		{
-	// 			hit = true;
-
-	// 			if (rayHitSquareDistance > vtMin * vtMin)
-	// 			{
-	// 				rayHitSquareDistance = vtMin * vtMin;					
-
-	// 				outResult->hitPosition = pAtVttMin + center;
-	// 				outResult->hitNormal = {0,0,1};
-	// 			}
-	// 		}
-	// 	}
-
-
-	// 	// Quadratic form for ray stuff
-	// 	// Note(Leo): these seem like dot products
-	// 	f32 a = pow2(v.x) + pow2(v.y);
-	// 	f32 b = 2 * (p.x * v.x + p.y * v.y);
-	// 	f32 c = pow2(p.x) + pow2(p.y);
-
-
-	// 	// Undefined
-	// 	if (math::absolute(a) < 0.00001f)
-	// 	{
-	// 		continue;
-	// 	}
-
-	// 	// We are looking solutions for r2, not 0
-	// 	f32 cr2 = c - pow2(collider.radius);
-
-	// 	// discriminant
-	// 	f32 D = b * b - 4 * a * cr2;
-
-	// 	// No roots no collisions
-	// 	// Also one root, no collision
-	// 	if (D < 0.00001f)
-	// 	{
-	// 		continue;
-	// 	}
-
-	// 	f32 sqrtD = math::square_root(D);
-	// 	f32 ht0 = (-b - sqrtD) / (2 * a);
-	// 	f32 ht1 = (-b + sqrtD) / (2 * a);
-
-	// 	f32 ht = math::min(ht0, ht1);
-
-	// 	if (ht > 0.00001f && ht < rayLength)
-	// 	{
-	// 		v3 pAtHtMin = p + v * ht;
-	// 		if (pAtHtMin.z > -halfHeight && pAtHtMin.z < halfHeight)
-	// 		{
-	// 			hit = true;
-	// 			if (rayHitSquareDistance > ht*ht)
-	// 			{
-	// 				rayHitSquareDistance = ht*ht;
-
-	// 				outResult->hitPosition = pAtHtMin + center;
-
-	// 				// Note(Leo): Hitposition - center, is weird
-	// 				v3 hitNormal = p + v * ht;
-	// 				hitNormal.z = 0;
-	// 				hitNormal = normalize_v3(hitNormal);
-	// 				outResult->hitNormal = hitNormal;
-	// 			}
-	// 		}
-	// 	}
-	// }
-
 	return hit;
-	// return false;
+}
+
+
+internal void collisions_debug_draw_colliders(CollisionSystem3D const & system)
+{
+	for (auto const & collider : system.submittedBoxColliders)
+	{
+		debug_draw_box(collider.transform, colour_muted_green);
+	}
+
+	for (auto const & collider : system.staticBoxColliders)
+	{
+		debug_draw_box(collider.transform, colour_dark_green);
+	}
+
+	for (auto const & collider : system.staticCylinderColliders)
+	{
+		debug_draw_circle_xy(collider.center - v3{0, 0, collider.halfHeight}, collider.radius, colour_bright_green);
+		debug_draw_circle_xy(collider.center + v3{0, 0, collider.halfHeight}, collider.radius, colour_bright_green);
+	}
+
+	for (auto const & collider : system.submittedCylinderColliders)
+	{
+		debug_draw_circle_xy(collider.center - v3{0, 0, collider.halfHeight}, collider.radius, colour_bright_green);
+		debug_draw_circle_xy(collider.center + v3{0, 0, collider.halfHeight}, collider.radius, colour_bright_green);
+	}
 }

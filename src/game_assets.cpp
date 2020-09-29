@@ -11,6 +11,11 @@ enum MeshAssetId : s32
 	MESH_ASSET_WATER_DROP,
 	MESH_ASSET_TRAIN,
 
+	MESH_ASSET_MONUMENT_ARCS,
+	MESH_ASSET_MONUMENT_BASE,
+	MESH_ASSET_MONUMENT_TOP_1,
+	MESH_ASSET_MONUMENT_TOP_2,
+
 	MESH_ASSET_COUNT
 };
 
@@ -152,6 +157,13 @@ internal GameAssets init_game_assets(MemoryArena * allocator)
 	assets.meshAssetLoadInfo[MESH_ASSET_SEED] 		= {"assets/models/scenery.glb", "acorn"};
 	assets.meshAssetLoadInfo[MESH_ASSET_WATER_DROP] = {"assets/models/scenery.glb", "water_drop"};
 	assets.meshAssetLoadInfo[MESH_ASSET_TRAIN] 		= {"assets/models/train.glb", "train"};
+
+	assets.meshAssetLoadInfo[MESH_ASSET_MONUMENT_ARCS] 	= {"assets/models/monuments.glb", "monument_arches"};
+	assets.meshAssetLoadInfo[MESH_ASSET_MONUMENT_BASE] 	= {"assets/models/monuments.glb", "monument_base"};
+	assets.meshAssetLoadInfo[MESH_ASSET_MONUMENT_TOP_1] = {"assets/models/monuments.glb", "monument_ornament_01"};
+	assets.meshAssetLoadInfo[MESH_ASSET_MONUMENT_TOP_2] = {"assets/models/monuments.glb", "monument_ornament_02"};
+
+
 
 	auto load_from_file = [](char const * filename, TextureFormat format = {}, TextureAddressMode addressMode = {}) -> TextureLoadInfo
 	{

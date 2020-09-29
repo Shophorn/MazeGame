@@ -227,9 +227,9 @@ struct Waters
 
 // internal void update_lsystem_mesh(TimedLSystem & lSystem, Leaves & leaves)
 // {
-// 	constexpr v3 lSystemRight 	= right_v3;
-// 	constexpr v3 lSystemForward = up_v3;
-// 	constexpr v3 lSystemUp 		= -forward_v3;
+// 	constexpr v3 lSystemRight 	= v3_right;
+// 	constexpr v3 lSystemForward = v3_up;
+// 	constexpr v3 lSystemUp 		= -v3_forward;
 
 // 	leaves.count = 0;
 
@@ -367,7 +367,7 @@ struct Waters
 // 					leaves.localScales[leafIndex] 		= word[i].parameter;
 					
 // 					// Note(Leo): Use normal forward here, since it refers to leaf's own space
-// 					leaves.swayAxes[leafIndex]			= rotate_v3(rotation, forward_v3);
+// 					leaves.swayAxes[leafIndex]			= rotate_v3(rotation, v3_forward);
 // 					leaves.swayPositions[leafIndex] 	= random_value() * 100;	
 // 				}
 
@@ -387,7 +387,7 @@ struct Waters
 // 					leaves.localScales[leafIndex] 		= word[i].parameter;
 					
 // 					// Note(Leo): Use normal forward here, since it refers to leaf's own space
-// 					leaves.swayAxes[leafIndex]			= rotate_v3(rotation, forward_v3);
+// 					leaves.swayAxes[leafIndex]			= rotate_v3(rotation, v3_forward);
 // 					leaves.swayPositions[leafIndex]		= random_value() * 100;
 // 				}
 
@@ -819,9 +819,9 @@ struct Waters
 
 // 	using namespace lsystem_tree2_alphabet;
 
-// 	constexpr v3 lSystemRight 	= right_v3;
-// 	constexpr v3 lSystemForward = up_v3;
-// 	constexpr v3 lSystemUp 		= -forward_v3;
+// 	constexpr v3 lSystemRight 	= v3_right;
+// 	constexpr v3 lSystemForward = v3_up;
+// 	constexpr v3 lSystemUp 		= -v3_forward;
 
 // 	leaves.count = 0;
 
@@ -955,7 +955,7 @@ struct Waters
 // 					leaves.localScales[leafIndex] 		= word[i].parameter;
 					
 // 					// Note(Leo): Use normal forward here, since it refers to leaf's own space
-// 					leaves.swayAxes[leafIndex]			= rotate_v3(rotation, forward_v3);
+// 					leaves.swayAxes[leafIndex]			= rotate_v3(rotation, v3_forward);
 // 					leaves.swayPositions[leafIndex] 	= random_value() * 100;	
 // 				}
 
@@ -975,7 +975,7 @@ struct Waters
 // 					leaves.localScales[leafIndex] 		= word[i].parameter;
 					
 // 					// Note(Leo): Use normal forward here, since it refers to leaf's own space
-// 					leaves.swayAxes[leafIndex]			= rotate_v3(rotation, forward_v3);
+// 					leaves.swayAxes[leafIndex]			= rotate_v3(rotation, v3_forward);
 // 					leaves.swayPositions[leafIndex]		= random_value() * 100;
 // 				}
 
