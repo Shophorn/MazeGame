@@ -16,6 +16,9 @@ enum MeshAssetId : s32
 	MESH_ASSET_MONUMENT_TOP_1,
 	MESH_ASSET_MONUMENT_TOP_2,
 
+	MESH_ASSET_BOX,
+	MESH_ASSET_BOX_COVER,	
+
 	MESH_ASSET_COUNT
 };
 
@@ -57,6 +60,7 @@ enum MaterialAssetId : s32
 	MATERIAL_ASSET_ROBOT,
 	MATERIAL_ASSET_SEA,
 	MATERIAL_ASSET_LEAVES,
+	MATERIAL_ASSET_BOX,
 
 	MATERIAL_ASSET_COUNT	
 };
@@ -163,7 +167,13 @@ internal GameAssets init_game_assets(MemoryArena * allocator)
 	assets.meshAssetLoadInfo[MESH_ASSET_MONUMENT_TOP_1] = {"assets/models/monuments.glb", "monument_ornament_01"};
 	assets.meshAssetLoadInfo[MESH_ASSET_MONUMENT_TOP_2] = {"assets/models/monuments.glb", "monument_ornament_02"};
 
+	assets.meshAssetLoadInfo[MESH_ASSET_BOX] 		= {"assets/models/box.glb", "box"};
+	assets.meshAssetLoadInfo[MESH_ASSET_BOX_COVER] 	= {"assets/models/box.glb", "cover"};
 
+	// #define MESH_ASSET(id, filename, name) assets.meshAssetLoadInfo[MESH_ASSET_##id] = {"assets/models/##filename", name};
+
+	// MESH_ASSET(BOX, "box.glb", "box");
+	// MESH_ASSET(BOX_COVER, "box.glb", "cover");
 
 	auto load_from_file = [](char const * filename, TextureFormat format = {}, TextureAddressMode addressMode = {}) -> TextureLoadInfo
 	{
@@ -212,7 +222,8 @@ internal GameAssets init_game_assets(MemoryArena * allocator)
 	assets.materialLoadInfos[MATERIAL_ASSET_SEED] 			= {GRAPHICS_PIPELINE_NORMAL, TEXTURE_ASSET_SEED_ALBEDO, TEXTURE_ASSET_FLAT_NORMAL, TEXTURE_ASSET_BLACK};
 	assets.materialLoadInfos[MATERIAL_ASSET_RACCOON] 		= {GRAPHICS_PIPELINE_NORMAL, TEXTURE_ASSET_RACCOON_ALBEDO, TEXTURE_ASSET_FLAT_NORMAL, TEXTURE_ASSET_BLACK};
 	assets.materialLoadInfos[MATERIAL_ASSET_ROBOT]			= {GRAPHICS_PIPELINE_NORMAL, TEXTURE_ASSET_ROBOT_ALBEDO, TEXTURE_ASSET_ROBOT_NORMAL, TEXTURE_ASSET_BLACK};
-	
+	assets.materialLoadInfos[MATERIAL_ASSET_BOX]			= {GRAPHICS_PIPELINE_NORMAL, TEXTURE_ASSET_BARK_ALBEDO, TEXTURE_ASSET_BARK_NORMAL, TEXTURE_ASSET_BLACK};
+
 	assets.materialLoadInfos[MATERIAL_ASSET_CHARACTER] 		= {GRAPHICS_PIPELINE_ANIMATED, TEXTURE_ASSET_RED_TILES_ALBEDO, TEXTURE_ASSET_TILES_NORMAL, TEXTURE_ASSET_BLACK};
 	
 	assets.materialLoadInfos[MATERIAL_ASSET_WATER] 			= {GRAPHICS_PIPELINE_WATER, TEXTURE_ASSET_WATER_BLUE, TEXTURE_ASSET_FLAT_NORMAL, TEXTURE_ASSET_BLACK};

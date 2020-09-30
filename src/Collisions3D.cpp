@@ -183,7 +183,7 @@ internal bool32 ray_box_collisions(	Array2<StaticBoxCollider> & colliders,
 
 			v3 colliderSpaceHitPosition = colliderSpaceRayStart + colliderSpaceRayDirection * distanceToMin;
 			v3 hitPosition = multiply_point(collider.transform, colliderSpaceHitPosition);
-			f32 sqrDistance = square_magnitude_v3(hitPosition - rayStart);
+			f32 sqrDistance = square_v3_length(hitPosition - rayStart);
 
 			if (sqrDistance < *rayHitSquareDistance)
 			{
@@ -218,7 +218,7 @@ internal bool32 ray_box_collisions(	Array2<StaticBoxCollider> & colliders,
 
 			}
 
-			// f32 sqrDistance = square_magnitude_v3(outResult->hitPosition, rayStart);
+			// f32 sqrDistance = square_v3_length(outResult->hitPosition, rayStart);
 			// if (sqr)
 			// rayHitSquareDistance = 
 			// // return true;

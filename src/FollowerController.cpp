@@ -34,7 +34,7 @@ void update_follower_input(	FollowerController 		& controller,
 {
 	v3 toTarget 			= controller.targetTransform->position - controller.transform->position;
 	toTarget.z 				= 0;
-	f32 distanceToTarget 	= magnitude_v3(toTarget);
+	f32 distanceToTarget 	= v3_length(toTarget);
 
 	m44 gizmoTransform = make_transform_matrix(	controller.transform->position + v3_up * controller.transform->scale.z * 2.0f, 
 												controller.transform->rotation,
@@ -166,7 +166,7 @@ void update_random_walker_input(RandomWalkController & controller,
 
 	v3 input 			= {};
 	input.xy	 		= controller.targetPosition - controller.transform->position.xy;
-	f32 inputMagnitude 	= magnitude_v3(input);
+	f32 inputMagnitude 	= v3_length(input);
 	input 				= input / inputMagnitude;
 	inputMagnitude 		= clamp_f32(inputMagnitude, 0.0f, 1.0f);
 	input 				= input * inputMagnitude;

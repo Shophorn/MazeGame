@@ -38,7 +38,7 @@ struct GetWaterFunc
 				continue;
 			}
 
-			f32 distance = magnitude_v3(waters.transforms[i].position - position);
+			f32 distance = v3_length(waters.transforms[i].position - position);
 			if (distance < closestDistance)
 			{
 				closestDistance = distance;
@@ -319,7 +319,7 @@ internal void grow_tree_3(Tree3 & tree, f32 elapsedTime, GetWaterFunc & get_wate
 
 		if (branch.dontGrowLength == false)
 		{
-			f32 distanceFromStart 	= magnitude_v3(endNode.position - startNode.position);
+			f32 distanceFromStart 	= v3_length(endNode.position - startNode.position);
 			f32 distanceFromRoot 	= distanceFromStart + branch.startNodeDistance;
 
 			f32 hFactor 			= clamp_f32(1 - (distanceFromRoot / tree.settings->maxHeight), 0, 1);
@@ -359,7 +359,7 @@ internal void grow_tree_3(Tree3 & tree, f32 elapsedTime, GetWaterFunc & get_wate
 
 					v3 branchDirection 		= rotate_v3(endNode.rotation, v3_up);
 					f32 axisRotationAngle 	= tree.settings->budAngle + random_range(-tree.settings->budAngleRandomness, tree.settings->budAngleRandomness);
-					branch.nextBudRotation 	= branch.nextBudRotation * axis_angle_quaternion(branchDirection, axisRotationAngle);
+					branch.nextBudRotation 	= branch.nextBudRotation * quaternion_axis_angle(branchDirection, axisRotationAngle);
 				}
 				else
 				{
@@ -373,10 +373,10 @@ internal void grow_tree_3(Tree3 & tree, f32 elapsedTime, GetWaterFunc & get_wate
 					{
 						f32 angle 			= newBranchIndex * 2 * π / newApexBranchesCount * (1 + random_range(-0.15, 0.15));
 						v3 direction 		= rotate_v3(branch.nextBudRotation, v3_up);
-						quaternion rotation = branch.nextBudRotation * axis_angle_quaternion(direction, angle);
-						// quaternion rotation = endNode.rotation * axis_angle_quaternion(rotate_v3(endNode.rotation, v3_up), angle);
+						quaternion rotation = branch.nextBudRotation * quaternion_axis_angle(direction, angle);
+						// quaternion rotation = endNode.rotation * quaternion_axis_angle(rotate_v3(endNode.rotation, v3_up), angle);
 						v3 axis 			= rotate_v3(rotation, v3_forward);
-						rotation 			= rotation * axis_angle_quaternion(axis, 0.5);
+						rotation 			= rotation * quaternion_axis_angle(axis, 0.5);
 
 						tree_3_add_branch(tree, branchIndex, endNode.position, rotation, distanceFromRoot);
 					}
@@ -403,7 +403,7 @@ internal void grow_tree_3(Tree3 & tree, f32 elapsedTime, GetWaterFunc & get_wate
 		bud.age += elapsedTime;
 
 		Tree3Node const & branchEndNode = tree.nodes[tree.branches[bud.parentBranchIndex].endNodeIndex];
-		f32 distanceFromApex 			= magnitude_v3(bud.position - branchEndNode.position);
+		f32 distanceFromApex 			= v3_length(bud.position - branchEndNode.position);
 
 		if (bud.hasLeaf && (distanceFromApex > tree.settings->budTerminalDistanceFromApex))
 		{
@@ -421,7 +421,7 @@ internal void grow_tree_3(Tree3 & tree, f32 elapsedTime, GetWaterFunc & get_wate
 			}
 
 			v3 axis 			= rotate_v3(bud.rotation, v3_forward);
-			quaternion rotation = bud.rotation * axis_angle_quaternion(axis, 0.25 * π);
+			quaternion rotation = bud.rotation * quaternion_axis_angle(axis, 0.25 * π);
 
 			Assert(tree.nodes.has_room_for(2));
 			Assert(tree.branches.has_room_for(1));
@@ -438,7 +438,7 @@ internal void grow_tree_3(Tree3 & tree, f32 elapsedTime, GetWaterFunc & get_wate
 				tree.leaves.localPositions[l] 	= bud.position;
 
 				f32 angle 						= leafIndex * 2 * π / tree.settings->leafCountPerBud;
-				quaternion rotation 			= bud.rotation * axis_angle_quaternion(rotate_v3(bud.rotation, v3_up), angle);
+				quaternion rotation 			= bud.rotation * quaternion_axis_angle(rotate_v3(bud.rotation, v3_up), angle);
 				tree.leaves.localRotations[l] 	= rotation;
 
 				tree.leaves.localScales[l] 		= clamp_f32(bud.age / tree.settings->leafMaturationTime, 0, 1) * bud.size;
@@ -571,7 +571,7 @@ internal void build_tree_3_mesh(Tree3 & tree)
 			// Note(Leo): this can be tweaked for artistic purposes
 			f32 tangentScale 			= tree.settings->tangentScale;
 
-			f32 maxTangentLength 		= magnitude_v3(startNode.position - endNode.position) / 3;
+			f32 maxTangentLength 		= v3_length(startNode.position - endNode.position) / 3;
 			f32 previousTangentLength 	= min_f32(maxTangentLength, startNode.radius * tangentScale);
 			f32 nextTangentLength 		= min_f32(maxTangentLength, endNode.radius * tangentScale);
 

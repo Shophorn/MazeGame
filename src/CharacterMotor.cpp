@@ -97,7 +97,7 @@ update_character_motor( CharacterMotor & 	motor,
 	f32 forwardInput	= dot_v3(inputVector, forward);
 
 	f32 rightInput 		= 0;
-	if (square_magnitude_v3(inputVector) > v3_sqr_epsilon)
+	if (square_v3_length(inputVector) > v3_sqr_epsilon)
 	{
 		f32 angle = v2_signed_angle(inputVector.xy, forward.xy);
 		rightInput = clamp_f32(angle, -1.0f, 1.0f);
@@ -291,7 +291,7 @@ update_character_motor( CharacterMotor & 	motor,
 	{
 		/* Note(Leo): input is inverted, because negative input means left,
 		but in our right handed coordinate system, negative rotation means right */
-		quaternion rotation = axis_angle_quaternion(v3_up, -rightInput * motor.rotationSpeed * elapsedTime);
+		quaternion rotation = quaternion_axis_angle(v3_up, -rightInput * motor.rotationSpeed * elapsedTime);
 		motor.transform->rotation = motor.transform->rotation * rotation;
 	}
 

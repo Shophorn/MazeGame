@@ -220,13 +220,13 @@ constexpr v3 operator - (v3 vec)
 	return vec;
 }
 
-f32 magnitude_v3(v3 v)
+f32 v3_length(v3 v)
 {
 	f32 m = square_root_f32(square_f32(v.x) + square_f32(v.y) + square_f32(v.z));
 	return m;
 }
 
-f32 square_magnitude_v3(v3 v)
+f32 square_v3_length(v3 v)
 {
 	f32 sqrMagnitude = square_f32(v.x) + square_f32(v.y) + square_f32(v.z);
 	return sqrMagnitude;
@@ -234,7 +234,7 @@ f32 square_magnitude_v3(v3 v)
 
 v3 normalize_v3(v3 v)
 {
-	v = v / magnitude_v3(v);
+	v = v / v3_length(v);
 	return v;
 }
 
@@ -281,7 +281,7 @@ f32 angle_v3(v3 from, v3 to)
 {
 	// Note(Leo): copied from unity3d vector.cs...
 
-	f32 denominator = square_root_f32(square_magnitude_v3(from) * square_magnitude_v3(to));
+	f32 denominator = square_root_f32(square_v3_length(from) * square_v3_length(to));
 	if (denominator < v3_sqr_epsilon)
 		return 0.0f;
 

@@ -56,7 +56,7 @@ internal void draw_leaves(Leaves & leaves, f32 elapsedTime, v2 leafScale = {1,1}
 		constexpr f32 swayRange = 0.5;
 		leaves.swayPositions[i] = mod_f32(leaves.swayPositions[i] + elapsedTime, swayRange * 4);
 		f32 sway 				= mathfun_pingpong_f32(leaves.swayPositions[i], swayRange * 2) - swayRange;
-		quaternion rotation 	= axis_angle_quaternion(leaves.swayAxes[i], sway);
+		quaternion rotation 	= quaternion_axis_angle(leaves.swayAxes[i], sway);
 		rotation 				= leaves.localRotations[i] * leaves.rotation * rotation;
 
 		v3 scale 	= make_uniform_v3(leaves.localScales[i]);
@@ -354,7 +354,7 @@ struct Waters
 
 // 				{
 // 					quaternion rotation = state.orientation; 
-// 					rotation 			= rotation * axis_angle_quaternion(rotate_v3(rotation,lSystemRight), -π / 6);
+// 					rotation 			= rotation * quaternion_axis_angle(rotate_v3(rotation,lSystemRight), -π / 6);
 // 					v3 position 		= state.position + rotate_v3(rotation, lSystemForward) * 0.05f;
 					
 // 					rotation 			= normalize_quaternion(rotation);
@@ -373,8 +373,8 @@ struct Waters
 
 // 				{
 // 					quaternion rotation = state.orientation;
-// 					rotation 			= rotation * axis_angle_quaternion(rotate_v3(rotation, lSystemForward), π); 
-// 					rotation 			= rotation * axis_angle_quaternion(rotate_v3(rotation,lSystemRight), -π / 6);
+// 					rotation 			= rotation * quaternion_axis_angle(rotate_v3(rotation, lSystemForward), π); 
+// 					rotation 			= rotation * quaternion_axis_angle(rotate_v3(rotation,lSystemRight), -π / 6);
 // 					v3 position 		= state.position + rotate_v3(rotation, lSystemForward) * 0.05f;
 
 // 					rotation 			= normalize_quaternion(rotation);
@@ -396,19 +396,19 @@ struct Waters
 // 			case '+':
 // 			{
 // 				v3 up = rotate_v3(state.orientation, lSystemUp);
-// 				state.orientation = state.orientation * axis_angle_quaternion(up, word[i].parameter);
+// 				state.orientation = state.orientation * quaternion_axis_angle(up, word[i].parameter);
 // 			} break;
 
 // 			case '<':
 // 			{
 // 				v3 forward 			= rotate_v3(state.orientation, lSystemForward);
-// 				state.orientation 	= state.orientation * axis_angle_quaternion(forward, word[i].parameter);
+// 				state.orientation 	= state.orientation * quaternion_axis_angle(forward, word[i].parameter);
 // 			} break;
 
 // 			case '&':
 // 			{	
 // 				v3 right 			= rotate_v3(state.orientation, lSystemRight);
-// 				state.orientation 	= state.orientation * axis_angle_quaternion(right, word[i].parameter);
+// 				state.orientation 	= state.orientation * quaternion_axis_angle(right, word[i].parameter);
 // 			} break;
 
 // 			case '[':
@@ -937,12 +937,12 @@ struct Waters
 
 // 				// f32 angle 	= signed_angle_v3(forward, lSystemForward, right);
 
-// 				// quaternion rotationToUpwards = axis_angle_quaternion(right, angle);
+// 				// quaternion rotationToUpwards = quaternion_axis_angle(right, angle);
 			
 // 				{
 
 // 					quaternion rotation = identity_quaternion; 
-// 					rotation 			= rotation * axis_angle_quaternion(rotate_v3(rotation,lSystemRight), -π / 6);
+// 					rotation 			= rotation * quaternion_axis_angle(rotate_v3(rotation,lSystemRight), -π / 6);
 // 					rotation 			= normalize_quaternion(rotation);
 
 // 					v3 position 		= state.position + rotate_v3(rotation, lSystemForward) * 0.05f;
@@ -961,8 +961,8 @@ struct Waters
 
 // 				{
 // 					quaternion rotation = identity_quaternion;
-// 					rotation 			= rotation * axis_angle_quaternion(rotate_v3(rotation, lSystemForward), π); 
-// 					rotation 			= rotation * axis_angle_quaternion(rotate_v3(rotation,lSystemRight), -π / 6);
+// 					rotation 			= rotation * quaternion_axis_angle(rotate_v3(rotation, lSystemForward), π); 
+// 					rotation 			= rotation * quaternion_axis_angle(rotate_v3(rotation,lSystemRight), -π / 6);
 // 					rotation 			= normalize_quaternion(rotation);
 
 // 					v3 position 		= state.position + rotate_v3(rotation, lSystemForward) * 0.05f;
@@ -984,19 +984,19 @@ struct Waters
 // 			case YAW:
 // 			{
 // 				v3 up = rotate_v3(state.orientation, lSystemUp);
-// 				state.orientation = state.orientation * axis_angle_quaternion(up, word[i].parameter);
+// 				state.orientation = state.orientation * quaternion_axis_angle(up, word[i].parameter);
 // 			} break;
 
 // 			case ROLL:
 // 			{
 // 				v3 forward 			= rotate_v3(state.orientation, lSystemForward);
-// 				state.orientation 	= state.orientation * axis_angle_quaternion(forward, word[i].parameter);
+// 				state.orientation 	= state.orientation * quaternion_axis_angle(forward, word[i].parameter);
 // 			} break;
 
 // 			case PITCH:
 // 			{	
 // 				v3 right 			= rotate_v3(state.orientation, lSystemRight);
-// 				state.orientation 	= state.orientation * axis_angle_quaternion(right, word[i].parameter);
+// 				state.orientation 	= state.orientation * quaternion_axis_angle(right, word[i].parameter);
 // 			} break;
 
 // 			case PUSH_STATE:
@@ -1019,7 +1019,7 @@ struct Waters
 
 // 			case ORIENT_DOWN:
 // 			{
-// 				state.orientation = interpolate_quaternion (state.orientation, axis_angle_quaternion(lSystemRight, π), 0.2);
+// 				state.orientation = interpolate_quaternion (state.orientation, quaternion_axis_angle(lSystemRight, π), 0.2);
 // 				state.orientation = normalize_quaternion(state.orientation);
 // 			} break;
 // 		}

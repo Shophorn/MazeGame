@@ -254,10 +254,10 @@ internal f32 sample_four_sdf_balls (v3 pos, void const * data)
 {
 	v4 const * positions = (v4 const *)data;
 
-	f32 d1 = magnitude_v3(pos - positions[0].xyz) - positions[0].w;
-	f32 d2 = magnitude_v3(pos - positions[1].xyz) - positions[1].w;
-	f32 d3 = magnitude_v3(pos - positions[2].xyz) - positions[2].w;
-	f32 d4 = magnitude_v3(pos - positions[3].xyz) - positions[3].w;
+	f32 d1 = v3_length(pos - positions[0].xyz) - positions[0].w;
+	f32 d2 = v3_length(pos - positions[1].xyz) - positions[1].w;
+	f32 d3 = v3_length(pos - positions[2].xyz) - positions[2].w;
+	f32 d4 = v3_length(pos - positions[3].xyz) - positions[3].w;
 
 	f32 result = opSmoothUnion(d1, d2, 0.5f);
 	result = opSmoothUnion(result, d3, 0.5f);

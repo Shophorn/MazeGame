@@ -199,19 +199,6 @@ struct VulkanPipeline
 
 struct VulkanVirtualFrame
 {
-	// // Todo(Leo): these anon structs are stupid idea, that merely introduces more complexity, and are not even supported by c++ standard
-	// struct
-	// {
-	// 	VkCommandBuffer master;
-	// 	VkCommandBuffer scene;
-	// 	VkCommandBuffer gui;
-
- //        VkCommandBuffer offscreen;
-
-	// 	// Todo(Leo): Do we want this too?
-	// 	// VkCommandBuffer debug;
-	// } commandBuffers;
-
 	VkCommandBuffer masterCommandBuffer;
 	VkCommandBuffer sceneCommandBuffer;
 	VkCommandBuffer guiCommandBuffer;

@@ -34,7 +34,7 @@ bool is_unit_quaternion(quaternion q)
 	return result;
 }
 
-internal quaternion axis_angle_quaternion(v3 normalizedAxis, f32 angleInRadians)
+internal quaternion quaternion_axis_angle(v3 normalizedAxis, f32 angleInRadians)
 {
 	// TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO 
 	// TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO 
@@ -98,9 +98,9 @@ internal quaternion euler_angles_quaternion(f32 eulerX, f32 eulerY, f32 eulerZ)
     // return q;
 
 
-	quaternion x = axis_angle_quaternion({1,0,0}, eulerX);
-	quaternion y = axis_angle_quaternion({0,1,0}, eulerY);
-	quaternion z = axis_angle_quaternion({0,0,1}, eulerZ);
+	quaternion x = quaternion_axis_angle({1,0,0}, eulerX);
+	quaternion y = quaternion_axis_angle({0,1,0}, eulerY);
+	quaternion z = quaternion_axis_angle({0,0,1}, eulerZ);
 
 	return z * y * x;	
 }
@@ -120,7 +120,7 @@ internal quaternion inverse_quaternion(quaternion q)
 
 quaternion inverse_non_unit_quaternion(quaternion q)
 {
-	f32 vectorMagnitude = magnitude_v3(q.vector);
+	f32 vectorMagnitude = v3_length(q.vector);
 
 	f32 conjugate = (q.w * q.w) + (vectorMagnitude * vectorMagnitude);
 
@@ -244,7 +244,7 @@ quaternion interpolate_quaternion(quaternion from, quaternion to, f32 t)
 	// Convert to rodriques rotation
 	v3 axis;
 
-	f32 magnitude = magnitude_v3(difference.vector);
+	f32 magnitude = v3_length(difference.vector);
 	if (magnitude < 0.0001f)
 	{
 		axis = difference.vector;
@@ -287,7 +287,7 @@ quaternion quaternion_from_to(v3 from, v3 to)
 	// Todo(Leo): this was also copied from unity, which has wrong handed coordinate-system, multiply by -1 for that
 	angle = -1 * sign * angle;
 
-	quaternion result = axis_angle_quaternion(axis, angle);
+	quaternion result = quaternion_axis_angle(axis, angle);
 	return result;
 }
 

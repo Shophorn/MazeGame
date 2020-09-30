@@ -102,6 +102,14 @@ internal m44 * compute_transform_matrices(MemoryArena & allocator, s32 count, Tr
 	return result;
 }
 
+enum BoxState : s32
+{
+	BOX_CLOSED,
+	BOX_OPENING,
+	BOX_OPEN,
+	BOX_CLOSING,
+};
+
 struct Game
 {
 	MemoryArena * 	persistentMemory;
@@ -284,6 +292,11 @@ struct Game
 	Tree3Settings 	treeSettings [2];
 
 	s32 			inspectedTreeIndex;
+
+	Transform3D boxTransform;
+	Transform3D boxCoverLocalTransform;
+	BoxState 	boxState;
+	f32 		boxOpenPercent;
 };
 
 internal auto game_get_serialized_objects(Game & game)
@@ -519,8 +532,8 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 	{
 		v3 lightDirection = {0,0,1};
-		lightDirection = rotate_v3(axis_angle_quaternion(v3_right, game->skySettings.sunHeightAngle * π), lightDirection);
-		lightDirection = rotate_v3(axis_angle_quaternion(v3_up, game->skySettings.sunOrbitAngle * 2 * π), lightDirection);
+		lightDirection = rotate_v3(quaternion_axis_angle(v3_right, game->skySettings.sunHeightAngle * π), lightDirection);
+		lightDirection = rotate_v3(quaternion_axis_angle(v3_up, game->skySettings.sunOrbitAngle * 2 * π), lightDirection);
 		lightDirection = normalize_v3(-lightDirection);
 
 		Light light = { .direction 	= lightDirection, //normalize_v3({-1, 1.2, -8}), 
@@ -577,7 +590,7 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 				{
 					for (s32 i = 0; i < count; ++i)
 					{
-						if (magnitude_v3(playerPosition - transforms[i].position) < grabDistance)
+						if (v3_length(playerPosition - transforms[i].position) < grabDistance)
 						{
 							playerCarryState = carryState;
 							carriedItemIndex = i;
@@ -592,7 +605,7 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 				{
 					for (auto & tree : game->trees)
 					{
-						if (magnitude_v3(playerPosition - tree.position) < grabDistance)
+						if (v3_length(playerPosition - tree.position) < grabDistance)
 						{
 							// f32 maxGrabbableLength 	= 1;
 							// f32 maxGrabbableRadius 	= maxGrabbableLength / tree.settings->maxHeightToWidthRatio;
@@ -603,6 +616,29 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 								game->playerCarryState = GO_TREE_3;
 								game->carriedItemIndex = array_2_get_index_of(game->trees, tree);
 							}
+						}
+					}
+				}
+
+				{
+					if(game->boxState == BOX_CLOSED)
+					{
+						v3 openPosition = multiply_point(transform_matrix(game->boxTransform), v3{0, 0.6, 0});
+						f32 distanceToOpenPosition = v3_length(openPosition - game->playerCharacterTransform.position);
+						if (distanceToOpenPosition < grabDistance / 2)
+						{
+							game->boxState 			= BOX_OPENING;
+							game->boxOpenPercent 	= 0;
+						}
+					}
+					else if (game->boxState == BOX_OPEN)
+					{
+						v3 closePosition = multiply_point(transform_matrix(game->boxTransform), v3{0,-0.6,0});
+						f32 distanceToClosePosition = v3_length(closePosition - game->playerCharacterTransform.position);
+						if (distanceToClosePosition < grabDistance / 2)
+						{
+							game->boxState 			= BOX_CLOSING;
+							game->boxOpenPercent 	= 0;
 						}
 					}
 				}
@@ -631,7 +667,7 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 				for (s32 i = 0; i < game->potCount; ++i)
 				{
-					f32 distance = magnitude_v3(game->potTransforms[i].position - waterTransform.position);
+					f32 distance = v3_length(game->potTransforms[i].position - waterTransform.position);
 					if (distance < waterSnapDistance)
 					{
 						game->potWaterLevels[i] += droppedWaterLevel;
@@ -686,7 +722,7 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 			game->raccoonTransforms[game->carriedItemIndex].position 	= carriedPosition + v3{0,0,0.2};
 
 			v3 right = rotate_v3(carriedRotation, v3_right);
-			game->raccoonTransforms[game->carriedItemIndex].rotation 	= carriedRotation * axis_angle_quaternion(right, 1.4f);
+			game->raccoonTransforms[game->carriedItemIndex].rotation 	= carriedRotation * quaternion_axis_angle(right, 1.4f);
 
 
 		} break;
@@ -705,7 +741,40 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 	}
 
 	/// UPDATE TREES IN POTS POSITIONS
-	// Todo(Leo):...
+	// Todo(Leo):... trees and pots do not currently work together, they should though
+
+	// BOX
+	{
+		constexpr f32 openAngle 	= 5.0f/8.0f * π;
+		constexpr f32 openingTime 	= 0.7f;
+
+		if (game->boxState == BOX_OPENING)
+		{
+			game->boxOpenPercent += scaledTime / openingTime;
+
+			if (game->boxOpenPercent > 1.0f)
+			{
+				game->boxState 			= BOX_OPEN;
+				game->boxOpenPercent 	= 1.0f;
+			}
+
+			f32 angle = openAngle * game->boxOpenPercent;
+			game->boxCoverLocalTransform.rotation = quaternion_axis_angle(v3_right, angle);
+		}
+		else if (game->boxState == BOX_CLOSING)
+		{
+			game->boxOpenPercent += scaledTime / openingTime;
+
+			if (game->boxOpenPercent > 1.0f)
+			{
+				game->boxState 			= BOX_CLOSED;
+				game->boxOpenPercent 	= 1.0f;
+			}
+
+			f32 angle = openAngle * (1 - game->boxOpenPercent);
+			game->boxCoverLocalTransform.rotation = quaternion_axis_angle(v3_right, angle);
+		}
+	}
 
 	// UPDATE physics objects
 	{
@@ -782,7 +851,7 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 			v3 trainMoveVector 	= game->trainCurrentTargetPosition - game->trainTransform.position;
 			f32 directionDot 	= dot_v3(trainMoveVector, game->trainCurrentDirection);
-			f32 moveDistance	= magnitude_v3(trainMoveVector);
+			f32 moveDistance	= v3_length(trainMoveVector);
 
 			if (moveDistance > game->trainBrakeBeforeStationDistance)
 			{
@@ -861,7 +930,7 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 				v3 input 			= {};
 				input.xy	 		= game->nobleWanderTargetPosition.xy - game->noblePersonTransform.position.xy;
-				f32 inputMagnitude 	= magnitude_v3(input);
+				f32 inputMagnitude 	= v3_length(input);
 				input 				= input / inputMagnitude;
 				inputMagnitude 		= clamp_f32(inputMagnitude, 0.0f, 1.0f);
 				input 				= input * inputMagnitude;
@@ -887,7 +956,7 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 			CharacterInput raccoonCharacterMotorInput = {};
 	
 			v3 toTarget 			= game->raccoonTargetPositions[i] - game->raccoonTransforms[i].position;
-			f32 distanceToTarget 	= magnitude_v3(toTarget);
+			f32 distanceToTarget 	= v3_length(toTarget);
 
 			v3 input = {};
 
@@ -899,7 +968,7 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 			else
 			{
 				input.xy	 		= game->raccoonTargetPositions[i].xy - game->raccoonTransforms[i].position.xy;
-				f32 inputMagnitude 	= magnitude_v3(input);
+				f32 inputMagnitude 	= v3_length(input);
 				input 				= input / inputMagnitude;
 				inputMagnitude 		= clamp_f32(inputMagnitude, 0.0f, 1.0f);
 				input 				= input * inputMagnitude;
@@ -1006,6 +1075,18 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 	}
 
 
+	{
+		MeshHandle boxMesh 		= assets_get_mesh(game->assets, MESH_ASSET_BOX);
+		MeshHandle boxCoverMesh = assets_get_mesh(game->assets, MESH_ASSET_BOX_COVER);
+		MaterialHandle material = assets_get_material(game->assets, MATERIAL_ASSET_BOX);
+
+		m44 boxTransformMatrix = transform_matrix(game->boxTransform);
+		m44 coverTransformMatrix = boxTransformMatrix * transform_matrix(game->boxCoverLocalTransform);
+
+		graphics_draw_meshes(platformGraphics, 1, &boxTransformMatrix, boxMesh, material);
+		graphics_draw_meshes(platformGraphics, 1, &coverTransformMatrix, boxCoverMesh, material);
+	}
+
 	/// DEBUG DRAW COLLIDERS
 	{
 		FS_DEBUG_BACKGROUND(collisions_debug_draw_colliders(game->collisionSystem));
@@ -1067,12 +1148,12 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 			// f32 d = min_f32(1, max_f32(0, dot_v3()))
 
-			f32 t = min_f32(1, max_f32(0, dot_v3(position - a, b - a) / square_magnitude_v3(b-a)));
-			f32 d = magnitude_v3(position - a  - t * (b -a));
+			f32 t = min_f32(1, max_f32(0, dot_v3(position - a, b - a) / square_v3_length(b-a)));
+			f32 d = v3_length(position - a  - t * (b -a));
 
 			return d - lerp_f32(0.5,0.1,t);
 
-			// return min_f32(magnitude_v3(a - position) - rA, magnitude_v3(b - position) - rB);
+			// return min_f32(v3_length(a - position) - rA, v3_length(b - position) - rB);
 		};
 
 		f32 fieldMemory [] =
@@ -1746,6 +1827,16 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 		}
 	
 		game->inspectedTreeIndex 	= 0;
+	}
+
+	{
+		v3 boxPosition 		= {20, 2, get_terrain_height(game->collisionSystem, {20, 2})};
+		game->boxTransform 	= {boxPosition};
+
+		v3 boxPositionOffset 			= {0, -0.5, 0.85};
+		game->boxCoverLocalTransform 	= {boxPositionOffset};
+	
+		push_static_box_collider(game->collisionSystem, {{0.5,0.5,0.5}, identity_quaternion, {0,0,0.5}}, game->boxTransform);
 	}
 
 

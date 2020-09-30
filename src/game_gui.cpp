@@ -342,7 +342,7 @@ bool32 do_gui(Game * game, PlatformInput const & input)
 					}
 	
 					game->monuments.monuments[i].rotation = rotation;
-					game->monuments.transforms[i].rotation 	= axis_angle_quaternion(v3_up, to_radians(rotation));
+					game->monuments.transforms[i].rotation 	= quaternion_axis_angle(v3_up, to_radians(rotation));
 				}
 
 				v2 xy = game->monuments.monuments[i].position;

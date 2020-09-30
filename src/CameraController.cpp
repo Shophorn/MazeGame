@@ -126,7 +126,7 @@ update_camera_controller(PlayerCameraController * controller, v3 targetPosition,
 	controller->position = trackedPosition + controller->baseOffset + localPosition;
 	controller->direction = -normalize_v3(localPosition);
 
-	Assert(abs_f32(square_magnitude_v3(controller->direction) - 1.0f) < 0.00001f);
+	Assert(abs_f32(square_v3_length(controller->direction) - 1.0f) < 0.00001f);
 }
 
 struct FreeCameraController
@@ -151,7 +151,7 @@ internal m44 update_free_camera(FreeCameraController & controller, PlatformInput
 	controller.tiltAngle += -1 * input.look.y * rotateSpeed * elapsedTime;
 	controller.tiltAngle = clamp_f32(controller.tiltAngle, -maxTilt, maxTilt);
 
-	quaternion pan 	= axis_angle_quaternion(v3_up, controller.panAngle);
+	quaternion pan 	= quaternion_axis_angle(v3_up, controller.panAngle);
 	m44 panMatrix 	= rotation_matrix(pan);
 
 	// Todo(Leo): somewhy this points to opposite of right
@@ -171,7 +171,7 @@ internal m44 update_free_camera(FreeCameraController & controller, PlatformInput
 	f32 zInput 		= is_pressed(input.zoomOut) - is_pressed(input.zoomIn);
 	v3 upMovement 	= v3_up * zInput * zMoveSpeed * elapsedTime;
 
-	quaternion tilt = axis_angle_quaternion(right, controller.tiltAngle);
+	quaternion tilt = quaternion_axis_angle(right, controller.tiltAngle);
 	m44 rotation 	= rotation_matrix(pan * tilt);
 	v3 direction 	= multiply_direction(rotation, v3_forward);
 	
@@ -210,14 +210,14 @@ internal void update_mouse_camera(MouseCameraController & controller, PlatformIn
 
 	// Note(Leo): positive rotation is to left, which is opposite of joystick
 	f32 panAngle 	= -1 * mouseInput.x * rotateSpeed * elapsedTime;
-	quaternion pan 	= axis_angle_quaternion(v3_up, panAngle);
+	quaternion pan 	= quaternion_axis_angle(v3_up, panAngle);
 
 	v3 direction 	= rotate_v3(pan, controller.direction);
 	v3 right 		= normalize_v3(cross_v3(direction, v3_up));
 
 	f32 tiltAngle 	= -1 * mouseInput.y * rotateSpeed * elapsedTime;
 	tiltAngle 		= clamp_f32(tiltAngle, -maxTilt, maxTilt);
-	quaternion tilt = axis_angle_quaternion(right, tiltAngle);
+	quaternion tilt = quaternion_axis_angle(right, tiltAngle);
 
 	direction 		= rotate_v3(tilt, direction);
 

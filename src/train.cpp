@@ -19,7 +19,7 @@ void update_train(Train & train, CollisionsSystem3D & collisionSystem)
 	f32 speed 		= 50;
 
 	v3 toTarget 	= train.targetPosition - train.transform.position;
-	f32 sqrLength	= sqr_magnitude_v3(toTarget);
+	f32 sqrLength	= sqr_v3_length(toTarget);
 
 	if (sqrLength > 0)
 	{

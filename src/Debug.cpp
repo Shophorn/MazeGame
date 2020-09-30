@@ -189,7 +189,7 @@ internal void debug_draw_lines(s32 pointsCount, v3 * points, v4 color)
 internal void debug_draw_vector(v3 position, v3 vector, v4 color)
 {
 	f32 size 		= 0.1f; 
-	f32 length 		= magnitude_v3(vector);
+	f32 length 		= v3_length(vector);
 	size 			= min_f32(size, length / 2);
 
 	v3 binormal 	= cross_v3(vector, v3_up);

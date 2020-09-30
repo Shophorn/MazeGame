@@ -61,7 +61,7 @@ internal Monuments init_monuments(MemoryArena & persistentMemory, GameAssets & a
 		position.xy = monuments.monuments[i].position;
 		position.z	= get_terrain_height(collisionSystem, position.xy);
 
-		quaternion rotation = axis_angle_quaternion(v3_up, to_radians(monuments.monuments[i].rotation));
+		quaternion rotation = quaternion_axis_angle(v3_up, to_radians(monuments.monuments[i].rotation));
 
 		monuments.transforms[i] = {position, rotation, {2,2,2}};
 	}
@@ -76,10 +76,10 @@ internal void monuments_submit_colliders(Monuments const & monuments, CollisionS
 	local_persist Transform3D colliderTransforms [] =
 	{
 		Transform3D {{0, 0, -0.2356}, 	identity_quaternion,					{2, 2, 0.99}},
-		Transform3D {{0, 2, -0.07}, 	axis_angle_quaternion(v3_right, π/4), 	{1.75, 0.575, 0.575}},
-		Transform3D {{0, -2, -0.07}, 	axis_angle_quaternion(v3_right, π/4), 	{1.75, 0.575, 0.575}},
-		Transform3D {{2, 0, -0.07}, 	axis_angle_quaternion(v3_forward, π/4), {0.575, 1.75, 0.575}},
-		Transform3D {{-2, 0, -0.07}, 	axis_angle_quaternion(v3_forward, π/4), {0.575, 1.75, 0.575}},
+		Transform3D {{0, 2, -0.07}, 	quaternion_axis_angle(v3_right, π/4), 	{1.75, 0.575, 0.575}},
+		Transform3D {{0, -2, -0.07}, 	quaternion_axis_angle(v3_right, π/4), 	{1.75, 0.575, 0.575}},
+		Transform3D {{2, 0, -0.07}, 	quaternion_axis_angle(v3_forward, π/4), {0.575, 1.75, 0.575}},
+		Transform3D {{-2, 0, -0.07}, 	quaternion_axis_angle(v3_forward, π/4), {0.575, 1.75, 0.575}},
 
 		Transform3D {{1.75, 1.86, 2}, 	identity_quaternion, {0.67, 0.56, 5}},
 		Transform3D {{-1.75, 1.86, 2}, 	identity_quaternion, {0.67, 0.56, 5}},
@@ -131,7 +131,7 @@ internal void monuments_refresh_transforms(Monuments & monuments, CollisionSyste
 		position.xy = monuments.monuments[i].position;
 		position.z	= get_terrain_height(collisionSystem, position.xy);
 
-		quaternion rotation = axis_angle_quaternion(v3_up, to_radians(monuments.monuments[i].rotation));
+		quaternion rotation = quaternion_axis_angle(v3_up, to_radians(monuments.monuments[i].rotation));
 
 		monuments.transforms[i] = {position, rotation, {2,2,2}};
 	}
