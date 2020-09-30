@@ -36,33 +36,39 @@ fsvulkan_get_aligned_uniform_buffer_size(VulkanContext * context, VkDeviceSize s
 	return memory_align_up(size, alignment);
 } 
 
-
+// Todo(Leo): these two call for a struct and functions
 internal VkDeviceSize fsvulkan_get_uniform_memory(VulkanContext & context, VkDeviceSize size)
 {
-	// Note(Leo): offset data for different frames, so we do not overwrite previous frames' data before they are done.
-	// Todo(Leo): make separate buffers for each frame
-	VkDeviceSize frameSize = fsvulkan_get_aligned_uniform_buffer_size(&context, megabytes(150));
-	VkDeviceSize frameOffset = frameSize * context.virtualFrameIndex;
+	VkDeviceSize start 	= context.modelUniformBufferFrameStart[context.virtualFrameIndex];
+	VkDeviceSize & used = context.modelUniformBufferFrameUsed[context.virtualFrameIndex];
 
-	auto alignment 	= context.physicalDeviceProperties.limits.minUniformBufferOffsetAlignment;
-	size 			= memory_align_up(size, alignment);
+	VkDeviceSize result = start + used;
 
-	VkDeviceSize currentOffset = context.modelUniformBuffer.used;
+	VkDeviceSize alignment 	= context.physicalDeviceProperties.limits.minUniformBufferOffsetAlignment;
+	size 					= memory_align_up(size, alignment);
+	used 					+= size;
 
-	Assert(currentOffset + size <= frameSize && "Trying to use too much memory.");
+	Assert(used <= context.modelUniformBufferFrameCapacity);
 
-	context.modelUniformBuffer.used += size;
-
-	return currentOffset + frameOffset;
-};
-
-internal void fsvulkan_reset_uniform_buffer(VulkanContext & context)
-{
-	/// TODO(Leo): This is used incorrectly. We should zero some other value, since this buffer is in 
-	// practice split to three or two parts, but currently we use this same 'used' value to track each.
-	// It luckily works because they are not accessed at same times.
-	context.modelUniformBuffer.used = 0;
+	return result;
 }
+
+internal VkDeviceSize fsvulkan_get_dynamic_mesh_memory(VulkanContext & context, VkDeviceSize size)
+{
+	VkDeviceSize start 	= context.dynamicMeshFrameStart[context.virtualFrameIndex];
+	VkDeviceSize & used = context.dynamicMeshFrameUsed[context.virtualFrameIndex];
+
+	VkDeviceSize result = start + used;
+
+	VkDeviceSize alignment 	= context.physicalDeviceProperties.limits.minUniformBufferOffsetAlignment;
+	size 					= memory_align_up(size, alignment);
+	used 					+= size;
+
+	Assert(used <= context.dynamicMeshFrameCapacity);
+
+	return result;
+}
+
 
 internal void graphics_drawing_update_camera(VulkanContext * context, Camera const * camera)
 {
@@ -114,9 +120,14 @@ internal void graphics_drawing_prepare_frame(VulkanContext * context)
 	AssertMsg((context->canDraw == false), "Invalid call to prepare_drawing() when finish_drawing() has not been called.")
 	context->canDraw = true;
 
-	// context->modelUniformBuffer.used = 0;
-	fsvulkan_reset_uniform_buffer(*context);
-	context->leafBufferUsed[context->virtualFrameIndex] = 0;
+	// Todo(Leo): For the most part at least currently, we do not need these to be super dynamic, so maybe
+	// make some kind of semi-permanent allocations, and don't waste time copying these every frame.
+	// FLUSH DYNAMIC BUFFERS
+	{
+		context->modelUniformBufferFrameUsed[context->virtualFrameIndex] 	= 0;
+		context->dynamicMeshFrameUsed[context->virtualFrameIndex] 			= 0;
+		context->leafBufferUsed[context->virtualFrameIndex] 				= 0;
+	}
 
 	auto * frame = fsvulkan_get_current_virtual_frame(context);
 
@@ -385,22 +396,19 @@ internal void graphics_draw_model(VulkanContext * context, ModelHandle model, m4
 	MeshHandle meshHandle           = context->loadedModels[model].mesh;
 	MaterialHandle materialHandle   = context->loadedModels[model].material;
 
-	u32 uniformBufferSize   = sizeof(FSVulkanModelUniformBuffer);
+	u32 uniformBufferSize   = sizeof(VulkanModelUniformBuffer);
 
-	VkDeviceSize uniformBufferOffset = fsvulkan_get_uniform_memory(*context, sizeof(FSVulkanModelUniformBuffer));
-	FSVulkanModelUniformBuffer * pBuffer;
+	VkDeviceSize uniformBufferOffset 	= fsvulkan_get_uniform_memory(*context, sizeof(VulkanModelUniformBuffer));
+	VulkanModelUniformBuffer * pBuffer 	= reinterpret_cast<VulkanModelUniformBuffer*>(context->persistentMappedModelUniformBufferMemory + uniformBufferOffset);
 
 	// Todo(Leo): Just map this once when rendering starts
-	// Todo(Leo): or even better, get this pointer to game code and write directly to buffer, no copy needed
-	vkMapMemory(context->device, context->modelUniformBuffer.memory, uniformBufferOffset, uniformBufferSize, 0, (void**)&pBuffer);
+	// // Todo(Leo): or even better, get this pointer to game code and write directly to buffer, no copy needed
 	
-	pBuffer->localToWorld = transform;
-	pBuffer->isAnimated = bonesCount;
+	pBuffer->localToWorld 	= transform;
+	pBuffer->isAnimated 	= bonesCount;
 
 	Assert(bonesCount <= array_count(pBuffer->bonesToLocal));    
 	memory_copy(pBuffer->bonesToLocal, bones, sizeof(m44) * bonesCount);
-
-	vkUnmapMemory(context->device, context->modelUniformBuffer.memory);
 
 	// ---------------------------------------------------------------
 
@@ -421,7 +429,7 @@ internal void graphics_draw_model(VulkanContext * context, ModelHandle model, m4
 	{   
 		context->cameraDescriptorSet[context->virtualFrameIndex],
 		material->descriptorSet,
-		context->modelDescriptorSet,
+		context->modelDescriptorSet[context->virtualFrameIndex],
 		context->lightingDescriptorSet[context->virtualFrameIndex],
 		context->shadowMapTextureDescriptorSet[context->virtualFrameIndex],
 		context->skyGradientDescriptorSet,
@@ -459,7 +467,7 @@ internal void graphics_draw_model(VulkanContext * context, ModelHandle model, m4
 		VkDescriptorSet shadowSets [] =
 		{
 			context->cameraDescriptorSet[context->virtualFrameIndex],
-			context->modelDescriptorSet,
+			context->modelDescriptorSet[context->virtualFrameIndex],
 		};
 
 		vkCmdBindDescriptorSets(frame->commandBuffers.offscreen,
@@ -599,20 +607,14 @@ internal void graphics_draw_meshes(VulkanContext * context, s32 count, m44 const
 	VkDeviceSize uniformBufferSizePerItem 	= fsvulkan_get_aligned_uniform_buffer_size(context, sizeof(m44));
 	VkDeviceSize totalUniformBufferSize 	= count * uniformBufferSizePerItem;
 
-	VkDeviceSize uniformBufferOffset = fsvulkan_get_uniform_memory(*context, totalUniformBufferSize);
-
-	u8 * bufferPointer;
-	vkMapMemory(context->device, context->modelUniformBuffer.memory, uniformBufferOffset, totalUniformBufferSize, 0, (void**)&bufferPointer);
+	VkDeviceSize uniformBufferOffset 	= fsvulkan_get_uniform_memory(*context, totalUniformBufferSize);
+	u8 * bufferPointer 					= context->persistentMappedModelUniformBufferMemory + uniformBufferOffset;
+	
 	for (s32 i = 0; i < count; ++i)
 	{
-		*((m44*)bufferPointer) = transforms[i];
-		bufferPointer += uniformBufferSizePerItem;
-	}
-	vkUnmapMemory(context->device, context->modelUniformBuffer.memory);
-
-	for(s32 i = 0; i < count; ++i)
-	{
-		uniformBufferOffsets[i] = uniformBufferOffset + i * uniformBufferSizePerItem;
+		*reinterpret_cast<m44*>(bufferPointer) 	= transforms[i];
+		bufferPointer 							+= uniformBufferSizePerItem;
+		uniformBufferOffsets[i] 				= uniformBufferOffset + i * uniformBufferSizePerItem;
 	}
 
 	VulkanMesh * mesh 			= fsvulkan_get_loaded_mesh(context, meshHandle);
@@ -634,7 +636,7 @@ internal void graphics_draw_meshes(VulkanContext * context, s32 count, m44 const
 	{   
 		context->cameraDescriptorSet[context->virtualFrameIndex],
 		material->descriptorSet,
-		context->modelDescriptorSet,
+		context->modelDescriptorSet[context->virtualFrameIndex],
 		context->lightingDescriptorSet[context->virtualFrameIndex],
 		context->shadowMapTextureDescriptorSet[context->virtualFrameIndex],
 		context->skyGradientDescriptorSet,
@@ -666,7 +668,7 @@ internal void graphics_draw_meshes(VulkanContext * context, s32 count, m44 const
 	bool castShadow = true;
 	if (castShadow)
 	{
-		VkDeviceSize vertexOffsets [] 	= {mesh->vertexOffset, 0};
+		VkDeviceSize vertexOffsets [] 	= {mesh->vertexOffset, mesh->skinningOffset};
 		VkBuffer vertexBuffers [] 		= {mesh->bufferReference, mesh->bufferReference};
 
 		vkCmdBindVertexBuffers(frame->commandBuffers.offscreen, 0, 2, vertexBuffers, vertexOffsets);
@@ -675,7 +677,7 @@ internal void graphics_draw_meshes(VulkanContext * context, s32 count, m44 const
 		VkDescriptorSet shadowSets [] =
 		{
 			context->cameraDescriptorSet[context->virtualFrameIndex],
-			context->modelDescriptorSet,
+			context->modelDescriptorSet[context->virtualFrameIndex],
 		};
 
 		for (s32 i = 0; i < count; ++i)
@@ -712,22 +714,18 @@ internal void graphics_draw_procedural_mesh(VulkanContext * context,
 	VkPipeline pipeline 			= context->pipelines[material->pipeline].pipeline;
 	VkPipelineLayout pipelineLayout = context->pipelines[material->pipeline].pipelineLayout;
 
-	VkDeviceSize uniformBufferOffset = fsvulkan_get_uniform_memory(*context, sizeof(FSVulkanModelUniformBuffer));
-	FSVulkanModelUniformBuffer * pBuffer;
+	VkDeviceSize uniformBufferOffset 	= fsvulkan_get_uniform_memory(*context, sizeof(VulkanModelUniformBuffer));
+	VulkanModelUniformBuffer * pBuffer 	= reinterpret_cast<VulkanModelUniformBuffer*>(context->persistentMappedModelUniformBufferMemory + uniformBufferOffset);
 
-	// Optimize(Leo): Just map this once when rendering starts
-	vkMapMemory(context->device, context->modelUniformBuffer.memory, uniformBufferOffset, sizeof(FSVulkanModelUniformBuffer), 0, (void**)&pBuffer);
-	
 	pBuffer->localToWorld = transform;
 	pBuffer->isAnimated = 0;
-
-	vkUnmapMemory(context->device, context->modelUniformBuffer.memory);
+	// Note(Leo): skip animation info
 
 	VkDescriptorSet sets [] =
 	{   
 		context->cameraDescriptorSet[context->virtualFrameIndex],
 		material->descriptorSet,
-		context->modelDescriptorSet,
+		context->modelDescriptorSet[context->virtualFrameIndex],
 		context->lightingDescriptorSet[context->virtualFrameIndex],
 		context->shadowMapTextureDescriptorSet[context->virtualFrameIndex],
 		context->skyGradientDescriptorSet
@@ -740,31 +738,22 @@ internal void graphics_draw_procedural_mesh(VulkanContext * context,
 						0, array_count(sets), sets,
 						1, &uniformBufferOffsets[0]);
 
-
-	Vertex * vertexData;
-	VkDeviceSize vertexBufferSize = vertexCount * sizeof(Vertex);
-	VkDeviceSize vertexBufferOffset = fsvulkan_get_uniform_memory(*context, vertexBufferSize);
-
-	// Todo(Leo): check map results
-	VkResult result = vkMapMemory(context->device, context->modelUniformBuffer.memory, vertexBufferOffset, vertexBufferSize, 0, (void**)&vertexData);
-
+	VkDeviceSize vertexBufferSize 	= vertexCount * sizeof(Vertex);
+	VkDeviceSize vertexBufferOffset = fsvulkan_get_dynamic_mesh_memory(*context, vertexBufferSize);
+	Vertex * vertexData 			= reinterpret_cast<Vertex*>(context->persistentMappedDynamicMeshMemory + vertexBufferOffset);
 	memory_copy(vertexData, vertices, sizeof(Vertex) * vertexCount);
 
-	vkUnmapMemory(context->device, context->modelUniformBuffer.memory);
-
-	u16 * indexData;
-	VkDeviceSize indexBufferSize = indexCount * sizeof(u16);
-	VkDeviceSize indexBufferOffset = fsvulkan_get_uniform_memory(*context, indexBufferSize);
-
-	VULKAN_CHECK(vkMapMemory(context->device, context->modelUniformBuffer.memory, indexBufferOffset, indexBufferSize, 0, (void**)&indexData));
-
+	VkDeviceSize indexBufferSize 	= indexCount * sizeof(u16);
+	VkDeviceSize indexBufferOffset 	= fsvulkan_get_dynamic_mesh_memory(*context, indexBufferSize);
+	u16 * indexData					= reinterpret_cast<u16*>(context->persistentMappedDynamicMeshMemory + indexBufferOffset);
 	memory_copy(indexData, indices, sizeof(u16) *indexCount);
 
-	vkUnmapMemory(context->device, context->modelUniformBuffer.memory);
 
 
-	vkCmdBindVertexBuffers(commandBuffer, 0, 1, &context->modelUniformBuffer.buffer, &vertexBufferOffset);
-	vkCmdBindIndexBuffer(commandBuffer, context->modelUniformBuffer.buffer, indexBufferOffset, VK_INDEX_TYPE_UINT16);
+
+
+	vkCmdBindVertexBuffers(commandBuffer, 0, 1, &context->dynamicMeshBuffer, &vertexBufferOffset);
+	vkCmdBindIndexBuffer(commandBuffer, context->dynamicMeshBuffer, indexBufferOffset, VK_INDEX_TYPE_UINT16);
 
 	vkCmdDrawIndexed(commandBuffer, indexCount, 1, 0, 0, 0);
 
@@ -772,15 +761,15 @@ internal void graphics_draw_procedural_mesh(VulkanContext * context,
 	/// SHADOWS
 
 	VkDeviceSize vertexOffsets [] 	= {vertexBufferOffset, 0};
-	VkBuffer vertexBuffers [] 		= {context->modelUniformBuffer.buffer, context->modelUniformBuffer.buffer};
+	VkBuffer vertexBuffers [] 		= {context->dynamicMeshBuffer, context->dynamicMeshBuffer};
 
 	vkCmdBindVertexBuffers(frame->commandBuffers.offscreen, 0, 2, vertexBuffers, vertexOffsets);
-	vkCmdBindIndexBuffer(frame->commandBuffers.offscreen, context->modelUniformBuffer.buffer, indexBufferOffset, VK_INDEX_TYPE_UINT16);
+	vkCmdBindIndexBuffer(frame->commandBuffers.offscreen, context->dynamicMeshBuffer, indexBufferOffset, VK_INDEX_TYPE_UINT16);
 
 	VkDescriptorSet shadowSets [] =
 	{
 		context->cameraDescriptorSet[context->virtualFrameIndex],
-		context->modelDescriptorSet,
+		context->modelDescriptorSet[context->virtualFrameIndex],
 	};
 
 	vkCmdBindDescriptorSets(frame->commandBuffers.offscreen,
@@ -797,7 +786,6 @@ internal void graphics_draw_procedural_mesh(VulkanContext * context,
 
 internal void graphics_draw_lines(VulkanContext * context, s32 pointCount, v3 const * points, v4 color)
 {
-
 	// Note(Leo): call prepare_drawing() first
 	Assert(context->canDraw);
 
@@ -808,12 +796,8 @@ internal void graphics_draw_lines(VulkanContext * context, s32 pointCount, v3 co
 							0, 1, &context->cameraDescriptorSet[context->virtualFrameIndex], 0, nullptr);
 
 	VkDeviceSize vertexBufferSize 	= pointCount * sizeof(v3) * 2;
-	VkDeviceSize vertexBufferOffset = fsvulkan_get_uniform_memory(*context, vertexBufferSize);
-
-
-	v3 * vertexData;
-	// Todo(Leo): check map results
-	VkResult result = vkMapMemory(context->device, context->modelUniformBuffer.memory, vertexBufferOffset, vertexBufferSize, 0, (void**)&vertexData);
+	VkDeviceSize vertexBufferOffset = fsvulkan_get_dynamic_mesh_memory(*context, vertexBufferSize);
+	v3 * vertexData 				= reinterpret_cast<v3*>(context->persistentMappedDynamicMeshMemory + vertexBufferOffset);
 
 	for (s32 i = 0; i < pointCount; ++i)
 	{
@@ -821,9 +805,7 @@ internal void graphics_draw_lines(VulkanContext * context, s32 pointCount, v3 co
 		vertexData[i * 2 + 1] = color.rgb;
 	}
 
-	vkUnmapMemory(context->device, context->modelUniformBuffer.memory);
-
-	vkCmdBindVertexBuffers(commandBuffer, 0, 1, &context->modelUniformBuffer.buffer, &vertexBufferOffset);
+	vkCmdBindVertexBuffers(commandBuffer, 0, 1, &context->dynamicMeshBuffer, &vertexBufferOffset);
 
 	Assert(pointCount > 0);
 

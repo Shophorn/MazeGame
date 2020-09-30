@@ -623,7 +623,6 @@ namespace winapi_vulkan_internal_
 	internal VkSampleCountFlagBits  get_max_usable_msaa_samplecount(VkPhysicalDevice);
 
 	// Todo(Leo): These are not winapi specific, so they could move to universal vulkan layer
-	internal void init_memory           (VulkanContext*);
 	internal void init_uniform_buffers  (VulkanContext*);
 
 	internal void init_material_descriptor_pool     (VulkanContext*);
@@ -631,6 +630,12 @@ namespace winapi_vulkan_internal_
 	internal void init_virtual_frames               (VulkanContext*);
 	internal void init_shadow_pass                  (VulkanContext*, u32 width, u32 height);
 }
+
+
+// Todo(Leo): define proper structs for these and move to other file 
+internal void fsvulkan_create_memory(VulkanContext *);
+internal void fsvulkan_destroy_memory(VulkanContext *);
+
 
 internal VulkanContext
 winapi::create_vulkan_context(Win32Window * window)
@@ -714,7 +719,7 @@ winapi::create_vulkan_context(Win32Window * window)
 		});
 
 		// Note(Leo): these are expected to add_cleanup any functionality required
-		init_memory(&context);
+		fsvulkan_create_memory(&context);
 
 		init_uniform_buffers (&context);
 
@@ -767,6 +772,7 @@ winapi::create_vulkan_context(Win32Window * window)
 	return context;
 }
 
+
 internal void
 winapi::destroy_vulkan_context(VulkanContext * context)
 {
@@ -774,6 +780,8 @@ winapi::destroy_vulkan_context(VulkanContext * context)
 	vkDeviceWaitIdle(context->device);
 
 	graphics_memory_unload(context);
+
+	fsvulkan_destroy_memory(context);
 
 	while(context->cleanups.size() > 0)
 	{
@@ -1050,18 +1058,18 @@ winapi_vulkan_internal_::get_max_usable_msaa_samplecount(VkPhysicalDevice physic
 	return result;
 }
 
-internal void
-winapi_vulkan_internal_::init_memory(VulkanContext * context)
+internal void fsvulkan_create_memory(VulkanContext * context)
 {
 	// TODO [MEMORY] (Leo): Properly measure required amount
+	// TODO [MEMORY] (Leo): Measure something at all...
 	// TODO[memory] (Leo): Log usage
-	u64 staticMeshPoolSize       	= gigabytes(2);
-	context->stagingBufferCapacity 	= megabytes(100);
-	u64 modelUniformBufferSize   	= megabytes(500);
-	// u64 sceneUniformBufferSize   	= megabytes(100);
-	u64 guiUniformBufferSize     	= megabytes(100);
+	u64 staticMeshPoolSize       				= megabytes(500);
+	context->stagingBufferCapacity 				= megabytes(100);
+	context->modelUniformBufferFrameCapacity 	= megabytes(100);
+	context->dynamicMeshFrameCapacity 			= megabytes(100);
+	u64 guiUniformBufferSize     				= megabytes(100);
 
-	// TODO[MEMORY] (Leo): This will need guarding against multithreads once we get there
+	// TODO[MEMORY] (Leo): These will need guarding against multithreads once we get there
 	context->staticMeshPool = BAD_VULKAN_make_buffer_resource(  
 									context, staticMeshPoolSize,
 									VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
@@ -1076,15 +1084,32 @@ winapi_vulkan_internal_::init_memory(VulkanContext * context)
 										VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 	vkMapMemory(context->device, context->stagingBufferDeviceMemory, 0, VK_WHOLE_SIZE, 0, (void**)&context->persistentMappedStagingBufferMemory);
 
-	context->modelUniformBuffer = BAD_VULKAN_make_buffer_resource(  
-									context, modelUniformBufferSize,
-									VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-									VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+	fsvulkan_create_and_allocate_buffer(context->device,
+										context->physicalDevice,
+										&context->modelUniformBufferBuffer,
+										&context->modelUniformBufferMemory,
+										VIRTUAL_FRAME_COUNT * context->modelUniformBufferFrameCapacity,
+										VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+										VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+	vkMapMemory(context->device, context->modelUniformBufferMemory, 0, VK_WHOLE_SIZE, 0, (void**)&context->persistentMappedModelUniformBufferMemory);
+	
+	fsvulkan_create_and_allocate_buffer(context->device,
+										context->physicalDevice,
+										&context->dynamicMeshBuffer,
+										&context->dynamicMeshDeviceMemory,
+										VIRTUAL_FRAME_COUNT * context->dynamicMeshFrameCapacity,
+										VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+										VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+	vkMapMemory(context->device, context->dynamicMeshDeviceMemory, 0, VK_WHOLE_SIZE, 0, (void**)&context->persistentMappedDynamicMeshMemory);
 
-	// context->sceneUniformBuffer = BAD_VULKAN_make_buffer_resource(
-	// 								context, sceneUniformBufferSize,
-	// 								VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-	// 								VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+	for (s32 i = 0; i < VIRTUAL_FRAME_COUNT; ++i)
+	{
+		context->modelUniformBufferFrameStart[i] 	= i * context->modelUniformBufferFrameCapacity;
+		context->modelUniformBufferFrameUsed[i] 	= 0;
+
+		context->dynamicMeshFrameStart[i] 	= i * context->dynamicMeshFrameCapacity;
+		context->dynamicMeshFrameUsed[i] 	= 0;
+	}
 
 	{
 		s64 leafBufferSize = megabytes(200);
@@ -1107,7 +1132,7 @@ winapi_vulkan_internal_::init_memory(VulkanContext * context)
 		{
 			.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
 			.allocationSize = memoryRequirements.size,
-			.memoryTypeIndex = find_memory_type(context->physicalDevice,
+			.memoryTypeIndex = vulkan::find_memory_type(context->physicalDevice,
 												memoryRequirements.memoryTypeBits,
 												VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT),
 		};
@@ -1120,21 +1145,27 @@ winapi_vulkan_internal_::init_memory(VulkanContext * context)
 		vkBindBufferMemory(context->device, context->leafBuffer, context->leafBufferMemory, 0); 
 
 		context->leafBufferCapacity = leafBufferSize;
-		vkMapMemory(context->device, context->leafBufferMemory, 0, VK_WHOLE_SIZE, 0, &context->persistentMappedLeafBufferMemory);
+		vkMapMemory(context->device, context->leafBufferMemory, 0, VK_WHOLE_SIZE, 0, (void**)&context->persistentMappedLeafBufferMemory);
 	}
-
-	add_cleanup(context, [](VulkanContext * context){
-		BAD_VULKAN_destroy_buffer_resource(context->device, &context->staticMeshPool);
-		BAD_VULKAN_destroy_buffer_resource(context->device, &context->modelUniformBuffer);
-
-		vkDestroyBuffer(context->device, context->stagingBuffer, nullptr);
-		vkFreeMemory(context->device, context->stagingBufferDeviceMemory, nullptr);
-
-		vkDestroyBuffer(context->device, context->leafBuffer, nullptr);
-		// Todo(Leo): Is it required to free memory on application exit?
-		vkFreeMemory(context->device, context->leafBufferMemory, nullptr);
-	});
 };
+
+internal void fsvulkan_destroy_memory(VulkanContext * context)
+{
+	BAD_VULKAN_destroy_buffer_resource(context->device, &context->staticMeshPool);
+
+	vkDestroyBuffer(context->device, context->dynamicMeshBuffer, nullptr);
+	vkFreeMemory(context->device, context->dynamicMeshDeviceMemory, nullptr);
+
+	vkDestroyBuffer(context->device, context->modelUniformBufferBuffer, nullptr);
+	vkFreeMemory(context->device, context->modelUniformBufferMemory, nullptr);
+
+	vkDestroyBuffer(context->device, context->stagingBuffer, nullptr);
+	vkFreeMemory(context->device, context->stagingBufferDeviceMemory, nullptr);
+
+	vkDestroyBuffer(context->device, context->leafBuffer, nullptr);
+	// Todo(Leo): Is it required to free memory on application exit?
+	vkFreeMemory(context->device, context->leafBufferMemory, nullptr);	
+}
 
 internal void
 winapi_vulkan_internal_::init_persistent_descriptor_pool(VulkanContext * context, u32 descriptorCount, u32 maxSets)
@@ -1199,8 +1230,11 @@ winapi_vulkan_internal_::init_uniform_buffers(VulkanContext * context)
 	// auto hdrDescriptorSetLayoutCreateInfo 	= fsvulkan_descriptor_set_layout_create_info(1, & hdrBinding);
 	// VULKAN_CHECK(vkCreateDescriptorSetLayout(context->device, &hdrDescriptorSetLayoutCreateInfo, nullptr, &context->hdrSettingsDescriptorSetLayout));
 
+	// Todo(Leo): Separate to separate calls per type, so we don't need to do remap below
 	VkDescriptorSetLayout layouts [] =
 	{
+		context->modelDescriptorSetLayout,
+		context->modelDescriptorSetLayout,
 		context->modelDescriptorSetLayout,
 
 		context->cameraDescriptorSetLayout,
@@ -1220,15 +1254,17 @@ winapi_vulkan_internal_::init_uniform_buffers(VulkanContext * context)
 	auto allocateInfo = fsvulkan_descriptor_set_allocate_info(context->uniformDescriptorPool, array_count(layouts), layouts);
 	VULKAN_CHECK(vkAllocateDescriptorSets(context->device, &allocateInfo, resultSets));
 
-	context->modelDescriptorSet = resultSets[0];
+	context->modelDescriptorSet[0] = resultSets[0];
+	context->modelDescriptorSet[1] = resultSets[1];
+	context->modelDescriptorSet[2] = resultSets[2];
 
-	context->cameraDescriptorSet[0] = resultSets[1];
-	context->cameraDescriptorSet[1] = resultSets[2];
-	context->cameraDescriptorSet[2] = resultSets[3];
+	context->cameraDescriptorSet[0] = resultSets[3];
+	context->cameraDescriptorSet[1] = resultSets[4];
+	context->cameraDescriptorSet[2] = resultSets[5];
 	
-	context->lightingDescriptorSet[0] = resultSets[4];
-	context->lightingDescriptorSet[1] = resultSets[5];
-	context->lightingDescriptorSet[2] = resultSets[6];
+	context->lightingDescriptorSet[0] = resultSets[6];
+	context->lightingDescriptorSet[1] = resultSets[7];
+	context->lightingDescriptorSet[2] = resultSets[8];
 
 	// context->hdrSettingsDescriptorSet[0] = resultSets[7];
 	// context->hdrSettingsDescriptorSet[1] = resultSets[8];
@@ -1260,7 +1296,9 @@ winapi_vulkan_internal_::init_uniform_buffers(VulkanContext * context)
 	// ------------------------------------------------------------------------------------
 
     // Todo(Leo): This would seem not to belong here
-	VkDescriptorBufferInfo modelBufferInfo 	= { context->modelUniformBuffer.buffer, 0, sizeof(m44) };
+	VkDescriptorBufferInfo modelBufferInfo_0 = { context->modelUniformBufferBuffer, 0, sizeof(m44) };
+	VkDescriptorBufferInfo modelBufferInfo_1 = { context->modelUniformBufferBuffer, 0, sizeof(m44) };
+	VkDescriptorBufferInfo modelBufferInfo_2 = { context->modelUniformBufferBuffer, 0, sizeof(m44) };
 
 	VkDescriptorBufferInfo cameraBufferInfo [] =
 	{
@@ -1286,7 +1324,9 @@ winapi_vulkan_internal_::init_uniform_buffers(VulkanContext * context)
 	// Todo(Leo): Why is this 'lIGHTINGbufferwrite' ??????
 	VkWriteDescriptorSet lightingBufferWrite [] = 
 	{
-		fsvulkan_write_descriptor_set_buffer(context->modelDescriptorSet, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, &modelBufferInfo),
+		fsvulkan_write_descriptor_set_buffer(context->modelDescriptorSet[0], 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, &modelBufferInfo_0),
+		fsvulkan_write_descriptor_set_buffer(context->modelDescriptorSet[1], 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, &modelBufferInfo_1),
+		fsvulkan_write_descriptor_set_buffer(context->modelDescriptorSet[2], 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, &modelBufferInfo_2),
 		
 		fsvulkan_write_descriptor_set_buffer(context->cameraDescriptorSet[0], 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, &cameraBufferInfo[0]),		
 		fsvulkan_write_descriptor_set_buffer(context->cameraDescriptorSet[1], 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, &cameraBufferInfo[1]),		

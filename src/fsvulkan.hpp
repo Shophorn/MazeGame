@@ -80,7 +80,7 @@ struct FSVulkanLightingUniformBuffer
 	f32 skyColor;
 };
 
-struct FSVulkanModelUniformBuffer
+struct VulkanModelUniformBuffer
 {
 	// Note(Leo): matrices must be aligned on 16 byte boundaries
 	// Todo(Leo): Find the confirmation for this from Vulkan documentation
@@ -269,7 +269,7 @@ struct PlatformGraphics
     VkDescriptorPool		persistentDescriptorPool;
 
     VkDescriptorSetLayout 	modelDescriptorSetLayout;
-    VkDescriptorSet 		modelDescriptorSet;
+    VkDescriptorSet 		modelDescriptorSet[VIRTUAL_FRAME_COUNT];
 
 	VkDescriptorSetLayout 	cameraDescriptorSetLayout;
     VkDescriptorSet 		cameraDescriptorSet[VIRTUAL_FRAME_COUNT];
@@ -347,7 +347,24 @@ struct PlatformGraphics
 	u8 * 			persistentMappedStagingBufferMemory;
 
     VulkanBufferResource staticMeshPool;
-    VulkanBufferResource modelUniformBuffer;
+
+    // VulkanBufferResource modelUniformBuffer[VIRTUAL_FRAME_COUNT];
+
+    VkBuffer 		modelUniformBufferBuffer;
+    VkDeviceMemory 	modelUniformBufferMemory;
+    u8 * 			persistentMappedModelUniformBufferMemory;
+
+    VkDeviceSize	modelUniformBufferFrameCapacity;
+    VkDeviceSize	modelUniformBufferFrameStart[VIRTUAL_FRAME_COUNT];
+    VkDeviceSize	modelUniformBufferFrameUsed[VIRTUAL_FRAME_COUNT];
+
+    VkBuffer  		dynamicMeshBuffer;
+    VkDeviceMemory	dynamicMeshDeviceMemory;
+    u8 *			persistentMappedDynamicMeshMemory;
+
+    VkDeviceSize	dynamicMeshFrameCapacity;
+    VkDeviceSize	dynamicMeshFrameStart[VIRTUAL_FRAME_COUNT];
+    VkDeviceSize	dynamicMeshFrameUsed[VIRTUAL_FRAME_COUNT];
 
     // Todo(Leo): Use our own arena arrays for these.
     // Todo(Leo): That requires access to persistent memory block at platform layer
@@ -367,6 +384,7 @@ struct PlatformGraphics
 	VkPipeline 				linePipeline;
 	VkPipelineLayout 		linePipelineLayout;
 
+	// Todo(Leo): these refer to hdr tonemap/post process pipeline
 	VkPipeline 				passThroughPipeline;
 	VkPipelineLayout 		passThroughPipelineLayout;
 	VkDescriptorSetLayout 	passThroughDescriptorSetLayout; // Todo(Leo): make better name; what descriptor set this is
@@ -385,7 +403,7 @@ struct PlatformGraphics
     VkDeviceMemory 	leafBufferMemory;
     VkDeviceSize 	leafBufferCapacity;
     VkDeviceSize 	leafBufferUsed[VIRTUAL_FRAME_COUNT];
-    void * 			persistentMappedLeafBufferMemory;
+    u8 * 			persistentMappedLeafBufferMemory;
 
     // HÄXÖR SKY
     // Todo(Leo): make smarter
