@@ -1439,11 +1439,11 @@ winapi_vulkan_internal_::init_virtual_frames(VulkanContext * context)
 	for (auto & frame : context->virtualFrames)
 	{
 		// Command buffers
-		bool32 success = vkAllocateCommandBuffers(context->device, &masterCmdAllocateInfo, &frame.commandBuffers.master) == VK_SUCCESS;
-		success = success && vkAllocateCommandBuffers(context->device, &secondaryCmdAllocateInfo, &frame.commandBuffers.scene) == VK_SUCCESS;
-		success = success && vkAllocateCommandBuffers(context->device, &secondaryCmdAllocateInfo, &frame.commandBuffers.gui) == VK_SUCCESS;
+		bool32 success = vkAllocateCommandBuffers(context->device, &masterCmdAllocateInfo, &frame.masterCommandBuffer) == VK_SUCCESS;
+		success = success && vkAllocateCommandBuffers(context->device, &secondaryCmdAllocateInfo, &frame.sceneCommandBuffer) == VK_SUCCESS;
+		success = success && vkAllocateCommandBuffers(context->device, &secondaryCmdAllocateInfo, &frame.guiCommandBuffer) == VK_SUCCESS;
 
-		success = success && vkAllocateCommandBuffers(context->device, &secondaryCmdAllocateInfo, &frame.commandBuffers.offscreen) == VK_SUCCESS;
+		success = success && vkAllocateCommandBuffers(context->device, &secondaryCmdAllocateInfo, &frame.offscreenCommandBuffer) == VK_SUCCESS;
 
 		// Synchronization stuff
 		success = success && vkCreateSemaphore(context->device, &semaphoreInfo, nullptr, &frame.shadowPassWaitSemaphore) == VK_SUCCESS;
