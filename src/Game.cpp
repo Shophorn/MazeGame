@@ -624,8 +624,15 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 					if(game->boxState == BOX_CLOSED)
 					{
 						v3 openPosition = multiply_point(transform_matrix(game->boxTransform), v3{0, 0.6, 0});
+
+						f32 distanceToBox = v3_length(game->boxTransform.position - game->playerCharacterTransform.position);
+						if (distanceToBox < grabDistance)
+						{
+							game->playerCarryState = GO_NONE;
+						}
+
 						f32 distanceToOpenPosition = v3_length(openPosition - game->playerCharacterTransform.position);
-						if (distanceToOpenPosition < grabDistance / 2)
+						if (distanceToOpenPosition < grabDistance)
 						{
 							game->boxState 			= BOX_OPENING;
 							game->boxOpenPercent 	= 0;
@@ -635,7 +642,7 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 					{
 						v3 closePosition = multiply_point(transform_matrix(game->boxTransform), v3{0,-0.6,0});
 						f32 distanceToClosePosition = v3_length(closePosition - game->playerCharacterTransform.position);
-						if (distanceToClosePosition < grabDistance / 2)
+						if (distanceToClosePosition < grabDistance)
 						{
 							game->boxState 			= BOX_CLOSING;
 							game->boxOpenPercent 	= 0;
@@ -1837,6 +1844,8 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 		game->boxCoverLocalTransform 	= {boxPositionOffset};
 	
 		push_static_box_collider(game->collisionSystem, {{0.5,0.5,0.5}, identity_quaternion, {0,0,0.5}}, game->boxTransform);
+
+		game_spawn_tree(*game, boxPosition + v3{0,0,0.1}, 0);
 	}
 
 
