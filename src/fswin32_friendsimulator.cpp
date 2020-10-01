@@ -14,9 +14,27 @@ This is the first file to compile, and everything is included from here.
 #include <mmdeviceapi.h>
 #include <audioclient.h>
 
+#define FS_PLATFORM
 
-#define FRIENDSIMULATOR_PLATFORM
-// Todo(Leo): these should be in different order
+#if defined FS_FULL_GAME
+
+	#define FS_DEVELOPMENT_ONLY(expr) (void(0))
+	#define FS_FULL_GAME_ONLY(expr) expr
+
+	#define FS_ENTRY_POINT int WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
+
+#elif defined FS_DEVELOPMENT
+
+	#define FS_DEVELOPMENT_ONLY(expr) expr
+	#define FS_FULL_GAME_ONLY(expr) (void(0))
+
+	#define FS_ENTRY_POINT int main()
+
+#else
+	#error "FS_DEVELOPMENT or FS_FULL_GAME must be defined."
+#endif
+
+// Todo(Leo): these should be in different order, maybe. Essentials describe some c++ stuff that shouldn't concern platform api
 #include "fs_essentials.hpp"
 #include "fs_platform_interface.hpp"
 
@@ -30,19 +48,17 @@ This is the first file to compile, and everything is included from here.
 #include "fswin32_platform_window.cpp"
 #include "fswin32_game_dll.cpp"
 
-// Todo(Leo): Proper logging and severity system. Severe prints always, and mild only on error
 #include "winapi_ErrorStrings.hpp"
-internal void
-WinApiLog(const char * message, HRESULT result)
-{
-    #if MAZEGAME_DEVELOPMENT
-    if (result != S_OK)
-    {
-    	log_debug(FILE_ADDRESS, message, "(", WinApiErrorString(result), ")");
-    }
-    #endif
-}
 
+#define WIN32_CHECK(result) {if (result != S_OK) { log_debug(FILE_ADDRESS, fswin32_error_string(result), " (", (s32)result, ")"); abort(); }}
+// internal void
+// WinApiLog(const char * message, HRESULT result)
+// {
+//     if (result != S_OK)
+//     {
+//     	log_debug(FILE_ADDRESS, message, "(", fswin32_error_string(result), ")");
+//     }
+// }
 
 #include "winapi_WinSocketDebugStrings.cpp"
 #include "winapi_Audio.cpp"
@@ -52,9 +68,11 @@ WinApiLog(const char * message, HRESULT result)
 #include <vector>
 #include "fsvulkan.cpp"
 
-/* Todo(Leo): We could/should use WinMain, but it allocates no console
-by default so currently we use this */
-int main()
+#if defined FS_FULL_GAME
+	#include "friendsimulator.cpp"
+#endif
+
+FS_ENTRY_POINT
 {
 	HINSTANCE hInstance = GetModuleHandle(nullptr);
 	
@@ -85,17 +103,9 @@ int main()
 		platformMemory.size = gigabytes(2);
 
 		// TODO [MEMORY] (Leo): Check support for large pages
-		#if MAZEGAME_DEVELOPMENT
-		
-		void * baseAddress = (void*)terabytes(2);
+		FS_DEVELOPMENT_ONLY(void * baseAddress = (void*)terabytes(2));
+		FS_FULL_GAME_ONLY(void * baseAddress = nullptr);
 		platformMemory.memory = VirtualAlloc(baseAddress, platformMemory.size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-		
-		#else
-		
-		platformMemory.memory = VirtualAlloc(nullptr, platformMemory.size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-		
-		#endif
-		
 		Assert(platformMemory.memory != nullptr);
 	}
 
@@ -114,10 +124,11 @@ int main()
 	/// ---------- LOAD GAME CODE ----------------------
 	// Note(Leo): Only load game dynamically in development.
 	Win32Game game = {};
-	fswin32_game_load_dll(&game);
-	log_application(1, "Game dll loaded");
 
+	FS_DEVELOPMENT_ONLY(fswin32_game_load_dll(&game));
+	FS_FULL_GAME_ONLY(game.update = update_game);
 
+	game.shouldReInitializeGlobalVariables = true;
 
 	  ////////////////////////////////////////////////////
 	 ///             MAIN LOOP                        ///
@@ -130,25 +141,11 @@ int main()
 	PlatformTimePoint frameFlipTime;
 	f64 lastFrameElapsedSeconds;
 
-	// Note(Leo): Set to true for the first frame
-	bool32 gameShouldReInitializeGlobalVariables = true;
-
 	while(gameIsRunning)
 	{
 		/// ----- RELOAD GAME CODE -----
 
-		FILETIME dllLatestWriteTime = fswin32_file_get_write_time(GAMECODE_DLL_FILE_NAME);
-		if (CompareFileTime(&dllLatestWriteTime, &game.dllWriteTime) > 0)
-		{
-			log_application(0, "Attempting to reload game");
-
-			fswin32_game_unload_dll(&game);
-			fswin32_game_load_dll(&game);
-
-			log_application(0, "Reloaded game");
-
-			gameShouldReInitializeGlobalVariables = true;
-		}
+		FS_DEVELOPMENT_ONLY(fswin32_game_reload(game));
 
 		/// ----- HANDLE INPUT -----
 		{
@@ -240,10 +237,10 @@ int main()
 												&vulkanContext,
 												&window,
 												&apiDescription,
-												gameShouldReInitializeGlobalVariables);
+												game.shouldReInitializeGlobalVariables);
 
 					// Note(Leo): We must set this to false if we actually have passed it to dll function
-					gameShouldReInitializeGlobalVariables = false;
+					game.shouldReInitializeGlobalVariables = false;
 
 					break;
 

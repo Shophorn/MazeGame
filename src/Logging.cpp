@@ -74,7 +74,7 @@ disabled_LogChannel log_audio		= {"AUDIO"};
 
 #define FILE_ADDRESS LogFileAddress{__FILE__, __LINE__}
 
-#if MAZEGAME_DEVELOPMENT
+#if FS_DEVELOPMENT
 void log_assert(char const * filename, int line, char const * message, char const * expression)
 {
 	// Todo(Leo): lol

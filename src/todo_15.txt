@@ -1,0 +1,22 @@
+todo
+
+Distributable game:
+	compile to single exe
+	use winmain to skip console
+		->also log to a text file
+	combined asset file
+
+MVP game loop:
+	start with one seed of each tree, inside boxes
+	clouds, which give water
+	indicator on succesful puzzle completion
+
+Issues:
+	game camera start at player position
+	Name to title screen
+	Stop bouncing seeds in the beginning
+
+
+Sound fx
+
+Done

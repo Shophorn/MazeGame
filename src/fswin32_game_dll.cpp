@@ -15,6 +15,7 @@ struct Win32Game
     // Todo(Leo): Remove functionality from final game
 	HMODULE dllHandle;
     FILETIME dllWriteTime;
+    bool32 shouldReInitializeGlobalVariables;
 
 	UpdateGameFunc * update;	
 };
@@ -46,4 +47,22 @@ internal void fswin32_game_unload_dll(Win32Game * game)
 {
     FreeLibrary(game->dllHandle);
     game->dllHandle =  nullptr;
+}
+
+internal void fswin32_game_reload(Win32Game & game)
+{
+    #if !defined FRIENDSIMULATOR_FULL_GAME
+        FILETIME dllLatestWriteTime = fswin32_file_get_write_time(GAMECODE_DLL_FILE_NAME);
+        if (CompareFileTime(&dllLatestWriteTime, &game.dllWriteTime) > 0)
+        {
+            log_application(0, "Attempting to reload game");
+
+            fswin32_game_unload_dll(&game);
+            fswin32_game_load_dll(&game);
+
+            log_application(0, "Reloaded game");
+
+            game.shouldReInitializeGlobalVariables = true;
+        }
+    #endif
 }

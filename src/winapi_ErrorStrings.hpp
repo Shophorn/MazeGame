@@ -13,7 +13,7 @@ internal char const * WinApiWaveFormatTagString(WORD value)
     }
 }
     
-internal char const * WinApiErrorString(long long error)
+internal char const * fswin32_error_string(long long error)
 {
     switch(error)
     {

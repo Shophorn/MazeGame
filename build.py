@@ -17,7 +17,7 @@ buildTime = '\\""{}\\""'.format(buildTime)
 
 
 silent = '--silent' in sys.argv
-compiler = 'clang++'
+# compiler = 'clang++'
 
 compile_platform = 1
 compile_game = 1
@@ -48,17 +48,16 @@ def compile(call):
 vulkan_sdk = os.environ['VULKAN_SDK']
 print (vulkan_sdk)
 
-### CLANG++
-if compiler == 'clang++':
+devbuild = False
+devbuild = True
+
+### BUILD DEVELOPMENT GAME WITH SEPARATE GAME CODE DLL
+if devbuild:
 	# Build settings
 	flags 		= "-static -std=c++17 -g -gcodeview -O0 -Werror"
 	# flags 		= "-static -std=c++17 -O3"
 
-	definitions = [ "-DMAZEGAME_DEVELOPMENT="		+ str(1),
-					"-DFS_VULKAN_USE_VALIDATION=" 	+ str(1),
-					"-DBUILD_DATE_TIME=" 			+ buildTime]
-	definitions = " ".join(definitions)
-
+	definitions = "-DFS_DEVELOPMENT -DFS_VULKAN_USE_VALIDATION=1 -DBUILD_DATE_TIME=" + buildTime
 	includePath	= "-Iinclude -I{}/Include".format(vulkan_sdk)
 	libPath 	= "-L{}/Lib".format(vulkan_sdk)
 	libLinks	= "-lvulkan-1 -luser32 -lgdi32 -lws2_32 -lole32 -lwinmm"
@@ -81,6 +80,25 @@ if compiler == 'clang++':
 					compiler_path, flags, definitions, includePath)
 
 		game_result = compile(game_call)
+
+else:
+	# Build settings
+	# flags 		= "-static -std=c++17 -g -gcodeview -O0 -Werror"
+	flags 		= "-static -std=c++17 -O0 -Werror"
+
+	definitions = "-DFS_FULL_GAME -DBUILD_DATE_TIME=" + buildTime
+	includePath	= "-Iinclude -I{}/Include".format(vulkan_sdk)
+	libPath 	= "-L{}/Lib".format(vulkan_sdk)
+	libLinks	= "-lvulkan-1 -luser32 -lgdi32 -lws2_32 -lole32 -lwinmm"
+
+	compiler_path = "clang++"
+
+	### COMPILE PLATFORM LAYER
+	platform_call = "{} {} {} {} -o win32_friendsimulator_distributable.exe src/fswin32_friendsimulator.cpp {} {}".format(
+				compiler_path, flags, definitions, includePath, libPath, libLinks)
+	
+	platform_result = compile(platform_call)
+	game_result 	= 0
 
 if (platform_result == 0) and (game_result == 0):
 	exit (0)

@@ -68,7 +68,7 @@ constexpr u32 array_count(const _ (&array)[Count])
     return Count;
 }
 
-#if MAZEGAME_DEVELOPMENT
+#if FS_DEVELOPMENT
 	#define Assert(expr) if(!(expr)) { log_assert(__FILE__, __LINE__, nullptr, #expr);		abort(); }
 	#define AssertMsg(expr, msg) if(!(expr)) { log_assert(__FILE__, __LINE__, msg, #expr); 	abort(); }
 	// Note(Leo): Some things need to asserted in production too, this is a reminder for those only.
@@ -79,7 +79,7 @@ constexpr u32 array_count(const _ (&array)[Count])
 #else
 	#define Assert(expr) 			((void)0);
 	#define AssertMsg(expr, msg)	((void)0);
-	#define AssertRelease 			((void)0);
+	#define AssertRelease(expr, msg)((void)0);
 
 #endif
 

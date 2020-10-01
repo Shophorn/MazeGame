@@ -76,7 +76,7 @@ internal WinApiAudio fswin32_create_audio ()
     WinApiAudio audio = {};    
 
     CoInitializeEx(nullptr, COINIT_MULTITHREADED);
-
+    /*
     WinApiLog(  "Create audio device enumerator",
                 CoCreateInstance(   CLSID_MMDeviceEnumerator, nullptr,
                                         CLSCTX_ALL, IID_IMMDeviceEnumerator ,
@@ -88,6 +88,12 @@ internal WinApiAudio fswin32_create_audio ()
                 audio.pDevice->Activate(IID_IAudioClient, CLSCTX_ALL, nullptr, (void**)&audio.pClient));
 
     WinApiLog("Get audio format", audio.pClient->GetMixFormat(&audio.pFormat));
+    */
+
+    WIN32_CHECK(CoCreateInstance(CLSID_MMDeviceEnumerator, nullptr, CLSCTX_ALL, IID_IMMDeviceEnumerator, (void**)&audio.pEnumerator));
+    WIN32_CHECK(audio.pEnumerator->GetDefaultAudioEndpoint(eRender, eConsole, &audio.pDevice));
+    WIN32_CHECK(audio.pDevice->Activate(IID_IAudioClient, CLSCTX_ALL, nullptr, (void**)&audio.pClient));
+    WIN32_CHECK(audio.pClient->GetMixFormat(&audio.pFormat));
 
     #if 1
     // Todo(Leo): this ugly comma formatting is result from past, fix pls
@@ -104,12 +110,18 @@ internal WinApiAudio fswin32_create_audio ()
     #endif
 
     REFERENCE_TIME requestedDuration = 1 * REFERENCE_TIMES_PER_SECOND;
+    /*
     WinApiLog(  "Initialize audio client",
                 audio.pClient->Initialize(  AUDCLNT_SHAREMODE_SHARED, 0,
                                             requestedDuration, 0, audio.pFormat, nullptr));
 
     WinApiLog("Get buffer size", audio.pClient->GetBufferSize(&audio.bufferFrameCount));
     WinApiLog("Get audio renderer", audio.pClient->GetService(IID_IAudioRenderClient, (void**)&audio.pRenderClient));
+    */
+
+    WIN32_CHECK(audio.pClient->Initialize(AUDCLNT_SHAREMODE_SHARED, 0, requestedDuration, 0, audio.pFormat, nullptr));
+    WIN32_CHECK(audio.pClient->GetBufferSize(&audio.bufferFrameCount));
+    WIN32_CHECK(audio.pClient->GetService(IID_IAudioRenderClient, (void**)&audio.pRenderClient));
 
     return audio;
 }
@@ -136,29 +148,33 @@ internal void fswin32_release_audio(WinApiAudio * audio)
 // Todo(Leo): this seems unnecessary function
 internal void fswin32_start_playing(WinApiAudio * audio)
 {
-    WinApiLog("Start playing audio", audio->pClient->Start());
+    // WinApiLog("Start playing audio", audio->pClient->Start());
+    WIN32_CHECK(audio->pClient->Start());
 }
 
 // Todo(Leo): this seems unnecessary function
 internal void fswin32_stop_playing(WinApiAudio * audio)
 {
-    WinApiLog("Stop playing audio", audio->pClient->Stop());
+    // WinApiLog("Stop playing audio", audio->pClient->Stop());
+    WIN32_CHECK(audio->pClient->Stop());
 }
 
 internal void fswin32_get_audio_buffer(WinApiAudio * audio, int * frameCount, PlatformStereoSoundSample ** samples)
 {
     u32 currentPadding;
-    WinApiLog("Get audio padding", audio->pClient->GetCurrentPadding(&currentPadding));
+    // WinApiLog("Get audio padding", audio->pClient->GetCurrentPadding(&currentPadding));
+    WIN32_CHECK(audio->pClient->GetCurrentPadding(&currentPadding));
     u32 framesAvailable = audio->bufferFrameCount - currentPadding;
 
     u8 ** data = reinterpret_cast<u8 **>(samples);
-    WinApiLog("Get audio buffer", audio->pRenderClient->GetBuffer(framesAvailable, data));
+    // WinApiLog("Get audio buffer", audio->pRenderClient->GetBuffer(framesAvailable, data));
+    WIN32_CHECK(audio->pRenderClient->GetBuffer(framesAvailable, data));
 
     *frameCount = framesAvailable;
 }
 
 internal void fswin32_release_audio_buffer(WinApiAudio * audio, s32 frameCount)
 {
-    WinApiLog("Release audio buffer", audio->pRenderClient->ReleaseBuffer(frameCount, 0));
-
+    // WinApiLog("Release audio buffer", audio->pRenderClient->ReleaseBuffer(frameCount, 0));
+    WIN32_CHECK(audio->pRenderClient->ReleaseBuffer(frameCount, 0));
 }

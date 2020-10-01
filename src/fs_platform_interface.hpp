@@ -6,8 +6,6 @@ Interface definition between Platform and Game.
 
 #if !defined FS_PLATFORM_INTERFACE_HPP
 
-
-
 // Todo(Leo): Assets use these, thats why that is still here	
 enum GraphicsPipeline : s64
 {
@@ -53,6 +51,7 @@ struct PlatformGraphics;
 
 // Note(Leo): this represents windowing system, which is os dependent, and therefore unknown
 struct PlatformWindow;
+struct PlatformApiDescription;
 // struct PlatformNetwork;
 // struct PlatformAudio;
 
@@ -197,27 +196,52 @@ struct PlatformSoundOutput
 	PlatformStereoSoundSample * end() { return samples + sampleCount; }
 };
 
-/// ***********************************************************************
-/// PLATFORM API DESCRIPTION
+/// ----------------- GAME TO PLATFORM API -----------------------------
 
-#if defined FRIENDSIMULATOR_PLATFORM
-	#if defined FRIENDSIMULATOR_GAME_DLL
-		#error "Both FRIENDSIMULATOR_PLATFORM and FRIENDSIMULATOR_GAME_DLL are defined!"
+#if defined FS_PLATFORM
+	#if defined FS_GAME_DLL
+		#error "Both FS_PLATFORM and FS_GAME_DLL are defined!"
 	#endif
 
 	#define FS_PLATFORM_API(func) func
 	#define FS_PLATFORM_API_TYPE(func) decltype(func)*
 	#define FS_PLATFORM_API_SET_FUNCTION(func, ptr) ptr = func
 
-#elif defined FRIENDSIMULATOR_GAME_DLL
+	#define FS_GAME_API
+
+#elif defined FS_GAME_DLL
 
 	#define FS_PLATFORM_API(func) (*func)
 	#define FS_PLATFORM_API_TYPE(func) decltype(func)
 	#define FS_PLATFORM_API_SET_FUNCTION(func, ptr) func = ptr
 
+	#define FS_GAME_API extern "C" __declspec(dllexport)
+
 #else
-	#error "FRIENDSIMULATOR_PLATFORM or FRIENDSIMULATOR_GAME_DLL must be defined!"
+	#error "FS_PLATFORM or FS_GAME_DLL must be defined!"
 #endif
+
+
+
+
+
+
+
+// #if defined FS_GAME_DLL 
+// extern "C" __declspec(dllexport)
+// #endif
+FS_GAME_API bool32 update_game(	const PlatformInput *,
+								const PlatformTime *,
+								PlatformMemory *,
+								PlatformNetwork *,
+								PlatformSoundOutput*,
+								PlatformGraphics *,
+								PlatformWindow *,
+								PlatformApiDescription *,
+								bool32 reInitializeGlobalVariables);
+using UpdateGameFunc = decltype(update_game);
+
+/// ------------------- PLATFORM TO GAME API ----------------------------
 
 PlatformFileHandle FS_PLATFORM_API(platform_file_open) (char const * filename, FileMode);
 void FS_PLATFORM_API(platform_file_close) (PlatformFileHandle);
@@ -268,6 +292,7 @@ void FS_PLATFORM_API(graphics_development_update_texture) (PlatformGraphics*, Te
 void FS_PLATFORM_API(graphics_development_reload_shaders) (PlatformGraphics*);
 
 
+// Todo(Leo): maybe add condition if not FS_FULL_GAME
 struct PlatformApiDescription
 {
 	FS_PLATFORM_API_TYPE(platform_file_open) fileOpen;
@@ -357,17 +382,6 @@ void platform_set_api(PlatformApiDescription * api)
 	FS_PLATFORM_API_SET_FUNCTION(graphics_development_update_texture, api->developmentUpdateTexture);
 	FS_PLATFORM_API_SET_FUNCTION(graphics_development_reload_shaders, api->developmentReloadShaders);
 }
-
-using UpdateGameFunc = bool32(	const PlatformInput *,
-								const PlatformTime *,
-								PlatformMemory *,
-								PlatformNetwork *,
-								PlatformSoundOutput*,
-
-								PlatformGraphics *,
-								PlatformWindow *,
-								PlatformApiDescription *,
-								bool32 reInitializeGlobalVariables);
 
 #define FS_PLATFORM_INTERFACE_HPP
 #endif

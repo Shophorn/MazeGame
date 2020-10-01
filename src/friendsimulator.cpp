@@ -4,15 +4,15 @@ Leo Tamminen
 Friendsimulator game code main file.
 */
 
-#if !defined FRIENDSIMLATOR_PLATFORM
-	#define FRIENDSIMULATOR_GAME_DLL
+#if !defined FS_FULL_GAME
+	#define FS_GAME_DLL
+
+	// Todo(Leo): these should be other way around, platform interface cannot be dependant of c/c++ files
+	#include "fs_essentials.hpp"
+
+	#include "fs_platform_interface.hpp"
+	#include "logging.cpp"
 #endif
-
-// Todo(Leo): these should be other way around, platform interface cannot be dependant of c/c++ files
-#include "fs_essentials.hpp"
-
-#include "fs_platform_interface.hpp"
-#include "logging.cpp"
 
 static PlatformGraphics * 	platformGraphics;
 static PlatformWindow * 	platformWindow;
@@ -154,7 +154,7 @@ static Gui make_main_menu_gui(MemoryArena & allocator)
 	return gui;
 }
 
-static void initialize_game_state(GameState * state, PlatformMemory * memory)
+static void game_init_state(GameState * state, PlatformMemory * memory)
 {
 	*state = {};
 
@@ -177,32 +177,29 @@ static void initialize_game_state(GameState * state, PlatformMemory * memory)
 	state->isInitialized = true;
 }
 
+// Note(Leo): return whether or not game still continues
+// Todo(Leo): indicate meaning of return value betterly somewhere, I almost forgot it.
+FS_GAME_API bool32 update_game(	PlatformInput const *	input,
+								PlatformTime const *	time,
 
+								PlatformMemory * 		memory,
+								PlatformNetwork *		network,
+								PlatformSoundOutput *	soundOutput,
 
-/* Note(Leo): return whether or not game still continues
-Todo(Leo): indicate meaning of return value betterly somewhere, I almost forgot it.
-*/
-extern "C" __declspec(dllexport)  
-bool32 update_game(
-	PlatformInput const *	input,
-	PlatformTime const *	time,
+								PlatformGraphics * 		graphics,
+								PlatformWindow * 		window,
+								PlatformApiDescription * apiDescripition,
 
-	PlatformMemory * 		memory,
-	PlatformNetwork *		network,
-	PlatformSoundOutput *	soundOutput,
-
-	PlatformGraphics * 		graphics,
-	PlatformWindow * 		window,
-	PlatformApiDescription * apiDescripition,
-
-	bool32 gameShouldReInitializeGlobalVariables)
+								bool32 gameShouldReInitializeGlobalVariables)
 {
 	if (gameShouldReInitializeGlobalVariables)
 	{
 		platformGraphics 	= graphics;
 		platformWindow 		= window;
 
+	#if defined FS_GAME_DLL
 		platform_set_api(apiDescripition);
+	#endif
 
 		log_application(1, "Reinitialized global variables");
 	}	
@@ -220,7 +217,7 @@ bool32 update_game(
 
 	if (state->isInitialized == false)
 	{
-		initialize_game_state (state, memory);
+		game_init_state (state, memory);
 	}
 	
 	bool32 gameIsAlive = true;
