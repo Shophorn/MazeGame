@@ -51,14 +51,6 @@ This is the first file to compile, and everything is included from here.
 #include "winapi_ErrorStrings.hpp"
 
 #define WIN32_CHECK(result) {if (result != S_OK) { log_debug(FILE_ADDRESS, fswin32_error_string(result), " (", (s32)result, ")"); abort(); }}
-// internal void
-// WinApiLog(const char * message, HRESULT result)
-// {
-//     if (result != S_OK)
-//     {
-//     	log_debug(FILE_ADDRESS, message, "(", fswin32_error_string(result), ")");
-//     }
-// }
 
 #include "winapi_WinSocketDebugStrings.cpp"
 #include "winapi_Audio.cpp"

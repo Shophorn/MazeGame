@@ -45,7 +45,6 @@ PlatformFileHandle platform_file_open(char const * filename, FileMode fileMode)
 
 	PlatformFileHandle result = (PlatformFileHandle)file;
 	return result;
-
 }
 
 void platform_file_close(PlatformFileHandle file)

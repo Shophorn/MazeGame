@@ -1311,6 +1311,8 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 	// Todo(Leo): leaves are drawn last, so we can bind their shadow pipeline once, and not rebind the normal shadow thing. Fix this inconvenience!
 	// Todo(Leo): leaves are drawn last, so we can bind their shadow pipeline once, and not rebind the normal shadow thing. Fix this inconvenience!
 	// Todo(Leo): leaves are drawn last, so we can bind their shadow pipeline once, and not rebind the normal shadow thing. Fix this inconvenience!
+	// Todo(Leo): leaves are drawn last, so we can bind their shadow pipeline once, and not rebind the normal shadow thing. Fix this inconvenience!
+	// Todo(Leo): leaves are drawn last, so we can bind their shadow pipeline once, and not rebind the normal shadow thing. Fix this inconvenience!
 	// Todo(Leo): This works ok currently, but do fix this, maybe do a proper command buffer for these
 	{
 		for (auto & tree : game->trees)
@@ -1359,14 +1361,6 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 
 	// ----------------------------------------------------------------------------------
 
-	{
-		// Todo(Leo): gui assets to systemtic asset things also
-		TextureAssetData testGuiAsset 	= load_texture_asset(*global_transientMemory, "assets/textures/tiles.png");
-		game->guiPanelImage 		= graphics_memory_push_gui_texture(platformGraphics, &testGuiAsset);
-		game->guiPanelColour 		= colour_rgb_alpha(colour_aqua_blue.rgb, 0.5);
-	}
-
-
 	// Skysphere
 	game->skybox = graphics_memory_push_model(	platformGraphics,
 												assets_get_mesh(game->assets, MESH_ASSET_SKYSPHERE),
@@ -1374,8 +1368,8 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 
 	// Characters
 	{
-		game->playerCarryState 		= GO_NONE;
-		game->playerCharacterTransform = {.position = {10, 0, 5}};
+		game->playerCarryState 			= GO_NONE;
+		game->playerCharacterTransform 	= {.position = {10, 0, 5}};
 
 		auto & motor 	= game->playerCharacterMotor;
 		motor.transform = &game->playerCharacterTransform;
@@ -1480,8 +1474,8 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 				s32 heightmapResolution = 1024;
 
 				// todo(Leo): put to asset system thing
-				auto heightmapTexture 	= load_texture_asset(*global_transientMemory, "assets/textures/heightmap_island.png");
-				heightmap 				= make_heightmap(&persistentMemory, &heightmapTexture, heightmapResolution, mapSize, minTerrainElevation, maxTerrainElevation);
+				TextureAssetData heightmapData = assets_get_texture_data(game->assets, TEXTURE_ASSET_HEIGHTMAP);
+				heightmap 				= make_heightmap(&persistentMemory, &heightmapData, heightmapResolution, mapSize, minTerrainElevation, maxTerrainElevation);
 
 				memory_pop_checkpoint(*global_transientMemory, checkpoint);
 			}

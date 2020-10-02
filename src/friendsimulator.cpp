@@ -168,13 +168,13 @@ static void game_init_state(GameState * state, PlatformMemory * memory)
 	u64 transientMemorySize 		= memory->size / 2;
 	state->transientMemoryArena 	= memory_arena(transientMemory, transientMemorySize);
 
-	state->backgroundAudio = load_audio_clip("assets/sounds/Wind-Mark_DiAngelo-1940285615.wav");
+	state->backgroundAudio 			= load_audio_clip("assets/sounds/Wind-Mark_DiAngelo-1940285615.wav");
 
 	state->gui 					= make_main_menu_gui(state->persistentMemoryArena);
 	auto backGroundImageAsset 	= load_texture_asset(*global_transientMemory, "assets/textures/NighestNouKeyArt.png");
 	state->backgroundImage		= graphics_memory_push_gui_texture(platformGraphics, &backGroundImageAsset);
 
-	state->isInitialized = true;
+	state->isInitialized = true; 
 }
 
 // Note(Leo): return whether or not game still continues

@@ -30,7 +30,7 @@ struct RotationChannel
 struct Animation
 {
 	Array2<TranslationChannel> 	translationChannels;
-	Array2<RotationChannel> 		rotationChannels;
+	Array2<RotationChannel> 	rotationChannels;
 	f32 						duration;
 };
 
@@ -51,6 +51,8 @@ make_bone (Transform3D boneSpaceDefaultTransform, m44 inverseBindMatrix, s32 par
 
 struct AnimatedSkeleton
 {
+	// s32 			boneCount;
+	// AnimatedBone * 	bones;
 	Array2<AnimatedBone> bones;
 };
 

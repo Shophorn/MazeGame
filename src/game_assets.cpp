@@ -1,95 +1,11 @@
-enum MeshAssetId : s32
-{
-	MESH_ASSET_CHARACTER,
-	MESH_ASSET_RACCOON,
-	MESH_ASSET_ROBOT,
-	MESH_ASSET_SKYSPHERE,
-	MESH_ASSET_TOTEM,
-	MESH_ASSET_SMALL_POT,
-	MESH_ASSET_BIG_POT,
-	MESH_ASSET_SEED,
-	MESH_ASSET_WATER_DROP,
-	MESH_ASSET_TRAIN,
+#include "game_asset_id.cpp"
+#include "fs_asset_file_format.cpp"
 
-	MESH_ASSET_MONUMENT_ARCS,
-	MESH_ASSET_MONUMENT_BASE,
-	MESH_ASSET_MONUMENT_TOP_1,
-	MESH_ASSET_MONUMENT_TOP_2,
-
-	MESH_ASSET_BOX,
-	MESH_ASSET_BOX_COVER,	
-
-	MESH_ASSET_COUNT
-};
-
-enum TextureAssetId : s32
-{
-	TEXTURE_ASSET_GROUND_ALBEDO,
-	TEXTURE_ASSET_TILES_ALBEDO,
-	TEXTURE_ASSET_RED_TILES_ALBEDO,
-	TEXTURE_ASSET_SEED_ALBEDO,
-	TEXTURE_ASSET_BARK_ALBEDO,
-	TEXTURE_ASSET_RACCOON_ALBEDO,
-	TEXTURE_ASSET_ROBOT_ALBEDO,
-
-	TEXTURE_ASSET_LEAVES_MASK,
-
-	TEXTURE_ASSET_GROUND_NORMAL,
-	TEXTURE_ASSET_TILES_NORMAL,
-	TEXTURE_ASSET_BARK_NORMAL,
-	TEXTURE_ASSET_ROBOT_NORMAL,
-
-	TEXTURE_ASSET_WHITE,
-	TEXTURE_ASSET_BLACK,
-	TEXTURE_ASSET_FLAT_NORMAL,
-	TEXTURE_ASSET_WATER_BLUE,
-
-	TEXTURE_ASSET_COUNT
-};
-
-enum MaterialAssetId : s32
-{
-	MATERIAL_ASSET_GROUND,
-	MATERIAL_ASSET_ENVIRONMENT,
-	MATERIAL_ASSET_SKY,
-	MATERIAL_ASSET_CHARACTER,
-	MATERIAL_ASSET_SEED,
-	MATERIAL_ASSET_TREE,
-	MATERIAL_ASSET_WATER,
-	MATERIAL_ASSET_RACCOON,
-	MATERIAL_ASSET_ROBOT,
-	MATERIAL_ASSET_SEA,
-	MATERIAL_ASSET_LEAVES,
-	MATERIAL_ASSET_BOX,
-
-	MATERIAL_ASSET_COUNT	
-};
-
-enum AnimationAssetId : s32
-{
-	AAID_RACCOON_EMPTY,
-
-	AAID_CHARACTER_IDLE,
-	AAID_CHARACTER_CROUCH,
-	AAID_CHARACTER_WALK,
-	AAID_CHARACTER_RUN,
-	AAID_CHARACTER_JUMP,
-	AAID_CHARACTER_FALL,
-
-	AAID_COUNT
-};
-
-enum SkeletonAssetId : s32
-{
-	SAID_CHARACTER,
-	SAID_COUNT
-};
-
-struct MeshLoadInfo
-{
-	char const * filename;
-	char const * gltfNodeName;
-};
+// struct MeshLoadInfo
+// {
+// 	char const * filename;
+// 	char const * gltfNodeName;
+// };
 
 struct TextureLoadInfo
 {
@@ -98,7 +14,7 @@ struct TextureLoadInfo
 	
 	bool generateAssetData;
 	
-	char const * filename;
+	// char const * filename;
 	
 	v4 generatedTextureColour;	
 };
@@ -127,7 +43,7 @@ struct GameAssets
 {
 	// GPU MEMORY
 	MeshHandle 			meshes [MESH_ASSET_COUNT];
-	MeshLoadInfo 		meshAssetLoadInfo [MESH_ASSET_COUNT];
+	// MeshLoadInfo 		meshAssetLoadInfo [MESH_ASSET_COUNT];
 
 	TextureHandle 		textures [TEXTURE_ASSET_COUNT];
 	TextureLoadInfo 	textureLoadInfos [TEXTURE_ASSET_COUNT];	
@@ -143,43 +59,46 @@ struct GameAssets
 
 	AnimatedSkeleton * 			skeletons [SAID_COUNT];
 	AnimatedSkeletonLoadInfo 	skeletonLoadInfos [SAID_COUNT];
+
+	PlatformFileHandle 	assetFile;
+	AssetFileHeader 	assetFileHeader;
 };
 
 internal GameAssets init_game_assets(MemoryArena * allocator)
 {
 	// Note(Leo): apparently this does indeed set MeshHandles to -1, which is what we want. I do not know why, though.
 	GameAssets assets 	= {};
-	assets.allocator 	= allocator;
+	assets.assetFile 	= platform_file_open("assets.fsa", FILE_MODE_READ);
+	platform_file_read(assets.assetFile, sizeof(AssetFileHeader), &assets.assetFileHeader);
 
-	assets.meshAssetLoadInfo[MESH_ASSET_RACCOON] 	= {"assets/models/raccoon.glb", "raccoon"};
-	assets.meshAssetLoadInfo[MESH_ASSET_ROBOT] 		= {"assets/models/Robot53.glb", "model_rigged"};
-	assets.meshAssetLoadInfo[MESH_ASSET_CHARACTER] 	= {"assets/models/cube_head_v4.glb", "cube_head"};
-	assets.meshAssetLoadInfo[MESH_ASSET_SKYSPHERE] 	= {"assets/models/skysphere.glb", "skysphere"};
-	assets.meshAssetLoadInfo[MESH_ASSET_TOTEM] 		= {"assets/models/totem.glb", "totem"};
-	assets.meshAssetLoadInfo[MESH_ASSET_SMALL_POT] 	= {"assets/models/scenery.glb", "small_pot"};
-	assets.meshAssetLoadInfo[MESH_ASSET_BIG_POT] 	= {"assets/models/scenery.glb", "big_pot"};
-	assets.meshAssetLoadInfo[MESH_ASSET_SEED] 		= {"assets/models/scenery.glb", "acorn"};
-	assets.meshAssetLoadInfo[MESH_ASSET_WATER_DROP] = {"assets/models/scenery.glb", "water_drop"};
-	assets.meshAssetLoadInfo[MESH_ASSET_TRAIN] 		= {"assets/models/train.glb", "train"};
+	assets.allocator 		= allocator;
 
-	assets.meshAssetLoadInfo[MESH_ASSET_MONUMENT_ARCS] 	= {"assets/models/monuments.glb", "monument_arches"};
-	assets.meshAssetLoadInfo[MESH_ASSET_MONUMENT_BASE] 	= {"assets/models/monuments.glb", "monument_base"};
-	assets.meshAssetLoadInfo[MESH_ASSET_MONUMENT_TOP_1] = {"assets/models/monuments.glb", "monument_ornament_01"};
-	assets.meshAssetLoadInfo[MESH_ASSET_MONUMENT_TOP_2] = {"assets/models/monuments.glb", "monument_ornament_02"};
+	/// ------------------ MESH ASSETS ---------------------
 
-	assets.meshAssetLoadInfo[MESH_ASSET_BOX] 		= {"assets/models/box.glb", "box"};
-	assets.meshAssetLoadInfo[MESH_ASSET_BOX_COVER] 	= {"assets/models/box.glb", "cover"};
+	// assets.meshAssetLoadInfo[MESH_ASSET_RACCOON] 	= {"assets/models/raccoon.glb", "raccoon"};
+	// assets.meshAssetLoadInfo[MESH_ASSET_ROBOT] 		= {"assets/models/Robot53.glb", "model_rigged"};
+	// assets.meshAssetLoadInfo[MESH_ASSET_CHARACTER] 	= {"assets/models/cube_head_v4.glb", "cube_head"};
+	// assets.meshAssetLoadInfo[MESH_ASSET_SKYSPHERE] 	= {"assets/models/skysphere.glb", "skysphere"};
+	// assets.meshAssetLoadInfo[MESH_ASSET_TOTEM] 		= {"assets/models/totem.glb", "totem"};
+	// assets.meshAssetLoadInfo[MESH_ASSET_SMALL_POT] 	= {"assets/models/scenery.glb", "small_pot"};
+	// assets.meshAssetLoadInfo[MESH_ASSET_BIG_POT] 	= {"assets/models/scenery.glb", "big_pot"};
+	// assets.meshAssetLoadInfo[MESH_ASSET_SEED] 		= {"assets/models/scenery.glb", "acorn"};
+	// assets.meshAssetLoadInfo[MESH_ASSET_WATER_DROP] = {"assets/models/scenery.glb", "water_drop"};
+	// assets.meshAssetLoadInfo[MESH_ASSET_TRAIN] 		= {"assets/models/train.glb", "train"};
 
-	// #define MESH_ASSET(id, filename, name) assets.meshAssetLoadInfo[MESH_ASSET_##id] = {"assets/models/##filename", name};
+	// assets.meshAssetLoadInfo[MESH_ASSET_MONUMENT_ARCS] 	= {"assets/models/monuments.glb", "monument_arches"};
+	// assets.meshAssetLoadInfo[MESH_ASSET_MONUMENT_BASE] 	= {"assets/models/monuments.glb", "monument_base"};
+	// assets.meshAssetLoadInfo[MESH_ASSET_MONUMENT_TOP_1] = {"assets/models/monuments.glb", "monument_ornament_01"};
+	// assets.meshAssetLoadInfo[MESH_ASSET_MONUMENT_TOP_2] = {"assets/models/monuments.glb", "monument_ornament_02"};
 
-	// MESH_ASSET(BOX, "box.glb", "box");
-	// MESH_ASSET(BOX_COVER, "box.glb", "cover");
+	// assets.meshAssetLoadInfo[MESH_ASSET_BOX] 		= {"assets/models/box.glb", "box"};
+	// assets.meshAssetLoadInfo[MESH_ASSET_BOX_COVER] 	= {"assets/models/box.glb", "cover"};
 
 	auto load_from_file = [](char const * filename, TextureFormat format = {}, TextureAddressMode addressMode = {}) -> TextureLoadInfo
 	{
 		TextureLoadInfo result 		= {};
 		result.generateAssetData 	= false;
-		result.filename 			= filename;
+		// result.filename 			= filename;
 		result.format 				= format;
 		result.addressMode 			= addressMode;
 		return result;
@@ -214,7 +133,7 @@ internal GameAssets init_game_assets(MemoryArena * allocator)
 	assets.textureLoadInfos[TEXTURE_ASSET_BLACK] 		= load_generated(colour_black, TEXTURE_FORMAT_U8_SRGB);
 	assets.textureLoadInfos[TEXTURE_ASSET_FLAT_NORMAL] 	= load_generated(colour_bump, TEXTURE_FORMAT_U8_LINEAR);
 	assets.textureLoadInfos[TEXTURE_ASSET_WATER_BLUE] 	= load_generated(colour_rgb_alpha(colour_aqua_blue.rgb, 0.4), TEXTURE_FORMAT_U8_SRGB);
-
+ 
 	// ----------- MATERIALS -------------------
 
 	assets.materialLoadInfos[MATERIAL_ASSET_GROUND] 		= {GRAPHICS_PIPELINE_NORMAL, TEXTURE_ASSET_GROUND_ALBEDO, TEXTURE_ASSET_GROUND_NORMAL, TEXTURE_ASSET_BLACK};
@@ -259,9 +178,31 @@ internal MeshHandle assets_get_mesh(GameAssets & assets, MeshAssetId id)
 	
 	if (is_valid_handle(handle) == false)
 	{
-		auto file 			= read_gltf_file(*global_transientMemory, assets.meshAssetLoadInfo[id].filename);
-		auto assetData 		= load_mesh_glb(*global_transientMemory, file, assets.meshAssetLoadInfo[id].gltfNodeName);
-		assets.meshes[id] 	= graphics_memory_push_mesh(platformGraphics, &assetData);
+		AssetFileMesh assetMesh = assets.assetFileHeader.meshes[id];
+
+		u64 vertexMemorySize 	= assetMesh.vertexCount * sizeof(Vertex);
+		u64 skinMemorySize 		= assetMesh.hasSkinning ? assetMesh.vertexCount * sizeof(VertexSkinData) : 0;
+		u64 indexMemorySize 	= assetMesh.indexCount * sizeof(u16);
+		u64 totalMemorySize 	= vertexMemorySize + skinMemorySize + indexMemorySize;
+
+		MeshAssetData data;
+		u8 * dataMemory = push_memory<u8>(*global_transientMemory, totalMemorySize, ALLOC_GARBAGE);
+
+		platform_file_set_position(assets.assetFile, assetMesh.dataOffset);
+		platform_file_read(assets.assetFile, totalMemorySize, dataMemory);
+
+
+		data.vertices 	= reinterpret_cast<Vertex*>(dataMemory);
+		data.skinning 	= assetMesh.hasSkinning ? reinterpret_cast<VertexSkinData*>(dataMemory + vertexMemorySize) : nullptr;
+		data.indices 	= reinterpret_cast<u16*>(dataMemory + vertexMemorySize + skinMemorySize);
+
+		data.vertexCount = assetMesh.vertexCount;
+		data.indexCount = assetMesh.indexCount;
+
+		// Todo(Leo): this is sad, somehow tangents dont come all the way to here
+		mesh_generate_tangents(data);
+
+		assets.meshes[id] 	= graphics_memory_push_mesh(platformGraphics, &data);
 		handle 				= assets.meshes[id];
 	}
 
@@ -279,7 +220,20 @@ internal TextureHandle assets_get_texture(GameAssets & assets, TextureAssetId id
 		TextureAssetData assetData;
 		if (loadInfo.generateAssetData == false)
 		{
-			assetData = load_texture_asset(*global_transientMemory, loadInfo.filename);
+			AssetFileTexture assetTexture = assets.assetFileHeader.textures[id];
+
+			u64 memorySize = assetTexture.width * assetTexture.height * assetTexture.channels;
+
+			assetData = {};
+			assetData.pixelMemory = push_memory<u8>(*global_transientMemory, memorySize, ALLOC_GARBAGE);
+			platform_file_set_position(assets.assetFile, assetTexture.dataOffset);
+			platform_file_read(assets.assetFile, memorySize, assetData.pixelMemory);
+
+			assetData.width 	= assetTexture.width;
+			assetData.height 	= assetTexture.height;
+			assetData.channels 	= assetTexture.channels;
+
+			Assert(assetData.channels == 4);
 		}
 		else
 		{
@@ -295,6 +249,41 @@ internal TextureHandle assets_get_texture(GameAssets & assets, TextureAssetId id
 
 	return handle;
 }
+
+internal TextureAssetData assets_get_texture_data(GameAssets & assets, TextureAssetId id)
+{
+	TextureLoadInfo & loadInfo = assets.textureLoadInfos[id];
+
+	TextureAssetData assetData;
+	if (loadInfo.generateAssetData == false)
+	{
+		AssetFileTexture assetTexture = assets.assetFileHeader.textures[id];
+
+		u64 memorySize = assetTexture.width * assetTexture.height * assetTexture.channels;
+
+		assetData = {};
+		assetData.pixelMemory = push_memory<u8>(*global_transientMemory, memorySize, ALLOC_GARBAGE);
+		platform_file_set_position(assets.assetFile, assetTexture.dataOffset);
+		platform_file_read(assets.assetFile, memorySize, assetData.pixelMemory);
+
+		assetData.width 	= assetTexture.width;
+		assetData.height 	= assetTexture.height;
+		assetData.channels 	= assetTexture.channels;
+
+		Assert(assetData.channels == 4);
+	}
+	else
+	{
+		u32 textureColour 	= colour_rgba_u32(loadInfo.generatedTextureColour);
+		assetData 			= make_texture_asset(&textureColour, 1, 1, 4);
+	}
+
+	assetData.format 		= loadInfo.format;
+	assetData.addressMode 	= loadInfo.addressMode;
+
+	return assetData;
+}
+
 
 internal MaterialHandle assets_get_material(GameAssets & assets, MaterialAssetId id)
 {
