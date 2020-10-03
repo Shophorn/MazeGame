@@ -69,7 +69,7 @@ internal GameAssets init_game_assets(MemoryArena * allocator)
 	// Note(Leo): apparently this does indeed set MeshHandles to -1, which is what we want. I do not know why, though.
 	GameAssets assets 	= {};
 	assets.file 	= platform_file_open("asset_cooker/assets.fsa", FILE_MODE_READ);
-	platform_file_read(assets.file, sizeof(AssetFileHeader), &assets.fileHeader);
+	platform_file_read(assets.file, 0, sizeof(AssetFileHeader), &assets.fileHeader);
 
 	Assert(assets.fileHeader.magic = AssetFileHeader::magicValue);
 	Assert(assets.fileHeader.version = AssetFileHeader::currentVersion);
@@ -191,8 +191,7 @@ internal MeshHandle assets_get_mesh(GameAssets & assets, MeshAssetId id)
 		MeshAssetData data;
 		u8 * dataMemory = push_memory<u8>(*global_transientMemory, totalMemorySize, ALLOC_GARBAGE);
 
-		platform_file_set_position(assets.file, assetMesh.dataOffset);
-		platform_file_read(assets.file, totalMemorySize, dataMemory);
+		platform_file_read(assets.file, assetMesh.dataOffset, totalMemorySize, dataMemory);
 
 
 		data.vertices 	= reinterpret_cast<Vertex*>(dataMemory);
@@ -229,8 +228,7 @@ internal TextureHandle assets_get_texture(GameAssets & assets, TextureAssetId id
 
 			assetData = {};
 			assetData.pixelMemory = push_memory<u8>(*global_transientMemory, memorySize, ALLOC_GARBAGE);
-			platform_file_set_position(assets.file, assetTexture.dataOffset);
-			platform_file_read(assets.file, memorySize, assetData.pixelMemory);
+			platform_file_read(assets.file, assetTexture.dataOffset, memorySize, assetData.pixelMemory);
 
 			assetData.width 		= assetTexture.width;
 			assetData.height 		= assetTexture.height;
@@ -272,8 +270,7 @@ internal TextureAssetData assets_get_texture_data(GameAssets & assets, TextureAs
 
 		assetData = {};
 		assetData.pixelMemory = push_memory<u8>(*global_transientMemory, memorySize, ALLOC_GARBAGE);
-		platform_file_set_position(assets.file, assetTexture.dataOffset);
-		platform_file_read(assets.file, memorySize, assetData.pixelMemory);
+		platform_file_read(assets.file, assetTexture.dataOffset, memorySize, assetData.pixelMemory);
 
 		assetData.width 	= assetTexture.width;
 		assetData.height 	= assetTexture.height;
@@ -365,8 +362,7 @@ internal AnimatedSkeleton * assets_get_skeleton(GameAssets & assets, SkeletonAss
 		AnimatedBone * bonesMemory 	= push_memory<AnimatedBone>(*assets.allocator, boneCount, ALLOC_GARBAGE);
 		u64 memorySize 				= boneCount * sizeof(AnimatedBone);
 		
-		platform_file_set_position(assets.file, assetSkeleton.dataOffset);
-		platform_file_read(assets.file, memorySize, bonesMemory);
+		platform_file_read(assets.file, assetSkeleton.dataOffset, memorySize, bonesMemory);
 
 		skeleton->bones 		= bonesMemory;
 		skeleton->bonesCount 	= boneCount;

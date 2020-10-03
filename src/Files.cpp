@@ -123,12 +123,11 @@ read_binary_file(MemoryArena & allocator, const char * filename)
 
 	Assert(file != nullptr);
 
-	s64 size 				= platform_file_get_size(file);
-	auto result 			= push_array_2<byte>(allocator, size, ALLOC_GARBAGE);
-	auto bufferPtr 			= reinterpret_cast<char *>(result.begin());
+	s64 size 	= platform_file_get_size(file);
+	auto result = push_array_2<byte>(allocator, size, ALLOC_GARBAGE);
 
-	platform_file_read(file, size, bufferPtr);
-	
+	platform_file_read(file, 0, size, result.memory);
+
 	platform_file_close(file);
 	return result;
 }

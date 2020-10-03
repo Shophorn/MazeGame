@@ -52,33 +52,24 @@ void platform_file_close(PlatformFileHandle file)
 	CloseHandle((HANDLE)file);
 }
 
-void platform_file_set_position(PlatformFileHandle file, s64 location)
+void platform_file_write (PlatformFileHandle file, s64 position, s64 count, void * memory)
 {
-	LARGE_INTEGER position;
-	position.QuadPart = location;
-	SetFilePointer((HANDLE)file, position.LowPart, &position.HighPart, FILE_BEGIN);
-}
+	LARGE_INTEGER POSITION; // Note(Leo): lol
+	POSITION.QuadPart = position;
+	SetFilePointer(file, POSITION.LowPart, &POSITION.HighPart, FILE_BEGIN);
 
-s64 platform_file_get_position(PlatformFileHandle file)
-{
-	LARGE_INTEGER position;
-	position.LowPart = SetFilePointer((HANDLE)file, 0, &position.HighPart, FILE_CURRENT);
-	return position.QuadPart;
-}
-
-void platform_file_write (PlatformFileHandle file, s64 count, void * memory)
-{
 	DWORD bytesWritten;
 	WriteFile((HANDLE)file, memory, count, &bytesWritten, nullptr);
 }
 
-void platform_file_read (PlatformFileHandle file, s64 count, void * memory)
+void platform_file_read (PlatformFileHandle file, s64 position, s64 count, void * memory)
 {
-	// Todo(Leo): test if ReadFile also moves file pointer, WriteFile does
+	LARGE_INTEGER POSITION;
+	POSITION.QuadPart = position;
+	SetFilePointer(file, POSITION.LowPart, &POSITION.HighPart, FILE_BEGIN);
+
 	DWORD bytesRead;
 	ReadFile((HANDLE)file, memory, count, &bytesRead, nullptr);
-
-	SetFilePointer((HANDLE)file, count, nullptr, FILE_CURRENT);
 }
 
 s64 platform_file_get_size(PlatformFileHandle file)

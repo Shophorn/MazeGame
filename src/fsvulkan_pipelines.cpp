@@ -40,7 +40,8 @@ internal VkShaderModule fsvulkan_make_shader_module(VkDevice device, char const 
 	s64 fileSize 			= platform_file_get_size(file);
 
 	u32 * memory = reinterpret_cast<u32*>(malloc(fileSize));
-	platform_file_read(file, fileSize, memory);
+	// Todo(Leo): test if ReadFile also moves file pointer, WriteFile does
+	platform_file_read(file, 0, fileSize, memory);
 
 	VkShaderModuleCreateInfo createInfo = {};
 	createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;

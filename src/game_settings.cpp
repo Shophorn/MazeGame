@@ -14,7 +14,7 @@ internal void read_settings_file(SerializedPropertyList<Ts...> serializedObjects
 	s32 fileSize 	= platform_file_get_size(file);
 	char * buffer 	= push_memory<char>(*global_transientMemory, fileSize, ALLOC_GARBAGE);
 
-	platform_file_read(file, fileSize, buffer);
+	platform_file_read(file, 0, fileSize, buffer);
 	platform_file_close(file);	
 
 	String fileAsString = {fileSize, buffer};
@@ -48,9 +48,10 @@ internal void read_settings_file(SerializedPropertyList<Ts...> serializedObjects
 template<typename ... Ts>
 internal void write_settings_file(PlatformFileHandle file, SerializedPropertyList<Ts...> serializedObjects)
 {
+	s64 currentFilePosition = 0;
 
 	for_each_property (
-		[file](auto serializedObject)
+		[file, &currentFilePosition](auto serializedObject)
 		{
 			auto checkpoint = memory_push_checkpoint(*global_transientMemory);
 		
@@ -64,7 +65,8 @@ internal void write_settings_file(PlatformFileHandle file, SerializedPropertyLis
 			serialize_properties(serializedObject.data, serializedFormatString, capacity);
 			string_append_cstring(serializedFormatString, capacity, "]\n\n");
 
-			platform_file_write(file, serializedFormatString.length, serializedFormatString.memory);
+			platform_file_write(file, currentFilePosition, serializedFormatString.length, serializedFormatString.memory);
+			currentFilePosition += serializedFormatString.length;
 
 			memory_pop_checkpoint(*global_transientMemory, checkpoint);
 		},	

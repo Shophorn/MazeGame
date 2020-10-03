@@ -246,10 +246,8 @@ using UpdateGameFunc = decltype(update_game);
 PlatformFileHandle FS_PLATFORM_API(platform_file_open) (char const * filename, FileMode);
 void FS_PLATFORM_API(platform_file_close) (PlatformFileHandle);
 s64 FS_PLATFORM_API(platform_file_get_size) (PlatformFileHandle);
-void FS_PLATFORM_API(platform_file_read) (PlatformFileHandle, s64 count, void * memory);
-void FS_PLATFORM_API(platform_file_write) (PlatformFileHandle, s64 count, void * memory);
-void FS_PLATFORM_API(platform_file_set_position) (PlatformFileHandle, s64 position);
-s64 FS_PLATFORM_API(platform_file_get_position) (PlatformFileHandle);
+void FS_PLATFORM_API(platform_file_read) (PlatformFileHandle, s64 position, s64 count, void * memory);
+void FS_PLATFORM_API(platform_file_write) (PlatformFileHandle, s64 position, s64 count, void * memory);
 
 void FS_PLATFORM_API(platform_log_write) (s32 count, char const * buffer);
 
@@ -300,8 +298,6 @@ struct PlatformApiDescription
 	FS_PLATFORM_API_TYPE(platform_file_get_size) fileSize;
 	FS_PLATFORM_API_TYPE(platform_file_read) fileRead;
 	FS_PLATFORM_API_TYPE(platform_file_write) fileWrite;
-	FS_PLATFORM_API_TYPE(platform_file_set_position) fileSetPosition;
-	FS_PLATFORM_API_TYPE(platform_file_get_position) fileGetPosition;
 
 	FS_PLATFORM_API_TYPE(platform_log_write) logWrite;
 
@@ -345,8 +341,6 @@ void platform_set_api(PlatformApiDescription * api)
 	FS_PLATFORM_API_SET_FUNCTION(platform_file_get_size, api->fileSize);
 	FS_PLATFORM_API_SET_FUNCTION(platform_file_read, api->fileRead);
 	FS_PLATFORM_API_SET_FUNCTION(platform_file_write, api->fileWrite);
-	FS_PLATFORM_API_SET_FUNCTION(platform_file_set_position, api->fileSetPosition);
-	FS_PLATFORM_API_SET_FUNCTION(platform_file_get_position, api->fileGetPosition);
 
 	FS_PLATFORM_API_SET_FUNCTION(platform_log_write, api->logWrite);
 
