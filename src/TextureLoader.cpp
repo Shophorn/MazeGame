@@ -50,8 +50,6 @@ internal TextureAssetData load_texture_asset(MemoryArena & allocator, const char
     result.height   = height;
     result.channels = 4;
 
-    // auto result = make_texture_asset(std::move(pixels), width, height, 4);
-
     stbi_image_free(stbi_pixels);
 
     return result;
@@ -141,7 +139,7 @@ internal Font load_font(char const * fontFilePath)
         }
     }
 
-    auto atlasAsset = make_texture_asset(std::move(fontBitMap), width, height, 4);
+    auto atlasAsset = make_texture_asset(fontBitMap, width, height, 4);
     result.atlasTexture = graphics_memory_push_gui_texture(platformGraphics, &atlasAsset);
 
     return result;

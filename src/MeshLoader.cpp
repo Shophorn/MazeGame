@@ -173,6 +173,11 @@ s32 index_by_name(JsonArray & nodes, char const * name)
 internal Animation
 load_animation_glb(MemoryArena & allocator, GltfFile const & file, char const * animationName)
 {
+	log_debug(FILE_ADDRESS, "loading animation: ", animationName);
+
+	constexpr s32 DEBUG_skeletonBoneCount = CHARACTER_SKELETON_BONE_COUNT;
+	static_assert(DEBUG_skeletonBoneCount == 17);
+
 	AssertMsg(file.json.HasMember("animations"), "No Animations found");
 
 	auto animArray 		= file.json["animations"].GetArray();
@@ -200,26 +205,26 @@ load_animation_glb(MemoryArena & allocator, GltfFile const & file, char const * 
 
 	auto accessors 		= file.json["accessors"].GetArray();
 
-	s32 translationChannelCount = 0;
-	s32 rotationChannelCount = 0;
+	Animation result 				= {};
+	result.channelCount 			= DEBUG_skeletonBoneCount;
+	result.translationChannelInfos 	= push_memory<AnimationChannelInfo>(allocator, result.channelCount, ALLOC_ZERO_MEMORY);
+	result.rotationChannelInfos 	= push_memory<AnimationChannelInfo>(allocator, result.channelCount, ALLOC_ZERO_MEMORY);
 
-	for (auto const & jsonChannel : jsonChannels)
-	{
-		char const * path 	= jsonChannel["target"]["path"].GetString();
+	s32 collectedTranslationKeyframeCount 	= 0;
+	s32 collectedRotationKeyframeCount 		= 0;
 
-		if (cstring_equals(path, "translation"))	{ translationChannelCount += 1; }
-		else if(cstring_equals(path, "rotation")) { rotationChannelCount += 1; }
-		else if (cstring_equals(path, "scale"))	 {}
-		else
-			Assert(false);
-	}
+	auto checkpoint = memory_push_checkpoint(*global_transientMemory);
 
-	Animation result = {};
-	result.translationChannels 	= push_array_2<TranslationChannel>(allocator, translationChannelCount, ALLOC_ZERO_MEMORY);
-	result.rotationChannels 	= push_array_2<RotationChannel>(allocator, rotationChannelCount, ALLOC_ZERO_MEMORY);
+	f32 * collectedTranslationKeyframeTimes = push_memory<f32>(*global_transientMemory, 10000, ALLOC_GARBAGE);
+	v3 * collectedTranslationKeyframeValues = push_memory<v3>(*global_transientMemory, 10000, ALLOC_GARBAGE);
+
+	f32 * collectedRotationKeyframeTimes 			= push_memory<f32>(*global_transientMemory, 10000, ALLOC_GARBAGE);
+	quaternion * collectedRotationKeyframeValues 	= push_memory<quaternion>(*global_transientMemory, 10000, ALLOC_GARBAGE);
 
 	float minTime = highest_f32;
 	float maxTime = lowest_f32;
+
+	s32 translationChannelIndex = 0;
 
 	for (auto const & jsonChannel : jsonChannels)
 	{
@@ -270,6 +275,13 @@ load_animation_glb(MemoryArena & allocator, GltfFile const & file, char const * 
 			continue;
 		}
 
+		// Todo(Leo): this is bad, instead find name and match with enum values
+		// Todo(Leo): this is bad, instead find name and match with enum values
+		// Todo(Leo): this is bad, instead find name and match with enum values
+		// Todo(Leo): this is bad, instead find name and match with enum values
+		// Todo(Leo): this is bad, instead find name and match with enum values
+		// Todo(Leo): this is bad, instead find name and match with enum values
+		// Todo(Leo): this is bad, instead find name and match with enum values
 		s32 targetIndex = -1;
 		{
 			/* Note(Leo): Bones (or joints) are somewhat cumbersomely behind different list, so we need to remap those.
@@ -282,102 +294,103 @@ load_animation_glb(MemoryArena & allocator, GltfFile const & file, char const * 
 		
 			Assert(targetIndex >= 0);
 		}
+
+		// Note(Leo): We skip these animations
+		if (targetIndex >= DEBUG_skeletonBoneCount)
+		{
+			continue;
+		}
 		
 		// ------------------------------------------------------------------------------
 
 		int keyframeCount = accessors[inputAccessor]["count"].GetInt();
+		log_debug(FILE_ADDRESS, "before select: ", keyframeCount);
 
 		float const * timesStart = get_buffer_start<float>(file, inputAccessor);
-		// float const * timesEnd 	= timesStart + keyframeCount;
-		Array2<f32> times = push_array_2<float>(allocator, keyframeCount, ALLOC_GARBAGE);
-		array_2_fill_from_memory(times, keyframeCount, timesStart);
 
-		/* Note(Leo): CUBICSPLINE interpolation has three values in total: inTangent,
-		splineVertex(aka actual keyframe value) and outTangent. */
-		s32 valueCount = interpolationMode == INTERPOLATION_MODE_CUBICSPLINE
-						? keyframeCount * 3
-						: keyframeCount;
+		f32 * times = push_memory<f32>(allocator, keyframeCount, ALLOC_ZERO_MEMORY);
+		memory_copy(times, timesStart, sizeof(f32) * keyframeCount);
+
 
 		switch(channelType)
 		{
 			case ANIMATION_CHANNEL_TRANSLATION:
 			{
-				v3 const * start 		= get_buffer_start<v3>(file, outputAccessor);
-				v3 const * end 			= start + valueCount;
 
-				TranslationChannel channel 	= {};
-				channel.times 				= times;
+				AnimationChannelInfo & info = result.translationChannelInfos[targetIndex];
+				info.firstIndex 			= collectedTranslationKeyframeCount;
+				info.keyframeCount 			= keyframeCount;
+				info.interpolationMode 		= interpolationMode;
+
+				memory_copy(collectedTranslationKeyframeTimes + collectedTranslationKeyframeCount, times, keyframeCount * sizeof(f32));
+
+				v3 const * start 	= get_buffer_start<v3>(file, outputAccessor);
 
 				// Note(Leo): We do not yet support cubicspline interpolation, so we do not need the data for it, convert to linear				
-				if (interpolationMode == INTERPOLATION_MODE_CUBICSPLINE)
+				if (info.interpolationMode == INTERPOLATION_MODE_CUBICSPLINE)
 				{
-					interpolationMode = INTERPOLATION_MODE_LINEAR;
-					
-					channel.translations = push_array_2<v3>(allocator, keyframeCount, ALLOC_GARBAGE);
-					array_2_fill_uninitialized(channel.translations);
+					/* Note(Leo): CUBICSPLINE interpolation has three values in total: inTangent,
+					splineVertex(aka actual keyframe value) and outTangent. */
+					info.interpolationMode = INTERPOLATION_MODE_LINEAR;
 
 					for (s32 keyframeIndex = 0; keyframeIndex < keyframeCount; ++keyframeIndex)
 					{
 						s32 valueIndex = keyframeIndex * 3 + 1;
-						channel.translations[keyframeIndex] = start[valueIndex];
+
+						collectedTranslationKeyframeValues[collectedTranslationKeyframeCount + keyframeIndex] = start[valueIndex];
 					}					
 				}
 				else
 				{
-					channel.translations = push_array_2<v3>(allocator, keyframeCount, ALLOC_GARBAGE);
-					array_2_fill_from_memory(channel.translations, keyframeCount, start);
-
+					memory_copy(collectedTranslationKeyframeValues + collectedTranslationKeyframeCount, start, keyframeCount * sizeof(v3));
 				}
 			  	
-			  	channel.interpolationMode = interpolationMode;
-				channel.targetIndex 		= targetIndex;
 
-				result.translationChannels.push(channel);
+				collectedTranslationKeyframeCount += keyframeCount;
 			} break;
 
 			case ANIMATION_CHANNEL_ROTATION:
 			{
-				quaternion const * start 	= get_buffer_start<quaternion>(file, outputAccessor);
-				quaternion const * end 		= start + valueCount;
 
-				RotationChannel channel 	= {};
-				channel.times 				= std::move(times);
+				AnimationChannelInfo & info = result.rotationChannelInfos[targetIndex];
+				info.firstIndex 			= collectedRotationKeyframeCount;
+				info.keyframeCount 			= keyframeCount;
+				info.interpolationMode 		= interpolationMode;
+
+				memory_copy(collectedRotationKeyframeTimes + collectedRotationKeyframeCount, times, keyframeCount * sizeof(f32));
+
+				quaternion const * start 	= get_buffer_start<quaternion>(file, outputAccessor);
 
 				// Note(Leo): We do not yet support cubicspline interpolation, so we do not need the data for it, convert to linear				
-				if (interpolationMode == INTERPOLATION_MODE_CUBICSPLINE)
+				if (info.interpolationMode == INTERPOLATION_MODE_CUBICSPLINE)
 				{
-					interpolationMode = INTERPOLATION_MODE_LINEAR;
-					
-					channel.rotations = push_array_2<quaternion>(allocator, keyframeCount, ALLOC_GARBAGE);
-					array_2_fill_uninitialized(channel.rotations);
+					info.interpolationMode = INTERPOLATION_MODE_LINEAR;
 
 					for (s32 keyframeIndex = 0; keyframeIndex < keyframeCount; ++keyframeIndex)
 					{
 						s32 valueIndex = keyframeIndex * 3 + 1;
-						channel.rotations[keyframeIndex] = start[valueIndex];
+						collectedRotationKeyframeValues[collectedRotationKeyframeCount + keyframeIndex] = start[valueIndex];
 					}
 				}
 				else
 				{
-					channel.rotations = push_array_2<quaternion>(allocator, keyframeCount, ALLOC_GARBAGE);
-					array_2_fill_from_memory(channel.rotations, keyframeCount, start);
+					memory_copy(collectedRotationKeyframeValues + collectedRotationKeyframeCount, start, keyframeCount * sizeof(quaternion));
 				}
 				
-				channel.interpolationMode 	= interpolationMode;
-				channel.targetIndex 		= targetIndex;
-
 
 				/* Note(Leo): For some reason, we get inverted rotations from blender produced gltf-files,
 				so we need to invert them here. I have not tested glTF files from other sources.
 
 				If interpolation mode is CUBICSPLINE, we also have tangent quaternions, that are not
 				unit length, so we must use proper inversion method for those. */
-				for (auto & rotation : channel.rotations)
+				for(s32 keyframeIndex = 0; keyframeIndex < keyframeCount; ++keyframeIndex)
 				{
-					rotation = inverse_non_unit_quaternion(rotation);
+					collectedRotationKeyframeValues[collectedRotationKeyframeCount + keyframeIndex] = 
+						inverse_non_unit_quaternion(collectedRotationKeyframeValues[collectedRotationKeyframeCount + keyframeIndex]);
 				}
 
-				result.rotationChannels.push(channel);
+				collectedRotationKeyframeCount += keyframeCount;
+
 			} break;
 
 			default:
@@ -391,6 +404,18 @@ load_animation_glb(MemoryArena & allocator, GltfFile const & file, char const * 
 	log_animation(1, "Animation loaded, duration: ", result.duration);
 
 	AssertMsg(minTime == 0, "Probably need to implement support animations that do not start at 0");
+
+	result.translationTimes = push_memory<f32>(allocator, collectedTranslationKeyframeCount, ALLOC_GARBAGE);
+	result.translations 	= push_memory<v3>(allocator, collectedTranslationKeyframeCount, ALLOC_GARBAGE);
+	result.rotationTimes 	= push_memory<f32>(allocator, collectedRotationKeyframeCount, ALLOC_GARBAGE);
+	result.rotations 		= push_memory<quaternion>(allocator, collectedRotationKeyframeCount, ALLOC_GARBAGE);
+
+	memory_copy(result.translationTimes, collectedTranslationKeyframeTimes, sizeof(f32) * collectedTranslationKeyframeCount);
+	memory_copy(result.translations, collectedTranslationKeyframeValues, sizeof(v3) * collectedTranslationKeyframeCount);
+	memory_copy(result.rotationTimes, collectedRotationKeyframeTimes, sizeof(f32) * collectedRotationKeyframeCount);
+	memory_copy(result.rotations, collectedRotationKeyframeValues, sizeof(quaternion) * collectedRotationKeyframeCount);
+
+	memory_pop_checkpoint(*global_transientMemory, checkpoint);
 
 	return result;
 }
@@ -417,8 +442,8 @@ load_skeleton_glb(MemoryArena & allocator, GltfFile const & file, char const * m
 	m44 const * inverseBindMatrices = get_buffer_start<m44>(file, skin["inverseBindMatrices"].GetInt());
 
 	AnimatedSkeleton skeleton 	= {};
-	skeleton.bonesCount 		= boneCount;
-	skeleton.bones 				= push_memory<AnimatedBone>(allocator, skeleton.bonesCount, ALLOC_ZERO_MEMORY);
+	skeleton.boneCount 		= boneCount;
+	skeleton.bones 				= push_memory<AnimatedBone>(allocator, skeleton.boneCount, ALLOC_ZERO_MEMORY);
 
 	
 	for (int boneIndex = 0; boneIndex < boneCount; ++boneIndex)
@@ -490,7 +515,7 @@ load_skeleton_glb(MemoryArena & allocator, GltfFile const & file, char const * m
 	to fix the situation, so we just abort.*/
 	Assert(skeleton.bones[0].parent < 0);
 
-	for (s32 i = 1; i < skeleton.bonesCount; ++i)
+	for (s32 i = 1; i < skeleton.boneCount; ++i)
 	{
 		Assert((skeleton.bones[i].parent < i) && skeleton.bones[i].parent >= 0);
 	}

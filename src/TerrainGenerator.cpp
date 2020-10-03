@@ -301,5 +301,5 @@ internal MeshAssetData generate_terrain(MemoryArena & 	allocator,
 	mesh_generate_normals(result);
 	mesh_generate_tangents(result);
 
-	return std::move(result);
+	return result;
 }

@@ -29,6 +29,12 @@ void memory_copy (void * destination, void const * source, u64 byteCount)
 	memcpy(destination, source, byteCount);
 };
 
+template <typename T>
+internal void memory_copy_structs(T * destination, T const * source, s32 count)
+{
+	memcpy(destination, source, count * sizeof(T));
+}
+
 internal void memory_set(void * memory, char  value, u64 size)
 {
 	memset(memory, value, size);

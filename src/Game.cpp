@@ -12,7 +12,6 @@ Todo(Leo):
 struct Game;
 internal void game_spawn_tree(Game & game, v3 position, s32 treeTypeIndex);
 
-#include "experimental.cpp"
 #include "game_settings.cpp"
 
 
@@ -1394,7 +1393,7 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 		};
 
 		game->playerSkeletonAnimator.boneBoneSpaceTransforms = push_array_2<Transform3D>(	persistentMemory,
-																							game->playerSkeletonAnimator.skeleton->bonesCount,
+																							game->playerSkeletonAnimator.skeleton->boneCount,
 																							ALLOC_ZERO_MEMORY);
 		array_2_fill_with_value(game->playerSkeletonAnimator.boneBoneSpaceTransforms, identity_transform);
 
@@ -1435,7 +1434,7 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 			.animationCount = CharacterAnimations::ANIMATION_COUNT
 		};
 		game->noblePersonSkeletonAnimator.boneBoneSpaceTransforms = push_array_2<Transform3D>(	persistentMemory,
-																								game->noblePersonSkeletonAnimator.skeleton->bonesCount,
+																								game->noblePersonSkeletonAnimator.skeleton->boneCount,
 																								ALLOC_ZERO_MEMORY);
 		array_2_fill_with_value(game->noblePersonSkeletonAnimator.boneBoneSpaceTransforms, identity_transform);
 
@@ -1519,8 +1518,7 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 				game->terrainTransforms[i] = translation_matrix(leftBackCornerPosition);
 			}
 
-			// Todo(Leo): use better(dumber but smarter) thing to get rid of std move
-			game->collisionSystem.terrainCollider 	= std::move(heightmap);
+			game->collisionSystem.terrainCollider 	= heightmap;
 			game->collisionSystem.terrainOffset = {{-mapSize / 2, -mapSize / 2, 0}};
 
 			MeshAssetData seaMeshAsset = {};

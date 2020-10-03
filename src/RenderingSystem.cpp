@@ -46,16 +46,14 @@ void update_animated_renderer(m44 * boneTransformMatrices, SkeletonAnimator cons
 	auto const & boneSpaceTransforms 	= animator.boneBoneSpaceTransforms;
 	auto const & skeleton 				= *animator.skeleton;
 
-	s32 boneCount = skeleton.bonesCount;
-
 	boneTransformMatrices[0] = transform_matrix(boneSpaceTransforms[0]);
-	for (s32 i = 1; i < boneCount; ++i)
+	for (s32 i = 1; i < skeleton.boneCount; ++i)
 	{
 		s32 parentIndex 			= skeleton.bones[i].parent;
 		boneTransformMatrices[i] 	= boneTransformMatrices[parentIndex] * transform_matrix(boneSpaceTransforms[i]);
 	}
 
-	for (s32 i = 0; i < boneCount; ++i)
+	for (s32 i = 0; i < skeleton.boneCount; ++i)
 	{
 		boneTransformMatrices[i] = boneTransformMatrices[i] * skeleton.bones[i].inverseBindMatrix;
 	}

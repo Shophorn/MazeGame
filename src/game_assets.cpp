@@ -1,12 +1,6 @@
 #include "game_asset_id.cpp"
 #include "fs_asset_file_format.cpp"
 
-// struct MeshLoadInfo
-// {
-// 	char const * filename;
-// 	char const * gltfNodeName;
-// };
-
 struct TextureLoadInfo
 {
 	TextureFormat 		format;
@@ -29,8 +23,9 @@ struct MaterialLoadInfo
 
 struct AnimationLoadInfo
 {
-	char const * filename;
-	char const * gltfNodeName;
+	char const * 	filename;
+	char const * 	gltfNodeName;
+	SkeletonAssetId targetSkeleton;
 };
 
 struct AnimatedSkeletonLoadInfo
@@ -55,10 +50,12 @@ struct GameAssets
 	MemoryArena * allocator;
 
 	Animation *			animations [AAID_COUNT];
-	AnimationLoadInfo 	animationLoadInfos [AAID_COUNT];
+	AnimatedSkeleton * 	skeletons [SAID_COUNT];
+	
 
-	AnimatedSkeleton * 			skeletons [SAID_COUNT];
-	AnimatedSkeletonLoadInfo 	skeletonLoadInfos [SAID_COUNT];
+	// AnimationLoadInfo 	animationLoadInfos [AAID_COUNT];
+
+	// AnimatedSkeletonLoadInfo 	skeletonLoadInfos [SAID_COUNT];
 
 	PlatformFileHandle 	file;
 	AssetFileHeader 	fileHeader;
@@ -159,18 +156,18 @@ internal GameAssets init_game_assets(MemoryArena * allocator)
 
 	// ------------- ANIMATIONS ---------------------
 
-	assets.animationLoadInfos[AAID_CHARACTER_IDLE]		= {"assets/models/cube_head_v3.glb", "Idle"};
-	assets.animationLoadInfos[AAID_CHARACTER_WALK]		= {"assets/models/cube_head_v3.glb", "Walk"};
-	assets.animationLoadInfos[AAID_CHARACTER_RUN]		= {"assets/models/cube_head_v3.glb", "Run"};
-	assets.animationLoadInfos[AAID_CHARACTER_JUMP]		= {"assets/models/cube_head_v3.glb", "JumpUp"};
-	assets.animationLoadInfos[AAID_CHARACTER_FALL]		= {"assets/models/cube_head_v3.glb", "JumpDown"};
-	assets.animationLoadInfos[AAID_CHARACTER_CROUCH] 	= {"assets/models/cube_head_v3.glb", "Crouch"};
+	// assets.animationLoadInfos[AAID_CHARACTER_IDLE]		= {"assets/models/cube_head_v3.glb", "Idle", SAID_CHARACTER};
+	// assets.animationLoadInfos[AAID_CHARACTER_WALK]		= {"assets/models/cube_head_v3.glb", "Walk", SAID_CHARACTER};
+	// assets.animationLoadInfos[AAID_CHARACTER_RUN]		= {"assets/models/cube_head_v3.glb", "Run", SAID_CHARACTER};
+	// assets.animationLoadInfos[AAID_CHARACTER_JUMP]		= {"assets/models/cube_head_v3.glb", "JumpUp", SAID_CHARACTER};
+	// assets.animationLoadInfos[AAID_CHARACTER_FALL]		= {"assets/models/cube_head_v3.glb", "JumpDown", SAID_CHARACTER};
+	// assets.animationLoadInfos[AAID_CHARACTER_CROUCH] 	= {"assets/models/cube_head_v3.glb", "Crouch", SAID_CHARACTER};
 
-	assets.animationLoadInfos[AAID_RACCOON_EMPTY] = {};
+	// assets.animationLoadInfos[AAID_RACCOON_EMPTY] = {};
 
 	// ------------- SKELETONS ----------------------------
 
-	assets.skeletonLoadInfos[SAID_CHARACTER] = {"assets/models/cube_head_v4.glb", "cube_head"};
+	// assets.skeletonLoadInfos[SAID_CHARACTER] = {"assets/models/cube_head_v4.glb", "cube_head"};
 
 	return assets;
 }
@@ -327,18 +324,50 @@ internal Animation * assets_get_animation(GameAssets & assets, AnimationAssetId 
 
 	if (animation == nullptr)
 	{
-		auto & loadInfo = assets.animationLoadInfos[id];
-		animation 		= push_memory<Animation>(*assets.allocator, 1, ALLOC_ZERO_MEMORY);
-
-		if (loadInfo.filename && loadInfo.gltfNodeName)
+		if (id == AAID_RACCOON_EMPTY)
 		{
-			auto file 	= read_gltf_file(*global_transientMemory, loadInfo.filename);
-			*animation 	= load_animation_glb(*assets.allocator, file, loadInfo.gltfNodeName);
+			animation 	= push_memory<Animation>(*assets.allocator, 1, ALLOC_ZERO_MEMORY);
+			*animation 	= {};
 		}
 		else
 		{
-			log_debug(FILE_ADDRESS, "Loading empty animation");
-			*animation 	= {};
+			AssetFileAnimation asset = assets.fileHeader.animations[id];
+
+			animation = push_memory<Animation>(*assets.allocator, 1, ALLOC_ZERO_MEMORY);
+
+			animation->channelCount = asset.channelCount;
+			animation->duration 	= asset.duration;
+
+
+			s64 translationInfoSize 	= asset.channelCount * sizeof(AnimationChannelInfo);
+			s64 rotationInfoSize 		= asset.channelCount * sizeof(AnimationChannelInfo);
+
+			s64 translationTimesSize 	= asset.totalTranslationKeyframeCount * sizeof(f32);
+			s64 rotationTimesSize 		= asset.totalRotationKeyframeCount * sizeof(f32);
+
+			s64 translationValuesSize 	= asset.totalTranslationKeyframeCount * sizeof(v3);
+			s64 rotationValuesSize 		= asset.totalRotationKeyframeCount * sizeof(quaternion);
+
+			s64 totalMemorySize = translationInfoSize
+								+ rotationInfoSize
+								+ translationTimesSize
+								+ rotationTimesSize
+								+ translationValuesSize
+								+ rotationValuesSize;
+
+			u8 * memory = push_memory<u8>(*assets.allocator, totalMemorySize, ALLOC_GARBAGE);
+
+			platform_file_read(assets.file, asset.dataOffset, totalMemorySize, memory);
+
+			// Note(Leo): We should be cool, these should all align on 4 bytes
+			animation->translationChannelInfos 	= reinterpret_cast<AnimationChannelInfo*>(memory);	memory += translationInfoSize;
+			animation->rotationChannelInfos 	= reinterpret_cast<AnimationChannelInfo*>(memory);	memory += rotationInfoSize;
+			animation->translationTimes 		= reinterpret_cast<f32*>(memory); 					memory += translationTimesSize;
+			animation->rotationTimes 			= reinterpret_cast<f32*>(memory);					memory += rotationTimesSize;
+			animation->translations 			= reinterpret_cast<v3*>(memory);					memory += translationValuesSize;
+			animation->rotations 				= reinterpret_cast<quaternion*>(memory);			memory +=  rotationValuesSize;
+
+			log_debug(FILE_ADDRESS, "Asset file animations seem to work!!");
 		}
 
 		assets.animations[id] = animation;
@@ -365,7 +394,7 @@ internal AnimatedSkeleton * assets_get_skeleton(GameAssets & assets, SkeletonAss
 		platform_file_read(assets.file, assetSkeleton.dataOffset, memorySize, bonesMemory);
 
 		skeleton->bones 		= bonesMemory;
-		skeleton->bonesCount 	= boneCount;
+		skeleton->boneCount 	= boneCount;
 		
 		assets.skeletons[id] = skeleton;
 	}	

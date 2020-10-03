@@ -24,6 +24,8 @@ Todo(Leo):
 #include "Transform3D.cpp"
 // #include "Animator.cpp"
 
+#include "animations.hpp"
+
 // Todo(Leo): make and use headers, so we actually get types right, if we change something
 // Note(leo): or maybe not, this is just offline data loading and it doesn't need to directly mirror runtime
 struct AnimatedBone
@@ -126,6 +128,50 @@ static void cook_mesh(MeshAssetId id, char const * filename, char const * gltfNo
 	free(data.indices);
 }
 
+static void cook_animation(AnimationAssetId id, char const * gltfFileName, char const * animationName)
+{
+	auto data = asset_cooker_load_animation_glb(gltfFileName, animationName);
+
+	global_header->animations[id].dataOffset 	= global_dataPosition;
+
+	global_header->animations[id].channelCount 					= data.animation.channelCount;
+	global_header->animations[id].duration 						= data.animation.duration;
+	global_header->animations[id].totalTranslationKeyframeCount = data.totalTranslationKeyframeCount;
+	global_header->animations[id].totalRotationKeyframeCount 	= data.totalRotationKeyframeCount;
+
+	s64 translationInfoSize = data.animation.channelCount * sizeof(AnimationChannelInfo);
+	s64 rotationInfoSize = data.animation.channelCount * sizeof(AnimationChannelInfo);
+
+	s64 translationTimesSize = data.totalTranslationKeyframeCount * sizeof(f32);
+	s64 rotationTimesSize = data.totalRotationKeyframeCount * sizeof(f32);
+
+	s64 translationValuesSize = data.totalTranslationKeyframeCount * sizeof(v3);
+	s64 rotationValuesSize = data.totalRotationKeyframeCount * sizeof(quaternion);
+
+	u64 & position = global_dataPosition;
+	
+	write(position, translationInfoSize, data.animation.translationChannelInfos);
+	position += translationInfoSize;
+
+	write(position, rotationInfoSize, data.animation.rotationChannelInfos);
+	position += rotationInfoSize;
+
+	write(position, translationTimesSize, data.animation.translationTimes);
+	position += translationTimesSize;
+
+	write(position, rotationTimesSize, data.animation.rotationTimes);
+	position += rotationTimesSize;
+
+	write(position, translationValuesSize, data.animation.translations);
+	position += translationValuesSize;
+
+	write(position, rotationValuesSize, data.animation.rotations);
+	position += rotationValuesSize;
+
+	std::cout << "COOK ANIMATION: " << gltfFileName << ", " << animationName << "\n";
+
+}
+
 static void cook_skeleton(SkeletonAssetId id, char const * gltfFileName, char const * gltfNodeName)
 {
 	AnimatedSkeleton data = asset_cooker_load_skeleton_glb(gltfFileName, gltfNodeName);
@@ -226,7 +272,16 @@ int main()
 	cook_skeleton(SAID_CHARACTER, "cube_head_v4.glb", "cube_head");
 
 	cout << "Skeletons cooked!\n";
-	
+
+	cook_animation(AAID_CHARACTER_IDLE,		 "cube_head_v3.glb", "Idle");
+	cook_animation(AAID_CHARACTER_WALK,		 "cube_head_v3.glb", "Walk");
+	cook_animation(AAID_CHARACTER_RUN,		 "cube_head_v3.glb", "Run");
+	cook_animation(AAID_CHARACTER_JUMP,		 "cube_head_v3.glb", "JumpUp");
+	cook_animation(AAID_CHARACTER_FALL,		 "cube_head_v3.glb", "JumpDown");
+	cook_animation(AAID_CHARACTER_CROUCH, 	 "cube_head_v3.glb", "Crouch");
+
+	cout << "Animations cooked!\n";
+
 	// -------------------------------------------------------------
 
 	write(0, sizeof(AssetFileHeader), &header);

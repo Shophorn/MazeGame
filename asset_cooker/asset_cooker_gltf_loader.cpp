@@ -13,23 +13,6 @@ namespace glTF
 	// https://github.com/KhronosGroup/glTF/tree/master/specification/2.0
 	// https://raw.githubusercontent.com/KhronosGroup/glTF/master/specification/2.0/figures/gltfOverview-2.0.0b.png
 
-	inline constexpr u32 magicNumber = 0x46546C67;
-
-
-	inline constexpr s32 headerLength 			= 3 * sizeof(u32);
-	inline constexpr s32 chunkInfoLength 		= 2 * sizeof(u32);  
-	
-	inline constexpr s32 chunkLengthPosition 	= 0 * sizeof(u32);
-	inline constexpr s32 chunkTypePosition 		= 1 * sizeof(u32);
-
-	/* Note(Leo): These are as UINT32 values in raw binary file,
-	as they denote what type the next chunk is. */
-	enum ChunkType : u32
-	{ 
-		CHUNK_TYPE_JSON	 	= 0x4e4f534a,  	// ASCII: JSON
-		CHUNK_TYPE_BINARY 	= 0x004e4942	// ASCII: BIN 
-	};
-
 	/* Note(Leo): These are stored as Json number literals in text format,
 	so we can use s32 to represent these. */
 	enum ComponentType : s32
@@ -256,10 +239,25 @@ s32 index_by_name(JsonArray & nodes, char const * name)
 	return -1;
 }
 
-#if 0
-internal Animation
-load_animation_glb(MemoryArena & allocator, GltfFile const & file, char const * animationName)
+#if 1
+struct AssetCookerAnimationLoadData
 {
+	Animation animation;
+
+	u64 totalTranslationKeyframeCount;
+	u64 totalRotationKeyframeCount;
+};
+
+internal AssetCookerAnimationLoadData
+asset_cooker_load_animation_glb(char const * filename, char const * animationName)
+{
+	glTFFile const & file = read_gltf_file(filename);
+
+	std::cout << "loading animation: " << animationName << "\n";
+
+	constexpr s32 DEBUG_skeletonBoneCount = CHARACTER_SKELETON_BONE_COUNT;
+	static_assert(DEBUG_skeletonBoneCount == 17);
+
 	AssertMsg(file.json.HasMember("animations"), "No Animations found");
 
 	auto animArray 		= file.json["animations"].GetArray();
@@ -267,16 +265,10 @@ load_animation_glb(MemoryArena & allocator, GltfFile const & file, char const * 
 
 	if(animationIndex < 0)
 	{
-		s32 logMessageCapacity = 2048;
-		String logMessage = push_temp_string(logMessageCapacity);
-		string_append_format(logMessage, logMessageCapacity, "Animation not found. Requested: ", animationName, ", available: \n");
-
-		// auto log = log_debug();
-		// log << "Animation not found. Requested: " << animationName << ", available:\n";
+		std::cout << "Animation not found. Requested: " << animationName << ", available:\n";
 		for (auto const & anim : animArray)
 		{
-			string_append_format(logMessage, logMessageCapacity, "\t", anim["name"].GetString(), "\n");
-			// log << "\t" << anim["name"].GetString() << "\n";
+			std::cout << "\t" << anim["name"].GetString() << "\n";
 		}
 	}
 	Assert(animationIndex >= 0);
@@ -287,26 +279,24 @@ load_animation_glb(MemoryArena & allocator, GltfFile const & file, char const * 
 
 	auto accessors 		= file.json["accessors"].GetArray();
 
-	s32 translationChannelCount = 0;
-	s32 rotationChannelCount = 0;
+	Animation result 				= {};
+	result.channelCount 			= DEBUG_skeletonBoneCount;
+	result.translationChannelInfos 	= allocate<AnimationChannelInfo>(result.channelCount); memset(result.translationChannelInfos, 0, sizeof(AnimationChannelInfo) * result.channelCount);
+	result.rotationChannelInfos 	= allocate<AnimationChannelInfo>(result.channelCount); memset(result.rotationChannelInfos, 0, sizeof(AnimationChannelInfo) * result.channelCount);
 
-	for (auto const & jsonChannel : jsonChannels)
-	{
-		char const * path 	= jsonChannel["target"]["path"].GetString();
+	s32 collectedTranslationKeyframeCount 	= 0;
+	s32 collectedRotationKeyframeCount 		= 0;
 
-		if (cstring_equals(path, "translation"))	{ translationChannelCount += 1; }
-		else if(cstring_equals(path, "rotation")) { rotationChannelCount += 1; }
-		else if (cstring_equals(path, "scale"))	 {}
-		else
-			Assert(false);
-	}
+	f32 * collectedTranslationKeyframeTimes = allocate<f32>(10000);
+	v3 * collectedTranslationKeyframeValues = allocate<v3>(10000);
 
-	Animation result = {};
-	result.translationChannels 	= push_array_2<TranslationChannel>(allocator, translationChannelCount, ALLOC_ZERO_MEMORY);
-	result.rotationChannels 	= push_array_2<RotationChannel>(allocator, rotationChannelCount, ALLOC_ZERO_MEMORY);
+	f32 * collectedRotationKeyframeTimes 			= allocate<f32>(10000);
+	quaternion * collectedRotationKeyframeValues 	= allocate<quaternion>(10000);
 
 	float minTime = highest_f32;
 	float maxTime = lowest_f32;
+
+	s32 translationChannelIndex = 0;
 
 	for (auto const & jsonChannel : jsonChannels)
 	{
@@ -357,6 +347,13 @@ load_animation_glb(MemoryArena & allocator, GltfFile const & file, char const * 
 			continue;
 		}
 
+		// Todo(Leo): this is bad, instead find name and match with enum values
+		// Todo(Leo): this is bad, instead find name and match with enum values
+		// Todo(Leo): this is bad, instead find name and match with enum values
+		// Todo(Leo): this is bad, instead find name and match with enum values
+		// Todo(Leo): this is bad, instead find name and match with enum values
+		// Todo(Leo): this is bad, instead find name and match with enum values
+		// Todo(Leo): this is bad, instead find name and match with enum values
 		s32 targetIndex = -1;
 		{
 			/* Note(Leo): Bones (or joints) are somewhat cumbersomely behind different list, so we need to remap those.
@@ -365,9 +362,15 @@ load_animation_glb(MemoryArena & allocator, GltfFile const & file, char const * 
 
 			auto bonesArray 	= file.json["skins"][0]["joints"].GetArray();
 			s32 targetNode 		= jsonChannel["target"]["node"].GetInt();
-			targetIndex = find_bone_by_node(bonesArray, targetNode);
+			targetIndex 		= find_bone_by_node(bonesArray, targetNode);
 		
 			Assert(targetIndex >= 0);
+		}
+
+		// Note(Leo): We skip these animations
+		if (targetIndex >= DEBUG_skeletonBoneCount)
+		{
+			continue;
 		}
 		
 		// ------------------------------------------------------------------------------
@@ -375,112 +378,126 @@ load_animation_glb(MemoryArena & allocator, GltfFile const & file, char const * 
 		int keyframeCount = accessors[inputAccessor]["count"].GetInt();
 
 		float const * timesStart = get_buffer_start<float>(file, inputAccessor);
-		// float const * timesEnd 	= timesStart + keyframeCount;
-		Array2<f32> times = push_array_2<float>(allocator, keyframeCount, ALLOC_GARBAGE);
-		array_2_fill_from_memory(times, keyframeCount, timesStart);
 
-		/* Note(Leo): CUBICSPLINE interpolation has three values in total: inTangent,
-		splineVertex(aka actual keyframe value) and outTangent. */
-		s32 valueCount = interpolationMode == INTERPOLATION_MODE_CUBICSPLINE
-						? keyframeCount * 3
-						: keyframeCount;
+		f32 * times = allocate<f32>(keyframeCount);
+		memcpy(times, timesStart, sizeof(f32) * keyframeCount);
+
 
 		switch(channelType)
 		{
 			case ANIMATION_CHANNEL_TRANSLATION:
 			{
-				v3 const * start 		= get_buffer_start<v3>(file, outputAccessor);
-				v3 const * end 			= start + valueCount;
 
-				TranslationChannel channel 	= {};
-				channel.times 				= times;
+				AnimationChannelInfo & info = result.translationChannelInfos[targetIndex];
+				info.firstIndex 			= collectedTranslationKeyframeCount;
+				info.keyframeCount 			= keyframeCount;
+				info.interpolationMode 		= interpolationMode;
+
+				memcpy(collectedTranslationKeyframeTimes + collectedTranslationKeyframeCount, times, keyframeCount * sizeof(f32));
+
+				v3 const * start 	= get_buffer_start<v3>(file, outputAccessor);
 
 				// Note(Leo): We do not yet support cubicspline interpolation, so we do not need the data for it, convert to linear				
-				if (interpolationMode == INTERPOLATION_MODE_CUBICSPLINE)
+				if (info.interpolationMode == INTERPOLATION_MODE_CUBICSPLINE)
 				{
-					interpolationMode = INTERPOLATION_MODE_LINEAR;
-					
-					channel.translations = push_array_2<v3>(allocator, keyframeCount, ALLOC_GARBAGE);
-					array_2_fill_uninitialized(channel.translations);
+					/* Note(Leo): CUBICSPLINE interpolation has three values in total: inTangent,
+					splineVertex(aka actual keyframe value) and outTangent. */
+					info.interpolationMode = INTERPOLATION_MODE_LINEAR;
 
 					for (s32 keyframeIndex = 0; keyframeIndex < keyframeCount; ++keyframeIndex)
 					{
 						s32 valueIndex = keyframeIndex * 3 + 1;
-						channel.translations[keyframeIndex] = start[valueIndex];
+
+						collectedTranslationKeyframeValues[collectedTranslationKeyframeCount + keyframeIndex] = start[valueIndex];
 					}					
 				}
 				else
 				{
-					channel.translations = push_array_2<v3>(allocator, keyframeCount, ALLOC_GARBAGE);
-					array_2_fill_from_memory(channel.translations, keyframeCount, start);
-
+					memcpy(collectedTranslationKeyframeValues + collectedTranslationKeyframeCount, start, keyframeCount * sizeof(v3));
 				}
 			  	
-			  	channel.interpolationMode = interpolationMode;
-				channel.targetIndex 		= targetIndex;
 
-				result.translationChannels.push(channel);
+				collectedTranslationKeyframeCount += keyframeCount;
 			} break;
 
 			case ANIMATION_CHANNEL_ROTATION:
 			{
-				quaternion const * start 	= get_buffer_start<quaternion>(file, outputAccessor);
-				quaternion const * end 		= start + valueCount;
 
-				RotationChannel channel 	= {};
-				channel.times 				= std::move(times);
+				AnimationChannelInfo & info = result.rotationChannelInfos[targetIndex];
+				info.firstIndex 			= collectedRotationKeyframeCount;
+				info.keyframeCount 			= keyframeCount;
+				info.interpolationMode 		= interpolationMode;
+
+				memcpy(collectedRotationKeyframeTimes + collectedRotationKeyframeCount, times, keyframeCount * sizeof(f32));
+
+				quaternion const * start 	= get_buffer_start<quaternion>(file, outputAccessor);
 
 				// Note(Leo): We do not yet support cubicspline interpolation, so we do not need the data for it, convert to linear				
-				if (interpolationMode == INTERPOLATION_MODE_CUBICSPLINE)
+				if (info.interpolationMode == INTERPOLATION_MODE_CUBICSPLINE)
 				{
-					interpolationMode = INTERPOLATION_MODE_LINEAR;
-					
-					channel.rotations = push_array_2<quaternion>(allocator, keyframeCount, ALLOC_GARBAGE);
-					array_2_fill_uninitialized(channel.rotations);
+					info.interpolationMode = INTERPOLATION_MODE_LINEAR;
 
 					for (s32 keyframeIndex = 0; keyframeIndex < keyframeCount; ++keyframeIndex)
 					{
 						s32 valueIndex = keyframeIndex * 3 + 1;
-						channel.rotations[keyframeIndex] = start[valueIndex];
+						collectedRotationKeyframeValues[collectedRotationKeyframeCount + keyframeIndex] = start[valueIndex];
 					}
 				}
 				else
 				{
-					channel.rotations = push_array_2<quaternion>(allocator, keyframeCount, ALLOC_GARBAGE);
-					array_2_fill_from_memory(channel.rotations, keyframeCount, start);
+					memcpy(collectedRotationKeyframeValues + collectedRotationKeyframeCount, start, keyframeCount * sizeof(quaternion));
 				}
 				
-				channel.interpolationMode 	= interpolationMode;
-				channel.targetIndex 		= targetIndex;
-
 
 				/* Note(Leo): For some reason, we get inverted rotations from blender produced gltf-files,
 				so we need to invert them here. I have not tested glTF files from other sources.
 
 				If interpolation mode is CUBICSPLINE, we also have tangent quaternions, that are not
 				unit length, so we must use proper inversion method for those. */
-				for (auto & rotation : channel.rotations)
+				for(s32 keyframeIndex = 0; keyframeIndex < keyframeCount; ++keyframeIndex)
 				{
-					rotation = inverse_non_unit_quaternion(rotation);
+					collectedRotationKeyframeValues[collectedRotationKeyframeCount + keyframeIndex] = 
+						inverse_non_unit_quaternion(collectedRotationKeyframeValues[collectedRotationKeyframeCount + keyframeIndex]);
 				}
 
-				result.rotationChannels.push(channel);
+				collectedRotationKeyframeCount += keyframeCount;
+
 			} break;
 
 			default:
-				log_debug(FILE_ADDRESS, "Invalid or unimplemented animation channel: '", channelType, "' for bone ", targetIndex);
+				std::cout << "Invalid or unimplemented animation channel: '" << channelType << "' for bone " << targetIndex << "\n";
 				continue;
 
 		}
 	}
 	result.duration = maxTime - minTime;
 
-	log_animation(1, "Animation loaded, duration: ", result.duration);
-
 	AssertMsg(minTime == 0, "Probably need to implement support animations that do not start at 0");
 
-	return result;
+	result.translationTimes = allocate<f32>(collectedTranslationKeyframeCount);
+	result.translations 	= allocate<v3>(collectedTranslationKeyframeCount);
+	result.rotationTimes 	= allocate<f32>(collectedRotationKeyframeCount);
+	result.rotations 		= allocate<quaternion>(collectedRotationKeyframeCount);
+
+	memcpy(result.translationTimes, collectedTranslationKeyframeTimes, sizeof(f32) * collectedTranslationKeyframeCount);
+	memcpy(result.translations, collectedTranslationKeyframeValues, sizeof(v3) * collectedTranslationKeyframeCount);
+	memcpy(result.rotationTimes, collectedRotationKeyframeTimes, sizeof(f32) * collectedRotationKeyframeCount);
+	memcpy(result.rotations, collectedRotationKeyframeValues, sizeof(quaternion) * collectedRotationKeyframeCount);
+
+	AssetCookerAnimationLoadData resultData 	= {};
+	resultData.animation 						= result;
+	resultData.totalTranslationKeyframeCount 	= collectedTranslationKeyframeCount;
+	resultData.totalRotationKeyframeCount 		= collectedRotationKeyframeCount;
+
+	// Todo(Leo): free stuff
+	free(collectedTranslationKeyframeTimes);
+	free(collectedTranslationKeyframeValues);
+	free(collectedRotationKeyframeTimes);
+	free(collectedRotationKeyframeValues);
+
+	return resultData;
 }
+
 #endif
 
 #if 1
@@ -513,54 +530,54 @@ asset_cooker_load_skeleton_glb(char const * filename, char const * nodeName)
 	memset(skeleton.bones, 0, sizeof(AnimatedBone) * skeleton.bonesCount);
 
 
-	s32 fileBoneIndex = 0;
+	// s32 fileBoneIndex = 0;
+
+
 	for (int jsonBoneIndex = 0; jsonBoneIndex < boneCount; ++jsonBoneIndex)
 	{
 		u32 nodeIndex 		= jsonBones[jsonBoneIndex].GetInt();
 		auto const & node 	= nodes[nodeIndex].GetObject();
 
-
+		CharacterSkeletonBone boneId = CHARACTER_SKELETON_BONE_INVALID;
 		{
-			constexpr char const * boneNames [] = 
-			{
-				"Root",
-				"Hip",
-				"Back",
-				"Neck",
-				"Head",
-				"Arm.L",
-				"ForeArm.L",
-				"Hand.L",
-				"Arm.R",
-				"ForeArm.R",
-				"Hand.R",
-				"Thigh.L",
-				"Shin.L",
-				"Foot.L",
-				"Thigh.R",
-				"Shin.R",
-				"Foot.R",
-			};
+			char const * jsonBoneNames [CHARACTER_SKELETON_BONE_COUNT];
+
+			jsonBoneNames[CHARACTER_SKELETON_ROOT]			= "Root";
+			jsonBoneNames[CHARACTER_SKELETON_HIP]			= "Hip";
+			jsonBoneNames[CHARACTER_SKELETON_BACK]			= "Back";
+			jsonBoneNames[CHARACTER_SKELETON_NECK]			= "Neck";
+			jsonBoneNames[CHARACTER_SKELETON_HEAD]			= "Head";
+			jsonBoneNames[CHARACTER_SKELETON_LEFT_ARM]		= "Arm.L";
+			jsonBoneNames[CHARACTER_SKELETON_LEFT_FOREARM]	= "ForeArm.L";
+			jsonBoneNames[CHARACTER_SKELETON_LEFT_HAND]		= "Hand.L";
+			jsonBoneNames[CHARACTER_SKELETON_RIGHT_ARM]		= "Arm.R";
+			jsonBoneNames[CHARACTER_SKELETON_RIGHT_FOREARM]	= "ForeArm.R";
+			jsonBoneNames[CHARACTER_SKELETON_RIGHT_HAND]	= "Hand.R";
+			jsonBoneNames[CHARACTER_SKELETON_LEFT_THIGH]	= "Thigh.L";
+			jsonBoneNames[CHARACTER_SKELETON_LEFT_SHIN]		= "Shin.L";
+			jsonBoneNames[CHARACTER_SKELETON_LEFT_FOOT]		= "Foot.L";
+			jsonBoneNames[CHARACTER_SKELETON_RIGHT_THIGH]	= "Thigh.R";
+			jsonBoneNames[CHARACTER_SKELETON_RIGHT_SHIN]	= "Shin.R";
+			jsonBoneNames[CHARACTER_SKELETON_RIGHT_FOOT]	= "Foot.R";
+
 
 			assert(node.HasMember("name"));
 			char const * currentBoneName = node["name"].GetString();
 
-			bool nameFound = false;
-			for (char const * name : boneNames)
+			for (s32 nameIndex = 0; nameIndex < CHARACTER_SKELETON_BONE_COUNT; ++ nameIndex)
 			{
-				if (strcmp(name, currentBoneName) == 0)
+				if (strcmp(jsonBoneNames[nameIndex], currentBoneName) == 0)
 				{
-					nameFound = true;
+					boneId = (CharacterSkeletonBone)nameIndex;
 					break;
 				}
 			}
 
-			if (nameFound == false)
+			if (boneId == CHARACTER_SKELETON_BONE_INVALID)
 			{
 				std::cout << "skip bone: " << currentBoneName << "\n";
 				continue;
 			}
-
 		}
 
 		s32 parent = -1;
@@ -627,14 +644,14 @@ asset_cooker_load_skeleton_glb(char const * filename, char const * nodeName)
 		}
 
 
-		skeleton.bones[fileBoneIndex].boneSpaceDefaultTransform	= boneSpaceTransform;
-		skeleton.bones[fileBoneIndex].inverseBindMatrix			= inverseBindMatrices[jsonBoneIndex];
-		skeleton.bones[fileBoneIndex].parent 					= parent;
+		skeleton.bones[boneId].boneSpaceDefaultTransform	= boneSpaceTransform;
+		skeleton.bones[boneId].inverseBindMatrix			= inverseBindMatrices[jsonBoneIndex];
+		skeleton.bones[boneId].parent 						= parent;
 
-		fileBoneIndex += 1;
+		// fileBoneIndex += 1;
 	}
 
-	skeleton.bonesCount = fileBoneIndex;
+	skeleton.bonesCount = CHARACTER_SKELETON_BONE_COUNT;
 
 	/* Todo(Leo): Check that parent always comes before bone itself. Currently we have no mechanism
 	to fix the situation, so we just abort.*/

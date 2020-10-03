@@ -54,6 +54,9 @@ using f64 = double;
 static_assert(sizeof(f32) == 4, "Invalid type alias for 'f32'");
 static_assert(sizeof(f64) == 8, "Invalid type alias for 'f64'");
 
+constexpr f32 common_almost_zero 	= 0.00001f;
+constexpr f32 common_almost_one 	= 0.99999f;
+
 /// SIZE MODIFIERS
 /* Todo(Leo): Study memory sizes around, maybe these should be actual multiples of 1000
 This seems to be just a Windows convention, correct? */

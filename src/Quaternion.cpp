@@ -267,7 +267,7 @@ quaternion interpolate_quaternion(quaternion from, quaternion to, f32 t)
 }
 
 // Todo(Leo): use this function rather than interpolate_quaternion, since we may also need lerp_quaternion, and thus make difference
-quaternion slerp_quaternion(quaternion from, quaternion to, f32 t)
+quaternion quaternion_slerp(quaternion from, quaternion to, f32 t)
 {
 	return interpolate_quaternion(from, to, t);
 }

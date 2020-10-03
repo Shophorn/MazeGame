@@ -252,6 +252,13 @@ v3 cross_v3(v3 lhs, v3 rhs)
 	return lhs;
 }
 
+v3 v3_lerp(v3 a, v3 b, f32 t)
+{
+	a = a + t * (b - a);
+	return a;
+}
+
+
 v3 lerp_v3(v3 a, v3 b, f32 t)
 {
 	a = a + t * (b - a);

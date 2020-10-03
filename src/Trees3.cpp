@@ -604,7 +604,7 @@ internal void build_tree_3_mesh(Tree3 & tree)
 				f32 radius 			= lerp_f32(startNode.radius, endNode.radius, t);
 
 				// Todo(Leo): maybe bezier slerp this too, but let's not bother with that right now
-				quaternion rotation = slerp_quaternion(startNode.rotation, endNode.rotation, t);
+				quaternion rotation = quaternion_slerp(startNode.rotation, endNode.rotation, t);
 
 				s32 verticesStartCount = mesh.vertices.count;
 

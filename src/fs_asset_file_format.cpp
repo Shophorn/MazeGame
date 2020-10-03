@@ -21,10 +21,16 @@ struct AssetFileMesh
 	u32 indexCount;
 };
 
-// struct AssetFileAnimation
-// {
-// 	u64 dataOffset;
-// };
+struct AssetFileAnimation
+{
+	u64 dataOffset;
+
+	s32 channelCount;
+	f32 duration;
+
+	u64 totalTranslationKeyframeCount;
+	u64 totalRotationKeyframeCount;
+};
 
 struct AssetFileSkeleton
 {
@@ -42,6 +48,7 @@ struct AssetFileHeader
 
 	AssetFileTexture 	textures [TEXTURE_ASSET_COUNT];
 	AssetFileMesh 		meshes [MESH_ASSET_COUNT];
+	AssetFileAnimation 	animations [AAID_COUNT];
 	AssetFileSkeleton 	skeletons [SAID_COUNT];
 };
 #pragma pack(pop)
