@@ -60,16 +60,19 @@ struct GameAssets
 	AnimatedSkeleton * 			skeletons [SAID_COUNT];
 	AnimatedSkeletonLoadInfo 	skeletonLoadInfos [SAID_COUNT];
 
-	PlatformFileHandle 	assetFile;
-	AssetFileHeader 	assetFileHeader;
+	PlatformFileHandle 	file;
+	AssetFileHeader 	fileHeader;
 };
 
 internal GameAssets init_game_assets(MemoryArena * allocator)
 {
 	// Note(Leo): apparently this does indeed set MeshHandles to -1, which is what we want. I do not know why, though.
 	GameAssets assets 	= {};
-	assets.assetFile 	= platform_file_open("assets.fsa", FILE_MODE_READ);
-	platform_file_read(assets.assetFile, sizeof(AssetFileHeader), &assets.assetFileHeader);
+	assets.file 	= platform_file_open("asset_cooker/assets.fsa", FILE_MODE_READ);
+	platform_file_read(assets.file, sizeof(AssetFileHeader), &assets.fileHeader);
+
+	Assert(assets.fileHeader.magic = AssetFileHeader::magicValue);
+	Assert(assets.fileHeader.version = AssetFileHeader::currentVersion);
 
 	assets.allocator 		= allocator;
 
@@ -94,15 +97,15 @@ internal GameAssets init_game_assets(MemoryArena * allocator)
 	// assets.meshAssetLoadInfo[MESH_ASSET_BOX] 		= {"assets/models/box.glb", "box"};
 	// assets.meshAssetLoadInfo[MESH_ASSET_BOX_COVER] 	= {"assets/models/box.glb", "cover"};
 
-	auto load_from_file = [](char const * filename, TextureFormat format = {}, TextureAddressMode addressMode = {}) -> TextureLoadInfo
-	{
-		TextureLoadInfo result 		= {};
-		result.generateAssetData 	= false;
-		// result.filename 			= filename;
-		result.format 				= format;
-		result.addressMode 			= addressMode;
-		return result;
-	};
+	// auto load_from_file = [](char const * filename, TextureFormat format = {}, TextureAddressMode addressMode = {}) -> TextureLoadInfo
+	// {
+	// 	TextureLoadInfo result 		= {};
+	// 	result.generateAssetData 	= false;
+	// 	// result.filename 			= filename;
+	// 	result.format 				= format;
+	// 	result.addressMode 			= addressMode;
+	// 	return result;
+	// };
 
 	auto load_generated = [](v4 colour, TextureFormat format = {}, TextureAddressMode addressMode = {}) -> TextureLoadInfo
 	{
@@ -114,20 +117,20 @@ internal GameAssets init_game_assets(MemoryArena * allocator)
 		return result;
 	};
 
-	assets.textureLoadInfos[TEXTURE_ASSET_GROUND_ALBEDO] 	= load_from_file("assets/textures/ground.png");
-	assets.textureLoadInfos[TEXTURE_ASSET_TILES_ALBEDO] 	= load_from_file("assets/textures/tiles.png");
-	assets.textureLoadInfos[TEXTURE_ASSET_RED_TILES_ALBEDO] = load_from_file("assets/textures/tiles_red.png");
-	assets.textureLoadInfos[TEXTURE_ASSET_SEED_ALBEDO] 		= load_from_file("assets/textures/Acorn_albedo.png");
-	assets.textureLoadInfos[TEXTURE_ASSET_BARK_ALBEDO]		= load_from_file("assets/textures/bark.png");
-	assets.textureLoadInfos[TEXTURE_ASSET_RACCOON_ALBEDO]	= load_from_file("assets/textures/RaccoonAlbedo.png");
-	assets.textureLoadInfos[TEXTURE_ASSET_ROBOT_ALBEDO] 	= load_from_file("assets/textures/Robot_53_albedo_4k.png");
+	// assets.textureLoadInfos[TEXTURE_ASSET_GROUND_ALBEDO] 	= load_from_file("assets/textures/ground.png");
+	// assets.textureLoadInfos[TEXTURE_ASSET_TILES_ALBEDO] 	= load_from_file("assets/textures/tiles.png");
+	// assets.textureLoadInfos[TEXTURE_ASSET_RED_TILES_ALBEDO] = load_from_file("assets/textures/tiles_red.png");
+	// assets.textureLoadInfos[TEXTURE_ASSET_SEED_ALBEDO] 		= load_from_file("assets/textures/Acorn_albedo.png");
+	// assets.textureLoadInfos[TEXTURE_ASSET_BARK_ALBEDO]		= load_from_file("assets/textures/bark.png");
+	// assets.textureLoadInfos[TEXTURE_ASSET_RACCOON_ALBEDO]	= load_from_file("assets/textures/RaccoonAlbedo.png");
+	// assets.textureLoadInfos[TEXTURE_ASSET_ROBOT_ALBEDO] 	= load_from_file("assets/textures/Robot_53_albedo_4k.png");
 	
-	assets.textureLoadInfos[TEXTURE_ASSET_LEAVES_MASK]			= load_from_file("assets/textures/leaf_mask.png");
+	// assets.textureLoadInfos[TEXTURE_ASSET_LEAVES_MASK]			= load_from_file("assets/textures/leaf_mask.png");
 
-	assets.textureLoadInfos[TEXTURE_ASSET_GROUND_NORMAL] 	= load_from_file("assets/textures/ground_normal.png", TEXTURE_FORMAT_U8_LINEAR);
-	assets.textureLoadInfos[TEXTURE_ASSET_TILES_NORMAL] 	= load_from_file("assets/textures/tiles_normal.png", TEXTURE_FORMAT_U8_LINEAR);
-	assets.textureLoadInfos[TEXTURE_ASSET_BARK_NORMAL]		= load_from_file("assets/textures/bark_normal.png", TEXTURE_FORMAT_U8_LINEAR);
-	assets.textureLoadInfos[TEXTURE_ASSET_ROBOT_NORMAL] 	= load_from_file("assets/textures/Robot_53_normal_4k.png");
+	// assets.textureLoadInfos[TEXTURE_ASSET_GROUND_NORMAL] 	= load_from_file("assets/textures/ground_normal.png", TEXTURE_FORMAT_U8_LINEAR);
+	// assets.textureLoadInfos[TEXTURE_ASSET_TILES_NORMAL] 	= load_from_file("assets/textures/tiles_normal.png", TEXTURE_FORMAT_U8_LINEAR);
+	// assets.textureLoadInfos[TEXTURE_ASSET_BARK_NORMAL]		= load_from_file("assets/textures/bark_normal.png", TEXTURE_FORMAT_U8_LINEAR);
+	// assets.textureLoadInfos[TEXTURE_ASSET_ROBOT_NORMAL] 	= load_from_file("assets/textures/Robot_53_normal_4k.png");
 
 	assets.textureLoadInfos[TEXTURE_ASSET_WHITE] 		= load_generated(colour_white, TEXTURE_FORMAT_U8_SRGB);
 	assets.textureLoadInfos[TEXTURE_ASSET_BLACK] 		= load_generated(colour_black, TEXTURE_FORMAT_U8_SRGB);
@@ -178,7 +181,7 @@ internal MeshHandle assets_get_mesh(GameAssets & assets, MeshAssetId id)
 	
 	if (is_valid_handle(handle) == false)
 	{
-		AssetFileMesh assetMesh = assets.assetFileHeader.meshes[id];
+		AssetFileMesh assetMesh = assets.fileHeader.meshes[id];
 
 		u64 vertexMemorySize 	= assetMesh.vertexCount * sizeof(Vertex);
 		u64 skinMemorySize 		= assetMesh.hasSkinning ? assetMesh.vertexCount * sizeof(VertexSkinData) : 0;
@@ -188,8 +191,8 @@ internal MeshHandle assets_get_mesh(GameAssets & assets, MeshAssetId id)
 		MeshAssetData data;
 		u8 * dataMemory = push_memory<u8>(*global_transientMemory, totalMemorySize, ALLOC_GARBAGE);
 
-		platform_file_set_position(assets.assetFile, assetMesh.dataOffset);
-		platform_file_read(assets.assetFile, totalMemorySize, dataMemory);
+		platform_file_set_position(assets.file, assetMesh.dataOffset);
+		platform_file_read(assets.file, totalMemorySize, dataMemory);
 
 
 		data.vertices 	= reinterpret_cast<Vertex*>(dataMemory);
@@ -220,31 +223,37 @@ internal TextureHandle assets_get_texture(GameAssets & assets, TextureAssetId id
 		TextureAssetData assetData;
 		if (loadInfo.generateAssetData == false)
 		{
-			AssetFileTexture assetTexture = assets.assetFileHeader.textures[id];
+			AssetFileTexture assetTexture = assets.fileHeader.textures[id];
 
 			u64 memorySize = assetTexture.width * assetTexture.height * assetTexture.channels;
 
 			assetData = {};
 			assetData.pixelMemory = push_memory<u8>(*global_transientMemory, memorySize, ALLOC_GARBAGE);
-			platform_file_set_position(assets.assetFile, assetTexture.dataOffset);
-			platform_file_read(assets.assetFile, memorySize, assetData.pixelMemory);
+			platform_file_set_position(assets.file, assetTexture.dataOffset);
+			platform_file_read(assets.file, memorySize, assetData.pixelMemory);
 
-			assetData.width 	= assetTexture.width;
-			assetData.height 	= assetTexture.height;
-			assetData.channels 	= assetTexture.channels;
+			assetData.width 		= assetTexture.width;
+			assetData.height 		= assetTexture.height;
+			assetData.channels 		= assetTexture.channels;
+			assetData.format 		= assetTexture.format;
+			assetData.addressMode 	= assetTexture.addressMode;
 
 			Assert(assetData.channels == 4);
+	
+			assets.textures[id] 	= graphics_memory_push_texture(platformGraphics, &assetData);
+			handle 					= assets.textures[id];
 		}
 		else
 		{
-			u32 textureColour 	= colour_rgba_u32(loadInfo.generatedTextureColour);
-			assetData 			= make_texture_asset(&textureColour, 1, 1, 4);
+			// Note(Leo): we use pointer to this u32 to define colour context, but it shouldnt be referenced after the scope ends
+			u32 textureColour 		= colour_rgba_u32(loadInfo.generatedTextureColour);
+			assetData 				= make_texture_asset(&textureColour, 1, 1, 4);
+			assetData.format 		= loadInfo.format;
+			assetData.addressMode 	= loadInfo.addressMode;
+			assets.textures[id] 	= graphics_memory_push_texture(platformGraphics, &assetData);
+			handle 					= assets.textures[id];
 		}
 
-		assetData.format 		= loadInfo.format;
-		assetData.addressMode 	= loadInfo.addressMode;
-		assets.textures[id] 	= graphics_memory_push_texture(platformGraphics, &assetData);
-		handle 					= assets.textures[id];
 	}
 
 	return handle;
@@ -257,14 +266,14 @@ internal TextureAssetData assets_get_texture_data(GameAssets & assets, TextureAs
 	TextureAssetData assetData;
 	if (loadInfo.generateAssetData == false)
 	{
-		AssetFileTexture assetTexture = assets.assetFileHeader.textures[id];
+		AssetFileTexture assetTexture = assets.fileHeader.textures[id];
 
 		u64 memorySize = assetTexture.width * assetTexture.height * assetTexture.channels;
 
 		assetData = {};
 		assetData.pixelMemory = push_memory<u8>(*global_transientMemory, memorySize, ALLOC_GARBAGE);
-		platform_file_set_position(assets.assetFile, assetTexture.dataOffset);
-		platform_file_read(assets.assetFile, memorySize, assetData.pixelMemory);
+		platform_file_set_position(assets.file, assetTexture.dataOffset);
+		platform_file_read(assets.file, memorySize, assetData.pixelMemory);
 
 		assetData.width 	= assetTexture.width;
 		assetData.height 	= assetTexture.height;
@@ -348,11 +357,19 @@ internal AnimatedSkeleton * assets_get_skeleton(GameAssets & assets, SkeletonAss
 
 	if (skeleton == nullptr)
 	{
-		auto & loadInfo = assets.skeletonLoadInfos[id];
+		skeleton 		= push_memory<AnimatedSkeleton>(*assets.allocator, 1, ALLOC_GARBAGE);
 
-		skeleton 		= push_memory<AnimatedSkeleton>(*assets.allocator, 1, ALLOC_ZERO_MEMORY);
-		auto file 		= read_gltf_file(*global_transientMemory, loadInfo.filename);
-		*skeleton 		= load_skeleton_glb(*assets.allocator, file, loadInfo.gltfNodeName);
+		AssetFileSkeleton assetSkeleton = assets.fileHeader.skeletons[id];
+
+		s32 boneCount 				= assetSkeleton.boneCount;
+		AnimatedBone * bonesMemory 	= push_memory<AnimatedBone>(*assets.allocator, boneCount, ALLOC_GARBAGE);
+		u64 memorySize 				= boneCount * sizeof(AnimatedBone);
+		
+		platform_file_set_position(assets.file, assetSkeleton.dataOffset);
+		platform_file_read(assets.file, memorySize, bonesMemory);
+
+		skeleton->bones 		= bonesMemory;
+		skeleton->bonesCount 	= boneCount;
 		
 		assets.skeletons[id] = skeleton;
 	}	

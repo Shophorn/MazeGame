@@ -1,14 +1,50 @@
+/*
+Leo Tamminen
+
+Asset cooking (sometimes baking) utility.
+
+Todo(Leo):
+	in actual game we use custom memory allocation things, but here we could use 
+	std things also, so maybe use std::vector here for memory management.
+*/
+
 #include <iostream>
+#include <iomanip>
 #include <fstream>
 #include <cassert>
 #include <direct.h>
 
+#include <windows.h>
+
 #include "fs_essentials.hpp"
 #include "game_asset_id.cpp"
-#include "fs_asset_file_format.cpp"
+
 
 #include "Assets.cpp"
+#include "Transform3D.cpp"
+// #include "Animator.cpp"
 
+// Todo(Leo): make and use headers, so we actually get types right, if we change something
+// Note(leo): or maybe not, this is just offline data loading and it doesn't need to directly mirror runtime
+struct AnimatedBone
+{
+	// Properties
+	Transform3D boneSpaceDefaultTransform;
+	m44 		inverseBindMatrix;
+	s32 		parent;
+};
+
+struct AnimatedSkeleton
+{
+	s32 			bonesCount;
+	AnimatedBone * 	bones;
+};
+
+#include "fs_asset_file_format.cpp"
+
+// Note(Leo): this is just a typed wrapper over malloc, nothing too fancy
+// we could have used new[] and delete [], but then we would have to always
+// remember if pointer was allocated with new or new [], this doesn't care
 template <typename T>
 T * allocate(s32 count)
 {
@@ -26,19 +62,21 @@ static u64 					global_dataPosition;
 
 static void write(u64 position, u64 size, void * memory)
 {
-
 	global_outFile.seekp(position);
 	global_outFile.write((char*)memory, size);
 }
 
-static void cook_texture(TextureAssetId id, char const * filename)
+static void cook_texture(TextureAssetId id, char const * filename, TextureFormat format = TEXTURE_FORMAT_U8_SRGB)
 {
 	TextureAssetData data = asset_cooker_load_texture(filename);
 
 	global_header->textures[id].dataOffset = global_dataPosition;
 	global_header->textures[id].width 		= data.width;
-	global_header->textures[id].height 	= data.height;
+	global_header->textures[id].height 		= data.height;
 	global_header->textures[id].channels 	= data.channels;
+
+	global_header->textures[id].format 		= format;
+	global_header->textures[id].addressMode = TEXTURE_ADDRESS_MODE_REPEAT;
 
 	assert(data.channels == 4);
 
@@ -78,7 +116,7 @@ static void cook_mesh(MeshAssetId id, char const * filename, char const * gltfNo
 	write(filePosition, indexMemorySize, data.indices);
 	filePosition += indexMemorySize;
 
-	std::cout << "COOK MESH: " << filename << ", " << (filePosition - global_dataPosition) << " bytes at " << global_dataPosition << "\n";
+	std::cout << "COOK MESH: " << filename << ", " << gltfNodeName << ": " << (filePosition - global_dataPosition) << " bytes at " << global_dataPosition << "\n";
 
 	global_dataPosition = filePosition;
 
@@ -86,6 +124,34 @@ static void cook_mesh(MeshAssetId id, char const * filename, char const * gltfNo
 	if (data.skinning)
 		free(data.skinning);
 	free(data.indices);
+}
+
+static void cook_skeleton(SkeletonAssetId id, char const * gltfFileName, char const * gltfNodeName)
+{
+	AnimatedSkeleton data = asset_cooker_load_skeleton_glb(gltfFileName, gltfNodeName);
+
+	global_header->skeletons[id].dataOffset = global_dataPosition;
+	global_header->skeletons[id].boneCount 	= data.bonesCount;
+
+	u64 memorySize = sizeof(AnimatedBone) * data.bonesCount;
+
+	AnimatedBone * dataToWrite = data.bones;
+
+	write(global_dataPosition, memorySize, dataToWrite);
+
+	quaternion q = dataToWrite[9].boneSpaceDefaultTransform.rotation;
+	std::cout << q.x << "\n";
+	std::cout << q.y << "\n";
+	std::cout << q.z << "\n";
+	std::cout << q.w << "\n";
+
+
+
+
+	std::cout << "COOK SKELETON: " << gltfFileName << ", " << gltfNodeName << ": " << memorySize << " bytes at " << global_dataPosition << "\n";
+	global_dataPosition += memorySize;
+
+	free(data.bones);
 }
 
 int main()
@@ -102,10 +168,10 @@ int main()
 	global_outFile = std::ofstream(assetFileName, std::ios::out | std::ios::binary);
 
 	header = {};
-	header.magic 			= header.magicValue;
-	header.version 		= 0;
+	header.magic 	= AssetFileHeader::magicValue;
+	header.version 	= AssetFileHeader::currentVersion;
 
-	global_header = &header;
+	global_header 		= &header;
 	global_dataPosition = sizeof(AssetFileHeader);
 
 	// -------------------------------------------------------------
@@ -123,10 +189,10 @@ int main()
 	
 	cook_texture(TEXTURE_ASSET_LEAVES_MASK, 		"leaf_mask.png");
 
-	cook_texture(TEXTURE_ASSET_GROUND_NORMAL, 		"ground_normal.png");
-	cook_texture(TEXTURE_ASSET_TILES_NORMAL, 		"tiles_normal.png");
-	cook_texture(TEXTURE_ASSET_BARK_NORMAL, 		"bark_normal.png");
-	cook_texture(TEXTURE_ASSET_ROBOT_NORMAL, 		"Robot_53_normal_4k.png");
+	cook_texture(TEXTURE_ASSET_GROUND_NORMAL, 		"ground_normal.png", TEXTURE_FORMAT_U8_LINEAR);
+	cook_texture(TEXTURE_ASSET_TILES_NORMAL, 		"tiles_normal.png", TEXTURE_FORMAT_U8_LINEAR);
+	cook_texture(TEXTURE_ASSET_BARK_NORMAL, 		"bark_normal.png", TEXTURE_FORMAT_U8_LINEAR);
+	cook_texture(TEXTURE_ASSET_ROBOT_NORMAL, 		"Robot_53_normal_4k.png", TEXTURE_FORMAT_U8_LINEAR);
 
 	cook_texture(TEXTURE_ASSET_HEIGHTMAP, 			"heightmap_island.png");
 
@@ -156,6 +222,10 @@ int main()
 	cook_mesh(MESH_ASSET_BOX_COVER, "box.glb", "cover");
 
 	cout << "Meshes cooked!\n";
+
+	cook_skeleton(SAID_CHARACTER, "cube_head_v4.glb", "cube_head");
+
+	cout << "Skeletons cooked!\n";
 	
 	// -------------------------------------------------------------
 
@@ -165,11 +235,22 @@ int main()
 
 	global_outFile.close();
 
-	header = {};
 
-	auto testReadFile = std::ifstream(assetFileName, std::ios::in | std::ios::binary);
-	testReadFile.read((char*)&header, sizeof(header));
 
+	AssetFileHeader readedHeader = {};
+
+	HANDLE testReadFile = CreateFile(assetFileName, GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
+	ReadFile(testReadFile, &readedHeader, sizeof(AssetFileHeader), nullptr, nullptr);
+
+	AnimatedBone readedBones[30];
+	SetFilePointer(testReadFile, readedHeader.skeletons[SAID_CHARACTER].dataOffset, 0, FILE_BEGIN);
+	ReadFile(testReadFile, readedBones, sizeof(AnimatedBone) * readedHeader.skeletons[SAID_CHARACTER].boneCount, nullptr, nullptr);
+	// auto testReadFile = std::ifstream(assetFileName, std::ios::in | std::ios::binary);
+
+	// testReadFile.seekg(readedHeader.skeletons[SAID_CHARACTER].dataOffset);
+	// testReadFile.read((char*)readedBones, sizeof(AnimatedBone) * readedHeader.skeletons[SAID_CHARACTER].boneCount);
+
+	CloseHandle(testReadFile);
 
 	cout << "All done, all good.\n";
 }

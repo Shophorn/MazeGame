@@ -416,15 +416,17 @@ load_skeleton_glb(MemoryArena & allocator, GltfFile const & file, char const * m
 
 	m44 const * inverseBindMatrices = get_buffer_start<m44>(file, skin["inverseBindMatrices"].GetInt());
 
-	AnimatedSkeleton skeleton = {};
-	skeleton.bones = push_array_2<AnimatedBone>(allocator, boneCount, ALLOC_ZERO_MEMORY);
+	AnimatedSkeleton skeleton 	= {};
+	skeleton.bonesCount 		= boneCount;
+	skeleton.bones 				= push_memory<AnimatedBone>(allocator, skeleton.bonesCount, ALLOC_ZERO_MEMORY);
+
 	
 	for (int boneIndex = 0; boneIndex < boneCount; ++boneIndex)
 	{
 		u32 nodeIndex 		= jsonBones[boneIndex].GetInt();
 		auto const & node 	= nodes[nodeIndex].GetObject();
 
-		s32	 parent = -1;
+		s32 parent = -1;
 
 		for (int parentBoneIndex = 0; parentBoneIndex < boneCount; ++parentBoneIndex)
 		{
@@ -480,15 +482,15 @@ load_skeleton_glb(MemoryArena & allocator, GltfFile const & file, char const * m
 			boneSpaceTransform.rotation = inverse_quaternion(boneSpaceTransform.rotation);
 		}
 
-		m44 inverseBindMatrix = inverseBindMatrices[boneIndex];
-		skeleton.bones.push(make_bone(boneSpaceTransform, inverseBindMatrix, parent));
+		m44 inverseBindMatrix 		= inverseBindMatrices[boneIndex];
+		skeleton.bones[boneIndex] 	= make_bone(boneSpaceTransform, inverseBindMatrix, parent);
 	}
 
 	/* Todo(Leo): Check that parent always comes before bone itself. Currently we have no mechanism
 	to fix the situation, so we just abort.*/
 	Assert(skeleton.bones[0].parent < 0);
 
-	for (s32 i = 1; i < skeleton.bones.count; ++i)
+	for (s32 i = 1; i < skeleton.bonesCount; ++i)
 	{
 		Assert((skeleton.bones[i].parent < i) && skeleton.bones[i].parent >= 0);
 	}

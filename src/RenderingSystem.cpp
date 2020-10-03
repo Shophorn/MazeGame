@@ -46,7 +46,7 @@ void update_animated_renderer(m44 * boneTransformMatrices, SkeletonAnimator cons
 	auto const & boneSpaceTransforms 	= animator.boneBoneSpaceTransforms;
 	auto const & skeleton 				= *animator.skeleton;
 
-	s32 boneCount = skeleton.bones.count;
+	s32 boneCount = skeleton.bonesCount;
 
 	boneTransformMatrices[0] = transform_matrix(boneSpaceTransforms[0]);
 	for (s32 i = 1; i < boneCount; ++i)

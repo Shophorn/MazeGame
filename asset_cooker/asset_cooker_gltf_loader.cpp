@@ -159,27 +159,6 @@ struct glTFFile
 };
 
 
-// internal u8 * read_binary_file(const char * filename, u64 * outSize)
-// {
-// 	// PlatformFileHandle file = platform_file_open(filename, FILE_MODE_READ);
-// 	auto file = std::ifstream(filename, std::ios::in | std::ios::binary);
-
-// 	Assert(file);
-
-// 	file.seekg(0, std::ios::end);
-// 	u64 filesize = file.tellg();
-// 	file.seekg(0, std::ios::beg);
-
-
-// 	u8 * result	= allocate<u8>(filesize);
-
-
-
-
-// 	*outSize = filesize;
-// 	return result;
-// }
-
 internal glTFFile
 read_gltf_file(char const * filename)
 {
@@ -211,46 +190,6 @@ read_gltf_file(char const * filename)
 		assert(totalSize == header.length);
 	}
 
-
-
-	// printf("Reading gltf file from: %s", filename);
-	
-	// u64 memorySize;
-	// auto memory = read_binary_file(filename, &memorySize);
-
-	// /* Note(Leo): We copy json textchunk out of buffer, because we need to append a null terminator
-	// in the end for rapidjson. We do not need to care for it later, rapidjson seems to do its thing 
-	// and then also not care. */
-	
-	// u64 jsonChunkOffset	= glTF::headerLength;
-	// u32 jsonChunkSize 	= memory_convert_bytes_to<u32>(memory, jsonChunkOffset + glTF::chunkLengthPosition);
-	
-	// {
-	// 	auto chunkType = memory_convert_bytes_to<glTF::ChunkType>(memory.memory, jsonChunkOffset + glTF::chunkTypePosition);
-	// 	Assert(chunkType == glTF::CHUNK_TYPE_JSON);
-	// }
-
-	// char const * start = reinterpret_cast<char const *>(memory.memory) + jsonChunkOffset + glTF::chunkInfoLength;
-	// // char const * end = start + jsonChunkSize + 1;
-
-	// Array2<char> jsonChunk = {jsonChunkSize + 1, 0, allocate<char>(jsonChunkSize + 1)};
-	// array_2_fill_from_memory(jsonChunk, jsonChunkSize, start);
-	// jsonChunk.push(0);
-
-	// // ----------------------------------------------------------------------------------------------------------------
-
-	// u64 binaryChunkOffset = glTF::headerLength + glTF::chunkInfoLength + jsonChunkSize;
-	// {
-	// 	auto chunkType = memory_convert_bytes_to<glTF::ChunkType>(memory.memory, binaryChunkOffset + glTF::chunkTypePosition);
-	// 	Assert(chunkType == glTF::CHUNK_TYPE_BINARY);
-	// }
-
-	// ----------------------------------------------------------------------------------------------------------------
-
-	// GltfFile file 			= {};
-	// file.memory 			= memory;
-	// file.binaryChunkOffset 	= binaryChunkOffset + glTF::chunkInfoLength;
-
 	glTFFile result = {};
 	result.json.Parse(jsonChunkMemory);
 
@@ -264,7 +203,6 @@ read_gltf_file(char const * filename)
 		/* Note(Leo): Clear this so we can be sure this is not used in meaningful way after this in rapidjson things, 
 		and therefore we can just forget about it. */
 		free(jsonChunkMemory);
-		// memset(jsonChunk.memory, 0, jsonChunk.count);
 	}
 
 	// Note(Leo): Assert these once here, so we don't have to do that in every call hereafter.
@@ -545,21 +483,23 @@ load_animation_glb(MemoryArena & allocator, GltfFile const & file, char const * 
 }
 #endif
 
-#if 0
+#if 1
 internal AnimatedSkeleton
-load_skeleton_glb(MemoryArena & allocator, GltfFile const & file, char const * modelName)
+asset_cooker_load_skeleton_glb(char const * filename, char const * nodeName)
 {
+	glTFFile const & file = read_gltf_file(filename);
+
 	auto nodes = file.json["nodes"].GetArray();
 
-	s32 nodeIndex = index_by_name(nodes, modelName);
-	Assert(nodeIndex >= 0);
+	s32 nodeIndex = index_by_name(nodes, nodeName);
+	assert(nodeIndex >= 0);
 
-	Assert(nodes[nodeIndex].HasMember("skin"));
-	Assert(file.json.HasMember("skins"));
+	assert(nodes[nodeIndex].HasMember("skin"));
+	assert(file.json.HasMember("skins"));
 
 	// Note(Leo): We currently support only 1 skin per file, so that we can easily load correct animation.
-	Assert(file.json["skins"].Size() == 1);
-	Assert(file.json["skins"][0].HasMember("joints"));
+	assert(file.json["skins"].Size() == 1);
+	assert(file.json["skins"][0].HasMember("joints"));
 
 	auto skin 		= file.json["skins"][0].GetObject();
 	auto jsonBones 	= skin["joints"].GetArray();
@@ -567,15 +507,63 @@ load_skeleton_glb(MemoryArena & allocator, GltfFile const & file, char const * m
 
 	m44 const * inverseBindMatrices = get_buffer_start<m44>(file, skin["inverseBindMatrices"].GetInt());
 
-	AnimatedSkeleton skeleton = {};
-	skeleton.bones = push_array_2<AnimatedBone>(allocator, boneCount, ALLOC_ZERO_MEMORY);
-	
-	for (int boneIndex = 0; boneIndex < boneCount; ++boneIndex)
+	AnimatedSkeleton skeleton 	= {};
+	skeleton.bonesCount 		= boneCount;
+	skeleton.bones 				= allocate<AnimatedBone>(skeleton.bonesCount);
+	memset(skeleton.bones, 0, sizeof(AnimatedBone) * skeleton.bonesCount);
+
+
+	s32 fileBoneIndex = 0;
+	for (int jsonBoneIndex = 0; jsonBoneIndex < boneCount; ++jsonBoneIndex)
 	{
-		u32 nodeIndex 		= jsonBones[boneIndex].GetInt();
+		u32 nodeIndex 		= jsonBones[jsonBoneIndex].GetInt();
 		auto const & node 	= nodes[nodeIndex].GetObject();
 
-		s32	 parent = -1;
+
+		{
+			constexpr char const * boneNames [] = 
+			{
+				"Root",
+				"Hip",
+				"Back",
+				"Neck",
+				"Head",
+				"Arm.L",
+				"ForeArm.L",
+				"Hand.L",
+				"Arm.R",
+				"ForeArm.R",
+				"Hand.R",
+				"Thigh.L",
+				"Shin.L",
+				"Foot.L",
+				"Thigh.R",
+				"Shin.R",
+				"Foot.R",
+			};
+
+			assert(node.HasMember("name"));
+			char const * currentBoneName = node["name"].GetString();
+
+			bool nameFound = false;
+			for (char const * name : boneNames)
+			{
+				if (strcmp(name, currentBoneName) == 0)
+				{
+					nameFound = true;
+					break;
+				}
+			}
+
+			if (nameFound == false)
+			{
+				std::cout << "skip bone: " << currentBoneName << "\n";
+				continue;
+			}
+
+		}
+
+		s32 parent = -1;
 
 		for (int parentBoneIndex = 0; parentBoneIndex < boneCount; ++parentBoneIndex)
 		{
@@ -588,7 +576,7 @@ load_skeleton_glb(MemoryArena & allocator, GltfFile const & file, char const * m
 				for(auto const & childNodeIndex : childArray)
 				{
 					u32 childBoneIndex = find_bone_by_node(jsonBones, childNodeIndex.GetInt()); 
-					if (childBoneIndex == boneIndex)
+					if (childBoneIndex == jsonBoneIndex)
 					{
 						parent = parentBoneIndex;
 					}
@@ -629,20 +617,35 @@ load_skeleton_glb(MemoryArena & allocator, GltfFile const & file, char const * m
 			boneSpaceTransform.rotation.w = rotationArray[3].GetFloat();
  
 			boneSpaceTransform.rotation = inverse_quaternion(boneSpaceTransform.rotation);
+	
+			{
+				quaternion q = boneSpaceTransform.rotation;
+				std::cout << node["name"].GetString() << ", " << jsonBoneIndex << "\n";
+				std::cout << std::setprecision(2) << " rotation = (" << q.x << ", " << q.y <<", " << q.z << ", " << q.w << ")\n";
+			}
+
 		}
 
-		m44 inverseBindMatrix = inverseBindMatrices[boneIndex];
-		skeleton.bones.push(make_bone(boneSpaceTransform, inverseBindMatrix, parent));
+
+		skeleton.bones[fileBoneIndex].boneSpaceDefaultTransform	= boneSpaceTransform;
+		skeleton.bones[fileBoneIndex].inverseBindMatrix			= inverseBindMatrices[jsonBoneIndex];
+		skeleton.bones[fileBoneIndex].parent 					= parent;
+
+		fileBoneIndex += 1;
 	}
+
+	skeleton.bonesCount = fileBoneIndex;
 
 	/* Todo(Leo): Check that parent always comes before bone itself. Currently we have no mechanism
 	to fix the situation, so we just abort.*/
 	Assert(skeleton.bones[0].parent < 0);
 
-	for (s32 i = 1; i < skeleton.bones.count; ++i)
+	for (s32 i = 1; i < skeleton.bonesCount; ++i)
 	{
 		Assert((skeleton.bones[i].parent < i) && skeleton.bones[i].parent >= 0);
 	}
+
+	free(file.binaryChunkMemory);
 
 	return skeleton;
 }
@@ -650,20 +653,20 @@ load_skeleton_glb(MemoryArena & allocator, GltfFile const & file, char const * m
 
 #if 1
 internal MeshAssetData
-// load_mesh_glb(GltfFile const & file, char const * modelName)
-asset_cooker_load_mesh_glb(char const * gltfFilename, char const * modelName)
+// load_mesh_glb(GltfFile const & file, char const * nodeName)
+asset_cooker_load_mesh_glb(char const * gltfFilename, char const * nodeName)
 {
 	glTFFile const & file = read_gltf_file(gltfFilename);
 
 	auto nodes = file.json["nodes"].GetArray();
 	
-	s32 nodeIndex = index_by_name(nodes, modelName);
+	s32 nodeIndex = index_by_name(nodes, nodeName);
 	// Assert(nodeIndex >= 0);
 
 	if (nodeIndex < 0)
 	{
-		// log_debug(FILE_ADDRESS, "Asset not found! modelName = ", modelName);
-		printf("%s:%d: Asset not found: %s \n", __FILE__, __LINE__, modelName);
+		// log_debug(FILE_ADDRESS, "Asset not found! nodeName = ", nodeName);
+		printf("%s:%d: Asset not found: %s \n", __FILE__, __LINE__, nodeName);
 		Assert(false);
 	}
 

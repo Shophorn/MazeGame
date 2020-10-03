@@ -1394,7 +1394,7 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 		};
 
 		game->playerSkeletonAnimator.boneBoneSpaceTransforms = push_array_2<Transform3D>(	persistentMemory,
-																							game->playerSkeletonAnimator.skeleton->bones.count,
+																							game->playerSkeletonAnimator.skeleton->bonesCount,
 																							ALLOC_ZERO_MEMORY);
 		array_2_fill_with_value(game->playerSkeletonAnimator.boneBoneSpaceTransforms, identity_transform);
 
@@ -1435,7 +1435,7 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 			.animationCount = CharacterAnimations::ANIMATION_COUNT
 		};
 		game->noblePersonSkeletonAnimator.boneBoneSpaceTransforms = push_array_2<Transform3D>(	persistentMemory,
-																								game->noblePersonSkeletonAnimator.skeleton->bones.count,
+																								game->noblePersonSkeletonAnimator.skeleton->bonesCount,
 																								ALLOC_ZERO_MEMORY);
 		array_2_fill_with_value(game->noblePersonSkeletonAnimator.boneBoneSpaceTransforms, identity_transform);
 

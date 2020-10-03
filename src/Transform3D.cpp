@@ -1,13 +1,16 @@
-/*=============================================================================
+/*
 Leo Tamminen
 shophorn @ github
-=============================================================================*/
+*/
+
 struct Transform3D
 {
 	v3 position 		= {0, 0, 0};
 	quaternion rotation = identity_quaternion;
 	v3 scale 			= {1, 1, 1,};
 };
+
+static_assert(sizeof(Transform3D) == 40);
 
 internal constexpr Transform3D identity_transform = { 	.position 	= {0, 0, 0}, 
 														.rotation 	= {0, 0, 0, 1},

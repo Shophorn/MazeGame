@@ -182,11 +182,12 @@ quaternion normalize_quaternion(quaternion q)
 
 quaternion interpolate_quaternion(quaternion from, quaternion to, f32 t)
 {
+	// Note(Leo): We could clamp this, but as I remember this was a bug somewhere else, and then we would 
+	// not be able to find it
 	// Assert(t == t && "probably a nan");
 	if (t < -0.00001f || t > 1.00001f)
 	{
 		// log_debug(0, "häx: ", t);
-		// log_debug(0) << "häx: " << t;
 		Assert(false);
 	}
 	Assert(from.x == from.x && from.y == from.y && from.z == from.z && from.w == from.w && "probably a nan");

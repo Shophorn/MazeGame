@@ -51,9 +51,8 @@ make_bone (Transform3D boneSpaceDefaultTransform, m44 inverseBindMatrix, s32 par
 
 struct AnimatedSkeleton
 {
-	// s32 			boneCount;
-	// AnimatedBone * 	bones;
-	Array2<AnimatedBone> bones;
+	s32 			bonesCount;
+	AnimatedBone * 	bones;
 };
 
 struct SkeletonAnimator
@@ -140,14 +139,14 @@ void update_skeleton_animator(SkeletonAnimator & animator, f32 elapsedTime)
 		f32 time;
 	};
 
-	auto translationChannelInfos 	= push_array_2<Array2<ChannelInfo>>(*global_transientMemory, skeleton.bones.count, ALLOC_GARBAGE);
+	auto translationChannelInfos 	= push_array_2<Array2<ChannelInfo>>(*global_transientMemory, skeleton.bonesCount, ALLOC_GARBAGE);
 	translationChannelInfos.count 	= translationChannelInfos.capacity;
 	for (auto & array : translationChannelInfos)
 	{
 		array = push_array_2<ChannelInfo>(*global_transientMemory, animationCount, ALLOC_GARBAGE);
 	}
 
-	auto rotationChannelInfos 	= push_array_2<Array2<ChannelInfo>>(*global_transientMemory, skeleton.bones.count, ALLOC_GARBAGE);
+	auto rotationChannelInfos 	= push_array_2<Array2<ChannelInfo>>(*global_transientMemory, skeleton.bonesCount, ALLOC_GARBAGE);
 	rotationChannelInfos.count 	= rotationChannelInfos.capacity;
 	for (auto & array : rotationChannelInfos)
 	{
@@ -169,18 +168,25 @@ void update_skeleton_animator(SkeletonAnimator & animator, f32 elapsedTime)
 
 		for (auto const & channel : animations[animationIndex]->translationChannels)
 		{
-			translationChannelInfos[channel.targetIndex].push({&channel, duration, weight, time});
+			if(channel.targetIndex < skeleton.bonesCount)
+			{
+				translationChannelInfos[channel.targetIndex].push({&channel, duration, weight, time});
+			}
+
 		}
 
 		for (auto const & channel : animations[animationIndex]->rotationChannels)
 		{
-			rotationChannelInfos[channel.targetIndex].push({&channel, duration, weight, time});
+			if(channel.targetIndex < skeleton.bonesCount)
+			{
+				rotationChannelInfos[channel.targetIndex].push({&channel, duration, weight, time});
+			}
 		}
 	}
 
 	// ----- ANIMATE TRANSLATION -----
 
-	for (s32 boneIndex = 0; boneIndex < skeleton.bones.count; ++boneIndex)
+	for (s32 boneIndex = 0; boneIndex < skeleton.bonesCount; ++boneIndex)
 	{
 		v3 totalTranslation 	= {};
 		f32 totalAppliedWeight 	= 0;
@@ -232,7 +238,7 @@ void update_skeleton_animator(SkeletonAnimator & animator, f32 elapsedTime)
 
 	// ----- ANIMATE ROTATION -----
 
-	for (s32 boneIndex = 0; boneIndex < skeleton.bones.count; ++boneIndex)
+	for (s32 boneIndex = 0; boneIndex < skeleton.bonesCount; ++boneIndex)
 	{
 		quaternion totalRotation = identity_quaternion;
 		f32 totalAppliedWeight 	= 0;
