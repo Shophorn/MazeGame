@@ -68,7 +68,7 @@ struct Gui
 	f32 padding;
 
 	// Per frame state
-	PlatformInput 	input;
+	PlatformInput *	input;
 	v2 				mousePositionLastFrame;
 	f32 			elapsedTime;
 
@@ -129,7 +129,7 @@ constexpr GuiTextureHandle GUI_NO_TEXTURE = {-1};
 Gui * global_currentGui = nullptr;
 
 // Maintenance
-internal void gui_start_frame(Gui & gui, PlatformInput const & input, f32 elapsedTime);
+internal void gui_start_frame(Gui & gui, PlatformInput * input, f32 elapsedTime);
 internal void gui_end_frame();
 
 // Control
@@ -168,7 +168,7 @@ internal void gui_label(char const * label, v4 colour);
   //////////////////////////////////
  ///  GUI IMPLEMENTATION 		///
 //////////////////////////////////
-internal void gui_start_frame(Gui & gui, PlatformInput const & input, f32 elapsedTime)
+internal void gui_start_frame(Gui & gui, PlatformInput * input, f32 elapsedTime)
 {
 	Assert(global_currentGui == nullptr);
 
@@ -183,12 +183,12 @@ internal void gui_start_frame(Gui & gui, PlatformInput const & input, f32 elapse
 
 	if (gui.selectableCountLastFrame > 0)
 	{
-		if (is_clicked(input.down))
+		if (input_button_went_down(gui.input, INPUT_BUTTON_dpad_down))
 		{
 			gui.selectedIndex += 1;
 			gui.selectedIndex %= gui.selectableCountLastFrame;
 		}
-		if(is_clicked(input.up))
+		if(input_button_went_down(gui.input, INPUT_BUTTON_dpad_up))
 		{
 			gui.selectedIndex -= 1;
 			if (gui.selectedIndex < 0)
@@ -208,7 +208,7 @@ internal void gui_end_frame()
 {
 	Gui & gui = *global_currentGui;
 
-	gui.mousePositionLastFrame 		= gui.input.mousePosition;
+	gui.mousePositionLastFrame 		= input_cursor_get_position(gui.input);
 	gui.selectableCountLastFrame 	= gui.currentSelectableIndex;
 
 	global_currentGui = nullptr;
@@ -457,7 +457,7 @@ internal bool gui_button(char const * label)
 
 	gui_panel_new_line();
 
-	bool result = isSelected && (is_clicked(gui.input.confirm) || is_clicked(gui.input.mouse0));
+	bool result = isSelected && (input_button_went_down(gui.input, INPUT_BUTTON_nintendo_a) || input_button_went_down(gui.input, INPUT_BUTTON_mouse_0));
 	return result;
 }
 
@@ -472,7 +472,7 @@ internal bool gui_toggle(char const * label, bool32 * value)
 	bool isSelected = gui_is_selected();
 	bool modified 	= false;
 
-	if (isSelected && is_clicked(gui.input.confirm) || is_clicked(gui.input.mouse0))
+	if (isSelected && input_button_went_down(gui.input, INPUT_BUTTON_nintendo_a) || input_button_went_down(gui.input, INPUT_BUTTON_mouse_0))
 	{
 		*value 		= !*value;
 		modified 	= true;
@@ -533,17 +533,17 @@ internal bool gui_float_slider(char const * label, f32 * value, f32 minValue, f3
 	bool isSelected 				= gui_is_selected();
 
 	bool modified 			= false;
-	bool modifiedByMouse 	= isSelected && is_pressed(gui.input.mouse0);
+	bool modifiedByMouse 	= isSelected && input_button_is_down(gui.input, INPUT_BUTTON_mouse_0);
 
 	if (isSelected)
 	{
-		if (is_pressed(gui.input.left))
+		if (input_button_is_down(gui.input, INPUT_BUTTON_dpad_left))
 		{
 			*value 		-= sliderMoveSpeed * gui.elapsedTime * (maxValue - minValue);
 			modified 	= true;
 		}
 
-		if (is_pressed(gui.input.right))
+		if (input_button_is_down(gui.input, INPUT_BUTTON_dpad_right))
 		{
 			*value 		+= sliderMoveSpeed * gui.elapsedTime * (maxValue - minValue);
 			modified 	= true;
@@ -576,7 +576,7 @@ internal bool gui_float_slider(char const * label, f32 * value, f32 minValue, f3
 
 	if (modifiedByMouse)
 	{
-		f32 x = gui.input.mousePosition.x / gui.screenSizeRatio;
+		f32 x = input_cursor_get_position(gui.input).x / gui.screenSizeRatio;
 		x -= (sliderRectX + handleWidth / 2) + gui.panelSizeLastFrame.x - sliderWidth;
 		x /= (sliderWidth - handleWidth);
 
@@ -635,23 +635,23 @@ internal bool gui_float_field(char const * label, f32 * value, GuiClampValuesF32
 	bool isSelected 				= gui_is_selected();
 
 	bool modified 			= false;
-	bool modifiedByMouse 	= isSelected && is_pressed(gui.input.mouse0);
+	bool modifiedByMouse 	= isSelected && input_button_is_down(gui.input, INPUT_BUTTON_mouse_0);
 
 	if (isSelected)
 	{
-		if (is_pressed(gui.input.left))
+		if (input_button_is_down(gui.input, INPUT_BUTTON_dpad_left))
 		{
 			*value 		-= sliderMoveSpeed * gui.elapsedTime;
 			modified 	= true;
 		}
 
-		if (is_pressed(gui.input.right))
+		if (input_button_is_down(gui.input, INPUT_BUTTON_dpad_right))
 		{
 			*value 		+= sliderMoveSpeed * gui.elapsedTime;
 			modified 	= true;
 		}
 
-		float joystickDelta = gui.input.move.x;
+		float joystickDelta = input_axis_get_value(gui.input, INPUT_AXIS_move_x);
 		if (abs_f32(joystickDelta) >= 0.1)
 		{
 			// Note(Leo): pow3 provides more accuracy closer to zero and preserves sign
@@ -664,7 +664,7 @@ internal bool gui_float_field(char const * label, f32 * value, GuiClampValuesF32
 	constexpr f32 mouseMoveScale = 0.2;
 	if (modifiedByMouse)
 	{
-		f32 mouseDelta 	= gui.input.mousePosition.x - gui.mousePositionLastFrame.x;
+		f32 mouseDelta 	= input_cursor_get_position(gui.input).x - gui.mousePositionLastFrame.x;
 		mouseDelta 		= mouseMoveScale * mouseDelta * mouseDelta;
 		*value 			+= mouseDelta;
 	}
@@ -704,17 +704,17 @@ internal bool gui_int_field(char const * label, s32 * value, GuiClampValuesS32 c
 	bool isSelected 				= gui_is_selected();
 
 	bool modified 			= false;
-	// bool modifiedByMouse 	= isSelected && is_pressed(gui.input.mouse0);
+	// bool modifiedByMouse 	= isSelected && is_pressed(gui.input->mouse0);
 
 	if (isSelected)
 	{
-		if (is_clicked(gui.input.left))
+		if (input_button_went_down(gui.input, INPUT_BUTTON_dpad_left))
 		{
 			*value 		-= 1;
 			modified 	= true;
 		}
 
-		if (is_clicked(gui.input.right))
+		if (input_button_went_down(gui.input, INPUT_BUTTON_dpad_right))
 		{
 			*value 		+= 1;
 			modified 	= true;
@@ -756,23 +756,23 @@ internal bool gui_float_value_field(char const * label, f32 * value, GuiClampVal
 	bool isSelected 				= gui_is_selected();
 
 	bool modified 			= false;
-	bool modifiedByMouse 	= isSelected && is_pressed(gui.input.mouse0);
+	bool modifiedByMouse 	= isSelected && input_button_is_down(gui.input, INPUT_BUTTON_mouse_0);
 
 	if (isSelected)
 	{
-		if (is_pressed(gui.input.left))
+		if (input_button_is_down(gui.input, INPUT_BUTTON_dpad_left))
 		{
 			*value 		-= sliderMoveSpeed * gui.elapsedTime;
 			modified 	= true;
 		}
 
-		if (is_pressed(gui.input.right))
+		if (input_button_is_down(gui.input, INPUT_BUTTON_dpad_right))
 		{
 			*value 		+= sliderMoveSpeed * gui.elapsedTime;
 			modified 	= true;
 		}
 
-		float joystickDelta = gui.input.move.x;
+		float joystickDelta = input_axis_get_value(gui.input, INPUT_AXIS_move_x);
 		if (abs_f32(joystickDelta) >= 0.1)
 		{
 			// Note(Leo): pow3 provides more accuracy closer to zero and preserves sign
@@ -785,7 +785,7 @@ internal bool gui_float_value_field(char const * label, f32 * value, GuiClampVal
 	constexpr f32 mouseMoveScale = 0.2;
 	if (modifiedByMouse)
 	{
-		f32 mouseDelta 	= gui.input.mousePosition.x - gui.mousePositionLastFrame.x;
+		f32 mouseDelta 	= input_cursor_get_position(gui.input).x - gui.mousePositionLastFrame.x;
 		mouseDelta 		= mouseMoveScale * mouseDelta * mouseDelta;
 		*value 			+= mouseDelta;
 	}
@@ -937,7 +937,7 @@ internal bool gui_is_under_mouse(v2 position, v2 size)
 	position 	= position * global_currentGui->screenSizeRatio;
 	size 		= size * global_currentGui->screenSizeRatio;
 
-	v2 mousePosition 	= global_currentGui->input.mousePosition;
+	v2 mousePosition 	= input_cursor_get_position(global_currentGui->input);
 	mousePosition 		-= position;
 
 	bool isUnderMouse = mousePosition.x > 0 && mousePosition.x < size.x && mousePosition.y > 0 && mousePosition.y < size.y;
@@ -950,7 +950,7 @@ internal bool gui_is_selected()
 
 	// Todo(Leo): do some kind of "current rect" thing, or pass it here
 	bool isUnderMouse 	= false;//gui_is_under_mouse(gui.panelPosition + v2{gui.padding, gui.padding} + v2{gui.panelCursorX, gui.panelCursorY}, {400, gui.textSize});// || isSelected;
-	bool mouseHasMoved 	= magnitude_v2(gui.mousePositionLastFrame - gui.input.mousePosition) > 0.1f;
+	bool mouseHasMoved 	= magnitude_v2(gui.mousePositionLastFrame - input_cursor_get_position(gui.input)) > 0.1f;
 
 	if (isUnderMouse && mouseHasMoved)
 	{

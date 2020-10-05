@@ -49,7 +49,7 @@ vulkan_sdk = os.environ['VULKAN_SDK']
 print (vulkan_sdk)
 
 devbuild = False
-devbuild = True
+# devbuild = True
 
 ### BUILD DEVELOPMENT GAME WITH SEPARATE GAME CODE DLL
 if devbuild:

@@ -27,13 +27,13 @@ internal void gui_set_cursor_visible(bool menuVisible)
 }
 
 
-bool32 do_gui(Game * game, PlatformInput const & input)
+bool32 do_gui(Game * game, PlatformInput * input)
 {	
 	constexpr v2 cornerPosition = {30, 30};
 	constexpr v2 centerPosition = {850, 400};
 
 
-	if (is_clicked(input.start))
+	if (input_button_went_down(input, INPUT_BUTTON_start))
 	{
 		if (game->menuView == MENU_OFF)
 		{
@@ -83,7 +83,7 @@ bool32 do_gui(Game * game, PlatformInput const & input)
 
 			gui_start_panel("MENU", menuColor);
 
-			v2 mousePosition = input.mousePosition;
+			v2 mousePosition = input_cursor_get_position(input);
 
 			// gui_float_slider_2("X", &mousePosition.x, -20000, 20000);
 			// gui_float_slider_2("Y", &mousePosition.y, -20000, 20000);
@@ -201,7 +201,7 @@ bool32 do_gui(Game * game, PlatformInput const & input)
 			gui_float_slider("Grid Scale", &game->metaballGridScale, 0.2, 1);
 			gui_toggle("Draw", &game->drawMCStuff);
 
-			if (gui_button("Back") || is_clicked(input.start))
+			if (gui_button("Back") || input_button_went_down(input, INPUT_BUTTON_start))
 			{
 				game->menuView = MENU_MAIN;
 				gui_reset_selection();
@@ -220,7 +220,7 @@ bool32 do_gui(Game * game, PlatformInput const & input)
 			tree_gui(game->trees[game->inspectedTreeIndex]);
 			
 			gui_line();
-			if (gui_button("Back") || is_clicked(input.start))
+			if (gui_button("Back") || input_button_went_down(input, INPUT_BUTTON_start))
 			{
 				game->menuView = MENU_MAIN;
 				gui_reset_selection();
@@ -277,7 +277,7 @@ bool32 do_gui(Game * game, PlatformInput const & input)
 
 			gui_line();
 
-			if (gui_button("Back") || is_clicked(input.start))
+			if (gui_button("Back") || input_button_went_down(input, INPUT_BUTTON_start))
 			{
 				game->menuView = MENU_MAIN;
 			}
@@ -301,7 +301,7 @@ bool32 do_gui(Game * game, PlatformInput const & input)
 				game_spawn_tree_on_player(*game);
 			}
 
-			if (is_clicked(input.start))
+			if (input_button_went_down(input, INPUT_BUTTON_start))
 			{
 				game->menuView = MENU_OFF;
 			}
@@ -378,7 +378,7 @@ bool32 do_gui(Game * game, PlatformInput const & input)
 			float dummy;
 			gui_float_field("Dummy", &dummy);
 
-			if (gui_button("Back") || is_clicked(input.start))
+			if (gui_button("Back") || input_button_went_down(input, INPUT_BUTTON_start))
 			{
 				game->menuView = MENU_MAIN;
 			}

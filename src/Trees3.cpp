@@ -184,6 +184,7 @@ struct Tree3
 	// Todo(Leo): this is not used yet, make it so that it is
 	// quaternion rotation;
 
+	bool32 planted = false;
 	bool32 drawSeed = true;
 	bool32 enabled;
 	bool32 drawGizmos;
@@ -833,7 +834,7 @@ internal void update_tree_3(Tree3 & tree, f32 elapsedTime, GetWaterFunc & get_wa
 		tree.breakOnUpdate = false;
 	}
 
-	if (Tree3::globalEnabled && tree.enabled && !tree.resourceLimitReached)
+	if (Tree3::globalEnabled && tree.planted && tree.enabled && !tree.resourceLimitReached)
 	{
 		grow_tree_3(tree, elapsedTime, get_water);
 		build_tree_3_mesh(tree);

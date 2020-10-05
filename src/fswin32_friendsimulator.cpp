@@ -43,7 +43,7 @@ This is the first file to compile, and everything is included from here.
 #include "fswin32_platform_log.cpp"
 #include "fswin32_platform_time.cpp"
 #include "fswin32_platform_file.cpp"
-#include "fswin32_input.cpp"
+#include "fswin32_platform_input.cpp"
 
 #include "fswin32_platform_window.cpp"
 #include "fswin32_game_dll.cpp"
@@ -175,9 +175,10 @@ FS_ENTRY_POINT
 				update_unused_input(&platformInput);
 			}
 
+			// Todo(Leo): Totally in wrong place :))
 			platformInput.mousePosition = state.keyboardInput.mousePosition;
-    		platformInput.mouse0   		= update_button_state(platformInput.mouse0, state.keyboardInput.leftMouseButtonDown);
-    		platformInput.mouseZoom 	= state.keyboardInput.mouseScroll;
+    		fswin32_input_update_button_state(platformInput.buttons[INPUT_BUTTON_mouse_0], state.keyboardInput.leftMouseButtonDown);
+    		platformInput.axes[INPUT_AXIS_mouse_scroll]	= state.keyboardInput.mouseScroll;
 
     		state.keyboardInput.mouseScroll = 0;
 

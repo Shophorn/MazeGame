@@ -399,7 +399,7 @@ internal void game_spawn_tree_on_player(Game & game)
 
 // Todo(Leo): add this to syntax higlight, so that 'GAME UPDATE' is different color
 /// ------------------ GAME UPDATE -------------------------
-internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, PlatformTime const & time)
+internal bool32 update_scene_3d(void * scenePtr, PlatformInput * input, PlatformTime const & time)
 {
 	Game * game = reinterpret_cast<Game*>(scenePtr);
 	
@@ -453,12 +453,12 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 			if (game->menuView == MENU_OFF)
 			{
-				if (is_clicked(input.down))
+				if (input_button_went_down(input, INPUT_BUTTON_dpad_down))
 				{
 					game->menuView = MENU_SPAWN;
 				}
 
-				if (is_clicked(input.Y))
+				if (input_button_went_down(input, INPUT_BUTTON_nintendo_y))
 				{
 					game->nobleWanderTargetPosition 	= game->playerCharacterTransform.position;
 					game->nobleWanderWaitTimer 		= 0;
@@ -491,7 +491,7 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 			game->worldCamera.direction = game->freeCamera.direction;
 
 			/// Document(Leo): Teleport player
-			if (game->menuView == MENU_OFF && is_clicked(input.A))
+			if (game->menuView == MENU_OFF && input_button_went_down(input, INPUT_BUTTON_nintendo_a))
 			{
 				game->menuView = MENU_CONFIRM_TELEPORT;
 				gui_ignore_input();
@@ -509,7 +509,7 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 			game->worldCamera.direction = game->mouseCamera.direction;
 
 			/// Document(Leo): Teleport player
-			if (game->menuView == MENU_OFF && is_clicked(input.A))
+			if (game->menuView == MENU_OFF && input_button_went_down(input, INPUT_BUTTON_nintendo_a))
 			{
 				game->menuView = MENU_CONFIRM_TELEPORT;
 				gui_ignore_input();
@@ -571,11 +571,11 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 	bool playerInputAvailable = game->cameraMode == CAMERA_MODE_PLAYER
 								&& game->menuView == MENU_OFF;
 
+	f32 grabDistance = 1.0f;
 	/// PICKUP OR DROP
-	if (playerInputAvailable && is_clicked(input.A))
+	if (playerInputAvailable && game->playerInputState.events.pickupOrDrop)
 	{
 		v3 playerPosition = game->playerCharacterTransform.position;
-		f32 grabDistance = 1.0f;
 
 		switch(game->playerCarryState)
 		{
@@ -618,37 +618,6 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 						}
 					}
 				}
-
-				{
-					if(game->boxState == BOX_CLOSED)
-					{
-						v3 openPosition = multiply_point(transform_matrix(game->boxTransform), v3{0, 0.6, 0});
-
-						f32 distanceToBox = v3_length(game->boxTransform.position - game->playerCharacterTransform.position);
-						if (distanceToBox < grabDistance)
-						{
-							game->playerCarryState = GO_NONE;
-						}
-
-						f32 distanceToOpenPosition = v3_length(openPosition - game->playerCharacterTransform.position);
-						if (distanceToOpenPosition < grabDistance)
-						{
-							game->boxState 			= BOX_OPENING;
-							game->boxOpenPercent 	= 0;
-						}
-					}
-					else if (game->boxState == BOX_OPEN)
-					{
-						v3 closePosition = multiply_point(transform_matrix(game->boxTransform), v3{0,-0.6,0});
-						f32 distanceToClosePosition = v3_length(closePosition - game->playerCharacterTransform.position);
-						if (distanceToClosePosition < grabDistance)
-						{
-							game->boxState 			= BOX_CLOSING;
-							game->boxOpenPercent 	= 0;
-						}
-					}
-				}
-
 			} break;
 
 			case GO_POT:
@@ -707,6 +676,50 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 			} break;
 		}
 	} // endif input
+
+	if (playerInputAvailable && game->playerInputState.events.interact)
+	{
+		if (game->playerCarryState == GO_NONE)
+		{
+			if(game->boxState == BOX_CLOSED)
+			{
+				v3 openPosition = multiply_point(transform_matrix(game->boxTransform), v3{0, 0.6, 0});
+
+				f32 distanceToBox = v3_length(game->boxTransform.position - game->playerCharacterTransform.position);
+				if (distanceToBox < grabDistance)
+				{
+					game->playerCarryState = GO_NONE;
+				}
+
+				f32 distanceToOpenPosition = v3_length(openPosition - game->playerCharacterTransform.position);
+				if (distanceToOpenPosition < grabDistance)
+				{
+					game->boxState 			= BOX_OPENING;
+					game->boxOpenPercent 	= 0;
+				}
+			}
+			else if (game->boxState == BOX_OPEN)
+			{
+				v3 closePosition = multiply_point(transform_matrix(game->boxTransform), v3{0,-0.6,0});
+				f32 distanceToClosePosition = v3_length(closePosition - game->playerCharacterTransform.position);
+				if (distanceToClosePosition < grabDistance)
+				{
+					game->boxState 			= BOX_CLOSING;
+					game->boxOpenPercent 	= 0;
+				}
+			}
+		}
+
+		else if (game->playerCarryState == GO_TREE_3)
+		{
+			game->trees[game->carriedItemIndex].planted = true;
+			push_physics_object(game->physicsObjects, GO_TREE_3, game->carriedItemIndex);
+			game->carriedItemIndex = -1;
+			game->playerCarryState = GO_NONE;			
+
+		}
+
+	}
 
 
 	v3 carriedPosition 			= multiply_point(transform_matrix(game->playerCharacterTransform), {0, 0.7, 0.7});
@@ -1282,7 +1295,12 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput const & input, Pl
 
 		if (tree.drawSeed)
 		{
-			graphics_draw_meshes(platformGraphics, 1, &transform, tree.seedMesh, tree.seedMaterial);
+			m44 seedTransform = transform;
+			if (tree.planted)
+			{
+				seedTransform[3].z -= 0.3;
+			}
+			graphics_draw_meshes(platformGraphics, 1, &seedTransform, tree.seedMesh, tree.seedMaterial);
 		}
 
 		if (tree.hasFruit)

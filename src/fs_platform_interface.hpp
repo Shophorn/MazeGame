@@ -1,8 +1,8 @@
-/*=============================================================================
+/*
 Leo Tamminen
 
 Interface definition between Platform and Game.
-===============================================================================*/
+*/
 
 #if !defined FS_PLATFORM_INTERFACE_HPP
 
@@ -39,21 +39,19 @@ struct ScreenRect
 
 constexpr GuiTextureHandle GRAPHICS_RESOURCE_SHADOWMAP_GUI_TEXTURE = {-1};
 
-
 /// ***********************************************************************
 /// PLATFORM OPAQUE HANDLES
 /* Note(Leo): these are defined in platform layer, and
 can (and are supposed to) be used as opaque handles in
 game layer. */
 
-// Note(Leo): this represents graphics api, which is unknown
 struct PlatformGraphics;
-
-// Note(Leo): this represents windowing system, which is os dependent, and therefore unknown
 struct PlatformWindow;
-struct PlatformApiDescription;
+struct PlatformInput;
 // struct PlatformNetwork;
 // struct PlatformAudio;
+
+struct PlatformApiDescription;
 
 enum FileMode 
 {
@@ -88,85 +86,58 @@ struct PlatformStereoSoundSample
 	float right;
 };
 
-// Todo(Leo): These buttonstate things are implementation details and may even vary per platform,
-// so consider moving them elsewhere. Maybe only expose is_clicked etc. as
-enum struct ButtonState : s8
-{
-	IsUp,
-	WentDown,
-	WentUp,
-	IsDown
-};
-
-bool32 is_clicked (ButtonState button) { return button == ButtonState::WentDown; } 
-bool32 is_released (ButtonState button) { return button == ButtonState::WentUp; } 
-bool32 is_pressed (ButtonState button) { return (button == ButtonState::IsDown) || (button == ButtonState::WentDown);}
-
-internal ButtonState update_button_state(ButtonState buttonState, bool32 buttonIsPressed)
-{
-	switch(buttonState)
-	{
-		case ButtonState::IsUp:
-			buttonState = buttonIsPressed ? ButtonState::WentDown : ButtonState::IsUp;
-			break;
-
-		case ButtonState::WentDown:
-			buttonState = buttonIsPressed ? ButtonState::IsDown : ButtonState::WentUp;
-			break;
-
-		case ButtonState::WentUp:
-			buttonState = buttonIsPressed ? ButtonState::WentDown : ButtonState::IsUp;
-			break;
-
-		case ButtonState::IsDown:
-			buttonState = buttonIsPressed ? ButtonState::IsDown : ButtonState::WentUp;
-			break;
-
-		default:
-			AssertMsg(false, "Invalid ButtonState value");
-	}
-
-	return buttonState;
-}
-
 struct PlatformTimePoint
 {
 	s64 value;
 };
 
 /// ***********************************************************************
-/// PLATFORM POINTER TYPES
+/// PLATFORM ENUMERATIONS
 
-// Todo(Leo): input is done rarely, this should be similar opaque handle like pointer like windows and graphics
-struct PlatformInput
+enum PlatformInputButton : s32
 {
-	v2 move;
-	v2 look;
+	INPUT_BUTTON_xbox_y,
+	INPUT_BUTTON_xbox_x,
+	INPUT_BUTTON_xbox_b,
+	INPUT_BUTTON_xbox_a, 
+	INPUT_BUTTON_start,
+	INPUT_BUTTON_select,
+	INPUT_BUTTON_dpad_left,
+	INPUT_BUTTON_dpad_right,
+	INPUT_BUTTON_dpad_down,
+	INPUT_BUTTON_dpad_up,
+	INPUT_BUTTON_zoom_in,
+	INPUT_BUTTON_zoom_out,
+	INPUT_BUTTON_mouse_0,
 
-	// Todo(Leo): Do a proper separate mapping struct of meanings of specific buttons
-	ButtonState jump;
-	ButtonState confirm;
-	ButtonState interact;
+	INPUT_BUTTON_COUNT,
 
-	// Note(Leo): Nintendo mapping
-	ButtonState X, Y, A, B;
+	// Note(Leo): these are merely different mappings, that may be more useful in certain contexts
+	INPUT_BUTTON_nintendo_x 	= INPUT_BUTTON_xbox_y,
+	INPUT_BUTTON_nintendo_y 	= INPUT_BUTTON_xbox_x,
+	INPUT_BUTTON_nintendo_a 	= INPUT_BUTTON_xbox_b,
+	INPUT_BUTTON_nintendo_b 	= INPUT_BUTTON_xbox_a, 
 
-	// Note(Leo): Start and Select as in controller
-	ButtonState start;
-	ButtonState select;
-
-	ButtonState left;
-	ButtonState right;
-	ButtonState down;
-	ButtonState up;
-
-	ButtonState zoomIn;
-	ButtonState zoomOut;
-
-	v2 			mousePosition;
-	f32 		mouseZoom;
-	ButtonState mouse0;
+	INPUT_BUTTON_ps4_triangle 	= INPUT_BUTTON_xbox_y,
+	INPUT_BUTTON_ps4_square 	= INPUT_BUTTON_xbox_x,
+	INPUT_BUTTON_ps4_circle 	= INPUT_BUTTON_xbox_b,
+	INPUT_BUTTON_ps4_cross 		= INPUT_BUTTON_xbox_a,
 };
+
+enum PlatformInputAxis : s32
+{
+	INPUT_AXIS_move_x,
+	INPUT_AXIS_move_y,
+	INPUT_AXIS_look_x,
+	INPUT_AXIS_look_y,
+
+	INPUT_AXIS_mouse_scroll,
+
+	INPUT_AXIS_COUNT
+};
+
+/// ***********************************************************************
+/// PLATFORM POINTER TYPES
 
 struct PlatformTime
 {
@@ -221,16 +192,7 @@ struct PlatformSoundOutput
 	#error "FS_PLATFORM or FS_GAME_DLL must be defined!"
 #endif
 
-
-
-
-
-
-
-// #if defined FS_GAME_DLL 
-// extern "C" __declspec(dllexport)
-// #endif
-FS_GAME_API bool32 update_game(	const PlatformInput *,
+FS_GAME_API bool32 update_game(	PlatformInput *,
 								const PlatformTime *,
 								PlatformMemory *,
 								PlatformNetwork *,
@@ -243,52 +205,57 @@ using UpdateGameFunc = decltype(update_game);
 
 /// ------------------- PLATFORM TO GAME API ----------------------------
 
-PlatformFileHandle FS_PLATFORM_API(platform_file_open) (char const * filename, FileMode);
-void FS_PLATFORM_API(platform_file_close) (PlatformFileHandle);
-s64 FS_PLATFORM_API(platform_file_get_size) (PlatformFileHandle);
-void FS_PLATFORM_API(platform_file_read) (PlatformFileHandle, s64 position, s64 count, void * memory);
-void FS_PLATFORM_API(platform_file_write) (PlatformFileHandle, s64 position, s64 count, void * memory);
+PlatformFileHandle 	FS_PLATFORM_API(platform_file_open) (char const * filename, FileMode);
+void 				FS_PLATFORM_API(platform_file_close) (PlatformFileHandle);
+s64 				FS_PLATFORM_API(platform_file_get_size) (PlatformFileHandle);
+void 				FS_PLATFORM_API(platform_file_read) (PlatformFileHandle, s64 position, s64 count, void * memory);
+void 				FS_PLATFORM_API(platform_file_write) (PlatformFileHandle, s64 position, s64 count, void * memory);
 
-void FS_PLATFORM_API(platform_log_write) (s32 count, char const * buffer);
+void 				FS_PLATFORM_API(platform_log_write) (s32 count, char const * buffer);
 
-PlatformTimePoint FS_PLATFORM_API(platform_time_now) ();
-f64 FS_PLATFORM_API(platform_time_elapsed_seconds)(PlatformTimePoint start, PlatformTimePoint end);
+PlatformTimePoint 	FS_PLATFORM_API(platform_time_now) ();
+f64 				FS_PLATFORM_API(platform_time_elapsed_seconds)(PlatformTimePoint start, PlatformTimePoint end);
 
-u32 FS_PLATFORM_API(platform_window_get_width) (PlatformWindow const *);
-u32 FS_PLATFORM_API(platform_window_get_height) (PlatformWindow const *);
-bool32 FS_PLATFORM_API(platform_window_is_fullscreen) (PlatformWindow const *);
-void FS_PLATFORM_API(platform_window_set_fullscreen) (PlatformWindow*, bool32 value);
-void FS_PLATFORM_API(platform_window_set_cursor_visible) (PlatformWindow*, bool32 value);
+u32 				FS_PLATFORM_API(platform_window_get_width) (PlatformWindow const *);
+u32 				FS_PLATFORM_API(platform_window_get_height) (PlatformWindow const *);
+bool32 				FS_PLATFORM_API(platform_window_is_fullscreen) (PlatformWindow const *);
+void 				FS_PLATFORM_API(platform_window_set_fullscreen) (PlatformWindow*, bool32 value);
+void 				FS_PLATFORM_API(platform_window_set_cursor_visible) (PlatformWindow*, bool32 value);
 
-void FS_PLATFORM_API(graphics_drawing_prepare_frame)(PlatformGraphics*);
-void FS_PLATFORM_API(graphics_drawing_finish_frame)(PlatformGraphics*);
+bool32 				FS_PLATFORM_API(input_button_went_down) (PlatformInput*, PlatformInputButton);
+bool32 				FS_PLATFORM_API(input_button_is_down) (PlatformInput*, PlatformInputButton);
+bool32 				FS_PLATFORM_API(input_button_went_up) (PlatformInput*, PlatformInputButton);
+f32 				FS_PLATFORM_API(input_axis_get_value) (PlatformInput * input, PlatformInputAxis axis);
+v2 					FS_PLATFORM_API(input_cursor_get_position) (PlatformInput * input);
 
-void FS_PLATFORM_API(graphics_drawing_update_camera)(PlatformGraphics*, Camera const *);
-void FS_PLATFORM_API(graphics_drawing_update_lighting)(PlatformGraphics*, Light const *, Camera const * camera, v3 ambient);
-void FS_PLATFORM_API(graphics_drawing_update_hdr_settings)(PlatformGraphics*, HdrSettings const *);
+void 				FS_PLATFORM_API(graphics_drawing_prepare_frame)(PlatformGraphics*);
+void 				FS_PLATFORM_API(graphics_drawing_finish_frame)(PlatformGraphics*);
 
-void FS_PLATFORM_API(graphics_draw_model) (PlatformGraphics*, ModelHandle model, m44 transform, bool32 castShadow, m44 const * bones, u32 boneCount);
-void FS_PLATFORM_API(graphics_draw_meshes) (PlatformGraphics*, s32 count, m44 const * transforms, MeshHandle mesh, MaterialHandle material);
-void FS_PLATFORM_API(graphics_draw_screen_rects) (PlatformGraphics*, s32 count, ScreenRect const * rects, GuiTextureHandle texture, v4 color);
-void FS_PLATFORM_API(graphics_draw_lines) (PlatformGraphics*, s32 pointCount, v3 const * points, v4 color);
-void FS_PLATFORM_API(graphics_draw_procedural_mesh)(	PlatformGraphics*,
-								s32 vertexCount, Vertex const * vertices,
-								s32 indexCount, u16 const * indices,
-								m44 transform, MaterialHandle material);
-void FS_PLATFORM_API(graphics_draw_leaves) (PlatformGraphics*, s32 count, m44 const * transforms, s32 colourIndex, v3 colour, MaterialHandle material);
+void 				FS_PLATFORM_API(graphics_drawing_update_camera)(PlatformGraphics*, Camera const *);
+void 				FS_PLATFORM_API(graphics_drawing_update_lighting)(PlatformGraphics*, Light const *, Camera const * camera, v3 ambient);
+void 				FS_PLATFORM_API(graphics_drawing_update_hdr_settings)(PlatformGraphics*, HdrSettings const *);
 
-MeshHandle FS_PLATFORM_API(graphics_memory_push_mesh) (PlatformGraphics*, MeshAssetData * asset);
-TextureHandle FS_PLATFORM_API(graphics_memory_push_texture) (PlatformGraphics*, TextureAssetData * asset);
-MaterialHandle FS_PLATFORM_API(graphics_memory_push_material) (PlatformGraphics*, GraphicsPipeline, s32 textureCount, TextureHandle * textures);
-GuiTextureHandle FS_PLATFORM_API(graphics_memory_push_gui_texture) (PlatformGraphics*, TextureAssetData * asset);
+void 				FS_PLATFORM_API(graphics_draw_model) (PlatformGraphics*, ModelHandle model, m44 transform, bool32 castShadow, m44 const * bones, u32 boneCount);
+void 				FS_PLATFORM_API(graphics_draw_meshes) (PlatformGraphics*, s32 count, m44 const * transforms, MeshHandle mesh, MaterialHandle material);
+void 				FS_PLATFORM_API(graphics_draw_screen_rects) (PlatformGraphics*, s32 count, ScreenRect const * rects, GuiTextureHandle texture, v4 color);
+void 				FS_PLATFORM_API(graphics_draw_lines) (PlatformGraphics*, s32 pointCount, v3 const * points, v4 color);
+void 				FS_PLATFORM_API(graphics_draw_procedural_mesh)(	PlatformGraphics*,
+																	s32 vertexCount, Vertex const * vertices,
+																	s32 indexCount, u16 const * indices,
+																	m44 transform, MaterialHandle material);
+void 				FS_PLATFORM_API(graphics_draw_leaves) (PlatformGraphics*, s32 count, m44 const * transforms, s32 colourIndex, v3 colour, MaterialHandle material);
+
+MeshHandle 			FS_PLATFORM_API(graphics_memory_push_mesh) (PlatformGraphics*, MeshAssetData * asset);
+TextureHandle 		FS_PLATFORM_API(graphics_memory_push_texture) (PlatformGraphics*, TextureAssetData * asset);
+MaterialHandle 		FS_PLATFORM_API(graphics_memory_push_material) (PlatformGraphics*, GraphicsPipeline, s32 textureCount, TextureHandle * textures);
+GuiTextureHandle 	FS_PLATFORM_API(graphics_memory_push_gui_texture) (PlatformGraphics*, TextureAssetData * asset);
 	// Todo(Leo): Maybe remove 'push_model', we can render also just passing mesh and material handles directly
-ModelHandle FS_PLATFORM_API(graphics_memory_push_model) (PlatformGraphics*, MeshHandle mesh, MaterialHandle material);
-void FS_PLATFORM_API(graphics_memory_unload) (PlatformGraphics*);
+ModelHandle 		FS_PLATFORM_API(graphics_memory_push_model) (PlatformGraphics*, MeshHandle mesh, MaterialHandle material);
+void 				FS_PLATFORM_API(graphics_memory_unload) (PlatformGraphics*);
 
-// Note(Leo): this may be needed for development only, should it be handled differently
-void FS_PLATFORM_API(graphics_development_update_texture) (PlatformGraphics*, TextureHandle, TextureAssetData*);
-void FS_PLATFORM_API(graphics_development_reload_shaders) (PlatformGraphics*);
-
+// Todo(Leo): this may be needed for development only, should it be handled differently???
+void 				FS_PLATFORM_API(graphics_development_update_texture) (PlatformGraphics*, TextureHandle, TextureAssetData*);
+void 				FS_PLATFORM_API(graphics_development_reload_shaders) (PlatformGraphics*);
 
 // Todo(Leo): maybe add condition if not FS_FULL_GAME
 struct PlatformApiDescription
@@ -309,6 +276,13 @@ struct PlatformApiDescription
 	FS_PLATFORM_API_TYPE(platform_window_is_fullscreen) windowIsFullscreen;
 	FS_PLATFORM_API_TYPE(platform_window_set_fullscreen) windowSetFullscreen;
 	FS_PLATFORM_API_TYPE(platform_window_set_cursor_visible) windowSetCursorVisible;
+
+	FS_PLATFORM_API_TYPE(input_button_went_down) buttonWentDown;
+	FS_PLATFORM_API_TYPE(input_button_is_down) buttonIsDown;
+	FS_PLATFORM_API_TYPE(input_button_went_up) buttonWentUp;
+
+	FS_PLATFORM_API_TYPE(input_axis_get_value) inputAxisGetValue;
+	FS_PLATFORM_API_TYPE(input_cursor_get_position) inputCursorGetPosition;
 
 	FS_PLATFORM_API_TYPE(graphics_drawing_prepare_frame) drawingPrepareFrame;
 	FS_PLATFORM_API_TYPE(graphics_drawing_finish_frame) drawingFinishFrame;
@@ -353,6 +327,14 @@ void platform_set_api(PlatformApiDescription * api)
 	FS_PLATFORM_API_SET_FUNCTION(platform_window_set_fullscreen, api->windowSetFullscreen);
 	FS_PLATFORM_API_SET_FUNCTION(platform_window_set_cursor_visible, api->windowSetCursorVisible);
 
+	FS_PLATFORM_API_SET_FUNCTION(input_button_went_down, api->buttonWentDown);
+	FS_PLATFORM_API_SET_FUNCTION(input_button_is_down, api->buttonIsDown);
+	FS_PLATFORM_API_SET_FUNCTION(input_button_went_up, api->buttonWentUp);
+
+	FS_PLATFORM_API_SET_FUNCTION(input_axis_get_value, api->inputAxisGetValue);
+	
+	FS_PLATFORM_API_SET_FUNCTION(input_cursor_get_position, api->inputCursorGetPosition);
+
 	FS_PLATFORM_API_SET_FUNCTION(graphics_drawing_prepare_frame, api->drawingPrepareFrame);
 	FS_PLATFORM_API_SET_FUNCTION(graphics_drawing_finish_frame, api->drawingFinishFrame);
 	FS_PLATFORM_API_SET_FUNCTION(graphics_drawing_update_camera, api->drawingUpdateCamera);
@@ -379,3 +361,4 @@ void platform_set_api(PlatformApiDescription * api)
 
 #define FS_PLATFORM_INTERFACE_HPP
 #endif
+

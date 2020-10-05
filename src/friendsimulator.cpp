@@ -181,7 +181,7 @@ static void game_init_state(GameState * state, PlatformMemory * memory)
 
 // Note(Leo): return whether or not game still continues
 // Todo(Leo): indicate meaning of return value betterly somewhere, I almost forgot it.
-FS_GAME_API bool32 update_game(	PlatformInput const *	input,
+FS_GAME_API bool32 update_game(	PlatformInput  *		input,
 								PlatformTime const *	time,
 
 								PlatformMemory * 		memory,
@@ -233,12 +233,12 @@ FS_GAME_API bool32 update_game(	PlatformInput const *	input,
 	{
 		if (state->loadedSceneType == LOADED_SCENE_3D)
 		{
-			sceneIsAlive = update_scene_3d(state->loadedScene, *input, *time);
+			sceneIsAlive = update_scene_3d(state->loadedScene, input, *time);
 		}
 	}
 	else
 	{
-		gui_start_frame(state->gui, *input, time->elapsedTime);
+		gui_start_frame(state->gui, input, time->elapsedTime);
 
 		gui_position({0,0});
 		gui_image(state->backgroundImage, {1920, 1080}, {1,1,1,1});
@@ -307,7 +307,7 @@ FS_GAME_API bool32 update_game(	PlatformInput const *	input,
 	}
 
 	// Todo(Leo): These still MAYBE do not belong here
-	if (is_clicked(input->select))
+	if (input_button_went_down(input, INPUT_BUTTON_select))
 	{
 		bool isFullScreen = platform_window_is_fullscreen(platformWindow);
 		platform_window_set_fullscreen(platformWindow, !isFullScreen);

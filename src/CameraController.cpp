@@ -1,40 +1,3 @@
-struct CameraControllerSideScroller
-{
-	// References
-	Camera * 		camera;
-	Transform3D *	target;
-
-	// State
-	v3 baseOffset 	= {0, 0, 1};
-	f32 distance 		= 20.0f;
-
-	// Properties
-	f32 minDistance 			= 5.0f;
-	f32 maxDistance 			= 100.0f;
-	f32 relativeZoomSpeed 	= 1.0f;
-
-	void
-	update(PlatformInput const & input, f32 elapsedTime)
-	{
-		if (is_pressed(input.zoomIn))
-		{
-			distance -= distance * relativeZoomSpeed * elapsedTime;
-			distance = max_f32(distance, minDistance);
-		}
-		else if(is_pressed(input.zoomOut))
-		{
-			distance += distance * relativeZoomSpeed * elapsedTime;
-			distance = min_f32(distance, maxDistance);
-		}
-
-		v3 direction = v3_forward;
-		camera->direction = direction;
-		camera->position = 	baseOffset
-							+ target->position
-							- (direction * distance); 
-	}
-};
-
 internal void
 update_camera_system(	Camera * camera,
 						PlatformGraphics * graphics,
@@ -68,22 +31,22 @@ struct PlayerCameraController
 };
 
 internal void
-update_camera_controller(PlayerCameraController * controller, v3 targetPosition, PlatformInput const & input, f32 elapsedTime)
+update_camera_controller(PlayerCameraController * controller, v3 targetPosition, PlatformInput * input, f32 elapsedTime)
 {
-	if (is_pressed(input.zoomIn))
+	if (input_button_is_down(input, INPUT_BUTTON_zoom_in))
 	{
 		controller->distance -= controller->distance * controller->relativeZoomSpeed * elapsedTime;
 		controller->distance = max_f32(controller->distance, controller->minDistance);
 	}
-	else if(is_pressed(input.zoomOut))
+	else if(input_button_is_down(input, INPUT_BUTTON_zoom_out))
 	{
 		controller->distance += controller->distance * controller->relativeZoomSpeed * elapsedTime;
 		controller->distance = min_f32(controller->distance, controller->maxDistance);
 	}
 
-    controller->orbitDegrees += input.look.x * controller->rotateSpeed * elapsedTime;
+    controller->orbitDegrees += input_axis_get_value(input, INPUT_AXIS_look_x) * controller->rotateSpeed * elapsedTime;
     
-    controller->tumbleDegrees += input.look.y * controller->rotateSpeed * elapsedTime;
+    controller->tumbleDegrees += input_axis_get_value(input, INPUT_AXIS_look_y) * controller->rotateSpeed * elapsedTime;
     controller->tumbleDegrees = clamp_f32(controller->tumbleDegrees, controller->minTumble, controller->maxTumble);
 
     f32 cameraDistance = controller->distance;
@@ -137,7 +100,7 @@ struct FreeCameraController
 	f32 tiltAngle;
 };
 
-internal m44 update_free_camera(FreeCameraController & controller, PlatformInput const & input, f32 elapsedTime)
+internal m44 update_free_camera(FreeCameraController & controller, PlatformInput * input, f32 elapsedTime)
 {
 	f32 lowMoveSpeed 	= 10;
 	f32 highMoveSpeed	= 100;
@@ -146,9 +109,9 @@ internal m44 update_free_camera(FreeCameraController & controller, PlatformInput
 	f32 maxTilt 		= 0.45f * π;
 
 	// Note(Leo): positive rotation is to left, which is opposite of joystick
-	controller.panAngle += -1 * input.look.x * rotateSpeed * elapsedTime;
+	controller.panAngle += -1 * input_axis_get_value(input, INPUT_AXIS_look_x) * rotateSpeed * elapsedTime;
 
-	controller.tiltAngle += -1 * input.look.y * rotateSpeed * elapsedTime;
+	controller.tiltAngle += -1 * input_axis_get_value(input, INPUT_AXIS_look_y) * rotateSpeed * elapsedTime;
 	controller.tiltAngle = clamp_f32(controller.tiltAngle, -maxTilt, maxTilt);
 
 	quaternion pan 	= quaternion_axis_angle(v3_up, controller.panAngle);
@@ -165,10 +128,10 @@ internal m44 update_free_camera(FreeCameraController & controller, PlatformInput
 	f32 moveSpeed 	= interpolate(lowMoveSpeed, highMoveSpeed, heightValue);
 
 	f32 moveStep 		= moveSpeed * elapsedTime;
-	v3 rightMovement 	= right * input.move.x * moveStep;
-	v3 forwardMovement 	= forward * input.move.y * moveStep;
+	v3 rightMovement 	= right * input_axis_get_value(input, INPUT_AXIS_move_x) * moveStep;
+	v3 forwardMovement 	= forward * input_axis_get_value(input, INPUT_AXIS_move_y) * moveStep;
 
-	f32 zInput 		= is_pressed(input.zoomOut) - is_pressed(input.zoomIn);
+	f32 zInput 		= input_button_is_down(input, INPUT_BUTTON_zoom_out) - input_button_is_down(input, INPUT_BUTTON_zoom_in);
 	v3 upMovement 	= v3_up * zInput * zMoveSpeed * elapsedTime;
 
 	quaternion tilt = quaternion_axis_angle(right, controller.tiltAngle);
@@ -190,7 +153,7 @@ struct MouseCameraController
 	v2 lastMousePosition;
 };
 
-internal void update_mouse_camera(MouseCameraController & controller, PlatformInput const & input, f32 elapsedTime)
+internal void update_mouse_camera(MouseCameraController & controller, PlatformInput * input, f32 elapsedTime)
 {
 
 	constexpr f32 lowMoveSpeed 		= 10;
@@ -200,10 +163,10 @@ internal void update_mouse_camera(MouseCameraController & controller, PlatformIn
 	constexpr f32 maxTilt 			= 0.45f * π;
 	constexpr f32 scrollMoveSpeed 	= -10; // Note(Leo): Negative because scroll up should move us closer
 
-	v2 mouseInput 					= input.mousePosition - controller.lastMousePosition;
-	controller.lastMousePosition 	= input.mousePosition;
+	v2 mouseInput 					= input_cursor_get_position(input) - controller.lastMousePosition;
+	controller.lastMousePosition 	= input_cursor_get_position(input);
 
-	if (is_pressed(input.mouse0) == false)
+	if (input_button_is_down(input, INPUT_BUTTON_mouse_0))
 	{
 		mouseInput = {};
 	}
@@ -228,13 +191,13 @@ internal void update_mouse_camera(MouseCameraController & controller, PlatformIn
 
 	f32 moveStep 		= moveSpeed * elapsedTime;
 
-	v3 rightMovement 	= right * input.move.x * moveStep;
-	v3 forwardMovement 	= direction * input.move.y * moveStep;
+	v3 rightMovement 	= right * input_axis_get_value(input, INPUT_AXIS_move_x) * moveStep;
+	v3 forwardMovement 	= direction * input_axis_get_value(input, INPUT_AXIS_move_y) * moveStep;
 
 	controller.targetPosition += rightMovement + forwardMovement;
 	controller.direction = direction;
 
-	f32 scrollMovement 	= input.mouseZoom * scrollMoveSpeed;
+	f32 scrollMovement 	= input_axis_get_value(input, INPUT_AXIS_mouse_scroll) * scrollMoveSpeed;
 	controller.distance += scrollMovement;
 	controller.distance = clamp_f32(controller.distance, 0, 10000);
 
