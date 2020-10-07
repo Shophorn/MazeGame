@@ -1,4 +1,10 @@
-#include "game_asset_id.cpp"
+/*
+Leo Tamminen
+
+Game assets functions actually used in game
+*/
+
+#include "game_assets.h"
 #include "fs_asset_file_format.cpp"
 
 struct TextureLoadInfo
@@ -21,41 +27,23 @@ struct MaterialLoadInfo
 	TextureAssetId 		textures[max_texture_count];
 };
 
-struct AnimationLoadInfo
-{
-	char const * 	filename;
-	char const * 	gltfNodeName;
-	SkeletonAssetId targetSkeleton;
-};
-
-struct AnimatedSkeletonLoadInfo
-{
-	char const * filename;
-	char const * gltfNodeName;
-};
-
 struct GameAssets
 {
 	// GPU MEMORY
-	MeshHandle 			meshes [MESH_ASSET_COUNT];
-	// MeshLoadInfo 		meshAssetLoadInfo [MESH_ASSET_COUNT];
+	MeshHandle 			meshes [MeshAssetIdCount];
 
-	TextureHandle 		textures [TEXTURE_ASSET_COUNT];
-	TextureLoadInfo 	textureLoadInfos [TEXTURE_ASSET_COUNT];	
+	TextureHandle 		textures [TextureAssetIdCount];
+	TextureLoadInfo 	textureLoadInfos [TextureAssetIdCount];	
 
-	MaterialHandle 		materials [MATERIAL_ASSET_COUNT];
-	MaterialLoadInfo 	materialLoadInfos [MATERIAL_ASSET_COUNT];
+	MaterialHandle 		materials [MaterialAssetIdCount];
+	MaterialLoadInfo 	materialLoadInfos [MaterialAssetIdCount];
 
 	// CPU MEMORY
 	MemoryArena * allocator;
 
-	Animation *			animations [AAID_COUNT];
-	AnimatedSkeleton * 	skeletons [SAID_COUNT];
-	
-
-	// AnimationLoadInfo 	animationLoadInfos [AAID_COUNT];
-
-	// AnimatedSkeletonLoadInfo 	skeletonLoadInfos [SAID_COUNT];
+	Animation *			animations [AnimationAssetIdCount];
+	AnimatedSkeleton * 	skeletons [SkeletonAssetIdCount];
+	AudioAsset * 		audio [AudioAssetIdCount];
 
 	PlatformFileHandle 	file;
 	AssetFileHeader 	fileHeader;
@@ -72,27 +60,6 @@ internal GameAssets init_game_assets(MemoryArena * allocator)
 	Assert(assets.fileHeader.version = AssetFileHeader::currentVersion);
 
 	assets.allocator 		= allocator;
-
-	/// ------------------ MESH ASSETS ---------------------
-
-	// assets.meshAssetLoadInfo[MESH_ASSET_RACCOON] 	= {"assets/models/raccoon.glb", "raccoon"};
-	// assets.meshAssetLoadInfo[MESH_ASSET_ROBOT] 		= {"assets/models/Robot53.glb", "model_rigged"};
-	// assets.meshAssetLoadInfo[MESH_ASSET_CHARACTER] 	= {"assets/models/cube_head_v4.glb", "cube_head"};
-	// assets.meshAssetLoadInfo[MESH_ASSET_SKYSPHERE] 	= {"assets/models/skysphere.glb", "skysphere"};
-	// assets.meshAssetLoadInfo[MESH_ASSET_TOTEM] 		= {"assets/models/totem.glb", "totem"};
-	// assets.meshAssetLoadInfo[MESH_ASSET_SMALL_POT] 	= {"assets/models/scenery.glb", "small_pot"};
-	// assets.meshAssetLoadInfo[MESH_ASSET_BIG_POT] 	= {"assets/models/scenery.glb", "big_pot"};
-	// assets.meshAssetLoadInfo[MESH_ASSET_SEED] 		= {"assets/models/scenery.glb", "acorn"};
-	// assets.meshAssetLoadInfo[MESH_ASSET_WATER_DROP] = {"assets/models/scenery.glb", "water_drop"};
-	// assets.meshAssetLoadInfo[MESH_ASSET_TRAIN] 		= {"assets/models/train.glb", "train"};
-
-	// assets.meshAssetLoadInfo[MESH_ASSET_MONUMENT_ARCS] 	= {"assets/models/monuments.glb", "monument_arches"};
-	// assets.meshAssetLoadInfo[MESH_ASSET_MONUMENT_BASE] 	= {"assets/models/monuments.glb", "monument_base"};
-	// assets.meshAssetLoadInfo[MESH_ASSET_MONUMENT_TOP_1] = {"assets/models/monuments.glb", "monument_ornament_01"};
-	// assets.meshAssetLoadInfo[MESH_ASSET_MONUMENT_TOP_2] = {"assets/models/monuments.glb", "monument_ornament_02"};
-
-	// assets.meshAssetLoadInfo[MESH_ASSET_BOX] 		= {"assets/models/box.glb", "box"};
-	// assets.meshAssetLoadInfo[MESH_ASSET_BOX_COVER] 	= {"assets/models/box.glb", "cover"};
 
 	// auto load_from_file = [](char const * filename, TextureFormat format = {}, TextureAddressMode addressMode = {}) -> TextureLoadInfo
 	// {
@@ -114,60 +81,46 @@ internal GameAssets init_game_assets(MemoryArena * allocator)
 		return result;
 	};
 
-	// assets.textureLoadInfos[TEXTURE_ASSET_GROUND_ALBEDO] 	= load_from_file("assets/textures/ground.png");
-	// assets.textureLoadInfos[TEXTURE_ASSET_TILES_ALBEDO] 	= load_from_file("assets/textures/tiles.png");
-	// assets.textureLoadInfos[TEXTURE_ASSET_RED_TILES_ALBEDO] = load_from_file("assets/textures/tiles_red.png");
-	// assets.textureLoadInfos[TEXTURE_ASSET_SEED_ALBEDO] 		= load_from_file("assets/textures/Acorn_albedo.png");
-	// assets.textureLoadInfos[TEXTURE_ASSET_BARK_ALBEDO]		= load_from_file("assets/textures/bark.png");
-	// assets.textureLoadInfos[TEXTURE_ASSET_RACCOON_ALBEDO]	= load_from_file("assets/textures/RaccoonAlbedo.png");
-	// assets.textureLoadInfos[TEXTURE_ASSET_ROBOT_ALBEDO] 	= load_from_file("assets/textures/Robot_53_albedo_4k.png");
+	// assets.textureLoadInfos[TextureAssetId_ground_albedo] 	= load_from_file("assets/textures/ground.png");
+	// assets.textureLoadInfos[TextureAssetId_tiles_albedo] 	= load_from_file("assets/textures/tiles.png");
+	// assets.textureLoadInfos[TextureAssetId_red_tiles_albedo] = load_from_file("assets/textures/tiles_red.png");
+	// assets.textureLoadInfos[TextureAssetId_seed_albedo] 		= load_from_file("assets/textures/Acorn_albedo.png");
+	// assets.textureLoadInfos[TextureAssetId_bark_albedo]		= load_from_file("assets/textures/bark.png");
+	// assets.textureLoadInfos[TextureAssetId_raccoon_albedo]	= load_from_file("assets/textures/RaccoonAlbedo.png");
+	// assets.textureLoadInfos[TextureAssetId_robot_albedo] 	= load_from_file("assets/textures/Robot_53_albedo_4k.png");
 	
-	// assets.textureLoadInfos[TEXTURE_ASSET_LEAVES_MASK]			= load_from_file("assets/textures/leaf_mask.png");
+	// assets.textureLoadInfos[TextureAssetId_leaves_mask]			= load_from_file("assets/textures/leaf_mask.png");
 
-	// assets.textureLoadInfos[TEXTURE_ASSET_GROUND_NORMAL] 	= load_from_file("assets/textures/ground_normal.png", TEXTURE_FORMAT_U8_LINEAR);
-	// assets.textureLoadInfos[TEXTURE_ASSET_TILES_NORMAL] 	= load_from_file("assets/textures/tiles_normal.png", TEXTURE_FORMAT_U8_LINEAR);
-	// assets.textureLoadInfos[TEXTURE_ASSET_BARK_NORMAL]		= load_from_file("assets/textures/bark_normal.png", TEXTURE_FORMAT_U8_LINEAR);
-	// assets.textureLoadInfos[TEXTURE_ASSET_ROBOT_NORMAL] 	= load_from_file("assets/textures/Robot_53_normal_4k.png");
+	// assets.textureLoadInfos[TextureAssetId_ground_normal] 	= load_from_file("assets/textures/ground_normal.png", TextureFormat_u8_linear);
+	// assets.textureLoadInfos[TextureAssetId_tiles_normal] 	= load_from_file("assets/textures/tiles_normal.png", TextureFormat_u8_linear);
+	// assets.textureLoadInfos[TextureAssetId_bark_normal]		= load_from_file("assets/textures/bark_normal.png", TextureFormat_u8_linear);
+	// assets.textureLoadInfos[TextureAssetId_robot_normal] 	= load_from_file("assets/textures/Robot_53_normal_4k.png");
 
-	assets.textureLoadInfos[TEXTURE_ASSET_WHITE] 		= load_generated(colour_white, TEXTURE_FORMAT_U8_SRGB);
-	assets.textureLoadInfos[TEXTURE_ASSET_BLACK] 		= load_generated(colour_black, TEXTURE_FORMAT_U8_SRGB);
-	assets.textureLoadInfos[TEXTURE_ASSET_FLAT_NORMAL] 	= load_generated(colour_bump, TEXTURE_FORMAT_U8_LINEAR);
-	assets.textureLoadInfos[TEXTURE_ASSET_WATER_BLUE] 	= load_generated(colour_rgb_alpha(colour_aqua_blue.rgb, 0.4), TEXTURE_FORMAT_U8_SRGB);
+	assets.textureLoadInfos[TextureAssetId_white] 		= load_generated(colour_white, TextureFormat_u8_srgb);
+	assets.textureLoadInfos[TextureAssetId_black] 		= load_generated(colour_black, TextureFormat_u8_srgb);
+	assets.textureLoadInfos[TextureAssetId_flat_normal] 	= load_generated(colour_bump, TextureFormat_u8_linear);
+	assets.textureLoadInfos[TextureAssetId_water_blue] 	= load_generated(colour_rgb_alpha(colour_aqua_blue.rgb, 0.4), TextureFormat_u8_srgb);
  
 	// ----------- MATERIALS -------------------
 
-	assets.materialLoadInfos[MATERIAL_ASSET_GROUND] 		= {GRAPHICS_PIPELINE_NORMAL, TEXTURE_ASSET_GROUND_ALBEDO, TEXTURE_ASSET_GROUND_NORMAL, TEXTURE_ASSET_BLACK};
-	assets.materialLoadInfos[MATERIAL_ASSET_ENVIRONMENT] 	= {GRAPHICS_PIPELINE_NORMAL, TEXTURE_ASSET_TILES_ALBEDO, TEXTURE_ASSET_TILES_NORMAL, TEXTURE_ASSET_BLACK};
-	assets.materialLoadInfos[MATERIAL_ASSET_SEED] 			= {GRAPHICS_PIPELINE_NORMAL, TEXTURE_ASSET_SEED_ALBEDO, TEXTURE_ASSET_FLAT_NORMAL, TEXTURE_ASSET_BLACK};
-	assets.materialLoadInfos[MATERIAL_ASSET_RACCOON] 		= {GRAPHICS_PIPELINE_NORMAL, TEXTURE_ASSET_RACCOON_ALBEDO, TEXTURE_ASSET_FLAT_NORMAL, TEXTURE_ASSET_BLACK};
-	assets.materialLoadInfos[MATERIAL_ASSET_ROBOT]			= {GRAPHICS_PIPELINE_NORMAL, TEXTURE_ASSET_ROBOT_ALBEDO, TEXTURE_ASSET_ROBOT_NORMAL, TEXTURE_ASSET_BLACK};
-	assets.materialLoadInfos[MATERIAL_ASSET_BOX]			= {GRAPHICS_PIPELINE_NORMAL, TEXTURE_ASSET_BARK_ALBEDO, TEXTURE_ASSET_BARK_NORMAL, TEXTURE_ASSET_BLACK};
+	assets.materialLoadInfos[MaterialAssetId_ground] 		= {GraphicsPipeline_normal, TextureAssetId_ground_albedo, TextureAssetId_ground_normal, TextureAssetId_black};
+	assets.materialLoadInfos[MaterialAssetId_environment] 	= {GraphicsPipeline_normal, TextureAssetId_tiles_albedo, TextureAssetId_tiles_normal, TextureAssetId_black};
+	assets.materialLoadInfos[MaterialAssetId_seed] 			= {GraphicsPipeline_normal, TextureAssetId_seed_albedo, TextureAssetId_flat_normal, TextureAssetId_black};
+	assets.materialLoadInfos[MaterialAssetId_raccoon] 		= {GraphicsPipeline_normal, TextureAssetId_raccoon_albedo, TextureAssetId_flat_normal, TextureAssetId_black};
+	assets.materialLoadInfos[MaterialAssetId_robot]			= {GraphicsPipeline_normal, TextureAssetId_robot_albedo, TextureAssetId_robot_normal, TextureAssetId_black};
+	assets.materialLoadInfos[MaterialAssetId_box]			= {GraphicsPipeline_normal, TextureAssetId_bark_albedo, TextureAssetId_bark_normal, TextureAssetId_black};
 
-	assets.materialLoadInfos[MATERIAL_ASSET_CHARACTER] 		= {GRAPHICS_PIPELINE_ANIMATED, TEXTURE_ASSET_RED_TILES_ALBEDO, TEXTURE_ASSET_TILES_NORMAL, TEXTURE_ASSET_BLACK};
+	assets.materialLoadInfos[MaterialAssetId_character] 		= {GraphicsPipeline_animated, TextureAssetId_red_tiles_albedo, TextureAssetId_tiles_normal, TextureAssetId_black};
 	
-	assets.materialLoadInfos[MATERIAL_ASSET_WATER] 			= {GRAPHICS_PIPELINE_WATER, TEXTURE_ASSET_WATER_BLUE, TEXTURE_ASSET_FLAT_NORMAL, TEXTURE_ASSET_BLACK};
-	assets.materialLoadInfos[MATERIAL_ASSET_SEA] 			= {GRAPHICS_PIPELINE_WATER, TEXTURE_ASSET_WATER_BLUE, TEXTURE_ASSET_FLAT_NORMAL, TEXTURE_ASSET_BLACK};
+	assets.materialLoadInfos[MaterialAssetId_water] 			= {GraphicsPipeline_water, TextureAssetId_water_blue, TextureAssetId_flat_normal, TextureAssetId_black};
+	assets.materialLoadInfos[MaterialAssetId_sea] 			= {GraphicsPipeline_water, TextureAssetId_water_blue, TextureAssetId_flat_normal, TextureAssetId_black};
 	
-	assets.materialLoadInfos[MATERIAL_ASSET_LEAVES] 		= {GRAPHICS_PIPELINE_LEAVES, TEXTURE_ASSET_LEAVES_MASK};
+	assets.materialLoadInfos[MaterialAssetId_leaves] 		= {GraphicsPipeline_leaves, TextureAssetId_leaves_mask};
 
-	assets.materialLoadInfos[MATERIAL_ASSET_SKY] 			= {GRAPHICS_PIPELINE_SKYBOX, TEXTURE_ASSET_BLACK, TEXTURE_ASSET_BLACK};
+	assets.materialLoadInfos[MaterialAssetId_sky] 			= {GraphicsPipeline_skybox, TextureAssetId_black, TextureAssetId_black};
 	
-	assets.materialLoadInfos[MATERIAL_ASSET_TREE]			= {GRAPHICS_PIPELINE_TRIPLANAR, TEXTURE_ASSET_TILES_ALBEDO};
+	assets.materialLoadInfos[MaterialAssetId_tree]			= {GraphicsPipeline_triplanar, TextureAssetId_tiles_albedo};
 
-	// ------------- ANIMATIONS ---------------------
-
-	// assets.animationLoadInfos[AAID_CHARACTER_IDLE]		= {"assets/models/cube_head_v3.glb", "Idle", SAID_CHARACTER};
-	// assets.animationLoadInfos[AAID_CHARACTER_WALK]		= {"assets/models/cube_head_v3.glb", "Walk", SAID_CHARACTER};
-	// assets.animationLoadInfos[AAID_CHARACTER_RUN]		= {"assets/models/cube_head_v3.glb", "Run", SAID_CHARACTER};
-	// assets.animationLoadInfos[AAID_CHARACTER_JUMP]		= {"assets/models/cube_head_v3.glb", "JumpUp", SAID_CHARACTER};
-	// assets.animationLoadInfos[AAID_CHARACTER_FALL]		= {"assets/models/cube_head_v3.glb", "JumpDown", SAID_CHARACTER};
-	// assets.animationLoadInfos[AAID_CHARACTER_CROUCH] 	= {"assets/models/cube_head_v3.glb", "Crouch", SAID_CHARACTER};
-
-	// assets.animationLoadInfos[AAID_RACCOON_EMPTY] = {};
-
-	// ------------- SKELETONS ----------------------------
-
-	// assets.skeletonLoadInfos[SAID_CHARACTER] = {"assets/models/cube_head_v4.glb", "cube_head"};
 
 	return assets;
 }
@@ -297,11 +250,11 @@ internal MaterialHandle assets_get_material(GameAssets & assets, MaterialAssetId
 		MaterialLoadInfo & loadInfo = assets.materialLoadInfos[id];
 
 		s32 textureCount = 3;
-		if (loadInfo.pipeline == GRAPHICS_PIPELINE_SKYBOX)
+		if (loadInfo.pipeline == GraphicsPipeline_skybox)
 		{
 			textureCount = 2;
 		}
-		else if (loadInfo.pipeline == GRAPHICS_PIPELINE_LEAVES || loadInfo.pipeline == GRAPHICS_PIPELINE_TRIPLANAR)
+		else if (loadInfo.pipeline == GraphicsPipeline_leaves || loadInfo.pipeline == GraphicsPipeline_triplanar)
 		{
 			textureCount = 1;
 		}
@@ -324,7 +277,7 @@ internal Animation * assets_get_animation(GameAssets & assets, AnimationAssetId 
 
 	if (animation == nullptr)
 	{
-		if (id == AAID_RACCOON_EMPTY)
+		if (id == AnimationAssetId_raccoon_empty)
 		{
 			animation 	= push_memory<Animation>(*assets.allocator, 1, ALLOC_ZERO_MEMORY);
 			*animation 	= {};
@@ -400,4 +353,28 @@ internal AnimatedSkeleton * assets_get_skeleton(GameAssets & assets, SkeletonAss
 	}	
 
 	return skeleton;
+}
+
+internal AudioAsset * assets_get_audio(GameAssets & assets, AudioAssetId id)
+{
+	AudioAsset * audio = assets.audio[id];
+
+	if (audio == nullptr)
+	{
+		audio = push_memory<AudioAsset>(*assets.allocator, 1, ALLOC_GARBAGE);
+
+		AssetFileAudio asset 	= assets.fileHeader.audios[id];
+		audio->sampleCount 		= asset.sampleCount;
+		audio->leftChannel 		= push_memory<f32>(*assets.allocator, asset.sampleCount, ALLOC_GARBAGE);
+		audio->rightChannel 	= push_memory<f32>(*assets.allocator, asset.sampleCount, ALLOC_GARBAGE);
+
+		s64 fileSizePerChannel = sizeof(f32) * asset.sampleCount;
+		platform_file_read(assets.file, asset.dataOffset, fileSizePerChannel, audio->leftChannel);
+		platform_file_read(assets.file, asset.dataOffset + fileSizePerChannel, fileSizePerChannel, audio->rightChannel);
+
+
+		assets.audio[id] 	= audio;
+	}
+
+	return audio;
 }

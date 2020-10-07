@@ -8,16 +8,16 @@ Windows platform input functions
 // so consider moving them elsewhere. Maybe only expose is_clicked etc. as
 enum InputButtonState : s8
 {
-	INPUT_BUTTON_STATE_is_up,
-	INPUT_BUTTON_STATE_went_down,
-	INPUT_BUTTON_STATE_is_down,
-	INPUT_BUTTON_STATE_went_up,
+	InputButtonState_is_up,
+	InputButtonState_went_down,
+	InputButtonState_is_down,
+	InputButtonState_went_up,
 };
 
 struct PlatformInput
 {
-	f32 axes[INPUT_AXIS_COUNT];
-	InputButtonState buttons [INPUT_BUTTON_COUNT];
+	f32 axes[InputAxisCount];
+	InputButtonState buttons [InputButtonCount];
 	v2  mousePosition;
 };
 
@@ -37,39 +37,39 @@ v2 input_cursor_get_position(PlatformInput * input)
 internal bool32 input_button_went_down(PlatformInput * input, PlatformInputButton button)
 {
 	InputButtonState state = input->buttons[button];
-	return state == INPUT_BUTTON_STATE_went_down;
+	return state == InputButtonState_went_down;
 }
 
 internal bool32 input_button_is_down (PlatformInput * input, PlatformInputButton button)
 {
 	InputButtonState state = input->buttons[button];
-	return (state == INPUT_BUTTON_STATE_is_down) || (state == INPUT_BUTTON_STATE_went_down);
+	return (state == InputButtonState_is_down) || (state == InputButtonState_went_down);
 }
 
 internal bool32 input_button_went_up (PlatformInput * input, PlatformInputButton button)
 {
 	InputButtonState state = input->buttons[button];
-	return state == INPUT_BUTTON_STATE_went_up;
+	return state == InputButtonState_went_up;
 }
 
 internal void fswin32_input_update_button_state(InputButtonState & buttonState, bool32 isDown)
 {
 	switch(buttonState)
 	{
-		case INPUT_BUTTON_STATE_is_up:
-			buttonState = isDown ? INPUT_BUTTON_STATE_went_down : INPUT_BUTTON_STATE_is_up;
+		case InputButtonState_is_up:
+			buttonState = isDown ? InputButtonState_went_down : InputButtonState_is_up;
 			break;
 
-		case INPUT_BUTTON_STATE_went_down:
-			buttonState = isDown ? INPUT_BUTTON_STATE_is_down : INPUT_BUTTON_STATE_went_up;
+		case InputButtonState_went_down:
+			buttonState = isDown ? InputButtonState_is_down : InputButtonState_went_up;
 			break;
 
-		case INPUT_BUTTON_STATE_is_down:
-			buttonState = isDown ? INPUT_BUTTON_STATE_is_down : INPUT_BUTTON_STATE_went_up;
+		case InputButtonState_is_down:
+			buttonState = isDown ? InputButtonState_is_down : InputButtonState_went_up;
 			break;
 
-		case INPUT_BUTTON_STATE_went_up:
-			buttonState = isDown ? INPUT_BUTTON_STATE_went_down : INPUT_BUTTON_STATE_is_up;
+		case InputButtonState_went_up:
+			buttonState = isDown ? InputButtonState_went_down : InputButtonState_is_up;
 			break;
 
 	}
@@ -173,10 +173,10 @@ update_controller_input(PlatformInput * input, XINPUT_STATE * xinput)
 		xinput_convert_joystick_value(xinput->Gamepad.sThumbRY)};
 	look = clamp_length_v2(look, 1.0f);
 
-	input->axes[INPUT_AXIS_move_x] = move.x;//xinput_convert_joystick_value(xinput->Gamepad.sThumbLX);
-	input->axes[INPUT_AXIS_move_y] = move.y;//xinput_convert_joystick_value(xinput->Gamepad.sThumbLY);
-	input->axes[INPUT_AXIS_look_x] = look.x;//xinput_convert_joystick_value(xinput->Gamepad.sThumbRX);
-	input->axes[INPUT_AXIS_look_y] = look.y;//xinput_convert_joystick_value(xinput->Gamepad.sThumbRY);
+	input->axes[InputAxis_move_x] = move.x;//xinput_convert_joystick_value(xinput->Gamepad.sThumbLX);
+	input->axes[InputAxis_move_y] = move.y;//xinput_convert_joystick_value(xinput->Gamepad.sThumbLY);
+	input->axes[InputAxis_look_x] = look.x;//xinput_convert_joystick_value(xinput->Gamepad.sThumbRX);
+	input->axes[InputAxis_look_y] = look.y;//xinput_convert_joystick_value(xinput->Gamepad.sThumbRY);
 
 	u16 pressedButtons = xinput->Gamepad.wButtons;
 	auto is_down = [pressedButtons](u32 button) -> bool32
@@ -186,21 +186,21 @@ update_controller_input(PlatformInput * input, XINPUT_STATE * xinput)
 	};
 
 
-	fswin32_input_update_button_state(input->buttons[INPUT_BUTTON_nintendo_a],  is_down(NINTENDO_GAMEPAD_A));
-	fswin32_input_update_button_state(input->buttons[INPUT_BUTTON_nintendo_b],  is_down(NINTENDO_GAMEPAD_B));
-	fswin32_input_update_button_state(input->buttons[INPUT_BUTTON_nintendo_y],  is_down(NINTENDO_GAMEPAD_Y));
-	fswin32_input_update_button_state(input->buttons[INPUT_BUTTON_nintendo_x],  is_down(NINTENDO_GAMEPAD_X));
+	fswin32_input_update_button_state(input->buttons[InputButton_nintendo_a],  is_down(NINTENDO_GAMEPAD_A));
+	fswin32_input_update_button_state(input->buttons[InputButton_nintendo_b],  is_down(NINTENDO_GAMEPAD_B));
+	fswin32_input_update_button_state(input->buttons[InputButton_nintendo_y],  is_down(NINTENDO_GAMEPAD_Y));
+	fswin32_input_update_button_state(input->buttons[InputButton_nintendo_x],  is_down(NINTENDO_GAMEPAD_X));
 
 
-	fswin32_input_update_button_state(input->buttons[INPUT_BUTTON_start],       is_down(XINPUT_GAMEPAD_START));
-	fswin32_input_update_button_state(input->buttons[INPUT_BUTTON_select],      is_down(XINPUT_GAMEPAD_BACK));
-	fswin32_input_update_button_state(input->buttons[INPUT_BUTTON_zoom_in],     is_down(XINPUT_GAMEPAD_LEFT_SHOULDER));
-	fswin32_input_update_button_state(input->buttons[INPUT_BUTTON_zoom_out],    is_down(XINPUT_GAMEPAD_RIGHT_SHOULDER));
+	fswin32_input_update_button_state(input->buttons[InputButton_start],       is_down(XINPUT_GAMEPAD_START));
+	fswin32_input_update_button_state(input->buttons[InputButton_select],      is_down(XINPUT_GAMEPAD_BACK));
+	fswin32_input_update_button_state(input->buttons[InputButton_zoom_in],     is_down(XINPUT_GAMEPAD_LEFT_SHOULDER));
+	fswin32_input_update_button_state(input->buttons[InputButton_zoom_out],    is_down(XINPUT_GAMEPAD_RIGHT_SHOULDER));
 
-	fswin32_input_update_button_state(input->buttons[INPUT_BUTTON_dpad_left],   is_down(XINPUT_GAMEPAD_DPAD_LEFT));
-	fswin32_input_update_button_state(input->buttons[INPUT_BUTTON_dpad_right],  is_down(XINPUT_GAMEPAD_DPAD_RIGHT));
-	fswin32_input_update_button_state(input->buttons[INPUT_BUTTON_dpad_down],   is_down(XINPUT_GAMEPAD_DPAD_DOWN));
-	fswin32_input_update_button_state(input->buttons[INPUT_BUTTON_dpad_up],     is_down(XINPUT_GAMEPAD_DPAD_UP));
+	fswin32_input_update_button_state(input->buttons[InputButton_dpad_left],   is_down(XINPUT_GAMEPAD_DPAD_LEFT));
+	fswin32_input_update_button_state(input->buttons[InputButton_dpad_right],  is_down(XINPUT_GAMEPAD_DPAD_RIGHT));
+	fswin32_input_update_button_state(input->buttons[InputButton_dpad_down],   is_down(XINPUT_GAMEPAD_DPAD_DOWN));
+	fswin32_input_update_button_state(input->buttons[InputButton_dpad_up],     is_down(XINPUT_GAMEPAD_DPAD_UP));
 }
 
 /* Todo(Leo): this may not be thread-safe because windows callbacks can probably come anytime.
@@ -210,11 +210,11 @@ update_keyboard_input(PlatformInput * platformInput, Win32KeyboardInput * keyboa
 {
 	auto bool_to_float = [](bool32 value) { return value ? 1.0f : 0.1f; };
 
-	platformInput->axes[INPUT_AXIS_move_x] = bool_to_float(keyboardInput->right) - bool_to_float(keyboardInput->left);
-	platformInput->axes[INPUT_AXIS_move_y] = bool_to_float(keyboardInput->up) - bool_to_float(keyboardInput->down);
+	platformInput->axes[InputAxis_move_x] = bool_to_float(keyboardInput->right) - bool_to_float(keyboardInput->left);
+	platformInput->axes[InputAxis_move_y] = bool_to_float(keyboardInput->up) - bool_to_float(keyboardInput->down);
 
-	platformInput->axes[INPUT_AXIS_look_x] = 0;
-	platformInput->axes[INPUT_AXIS_look_y] = 0;
+	platformInput->axes[InputAxis_look_x] = 0;
+	platformInput->axes[InputAxis_look_y] = 0;
 
 	// platformInput->move = 
 	// {
@@ -223,35 +223,35 @@ update_keyboard_input(PlatformInput * platformInput, Win32KeyboardInput * keyboa
 	// };
 	// platformInput->look = {};
 
-	fswin32_input_update_button_state(platformInput->buttons[INPUT_BUTTON_start],     keyboardInput->escape);
-	fswin32_input_update_button_state(platformInput->buttons[INPUT_BUTTON_select],    false);
-	fswin32_input_update_button_state(platformInput->buttons[INPUT_BUTTON_zoom_in],   false);
-	fswin32_input_update_button_state(platformInput->buttons[INPUT_BUTTON_zoom_out],  false);
+	fswin32_input_update_button_state(platformInput->buttons[InputButton_start],     keyboardInput->escape);
+	fswin32_input_update_button_state(platformInput->buttons[InputButton_select],    false);
+	fswin32_input_update_button_state(platformInput->buttons[InputButton_zoom_in],   false);
+	fswin32_input_update_button_state(platformInput->buttons[InputButton_zoom_out],  false);
 
-	fswin32_input_update_button_state(platformInput->buttons[INPUT_BUTTON_dpad_left],      keyboardInput->left);
-	fswin32_input_update_button_state(platformInput->buttons[INPUT_BUTTON_dpad_right],     keyboardInput->right);
-	fswin32_input_update_button_state(platformInput->buttons[INPUT_BUTTON_dpad_down],      keyboardInput->down);
-	fswin32_input_update_button_state(platformInput->buttons[INPUT_BUTTON_dpad_up],        keyboardInput->up);
+	fswin32_input_update_button_state(platformInput->buttons[InputButton_dpad_left],      keyboardInput->left);
+	fswin32_input_update_button_state(platformInput->buttons[InputButton_dpad_right],     keyboardInput->right);
+	fswin32_input_update_button_state(platformInput->buttons[InputButton_dpad_down],      keyboardInput->down);
+	fswin32_input_update_button_state(platformInput->buttons[InputButton_dpad_up],        keyboardInput->up);
 }
 
 internal void
 update_unused_input(PlatformInput * platformInput)
 {
-	platformInput->axes[INPUT_AXIS_move_x] = 0;
-	platformInput->axes[INPUT_AXIS_move_y] = 0;
+	platformInput->axes[InputAxis_move_x] = 0;
+	platformInput->axes[InputAxis_move_y] = 0;
 
-	platformInput->axes[INPUT_AXIS_look_x] = 0;
-	platformInput->axes[INPUT_AXIS_look_y] = 0;
+	platformInput->axes[InputAxis_look_x] = 0;
+	platformInput->axes[InputAxis_look_y] = 0;
 
-	fswin32_input_update_button_state(platformInput->buttons[INPUT_BUTTON_start],     false);
-	fswin32_input_update_button_state(platformInput->buttons[INPUT_BUTTON_select],    false);
-	fswin32_input_update_button_state(platformInput->buttons[INPUT_BUTTON_zoom_in],   false);
-	fswin32_input_update_button_state(platformInput->buttons[INPUT_BUTTON_zoom_out],  false);
+	fswin32_input_update_button_state(platformInput->buttons[InputButton_start],     false);
+	fswin32_input_update_button_state(platformInput->buttons[InputButton_select],    false);
+	fswin32_input_update_button_state(platformInput->buttons[InputButton_zoom_in],   false);
+	fswin32_input_update_button_state(platformInput->buttons[InputButton_zoom_out],  false);
 
-	fswin32_input_update_button_state(platformInput->buttons[INPUT_BUTTON_dpad_left],      false);
-	fswin32_input_update_button_state(platformInput->buttons[INPUT_BUTTON_dpad_right],     false);
-	fswin32_input_update_button_state(platformInput->buttons[INPUT_BUTTON_dpad_down],      false);
-	fswin32_input_update_button_state(platformInput->buttons[INPUT_BUTTON_dpad_up],        false);
+	fswin32_input_update_button_state(platformInput->buttons[InputButton_dpad_left],      false);
+	fswin32_input_update_button_state(platformInput->buttons[InputButton_dpad_right],     false);
+	fswin32_input_update_button_state(platformInput->buttons[InputButton_dpad_down],      false);
+	fswin32_input_update_button_state(platformInput->buttons[InputButton_dpad_up],        false);
 }
 
 internal void

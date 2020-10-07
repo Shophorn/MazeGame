@@ -24,7 +24,7 @@ struct WinApiAudio
     bool32                  isPlaying;
 };
 
-internal WinApiAudio fswin32_create_audio();          
+internal WinApiAudio fswin32_create_audio(f32 audioBufferLength);          
 internal void fswin32_release_audio (WinApiAudio * audio);
 internal void fswin32_start_playing(WinApiAudio * audio);
 internal void fswin32_stop_playing(WinApiAudio * audio);
@@ -66,7 +66,7 @@ UNKNOWN_GetFormatTag( const WAVEFORMATEX* wfx )
     }
 }
 
-internal WinApiAudio fswin32_create_audio ()
+internal WinApiAudio fswin32_create_audio (f32 audioBufferLength)
 {
     const CLSID CLSID_MMDeviceEnumerator =   __uuidof(MMDeviceEnumerator);
     const IID IID_IMMDeviceEnumerator =      __uuidof(IMMDeviceEnumerator);
@@ -109,7 +109,7 @@ internal WinApiAudio fswin32_create_audio ()
         , "|======================================|\n");
     #endif
 
-    REFERENCE_TIME requestedDuration = 1 * REFERENCE_TIMES_PER_SECOND;
+    REFERENCE_TIME requestedDuration = audioBufferLength * REFERENCE_TIMES_PER_SECOND;
     /*
     WinApiLog(  "Initialize audio client",
                 audio.pClient->Initialize(  AUDCLNT_SHAREMODE_SHARED, 0,
@@ -153,6 +153,7 @@ internal void fswin32_start_playing(WinApiAudio * audio)
 }
 
 // Todo(Leo): this seems unnecessary function
+// Todo(Leo): maybe add function to clear audio buffer
 internal void fswin32_stop_playing(WinApiAudio * audio)
 {
     // WinApiLog("Stop playing audio", audio->pClient->Stop());
@@ -162,12 +163,10 @@ internal void fswin32_stop_playing(WinApiAudio * audio)
 internal void fswin32_get_audio_buffer(WinApiAudio * audio, int * frameCount, PlatformStereoSoundSample ** samples)
 {
     u32 currentPadding;
-    // WinApiLog("Get audio padding", audio->pClient->GetCurrentPadding(&currentPadding));
     WIN32_CHECK(audio->pClient->GetCurrentPadding(&currentPadding));
     u32 framesAvailable = audio->bufferFrameCount - currentPadding;
 
     u8 ** data = reinterpret_cast<u8 **>(samples);
-    // WinApiLog("Get audio buffer", audio->pRenderClient->GetBuffer(framesAvailable, data));
     WIN32_CHECK(audio->pRenderClient->GetBuffer(framesAvailable, data));
 
     *frameCount = framesAvailable;
@@ -175,6 +174,5 @@ internal void fswin32_get_audio_buffer(WinApiAudio * audio, int * frameCount, Pl
 
 internal void fswin32_release_audio_buffer(WinApiAudio * audio, s32 frameCount)
 {
-    // WinApiLog("Release audio buffer", audio->pRenderClient->ReleaseBuffer(frameCount, 0));
     WIN32_CHECK(audio->pRenderClient->ReleaseBuffer(frameCount, 0));
 }

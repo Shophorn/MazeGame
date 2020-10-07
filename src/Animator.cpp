@@ -188,7 +188,6 @@ void update_skeleton_animator(SkeletonAnimator & animator, f32 elapsedTime)
 		quaternion totalRotation = identity_quaternion;
 		f32 rotationTotalAppliedWeight = 0;
 
-
 		for (s32 a = 0; a < animationCount; ++a)
 		{
 

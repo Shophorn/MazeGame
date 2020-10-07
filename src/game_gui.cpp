@@ -33,7 +33,7 @@ bool32 do_gui(Game * game, PlatformInput * input)
 	constexpr v2 centerPosition = {850, 400};
 
 
-	if (input_button_went_down(input, INPUT_BUTTON_start))
+	if (input_button_went_down(input, InputButton_start))
 	{
 		if (game->menuView == MENU_OFF)
 		{
@@ -177,10 +177,24 @@ bool32 do_gui(Game * game, PlatformInput * input)
 			{
 				PlatformFileHandle file = platform_file_open("settings", FILE_MODE_WRITE);
 
-				write_settings_file(file, game_get_serialized_objects(*game));
-				write_settings_file(file, monuments_get_serialized_objects(game->monuments));
+				write_settings_file(file, *game);
 
 				platform_file_close(file);
+			}
+
+			if (gui_button("Play Sound 1"))
+			{
+				game->audioClipsOnPlay.push({game->stepSFX, 0, random_range(0.8, 1.2)});
+			}
+
+			if (gui_button("Play Sound 2"))
+			{
+				game->audioClipsOnPlay.push({game->stepSFX2, 0, random_range(0.8, 1.2)});
+			}
+
+			if (gui_button("Play Sound 3"))
+			{
+				game->audioClipsOnPlay.push({game->stepSFX3, 0, random_range(0.8, 1.2)});
 			}
 
 			if (gui_button("Exit Scene"))
@@ -201,7 +215,7 @@ bool32 do_gui(Game * game, PlatformInput * input)
 			gui_float_slider("Grid Scale", &game->metaballGridScale, 0.2, 1);
 			gui_toggle("Draw", &game->drawMCStuff);
 
-			if (gui_button("Back") || input_button_went_down(input, INPUT_BUTTON_start))
+			if (gui_button("Back") || input_button_went_down(input, InputButton_start))
 			{
 				game->menuView = MENU_MAIN;
 				gui_reset_selection();
@@ -220,7 +234,7 @@ bool32 do_gui(Game * game, PlatformInput * input)
 			tree_gui(game->trees[game->inspectedTreeIndex]);
 			
 			gui_line();
-			if (gui_button("Back") || input_button_went_down(input, INPUT_BUTTON_start))
+			if (gui_button("Back") || input_button_went_down(input, InputButton_start))
 			{
 				game->menuView = MENU_MAIN;
 				gui_reset_selection();
@@ -277,7 +291,7 @@ bool32 do_gui(Game * game, PlatformInput * input)
 
 			gui_line();
 
-			if (gui_button("Back") || input_button_went_down(input, INPUT_BUTTON_start))
+			if (gui_button("Back") || input_button_went_down(input, InputButton_start))
 			{
 				game->menuView = MENU_MAIN;
 			}
@@ -301,7 +315,7 @@ bool32 do_gui(Game * game, PlatformInput * input)
 				game_spawn_tree_on_player(*game);
 			}
 
-			if (input_button_went_down(input, INPUT_BUTTON_start))
+			if (input_button_went_down(input, InputButton_start))
 			{
 				game->menuView = MENU_OFF;
 			}
@@ -378,7 +392,7 @@ bool32 do_gui(Game * game, PlatformInput * input)
 			float dummy;
 			gui_float_field("Dummy", &dummy);
 
-			if (gui_button("Back") || input_button_went_down(input, INPUT_BUTTON_start))
+			if (gui_button("Back") || input_button_went_down(input, InputButton_start))
 			{
 				game->menuView = MENU_MAIN;
 			}

@@ -7,9 +7,7 @@ Friendsimulator game code main file.
 #if !defined FS_FULL_GAME
 	#define FS_GAME_DLL
 
-	// Todo(Leo): these should be other way around, platform interface cannot be dependant of c/c++ files
 	#include "fs_essentials.hpp"
-
 	#include "fs_platform_interface.hpp"
 	#include "logging.cpp"
 #endif
@@ -70,44 +68,17 @@ struct Font
 	// Todo(Leo): Kerning
 };
 
-/// Note(Leo): These still use external libraries we may want to get rid of
+// Todo(Leo): remove these, since we now use asset pack fil
 #include "Files.cpp"
-#include "AudioFile.cpp"
-#include "MeshLoader.cpp"
-
-// Note(Leo): stb libraries here seems cool
 #include "TextureLoader.cpp"
+// #include "MeshLoader.cpp"
+// #include "AudioFile.cpp"
 
 #include "Gui.cpp"
+
+
+#include "audio_mixer.cpp"
 #include "Game.cpp"
-
-struct AudioClip
-{
-	AudioFile<float> file;
-	s32 sampleCount;
-	s32 sampleIndex;
-};
-
-AudioClip load_audio_clip(char const * filepath)
-{
-	AudioClip clip = {};
-	clip.file.load(filepath);
-	clip.sampleCount = clip.file.getNumSamplesPerChannel();
-
-	return clip;
-}
-
-static PlatformStereoSoundSample get_next_sample(AudioClip * clip)
-{
-	PlatformStereoSoundSample sample = {
-		.left = clip->file.samples[0][clip->sampleIndex],
-		.right = clip->file.samples[1][clip->sampleIndex]
-	};
-
-	clip->sampleIndex = (clip->sampleIndex + 1) % clip->sampleCount;
-
-	return sample;
-}
 
 // Todo(Leo): remove 2d scene
 enum LoadedSceneType { LOADED_SCENE_NONE, LOADED_SCENE_3D };
@@ -130,9 +101,6 @@ struct GameState
 	Gui 				gui;
 	bool32 				guiVisible;
 	GuiTextureHandle 	backgroundImage;
-
-	// Todo(Leo): move to scene
-	AudioClip backgroundAudio;
 };
 
 static Gui make_main_menu_gui(MemoryArena & allocator)
@@ -169,8 +137,6 @@ static void game_init_state(GameState * state, PlatformMemory * memory)
 	byte * transientMemory 			= reinterpret_cast<byte*>(memory->memory) + gameStateSize + persistentMemorySize;
 	u64 transientMemorySize 		= memory->size / 2;
 	state->transientMemoryArena 	= memory_arena(transientMemory, transientMemorySize);
-
-	state->backgroundAudio 			= load_audio_clip("assets/sounds/Wind-Mark_DiAngelo-1940285615.wav");
 
 	state->gui 					= make_main_menu_gui(state->persistentMemoryArena);
 	auto backGroundImageAsset 	= load_texture_asset(*global_transientMemory, "assets/textures/NighestNouKeyArt.png");
@@ -233,11 +199,16 @@ FS_GAME_API bool32 update_game(	PlatformInput  *		input,
 	{
 		if (state->loadedSceneType == LOADED_SCENE_3D)
 		{
-			sceneIsAlive = update_scene_3d(state->loadedScene, input, *time);
+			sceneIsAlive = update_scene_3d((Game*)state->loadedScene, input, soundOutput, *time);
 		}
 	}
 	else
 	{
+		for (s32  i = 0 ; i < soundOutput->sampleCount; ++i)
+		{
+			soundOutput->samples[i] = {};
+		}
+
 		gui_start_frame(state->gui, input, time->elapsedTime);
 
 		gui_position({0,0});
@@ -303,28 +274,14 @@ FS_GAME_API bool32 update_game(	PlatformInput  *		input,
 		state->gui 					= make_main_menu_gui(state->persistentMemoryArena);	
 		auto backGroundImageAsset 	= load_texture_asset(*global_transientMemory, "assets/textures/NighestNouKeyArt.png");
 		state->backgroundImage		= graphics_memory_push_gui_texture(platformGraphics, &backGroundImageAsset);
-
 	}
 
 	// Todo(Leo): These still MAYBE do not belong here
-	if (input_button_went_down(input, INPUT_BUTTON_select))
+	if (input_button_went_down(input, InputButton_select))
 	{
 		bool isFullScreen = platform_window_is_fullscreen(platformWindow);
 		platform_window_set_fullscreen(platformWindow, !isFullScreen);
 		platform_window_set_cursor_visible(platformWindow, isFullScreen);
-	}
-
-
-	/* Todo(Leo): this should probably be the master mixer, and scenes
-	just put their audio in it.	*/
-	{
-		// Todo(Leo): get volume from some input structure
-		float volume = 0.5f;
-
-		for (auto & sample : *soundOutput)
-		{
-			sample = get_next_sample(&state->backgroundAudio);
-		}
 	}
 
 	// Note(Leo): This is just a reminder

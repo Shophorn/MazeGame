@@ -110,7 +110,7 @@ internal void graphics_development_reload_shaders(VulkanContext * context)
 		{
 			context->shadowMapTextureDescriptorSet[i] = make_material_vk_descriptor_set_2( context,
 																					context->shadowMapTextureDescriptorSetLayout,
-																					// context->pipelines[GRAPHICS_PIPELINE_SCREEN_GUI].descriptorSetLayout,
+																					// context->pipelines[GraphicsPipeline_SCREEN_GUI].descriptorSetLayout,
 																					context->shadowAttachment[i].view,
 																					context->persistentDescriptorPool,
 																					context->shadowTextureSampler,
@@ -758,7 +758,7 @@ winapi::create_vulkan_context(Win32Window * window)
 		{
 			context.shadowMapTextureDescriptorSet[i] = make_material_vk_descriptor_set_2( 	&context,
 																					context.shadowMapTextureDescriptorSetLayout,
-																					// context.pipelines[GRAPHICS_PIPELINE_SCREEN_GUI].descriptorSetLayout,
+																					// context.pipelines[GraphicsPipeline_SCREEN_GUI].descriptorSetLayout,
 																					context.shadowAttachment[i].view,
 																					context.persistentDescriptorPool,
 																					context.shadowTextureSampler,

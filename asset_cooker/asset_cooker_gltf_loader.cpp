@@ -255,7 +255,7 @@ asset_cooker_load_animation_glb(char const * filename, char const * animationNam
 
 	std::cout << "loading animation: " << animationName << "\n";
 
-	constexpr s32 DEBUG_skeletonBoneCount = CHARACTER_SKELETON_BONE_COUNT;
+	constexpr s32 DEBUG_skeletonBoneCount = CharacterSkeletonBoneCount;
 	static_assert(DEBUG_skeletonBoneCount == 17);
 
 	AssertMsg(file.json.HasMember("animations"), "No Animations found");
@@ -538,33 +538,33 @@ asset_cooker_load_skeleton_glb(char const * filename, char const * nodeName)
 		u32 nodeIndex 		= jsonBones[jsonBoneIndex].GetInt();
 		auto const & node 	= nodes[nodeIndex].GetObject();
 
-		CharacterSkeletonBone boneId = CHARACTER_SKELETON_BONE_INVALID;
+		CharacterSkeletonBone boneId = CharacterSkeletonBone_invalid;
 		{
-			char const * jsonBoneNames [CHARACTER_SKELETON_BONE_COUNT];
+			char const * jsonBoneNames [CharacterSkeletonBoneCount];
 
-			jsonBoneNames[CHARACTER_SKELETON_ROOT]			= "Root";
-			jsonBoneNames[CHARACTER_SKELETON_HIP]			= "Hip";
-			jsonBoneNames[CHARACTER_SKELETON_BACK]			= "Back";
-			jsonBoneNames[CHARACTER_SKELETON_NECK]			= "Neck";
-			jsonBoneNames[CHARACTER_SKELETON_HEAD]			= "Head";
-			jsonBoneNames[CHARACTER_SKELETON_LEFT_ARM]		= "Arm.L";
-			jsonBoneNames[CHARACTER_SKELETON_LEFT_FOREARM]	= "ForeArm.L";
-			jsonBoneNames[CHARACTER_SKELETON_LEFT_HAND]		= "Hand.L";
-			jsonBoneNames[CHARACTER_SKELETON_RIGHT_ARM]		= "Arm.R";
-			jsonBoneNames[CHARACTER_SKELETON_RIGHT_FOREARM]	= "ForeArm.R";
-			jsonBoneNames[CHARACTER_SKELETON_RIGHT_HAND]	= "Hand.R";
-			jsonBoneNames[CHARACTER_SKELETON_LEFT_THIGH]	= "Thigh.L";
-			jsonBoneNames[CHARACTER_SKELETON_LEFT_SHIN]		= "Shin.L";
-			jsonBoneNames[CHARACTER_SKELETON_LEFT_FOOT]		= "Foot.L";
-			jsonBoneNames[CHARACTER_SKELETON_RIGHT_THIGH]	= "Thigh.R";
-			jsonBoneNames[CHARACTER_SKELETON_RIGHT_SHIN]	= "Shin.R";
-			jsonBoneNames[CHARACTER_SKELETON_RIGHT_FOOT]	= "Foot.R";
+			jsonBoneNames[CharacterSkeletonBone_root]			= "Root";
+			jsonBoneNames[CharacterSkeletonBone_hip]			= "Hip";
+			jsonBoneNames[CharacterSkeletonBone_back]			= "Back";
+			jsonBoneNames[CharacterSkeletonBone_neck]			= "Neck";
+			jsonBoneNames[CharacterSkeletonBone_head]			= "Head";
+			jsonBoneNames[CharacterSkeletonBone_left_arm]		= "Arm.L";
+			jsonBoneNames[CharacterSkeletonBone_left_forearm]	= "ForeArm.L";
+			jsonBoneNames[CharacterSkeletonBone_left_hand]		= "Hand.L";
+			jsonBoneNames[CharacterSkeletonBone_right_arm]		= "Arm.R";
+			jsonBoneNames[CharacterSkeletonBone_right_forearm]	= "ForeArm.R";
+			jsonBoneNames[CharacterSkeletonBone_right_hand]	= "Hand.R";
+			jsonBoneNames[CharacterSkeletonBone_left_thigh]	= "Thigh.L";
+			jsonBoneNames[CharacterSkeletonBone_left_shin]		= "Shin.L";
+			jsonBoneNames[CharacterSkeletonBone_left_foot]		= "Foot.L";
+			jsonBoneNames[CharacterSkeletonBone_right_thigh]	= "Thigh.R";
+			jsonBoneNames[CharacterSkeletonBone_right_shin]	= "Shin.R";
+			jsonBoneNames[CharacterSkeletonBone_right_foot]	= "Foot.R";
 
 
 			assert(node.HasMember("name"));
 			char const * currentBoneName = node["name"].GetString();
 
-			for (s32 nameIndex = 0; nameIndex < CHARACTER_SKELETON_BONE_COUNT; ++ nameIndex)
+			for (s32 nameIndex = 0; nameIndex < CharacterSkeletonBoneCount; ++ nameIndex)
 			{
 				if (strcmp(jsonBoneNames[nameIndex], currentBoneName) == 0)
 				{
@@ -573,7 +573,7 @@ asset_cooker_load_skeleton_glb(char const * filename, char const * nodeName)
 				}
 			}
 
-			if (boneId == CHARACTER_SKELETON_BONE_INVALID)
+			if (boneId == CharacterSkeletonBone_invalid)
 			{
 				std::cout << "skip bone: " << currentBoneName << "\n";
 				continue;
@@ -651,7 +651,7 @@ asset_cooker_load_skeleton_glb(char const * filename, char const * nodeName)
 		// fileBoneIndex += 1;
 	}
 
-	skeleton.bonesCount = CHARACTER_SKELETON_BONE_COUNT;
+	skeleton.bonesCount = CharacterSkeletonBoneCount;
 
 	/* Todo(Leo): Check that parent always comes before bone itself. Currently we have no mechanism
 	to fix the situation, so we just abort.*/

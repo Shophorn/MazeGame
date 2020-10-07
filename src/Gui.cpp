@@ -183,12 +183,12 @@ internal void gui_start_frame(Gui & gui, PlatformInput * input, f32 elapsedTime)
 
 	if (gui.selectableCountLastFrame > 0)
 	{
-		if (input_button_went_down(gui.input, INPUT_BUTTON_dpad_down))
+		if (input_button_went_down(gui.input, InputButton_dpad_down))
 		{
 			gui.selectedIndex += 1;
 			gui.selectedIndex %= gui.selectableCountLastFrame;
 		}
-		if(input_button_went_down(gui.input, INPUT_BUTTON_dpad_up))
+		if(input_button_went_down(gui.input, InputButton_dpad_up))
 		{
 			gui.selectedIndex -= 1;
 			if (gui.selectedIndex < 0)
@@ -457,7 +457,7 @@ internal bool gui_button(char const * label)
 
 	gui_panel_new_line();
 
-	bool result = isSelected && (input_button_went_down(gui.input, INPUT_BUTTON_nintendo_a) || input_button_went_down(gui.input, INPUT_BUTTON_mouse_0));
+	bool result = isSelected && (input_button_went_down(gui.input, InputButton_nintendo_a) || input_button_went_down(gui.input, InputButton_mouse_0));
 	return result;
 }
 
@@ -472,7 +472,7 @@ internal bool gui_toggle(char const * label, bool32 * value)
 	bool isSelected = gui_is_selected();
 	bool modified 	= false;
 
-	if (isSelected && input_button_went_down(gui.input, INPUT_BUTTON_nintendo_a) || input_button_went_down(gui.input, INPUT_BUTTON_mouse_0))
+	if (isSelected && input_button_went_down(gui.input, InputButton_nintendo_a) || input_button_went_down(gui.input, InputButton_mouse_0))
 	{
 		*value 		= !*value;
 		modified 	= true;
@@ -533,17 +533,17 @@ internal bool gui_float_slider(char const * label, f32 * value, f32 minValue, f3
 	bool isSelected 				= gui_is_selected();
 
 	bool modified 			= false;
-	bool modifiedByMouse 	= isSelected && input_button_is_down(gui.input, INPUT_BUTTON_mouse_0);
+	bool modifiedByMouse 	= isSelected && input_button_is_down(gui.input, InputButton_mouse_0);
 
 	if (isSelected)
 	{
-		if (input_button_is_down(gui.input, INPUT_BUTTON_dpad_left))
+		if (input_button_is_down(gui.input, InputButton_dpad_left))
 		{
 			*value 		-= sliderMoveSpeed * gui.elapsedTime * (maxValue - minValue);
 			modified 	= true;
 		}
 
-		if (input_button_is_down(gui.input, INPUT_BUTTON_dpad_right))
+		if (input_button_is_down(gui.input, InputButton_dpad_right))
 		{
 			*value 		+= sliderMoveSpeed * gui.elapsedTime * (maxValue - minValue);
 			modified 	= true;
@@ -583,7 +583,7 @@ internal bool gui_float_slider(char const * label, f32 * value, f32 minValue, f3
 		handlePositionTime = x;
 		handlePositionTime = clamp_f32(handlePositionTime, 0, 1);
 
-		*value = lerp_f32(minValue, maxValue, handlePositionTime);
+		*value = f32_lerp(minValue, maxValue, handlePositionTime);
 	}
 
 	float handleRectX = (sliderWidth - handleWidth) * handlePositionTime - sliderWidth + rightCursorOffset;
@@ -635,23 +635,23 @@ internal bool gui_float_field(char const * label, f32 * value, GuiClampValuesF32
 	bool isSelected 				= gui_is_selected();
 
 	bool modified 			= false;
-	bool modifiedByMouse 	= isSelected && input_button_is_down(gui.input, INPUT_BUTTON_mouse_0);
+	bool modifiedByMouse 	= isSelected && input_button_is_down(gui.input, InputButton_mouse_0);
 
 	if (isSelected)
 	{
-		if (input_button_is_down(gui.input, INPUT_BUTTON_dpad_left))
+		if (input_button_is_down(gui.input, InputButton_dpad_left))
 		{
 			*value 		-= sliderMoveSpeed * gui.elapsedTime;
 			modified 	= true;
 		}
 
-		if (input_button_is_down(gui.input, INPUT_BUTTON_dpad_right))
+		if (input_button_is_down(gui.input, InputButton_dpad_right))
 		{
 			*value 		+= sliderMoveSpeed * gui.elapsedTime;
 			modified 	= true;
 		}
 
-		float joystickDelta = input_axis_get_value(gui.input, INPUT_AXIS_move_x);
+		float joystickDelta = input_axis_get_value(gui.input, InputAxis_move_x);
 		if (abs_f32(joystickDelta) >= 0.1)
 		{
 			// Note(Leo): pow3 provides more accuracy closer to zero and preserves sign
@@ -708,13 +708,13 @@ internal bool gui_int_field(char const * label, s32 * value, GuiClampValuesS32 c
 
 	if (isSelected)
 	{
-		if (input_button_went_down(gui.input, INPUT_BUTTON_dpad_left))
+		if (input_button_went_down(gui.input, InputButton_dpad_left))
 		{
 			*value 		-= 1;
 			modified 	= true;
 		}
 
-		if (input_button_went_down(gui.input, INPUT_BUTTON_dpad_right))
+		if (input_button_went_down(gui.input, InputButton_dpad_right))
 		{
 			*value 		+= 1;
 			modified 	= true;
@@ -756,23 +756,23 @@ internal bool gui_float_value_field(char const * label, f32 * value, GuiClampVal
 	bool isSelected 				= gui_is_selected();
 
 	bool modified 			= false;
-	bool modifiedByMouse 	= isSelected && input_button_is_down(gui.input, INPUT_BUTTON_mouse_0);
+	bool modifiedByMouse 	= isSelected && input_button_is_down(gui.input, InputButton_mouse_0);
 
 	if (isSelected)
 	{
-		if (input_button_is_down(gui.input, INPUT_BUTTON_dpad_left))
+		if (input_button_is_down(gui.input, InputButton_dpad_left))
 		{
 			*value 		-= sliderMoveSpeed * gui.elapsedTime;
 			modified 	= true;
 		}
 
-		if (input_button_is_down(gui.input, INPUT_BUTTON_dpad_right))
+		if (input_button_is_down(gui.input, InputButton_dpad_right))
 		{
 			*value 		+= sliderMoveSpeed * gui.elapsedTime;
 			modified 	= true;
 		}
 
-		float joystickDelta = input_axis_get_value(gui.input, INPUT_AXIS_move_x);
+		float joystickDelta = input_axis_get_value(gui.input, InputAxis_move_x);
 		if (abs_f32(joystickDelta) >= 0.1)
 		{
 			// Note(Leo): pow3 provides more accuracy closer to zero and preserves sign

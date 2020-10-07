@@ -82,7 +82,7 @@ internal VulkanTexture BAD_VULKAN_make_texture(VulkanContext * context, TextureA
 	u32 height       = asset->height;
 	u32 mipLevels    = compute_mip_levels(width, height);
 
-	VkDeviceSize textureMemorySize = get_texture_asset_memory_size(*asset);
+	VkDeviceSize textureMemorySize = texture_asset_data_get_memory_size(*asset);
 
 	Assert(textureMemorySize <= context->stagingBufferCapacity);
 	memory_copy(context->persistentMappedStagingBufferMemory, asset->pixelMemory, textureMemorySize);
@@ -207,7 +207,7 @@ internal VulkanTexture BAD_VULKAN_make_texture(VulkanContext * context, TextureA
 	{
 		.image      = resultImage,
 		.view       = resultView,
-		.sampler 	= asset->addressMode == TEXTURE_ADDRESS_MODE_REPEAT ? context->textureSampler : context->clampSampler,
+		.sampler 	= asset->addressMode == TextureAddressMode_repeat ? context->textureSampler : context->clampSampler,
 
 		.format 	= format,
 
@@ -221,14 +221,14 @@ internal VulkanTexture BAD_VULKAN_make_texture(VulkanContext * context, TextureA
 }
 
 internal VkIndexType
-BAD_VULKAN_convert_index_type(IndexType type)
+BAD_VULKAN_convert_index_type(MeshIndexType type)
 {
 	switch (type)
 	{
-		case IndexType::UInt16:
+		case MeshIndexType_uint16:
 			return VK_INDEX_TYPE_UINT16;
 
-		case IndexType::UInt32:
+		case MeshIndexType_uint32:
 			return VK_INDEX_TYPE_UINT32;
 
 		default:
@@ -247,7 +247,7 @@ internal GuiTextureHandle graphics_memory_push_gui_texture(VulkanContext * conte
 {
 	VulkanTexture texture 			= BAD_VULKAN_make_texture(context, asset);
 	VkDescriptorSet descriptorSet 	= fsvulkan_make_texture_descriptor_set(	context,	
-																			context->pipelines[GRAPHICS_PIPELINE_SCREEN_GUI].descriptorSetLayout,
+																			context->pipelines[GraphicsPipeline_screen_gui].descriptorSetLayout,
 																			context->materialDescriptorPool,
 																			1, &texture.view, &context->clampSampler);
 	s64 index = context->loadedGuiTextures.size();
@@ -284,7 +284,7 @@ internal MaterialHandle graphics_memory_push_material (	VulkanContext *     cont
 	context->loadedMaterials.push_back({pipeline, descriptorSet});
 
 
-	if (pipeline == GRAPHICS_PIPELINE_SKYBOX)
+	if (pipeline == GraphicsPipeline_skybox)
 	{
 		context->skyGradientDescriptorSet = descriptorSet;
 	}
@@ -618,7 +618,7 @@ internal void graphics_development_update_texture(VulkanContext * context, Textu
 	Assert(asset->height == texture.height);
 	// Todo(Leo): Also assert format and miplevels
 
-	VkDeviceSize textureMemorySize = get_texture_asset_memory_size(*asset);
+	VkDeviceSize textureMemorySize = texture_asset_data_get_memory_size(*asset);
 
 	Assert(textureMemorySize <= context->stagingBufferCapacity);
 	memory_copy(context->persistentMappedStagingBufferMemory, asset->pixelMemory, textureMemorySize);

@@ -6,6 +6,9 @@ Scene description for 3d development game
 
 Todo(Leo):
 	crystal trees 
+
+Todo(leo): audio
+	clipping, compressor, dynamic gain, soft knee, hard knee
 */
 
 // Todo(Leo): Maybe try to get rid of this forward declaration
@@ -296,7 +299,19 @@ struct Game
 	Transform3D boxCoverLocalTransform;
 	BoxState 	boxState;
 	f32 		boxOpenPercent;
+
+	// ----------------------------------------------
+	// AUDIO
+
+	AudioAsset * backgroundAudio;
+	AudioAsset * stepSFX;
+	AudioAsset * stepSFX2;
+	AudioAsset * stepSFX3;
+
+	AudioClip 			backgroundAudioClip;
+	Array2<AudioClip> 	audioClipsOnPlay;
 };
+
 
 internal auto game_get_serialized_objects(Game & game)
 {
@@ -362,11 +377,11 @@ internal void game_spawn_tree(Game & game, v3 position, s32 treeTypeIndex)
 	tree.typeIndex 	= treeTypeIndex;
 	tree.game 		= &game;
 
-	MeshAssetId seedMesh = treeTypeIndex == 0 ? MESH_ASSET_SEED : MESH_ASSET_WATER_DROP;
+	MeshAssetId seedMesh = treeTypeIndex == 0 ? MeshAssetId_seed : MeshAssetId_water_drop;
 
-	tree.leaves.material 	= assets_get_material(game.assets, MATERIAL_ASSET_LEAVES);
+	tree.leaves.material 	= assets_get_material(game.assets, MaterialAssetId_leaves);
 	tree.seedMesh 			= assets_get_mesh(game.assets, seedMesh);
-	tree.seedMaterial		= assets_get_material(game.assets, MATERIAL_ASSET_SEED);
+	tree.seedMaterial		= assets_get_material(game.assets, MaterialAssetId_seed);
 
 	push_physics_object(game.physicsObjects, GO_TREE_3, game.trees.count -1);
 }
@@ -399,12 +414,11 @@ internal void game_spawn_tree_on_player(Game & game)
 
 // Todo(Leo): add this to syntax higlight, so that 'GAME UPDATE' is different color
 /// ------------------ GAME UPDATE -------------------------
-internal bool32 update_scene_3d(void * scenePtr, PlatformInput * input, PlatformTime const & time)
+internal bool32 update_scene_3d(Game * 					game,
+								PlatformInput * 		input,
+								PlatformSoundOutput *	soundOutput,
+								PlatformTime const & 	time)
 {
-	Game * game = reinterpret_cast<Game*>(scenePtr);
-	
-	/// ****************************************************************************
-
 	struct SnapOnGround
 	{
 		CollisionSystem3D & collisionSystem;
@@ -440,8 +454,8 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput * input, Platform
 	graphics_draw_model(platformGraphics, game->skybox, identity_m44, false, nullptr, 0);
 	// graphics_draw_meshes(platformGraphics,
 	// 					1, &identity_m44,
-	// 					assets_get_mesh(game->assets, MESH_ASSET_SKYSPHERE),
-	// 					assets_get_material(game->assets, MATERIAL_ASSET_SKY));
+	// 					assets_get_mesh(game->assets, MeshAssetId_skysphere),
+	// 					assets_get_material(game->assets, MaterialAssetId_sky));
 
 
 	// Game Logic section
@@ -453,12 +467,12 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput * input, Platform
 
 			if (game->menuView == MENU_OFF)
 			{
-				if (input_button_went_down(input, INPUT_BUTTON_dpad_down))
+				if (input_button_went_down(input, InputButton_dpad_down))
 				{
 					game->menuView = MENU_SPAWN;
 				}
 
-				if (input_button_went_down(input, INPUT_BUTTON_nintendo_y))
+				if (input_button_went_down(input, InputButton_nintendo_y))
 				{
 					game->nobleWanderTargetPosition 	= game->playerCharacterTransform.position;
 					game->nobleWanderWaitTimer 		= 0;
@@ -491,7 +505,7 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput * input, Platform
 			game->worldCamera.direction = game->freeCamera.direction;
 
 			/// Document(Leo): Teleport player
-			if (game->menuView == MENU_OFF && input_button_went_down(input, INPUT_BUTTON_nintendo_a))
+			if (game->menuView == MENU_OFF && input_button_went_down(input, InputButton_nintendo_a))
 			{
 				game->menuView = MENU_CONFIRM_TELEPORT;
 				gui_ignore_input();
@@ -509,7 +523,7 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput * input, Platform
 			game->worldCamera.direction = game->mouseCamera.direction;
 
 			/// Document(Leo): Teleport player
-			if (game->menuView == MENU_OFF && input_button_went_down(input, INPUT_BUTTON_nintendo_a))
+			if (game->menuView == MENU_OFF && input_button_went_down(input, InputButton_nintendo_a))
 			{
 				game->menuView = MENU_CONFIRM_TELEPORT;
 				gui_ignore_input();
@@ -834,8 +848,17 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput * input, Platform
 			{
 				position->z = groundHeight;
 
-				f32 velocityBefore = velocity;
+				{
+					// log_debug(FILE_ADDRESS, velocity);
+					f32 maxVelocityForAudio = 10;
+					f32 velocityForAudio 	= clamp_f32(-velocity, 0, maxVelocityForAudio);
+					f32 volume 				= velocityForAudio / maxVelocityForAudio;
 
+					game->audioClipsOnPlay.push({game->stepSFX, 0, random_range(0.5, 1.5), volume, *position});
+				}
+
+
+				// todo (Leo): move to physics properties per game object type
 				f32 bounceFactor 	= 0.5;
 				velocity 			= -velocity * bounceFactor;
 
@@ -1095,9 +1118,9 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput * input, Platform
 
 
 	{
-		MeshHandle boxMesh 		= assets_get_mesh(game->assets, MESH_ASSET_BOX);
-		MeshHandle boxCoverMesh = assets_get_mesh(game->assets, MESH_ASSET_BOX_COVER);
-		MaterialHandle material = assets_get_material(game->assets, MATERIAL_ASSET_BOX);
+		MeshHandle boxMesh 		= assets_get_mesh(game->assets, MeshAssetId_box);
+		MeshHandle boxCoverMesh = assets_get_mesh(game->assets, MeshAssetId_box_cover);
+		MaterialHandle material = assets_get_material(game->assets, MaterialAssetId_box);
 
 		m44 boxTransformMatrix = transform_matrix(game->boxTransform);
 		m44 coverTransformMatrix = boxTransformMatrix * transform_matrix(game->boxCoverLocalTransform);
@@ -1170,7 +1193,7 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput * input, Platform
 			f32 t = min_f32(1, max_f32(0, dot_v3(position - a, b - a) / square_v3_length(b-a)));
 			f32 d = v3_length(position - a  - t * (b -a));
 
-			return d - lerp_f32(0.5,0.1,t);
+			return d - f32_lerp(0.5,0.1,t);
 
 			// return min_f32(v3_length(a - position) - rA, v3_length(b - position) - rB);
 		};
@@ -1290,7 +1313,7 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput * input, Platform
 			graphics_draw_procedural_mesh(	platformGraphics,
 											tree.mesh.vertices.count, tree.mesh.vertices.memory,
 											tree.mesh.indices.count, tree.mesh.indices.memory,
-											transform, assets_get_material(game->assets, MATERIAL_ASSET_TREE));
+											transform, assets_get_material(game->assets, MaterialAssetId_tree));
 		}
 
 		if (tree.drawSeed)
@@ -1338,6 +1361,57 @@ internal bool32 update_scene_3d(void * scenePtr, PlatformInput * input, Platform
 		}
 	}
 
+	// ---------- PROCESS AUDIO -------------------------
+
+	{
+		local_persist f32 timeToSpawnAudioOnOtherGuy = 0;
+		timeToSpawnAudioOnOtherGuy -= scaledTime;
+		if (timeToSpawnAudioOnOtherGuy < 0)
+		{
+			game->audioClipsOnPlay.push({game->stepSFX, 0, random_range(0.8, 1.2), 1, game->noblePersonTransform.position});
+			timeToSpawnAudioOnOtherGuy = 1.0f;
+		}
+		
+
+		// for (auto & output : *soundOutput)
+		
+		for (s32 outputIndex = 0; outputIndex < soundOutput->sampleCount; ++outputIndex)
+		{
+			auto & output = soundOutput->samples[outputIndex];
+			output = {};
+			// output = get_next_sample_looping(game->backgroundAudioClip);
+
+			for (s32 i = 0; i < game->audioClipsOnPlay.count; ++i)
+			{
+				auto & clip = game->audioClipsOnPlay[i];
+
+				PlatformStereoSoundSample sample;
+				bool32 hasSamplesLeft = get_next_sample(clip, sample);
+
+				f32 attenuation;
+				{
+					f32 distanceToPlayer = v3_length(clip.position - game->playerCharacterTransform.position);
+					distanceToPlayer = clamp_f32(distanceToPlayer, 0, 50);
+					attenuation = 1 - (distanceToPlayer / 50);
+				}
+
+
+
+				output.left += sample.left * attenuation;
+				output.right += sample.right * attenuation;
+
+
+				if (hasSamplesLeft == false)
+				{
+					array_2_unordered_remove(game->audioClipsOnPlay, i);
+					i -= 1;
+				}
+			}
+		}
+	}
+
+
+
 	// ------------------------------------------------------------------------
 
 	auto gui_result = do_gui(game, input);
@@ -1380,8 +1454,8 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 
 	// Skysphere
 	game->skybox = graphics_memory_push_model(	platformGraphics,
-												assets_get_mesh(game->assets, MESH_ASSET_SKYSPHERE),
-												assets_get_material(game->assets, MATERIAL_ASSET_SKY));
+												assets_get_mesh(game->assets, MeshAssetId_skysphere),
+												assets_get_material(game->assets, MaterialAssetId_sky));
 
 	// Characters
 	{
@@ -1394,17 +1468,17 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 		{
 			using namespace CharacterAnimations;			
 
-			motor.animations[WALK] 		= assets_get_animation(game->assets, AAID_CHARACTER_WALK);
-			motor.animations[RUN] 		= assets_get_animation(game->assets, AAID_CHARACTER_RUN);
-			motor.animations[IDLE] 		= assets_get_animation(game->assets, AAID_CHARACTER_IDLE);
-			motor.animations[JUMP]		= assets_get_animation(game->assets, AAID_CHARACTER_JUMP);
-			motor.animations[FALL]		= assets_get_animation(game->assets, AAID_CHARACTER_FALL);
-			motor.animations[CROUCH] 	= assets_get_animation(game->assets, AAID_CHARACTER_CROUCH);
+			motor.animations[WALK] 		= assets_get_animation(game->assets, AnimationAssetId_character_walk);
+			motor.animations[RUN] 		= assets_get_animation(game->assets, AnimationAssetId_character_run);
+			motor.animations[IDLE] 		= assets_get_animation(game->assets, AnimationAssetId_character_idle);
+			motor.animations[JUMP]		= assets_get_animation(game->assets, AnimationAssetId_character_jump);
+			motor.animations[FALL]		= assets_get_animation(game->assets, AnimationAssetId_character_fall);
+			motor.animations[CROUCH] 	= assets_get_animation(game->assets, AnimationAssetId_character_crouch);
 		}
 
 		game->playerSkeletonAnimator = 
 		{
-			.skeleton 		= assets_get_skeleton(game->assets, SAID_CHARACTER),
+			.skeleton 		= assets_get_skeleton(game->assets, SkeletonAssetId_character),
 			.animations 	= motor.animations,
 			.weights 		= motor.animationWeights,
 			.animationCount = CharacterAnimations::ANIMATION_COUNT
@@ -1416,8 +1490,8 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 		array_2_fill_with_value(game->playerSkeletonAnimator.boneBoneSpaceTransforms, identity_transform);
 
 		auto model = graphics_memory_push_model(platformGraphics,
-												assets_get_mesh(game->assets, MESH_ASSET_CHARACTER),
-												assets_get_material(game->assets, MATERIAL_ASSET_CHARACTER));
+												assets_get_mesh(game->assets, MeshAssetId_character),
+												assets_get_material(game->assets, MaterialAssetId_character));
 		game->playerAnimatedRenderer = make_animated_renderer(&game->playerCharacterTransform, game->playerSkeletonAnimator.skeleton, model);
 
 	}
@@ -1436,17 +1510,17 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 		{
 			using namespace CharacterAnimations;
 			
-			game->noblePersonCharacterMotor.animations[WALK] 	= assets_get_animation(game->assets, AAID_CHARACTER_WALK);
-			game->noblePersonCharacterMotor.animations[RUN] 	= assets_get_animation(game->assets, AAID_CHARACTER_RUN);
-			game->noblePersonCharacterMotor.animations[IDLE]	= assets_get_animation(game->assets, AAID_CHARACTER_IDLE);
-			game->noblePersonCharacterMotor.animations[JUMP] 	= assets_get_animation(game->assets, AAID_CHARACTER_JUMP);
-			game->noblePersonCharacterMotor.animations[FALL] 	= assets_get_animation(game->assets, AAID_CHARACTER_FALL);
-			game->noblePersonCharacterMotor.animations[CROUCH] = assets_get_animation(game->assets, AAID_CHARACTER_CROUCH);
+			game->noblePersonCharacterMotor.animations[WALK] 	= assets_get_animation(game->assets, AnimationAssetId_character_walk);
+			game->noblePersonCharacterMotor.animations[RUN] 	= assets_get_animation(game->assets, AnimationAssetId_character_run);
+			game->noblePersonCharacterMotor.animations[IDLE]	= assets_get_animation(game->assets, AnimationAssetId_character_idle);
+			game->noblePersonCharacterMotor.animations[JUMP] 	= assets_get_animation(game->assets, AnimationAssetId_character_jump);
+			game->noblePersonCharacterMotor.animations[FALL] 	= assets_get_animation(game->assets, AnimationAssetId_character_fall);
+			game->noblePersonCharacterMotor.animations[CROUCH] = assets_get_animation(game->assets, AnimationAssetId_character_crouch);
 		}
 
 		game->noblePersonSkeletonAnimator = 
 		{
-			.skeleton 		= assets_get_skeleton(game->assets, SAID_CHARACTER),
+			.skeleton 		= assets_get_skeleton(game->assets, SkeletonAssetId_character),
 			.animations 	= game->noblePersonCharacterMotor.animations,
 			.weights 		= game->noblePersonCharacterMotor.animationWeights,
 			.animationCount = CharacterAnimations::ANIMATION_COUNT
@@ -1457,8 +1531,8 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 		array_2_fill_with_value(game->noblePersonSkeletonAnimator.boneBoneSpaceTransforms, identity_transform);
 
 		auto model = graphics_memory_push_model(platformGraphics,
-												assets_get_mesh(game->assets, MESH_ASSET_CHARACTER), 
-												assets_get_material(game->assets, MATERIAL_ASSET_CHARACTER)); 
+												assets_get_mesh(game->assets, MeshAssetId_character), 
+												assets_get_material(game->assets, MaterialAssetId_character)); 
 
 		game->noblePersonAnimatedRenderer = make_animated_renderer(&game->noblePersonTransform, game->noblePersonSkeletonAnimator.skeleton, model);
 
@@ -1491,7 +1565,7 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 				s32 heightmapResolution = 1024;
 
 				// todo(Leo): put to asset system thing
-				TextureAssetData heightmapData = assets_get_texture_data(game->assets, TEXTURE_ASSET_HEIGHTMAP);
+				TextureAssetData heightmapData = assets_get_texture_data(game->assets, TextureAssetId_heightmap);
 				heightmap 				= make_heightmap(&persistentMemory, &heightmapData, heightmapResolution, mapSize, minTerrainElevation, maxTerrainElevation);
 
 				memory_pop_checkpoint(*global_transientMemory, checkpoint);
@@ -1501,7 +1575,7 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 			game->terrainCount 		= terrainCount;
 			game->terrainTransforms 	= push_memory<m44>(persistentMemory, terrainCount, ALLOC_GARBAGE);
 			game->terrainMeshes 		= push_memory<MeshHandle>(persistentMemory, terrainCount, ALLOC_GARBAGE);
-			game->terrainMaterial 		= assets_get_material(game->assets, MATERIAL_ASSET_GROUND);
+			game->terrainMaterial 		= assets_get_material(game->assets, MaterialAssetId_ground);
 
 			/// GENERATE GROUND MESH
 			{
@@ -1554,18 +1628,18 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 				seaMeshAsset.indexCount = array_count(indices);
 				seaMeshAsset.indices 	= push_and_copy_memory(*global_transientMemory, array_count(indices), indices);
 
-				seaMeshAsset.indexType = IndexType::UInt16;
+				seaMeshAsset.indexType = MeshIndexType_uint16;
 			}
 			mesh_generate_tangents(seaMeshAsset);
 			game->seaMesh 		= graphics_memory_push_mesh(platformGraphics, &seaMeshAsset);
-			game->seaMaterial 	= assets_get_material(game->assets, MATERIAL_ASSET_SEA);
+			game->seaMaterial 	= assets_get_material(game->assets, MaterialAssetId_sea);
 			game->seaTransform = transform_matrix({0,0,0}, identity_quaternion, {mapSize, mapSize, 1});
 		}
 
 		/// TOTEMS
 		{
-			game->totemMesh 	= assets_get_mesh(game->assets, MESH_ASSET_TOTEM);
-			game->totemMaterial = assets_get_material(game->assets, MATERIAL_ASSET_ENVIRONMENT);
+			game->totemMesh 	= assets_get_mesh(game->assets, MeshAssetId_totem);
+			game->totemMaterial = assets_get_material(game->assets, MaterialAssetId_environment);
 
 			v3 position0 = {0,0,0}; 	position0.z = get_terrain_height(game->collisionSystem, position0.xy);
 			v3 position1 = {0,5,0}; 	position1.z = get_terrain_height(game->collisionSystem, position1.xy);
@@ -1610,17 +1684,17 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 				{
 					using namespace CharacterAnimations;
 
-					game->raccoonCharacterMotors[i].animations[WALK] 		= assets_get_animation(game->assets, AAID_RACCOON_EMPTY);
-					game->raccoonCharacterMotors[i].animations[RUN] 		= assets_get_animation(game->assets, AAID_RACCOON_EMPTY);
-					game->raccoonCharacterMotors[i].animations[IDLE]		= assets_get_animation(game->assets, AAID_RACCOON_EMPTY);
-					game->raccoonCharacterMotors[i].animations[JUMP] 		= assets_get_animation(game->assets, AAID_RACCOON_EMPTY);
-					game->raccoonCharacterMotors[i].animations[FALL] 		= assets_get_animation(game->assets, AAID_RACCOON_EMPTY);
-					game->raccoonCharacterMotors[i].animations[CROUCH] 	= assets_get_animation(game->assets, AAID_RACCOON_EMPTY);
+					game->raccoonCharacterMotors[i].animations[WALK] 		= assets_get_animation(game->assets, AnimationAssetId_raccoon_empty);
+					game->raccoonCharacterMotors[i].animations[RUN] 		= assets_get_animation(game->assets, AnimationAssetId_raccoon_empty);
+					game->raccoonCharacterMotors[i].animations[IDLE]		= assets_get_animation(game->assets, AnimationAssetId_raccoon_empty);
+					game->raccoonCharacterMotors[i].animations[JUMP] 		= assets_get_animation(game->assets, AnimationAssetId_raccoon_empty);
+					game->raccoonCharacterMotors[i].animations[FALL] 		= assets_get_animation(game->assets, AnimationAssetId_raccoon_empty);
+					game->raccoonCharacterMotors[i].animations[CROUCH] 	= assets_get_animation(game->assets, AnimationAssetId_raccoon_empty);
 				}
 			}
 
-			game->raccoonMesh 		= assets_get_mesh(game->assets, MESH_ASSET_RACCOON);
-			game->raccoonMaterial	= assets_get_material(game->assets, MATERIAL_ASSET_RACCOON);
+			game->raccoonMesh 		= assets_get_mesh(game->assets, MeshAssetId_raccoon);
+			game->raccoonMaterial	= assets_get_material(game->assets, MaterialAssetId_raccoon);
 		}
 
 		// /// INVISIBLE TEST COLLIDER
@@ -1643,14 +1717,14 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 			position.z 				= get_terrain_height(game->collisionSystem, position.xy);
 			game->robotTransform 	= {position};
 
-			game->robotMesh 		= assets_get_mesh(game->assets, MESH_ASSET_ROBOT);
-			game->robotMaterial 	= assets_get_material(game->assets, MATERIAL_ASSET_ROBOT);
+			game->robotMesh 		= assets_get_mesh(game->assets, MeshAssetId_robot);
+			game->robotMaterial 	= assets_get_material(game->assets, MaterialAssetId_robot);
 		}
 
 		/// SMALL SCENERY OBJECTS
 		{			
-			game->potMesh 		= assets_get_mesh(game->assets, MESH_ASSET_SMALL_POT);
-			game->potMaterial 	= assets_get_material(game->assets, MATERIAL_ASSET_ENVIRONMENT);
+			game->potMesh 		= assets_get_mesh(game->assets, MeshAssetId_small_pot);
+			game->potMaterial 	= assets_get_material(game->assets, MaterialAssetId_environment);
 
 			{
 				game->potCapacity 		= 10;
@@ -1668,12 +1742,12 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 
 			// ----------------------------------------------------------------	
 
-			auto bigPotMesh = assets_get_mesh(game->assets, MESH_ASSET_BIG_POT);
+			auto bigPotMesh = assets_get_mesh(game->assets, MeshAssetId_big_pot);
 
 			s32 bigPotCount = 5;
 
-			game->bigPotMesh 		= assets_get_mesh(game->assets, MESH_ASSET_BIG_POT);
-			game->bigPotMaterial 	= assets_get_material(game->assets, MATERIAL_ASSET_ENVIRONMENT);
+			game->bigPotMesh 		= assets_get_mesh(game->assets, MeshAssetId_big_pot);
+			game->bigPotMaterial 	= assets_get_material(game->assets, MaterialAssetId_environment);
 			game->bigPotTransforms 	= push_array_2<Transform3D>(persistentMemory, bigPotCount, ALLOC_GARBAGE);
 			game->bigPotTransforms.count = bigPotCount;
 
@@ -1694,8 +1768,8 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 
 			/// WATERS
 			{
-				game->waterMesh 		= assets_get_mesh(game->assets, MESH_ASSET_WATER_DROP);
-				game->waterMaterial 	= assets_get_material(game->assets, MATERIAL_ASSET_WATER);
+				game->waterMesh 		= assets_get_mesh(game->assets, MeshAssetId_water_drop);
+				game->waterMaterial 	= assets_get_material(game->assets, MaterialAssetId_water);
 
 				{				
 					game->waters.capacity 		= 200;
@@ -1719,8 +1793,8 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 
 		/// TRAIN
 		{
-			game->trainMesh 		= assets_get_mesh(game->assets, MESH_ASSET_TRAIN);
-			game->trainMaterial 	= assets_get_material(game->assets, MATERIAL_ASSET_ENVIRONMENT);
+			game->trainMesh 		= assets_get_mesh(game->assets, MeshAssetId_train);
+			game->trainMaterial 	= assets_get_material(game->assets, MaterialAssetId_environment);
 
 			// ----------------------------------------------------------------------------------
 
@@ -1797,7 +1871,7 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 
 		game->metaballTransform 	= translation_matrix(position);
 
-		game->metaballMaterial = assets_get_material(game->assets, MATERIAL_ASSET_TREE);
+		game->metaballMaterial = assets_get_material(game->assets, MaterialAssetId_tree);
 
 		// ----------------------------------------------------------------------------------
 
@@ -1858,6 +1932,17 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 		game_spawn_tree(*game, boxPosition + v3{0,0,0.1}, 0);
 	}
 
+
+	// ----------------------------------------------------------------------------------
+
+	game->backgroundAudio 	= assets_get_audio(game->assets, AudioAssetId_background);
+	game->stepSFX			= assets_get_audio(game->assets, AudioAssetId_step_1);
+	game->stepSFX2			= assets_get_audio(game->assets, AudioAssetId_step_2);
+	game->stepSFX3			= assets_get_audio(game->assets, AudioAssetId_birds);
+
+	game->backgroundAudioClip 	= {game->backgroundAudio, 0};
+
+	game->audioClipsOnPlay = push_array_2<AudioClip>(persistentMemory, 1000, ALLOC_ZERO_MEMORY);
 
 	// ----------------------------------------------------------------------------------
 

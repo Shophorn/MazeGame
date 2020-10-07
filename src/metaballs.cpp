@@ -69,11 +69,11 @@ struct VoxelField
 	f32 * memory;
 };
 
-internal f32 lerp_f32_square(f32 const * values, v2 t)
+internal f32 f32_lerp_square(f32 const * values, v2 t)
 {
-	f32 v0 		= lerp_f32(values[0], values[1], t.x);
-	f32 v1 		= lerp_f32(values[2], values[3], t.x);
-	f32 result 	= lerp_f32(v0, v1, t.y);
+	f32 v0 		= f32_lerp(values[0], values[1], t.x);
+	f32 v1 		= f32_lerp(values[2], values[3], t.x);
+	f32 result 	= f32_lerp(v0, v1, t.y);
 
 	return result;
 }
@@ -105,17 +105,17 @@ internal f32 lerp_f32_square(f32 const * values, v2 t)
 
 // };
 
-// internal f32 lerp_f32_cube(f32 (&values)[8], v3 t)
+// internal f32 f32_lerp_cube(f32 (&values)[8], v3 t)
 // {
-// 	f32 v00 = lerp_f32(values[0], values[1], t.x);
-// 	f32 v10 = lerp_f32(values[2], values[3], t.x);
-// 	f32 v01 = lerp_f32(values[4], values[5], t.x);
-// 	f32 v11 = lerp_f32(values[6], values[7], t.x);
+// 	f32 v00 = f32_lerp(values[0], values[1], t.x);
+// 	f32 v10 = f32_lerp(values[2], values[3], t.x);
+// 	f32 v01 = f32_lerp(values[4], values[5], t.x);
+// 	f32 v11 = f32_lerp(values[6], values[7], t.x);
 
-// 	f32 v0 = lerp_f32(v00, v10, t.y);
-// 	f32 v1 = lerp_f32(v01, v11, t.y);
+// 	f32 v0 = f32_lerp(v00, v10, t.y);
+// 	f32 v1 = f32_lerp(v01, v11, t.y);
 
-// 	f32 v = lerp_f32(v0, v1, t.z);	
+// 	f32 v = f32_lerp(v0, v1, t.z);	
 
 // 	return v;
 // }
@@ -147,7 +147,7 @@ internal f32 sample_heightmap_for_mc(v3 position, void const * dataPtr)
 		map->values[ix0 + iy1 * map->gridSize],
 		map->values[ix1 + iy1 * map->gridSize],
 	};
-	f32 mapHeight 	= lerp_f32_square(values, {tx, ty});
+	f32 mapHeight 	= f32_lerp_square(values, {tx, ty});
 	mapHeight *= 5;
 	f32 height 		= position.z;
 
@@ -191,15 +191,15 @@ internal f32 sample_voxel_field(v3 position, void const * dataPtr)
 	f32 v011 = field->memory[ix0 + iy1 * (s32)field->xSize + (s32)(iz1 * field->xSize * field->ySize)];
 	f32 v111 = field->memory[ix1 + iy1 * (s32)field->xSize + (s32)(iz1 * field->xSize * field->ySize)];
 
-	f32 v00 = lerp_f32(v000, v100, tx);
-	f32 v10 = lerp_f32(v010, v110, tx);
-	f32 v01 = lerp_f32(v001, v101, tx);
-	f32 v11 = lerp_f32(v011, v111, tx);
+	f32 v00 = f32_lerp(v000, v100, tx);
+	f32 v10 = f32_lerp(v010, v110, tx);
+	f32 v01 = f32_lerp(v001, v101, tx);
+	f32 v11 = f32_lerp(v011, v111, tx);
 
-	f32 v0 = lerp_f32(v00, v10, ty);
-	f32 v1 = lerp_f32(v01, v11, ty);
+	f32 v0 = f32_lerp(v00, v10, ty);
+	f32 v1 = f32_lerp(v01, v11, ty);
 
-	f32 v = lerp_f32(v0, v1, tz);
+	f32 v = f32_lerp(v0, v1, tz);
 
 	return v;
 }

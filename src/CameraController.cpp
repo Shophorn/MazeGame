@@ -33,20 +33,20 @@ struct PlayerCameraController
 internal void
 update_camera_controller(PlayerCameraController * controller, v3 targetPosition, PlatformInput * input, f32 elapsedTime)
 {
-	if (input_button_is_down(input, INPUT_BUTTON_zoom_in))
+	if (input_button_is_down(input, InputButton_zoom_in))
 	{
 		controller->distance -= controller->distance * controller->relativeZoomSpeed * elapsedTime;
 		controller->distance = max_f32(controller->distance, controller->minDistance);
 	}
-	else if(input_button_is_down(input, INPUT_BUTTON_zoom_out))
+	else if(input_button_is_down(input, InputButton_zoom_out))
 	{
 		controller->distance += controller->distance * controller->relativeZoomSpeed * elapsedTime;
 		controller->distance = min_f32(controller->distance, controller->maxDistance);
 	}
 
-    controller->orbitDegrees += input_axis_get_value(input, INPUT_AXIS_look_x) * controller->rotateSpeed * elapsedTime;
+    controller->orbitDegrees += input_axis_get_value(input, InputAxis_look_x) * controller->rotateSpeed * elapsedTime;
     
-    controller->tumbleDegrees += input_axis_get_value(input, INPUT_AXIS_look_y) * controller->rotateSpeed * elapsedTime;
+    controller->tumbleDegrees += input_axis_get_value(input, InputAxis_look_y) * controller->rotateSpeed * elapsedTime;
     controller->tumbleDegrees = clamp_f32(controller->tumbleDegrees, controller->minTumble, controller->maxTumble);
 
     f32 cameraDistance = controller->distance;
@@ -109,9 +109,9 @@ internal m44 update_free_camera(FreeCameraController & controller, PlatformInput
 	f32 maxTilt 		= 0.45f * π;
 
 	// Note(Leo): positive rotation is to left, which is opposite of joystick
-	controller.panAngle += -1 * input_axis_get_value(input, INPUT_AXIS_look_x) * rotateSpeed * elapsedTime;
+	controller.panAngle += -1 * input_axis_get_value(input, InputAxis_look_x) * rotateSpeed * elapsedTime;
 
-	controller.tiltAngle += -1 * input_axis_get_value(input, INPUT_AXIS_look_y) * rotateSpeed * elapsedTime;
+	controller.tiltAngle += -1 * input_axis_get_value(input, InputAxis_look_y) * rotateSpeed * elapsedTime;
 	controller.tiltAngle = clamp_f32(controller.tiltAngle, -maxTilt, maxTilt);
 
 	quaternion pan 	= quaternion_axis_angle(v3_up, controller.panAngle);
@@ -128,10 +128,10 @@ internal m44 update_free_camera(FreeCameraController & controller, PlatformInput
 	f32 moveSpeed 	= interpolate(lowMoveSpeed, highMoveSpeed, heightValue);
 
 	f32 moveStep 		= moveSpeed * elapsedTime;
-	v3 rightMovement 	= right * input_axis_get_value(input, INPUT_AXIS_move_x) * moveStep;
-	v3 forwardMovement 	= forward * input_axis_get_value(input, INPUT_AXIS_move_y) * moveStep;
+	v3 rightMovement 	= right * input_axis_get_value(input, InputAxis_move_x) * moveStep;
+	v3 forwardMovement 	= forward * input_axis_get_value(input, InputAxis_move_y) * moveStep;
 
-	f32 zInput 		= input_button_is_down(input, INPUT_BUTTON_zoom_out) - input_button_is_down(input, INPUT_BUTTON_zoom_in);
+	f32 zInput 		= input_button_is_down(input, InputButton_zoom_out) - input_button_is_down(input, InputButton_zoom_in);
 	v3 upMovement 	= v3_up * zInput * zMoveSpeed * elapsedTime;
 
 	quaternion tilt = quaternion_axis_angle(right, controller.tiltAngle);
@@ -166,7 +166,7 @@ internal void update_mouse_camera(MouseCameraController & controller, PlatformIn
 	v2 mouseInput 					= input_cursor_get_position(input) - controller.lastMousePosition;
 	controller.lastMousePosition 	= input_cursor_get_position(input);
 
-	if (input_button_is_down(input, INPUT_BUTTON_mouse_0))
+	if (input_button_is_down(input, InputButton_mouse_0))
 	{
 		mouseInput = {};
 	}
@@ -191,13 +191,13 @@ internal void update_mouse_camera(MouseCameraController & controller, PlatformIn
 
 	f32 moveStep 		= moveSpeed * elapsedTime;
 
-	v3 rightMovement 	= right * input_axis_get_value(input, INPUT_AXIS_move_x) * moveStep;
-	v3 forwardMovement 	= direction * input_axis_get_value(input, INPUT_AXIS_move_y) * moveStep;
+	v3 rightMovement 	= right * input_axis_get_value(input, InputAxis_move_x) * moveStep;
+	v3 forwardMovement 	= direction * input_axis_get_value(input, InputAxis_move_y) * moveStep;
 
 	controller.targetPosition += rightMovement + forwardMovement;
 	controller.direction = direction;
 
-	f32 scrollMovement 	= input_axis_get_value(input, INPUT_AXIS_mouse_scroll) * scrollMoveSpeed;
+	f32 scrollMovement 	= input_axis_get_value(input, InputAxis_mouse_scroll) * scrollMoveSpeed;
 	controller.distance += scrollMovement;
 	controller.distance = clamp_f32(controller.distance, 0, 10000);
 

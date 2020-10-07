@@ -330,7 +330,7 @@ internal void fsvulkan_recreate_drawing_resources(VulkanContext * context, u32 w
 	{
 		context->shadowMapTextureDescriptorSet[i] = make_material_vk_descriptor_set_2( context,
 																					context->shadowMapTextureDescriptorSetLayout,
-																					// context->pipelines[GRAPHICS_PIPELINE_SCREEN_GUI].descriptorSetLayout,
+																					// context->pipelines[GraphicsPipeline_SCREEN_GUI].descriptorSetLayout,
 																					context->shadowAttachment[i].view,
 																					context->persistentDescriptorPool,
 																					context->shadowTextureSampler,

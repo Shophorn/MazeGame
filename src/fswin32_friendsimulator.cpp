@@ -110,7 +110,8 @@ FS_ENTRY_POINT
 	f64 networkNextSendTime     = 0;
 	
 	/// --------- INITIALIZE AUDIO ----------------
-	WinApiAudio audio = fswin32_create_audio();
+	f32 audioBufferLengthSeconds(0.05);
+	WinApiAudio audio = fswin32_create_audio(audioBufferLengthSeconds);
 	fswin32_start_playing(&audio);                
 
 	/// ---------- LOAD GAME CODE ----------------------
@@ -177,8 +178,8 @@ FS_ENTRY_POINT
 
 			// Todo(Leo): Totally in wrong place :))
 			platformInput.mousePosition = state.keyboardInput.mousePosition;
-    		fswin32_input_update_button_state(platformInput.buttons[INPUT_BUTTON_mouse_0], state.keyboardInput.leftMouseButtonDown);
-    		platformInput.axes[INPUT_AXIS_mouse_scroll]	= state.keyboardInput.mouseScroll;
+    		fswin32_input_update_button_state(platformInput.buttons[InputButton_mouse_0], state.keyboardInput.leftMouseButtonDown);
+    		platformInput.axes[InputAxis_mouse_scroll]	= state.keyboardInput.mouseScroll;
 
     		state.keyboardInput.mouseScroll = 0;
 
@@ -248,8 +249,8 @@ FS_ENTRY_POINT
 
 			}
 
-
 			fswin32_release_audio_buffer(&audio, gameSoundOutput.sampleCount);
+
 			// Note(Leo): It doesn't so much matter where this is checked.
 			if (state.shouldClose)
 			{

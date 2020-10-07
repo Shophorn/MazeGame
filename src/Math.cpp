@@ -68,7 +68,7 @@ inline f32 square_root_f32 (f32 value)
     return sqrtf(value);
 }
 
-inline f32 lerp_f32(f32 a, f32 b, f32 t)
+inline f32 f32_lerp(f32 a, f32 b, f32 t)
 {
     return a + t * (b - a);
 }

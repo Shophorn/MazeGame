@@ -17,10 +17,10 @@ Todo(Leo):
 #include <windows.h>
 
 #include "fs_essentials.hpp"
-#include "game_asset_id.cpp"
+#include "game_assets.h"
 
 
-#include "Assets.cpp"
+// #include "Assets.cpp"
 #include "Transform3D.cpp"
 // #include "Animator.cpp"
 
@@ -56,6 +56,8 @@ T * allocate(s32 count)
 #include "asset_cooker_gltf_loader.cpp"
 #include "asset_cooker_texture_loader.cpp"
 
+#include "AudioFile.cpp"
+
 constexpr char const * assetFileName = "assets.fsa";
 
 static std::ofstream 		global_outFile;
@@ -68,7 +70,7 @@ static void write(u64 position, u64 size, void * memory)
 	global_outFile.write((char*)memory, size);
 }
 
-static void cook_texture(TextureAssetId id, char const * filename, TextureFormat format = TEXTURE_FORMAT_U8_SRGB)
+static void cook_texture(TextureAssetId id, char const * filename, TextureFormat format = TextureFormat_u8_srgb)
 {
 	TextureAssetData data = asset_cooker_load_texture(filename);
 
@@ -78,7 +80,7 @@ static void cook_texture(TextureAssetId id, char const * filename, TextureFormat
 	global_header->textures[id].channels 	= data.channels;
 
 	global_header->textures[id].format 		= format;
-	global_header->textures[id].addressMode = TEXTURE_ADDRESS_MODE_REPEAT;
+	global_header->textures[id].addressMode = TextureAddressMode_repeat;
 
 	assert(data.channels == 4);
 
@@ -185,19 +187,31 @@ static void cook_skeleton(SkeletonAssetId id, char const * gltfFileName, char co
 
 	write(global_dataPosition, memorySize, dataToWrite);
 
-	quaternion q = dataToWrite[9].boneSpaceDefaultTransform.rotation;
-	std::cout << q.x << "\n";
-	std::cout << q.y << "\n";
-	std::cout << q.z << "\n";
-	std::cout << q.w << "\n";
-
-
-
-
 	std::cout << "COOK SKELETON: " << gltfFileName << ", " << gltfNodeName << ": " << memorySize << " bytes at " << global_dataPosition << "\n";
 	global_dataPosition += memorySize;
 
 	free(data.bones);
+}
+
+static void cook_audio(AudioAssetId id, char const * filename)
+{
+	AudioFile<f32> file;
+	file.load(filename);
+	s32 sampleCount = file.getNumSamplesPerChannel();
+
+	global_header->audios[id].dataOffset 	= global_dataPosition;
+	global_header->audios[id].sampleCount 	= sampleCount;
+
+	u64 memorySizePerChannel = sampleCount * sizeof(f32);
+
+	write(global_dataPosition, memorySizePerChannel, file.samples[0].data());
+	global_dataPosition += memorySizePerChannel;
+
+	write(global_dataPosition, memorySizePerChannel, file.samples[1].data());
+	global_dataPosition += memorySizePerChannel;
+
+	std::cout << "COOK AUDIO: " << filename << "\n";
+
 }
 
 int main()
@@ -224,23 +238,23 @@ int main()
 
 	_chdir("../assets/textures/");
 
-	cook_texture(TEXTURE_ASSET_GROUND_ALBEDO, 		"ground.png");
-	cook_texture(TEXTURE_ASSET_GROUND_ALBEDO, 		"ground.png");
-	cook_texture(TEXTURE_ASSET_TILES_ALBEDO, 		"tiles.png");
-	cook_texture(TEXTURE_ASSET_RED_TILES_ALBEDO, 	"tiles_red.png");
-	cook_texture(TEXTURE_ASSET_SEED_ALBEDO, 		"Acorn_albedo.png");
-	cook_texture(TEXTURE_ASSET_BARK_ALBEDO, 		"bark.png");
-	cook_texture(TEXTURE_ASSET_RACCOON_ALBEDO, 		"RaccoonAlbedo.png");
-	cook_texture(TEXTURE_ASSET_ROBOT_ALBEDO, 		"Robot_53_albedo_4k.png");
+	cook_texture(TextureAssetId_ground_albedo, 		"ground.png");
+	cook_texture(TextureAssetId_ground_albedo, 		"ground.png");
+	cook_texture(TextureAssetId_tiles_albedo, 		"tiles.png");
+	cook_texture(TextureAssetId_red_tiles_albedo, 	"tiles_red.png");
+	cook_texture(TextureAssetId_seed_albedo, 		"Acorn_albedo.png");
+	cook_texture(TextureAssetId_bark_albedo, 		"bark.png");
+	cook_texture(TextureAssetId_raccoon_albedo, 	"RaccoonAlbedo.png");
+	cook_texture(TextureAssetId_robot_albedo, 		"Robot_53_albedo_4k.png");
 	
-	cook_texture(TEXTURE_ASSET_LEAVES_MASK, 		"leaf_mask.png");
+	cook_texture(TextureAssetId_leaves_mask, 		"leaf_mask.png");
 
-	cook_texture(TEXTURE_ASSET_GROUND_NORMAL, 		"ground_normal.png", TEXTURE_FORMAT_U8_LINEAR);
-	cook_texture(TEXTURE_ASSET_TILES_NORMAL, 		"tiles_normal.png", TEXTURE_FORMAT_U8_LINEAR);
-	cook_texture(TEXTURE_ASSET_BARK_NORMAL, 		"bark_normal.png", TEXTURE_FORMAT_U8_LINEAR);
-	cook_texture(TEXTURE_ASSET_ROBOT_NORMAL, 		"Robot_53_normal_4k.png", TEXTURE_FORMAT_U8_LINEAR);
+	cook_texture(TextureAssetId_ground_normal, 		"ground_normal.png", TextureFormat_u8_linear);
+	cook_texture(TextureAssetId_tiles_normal, 		"tiles_normal.png", TextureFormat_u8_linear);
+	cook_texture(TextureAssetId_bark_normal, 		"bark_normal.png", TextureFormat_u8_linear);
+	cook_texture(TextureAssetId_robot_normal, 		"Robot_53_normal_4k.png", TextureFormat_u8_linear);
 
-	cook_texture(TEXTURE_ASSET_HEIGHTMAP, 			"heightmap_island.png");
+	cook_texture(TextureAssetId_heightmap, 			"heightmap_island.png");
 
 	cout << "Textures cooked!\n";
 
@@ -248,39 +262,48 @@ int main()
 
 	_chdir("../models/");
 
-	cook_mesh(MESH_ASSET_RACCOON, 		"raccoon.glb", "raccoon");
-	cook_mesh(MESH_ASSET_ROBOT, 		"Robot53.glb", "model_rigged");
-	cook_mesh(MESH_ASSET_CHARACTER, 	"cube_head_v4.glb", "cube_head");
-	cook_mesh(MESH_ASSET_SKYSPHERE, 	"skysphere.glb", "skysphere");
-	cook_mesh(MESH_ASSET_TOTEM, 		"totem.glb", "totem");
-	cook_mesh(MESH_ASSET_SMALL_POT, 	"scenery.glb", "small_pot");
-	cook_mesh(MESH_ASSET_BIG_POT, 		"scenery.glb", "big_pot");
-	cook_mesh(MESH_ASSET_SEED, 			"scenery.glb", "acorn");
-	cook_mesh(MESH_ASSET_WATER_DROP, 	"scenery.glb", "water_drop");
-	cook_mesh(MESH_ASSET_TRAIN, 		"train.glb", "train");
+	cook_mesh(MeshAssetId_raccoon, 		"raccoon.glb", "raccoon");
+	cook_mesh(MeshAssetId_robot, 		"Robot53.glb", "model_rigged");
+	cook_mesh(MeshAssetId_character, 	"cube_head_v4.glb", "cube_head");
+	cook_mesh(MeshAssetId_skysphere, 	"skysphere.glb", "skysphere");
+	cook_mesh(MeshAssetId_totem, 		"totem.glb", "totem");
+	cook_mesh(MeshAssetId_small_pot, 	"scenery.glb", "small_pot");
+	cook_mesh(MeshAssetId_big_pot, 		"scenery.glb", "big_pot");
+	cook_mesh(MeshAssetId_seed, 			"scenery.glb", "acorn");
+	cook_mesh(MeshAssetId_water_drop, 	"scenery.glb", "water_drop");
+	cook_mesh(MeshAssetId_train, 		"train.glb", "train");
 
-	cook_mesh(MESH_ASSET_MONUMENT_ARCS, 	"monuments.glb", "monument_arches");
-	cook_mesh(MESH_ASSET_MONUMENT_BASE,		"monuments.glb", "monument_base");
-	cook_mesh(MESH_ASSET_MONUMENT_TOP_1,	"monuments.glb", "monument_ornament_01");
-	cook_mesh(MESH_ASSET_MONUMENT_TOP_2, 	"monuments.glb", "monument_ornament_02");
+	cook_mesh(MeshAssetId_monument_arcs, 	"monuments.glb", "monument_arches");
+	cook_mesh(MeshAssetId_monument_base,		"monuments.glb", "monument_base");
+	cook_mesh(MeshAssetId_monument_top_1,	"monuments.glb", "monument_ornament_01");
+	cook_mesh(MeshAssetId_monument_top_2, 	"monuments.glb", "monument_ornament_02");
 
-	cook_mesh(MESH_ASSET_BOX, 		"box.glb", "box");
-	cook_mesh(MESH_ASSET_BOX_COVER, "box.glb", "cover");
+	cook_mesh(MeshAssetId_box, 		"box.glb", "box");
+	cook_mesh(MeshAssetId_box_cover, "box.glb", "cover");
 
 	cout << "Meshes cooked!\n";
 
-	cook_skeleton(SAID_CHARACTER, "cube_head_v4.glb", "cube_head");
+	cook_skeleton(SkeletonAssetId_character, "cube_head_v4.glb", "cube_head");
 
 	cout << "Skeletons cooked!\n";
 
-	cook_animation(AAID_CHARACTER_IDLE,		 "cube_head_v3.glb", "Idle");
-	cook_animation(AAID_CHARACTER_WALK,		 "cube_head_v3.glb", "Walk");
-	cook_animation(AAID_CHARACTER_RUN,		 "cube_head_v3.glb", "Run");
-	cook_animation(AAID_CHARACTER_JUMP,		 "cube_head_v3.glb", "JumpUp");
-	cook_animation(AAID_CHARACTER_FALL,		 "cube_head_v3.glb", "JumpDown");
-	cook_animation(AAID_CHARACTER_CROUCH, 	 "cube_head_v3.glb", "Crouch");
+	cook_animation(AnimationAssetId_character_idle,		 "cube_head_v3.glb", "Idle");
+	cook_animation(AnimationAssetId_character_walk,		 "cube_head_v3.glb", "Walk");
+	cook_animation(AnimationAssetId_character_run,		 "cube_head_v3.glb", "Run");
+	cook_animation(AnimationAssetId_character_jump,		 "cube_head_v3.glb", "JumpUp");
+	cook_animation(AnimationAssetId_character_fall,		 "cube_head_v3.glb", "JumpDown");
+	cook_animation(AnimationAssetId_character_crouch, 	 "cube_head_v3.glb", "Crouch");
 
 	cout << "Animations cooked!\n";
+
+	// -------------------------------------------------------------
+
+	_chdir("../sounds/");
+
+	cook_audio(AudioAssetId_background, "Wind-Mark_DiAngelo-1940285615.wav");
+	cook_audio(AudioAssetId_step_1, "step_9.wav");
+	cook_audio(AudioAssetId_step_2, "step_10.wav");
+	cook_audio(AudioAssetId_birds, "Falcon-Mark_Mattingly-169493032.wav");
 
 	// -------------------------------------------------------------
 
@@ -298,12 +321,12 @@ int main()
 	ReadFile(testReadFile, &readedHeader, sizeof(AssetFileHeader), nullptr, nullptr);
 
 	AnimatedBone readedBones[30];
-	SetFilePointer(testReadFile, readedHeader.skeletons[SAID_CHARACTER].dataOffset, 0, FILE_BEGIN);
-	ReadFile(testReadFile, readedBones, sizeof(AnimatedBone) * readedHeader.skeletons[SAID_CHARACTER].boneCount, nullptr, nullptr);
+	SetFilePointer(testReadFile, readedHeader.skeletons[SkeletonAssetId_character].dataOffset, 0, FILE_BEGIN);
+	ReadFile(testReadFile, readedBones, sizeof(AnimatedBone) * readedHeader.skeletons[SkeletonAssetId_character].boneCount, nullptr, nullptr);
 	// auto testReadFile = std::ifstream(assetFileName, std::ios::in | std::ios::binary);
 
-	// testReadFile.seekg(readedHeader.skeletons[SAID_CHARACTER].dataOffset);
-	// testReadFile.read((char*)readedBones, sizeof(AnimatedBone) * readedHeader.skeletons[SAID_CHARACTER].boneCount);
+	// testReadFile.seekg(readedHeader.skeletons[SkeletonAssetId_character].dataOffset);
+	// testReadFile.read((char*)readedBones, sizeof(AnimatedBone) * readedHeader.skeletons[SkeletonAssetId_character].boneCount);
 
 	CloseHandle(testReadFile);
 

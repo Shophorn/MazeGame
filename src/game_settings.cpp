@@ -46,30 +46,34 @@ internal void read_settings_file(SerializedPropertyList<Ts...> serializedObjects
 }
 
 template<typename ... Ts>
-internal void write_settings_file(PlatformFileHandle file, SerializedPropertyList<Ts...> serializedObjects)
+internal void write_settings_file(PlatformFileHandle file, Game & game)
 {
+	auto checkpoint = memory_push_checkpoint(*global_transientMemory);
 	s64 currentFilePosition = 0;
 
-	for_each_property (
-		[file, &currentFilePosition](auto serializedObject)
-		{
-			auto checkpoint = memory_push_checkpoint(*global_transientMemory);
-		
-			// Todo(Leo): Maybe we should put capacity into string itself, hmm, hmm
-			constexpr s32 capacity 			= 2000;
-			String serializedFormatString 	= push_temp_string(capacity);
+	auto append_settings = [file, &currentFilePosition](auto serializedObject)
+	{
+		// Todo(Leo): Maybe we should put capacity into string itself, hmm, hmm
+		constexpr s32 capacity 			= 2000;
+		String serializedFormatString 	= push_temp_string(capacity);
 
-			char const * label = serializedObject.name;
+		char const * label = serializedObject.name;
 
-			string_append_format(serializedFormatString, capacity, label, " = \n[\n");
-			serialize_properties(serializedObject.data, serializedFormatString, capacity);
-			string_append_cstring(serializedFormatString, capacity, "]\n\n");
+		string_append_format(serializedFormatString, capacity, label, " = \n[\n");
+		serialize_properties(serializedObject.data, serializedFormatString, capacity);
+		string_append_cstring(serializedFormatString, capacity, "]\n\n");
 
-			platform_file_write(file, currentFilePosition, serializedFormatString.length, serializedFormatString.memory);
-			currentFilePosition += serializedFormatString.length;
+		platform_file_write(file, currentFilePosition, serializedFormatString.length, serializedFormatString.memory);
+		currentFilePosition += serializedFormatString.length;
 
-			memory_pop_checkpoint(*global_transientMemory, checkpoint);
-		},	
-		serializedObjects
-	);
+	};	
+	for_each_property (append_settings, game_get_serialized_objects(game));
+	for_each_property (append_settings, monuments_get_serialized_objects(game.monuments));
+	// 	serializedObjects
+	// );
+
+	// write_settings_file(file, game_get_serialized_objects(*game));
+	// write_settings_file(file, monuments_get_serialized_objects(game->monuments));
+
+	memory_pop_checkpoint(*global_transientMemory, checkpoint);
 }

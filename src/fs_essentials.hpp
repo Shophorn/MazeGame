@@ -93,8 +93,8 @@ constexpr u32 array_count(const _ (&array)[Count])
 #include <limits>
 
 
-#include "Math.cpp"
 #include "Memory.cpp"
+#include "Math.cpp"
 
 #include "CStringUtility.cpp"
 #include "string.cpp"
@@ -104,8 +104,6 @@ constexpr u32 array_count(const _ (&array)[Count])
 #include "Quaternion.cpp"
 #include "Matrices.cpp"
 
-#include "Camera.cpp"
-#include "Light.cpp"
 
 #include "array2.cpp"
 #include "serialization.cpp"

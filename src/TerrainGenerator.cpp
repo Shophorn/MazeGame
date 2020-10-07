@@ -62,8 +62,12 @@ make_heightmap(MemoryArena * memory, TextureAssetData * texture, u32 gridSize, f
 
 	auto get_value = [texture](u32 u, u32 v) -> f32
 	{
-		auto pixel 	= get_pixel(texture, u, v);
-		f32 red 	= ((0x00ff0000 & pixel) >> 16) / 255.0f;
+		s64 index 		= u + v * texture->width;
+		u32 * u32memory = reinterpret_cast<u32*>(texture->pixelMemory);
+		u32 value 		= u32memory[index];
+
+		// Todo(Leo): seems like not red, but whatever
+		f32 red 		= ((0x00ff0000 & value) >> 16) / 255.0f;
 		return red;
 	};
 

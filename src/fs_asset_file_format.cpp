@@ -38,6 +38,23 @@ struct AssetFileSkeleton
 	s32 boneCount;
 };
 
+struct AssetFileAudio
+{
+	u64 dataOffset;
+	s32 sampleCount;
+};
+
+// struct AssetFileFont
+// {
+// 	u64 dataOffset;
+
+// 	u8 firstCharacter;
+// 	u8 characterCount;
+
+// 	u32 textureWidth;
+// 	u32 textureHeight;
+// };
+
 struct AssetFileHeader
 {
 	static constexpr u32 magicValue 	= 0x66736166;
@@ -46,9 +63,10 @@ struct AssetFileHeader
 	u32 magic;
 	u32 version;
 
-	AssetFileTexture 	textures [TEXTURE_ASSET_COUNT];
-	AssetFileMesh 		meshes [MESH_ASSET_COUNT];
-	AssetFileAnimation 	animations [AAID_COUNT];
-	AssetFileSkeleton 	skeletons [SAID_COUNT];
+	AssetFileTexture 	textures [TextureAssetIdCount];
+	AssetFileMesh 		meshes [MeshAssetIdCount];
+	AssetFileAnimation 	animations [AnimationAssetIdCount];
+	AssetFileSkeleton 	skeletons [SkeletonAssetIdCount];
+	AssetFileAudio		audios [AudioAssetIdCount];
 };
 #pragma pack(pop)

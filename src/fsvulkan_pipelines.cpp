@@ -340,7 +340,7 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 {
 	context.skyGradientDescriptorSetLayout = fsvulkan_make_material_descriptor_set_layout(context.device, 2);
 
-	/// GRAPHICS_PIPELINE_NORMAL
+	/// GraphicsPipeline_normal
 	log_graphics(1, "Initializing Normal Pipeline");
 	{
 		auto materialLayout = fsvulkan_make_material_descriptor_set_layout(context.device, 3);
@@ -361,7 +361,7 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 		auto pipelineLayoutCreateInfo = fsvulkan_pipeline_layout_create_info(	array_count(descriptorSetLayouts), descriptorSetLayouts,
 																				1, &pushConstantRange);
 
-		VULKAN_CHECK(vkCreatePipelineLayout (context.device, &pipelineLayoutCreateInfo, nullptr, &context.pipelines[GRAPHICS_PIPELINE_NORMAL].pipelineLayout));
+		VULKAN_CHECK(vkCreatePipelineLayout (context.device, &pipelineLayoutCreateInfo, nullptr, &context.pipelines[GraphicsPipeline_normal].pipelineLayout));
 
 		VkShaderModule vertexShaderModule 	= fsvulkan_make_shader_module(context.device, "assets/shaders/vert.spv");
 		VkShaderModule fragmentShaderModule = fsvulkan_make_shader_module(context.device, "assets/shaders/frag.spv");
@@ -401,20 +401,20 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 			.pColorBlendState 		= &colorBlendState,
 			.pDynamicState 			= &dynamicState,
 			
-			.layout 				= context.pipelines[GRAPHICS_PIPELINE_NORMAL].pipelineLayout,
+			.layout 				= context.pipelines[GraphicsPipeline_normal].pipelineLayout,
 			.renderPass 			= context.renderPass,
 		};
 
-		vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &context.pipelines[GRAPHICS_PIPELINE_NORMAL].pipeline);
+		vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &context.pipelines[GraphicsPipeline_normal].pipeline);
 
-		context.pipelines[GRAPHICS_PIPELINE_NORMAL].descriptorSetLayout = materialLayout;
-		context.pipelines[GRAPHICS_PIPELINE_NORMAL].textureCount 		= 3;
+		context.pipelines[GraphicsPipeline_normal].descriptorSetLayout = materialLayout;
+		context.pipelines[GraphicsPipeline_normal].textureCount 		= 3;
 
 		vkDestroyShaderModule(context.device, fragmentShaderModule, nullptr);
 		vkDestroyShaderModule(context.device, vertexShaderModule, nullptr);
 	}
 
-	/// GRAPHICS_PIPELINE_TRIPLANAR
+	/// GraphicsPipeline_triplanar
 	log_graphics(1, "Initializing Triplanar Pipeline");
 	{
 		s32 textureCount = 1;
@@ -434,7 +434,7 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 
 		auto pipelineLayoutCreateInfo = fsvulkan_pipeline_layout_create_info(array_count(descriptorSetLayouts), descriptorSetLayouts, 0, nullptr);
 
-		VULKAN_CHECK(vkCreatePipelineLayout (context.device, &pipelineLayoutCreateInfo, nullptr, &context.pipelines[GRAPHICS_PIPELINE_TRIPLANAR].pipelineLayout));
+		VULKAN_CHECK(vkCreatePipelineLayout (context.device, &pipelineLayoutCreateInfo, nullptr, &context.pipelines[GraphicsPipeline_triplanar].pipelineLayout));
 
 		VkShaderModule vertexShaderModule 	= fsvulkan_make_shader_module(context.device, "assets/shaders/vert.spv");
 		VkShaderModule fragmentShaderModule = fsvulkan_make_shader_module(context.device, "assets/shaders/triplanar_frag.spv");
@@ -474,20 +474,20 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 			.pColorBlendState 		= &colorBlendState,
 			.pDynamicState 			= &dynamicState,
 			
-			.layout 				= context.pipelines[GRAPHICS_PIPELINE_TRIPLANAR].pipelineLayout,
+			.layout 				= context.pipelines[GraphicsPipeline_triplanar].pipelineLayout,
 			.renderPass 			= context.renderPass,
 		};
 
-		vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &context.pipelines[GRAPHICS_PIPELINE_TRIPLANAR].pipeline);
+		vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &context.pipelines[GraphicsPipeline_triplanar].pipeline);
 
-		context.pipelines[GRAPHICS_PIPELINE_TRIPLANAR].descriptorSetLayout = materialLayout;
-		context.pipelines[GRAPHICS_PIPELINE_TRIPLANAR].textureCount 		= textureCount;
+		context.pipelines[GraphicsPipeline_triplanar].descriptorSetLayout = materialLayout;
+		context.pipelines[GraphicsPipeline_triplanar].textureCount 		= textureCount;
 
 		vkDestroyShaderModule(context.device, fragmentShaderModule, nullptr);
 		vkDestroyShaderModule(context.device, vertexShaderModule, nullptr);
 	}
 
-	/// GRAPHICS_PIPELINE_ANIMATED
+	/// GraphicsPipeline_animated
 	log_graphics(1, "Initializing Animated Pipeline");
 	{
 		auto materialLayout = fsvulkan_make_material_descriptor_set_layout(context.device, 3);
@@ -508,7 +508,7 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 		auto pipelineLayoutCreateInfo = fsvulkan_pipeline_layout_create_info(	array_count(descriptorSetLayouts), descriptorSetLayouts,
 																				1, &pushConstantRange);
 
-		VULKAN_CHECK(vkCreatePipelineLayout (context.device, &pipelineLayoutCreateInfo, nullptr, &context.pipelines[GRAPHICS_PIPELINE_ANIMATED].pipelineLayout));
+		VULKAN_CHECK(vkCreatePipelineLayout (context.device, &pipelineLayoutCreateInfo, nullptr, &context.pipelines[GraphicsPipeline_animated].pipelineLayout));
 
 		VkShaderModule vertexShaderModule 	= fsvulkan_make_shader_module(context.device, "assets/shaders/animated_vert.spv");
 		VkShaderModule fragmentShaderModule = fsvulkan_make_shader_module(context.device, "assets/shaders/frag.spv");
@@ -545,20 +545,20 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 			.pColorBlendState 		= &colorBlendState,
 			.pDynamicState 			= &dynamicState,
 			
-			.layout 				= context.pipelines[GRAPHICS_PIPELINE_ANIMATED].pipelineLayout,
+			.layout 				= context.pipelines[GraphicsPipeline_animated].pipelineLayout,
 			.renderPass 			= context.renderPass,
 		};
 
-		vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &context.pipelines[GRAPHICS_PIPELINE_ANIMATED].pipeline);
+		vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &context.pipelines[GraphicsPipeline_animated].pipeline);
 
-		context.pipelines[GRAPHICS_PIPELINE_ANIMATED].descriptorSetLayout = materialLayout;
-		context.pipelines[GRAPHICS_PIPELINE_ANIMATED].textureCount 		= 3;
+		context.pipelines[GraphicsPipeline_animated].descriptorSetLayout = materialLayout;
+		context.pipelines[GraphicsPipeline_animated].textureCount 		= 3;
 
 		vkDestroyShaderModule(context.device, fragmentShaderModule, nullptr);
 		vkDestroyShaderModule(context.device, vertexShaderModule, nullptr);
 	}
 
-	/// GRAPHICS_PIPELINE_SKYBOX
+	/// GraphicsPipeline_skybox
 	log_graphics(1, "Initializing Skybox Pipeline");
 	{
 		constexpr s32 gradientTextureCount = 2;
@@ -575,7 +575,7 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 		};
 
 		auto pipelineLayoutCreateInfo = fsvulkan_pipeline_layout_create_info(array_count(descriptorSetLayouts), descriptorSetLayouts, 0, nullptr);
-		VULKAN_CHECK(vkCreatePipelineLayout (context.device, &pipelineLayoutCreateInfo, nullptr, &context.pipelines[GRAPHICS_PIPELINE_SKYBOX].pipelineLayout));
+		VULKAN_CHECK(vkCreatePipelineLayout (context.device, &pipelineLayoutCreateInfo, nullptr, &context.pipelines[GraphicsPipeline_skybox].pipelineLayout));
 
 		// --------------------------------------------------------------------------------------------
 
@@ -614,20 +614,20 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 			.pDepthStencilState 	= &depthStencilState,
 			.pColorBlendState 		= &colorBlendState,
 			.pDynamicState 			= &dynamicState,
-			.layout 				= context.pipelines[GRAPHICS_PIPELINE_SKYBOX].pipelineLayout,
+			.layout 				= context.pipelines[GraphicsPipeline_skybox].pipelineLayout,
 			.renderPass 			= context.renderPass,
 		};
 
-		vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &context.pipelines[GRAPHICS_PIPELINE_SKYBOX].pipeline);
+		vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &context.pipelines[GraphicsPipeline_skybox].pipeline);
 
-		context.pipelines[GRAPHICS_PIPELINE_SKYBOX].descriptorSetLayout = materialLayout;
-		context.pipelines[GRAPHICS_PIPELINE_SKYBOX].textureCount 		= gradientTextureCount;
+		context.pipelines[GraphicsPipeline_skybox].descriptorSetLayout = materialLayout;
+		context.pipelines[GraphicsPipeline_skybox].textureCount 		= gradientTextureCount;
 
 		vkDestroyShaderModule(context.device, fragmentShaderModule, nullptr);
 		vkDestroyShaderModule(context.device, vertexShaderModule, nullptr);
 	}
 
-	/// GRAPHICS_PIPELINE_SCREEN_GUI
+	/// GraphicsPipeline_screen_gui
 	log_graphics(1, "Initializing Screen Gui Pipeline");
 	{
 		auto materialLayout = fsvulkan_make_material_descriptor_set_layout(context.device, 1);
@@ -640,7 +640,7 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 		};
 
 		auto pipelineLayoutCreateInfo 			= fsvulkan_pipeline_layout_create_info(1, &materialLayout, array_count(pushConstantRanges), pushConstantRanges);
-		VULKAN_CHECK(vkCreatePipelineLayout (context.device, &pipelineLayoutCreateInfo, nullptr, &context.pipelines[GRAPHICS_PIPELINE_SCREEN_GUI].pipelineLayout));
+		VULKAN_CHECK(vkCreatePipelineLayout (context.device, &pipelineLayoutCreateInfo, nullptr, &context.pipelines[GraphicsPipeline_screen_gui].pipelineLayout));
 
 		// ---------------------------------------------------------------------------------------------------------------------------
 
@@ -693,20 +693,20 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 			.pDepthStencilState 	= &depthStencilState,
 			.pColorBlendState 		= &colorBlendState,
 			.pDynamicState 			= &dynamicState,
-			.layout 				= context.pipelines[GRAPHICS_PIPELINE_SCREEN_GUI].pipelineLayout,
+			.layout 				= context.pipelines[GraphicsPipeline_screen_gui].pipelineLayout,
 			.renderPass 			= context.renderPass,
 		};
 
-		vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &context.pipelines[GRAPHICS_PIPELINE_SCREEN_GUI].pipeline);
+		vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &context.pipelines[GraphicsPipeline_screen_gui].pipeline);
 
-		context.pipelines[GRAPHICS_PIPELINE_SCREEN_GUI].descriptorSetLayout = materialLayout;
-		context.pipelines[GRAPHICS_PIPELINE_SCREEN_GUI].textureCount 		= 1;
+		context.pipelines[GraphicsPipeline_screen_gui].descriptorSetLayout = materialLayout;
+		context.pipelines[GraphicsPipeline_screen_gui].textureCount 		= 1;
 
 		vkDestroyShaderModule(context.device, fragmentShaderModule, nullptr);
 		vkDestroyShaderModule(context.device, vertexShaderModule, nullptr);
 	}
 
-	/// GRAPHICS_PIPELINE_LEAVES
+	/// GraphicsPipeline_leaves
 	log_graphics(1, "Initializing Leaves Pipeline");
 	{
 		auto materialLayout = fsvulkan_make_material_descriptor_set_layout(context.device, 1);
@@ -723,7 +723,7 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 		VkPushConstantRange pushConstantRange = {VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(v3)};
 
 		auto pipelineLayoutCreateInfo = fsvulkan_pipeline_layout_create_info(array_count(descriptorSetLayouts), descriptorSetLayouts, 1, &pushConstantRange);
-		VULKAN_CHECK(vkCreatePipelineLayout (context.device, &pipelineLayoutCreateInfo, nullptr, &context.pipelines[GRAPHICS_PIPELINE_LEAVES].pipelineLayout));
+		VULKAN_CHECK(vkCreatePipelineLayout (context.device, &pipelineLayoutCreateInfo, nullptr, &context.pipelines[GraphicsPipeline_leaves].pipelineLayout));
 
 		VkVertexInputBindingDescription vertexBindingDescription = { 0, sizeof(m44), VK_VERTEX_INPUT_RATE_INSTANCE };
 
@@ -768,21 +768,21 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 			.pDepthStencilState 	= &depthStencilState,
 			.pColorBlendState 		= &colorBlendState,
 			.pDynamicState 			= &dynamicState,
-			.layout 				= context.pipelines[GRAPHICS_PIPELINE_LEAVES].pipelineLayout,
+			.layout 				= context.pipelines[GraphicsPipeline_leaves].pipelineLayout,
 			.renderPass 			= context.renderPass,
 		};
 
-		vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &context.pipelines[GRAPHICS_PIPELINE_LEAVES].pipeline);
+		vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &context.pipelines[GraphicsPipeline_leaves].pipeline);
 
-		context.pipelines[GRAPHICS_PIPELINE_LEAVES].descriptorSetLayout = materialLayout;
-		context.pipelines[GRAPHICS_PIPELINE_LEAVES].textureCount 		= 1;
+		context.pipelines[GraphicsPipeline_leaves].descriptorSetLayout = materialLayout;
+		context.pipelines[GraphicsPipeline_leaves].textureCount 		= 1;
 
 		// Note(Leo): Always remember to destroy these :)
 		vkDestroyShaderModule(context.device, fragmentShaderModule, nullptr);
 		vkDestroyShaderModule(context.device, vertexShaderModule, nullptr);	
 	}
 
-	/// GRAPHICS_PIPELINE_WATER
+	/// GraphicsPipeline_water
 	log_graphics(1, "Initializing Water Pipeline");
 	{
 		auto materialLayout = fsvulkan_make_material_descriptor_set_layout(context.device, 3);
@@ -803,7 +803,7 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 		auto pipelineLayoutCreateInfo = fsvulkan_pipeline_layout_create_info(	array_count(descriptorSetLayouts), descriptorSetLayouts,
 																				1, &pushConstantRange);
 
-		VULKAN_CHECK(vkCreatePipelineLayout (context.device, &pipelineLayoutCreateInfo, nullptr, &context.pipelines[GRAPHICS_PIPELINE_WATER].pipelineLayout));
+		VULKAN_CHECK(vkCreatePipelineLayout (context.device, &pipelineLayoutCreateInfo, nullptr, &context.pipelines[GraphicsPipeline_water].pipelineLayout));
 
 		VkShaderModule vertexShaderModule 	= fsvulkan_make_shader_module(context.device, "assets/shaders/vert.spv");
 		VkShaderModule fragmentShaderModule = fsvulkan_make_shader_module(context.device, "assets/shaders/frag.spv");
@@ -855,14 +855,14 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 			.pColorBlendState 		= &colorBlendState,
 			.pDynamicState 			= &dynamicState,
 			
-			.layout 				= context.pipelines[GRAPHICS_PIPELINE_WATER].pipelineLayout,
+			.layout 				= context.pipelines[GraphicsPipeline_water].pipelineLayout,
 			.renderPass 			= context.renderPass,
 		};
 
-		vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &context.pipelines[GRAPHICS_PIPELINE_WATER].pipeline);
+		vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &context.pipelines[GraphicsPipeline_water].pipeline);
 
-		context.pipelines[GRAPHICS_PIPELINE_WATER].descriptorSetLayout = materialLayout;
-		context.pipelines[GRAPHICS_PIPELINE_WATER].textureCount 		= 3;
+		context.pipelines[GraphicsPipeline_water].descriptorSetLayout = materialLayout;
+		context.pipelines[GraphicsPipeline_water].textureCount 		= 3;
 
 		vkDestroyShaderModule(context.device, fragmentShaderModule, nullptr);
 		vkDestroyShaderModule(context.device, vertexShaderModule, nullptr);
@@ -1176,7 +1176,7 @@ internal void fsvulkan_cleanup_pipelines(VulkanContext * context)
 {
 	VkDevice device = context->device;
 
-	for (s32 i = 0; i < GRAPHICS_PIPELINE_COUNT; ++i)
+	for (s32 i = 0; i < GraphicsPipelineCount; ++i)
 	{
 		vkDestroyDescriptorSetLayout(device, context->pipelines[i].descriptorSetLayout, nullptr);
 		vkDestroyPipelineLayout(device, context->pipelines[i].pipelineLayout, nullptr);

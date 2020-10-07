@@ -175,7 +175,7 @@ load_animation_glb(MemoryArena & allocator, GltfFile const & file, char const * 
 {
 	log_debug(FILE_ADDRESS, "loading animation: ", animationName);
 
-	constexpr s32 DEBUG_skeletonBoneCount = CHARACTER_SKELETON_BONE_COUNT;
+	constexpr s32 DEBUG_skeletonBoneCount = CharacterSkeletonBone_BONE_COUNT;
 	static_assert(DEBUG_skeletonBoneCount == 17);
 
 	AssertMsg(file.json.HasMember("animations"), "No Animations found");

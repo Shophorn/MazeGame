@@ -602,7 +602,7 @@ internal void build_tree_3_mesh(Tree3 & tree)
 			{
 				f32 t 				= (loopIndex + 1) * loopTStep;
 				v3 position 		= bezier_lerp_v3(t);
-				f32 radius 			= lerp_f32(startNode.radius, endNode.radius, t);
+				f32 radius 			= f32_lerp(startNode.radius, endNode.radius, t);
 
 				// Todo(Leo): maybe bezier slerp this too, but let's not bother with that right now
 				quaternion rotation = quaternion_slerp(startNode.rotation, endNode.rotation, t);

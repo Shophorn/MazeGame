@@ -371,7 +371,7 @@ struct PlatformGraphics
 	std::vector<VulkanGuiTexture> 	loadedGuiTextures;
 
 
-	VulkanPipeline pipelines [GRAPHICS_PIPELINE_COUNT];
+	VulkanPipeline pipelines [GraphicsPipelineCount];
 
 	VkPipeline 				linePipeline;
 	VkPipelineLayout 		linePipelineLayout;

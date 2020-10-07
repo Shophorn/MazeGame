@@ -210,7 +210,7 @@ internal TextureAssetData generate_gradient(MemoryArena & allocator, s32 pixelCo
     }
 
     TextureAssetData result = { pixelMemory, pixelCount, 1, 4 };
-    result.format       = TEXTURE_FORMAT_F32;
-    result.addressMode  = TEXTURE_ADDRESS_MODE_CLAMP;
+    result.format       = TextureFormat_f32;
+    result.addressMode  = TextureAddressMode_clamp;
     return result;
 }

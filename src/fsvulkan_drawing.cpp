@@ -417,7 +417,7 @@ internal void graphics_draw_model(VulkanContext * context, ModelHandle model, m4
 	auto * mesh     = fsvulkan_get_loaded_mesh(context, meshHandle);
 	auto * material = fsvulkan_get_loaded_material(context, materialHandle);
 
-	Assert(material->pipeline < GRAPHICS_PIPELINE_SCREEN_GUI && "This pipeline does not support mesh rendering");
+	Assert(material->pipeline < GraphicsPipeline_screen_gui && "This pipeline does not support mesh rendering");
 
 	VkPipeline pipeline = context->pipelines[material->pipeline].pipeline;
 	VkPipelineLayout pipelineLayout = context->pipelines[material->pipeline].pipelineLayout;
@@ -524,8 +524,8 @@ internal void graphics_draw_leaves(	VulkanContext * context,
 	void * bufferPointer = (u8*)context->persistentMappedLeafBufferMemory + instanceBufferOffset;
 	memory_copy(bufferPointer, instanceTransforms, instanceCount * sizeof(m44));
 
-	VkPipeline pipeline 			= context->pipelines[GRAPHICS_PIPELINE_LEAVES].pipeline;
-	VkPipelineLayout pipelineLayout = context->pipelines[GRAPHICS_PIPELINE_LEAVES].pipelineLayout;
+	VkPipeline pipeline 			= context->pipelines[GraphicsPipeline_leaves].pipeline;
+	VkPipelineLayout pipelineLayout = context->pipelines[GraphicsPipeline_leaves].pipelineLayout;
 	
 	vkCmdBindPipeline(frame->sceneCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 
@@ -620,7 +620,7 @@ internal void graphics_draw_meshes(VulkanContext * context, s32 count, m44 const
 	VulkanMesh * mesh 			= fsvulkan_get_loaded_mesh(context, meshHandle);
 	VulkanMaterial * material 	= fsvulkan_get_loaded_material(context, materialHandle);
 
-	Assert(material->pipeline < GRAPHICS_PIPELINE_SCREEN_GUI && "This pipeline does not support mesh rendering");
+	Assert(material->pipeline < GraphicsPipeline_screen_gui && "This pipeline does not support mesh rendering");
 
 	VkPipeline pipeline = context->pipelines[material->pipeline].pipeline;
 	VkPipelineLayout pipelineLayout = context->pipelines[material->pipeline].pipelineLayout;
@@ -834,8 +834,8 @@ internal void graphics_draw_screen_rects(VulkanContext * context, s32 count, Scr
 		descriptorSet = fsvulkan_get_loaded_gui_texture(*context, textureHandle).descriptorSet;
 	}
 
-	pipeline 		= context->pipelines[GRAPHICS_PIPELINE_SCREEN_GUI].pipeline;
-	pipelineLayout 	= context->pipelines[GRAPHICS_PIPELINE_SCREEN_GUI].pipelineLayout;
+	pipeline 		= context->pipelines[GraphicsPipeline_screen_gui].pipeline;
+	pipelineLayout 	= context->pipelines[GraphicsPipeline_screen_gui].pipelineLayout;
 
 	vkCmdBindPipeline(frame->sceneCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 	

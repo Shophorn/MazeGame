@@ -112,10 +112,10 @@ internal void monuments_draw(Monuments const & monuments, GameAssets & assets)
 		transformMatrices[i] = transform_matrix(monuments.transforms[i]);
 	}
 
-	MeshHandle baseMesh 		= assets_get_mesh(assets, MESH_ASSET_MONUMENT_BASE);
-	MeshHandle archMesh 		= assets_get_mesh(assets, MESH_ASSET_MONUMENT_ARCS);
-	MeshHandle ornamentMeshes 	= assets_get_mesh(assets, MESH_ASSET_MONUMENT_TOP_1);
-	MaterialHandle material 	= assets_get_material(assets, MATERIAL_ASSET_ENVIRONMENT);
+	MeshHandle baseMesh 		= assets_get_mesh(assets, MeshAssetId_monument_base);
+	MeshHandle archMesh 		= assets_get_mesh(assets, MeshAssetId_monument_arcs);
+	MeshHandle ornamentMeshes 	= assets_get_mesh(assets, MeshAssetId_monument_top_1);
+	MaterialHandle material 	= assets_get_material(assets, MaterialAssetId_environment);
 
 	graphics_draw_meshes(platformGraphics, monuments.count, transformMatrices, baseMesh, material);
 	graphics_draw_meshes(platformGraphics, monuments.count, transformMatrices, archMesh, material);

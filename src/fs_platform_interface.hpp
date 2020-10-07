@@ -6,21 +6,24 @@ Interface definition between Platform and Game.
 
 #if !defined FS_PLATFORM_INTERFACE_HPP
 
+// Todo(Leo): these are actually platform assets as well
+#include "Camera.cpp"
+#include "Light.cpp"
+#include "platform_assets.cpp"
+
 // Todo(Leo): Assets use these, thats why that is still here	
-enum GraphicsPipeline : s64
+enum GraphicsPipeline : s32
 {
-	GRAPHICS_PIPELINE_NORMAL,
-	GRAPHICS_PIPELINE_ANIMATED,
-	GRAPHICS_PIPELINE_TRIPLANAR,
-	GRAPHICS_PIPELINE_SKYBOX,
-	GRAPHICS_PIPELINE_WATER,
-	GRAPHICS_PIPELINE_SCREEN_GUI,
-	GRAPHICS_PIPELINE_LEAVES,
+	GraphicsPipeline_normal,
+	GraphicsPipeline_animated,
+	GraphicsPipeline_triplanar,
+	GraphicsPipeline_skybox,
+	GraphicsPipeline_water,
+	GraphicsPipeline_screen_gui,
+	GraphicsPipeline_leaves,
 
-	GRAPHICS_PIPELINE_COUNT
+	GraphicsPipelineCount
 };
-#include "Assets.cpp"
-
 
 // Todo(Leo): Maybe post process
 struct HdrSettings
@@ -82,8 +85,8 @@ enum PlatformGraphicsFrameResult
 
 struct PlatformStereoSoundSample
 {
-	float left;
-	float right;
+	f32 left;
+	f32 right;
 };
 
 struct PlatformTimePoint
@@ -96,44 +99,44 @@ struct PlatformTimePoint
 
 enum PlatformInputButton : s32
 {
-	INPUT_BUTTON_xbox_y,
-	INPUT_BUTTON_xbox_x,
-	INPUT_BUTTON_xbox_b,
-	INPUT_BUTTON_xbox_a, 
-	INPUT_BUTTON_start,
-	INPUT_BUTTON_select,
-	INPUT_BUTTON_dpad_left,
-	INPUT_BUTTON_dpad_right,
-	INPUT_BUTTON_dpad_down,
-	INPUT_BUTTON_dpad_up,
-	INPUT_BUTTON_zoom_in,
-	INPUT_BUTTON_zoom_out,
-	INPUT_BUTTON_mouse_0,
+	InputButton_xbox_y,
+	InputButton_xbox_x,
+	InputButton_xbox_b,
+	InputButton_xbox_a, 
+	InputButton_start,
+	InputButton_select,
+	InputButton_dpad_left,
+	InputButton_dpad_right,
+	InputButton_dpad_down,
+	InputButton_dpad_up,
+	InputButton_zoom_in,
+	InputButton_zoom_out,
+	InputButton_mouse_0,
 
-	INPUT_BUTTON_COUNT,
+	InputButtonCount,
 
 	// Note(Leo): these are merely different mappings, that may be more useful in certain contexts
-	INPUT_BUTTON_nintendo_x 	= INPUT_BUTTON_xbox_y,
-	INPUT_BUTTON_nintendo_y 	= INPUT_BUTTON_xbox_x,
-	INPUT_BUTTON_nintendo_a 	= INPUT_BUTTON_xbox_b,
-	INPUT_BUTTON_nintendo_b 	= INPUT_BUTTON_xbox_a, 
+	InputButton_nintendo_x 	= InputButton_xbox_y,
+	InputButton_nintendo_y 	= InputButton_xbox_x,
+	InputButton_nintendo_a 	= InputButton_xbox_b,
+	InputButton_nintendo_b 	= InputButton_xbox_a, 
 
-	INPUT_BUTTON_ps4_triangle 	= INPUT_BUTTON_xbox_y,
-	INPUT_BUTTON_ps4_square 	= INPUT_BUTTON_xbox_x,
-	INPUT_BUTTON_ps4_circle 	= INPUT_BUTTON_xbox_b,
-	INPUT_BUTTON_ps4_cross 		= INPUT_BUTTON_xbox_a,
+	InputButton_ps4_triangle 	= InputButton_xbox_y,
+	InputButton_ps4_square 	= InputButton_xbox_x,
+	InputButton_ps4_circle 	= InputButton_xbox_b,
+	InputButton_ps4_cross 		= InputButton_xbox_a,
 };
 
 enum PlatformInputAxis : s32
 {
-	INPUT_AXIS_move_x,
-	INPUT_AXIS_move_y,
-	INPUT_AXIS_look_x,
-	INPUT_AXIS_look_y,
+	InputAxis_move_x,
+	InputAxis_move_y,
+	InputAxis_look_x,
+	InputAxis_look_y,
 
-	INPUT_AXIS_mouse_scroll,
+	InputAxis_mouse_scroll,
 
-	INPUT_AXIS_COUNT
+	InputAxisCount
 };
 
 /// ***********************************************************************
@@ -162,9 +165,6 @@ struct PlatformSoundOutput
 {
 	s32 sampleCount;
 	PlatformStereoSoundSample * samples;
-
-	PlatformStereoSoundSample * begin() { return samples; }
-	PlatformStereoSoundSample * end() { return samples + sampleCount; }
 };
 
 /// ----------------- GAME TO PLATFORM API -----------------------------

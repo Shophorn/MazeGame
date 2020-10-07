@@ -30,10 +30,10 @@ CharacterInput update_player_input(	PlayerInputState & 	state,
 	viewForward 		= normalize_v3(viewForward);
 	v3 viewRight 		= cross_v3(viewForward, v3_up);
 
-	v3 worldSpaceInput 	= viewRight * input_axis_get_value(platformInput, INPUT_AXIS_move_x) 
-						+ viewForward * input_axis_get_value(platformInput, INPUT_AXIS_move_y);
+	v3 worldSpaceInput 	= viewRight * input_axis_get_value(platformInput, InputAxis_move_x) 
+						+ viewForward * input_axis_get_value(platformInput, InputAxis_move_y);
 
-	bool32 jumpInput 	= input_button_went_down(platformInput, INPUT_BUTTON_nintendo_x);
+	bool32 jumpInput 	= input_button_went_down(platformInput, InputButton_nintendo_x);
 
 
 	bool32 crouchInput 	= false;
@@ -41,8 +41,8 @@ CharacterInput update_player_input(	PlayerInputState & 	state,
 	state.events = {};
 
 	// Note(Leo): As long as we don't trigger these anywhere else, this works
-	state.events.pickupOrDrop	= input_button_went_down(platformInput, INPUT_BUTTON_nintendo_b);
-	state.events.interact 		= input_button_went_down(platformInput, INPUT_BUTTON_nintendo_a);
+	state.events.pickupOrDrop	= input_button_went_down(platformInput, InputButton_nintendo_b);
+	state.events.interact 		= input_button_went_down(platformInput, InputButton_nintendo_a);
 
 
 	return {worldSpaceInput, jumpInput, crouchInput};
