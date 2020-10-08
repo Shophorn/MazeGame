@@ -429,7 +429,10 @@ internal void string_append_s32(String & string, s32 capacity, s32 value)
 	}
 }
 
-
+internal void string_append_char(String & string, s32 capacity, char character)
+{
+	string_append_string(string, capacity, {1, &character});
+}
 
 #define GENERIC_STRING_APPEND(type, func) internal void string_append(String & string, s32 capacity, type value) { func(string, capacity, value); }
 
@@ -437,6 +440,7 @@ GENERIC_STRING_APPEND(String, string_append_string);
 GENERIC_STRING_APPEND(char const *, string_append_cstring);
 GENERIC_STRING_APPEND(f32, string_append_f32);
 GENERIC_STRING_APPEND(s32, string_append_s32);
+GENERIC_STRING_APPEND(char, string_append_char);
 
 #undef GENERIC_STRING_APPEND
 

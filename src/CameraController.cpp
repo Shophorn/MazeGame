@@ -9,6 +9,7 @@ update_camera_system(	Camera * camera,
     graphics_drawing_update_camera(graphics, camera);
 }
 
+
 struct PlayerCameraController
 {
 	// State, these change from frame to frame
@@ -16,46 +17,60 @@ struct PlayerCameraController
 	v3 direction;
 	v3 lastTrackedPosition;
 
-	f32 distance 			= 20.0f;
 	f32 orbitDegrees 		= 180.0f;
 	f32 tumbleDegrees 		= 0.0f;
 
+
 	// Properties
-	v3 baseOffset 			= {0, 0, 3.0f};
-	f32 rotateSpeed 		= 180.0f;
+	f32 distance 			= 20.0f;
+	f32 baseOffset 			= 3.0f;//{0, 0, 3.0f};
+	f32 gamepadRotateSpeed 	= 180.0f;
+	f32 mouseRotateSpeed 	= 2;
+
+	static constexpr auto serializedProperties = make_property_list
+	(
+		serialize_property("distance", &PlayerCameraController::distance),
+		serialize_property("baseOffset", &PlayerCameraController::baseOffset),
+		serialize_property("gamepadRotateSpeed", &PlayerCameraController::gamepadRotateSpeed),
+		serialize_property("mouseRotateSpeed", &PlayerCameraController::mouseRotateSpeed)
+	);
+	
+	// Note(Leo): No need to serialize these, they don't so much yield to artistic expression
 	f32 minTumble 			= -85.0f;
 	f32 maxTumble 			= 85.0f;
-	f32 relativeZoomSpeed 	= 1.0f;
-	f32 minDistance 		= 2.0f;
-	f32 maxDistance 		= 100.0f;
 };
 
-internal void
-update_camera_controller(PlayerCameraController * controller, v3 targetPosition, PlatformInput * input, f32 elapsedTime)
+internal void update_camera_controller(	PlayerCameraController & controller,
+										v3 targetPosition,
+										PlatformInput * input,
+										f32 elapsedTime)
 {
-	if (input_button_is_down(input, InputButton_zoom_in))
+	f32 orbitMovement;
+	f32 tumbleMovement;
+
+	if (input_is_device_used(input, PlatformInputDevice_gamepad))
 	{
-		controller->distance -= controller->distance * controller->relativeZoomSpeed * elapsedTime;
-		controller->distance = max_f32(controller->distance, controller->minDistance);
+		orbitMovement 	= input_axis_get_value(input, InputAxis_look_x) * controller.gamepadRotateSpeed * elapsedTime;
+    	tumbleMovement = input_axis_get_value(input, InputAxis_look_y) * controller.gamepadRotateSpeed * elapsedTime;
 	}
-	else if(input_button_is_down(input, InputButton_zoom_out))
+	else
 	{
-		controller->distance += controller->distance * controller->relativeZoomSpeed * elapsedTime;
-		controller->distance = min_f32(controller->distance, controller->maxDistance);
+		orbitMovement 	= input_axis_get_value(input, InputAxis_mouse_move_x) * controller.mouseRotateSpeed * elapsedTime;
+    	tumbleMovement = input_axis_get_value(input, InputAxis_mouse_move_y) * controller.mouseRotateSpeed * elapsedTime;	
 	}
 
-    controller->orbitDegrees += input_axis_get_value(input, InputAxis_look_x) * controller->rotateSpeed * elapsedTime;
-    
-    controller->tumbleDegrees += input_axis_get_value(input, InputAxis_look_y) * controller->rotateSpeed * elapsedTime;
-    controller->tumbleDegrees = clamp_f32(controller->tumbleDegrees, controller->minTumble, controller->maxTumble);
+    controller.orbitDegrees += orbitMovement;
+    controller.tumbleDegrees += tumbleMovement;
 
-    f32 cameraDistance = controller->distance;
-    f32 cameraHorizontalDistance = cosine(to_radians(controller->tumbleDegrees)) * cameraDistance;
+    controller.tumbleDegrees = clamp_f32(controller.tumbleDegrees, controller.minTumble, controller.maxTumble);
+
+    f32 cameraDistance = controller.distance;
+    f32 cameraHorizontalDistance = cosine(to_radians(controller.tumbleDegrees)) * cameraDistance;
     v3 localPosition =
     {
-		sine(to_radians(controller->orbitDegrees)) * cameraHorizontalDistance,
-		cosine(to_radians(controller->orbitDegrees)) * cameraHorizontalDistance,
-		sine(to_radians(controller->tumbleDegrees)) * cameraDistance
+		sine(to_radians(controller.orbitDegrees)) * cameraHorizontalDistance,
+		cosine(to_radians(controller.orbitDegrees)) * cameraHorizontalDistance,
+		sine(to_radians(controller.tumbleDegrees)) * cameraDistance
     };
 
     /*
@@ -68,28 +83,25 @@ update_camera_controller(PlayerCameraController * controller, v3 targetPosition,
     */
 
     f32 trackSpeed = 10 * elapsedTime;
-    f32 z = interpolate(controller->lastTrackedPosition.z, targetPosition.z, trackSpeed);
+    f32 z = interpolate(controller.lastTrackedPosition.z, targetPosition.z, trackSpeed);
 
 
     // Todo(Leo): Maybe track faster on xy plane, instead of teleporting
-    // v3 trackedPosition = vector::interpolate(	controller->lastTrackedPosition,
-    // 												targetPosition,
-    // 												trackSpeed);
     v3 trackedPosition =
     {
     	targetPosition.x,
     	targetPosition.y,
-    	// controller->target->position.z
+    	// controller.target->position.z
     	z
     };
 
 
-    controller->lastTrackedPosition = trackedPosition;
+    controller.lastTrackedPosition = trackedPosition;
 
-	controller->position = trackedPosition + controller->baseOffset + localPosition;
-	controller->direction = -normalize_v3(localPosition);
+	controller.position = trackedPosition + v3{0,0,controller.baseOffset} + localPosition;
+	controller.direction = -normalize_v3(localPosition);
 
-	Assert(abs_f32(square_v3_length(controller->direction) - 1.0f) < 0.00001f);
+	Assert(abs_f32(square_v3_length(controller.direction) - 1.0f) < 0.00001f);
 }
 
 struct FreeCameraController
@@ -155,7 +167,6 @@ struct MouseCameraController
 
 internal void update_mouse_camera(MouseCameraController & controller, PlatformInput * input, f32 elapsedTime)
 {
-
 	constexpr f32 lowMoveSpeed 		= 10;
 	constexpr f32 highMoveSpeed		= 100;
 	constexpr f32 zMoveSpeed 		= 25;
@@ -163,8 +174,9 @@ internal void update_mouse_camera(MouseCameraController & controller, PlatformIn
 	constexpr f32 maxTilt 			= 0.45f * π;
 	constexpr f32 scrollMoveSpeed 	= -10; // Note(Leo): Negative because scroll up should move us closer
 
-	v2 mouseInput 					= input_cursor_get_position(input) - controller.lastMousePosition;
-	controller.lastMousePosition 	= input_cursor_get_position(input);
+	v2 mouseInput;
+	mouseInput.x = input_axis_get_value(input, InputAxis_mouse_move_x);
+	mouseInput.y = input_axis_get_value(input, InputAxis_mouse_move_y);
 
 	if (input_button_is_down(input, InputButton_mouse_0))
 	{

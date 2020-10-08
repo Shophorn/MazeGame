@@ -68,7 +68,7 @@ if devbuild:
 	platform_result = 0
 	if compile_platform:
 		# Specify '-mwindows' to get .exe to launch without console
-		platform_call = "{} {} {} {} -o win32_friendsimulator.exe src/fswin32_friendsimulator.cpp {} {}".format(
+		platform_call = "{} {} {} {} -o win32_friendsimulator.exe src/fswin32_friendsimulator.cpp -ferror-limit=100 {} {}".format(
 					compiler_path, flags, definitions, includePath, libPath, libLinks)
 		
 		platform_result = compile(platform_call)

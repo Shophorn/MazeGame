@@ -143,7 +143,27 @@ FS_ENTRY_POINT
 		/// ----- HANDLE INPUT -----
 		{
 			// Note(Leo): this is not input only...
+		
 			fswin32_process_pending_messages(&state, window.hwnd);
+
+			if (window.isCursorVisible == false)
+			{
+				f32 cursorX = window.width / 2;
+				f32 cursorY = window.height / 2;
+
+				POINT currentCursorPosition;
+				GetCursorPos(&currentCursorPosition);
+
+				v2 mouseMovement = {currentCursorPosition.x - cursorX, currentCursorPosition.y - cursorY};
+
+				platformInput.axes[InputAxis_mouse_move_x] = mouseMovement.x;
+				platformInput.axes[InputAxis_mouse_move_y] = mouseMovement.y;
+
+				SetCursorPos((s32)cursorX, (s32)cursorY);
+			}
+
+
+
 
 			HWND foregroundWindow = GetForegroundWindow();
 			bool32 windowIsActive = window.hwnd == foregroundWindow;
@@ -158,27 +178,41 @@ FS_ENTRY_POINT
 			bool32 xinputReceived = xinput_get_state(globalXinputControllerIndex, &xinputState) == ERROR_SUCCESS;
 			bool32 xinputUsed = xinputReceived && xinput_is_used(state.gamepadInput, xinputState);
 
-			if (windowIsActive == false)
+			for(auto & button : platformInput.buttons)
 			{
-				update_unused_input(&platformInput);
+				if (button == InputButtonState_went_down)
+				{
+					button = InputButtonState_is_down;
+				}
+
+				else if (button == InputButtonState_went_up)
+				{
+					button = InputButtonState_is_up;
+				}
 			}
-			else if (xinputUsed)
+
+			if (xinputUsed)
 			{
 				update_controller_input(&platformInput, &xinputState);
-			}
-			else if (state.keyboardInputIsUsed)
-			{
-				update_keyboard_input(&platformInput, &state.keyboardInput);
-				state.keyboardInputIsUsed = false;
+				platformInput.gamepadInputUsed = true;
 			}
 			else
 			{
-				update_unused_input(&platformInput);
+				platformInput.gamepadInputUsed = false;
+			}
+
+			if (state.keyboardInputIsUsed)
+			{
+				update_keyboard_input(&platformInput, &state.keyboardInput);
+				platformInput.mouseAndKeyboardInputUsed = true;
+			}
+			else
+			{
+				platformInput.mouseAndKeyboardInputUsed = false;
 			}
 
 			// Todo(Leo): Totally in wrong place :))
 			platformInput.mousePosition = state.keyboardInput.mousePosition;
-    		fswin32_input_update_button_state(platformInput.buttons[InputButton_mouse_0], state.keyboardInput.leftMouseButtonDown);
     		platformInput.axes[InputAxis_mouse_scroll]	= state.keyboardInput.mouseScroll;
 
     		state.keyboardInput.mouseScroll = 0;

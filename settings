@@ -3,12 +3,12 @@ sky =
 	sunHeightAngle = 0.193638
 	sunOrbitAngle = 0.439874
 	skyColourSelection = 0.415001
-	hdrExposure = 0.782216
+	hdrExposure = 0.782214
 	hdrContrast = 0.176062
 	horizonHaloFalloff = 0.137901
 	sunHaloFalloff = 0.022371
 	sunDiscSize = 0.000129
-	sunDiscFalloff = 1.008009
+	sunDiscFalloff = 1.008008
 	skyGradientBottom = 0.173307, 0.396798, 0.793144
 	skyGradientGround = 0.205578, 0.307428, 0.409515
 	skyGradientTop = 0.000000, 0.000000, 0.740980
@@ -35,7 +35,7 @@ tree_0 =
 	leafColourIndex = 1
 	leafCountPerBud = 3
 	leafSize = 0.877916, 0.865639
-	leafColour = 0.103980, 0.320451, 0.082710
+	leafColour = 0.103980, 0.320451, 0.082708
 	seedDrawSizeThreshold = 1.008008
 	waterDrainSpeed = 0.609000
 	waterUsageSpeed = 0.068808
@@ -60,11 +60,18 @@ tree_1 =
 	leafColourIndex = 2
 	leafCountPerBud = 3
 	leafSize = 0.335247, 0.820031
-	leafColour = 0.795111, 0.253177, 0.103278
+	leafColour = 0.795111, 0.253175, 0.103278
 	seedDrawSizeThreshold = 1.008008
 	waterDrainSpeed = 0.609000
 	waterUsageSpeed = 0.067000
 	waterReservoirCapacity = 10.000000
+]
+
+player_camera = 
+[
+	distance = 10.895424
+	baseOffset = 3.488254
+	rotateSpeed = 180.00900
 ]
 
 monument_0 = 

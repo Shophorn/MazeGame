@@ -17,7 +17,6 @@ internal void game_spawn_tree(Game & game, v3 position, s32 treeTypeIndex);
 
 #include "game_settings.cpp"
 
-
 #include "CharacterMotor.cpp"
 #include "PlayerController3rdPerson.cpp"
 #include "FollowerController.cpp"
@@ -33,41 +32,41 @@ internal void game_spawn_tree(Game & game, v3 position, s32 treeTypeIndex);
 
 enum CameraMode : s32
 { 
-	CAMERA_MODE_PLAYER, 
-	CAMERA_MODE_ELEVATOR,
-	CAMERA_MODE_MOUSE_AND_KEYBOARD,
+	CameraMode_player, 
+	CameraMode_elevator,
+	CameraMode_mouse_and_keyboard,
 
-	CAMERA_MODE_COUNT
+	CameraModeCount
 };
 
 enum GameObjectType : s32
 { 	
-	GO_NONE,
-	GO_POT,
-	GO_WATER,
-	GO_RACCOON,
-	GO_TREE_3,
+	GameObjectType_none,
+	GameObjectType_pot,
+	GameObjectType_water,
+	GameObjectType_raccoon,
+	GameObjectType_tree_3,
 };
 
 enum TrainState : s32
 {
-	TRAIN_MOVE,
-	TRAIN_WAIT,
+	TrainState_move,
+	TrainState_wait,
 };
 
 enum NoblePersonMode : s32
 {
-	NOBLE_WANDER_AROUND,
-	NOBLE_WAIT_FOR_TRAIN,
-	NOBLE_AWAY,
-	NOBLE_ARRIVING_IN_TRAIN,
+	NoblePersonMode_wander_around,
+	NoblePersonMode_wait_for_train,
+	NoblePersonMode_away,
+	NoblePersonMode_arriving_in_train,
 };
 
 enum RaccoonMode : s32
 {
-	RACCOON_IDLE,
-	RACCOON_FLEE,
-	RACCOON_CARRIED,
+	RaccoonMode_idle,
+	RaccoonMode_flee,
+	RaccoonMode_carried,
 };
 
 struct PhysicsObject
@@ -79,17 +78,24 @@ struct PhysicsObject
 
 enum MenuView : s32
 {
-	MENU_OFF,
-	MENU_MAIN,
-	MENU_CONFIRM_EXIT,
-	MENU_CONFIRM_TELEPORT,
-	MENU_EDIT_SKY,
-	MENU_EDIT_MESH_GENERATION,
-	MENU_EDIT_TREE,
-	MENU_SAVE_COMPLETE,
-	MENU_EDIT_MONUMENTS,
+	MenuView_off,
+	MenuView_main,
+	MenuView_confirm_exit,
+	MenuView_confirm_teleport,
+	MenuView_edit_sky,
+	MenuView_edit_mesh_generation,
+	MenuView_edit_tree,
+	MenuView_save_complete,
+	MenuView_edit_monuments,
+	MenuView_edit_camera,
 
-	MENU_SPAWN,
+	MenuView_spawn,
+};
+
+struct MenuState
+{
+	MenuView 	view;
+	s32 		selectedIndex;
 };
 
 internal m44 * compute_transform_matrices(MemoryArena & allocator, s32 count, Transform3D * transforms)
@@ -106,10 +112,10 @@ internal m44 * compute_transform_matrices(MemoryArena & allocator, s32 count, Tr
 
 enum BoxState : s32
 {
-	BOX_CLOSED,
-	BOX_OPENING,
-	BOX_OPEN,
-	BOX_CLOSING,
+	BoxState_closed,
+	BoxState_opening,
+	BoxState_open,
+	BoxState_closing,
 };
 
 struct Game
@@ -281,7 +287,8 @@ struct Game
 	bool32		drawDebugShadowTexture;
 
 
-	MenuView menuView;
+	MenuState 	menuStates[20];
+	s32 		menuStateIndex = -1;
 
 	GuiTextureHandle guiPanelImage;
 	v4 guiPanelColour;
@@ -319,7 +326,8 @@ internal auto game_get_serialized_objects(Game & game)
 	(
 		serialize_object("sky", game.skySettings),
 		serialize_object("tree_0", game.treeSettings[0]),
-		serialize_object("tree_1", game.treeSettings[1])
+		serialize_object("tree_1", game.treeSettings[1]),
+		serialize_object("player_camera", game.playerCamera)
 	);
 
 	return serializedObjects;
@@ -383,7 +391,7 @@ internal void game_spawn_tree(Game & game, v3 position, s32 treeTypeIndex)
 	tree.seedMesh 			= assets_get_mesh(game.assets, seedMesh);
 	tree.seedMaterial		= assets_get_material(game.assets, MaterialAssetId_seed);
 
-	push_physics_object(game.physicsObjects, GO_TREE_3, game.trees.count -1);
+	push_physics_object(game.physicsObjects, GameObjectType_tree_3, game.trees.count -1);
 }
 
 internal void game_spawn_tree_on_player(Game & game)
@@ -458,23 +466,25 @@ internal bool32 update_scene_3d(Game * 					game,
 	// 					assets_get_material(game->assets, MaterialAssetId_sky));
 
 
+	bool playerInputAvailable = game->cameraMode == CameraMode_player && game_gui_menu_visible(game) == false;
+
 	// Game Logic section
 	switch (game->cameraMode)
 	{
-		case CAMERA_MODE_PLAYER:
+		case CameraMode_player:
 		{
 			CharacterInput playerCharacterMotorInput = {};
 
-			if (game->menuView == MENU_OFF)
+			if (playerInputAvailable)
 			{
 				if (input_button_went_down(input, InputButton_dpad_down))
 				{
-					game->menuView = MENU_SPAWN;
+					game_gui_push_menu(game, MenuView_spawn);
 				}
 
 				if (input_button_went_down(input, InputButton_nintendo_y))
 				{
-					game->nobleWanderTargetPosition 	= game->playerCharacterTransform.position;
+					game->nobleWanderTargetPosition = game->playerCharacterTransform.position;
 					game->nobleWanderWaitTimer 		= 0;
 					game->nobleWanderIsWaiting 		= false;
 				}
@@ -484,7 +494,7 @@ internal bool32 update_scene_3d(Game * 					game,
 
 			update_character_motor(game->playerCharacterMotor, playerCharacterMotorInput, game->collisionSystem, scaledTime, DEBUG_LEVEL_PLAYER);
 
-			update_camera_controller(&game->playerCamera, game->playerCharacterTransform.position, input, scaledTime);
+			update_camera_controller(game->playerCamera, game->playerCharacterTransform.position, input, scaledTime);
 
 			game->worldCamera.position = game->playerCamera.position;
 			game->worldCamera.direction = game->playerCamera.direction;
@@ -497,7 +507,7 @@ internal bool32 update_scene_3d(Game * 					game,
 			FS_DEBUG_NPC(debug_draw_circle_xy(game->nobleWanderTargetPosition + v3{0,0,0.5}, 0.9, colour_bright_green));
 		} break;
 
-		case CAMERA_MODE_ELEVATOR:
+		case CameraMode_elevator:
 		{
 			m44 cameraMatrix = update_free_camera(game->freeCamera, input, unscaledTime);
 
@@ -505,9 +515,10 @@ internal bool32 update_scene_3d(Game * 					game,
 			game->worldCamera.direction = game->freeCamera.direction;
 
 			/// Document(Leo): Teleport player
-			if (game->menuView == MENU_OFF && input_button_went_down(input, InputButton_nintendo_a))
+			if (game_gui_menu_visible(game) == false && input_button_went_down(input, InputButton_nintendo_a))
 			{
-				game->menuView = MENU_CONFIRM_TELEPORT;
+				// game->menuView = MenuView_confirm_teleport;
+				game_gui_push_menu(game, MenuView_confirm_teleport);
 				gui_ignore_input();
 				gui_reset_selection();
 			}
@@ -515,7 +526,7 @@ internal bool32 update_scene_3d(Game * 					game,
 			game->worldCamera.farClipPlane = 2000;
 		} break;
 
-		case CAMERA_MODE_MOUSE_AND_KEYBOARD:
+		case CameraMode_mouse_and_keyboard:
 		{
 			update_mouse_camera(game->mouseCamera, input, unscaledTime);
 
@@ -523,9 +534,10 @@ internal bool32 update_scene_3d(Game * 					game,
 			game->worldCamera.direction = game->mouseCamera.direction;
 
 			/// Document(Leo): Teleport player
-			if (game->menuView == MENU_OFF && input_button_went_down(input, InputButton_nintendo_a))
+			if (game_gui_menu_visible(game) == false && input_button_went_down(input, InputButton_nintendo_a))
 			{
-				game->menuView = MENU_CONFIRM_TELEPORT;
+				// game->menuView = MenuView_confirm_teleport;
+				game_gui_push_menu(game, MenuView_confirm_teleport);
 				gui_ignore_input();
 				gui_reset_selection();
 			}
@@ -533,7 +545,7 @@ internal bool32 update_scene_3d(Game * 					game,
 			game->worldCamera.farClipPlane = 2000;
 		} break;
 
-		case CAMERA_MODE_COUNT:
+		case CameraModeCount:
 			Assert(false && "Bad execution path");
 			break;
 	}
@@ -581,10 +593,6 @@ internal bool32 update_scene_3d(Game * 					game,
 	/// *******************************************************************************************
 	
 
-	/// SPAWN WATER
-	bool playerInputAvailable = game->cameraMode == CAMERA_MODE_PLAYER
-								&& game->menuView == MENU_OFF;
-
 	f32 grabDistance = 1.0f;
 	/// PICKUP OR DROP
 	if (playerInputAvailable && game->playerInputState.events.pickupOrDrop)
@@ -593,7 +601,7 @@ internal bool32 update_scene_3d(Game * 					game,
 
 		switch(game->playerCarryState)
 		{
-			case GO_NONE: {
+			case GameObjectType_none: {
 				/* Todo(Leo): Do this properly, taking into account player facing direction and distances etc. */
 				auto check_pickup = [	playerPosition 		= game->playerCharacterTransform.position,
 										&playerCarryState 	= game->playerCarryState,
@@ -611,9 +619,9 @@ internal bool32 update_scene_3d(Game * 					game,
 					}
 				};
 
-				check_pickup(game->potCount, game->potTransforms, GO_POT);
-				check_pickup(game->waters.count, game->waters.transforms, GO_WATER);
-				check_pickup(game->raccoonCount, game->raccoonTransforms, GO_RACCOON);
+				check_pickup(game->potCount, game->potTransforms, GameObjectType_pot);
+				check_pickup(game->waters.count, game->waters.transforms, GameObjectType_water);
+				check_pickup(game->raccoonCount, game->raccoonTransforms, GameObjectType_raccoon);
 
 				{
 					for (auto & tree : game->trees)
@@ -626,7 +634,7 @@ internal bool32 update_scene_3d(Game * 					game,
 
 							// if (isGrabbable)
 							{
-								game->playerCarryState = GO_TREE_3;
+								game->playerCarryState = GameObjectType_tree_3;
 								game->carriedItemIndex = array_2_get_index_of(game->trees, tree);
 							}
 						}
@@ -634,20 +642,20 @@ internal bool32 update_scene_3d(Game * 					game,
 				}
 			} break;
 
-			case GO_POT:
-				push_physics_object(game->physicsObjects, GO_POT, game->carriedItemIndex);
+			case GameObjectType_pot:
+				push_physics_object(game->physicsObjects, GameObjectType_pot, game->carriedItemIndex);
 				game->carriedItemIndex = -1;
-				game->playerCarryState = GO_NONE;
+				game->playerCarryState = GameObjectType_none;
 
 				break;
 	
-			case GO_WATER:
+			case GameObjectType_water:
 			{
 				Transform3D & waterTransform = game->waters.transforms[game->carriedItemIndex];
 
-				push_physics_object(game->physicsObjects, GO_WATER, game->carriedItemIndex);
+				push_physics_object(game->physicsObjects, GameObjectType_water, game->carriedItemIndex);
 				game->carriedItemIndex = -1;
-				game->playerCarryState = GO_NONE;
+				game->playerCarryState = GameObjectType_none;
 
 				constexpr f32 waterSnapDistance 	= 0.5f;
 				constexpr f32 smallPotMaxWaterLevel = 1.0f;
@@ -673,63 +681,63 @@ internal bool32 update_scene_3d(Game * 					game,
 
 			} break;
 
-			case GO_RACCOON:
+			case GameObjectType_raccoon:
 			{
 				game->raccoonTransforms[game->carriedItemIndex].rotation = identity_quaternion;
-				push_physics_object(game->physicsObjects, GO_RACCOON, game->carriedItemIndex);
+				push_physics_object(game->physicsObjects, GameObjectType_raccoon, game->carriedItemIndex);
 				game->carriedItemIndex = -1;
-				game->playerCarryState = GO_NONE;
+				game->playerCarryState = GameObjectType_none;
 
 			} break;
 
-			case GO_TREE_3:
+			case GameObjectType_tree_3:
 			{	
-				push_physics_object(game->physicsObjects, GO_TREE_3, game->carriedItemIndex);
+				push_physics_object(game->physicsObjects, GameObjectType_tree_3, game->carriedItemIndex);
 				game->carriedItemIndex = -1;
-				game->playerCarryState = GO_NONE;
+				game->playerCarryState = GameObjectType_none;
 			} break;
 		}
 	} // endif input
 
 	if (playerInputAvailable && game->playerInputState.events.interact)
 	{
-		if (game->playerCarryState == GO_NONE)
+		if (game->playerCarryState == GameObjectType_none)
 		{
-			if(game->boxState == BOX_CLOSED)
+			if(game->boxState == BoxState_closed)
 			{
 				v3 openPosition = multiply_point(transform_matrix(game->boxTransform), v3{0, 0.6, 0});
 
 				f32 distanceToBox = v3_length(game->boxTransform.position - game->playerCharacterTransform.position);
 				if (distanceToBox < grabDistance)
 				{
-					game->playerCarryState = GO_NONE;
+					game->playerCarryState = GameObjectType_none;
 				}
 
 				f32 distanceToOpenPosition = v3_length(openPosition - game->playerCharacterTransform.position);
 				if (distanceToOpenPosition < grabDistance)
 				{
-					game->boxState 			= BOX_OPENING;
+					game->boxState 			= BoxState_opening;
 					game->boxOpenPercent 	= 0;
 				}
 			}
-			else if (game->boxState == BOX_OPEN)
+			else if (game->boxState == BoxState_open)
 			{
 				v3 closePosition = multiply_point(transform_matrix(game->boxTransform), v3{0,-0.6,0});
 				f32 distanceToClosePosition = v3_length(closePosition - game->playerCharacterTransform.position);
 				if (distanceToClosePosition < grabDistance)
 				{
-					game->boxState 			= BOX_CLOSING;
+					game->boxState 			= BoxState_closing;
 					game->boxOpenPercent 	= 0;
 				}
 			}
 		}
 
-		else if (game->playerCarryState == GO_TREE_3)
+		else if (game->playerCarryState == GameObjectType_tree_3)
 		{
 			game->trees[game->carriedItemIndex].planted = true;
-			push_physics_object(game->physicsObjects, GO_TREE_3, game->carriedItemIndex);
+			push_physics_object(game->physicsObjects, GameObjectType_tree_3, game->carriedItemIndex);
 			game->carriedItemIndex = -1;
-			game->playerCarryState = GO_NONE;			
+			game->playerCarryState = GameObjectType_none;			
 
 		}
 
@@ -740,17 +748,17 @@ internal bool32 update_scene_3d(Game * 					game,
 	quaternion carriedRotation 	= game->playerCharacterTransform.rotation;
 	switch(game->playerCarryState)
 	{
-		case GO_POT:
+		case GameObjectType_pot:
 			game->potTransforms[game->carriedItemIndex].position = carriedPosition;
 			game->potTransforms[game->carriedItemIndex].rotation = carriedRotation;
 			break;
 
-		case GO_WATER:
+		case GameObjectType_water:
 			game->waters.transforms[game->carriedItemIndex].position = carriedPosition;
 			game->waters.transforms[game->carriedItemIndex].rotation = carriedRotation;
 			break;
 
-		case GO_RACCOON:
+		case GameObjectType_raccoon:
 		{
 			game->raccoonTransforms[game->carriedItemIndex].position 	= carriedPosition + v3{0,0,0.2};
 
@@ -760,11 +768,11 @@ internal bool32 update_scene_3d(Game * 					game,
 
 		} break;
 
-		case GO_TREE_3:
+		case GameObjectType_tree_3:
 			game->trees[game->carriedItemIndex].position = carriedPosition;
 			break;
 
-		case GO_NONE:
+		case GameObjectType_none:
 			break;
 
 
@@ -781,26 +789,26 @@ internal bool32 update_scene_3d(Game * 					game,
 		constexpr f32 openAngle 	= 5.0f/8.0f * π;
 		constexpr f32 openingTime 	= 0.7f;
 
-		if (game->boxState == BOX_OPENING)
+		if (game->boxState == BoxState_opening)
 		{
 			game->boxOpenPercent += scaledTime / openingTime;
 
 			if (game->boxOpenPercent > 1.0f)
 			{
-				game->boxState 			= BOX_OPEN;
+				game->boxState 			= BoxState_open;
 				game->boxOpenPercent 	= 1.0f;
 			}
 
 			f32 angle = openAngle * game->boxOpenPercent;
 			game->boxCoverLocalTransform.rotation = quaternion_axis_angle(v3_right, angle);
 		}
-		else if (game->boxState == BOX_CLOSING)
+		else if (game->boxState == BoxState_closing)
 		{
 			game->boxOpenPercent += scaledTime / openingTime;
 
 			if (game->boxOpenPercent > 1.0f)
 			{
-				game->boxState 			= BOX_CLOSED;
+				game->boxState 			= BoxState_closed;
 				game->boxOpenPercent 	= 1.0f;
 			}
 
@@ -821,10 +829,10 @@ internal bool32 update_scene_3d(Game * 					game,
 
 			switch (game->physicsObjects[i].type)
 			{
-				case GO_RACCOON:	position = &game->raccoonTransforms[index].position; 	break;
-				case GO_WATER: 		position = &game->waters.transforms[index].position; 	break;
-				case GO_POT:		position = &game->potTransforms[index].position;		break;
-				case GO_TREE_3: 	position = &game->trees[index].position; 				break;
+				case GameObjectType_raccoon:	position = &game->raccoonTransforms[index].position; 	break;
+				case GameObjectType_water: 		position = &game->waters.transforms[index].position; 	break;
+				case GameObjectType_pot:		position = &game->potTransforms[index].position;		break;
+				case GameObjectType_tree_3: 	position = &game->trees[index].position; 				break;
 
 				default:
 					Assert(false && "That item has not physics properties");
@@ -888,7 +896,7 @@ internal bool32 update_scene_3d(Game * 					game,
 			game->trainFarPositionB,
 		};
 
-		if (game->trainMoveState == TRAIN_MOVE)
+		if (game->trainMoveState == TrainState_move)
 		{
 
 			v3 trainMoveVector 	= game->trainCurrentTargetPosition - game->trainTransform.position;
@@ -912,7 +920,7 @@ internal bool32 update_scene_3d(Game * 					game,
 			}
 			else
 			{
-				game->trainMoveState 		= TRAIN_WAIT;
+				game->trainMoveState 		= TrainState_wait;
 				game->trainCurrentWaitTime = 0;
 			}
 
@@ -922,7 +930,7 @@ internal bool32 update_scene_3d(Game * 					game,
 			game->trainCurrentWaitTime += scaledTime;
 			if (game->trainCurrentWaitTime > game->trainWaitTimeOnStop)
 			{
-				game->trainMoveState 		= TRAIN_MOVE;
+				game->trainMoveState 		= TrainState_move;
 				game->trainCurrentSpeed 	= 0;
 
 				v3 start 	= trainWayPoints[game->trainWayPointIndex];
@@ -944,7 +952,7 @@ internal bool32 update_scene_3d(Game * 					game,
 
 		switch(game->noblePersonMode)
 		{
-			case NOBLE_WANDER_AROUND:
+			case NoblePersonMode_wander_around:
 			{
 				if (game->nobleWanderIsWaiting)
 				{
@@ -1018,7 +1026,7 @@ internal bool32 update_scene_3d(Game * 					game,
 
 			raccoonCharacterMotorInput = {input, false, false};
 
-			bool isCarried = (game->playerCarryState == GO_RACCOON) && (game->carriedItemIndex == i);
+			bool isCarried = (game->playerCarryState == GameObjectType_raccoon) && (game->carriedItemIndex == i);
 
 			if (isCarried == false)
 			{
@@ -1299,7 +1307,7 @@ internal bool32 update_scene_3d(Game * 					game,
 
 	for (auto & tree : game->trees)
 	{
-		GetWaterFunc get_water = {game->waters, game->carriedItemIndex, game->playerCarryState == GO_WATER };
+		GetWaterFunc get_water = {game->waters, game->carriedItemIndex, game->playerCarryState == GameObjectType_water };
 		update_tree_3(tree, scaledTime, get_water);
 		
 		tree.leaves.position = tree.position;
@@ -1414,7 +1422,18 @@ internal bool32 update_scene_3d(Game * 					game,
 
 	// ------------------------------------------------------------------------
 
+	bool32 toggle_menu = input_button_went_down(input, InputButton_start)
+						|| input_button_went_down(input, InputButton_keyboard_escape);
+
+	if (toggle_menu && game_gui_menu_visible(game) == false)
+	{
+		game_gui_push_menu(game, MenuView_main);
+	}
+
 	auto gui_result = do_gui(game, input);
+
+	gui_end_frame();
+
 
 	// if (game->settings.dirty)
 	// {
@@ -1431,6 +1450,11 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 	*game = {};
 	game->persistentMemory = &persistentMemory;
 
+
+	// Todo(Leo): this is stupidly zero initialized here, before we read settings file, so that we don't override its settings
+	game->playerCamera = {};
+
+
 	// Note(Leo): We currently only have statically allocated stuff (or rather allocated with game),
 	// this can be read here, at the top. If we need to allocate some stuff, we need to reconsider.
 	read_settings_file(game_get_serialized_objects(*game));
@@ -1438,6 +1462,8 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 	// ----------------------------------------------------------------------------------
 
 	game->gui = init_game_gui();
+	game->menuStateIndex 		= 0;
+	game->menuStates[0].view 	= MenuView_off;
 
 	// ----------------------------------------------------------------------------------
 
@@ -1459,7 +1485,7 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 
 	// Characters
 	{
-		game->playerCarryState 			= GO_NONE;
+		game->playerCarryState 			= GameObjectType_none;
 		game->playerCharacterTransform 	= {.position = {10, 0, 5}};
 
 		auto & motor 	= game->playerCharacterMotor;
@@ -1539,9 +1565,6 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 	}
 
 	game->worldCamera 				= make_camera(60, 0.1f, 1000.0f);
-	game->playerCamera 			= {};
-	game->playerCamera.baseOffset 	= {0, 0, 2};
-	game->playerCamera.distance 	= 5;
 
 	// Environment
 	{
@@ -1667,7 +1690,7 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 
 			for (s32 i = 0; i < game->raccoonCount; ++i)
 			{
-				game->raccoonModes[i]					= RACCOON_IDLE;
+				game->raccoonModes[i]					= RaccoonMode_idle;
 
 				game->raccoonTransforms[i] 			= identity_transform;
 				game->raccoonTransforms[i].position 	= random_inside_unit_square() * 100 - v3{50, 50, 0};
@@ -1814,7 +1837,7 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 
 			game->trainTransform.position 			= game->trainStopPosition;
 
-			game->trainMoveState 					= TRAIN_WAIT;
+			game->trainMoveState 					= TrainState_wait;
 
 			game->trainFullSpeed 					= 200;
 			game->trainStationMinSpeed 			= 1;

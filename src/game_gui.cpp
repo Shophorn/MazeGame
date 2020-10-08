@@ -10,56 +10,89 @@ internal Gui init_game_gui()
 	gui.padding 			= 10;
 	gui.font 				= load_font("assets/SourceCodePro-Regular.ttf");
 
-	u32 guiTexturePixelColor 		= 0xffffffff;
+	u32 guiTexturePixelColor 			= 0xffffffff;
 	TextureAssetData guiTextureAsset 	= make_texture_asset(&guiTexturePixelColor, 1, 1, 4);
-	gui.panelTexture				= graphics_memory_push_gui_texture(platformGraphics, &guiTextureAsset);
+	gui.panelTexture					= graphics_memory_push_gui_texture(platformGraphics, &guiTextureAsset);
 
 	return gui;
 }
 
-internal void gui_set_cursor_visible(bool menuVisible)
+internal void game_gui_set_cursor_visible(bool menuVisible)
 {
 	bool windowIsFullscreen = platform_window_is_fullscreen(platformWindow);
-	bool cursorVisible = !windowIsFullscreen || menuVisible;
+	bool cursorVisible 		= !windowIsFullscreen || menuVisible;
 	platform_window_set_cursor_visible(platformWindow, cursorVisible);
-
-	log_application(1, "Set cursor visible: ", (cursorVisible ? "True" : "False"));
 }
 
+internal bool32 game_gui_menu_visible(Game * game)
+{
+	// log_debug(FILE_ADDRESS, game->menuStateIndex);
+	bool32 result = (game->menuStateIndex > 0);
+	return result;
+}
+
+internal void game_gui_push_menu (Game * game, MenuView view)
+{
+	Assert(game->menuStateIndex < array_count(game->menuStates));
+
+	if (game->menuStateIndex == 0)
+	{
+		game_gui_set_cursor_visible(true);
+	}
+
+	game->menuStates[game->menuStateIndex].selectedIndex = game->gui.selectedIndex;
+	game->menuStateIndex += 1;
+	game->menuStates[game->menuStateIndex].view = view;
+
+
+	gui_reset_selection();
+}
+
+internal void game_gui_pop_menu (Game * game)
+{
+	Assert(game->menuStateIndex >= 0);
+
+	game->menuStateIndex -= 1;
+	game->gui.selectedIndex = game->menuStates[game->menuStateIndex].selectedIndex;
+
+	if (game->menuStateIndex == 0)
+	{
+		game_gui_set_cursor_visible(false);
+	}
+}
 
 bool32 do_gui(Game * game, PlatformInput * input)
 {	
-	constexpr v2 cornerPosition = {30, 30};
-	constexpr v2 centerPosition = {850, 400};
-
-
-	if (input_button_went_down(input, InputButton_start))
+	if (game_gui_menu_visible(game) == false)
 	{
-		if (game->menuView == MENU_OFF)
-		{
-			game->menuView = MENU_MAIN;
-			gui_reset_selection();
-			gui_set_cursor_visible(true);
-		}
-		else if (game->menuView == MENU_MAIN)
-		{
-			game->menuView = MENU_OFF;
-			gui_set_cursor_visible(false);
-		}
+		// Note(Leo): return if we want to keep game alive
+		return true;
+	}
+
+	// Note(Leo): idk, testing alternative convention
+	constexpr v2 corner_position = {30, 30};
+	constexpr v2 center_position = {850, 400};
+	v4 menuColor = colour_rgb_alpha(colour_bright_blue.rgb, 0.5);
+
+	bool32 event_escape = input_button_went_down(input, InputButton_nintendo_b)
+							|| input_button_went_down(input, InputButton_keyboard_backspace);
+
+	if (event_escape)
+	{
+		game_gui_pop_menu(game);
 	}
 
 	bool32 keepScene = true;
 	
-	v4 menuColor = colour_rgb_alpha(colour_bright_blue.rgb, 0.5);
-	switch(game->menuView)
+	switch(game->menuStates[game->menuStateIndex].view)
 	{	
-		case MENU_OFF:
+		case MenuView_off:
 			// Nothing to do
 			break;
 
-		case MENU_CONFIRM_EXIT:
+		case MenuView_confirm_exit:
 		{
-			gui_position(cornerPosition);
+			gui_position(corner_position);
 
 			gui_start_panel("Exit to Main Menu?", menuColor);
 
@@ -70,28 +103,25 @@ bool32 do_gui(Game * game, PlatformInput * input)
 
 			if (gui_button("No"))
 			{
-				game->menuView = MENU_MAIN;
-				gui_reset_selection();
+				game_gui_pop_menu(game);
+				// gui_reset_selection();
 			}
 
 			gui_end_panel();
 		} break;
 
-		case MENU_MAIN:
+		case MenuView_main:
 		{
-			gui_position(cornerPosition);	
+			gui_position(corner_position);	
 
 			gui_start_panel("MENU", menuColor);
 
 			v2 mousePosition = input_cursor_get_position(input);
 
-			// gui_float_slider_2("X", &mousePosition.x, -20000, 20000);
-			// gui_float_slider_2("Y", &mousePosition.y, -20000, 20000);
-
 			if (gui_button("Continue"))
 			{
-				game->menuView = MENU_OFF;
-				gui_set_cursor_visible(false);
+				game_gui_pop_menu(game);
+				game_gui_set_cursor_visible(false);
 			}
 
 			char const * const cameraModeLabels [] =
@@ -103,7 +133,7 @@ bool32 do_gui(Game * game, PlatformInput * input)
 			
 			if (gui_button(cameraModeLabels[game->cameraMode]))
 			{
-				game->cameraMode = (CameraMode)((game->cameraMode + 1) % CAMERA_MODE_COUNT);
+				game->cameraMode = (CameraMode)((game->cameraMode + 1) % CameraModeCount);
 			}
 
 			char const * const debugLevelButtonLabels [] =
@@ -142,28 +172,33 @@ bool32 do_gui(Game * game, PlatformInput * input)
 
 			if (gui_button("Edit Sky"))
 			{
-				game->menuView = MENU_EDIT_SKY;
-				gui_reset_selection();
+				game_gui_push_menu(game, MenuView_edit_sky);
+				// gui_reset_selection();
 			}
 
 			if (gui_button("Edit Mesh Generation"))
 			{
-				game->menuView = MENU_EDIT_MESH_GENERATION;
-				gui_reset_selection();
+				game_gui_push_menu(game, MenuView_edit_mesh_generation);
+				// gui_reset_selection();
 			}
 
 			if (gui_button("Edit Trees"))
 			{
-				game->menuView = MENU_EDIT_TREE;
-				gui_reset_selection();
+				game_gui_push_menu(game, MenuView_edit_tree);
+				// gui_reset_selection();
 			}
 
 			if (gui_button("Edit Monuments"))
 			{
-				game->menuView = MENU_EDIT_MONUMENTS;
-				gui_reset_selection();
+				game_gui_push_menu(game, MenuView_edit_monuments);
+				// gui_reset_selection();
 			}
 
+			if (gui_button("Edit Camera"))
+			{
+				game_gui_push_menu(game, MenuView_edit_camera);
+				// gui_reset_selection();
+			}
 
 			if (gui_button("Read Settings"))
 			{
@@ -199,34 +234,34 @@ bool32 do_gui(Game * game, PlatformInput * input)
 
 			if (gui_button("Exit Scene"))
 			{
-				game->menuView = MENU_CONFIRM_EXIT;
-				gui_reset_selection();
+				game_gui_push_menu(game, MenuView_confirm_exit);
+				// gui_reset_selection();
 			}
 
 
 			gui_end_panel();
 		} break;
 
-		case MENU_EDIT_MESH_GENERATION:
+		case MenuView_edit_mesh_generation:
 		{
-			gui_position(cornerPosition);	
+			gui_position(corner_position);	
 
 			gui_start_panel("EDIT MESH GENERATION", menuColor);
 			gui_float_slider("Grid Scale", &game->metaballGridScale, 0.2, 1);
 			gui_toggle("Draw", &game->drawMCStuff);
 
-			if (gui_button("Back") || input_button_went_down(input, InputButton_start))
+			if (gui_button("Back") || event_escape)
 			{
-				game->menuView = MENU_MAIN;
-				gui_reset_selection();
+				game_gui_pop_menu(game);
+				// gui_reset_selection();
 			}
 
 			gui_end_panel();
 		} break;
 	
-		case MENU_EDIT_TREE:
+		case MenuView_edit_tree:
 		{
-			gui_position(cornerPosition);	
+			gui_position(corner_position);	
 			gui_start_panel("EDIT TREES", menuColor);
 		
 			gui_int_field("Tree Index", &game->inspectedTreeIndex, {.min = 0, .max = (s32)game->trees.count - 1});	
@@ -234,75 +269,69 @@ bool32 do_gui(Game * game, PlatformInput * input)
 			tree_gui(game->trees[game->inspectedTreeIndex]);
 			
 			gui_line();
-			if (gui_button("Back") || input_button_went_down(input, InputButton_start))
+			if (gui_button("Back") || event_escape)
 			{
-				game->menuView = MENU_MAIN;
-				gui_reset_selection();
+				game_gui_pop_menu(game);
+				// gui_reset_selection();
 			}
 			gui_end_panel();
 
 		} break;
 
-		case MENU_SAVE_COMPLETE:
+		case MenuView_save_complete:
 		{
-			gui_position(centerPosition);
+			gui_position(center_position);
 			gui_start_panel("Game Saved!", menuColor);
 
 			if (gui_button("Ok"))
 			{
-				game->menuView = MENU_MAIN;
-				gui_reset_selection();
+				game_gui_pop_menu(game);
+				// gui_reset_selection();
 			}
 
 			gui_end_panel();
 
 		} break;
 
-		case MENU_CONFIRM_TELEPORT:
+		case MenuView_confirm_teleport:
 		{
-			gui_position(cornerPosition);
+			gui_position(corner_position);
 
 			gui_start_panel("Teleport Player Here?", menuColor);
 
 			if (gui_button("Yes"))
 			{
 				game->playerCharacterTransform.position = game->freeCamera.position;
-				game->menuView = MENU_OFF;
-				game->cameraMode = CAMERA_MODE_PLAYER;
+				game_gui_pop_menu(game);
+				game->cameraMode = CameraMode_player;
 			}
 
 			if (gui_button("No"))
 			{
-				game->menuView = MENU_OFF;
+				game_gui_pop_menu(game);
 			}
 
 			gui_end_panel();
 		} break;
 
-		case MENU_EDIT_SKY:
+		case MenuView_edit_sky:
 		{
-			SkySettings & settings = game->skySettings;
-
-			gui_position(cornerPosition);
-
+			gui_position(corner_position);
 			gui_start_panel("EDIT SKY", menuColor);
 
 			sky_gui(game->skySettings);
 
 			gui_line();
-
-			if (gui_button("Back") || input_button_went_down(input, InputButton_start))
+			if (gui_button("Back") || event_escape)
 			{
-				game->menuView = MENU_MAIN;
+				game_gui_pop_menu(game);
 			}
-
 			gui_end_panel();
-
 		} break;
 
-		case MENU_SPAWN:
+		case MenuView_spawn:
 		{
-			gui_position(centerPosition);
+			gui_position(center_position);
 			gui_start_panel("SPAWN", menuColor);
 
 			if (gui_button("10 Waters"))
@@ -315,18 +344,17 @@ bool32 do_gui(Game * game, PlatformInput * input)
 				game_spawn_tree_on_player(*game);
 			}
 
-			if (input_button_went_down(input, InputButton_start))
+			if (event_escape)
 			{
-				game->menuView = MENU_OFF;
+				game_gui_pop_menu(game);
 			}
 
 			gui_end_panel();
-
 		} break;
 
-		case MENU_EDIT_MONUMENTS:
+		case MenuView_edit_monuments:
 		{
-			gui_position(cornerPosition);
+			gui_position(corner_position);
 			gui_start_panel("MONUMENTS", menuColor);
 
 			constexpr char const * labels [] =
@@ -392,14 +420,32 @@ bool32 do_gui(Game * game, PlatformInput * input)
 			float dummy;
 			gui_float_field("Dummy", &dummy);
 
-			if (gui_button("Back") || input_button_went_down(input, InputButton_start))
+			if (gui_button("Back") || event_escape)
 			{
-				game->menuView = MENU_MAIN;
+				game_gui_pop_menu(game);
 			}
 
 			gui_end_panel();
 
 		} break;
+
+		case MenuView_edit_camera:
+		{
+			gui_position(corner_position);
+			gui_start_panel("EDIT CAMERA", menuColor);
+
+			gui_float_field("Distance", &game->playerCamera.distance);
+			gui_float_field("Base Offset", &game->playerCamera.baseOffset);
+			gui_float_field("Gamepad Rotate Speed", &game->playerCamera.gamepadRotateSpeed);
+			gui_float_field("Mouse Rotate Speed", &game->playerCamera.mouseRotateSpeed);
+
+			gui_line();
+			if (gui_button("Back") || event_escape)
+			{
+				game_gui_push_menu(game, MenuView_main);
+			}
+			gui_end_panel();
+		};
 	}
 
 	// gui_position({100, 100});
@@ -416,7 +462,6 @@ bool32 do_gui(Game * game, PlatformInput * input)
 		gui_image(GRAPHICS_RESOURCE_SHADOWMAP_GUI_TEXTURE, {300, 300});
 	}
 
-	gui_end_frame();
 
 	return keepScene;
 }

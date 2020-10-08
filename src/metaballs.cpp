@@ -676,7 +676,7 @@ internal void generate_mesh_marching_cubes(	s32 vertexCapacity, Vertex * vertice
 
 				if (c.vertexCount == 0 && caseId != 0 && caseId != 255)
 				{
-					log_debug(FILE_ADDRESS, "Missing case: ", (u32)caseId);
+					log_debug(FILE_ADDRESS, "Missing case: ", (s32)caseId);
 				}
 			}
 		}

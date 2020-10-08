@@ -141,15 +141,34 @@ internal LRESULT CALLBACK fswin32_window_callback (HWND hwnd, UINT message, WPAR
 
         case WM_LBUTTONDOWN:
         {
-            Win32ApplicationState & state       = *fswin32_get_user_pointer(hwnd);
-            state.keyboardInput.leftMouseButtonDown   = true;
+            Win32ApplicationState & state   = *fswin32_get_user_pointer(hwnd);
+            state.keyboardInput.mouse0      = true;
+            state.keyboardInputIsUsed       = true;
+
+            // log_debug(FILE_ADDRESS, "WM_LBUTTONDOWN: ", state.keyboardInput.mouse0);
         } break;
 
         case WM_LBUTTONUP:
         {
-            Win32ApplicationState & state       = *fswin32_get_user_pointer(hwnd);
-            state.keyboardInput.leftMouseButtonDown   = false;
+            Win32ApplicationState & state   = *fswin32_get_user_pointer(hwnd);
+            state.keyboardInput.mouse0      = false;
+            state.keyboardInputIsUsed       = true;
         } break;
+
+        case WM_RBUTTONDOWN:
+        {           
+            Win32ApplicationState & state   = *fswin32_get_user_pointer(hwnd);
+            state.keyboardInput.mouse1      = true;
+            state.keyboardInputIsUsed       = true;
+        } break;
+
+        case WM_RBUTTONUP:
+        {
+            Win32ApplicationState & state   = *fswin32_get_user_pointer(hwnd);
+            state.keyboardInput.mouse1      = false;
+            state.keyboardInputIsUsed       = true;
+        } break;
+
 
         case WM_MOUSEWHEEL:
         {
@@ -231,6 +250,9 @@ internal LRESULT CALLBACK fswin32_window_callback (HWND hwnd, UINT message, WPAR
 
 internal void fswin32_process_pending_messages(Win32ApplicationState * state, HWND winWindow)
 {
+    // Note(Leo): This must be reseted manually
+    state->keyboardInputIsUsed = false;
+
     MSG message;
     while (PeekMessageW(&message, winWindow, 0, 0, PM_REMOVE))
     {

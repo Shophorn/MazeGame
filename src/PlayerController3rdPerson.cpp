@@ -30,20 +30,35 @@ CharacterInput update_player_input(	PlayerInputState & 	state,
 	viewForward 		= normalize_v3(viewForward);
 	v3 viewRight 		= cross_v3(viewForward, v3_up);
 
-	v3 worldSpaceInput 	= viewRight * input_axis_get_value(platformInput, InputAxis_move_x) 
-						+ viewForward * input_axis_get_value(platformInput, InputAxis_move_y);
+	v2 inputComponents;
 
+	if (input_is_device_used(platformInput, PlatformInputDevice_gamepad))
+	{
+		inputComponents.x 	= input_axis_get_value(platformInput, InputAxis_move_x);
+		inputComponents.y 	= input_axis_get_value(platformInput, InputAxis_move_y);
+	}
+	else
+	{
+		inputComponents.x = input_button_is_down(platformInput, InputButton_keyboard_wasd_right)
+								- input_button_is_down(platformInput, InputButton_keyboard_wasd_left);
+
+		inputComponents.y = input_button_is_down(platformInput, InputButton_keyboard_wasd_up)
+								- input_button_is_down(platformInput, InputButton_keyboard_wasd_down);
+	}
+
+	inputComponents 	= clamp_length_v2(inputComponents, 1);
+	v3 worldSpaceInput 	= viewRight * inputComponents.x + viewForward * inputComponents.y;
 	bool32 jumpInput 	= input_button_went_down(platformInput, InputButton_nintendo_x);
-
-
 	bool32 crouchInput 	= false;
 
 	state.events = {};
 
 	// Note(Leo): As long as we don't trigger these anywhere else, this works
-	state.events.pickupOrDrop	= input_button_went_down(platformInput, InputButton_nintendo_b);
-	state.events.interact 		= input_button_went_down(platformInput, InputButton_nintendo_a);
+	state.events.pickupOrDrop	= input_button_went_down(platformInput, InputButton_nintendo_b)
+								|| input_button_went_down(platformInput, InputButton_mouse_1);
 
+	state.events.interact 		= input_button_went_down(platformInput, InputButton_nintendo_a)
+								|| input_button_went_down(platformInput, InputButton_mouse_0);
 
 	return {worldSpaceInput, jumpInput, crouchInput};
 } 

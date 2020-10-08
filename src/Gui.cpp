@@ -67,10 +67,17 @@ struct Gui
 	f32 spacing;
 	f32 padding;
 
+	// Parsed input state
+	bool8 event_escape;
+	bool8 event_confirm;
+	bool8 event_moveDown;
+	bool8 event_moveUp;
+
 	// Per frame state
 	PlatformInput *	input;
 	v2 				mousePositionLastFrame;
 	f32 			elapsedTime;
+
 
 	v2 				currentPosition;
 	s32 			currentSelectableIndex;
@@ -181,14 +188,40 @@ internal void gui_start_frame(Gui & gui, PlatformInput * input, f32 elapsedTime)
 
 	gui.elapsedTime 			= elapsedTime;
 
+
+	gui.screenSize = { 	(f32)platform_window_get_width(platformWindow),
+						(f32)platform_window_get_height(platformWindow) };
+
+	gui.screenSizeRatio = gui.screenSize.x / gui.referenceScreenSize.x;
+
+
+	// -------------- Trigger events ---------------------
+	gui.event_confirm = input_button_went_down(input, InputButton_nintendo_a)
+						|| input_button_went_down(input, InputButton_keyboard_enter);
+
+	gui.event_escape = input_button_went_down(input, InputButton_nintendo_b)
+						|| input_button_went_down(input, InputButton_keyboard_escape);
+
+	gui.event_moveDown = input_button_went_down(input, InputButton_dpad_down)
+							|| input_button_went_down(input, InputButton_keyboard_down)
+							|| input_button_went_down(input, InputButton_keyboard_wasd_down);
+
+	gui.event_moveUp = input_button_went_down(input, InputButton_dpad_up)
+						|| input_button_went_down(input, InputButton_keyboard_up)
+						|| input_button_went_down(input, InputButton_keyboard_wasd_up);
+
+
+	// ---------------- Handle selection -----------------
+	// Note(Leo): these use events specified in this same function, but we are maybe moving triggerin
+	// events outside of this function
 	if (gui.selectableCountLastFrame > 0)
 	{
-		if (input_button_went_down(gui.input, InputButton_dpad_down))
+		if (gui.event_moveDown)
 		{
 			gui.selectedIndex += 1;
 			gui.selectedIndex %= gui.selectableCountLastFrame;
 		}
-		if(input_button_went_down(gui.input, InputButton_dpad_up))
+		if(gui.event_moveUp)
 		{
 			gui.selectedIndex -= 1;
 			if (gui.selectedIndex < 0)
@@ -198,10 +231,7 @@ internal void gui_start_frame(Gui & gui, PlatformInput * input, f32 elapsedTime)
 		}
 	}
 
-	gui.screenSize = { 	(f32)platform_window_get_width(platformWindow),
-						(f32)platform_window_get_height(platformWindow) };
 
-	gui.screenSizeRatio = gui.screenSize.x / gui.referenceScreenSize.x;
 }
 
 internal void gui_end_frame()
@@ -457,7 +487,7 @@ internal bool gui_button(char const * label)
 
 	gui_panel_new_line();
 
-	bool result = isSelected && (input_button_went_down(gui.input, InputButton_nintendo_a) || input_button_went_down(gui.input, InputButton_mouse_0));
+	bool result = isSelected && gui.event_confirm;
 	return result;
 }
 
@@ -472,7 +502,7 @@ internal bool gui_toggle(char const * label, bool32 * value)
 	bool isSelected = gui_is_selected();
 	bool modified 	= false;
 
-	if (isSelected && input_button_went_down(gui.input, InputButton_nintendo_a) || input_button_went_down(gui.input, InputButton_mouse_0))
+	if (isSelected && gui.event_confirm)
 	{
 		*value 		= !*value;
 		modified 	= true;

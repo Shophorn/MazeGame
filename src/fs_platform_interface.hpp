@@ -6,12 +6,13 @@ Interface definition between Platform and Game.
 
 #if !defined FS_PLATFORM_INTERFACE_HPP
 
+// Todo(Leo): should this be header or should they just be here
+#include "platform_assets.cpp"
+
 // Todo(Leo): these are actually platform assets as well
 #include "Camera.cpp"
 #include "Light.cpp"
-#include "platform_assets.cpp"
 
-// Todo(Leo): Assets use these, thats why that is still here	
 enum GraphicsPipeline : s32
 {
 	GraphicsPipeline_normal,
@@ -111,7 +112,23 @@ enum PlatformInputButton : s32
 	InputButton_dpad_up,
 	InputButton_zoom_in,
 	InputButton_zoom_out,
+
 	InputButton_mouse_0,
+	InputButton_mouse_1,
+
+	InputButton_keyboard_enter,
+	InputButton_keyboard_escape,
+	InputButton_keyboard_backspace,
+
+	InputButton_keyboard_left,
+	InputButton_keyboard_right,
+	InputButton_keyboard_down,
+	InputButton_keyboard_up,
+
+	InputButton_keyboard_wasd_left,
+	InputButton_keyboard_wasd_right,
+	InputButton_keyboard_wasd_down,
+	InputButton_keyboard_wasd_up,
 
 	InputButtonCount,
 
@@ -122,8 +139,8 @@ enum PlatformInputButton : s32
 	InputButton_nintendo_b 	= InputButton_xbox_a, 
 
 	InputButton_ps4_triangle 	= InputButton_xbox_y,
-	InputButton_ps4_square 	= InputButton_xbox_x,
-	InputButton_ps4_circle 	= InputButton_xbox_b,
+	InputButton_ps4_square 		= InputButton_xbox_x,
+	InputButton_ps4_circle 		= InputButton_xbox_b,
 	InputButton_ps4_cross 		= InputButton_xbox_a,
 };
 
@@ -134,9 +151,17 @@ enum PlatformInputAxis : s32
 	InputAxis_look_x,
 	InputAxis_look_y,
 
+	InputAxis_mouse_move_x,
+	InputAxis_mouse_move_y,
 	InputAxis_mouse_scroll,
 
 	InputAxisCount
+};
+
+enum PlatformInputDevice : s32
+{
+	PlatformInputDevice_gamepad,
+	PlatformInputDevice_mouse_and_keyboard,
 };
 
 /// ***********************************************************************
@@ -227,6 +252,8 @@ bool32 				FS_PLATFORM_API(input_button_is_down) (PlatformInput*, PlatformInputB
 bool32 				FS_PLATFORM_API(input_button_went_up) (PlatformInput*, PlatformInputButton);
 f32 				FS_PLATFORM_API(input_axis_get_value) (PlatformInput * input, PlatformInputAxis axis);
 v2 					FS_PLATFORM_API(input_cursor_get_position) (PlatformInput * input);
+bool32 				FS_PLATFORM_API(input_is_device_used) (PlatformInput *, PlatformInputDevice);
+
 
 void 				FS_PLATFORM_API(graphics_drawing_prepare_frame)(PlatformGraphics*);
 void 				FS_PLATFORM_API(graphics_drawing_finish_frame)(PlatformGraphics*);
@@ -283,6 +310,9 @@ struct PlatformApiDescription
 
 	FS_PLATFORM_API_TYPE(input_axis_get_value) inputAxisGetValue;
 	FS_PLATFORM_API_TYPE(input_cursor_get_position) inputCursorGetPosition;
+	FS_PLATFORM_API_TYPE(input_is_device_used) inputDeviceIsUsed;
+
+
 
 	FS_PLATFORM_API_TYPE(graphics_drawing_prepare_frame) drawingPrepareFrame;
 	FS_PLATFORM_API_TYPE(graphics_drawing_finish_frame) drawingFinishFrame;
@@ -331,9 +361,11 @@ void platform_set_api(PlatformApiDescription * api)
 	FS_PLATFORM_API_SET_FUNCTION(input_button_is_down, api->buttonIsDown);
 	FS_PLATFORM_API_SET_FUNCTION(input_button_went_up, api->buttonWentUp);
 
+
 	FS_PLATFORM_API_SET_FUNCTION(input_axis_get_value, api->inputAxisGetValue);
-	
 	FS_PLATFORM_API_SET_FUNCTION(input_cursor_get_position, api->inputCursorGetPosition);
+	FS_PLATFORM_API_SET_FUNCTION(input_is_device_used, api->inputDeviceIsUsed);
+
 
 	FS_PLATFORM_API_SET_FUNCTION(graphics_drawing_prepare_frame, api->drawingPrepareFrame);
 	FS_PLATFORM_API_SET_FUNCTION(graphics_drawing_finish_frame, api->drawingFinishFrame);
