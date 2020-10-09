@@ -4,124 +4,150 @@ Leo Tamminen
 Texture Loader
 
 Todo(Leo):
-    - use own allocator for loading, stbi apparently lets us do just that
+	- use own allocator for loading, stbi apparently lets us do just that
 =============================================================================*/
 #define STB_IMAGE_IMPLEMENTATION
 #include "external/stb_image.h"
 
 internal TextureAssetData asset_cooker_load_texture(const char * filename)
 {
-    s32 width, height, channels;
-    stbi_uc * stbi_pixels = stbi_load(filename, &width, &height, &channels, STBI_rgb_alpha);
+	s32 width, height, channels;
+	stbi_uc * stbi_pixels = stbi_load(filename, &width, &height, &channels, STBI_rgb_alpha);
 
-    assert(stbi_pixels != nullptr);
+	assert(stbi_pixels != nullptr);
 
-    u64 pixelCount      = width      * height;
-    u64 pixelMemorySize = pixelCount * channels;
+	u64 pixelCount      = width      * height;
+	u64 pixelMemorySize = pixelCount * channels;
 
-    TextureAssetData result = {};
-    result.pixelMemory = malloc(pixelMemorySize);
-    memory_copy(result.pixelMemory, stbi_pixels, pixelMemorySize);
+	TextureAssetData result = {};
+	result.pixelMemory = allocate<u8>(pixelMemorySize);
+	memory_copy(result.pixelMemory, stbi_pixels, pixelMemorySize);
 
-    result.width    = width;
-    result.height   = height;
-    result.channels = 4;
+	result.width    = width;
+	result.height   = height;
+	result.channels = 4;
 
-    stbi_image_free(stbi_pixels);
+	stbi_image_free(stbi_pixels);
 
-    return result;
+	return result;
 }
 
-#if 0
+#if 1
 
 #define STB_TRUETYPE_IMPLEMENTATION
-// Todo(Leo): this causes errors in some if-elses, fix.
-// #define STBTT_assert(x) Assert(x)
 #include "external/stb_truetype.h"
 
-#undef assert
-
-// Todo(Leo): This is not optimal, because it pushes font texture directly to
-// platform, which is against convention elsewhere
-internal Font load_font(char const * fontFilePath)
+struct FontLoadResult
 {
-    Array2<byte> fontFile = read_binary_file(*global_transientMemory, fontFilePath);
+	Font                font;
+	TextureAssetData    atlasTextureAsset;
+};
 
-    stbtt_fontinfo fontInfo;
-    stbtt_InitFont(&fontInfo, fontFile.memory, stbtt_GetFontOffsetForIndex(fontFile.memory, 0));
-    
-    u8 firstCharacter = 32;
-    u8 lastCharacter = 125;
+internal FontLoadResult asset_cooker_load_font(char const * fontFilePath)
+{
+	// Array2<byte> fontFile = read_binary_file(*global_transientMemory, fontFilePath);
 
-    s32 characterSize = 64;
+	s64 fontFileSize;
+	u8 * fontFileMemory;
+	{
+		HANDLE file = CreateFileA(fontFilePath, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, nullptr);
+		LARGE_INTEGER fileSize;
+		GetFileSizeEx(file, &fileSize);
 
-    s32 characterCount = lastCharacter - firstCharacter;
-    s32 charactersPerDirection = (s32)ceil_f32(square_root_f32((f32)characterCount));
+		fontFileSize = fileSize.QuadPart;
+		fontFileMemory = allocate<u8>(fontFileSize);
 
-    s32 width = characterSize * charactersPerDirection;
-    s32 height = characterSize * charactersPerDirection;
+		ReadFile(file, fontFileMemory, (DWORD)fontFileSize, nullptr, nullptr);
+	}
 
-    s64 memorySize = width * height;
-    u8 * monoColorBitmap = push_memory<u8>(*global_transientMemory, memorySize, ALLOC_ZERO_MEMORY);
-    // u8 * monoColorBitmap = (u8*)allocate(*global_transientMemory, width * height, true);
+	stbtt_fontinfo fontInfo;
+	stbtt_InitFont(&fontInfo, fontFileMemory, stbtt_GetFontOffsetForIndex(fontFileMemory, 0));
+	
+	s32 characterSize           = 64;
+	s32 charactersPerDirection  = (s32)ceil_f32(square_root_f32((f32)Font::characterCount));
 
-    f32 scale = stbtt_ScaleForPixelHeight(&fontInfo, 64.0f);
+	s32 width   = characterSize * charactersPerDirection;
+	s32 height  = characterSize * charactersPerDirection;
 
-    s32 ascent, descent, lineGap;
-    stbtt_GetFontVMetrics(&fontInfo, &ascent, &descent, &lineGap);
+	s64 memorySize = width * height;
+	u8 * monoColorBitmap = allocate<u8>(memorySize);
 
-    Font result         = {};
-    result.spaceWidth   = 0.25;
+	f32 scale = stbtt_ScaleForPixelHeight(&fontInfo, 64.0f);
 
-    for (u8 i = 0; i < characterCount; ++i)
-    {
-        // https://github.com/justinmeiners/stb-truetype-example/blob/master/main.c
+	s32 ascent, descent, lineGap;
+	stbtt_GetFontVMetrics(&fontInfo, &ascent, &descent, &lineGap);
 
-        u8 character = i + firstCharacter;
+	Font font         = {};
 
-        s32 ix0, ix1, iy0, iy1;
-        stbtt_GetCodepointBitmapBox(&fontInfo, character, scale, scale, &ix0, &iy0, &ix1, &iy1);
+	for (u8 i = 0; i < Font::characterCount; ++i)
+	{
+		// https://github.com/justinmeiners/stb-truetype-example/blob/master/main.c
 
-        s32 advanceWidth, leftSideBearing;
-        stbtt_GetCodepointHMetrics(&fontInfo, character, &advanceWidth, &leftSideBearing);
+		u8 character = i + Font::firstCharacter;
 
-        result.advanceWidths[i] = (advanceWidth * scale) / characterSize;
-        result.leftSideBearings[i] = (leftSideBearing * scale) / characterSize;
+		s32 ix0, ix1, iy0, iy1;
+		stbtt_GetCodepointBitmapBox(&fontInfo, character, scale, scale, &ix0, &iy0, &ix1, &iy1);
 
-        s32 x = i % charactersPerDirection;
-        s32 y = i / charactersPerDirection;
+		s32 advanceWidth, leftSideBearing;
+		stbtt_GetCodepointHMetrics(&fontInfo, character, &advanceWidth, &leftSideBearing);
 
-        f32 u = (f32)x / charactersPerDirection;
-        f32 v = (f32)y / charactersPerDirection;
+		FontCharacterInfo info = {};
+		info.advanceWidth = (advanceWidth * scale) / characterSize;
+		info.leftSideBearing = (leftSideBearing * scale) / characterSize;
 
-        result.characterWidths[i] = (float)(ix1 - ix0) / characterSize;
-        result.uvPositionsAndSizes[i].xy = {u, v};
-        result.uvPositionsAndSizes[i].zw = {result.characterWidths[i] / charactersPerDirection, 1.0f / charactersPerDirection};
+		s32 x = i % charactersPerDirection;
+		s32 y = i / charactersPerDirection;
 
-        s32 byteOffset = x * characterSize + y * charactersPerDirection * characterSize * characterSize;
+		f32 u = (f32)x / charactersPerDirection;
+		f32 v = (f32)y / charactersPerDirection;
 
-        s32 extraRows = (ascent * scale) + iy0;
-        byteOffset += extraRows * charactersPerDirection * characterSize;
+		info.characterWidth = (float)(ix1 - ix0) / characterSize;
+		info.uvPosition     = {u, v};
+		info.uvSize         = {info.characterWidth / charactersPerDirection, 1.0f / charactersPerDirection};
 
-        stbtt_MakeCodepointBitmap(&fontInfo, monoColorBitmap + byteOffset, ix1 - ix0, iy1 - iy0, width, scale, scale, character);
-    }
+		font.characters[i] = info;
 
-    u32 * fontBitMap = push_memory<u32>(*global_transientMemory, width * height, ALLOC_GARBAGE);
+		s32 byteOffset = x * characterSize + y * charactersPerDirection * characterSize * characterSize;
 
-    for (s32 y = 0; y < height; ++y)
-    {
-        for(s32 x = 0; x < width; ++x)
-        {
-            s32 index = x + y * width;
-            u8 value = monoColorBitmap[index];
-            fontBitMap[index] = value << 24 | 255 << 16 | 255 << 8 | 255;
-        }
-    }
+		s32 extraRows = (ascent * scale) + iy0;
+		byteOffset += extraRows * charactersPerDirection * characterSize;
 
-    auto atlasAsset = make_texture_asset(std::move(fontBitMap), width, height, 4);
-    result.atlasTexture = graphics_memory_push_gui_texture(platformGraphics, &atlasAsset);
+		stbtt_MakeCodepointBitmap(&fontInfo, monoColorBitmap + byteOffset, ix1 - ix0, iy1 - iy0, width, scale, scale, character);
+	}
 
-    return result;
+	u32 * fontBitMap = allocate<u32>(width * height);
+
+	for (s32 y = 0; y < height; ++y)
+	{
+		for(s32 x = 0; x < width; ++x)
+		{
+			s32 index = x + y * width;
+			u8 value = monoColorBitmap[index];
+			fontBitMap[index] = value << 24 | 255 << 16 | 255 << 8 | 255;
+		}
+	}
+
+	TextureAssetData atlasAsset = {};
+	atlasAsset.pixelMemory 		= fontBitMap;
+	atlasAsset.width 			= width;
+	atlasAsset.height 			= height;
+	atlasAsset.channels 		= 4;
+
+	// Todo(Leo): we would probably like to have clamp address mode, but it did not seem to work right
+	atlasAsset.addressMode 		= TextureAddressMode_repeat;
+	atlasAsset.format 			= TextureFormat_u8_srgb;
+
+	FontLoadResult result = 
+	{
+		.font               = font,
+		.atlasTextureAsset  = atlasAsset
+	};
+
+	free(fontFileMemory);
+	free(monoColorBitmap);
+
+	return result;
 }
+
 
 #endif

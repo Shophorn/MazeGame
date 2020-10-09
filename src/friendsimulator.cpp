@@ -49,25 +49,6 @@ constexpr f32 physics_gravity_acceleration = -9.81;
 #include "CameraController.cpp"
 #include "RenderingSystem.cpp"
 
-struct Font
-{
-	static constexpr u8 firstCharacter = 32; // space
-	static constexpr u8 lastCharacter = 127; 
-	static constexpr s32 count = lastCharacter - firstCharacter;
-
-	// TextureHandle atlasTexture;
-	GuiTextureHandle atlasTexture;
-
-	f32 spaceWidth;
-
-	f32 leftSideBearings [count];
-	f32 advanceWidths [count];
-	f32 characterWidths [count];
-	v4 uvPositionsAndSizes [count];
-
-	// Todo(Leo): Kerning
-};
-
 // Todo(Leo): remove these, since we now use asset pack fil
 #include "Files.cpp"
 #include "TextureLoader.cpp"
@@ -80,8 +61,6 @@ struct Font
 #include "audio_mixer.cpp"
 #include "Game.cpp"
 
-// Todo(Leo): remove 2d scene
-enum LoadedSceneType { LOADED_SCENE_NONE, LOADED_SCENE_3D };
 
 // Note(Leo): This makes less sense as a 'state' now that we have 'Scene' struct
 // Todo(Leo): This makes less sense as a 'state' now that we have 'Scene' struct
@@ -95,28 +74,27 @@ struct GameState
 
 	bool isInitialized;
 
-	LoadedSceneType loadedSceneType;
-	void * loadedScene;
+	Game * loadedGame;
 
-	Gui 				gui;
-	bool32 				guiVisible;
-	GuiTextureHandle 	backgroundImage;
+	Gui gui;
+	GameAssets assets;
 };
 
-static Gui make_main_menu_gui(MemoryArena & allocator)
+static Gui make_main_menu_gui(MemoryArena & allocator, GameAssets & assets)
 {
 	Gui gui 				= {};
 	gui.textSize 			= 40;
 	gui.textColor 			= colour_white;
 	gui.selectedTextColor 	= colour_muted_red;
 	gui.padding 			= 10;
-	gui.font 				= load_font("c:/windows/fonts/arial.ttf");
+	gui.font 				= assets_get_font(assets, FontAssetId_game);
 
 	u32 pixelColor 						= 0xffffffff;
 	TextureAssetData guiTextureAsset 	= make_texture_asset(&pixelColor, 1, 1, 4);
-	gui.panelTexture					= graphics_memory_push_gui_texture(platformGraphics, &guiTextureAsset);
+	TextureHandle guiTextureHandle 		= graphics_memory_push_texture(platformGraphics, &guiTextureAsset);
+	gui.panelTexture 					= graphics_memory_push_material(platformGraphics, GraphicsPipeline_screen_gui, 1, &guiTextureHandle);
 
-	// Todo(Leo): this has nothing to do with gui, but this function is called appropriately :)
+	// Todo(Leo): this has nothing to do with gui, but this function is called conveniently :)
 	// move away or change function name
 	HdrSettings hdr = {1, 0};
 	graphics_drawing_update_hdr_settings(platformGraphics, &hdr);
@@ -138,9 +116,8 @@ static void game_init_state(GameState * state, PlatformMemory * memory)
 	u64 transientMemorySize 		= memory->size / 2;
 	state->transientMemoryArena 	= memory_arena(transientMemory, transientMemorySize);
 
-	state->gui 					= make_main_menu_gui(state->persistentMemoryArena);
-	auto backGroundImageAsset 	= load_texture_asset(*global_transientMemory, "assets/textures/NighestNouKeyArt.png");
-	state->backgroundImage		= graphics_memory_push_gui_texture(platformGraphics, &backGroundImageAsset);
+	state->assets 	= init_game_assets(&state->persistentMemoryArena);
+	state->gui 		= make_main_menu_gui(state->persistentMemoryArena, state->assets);
 
 	state->isInitialized = true; 
 }
@@ -195,12 +172,9 @@ FS_GAME_API bool32 update_game(	PlatformInput  *		input,
 
 	graphics_drawing_prepare_frame(graphics);
 
-	if (state->loadedScene != nullptr)
+	if (state->loadedGame != nullptr)
 	{
-		if (state->loadedSceneType == LOADED_SCENE_3D)
-		{
-			sceneIsAlive = update_scene_3d((Game*)state->loadedScene, input, soundOutput, *time);
-		}
+		sceneIsAlive = game_update_game(state->loadedGame, input, soundOutput, *time);
 	}
 	else
 	{
@@ -212,7 +186,7 @@ FS_GAME_API bool32 update_game(	PlatformInput  *		input,
 		gui_start_frame(state->gui, input, time->elapsedTime);
 
 		gui_position({0,0});
-		gui_image(state->backgroundImage, {1920, 1080}, {1,1,1,1});
+		gui_image(assets_get_material(state->assets, MaterialAssetId_menu_background), {1920, 1080}, {1,1,1,1});
 
 
 		gui_position({870, 500});
@@ -235,11 +209,7 @@ FS_GAME_API bool32 update_game(	PlatformInput  *		input,
 			gameIsAlive = false;
 		}	
 
-		
 		gui_end_panel();
-
-		// gui_position({100, 100});
-
 		gui_end_frame();
 	}
 
@@ -251,14 +221,12 @@ FS_GAME_API bool32 update_game(	PlatformInput  *		input,
 
 	if(action == ACTION_NEW_GAME)
 	{
-		state->loadedScene 		= load_scene_3d(state->persistentMemoryArena, nullptr);
-		state->loadedSceneType 	= LOADED_SCENE_3D;
+		state->loadedGame = game_load_game(state->persistentMemoryArena, nullptr);
 	}	
 	else if (action == ACTION_LOAD_GAME)
 	{
 		PlatformFileHandle saveFile = platform_file_open("save_game.fssave", FILE_MODE_READ);
-		state->loadedScene 			= load_scene_3d(state->persistentMemoryArena, saveFile);
-		state->loadedSceneType 		= LOADED_SCENE_3D;
+		state->loadedGame 			= game_load_game(state->persistentMemoryArena, saveFile);
 		platform_file_close(saveFile);
 	}
 
@@ -267,13 +235,11 @@ FS_GAME_API bool32 update_game(	PlatformInput  *		input,
 		graphics_memory_unload(platformGraphics);
 		flush_memory_arena(&state->persistentMemoryArena);
 
-		state->loadedScene 		= nullptr;
-		state->loadedSceneType 	= LOADED_SCENE_NONE;
+		// Note(Leo): we flushed graphics and cpu memory, our assets are gone :)
+		state->assets 	= init_game_assets(&state->persistentMemoryArena);
+		state->gui 		= make_main_menu_gui(state->persistentMemoryArena, state->assets);	
 
-		// Todo(Leo): this is a hack, unload_scene also unloads main gui, which is rather unwanted...
-		state->gui 					= make_main_menu_gui(state->persistentMemoryArena);	
-		auto backGroundImageAsset 	= load_texture_asset(*global_transientMemory, "assets/textures/NighestNouKeyArt.png");
-		state->backgroundImage		= graphics_memory_push_gui_texture(platformGraphics, &backGroundImageAsset);
+		state->loadedGame 		= nullptr;
 	}
 
 	// Todo(Leo): These still MAYBE do not belong here

@@ -290,7 +290,7 @@ struct Game
 	MenuState 	menuStates[20];
 	s32 		menuStateIndex = -1;
 
-	GuiTextureHandle guiPanelImage;
+	MaterialHandle guiPanelImage;
 	v4 guiPanelColour;
 
 	// Todo(Leo): this is kinda too hacky
@@ -422,7 +422,7 @@ internal void game_spawn_tree_on_player(Game & game)
 
 // Todo(Leo): add this to syntax higlight, so that 'GAME UPDATE' is different color
 /// ------------------ GAME UPDATE -------------------------
-internal bool32 update_scene_3d(Game * 					game,
+internal bool32 game_update_game(Game * 					game,
 								PlatformInput * 		input,
 								PlatformSoundOutput *	soundOutput,
 								PlatformTime const & 	time)
@@ -1387,7 +1387,7 @@ internal bool32 update_scene_3d(Game * 					game,
 		{
 			auto & output = soundOutput->samples[outputIndex];
 			output = {};
-			// output = get_next_sample_looping(game->backgroundAudioClip);
+			get_next_sample(game->backgroundAudioClip, output);
 
 			for (s32 i = 0; i < game->audioClipsOnPlay.count; ++i)
 			{
@@ -1444,7 +1444,7 @@ internal bool32 update_scene_3d(Game * 					game,
 	return gui_result;
 }
 
-internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle saveFile)
+internal Game * game_load_game(MemoryArena & persistentMemory, PlatformFileHandle saveFile)
 {
 	Game * game = push_memory<Game>(persistentMemory, 1, ALLOC_ZERO_MEMORY);
 	*game = {};
@@ -1461,16 +1461,14 @@ internal void * load_scene_3d(MemoryArena & persistentMemory, PlatformFileHandle
 
 	// ----------------------------------------------------------------------------------
 
-	game->gui = init_game_gui();
-	game->menuStateIndex 		= 0;
-	game->menuStates[0].view 	= MenuView_off;
-
-	// ----------------------------------------------------------------------------------
-
 	// Todo(Leo): Think more about implications of storing pointer to persistent memory here
 	// Note(Leo): We have not previously used persistent allocation elsewhere than in this load function
 	game->assets 			= init_game_assets(&persistentMemory);
 	game->collisionSystem 	= init_collision_system(persistentMemory);
+
+	game->gui = init_game_gui(game->assets);
+	game->menuStateIndex 		= 0;
+	game->menuStates[0].view 	= MenuView_off;
 
 	game->physicsObjects 	= push_array_2<PhysicsObject>(persistentMemory, 100, ALLOC_ZERO_MEMORY);
 

@@ -44,16 +44,10 @@ struct AssetFileAudio
 	s32 sampleCount;
 };
 
-// struct AssetFileFont
-// {
-// 	u64 dataOffset;
+// Note(Leo): font contains texture, so it is same.
+// We just write character info after texture
+using AssetFileFont = AssetFileTexture;
 
-// 	u8 firstCharacter;
-// 	u8 characterCount;
-
-// 	u32 textureWidth;
-// 	u32 textureHeight;
-// };
 
 struct AssetFileHeader
 {
@@ -68,5 +62,6 @@ struct AssetFileHeader
 	AssetFileAnimation 	animations [AnimationAssetIdCount];
 	AssetFileSkeleton 	skeletons [SkeletonAssetIdCount];
 	AssetFileAudio		audios [AudioAssetIdCount];
+	AssetFileFont 		fonts [FontAssetIdCount];
 };
 #pragma pack(pop)

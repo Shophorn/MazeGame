@@ -62,43 +62,40 @@ internal TextureAssetData load_texture_asset(MemoryArena & allocator, const char
 
 #undef assert
 
-// Todo(Leo): This is not optimal, because it pushes font texture directly to
-// platform, which is against convention elsewhere
-internal Font load_font(char const * fontFilePath)
+struct FontLoadResult
+{
+    Font                font;
+    TextureAssetData    atlasTextureAsset;
+};
+
+internal FontLoadResult load_font(char const * fontFilePath)
 {
     Array2<byte> fontFile = read_binary_file(*global_transientMemory, fontFilePath);
 
     stbtt_fontinfo fontInfo;
     stbtt_InitFont(&fontInfo, fontFile.memory, stbtt_GetFontOffsetForIndex(fontFile.memory, 0));
     
-    u8 firstCharacter = 32;
-    u8 lastCharacter = 125;
+    s32 characterSize           = 64;
+    s32 charactersPerDirection  = (s32)ceil_f32(square_root_f32((f32)Font::characterCount));
 
-    s32 characterSize = 64;
-
-    s32 characterCount = lastCharacter - firstCharacter;
-    s32 charactersPerDirection = (s32)ceil_f32(square_root_f32((f32)characterCount));
-
-    s32 width = characterSize * charactersPerDirection;
-    s32 height = characterSize * charactersPerDirection;
+    s32 width   = characterSize * charactersPerDirection;
+    s32 height  = characterSize * charactersPerDirection;
 
     s64 memorySize = width * height;
     u8 * monoColorBitmap = push_memory<u8>(*global_transientMemory, memorySize, ALLOC_ZERO_MEMORY);
-    // u8 * monoColorBitmap = (u8*)allocate(*global_transientMemory, width * height, true);
 
     f32 scale = stbtt_ScaleForPixelHeight(&fontInfo, 64.0f);
 
     s32 ascent, descent, lineGap;
     stbtt_GetFontVMetrics(&fontInfo, &ascent, &descent, &lineGap);
 
-    Font result         = {};
-    result.spaceWidth   = 0.25;
+    Font font         = {};
 
-    for (u8 i = 0; i < characterCount; ++i)
+    for (u8 i = 0; i < Font::characterCount; ++i)
     {
         // https://github.com/justinmeiners/stb-truetype-example/blob/master/main.c
 
-        u8 character = i + firstCharacter;
+        u8 character = i + Font::firstCharacter;
 
         s32 ix0, ix1, iy0, iy1;
         stbtt_GetCodepointBitmapBox(&fontInfo, character, scale, scale, &ix0, &iy0, &ix1, &iy1);
@@ -106,8 +103,9 @@ internal Font load_font(char const * fontFilePath)
         s32 advanceWidth, leftSideBearing;
         stbtt_GetCodepointHMetrics(&fontInfo, character, &advanceWidth, &leftSideBearing);
 
-        result.advanceWidths[i] = (advanceWidth * scale) / characterSize;
-        result.leftSideBearings[i] = (leftSideBearing * scale) / characterSize;
+        FontCharacterInfo info = {};
+        info.advanceWidth = (advanceWidth * scale) / characterSize;
+        info.leftSideBearing = (leftSideBearing * scale) / characterSize;
 
         s32 x = i % charactersPerDirection;
         s32 y = i / charactersPerDirection;
@@ -115,9 +113,11 @@ internal Font load_font(char const * fontFilePath)
         f32 u = (f32)x / charactersPerDirection;
         f32 v = (f32)y / charactersPerDirection;
 
-        result.characterWidths[i] = (float)(ix1 - ix0) / characterSize;
-        result.uvPositionsAndSizes[i].xy = {u, v};
-        result.uvPositionsAndSizes[i].zw = {result.characterWidths[i] / charactersPerDirection, 1.0f / charactersPerDirection};
+        info.characterWidth = (float)(ix1 - ix0) / characterSize;
+        info.uvPosition     = {u, v};
+        info.uvSize         = {info.characterWidth / charactersPerDirection, 1.0f / charactersPerDirection};
+
+        font.characters[i] = info;
 
         s32 byteOffset = x * characterSize + y * charactersPerDirection * characterSize * characterSize;
 
@@ -139,8 +139,13 @@ internal Font load_font(char const * fontFilePath)
         }
     }
 
-    auto atlasAsset = make_texture_asset(fontBitMap, width, height, 4);
-    result.atlasTexture = graphics_memory_push_gui_texture(platformGraphics, &atlasAsset);
+    auto atlasAsset     = make_texture_asset(fontBitMap, width, height, 4);
+
+    FontLoadResult result = 
+    {
+        .font               = font,
+        .atlasTextureAsset  = atlasAsset
+    };
 
     return result;
 }

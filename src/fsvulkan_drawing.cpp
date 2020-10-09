@@ -812,7 +812,12 @@ internal void graphics_draw_lines(VulkanContext * context, s32 pointCount, v3 co
 	vkCmdDraw(commandBuffer, pointCount, 1, 0, 0);
 }
 
-internal void graphics_draw_screen_rects(VulkanContext * context, s32 count, ScreenRect const * rects, GuiTextureHandle textureHandle, v4 color)
+internal void graphics_draw_screen_rects(	VulkanContext * 	context,
+											s32 				count,
+											ScreenRect const * 	rects,
+											MaterialHandle 		materialHandle,
+											// GuiTextureHandle 	textureHandle,
+											v4 					color)
 {
 	// /*
 	// vulkan bufferless drawing
@@ -825,14 +830,26 @@ internal void graphics_draw_screen_rects(VulkanContext * context, s32 count, Scr
 	VkPipelineLayout 	pipelineLayout;
 	VkDescriptorSet 	descriptorSet;
 
-	if(textureHandle == GRAPHICS_RESOURCE_SHADOWMAP_GUI_TEXTURE)
+	if (materialHandle == GRAPHICS_RESOURCE_SHADOWMAP_GUI_MATERIAL)
 	{
 		descriptorSet = context->shadowMapTextureDescriptorSet[context->virtualFrameIndex];
 	}
 	else
 	{
-		descriptorSet = fsvulkan_get_loaded_gui_texture(*context, textureHandle).descriptorSet;
+		VulkanMaterial * material = fsvulkan_get_loaded_material(context, materialHandle);
+		Assert(material->pipeline == GraphicsPipeline_screen_gui);
+
+		descriptorSet = material->descriptorSet;
 	}
+
+	// if(textureHandle == GRAPHICS_RESOURCE_SHADOWMAP_GUI_TEXTURE)
+	// {
+	// 	descriptorSet = context->shadowMapTextureDescriptorSet[context->virtualFrameIndex];
+	// }
+	// else
+	// {
+	// 	descriptorSet = fsvulkan_get_loaded_gui_texture(*context, textureHandle).descriptorSet;
+	// }
 
 	pipeline 		= context->pipelines[GraphicsPipeline_screen_gui].pipeline;
 	pipelineLayout 	= context->pipelines[GraphicsPipeline_screen_gui].pipelineLayout;

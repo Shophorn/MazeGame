@@ -4,6 +4,7 @@ Leo Tamminen
 Platform aka in this case gpu assets
 */
 
+/* Todo(Leo): not super cool to init random -1, we would like to memset arrays of these to zero. */
 struct AssetHandle
 {
 	s64 index =  -1;
@@ -20,13 +21,11 @@ struct MaterialHandle : AssetHandle {};
 
 // Todo(Leo): these 2 should not be needed
 struct ModelHandle : AssetHandle {};
-struct GuiTextureHandle : AssetHandle {};
 
 static_assert(sizeof(MeshHandle) == 8);
 static_assert(sizeof(TextureHandle) == 8);
 static_assert(sizeof(MaterialHandle) == 8);
 static_assert(sizeof(ModelHandle) == 8);
-static_assert(sizeof(GuiTextureHandle) == 8);
 
 bool32 is_valid_handle(AssetHandle handle)
 {
@@ -120,3 +119,25 @@ u64 texture_asset_data_get_memory_size(TextureAssetData & asset)
 	return memorySize;
 }
 
+struct FontCharacterInfo
+{
+	// Todo(Leo): Kerning
+	f32 leftSideBearing;
+	f32 advanceWidth;
+	f32 characterWidth;
+	v2 	uvPosition;
+	v2 	uvSize;
+};
+
+// Note(Leo): This is saved to asset pack file, so we must be confident about its layout
+static_assert(sizeof(FontCharacterInfo) == 7 * sizeof(f32));
+static_assert(std::is_standard_layout_v<FontCharacterInfo>);
+
+struct Font
+{
+	static constexpr u8 firstCharacter 	= 0;
+	static constexpr s32 characterCount = 128;
+
+	MaterialHandle atlasTexture;
+	FontCharacterInfo characters[characterCount];
+};

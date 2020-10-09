@@ -18,11 +18,9 @@ Todo(Leo):
 
 #include "fs_essentials.hpp"
 #include "game_assets.h"
+#include "platform_assets.cpp"
 
-
-// #include "Assets.cpp"
 #include "Transform3D.cpp"
-// #include "Animator.cpp"
 
 #include "animations.hpp"
 
@@ -58,7 +56,7 @@ T * allocate(s32 count)
 
 #include "AudioFile.cpp"
 
-constexpr char const * assetFileName = "assets.fsa";
+constexpr char const * assetFileName = "../assets.fsa";
 
 static std::ofstream 		global_outFile;
 static AssetFileHeader * 	global_header;
@@ -214,15 +212,43 @@ static void cook_audio(AudioAssetId id, char const * filename)
 
 }
 
+static void cook_font(FontAssetId id, char const * filename)
+{
+	FontLoadResult loadResult = asset_cooker_load_font(filename);
+
+	TextureAssetData & data = loadResult.atlasTextureAsset;
+
+	global_header->fonts[id].dataOffset 	= global_dataPosition;
+	global_header->fonts[id].width 			= data.width;
+	global_header->fonts[id].height 		= data.height;
+	global_header->fonts[id].channels 		= data.channels;
+	global_header->fonts[id].format 		= data.format;
+	global_header->fonts[id].addressMode 	= data.addressMode;
+
+	assert(data.channels == 4);
+
+	u64 textureMemorySize 		= data.width * data.height * data.channels;
+	u64 characterInfoMemorySize = sizeof(FontCharacterInfo) * Font::characterCount;
+
+	u64 filePosition 			= global_dataPosition;
+
+	write(filePosition, textureMemorySize, data.pixelMemory);					
+	filePosition += textureMemorySize;
+	
+	write(filePosition, characterInfoMemorySize, loadResult.font.characters); 	
+	filePosition += characterInfoMemorySize;
+
+	global_dataPosition = filePosition;
+
+	std::cout << "COOK FONT: " << filename << ", " << data.width << ", " << data.height << ", " << data.channels << "\n";
+
+	free(data.pixelMemory);
+}
+
 int main()
 {
 	using std::cout;
 	AssetFileHeader header = {};
-
-	auto inheader = std::ifstream(assetFileName, std::ios::in | std::ios::binary);
-	inheader.read((char*)&header, sizeof(header));
-
-	inheader.close();
 
 	cout << "This is asset cooker\n";
 	global_outFile = std::ofstream(assetFileName, std::ios::out | std::ios::binary);
@@ -236,7 +262,7 @@ int main()
 
 	// -------------------------------------------------------------
 
-	_chdir("../assets/textures/");
+	_chdir("textures/");
 
 	cook_texture(TextureAssetId_ground_albedo, 		"ground.png");
 	cook_texture(TextureAssetId_ground_albedo, 		"ground.png");
@@ -255,6 +281,8 @@ int main()
 	cook_texture(TextureAssetId_robot_normal, 		"Robot_53_normal_4k.png", TextureFormat_u8_linear);
 
 	cook_texture(TextureAssetId_heightmap, 			"heightmap_island.png");
+
+	cook_texture(TextureAssetId_menu_background, 	"keyart.png");
 
 	cout << "Textures cooked!\n";
 
@@ -307,28 +335,20 @@ int main()
 
 	// -------------------------------------------------------------
 
+	_chdir("../fonts");
+
+	// Todo(Leo): There is some fuckery going around here >:(
+	cook_font(FontAssetId_game, "SourceCodePro-Regular.ttf");
+	// cook_font(FontAssetId_menu, "SourceCodePro-Regular.ttf");
+	// cook_font(FontAssetId_menu, "TheStrangerBrush.ttf");
+
+	// -------------------------------------------------------------
+
 	write(0, sizeof(AssetFileHeader), &header);
 	cout << "global_header written to file \n";
 
 
 	global_outFile.close();
-
-
-
-	AssetFileHeader readedHeader = {};
-
-	HANDLE testReadFile = CreateFile(assetFileName, GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
-	ReadFile(testReadFile, &readedHeader, sizeof(AssetFileHeader), nullptr, nullptr);
-
-	AnimatedBone readedBones[30];
-	SetFilePointer(testReadFile, readedHeader.skeletons[SkeletonAssetId_character].dataOffset, 0, FILE_BEGIN);
-	ReadFile(testReadFile, readedBones, sizeof(AnimatedBone) * readedHeader.skeletons[SkeletonAssetId_character].boneCount, nullptr, nullptr);
-	// auto testReadFile = std::ifstream(assetFileName, std::ios::in | std::ios::binary);
-
-	// testReadFile.seekg(readedHeader.skeletons[SkeletonAssetId_character].dataOffset);
-	// testReadFile.read((char*)readedBones, sizeof(AnimatedBone) * readedHeader.skeletons[SkeletonAssetId_character].boneCount);
-
-	CloseHandle(testReadFile);
 
 	cout << "All done, all good.\n";
 }

@@ -41,7 +41,8 @@ struct ScreenRect
 	v2 uvSize;	
 };
 
-constexpr GuiTextureHandle GRAPHICS_RESOURCE_SHADOWMAP_GUI_TEXTURE = {-1};
+constexpr MaterialHandle GRAPHICS_RESOURCE_SHADOWMAP_GUI_MATERIAL = {-1};
+// constexpr GuiTextureHandle GRAPHICS_RESOURCE_SHADOWMAP_GUI_TEXTURE = {-1};
 
 /// ***********************************************************************
 /// PLATFORM OPAQUE HANDLES
@@ -264,7 +265,7 @@ void 				FS_PLATFORM_API(graphics_drawing_update_hdr_settings)(PlatformGraphics*
 
 void 				FS_PLATFORM_API(graphics_draw_model) (PlatformGraphics*, ModelHandle model, m44 transform, bool32 castShadow, m44 const * bones, u32 boneCount);
 void 				FS_PLATFORM_API(graphics_draw_meshes) (PlatformGraphics*, s32 count, m44 const * transforms, MeshHandle mesh, MaterialHandle material);
-void 				FS_PLATFORM_API(graphics_draw_screen_rects) (PlatformGraphics*, s32 count, ScreenRect const * rects, GuiTextureHandle texture, v4 color);
+void 				FS_PLATFORM_API(graphics_draw_screen_rects) (PlatformGraphics*, s32 count, ScreenRect const * rects, MaterialHandle material, v4 color);
 void 				FS_PLATFORM_API(graphics_draw_lines) (PlatformGraphics*, s32 pointCount, v3 const * points, v4 color);
 void 				FS_PLATFORM_API(graphics_draw_procedural_mesh)(	PlatformGraphics*,
 																	s32 vertexCount, Vertex const * vertices,
@@ -275,7 +276,7 @@ void 				FS_PLATFORM_API(graphics_draw_leaves) (PlatformGraphics*, s32 count, m4
 MeshHandle 			FS_PLATFORM_API(graphics_memory_push_mesh) (PlatformGraphics*, MeshAssetData * asset);
 TextureHandle 		FS_PLATFORM_API(graphics_memory_push_texture) (PlatformGraphics*, TextureAssetData * asset);
 MaterialHandle 		FS_PLATFORM_API(graphics_memory_push_material) (PlatformGraphics*, GraphicsPipeline, s32 textureCount, TextureHandle * textures);
-GuiTextureHandle 	FS_PLATFORM_API(graphics_memory_push_gui_texture) (PlatformGraphics*, TextureAssetData * asset);
+// GuiTextureHandle 	FS_PLATFORM_API(graphics_memory_push_gui_texture) (PlatformGraphics*, TextureAssetData * asset);
 	// Todo(Leo): Maybe remove 'push_model', we can render also just passing mesh and material handles directly
 ModelHandle 		FS_PLATFORM_API(graphics_memory_push_model) (PlatformGraphics*, MeshHandle mesh, MaterialHandle material);
 void 				FS_PLATFORM_API(graphics_memory_unload) (PlatformGraphics*);
@@ -330,7 +331,7 @@ struct PlatformApiDescription
 	FS_PLATFORM_API_TYPE(graphics_memory_push_mesh) memoryPushMesh;
 	FS_PLATFORM_API_TYPE(graphics_memory_push_texture) memoryPushTexture;
 	FS_PLATFORM_API_TYPE(graphics_memory_push_material) memoryPushMaterial;
-	FS_PLATFORM_API_TYPE(graphics_memory_push_gui_texture) memoryPushGuiTexture;
+	// FS_PLATFORM_API_TYPE(graphics_memory_push_gui_texture) memoryPushGuiTexture;
 	FS_PLATFORM_API_TYPE(graphics_memory_push_model) memoryPushModel;
 	FS_PLATFORM_API_TYPE(graphics_memory_unload) memoryUnload;
 
@@ -383,7 +384,7 @@ void platform_set_api(PlatformApiDescription * api)
 	FS_PLATFORM_API_SET_FUNCTION(graphics_memory_push_mesh, api->memoryPushMesh);
 	FS_PLATFORM_API_SET_FUNCTION(graphics_memory_push_texture, api->memoryPushTexture);
 	FS_PLATFORM_API_SET_FUNCTION(graphics_memory_push_material, api->memoryPushMaterial);
-	FS_PLATFORM_API_SET_FUNCTION(graphics_memory_push_gui_texture, api->memoryPushGuiTexture);
+	// FS_PLATFORM_API_SET_FUNCTION(graphics_memory_push_gui_texture, api->memoryPushGuiTexture);
 	FS_PLATFORM_API_SET_FUNCTION(graphics_memory_push_model, api->memoryPushModel);
 	FS_PLATFORM_API_SET_FUNCTION(graphics_memory_unload, api->memoryUnload);
 

@@ -243,18 +243,18 @@ internal TextureHandle graphics_memory_push_texture(VulkanContext * context, Tex
 	return handle;
 }
 
-internal GuiTextureHandle graphics_memory_push_gui_texture(VulkanContext * context, TextureAssetData * asset)
-{
-	VulkanTexture texture 			= BAD_VULKAN_make_texture(context, asset);
-	VkDescriptorSet descriptorSet 	= fsvulkan_make_texture_descriptor_set(	context,	
-																			context->pipelines[GraphicsPipeline_screen_gui].descriptorSetLayout,
-																			context->materialDescriptorPool,
-																			1, &texture.view, &context->clampSampler);
-	s64 index = context->loadedGuiTextures.size();
-	context->loadedGuiTextures.push_back({texture, descriptorSet});
+// internal GuiTextureHandle graphics_memory_push_gui_texture(VulkanContext * context, TextureAssetData * asset)
+// {
+// 	VulkanTexture texture 			= BAD_VULKAN_make_texture(context, asset);
+// 	VkDescriptorSet descriptorSet 	= fsvulkan_make_texture_descriptor_set(	context,	
+// 																			context->pipelines[GraphicsPipeline_screen_gui].descriptorSetLayout,
+// 																			context->materialDescriptorPool,
+// 																			1, &texture.view, &context->clampSampler);
+// 	s64 index = context->loadedGuiTextures.size();
+// 	context->loadedGuiTextures.push_back({texture, descriptorSet});
 
-	return {index};
-}
+// 	return {index};
+// }
 
 internal MaterialHandle graphics_memory_push_material (	VulkanContext *     context,
 															GraphicsPipeline    pipeline,
@@ -385,12 +385,6 @@ internal void graphics_memory_unload(VulkanContext * context)
 		vulkan::destroy_texture(context, &context->loadedTextures[imageIndex]);
 	}
 	context->loadedTextures.resize(0);
-
-	for(VulkanGuiTexture & gui : context->loadedGuiTextures)
-	{
-		vulkan::destroy_texture(context, &gui.texture);
-	}
-	context->loadedGuiTextures.resize(0);
 
 	// Materials
 	vkResetDescriptorPool(context->device, context->materialDescriptorPool, 0);   

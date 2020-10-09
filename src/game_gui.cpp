@@ -1,4 +1,4 @@
-internal Gui init_game_gui()
+internal Gui init_game_gui(GameAssets & assets)
 {
 	Gui gui = {};
 
@@ -8,11 +8,12 @@ internal Gui init_game_gui()
 	gui.selectedTextColor 	= colour_muted_red;
 	gui.spacing 			= 5;
 	gui.padding 			= 10;
-	gui.font 				= load_font("assets/SourceCodePro-Regular.ttf");
+	gui.font 				= assets_get_font(assets, FontAssetId_game);
 
 	u32 guiTexturePixelColor 			= 0xffffffff;
 	TextureAssetData guiTextureAsset 	= make_texture_asset(&guiTexturePixelColor, 1, 1, 4);
-	gui.panelTexture					= graphics_memory_push_gui_texture(platformGraphics, &guiTextureAsset);
+	TextureHandle guiTextureHandle		= graphics_memory_push_texture(platformGraphics, &guiTextureAsset);
+	gui.panelTexture					= graphics_memory_push_material(platformGraphics, GraphicsPipeline_screen_gui, 1, &guiTextureHandle);
 
 	return gui;
 }
@@ -459,7 +460,7 @@ bool32 do_gui(Game * game, PlatformInput * input)
 	gui_position({1550, 30});
 	if (game->drawDebugShadowTexture)
 	{
-		gui_image(GRAPHICS_RESOURCE_SHADOWMAP_GUI_TEXTURE, {300, 300});
+		gui_image(GRAPHICS_RESOURCE_SHADOWMAP_GUI_MATERIAL, {300, 300});
 	}
 
 

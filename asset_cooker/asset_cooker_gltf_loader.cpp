@@ -575,7 +575,7 @@ asset_cooker_load_skeleton_glb(char const * filename, char const * nodeName)
 
 			if (boneId == CharacterSkeletonBone_invalid)
 			{
-				std::cout << "skip bone: " << currentBoneName << "\n";
+				// std::cout << "skip bone: " << currentBoneName << "\n";
 				continue;
 			}
 		}
@@ -637,8 +637,8 @@ asset_cooker_load_skeleton_glb(char const * filename, char const * nodeName)
 	
 			{
 				quaternion q = boneSpaceTransform.rotation;
-				std::cout << node["name"].GetString() << ", " << jsonBoneIndex << "\n";
-				std::cout << std::setprecision(2) << " rotation = (" << q.x << ", " << q.y <<", " << q.z << ", " << q.w << ")\n";
+				// std::cout << node["name"].GetString() << ", " << jsonBoneIndex << "\n";
+				// std::cout << std::setprecision(2) << " rotation = (" << q.x << ", " << q.y <<", " << q.z << ", " << q.w << ")\n";
 			}
 
 		}

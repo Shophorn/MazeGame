@@ -1,8 +1,8 @@
 # Asset files
-# shaders/
-# textures/
-# models/
-# sounds/
+/shaders/
+/textures/
+/models/
+/sounds/
 assets/
 
 # External code
@@ -24,3 +24,20 @@ videocaptures/
 logs/
 *.fssave
 *.fsa
+*.glb
+*.blend
+*.blend1
+*.obj
+*.stl
+*.mtl
+*.wav
+*.mp3
+*.ttf
+*.kra
+*.kra~
+*.png
+*.jpg
+*.png~
+*.jpg~
+*.zip
+*.pdf

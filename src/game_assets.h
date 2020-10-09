@@ -52,6 +52,8 @@ enum TextureAssetId : s32
 
 	TextureAssetId_heightmap,
 
+	TextureAssetId_menu_background,
+
 	TextureAssetIdCount
 };
 
@@ -69,6 +71,8 @@ enum MaterialAssetId : s32
 	MaterialAssetId_sea,
 	MaterialAssetId_leaves,
 	MaterialAssetId_box,
+
+	MaterialAssetId_menu_background,
 
 	MaterialAssetIdCount	
 };
@@ -134,4 +138,14 @@ enum AudioAssetId : s32
 	AudioAssetId_birds,
 
 	AudioAssetIdCount
+};
+
+enum FontAssetId : s32
+{
+	FontAssetId_game,
+	// FontAssetId_menu,
+
+	FontAssetIdCount,
+
+	// FontAssetId_menu = FontAssetId_game
 };

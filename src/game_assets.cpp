@@ -12,11 +12,8 @@ struct TextureLoadInfo
 	TextureFormat 		format;
 	TextureAddressMode 	addressMode;
 	
-	bool generateAssetData;
-	
-	// char const * filename;
-	
-	v4 generatedTextureColour;	
+	bool	generateAssetData;
+	v4 		generatedTextureColour;	
 };
 
 struct MaterialLoadInfo
@@ -44,6 +41,7 @@ struct GameAssets
 	Animation *			animations [AnimationAssetIdCount];
 	AnimatedSkeleton * 	skeletons [SkeletonAssetIdCount];
 	AudioAsset * 		audio [AudioAssetIdCount];
+	Font * 				fonts [FontAssetIdCount];
 
 	PlatformFileHandle 	file;
 	AssetFileHeader 	fileHeader;
@@ -53,7 +51,7 @@ internal GameAssets init_game_assets(MemoryArena * allocator)
 {
 	// Note(Leo): apparently this does indeed set MeshHandles to -1, which is what we want. I do not know why, though.
 	GameAssets assets 	= {};
-	assets.file 	= platform_file_open("asset_cooker/assets.fsa", FILE_MODE_READ);
+	assets.file 		= platform_file_open("assets.fsa", FILE_MODE_READ);
 	platform_file_read(assets.file, 0, sizeof(AssetFileHeader), &assets.fileHeader);
 
 	Assert(assets.fileHeader.magic = AssetFileHeader::magicValue);
@@ -98,29 +96,24 @@ internal GameAssets init_game_assets(MemoryArena * allocator)
 
 	assets.textureLoadInfos[TextureAssetId_white] 		= load_generated(colour_white, TextureFormat_u8_srgb);
 	assets.textureLoadInfos[TextureAssetId_black] 		= load_generated(colour_black, TextureFormat_u8_srgb);
-	assets.textureLoadInfos[TextureAssetId_flat_normal] 	= load_generated(colour_bump, TextureFormat_u8_linear);
+	assets.textureLoadInfos[TextureAssetId_flat_normal] = load_generated(colour_bump, TextureFormat_u8_linear);
 	assets.textureLoadInfos[TextureAssetId_water_blue] 	= load_generated(colour_rgb_alpha(colour_aqua_blue.rgb, 0.4), TextureFormat_u8_srgb);
  
 	// ----------- MATERIALS -------------------
 
-	assets.materialLoadInfos[MaterialAssetId_ground] 		= {GraphicsPipeline_normal, TextureAssetId_ground_albedo, TextureAssetId_ground_normal, TextureAssetId_black};
-	assets.materialLoadInfos[MaterialAssetId_environment] 	= {GraphicsPipeline_normal, TextureAssetId_tiles_albedo, TextureAssetId_tiles_normal, TextureAssetId_black};
-	assets.materialLoadInfos[MaterialAssetId_seed] 			= {GraphicsPipeline_normal, TextureAssetId_seed_albedo, TextureAssetId_flat_normal, TextureAssetId_black};
-	assets.materialLoadInfos[MaterialAssetId_raccoon] 		= {GraphicsPipeline_normal, TextureAssetId_raccoon_albedo, TextureAssetId_flat_normal, TextureAssetId_black};
-	assets.materialLoadInfos[MaterialAssetId_robot]			= {GraphicsPipeline_normal, TextureAssetId_robot_albedo, TextureAssetId_robot_normal, TextureAssetId_black};
-	assets.materialLoadInfos[MaterialAssetId_box]			= {GraphicsPipeline_normal, TextureAssetId_bark_albedo, TextureAssetId_bark_normal, TextureAssetId_black};
-
+	assets.materialLoadInfos[MaterialAssetId_ground] 			= {GraphicsPipeline_normal, TextureAssetId_ground_albedo, TextureAssetId_ground_normal, TextureAssetId_black};
+	assets.materialLoadInfos[MaterialAssetId_environment] 		= {GraphicsPipeline_normal, TextureAssetId_tiles_albedo, TextureAssetId_tiles_normal, TextureAssetId_black};
+	assets.materialLoadInfos[MaterialAssetId_seed] 				= {GraphicsPipeline_normal, TextureAssetId_seed_albedo, TextureAssetId_flat_normal, TextureAssetId_black};
+	assets.materialLoadInfos[MaterialAssetId_raccoon] 			= {GraphicsPipeline_normal, TextureAssetId_raccoon_albedo, TextureAssetId_flat_normal, TextureAssetId_black};
+	assets.materialLoadInfos[MaterialAssetId_robot]				= {GraphicsPipeline_normal, TextureAssetId_robot_albedo, TextureAssetId_robot_normal, TextureAssetId_black};
+	assets.materialLoadInfos[MaterialAssetId_box]				= {GraphicsPipeline_normal, TextureAssetId_bark_albedo, TextureAssetId_bark_normal, TextureAssetId_black};
 	assets.materialLoadInfos[MaterialAssetId_character] 		= {GraphicsPipeline_animated, TextureAssetId_red_tiles_albedo, TextureAssetId_tiles_normal, TextureAssetId_black};
-	
 	assets.materialLoadInfos[MaterialAssetId_water] 			= {GraphicsPipeline_water, TextureAssetId_water_blue, TextureAssetId_flat_normal, TextureAssetId_black};
-	assets.materialLoadInfos[MaterialAssetId_sea] 			= {GraphicsPipeline_water, TextureAssetId_water_blue, TextureAssetId_flat_normal, TextureAssetId_black};
-	
-	assets.materialLoadInfos[MaterialAssetId_leaves] 		= {GraphicsPipeline_leaves, TextureAssetId_leaves_mask};
-
-	assets.materialLoadInfos[MaterialAssetId_sky] 			= {GraphicsPipeline_skybox, TextureAssetId_black, TextureAssetId_black};
-	
-	assets.materialLoadInfos[MaterialAssetId_tree]			= {GraphicsPipeline_triplanar, TextureAssetId_tiles_albedo};
-
+	assets.materialLoadInfos[MaterialAssetId_sea] 				= {GraphicsPipeline_water, TextureAssetId_water_blue, TextureAssetId_flat_normal, TextureAssetId_black};
+	assets.materialLoadInfos[MaterialAssetId_leaves] 			= {GraphicsPipeline_leaves, TextureAssetId_leaves_mask};
+	assets.materialLoadInfos[MaterialAssetId_sky] 				= {GraphicsPipeline_skybox, TextureAssetId_black, TextureAssetId_black};
+	assets.materialLoadInfos[MaterialAssetId_tree]				= {GraphicsPipeline_triplanar, TextureAssetId_tiles_albedo};
+	assets.materialLoadInfos[MaterialAssetId_menu_background] 	= {GraphicsPipeline_screen_gui, TextureAssetId_menu_background};
 
 	return assets;
 }
@@ -249,14 +242,28 @@ internal MaterialHandle assets_get_material(GameAssets & assets, MaterialAssetId
 	{
 		MaterialLoadInfo & loadInfo = assets.materialLoadInfos[id];
 
-		s32 textureCount = 3;
-		if (loadInfo.pipeline == GraphicsPipeline_skybox)
+		s32 textureCount;
+		switch (loadInfo.pipeline)
 		{
-			textureCount = 2;
-		}
-		else if (loadInfo.pipeline == GraphicsPipeline_leaves || loadInfo.pipeline == GraphicsPipeline_triplanar)
-		{
-			textureCount = 1;
+			case GraphicsPipeline_leaves:
+			case GraphicsPipeline_triplanar:
+			case GraphicsPipeline_screen_gui:
+				textureCount = 1;
+				break;
+
+			case GraphicsPipeline_skybox:
+				textureCount = 2;
+				break;
+
+			case GraphicsPipeline_normal:
+			case GraphicsPipeline_animated:
+			case GraphicsPipeline_water:
+				textureCount = 3;
+				break;
+
+			default:
+				Assert(false && "Invalid choice");
+				break;
 		}
 
 		TextureHandle textures [loadInfo.max_texture_count] = {};
@@ -318,9 +325,7 @@ internal Animation * assets_get_animation(GameAssets & assets, AnimationAssetId 
 			animation->translationTimes 		= reinterpret_cast<f32*>(memory); 					memory += translationTimesSize;
 			animation->rotationTimes 			= reinterpret_cast<f32*>(memory);					memory += rotationTimesSize;
 			animation->translations 			= reinterpret_cast<v3*>(memory);					memory += translationValuesSize;
-			animation->rotations 				= reinterpret_cast<quaternion*>(memory);			memory +=  rotationValuesSize;
-
-			log_debug(FILE_ADDRESS, "Asset file animations seem to work!!");
+			animation->rotations 				= reinterpret_cast<quaternion*>(memory);			memory += rotationValuesSize;
 		}
 
 		assets.animations[id] = animation;
@@ -377,4 +382,78 @@ internal AudioAsset * assets_get_audio(GameAssets & assets, AudioAssetId id)
 	}
 
 	return audio;
+}
+
+internal Font * assets_get_font(GameAssets & assets, FontAssetId id)
+{
+	Font * font = assets.fonts[id];
+
+	if (font == nullptr)
+	{
+		#if 1
+		AssetFileFont assetFont = assets.fileHeader.fonts[id];
+
+		u64 textureMemorySize 	= assetFont.width * assetFont.height * assetFont.channels;
+		u64 textureMemoryOffset = assetFont.dataOffset;
+
+		TextureAssetData assetData = {};
+		assetData.pixelMemory = push_memory<u8>(*global_transientMemory, textureMemorySize, ALLOC_GARBAGE);
+		platform_file_read(assets.file, textureMemoryOffset, textureMemorySize, assetData.pixelMemory);
+
+		assetData.width 		= assetFont.width;
+		assetData.height 		= assetFont.height;
+		assetData.channels 		= assetFont.channels;
+		assetData.format 		= assetFont.format;
+		assetData.addressMode 	= assetFont.addressMode;
+
+		Assert(assetData.channels == 4);
+
+		log_debug(FILE_ADDRESS, "Load font: ", assetData.width, ", ", assetData.height, ", ", assetData.channels);
+
+		u64 characterMemorySize 	= sizeof(FontCharacterInfo) * Font::characterCount;
+		u64 characterMemoryOffset 	= textureMemoryOffset + textureMemorySize;
+	
+
+		font = push_memory<Font>(*assets.allocator, 1, ALLOC_GARBAGE);
+
+
+		auto textureHandle = graphics_memory_push_texture(platformGraphics, &assetData);
+		font->atlasTexture = graphics_memory_push_material(platformGraphics, GraphicsPipeline_screen_gui, 1, &textureHandle);
+		platform_file_read(assets.file, characterMemoryOffset, characterMemorySize, font->characters);
+
+		log_application(0, "Font loaded from asset pack file");
+
+		#else
+
+		FontLoadResult loadResult;
+
+		if (id == FontAssetId_menu)
+		{
+			// *font = load_font("c:/windows/fonts/arial.ttf");
+			loadResult =  load_font("assets/fonts/TheStrangerBrush.ttf");
+		}
+		else if (id == FontAssetId_game)
+		{
+			loadResult =  load_font("assets/fonts/SourceCodePro-Regular.ttf");
+		}
+
+		font = push_memory<Font>(*assets.allocator, 1, ALLOC_GARBAGE);
+		*font = loadResult.font;
+
+	    auto atlasTexture   = graphics_memory_push_texture(platformGraphics, &loadResult.atlasTextureAsset);
+    	font->atlasTexture   = graphics_memory_push_material(platformGraphics, GraphicsPipeline_screen_gui, 1, &atlasTexture);
+
+		for(s32 i = 0; i < 128; ++i)
+		{
+			log_debug(FILE_ADDRESS, (char)i, ": ", font->characters[i].uvPosition, ", ", font->characters[i].uvSize);
+		}
+
+
+		#endif
+
+		assets.fonts[id] = font;
+
+	}
+
+	return font;
 }

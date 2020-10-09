@@ -14,11 +14,11 @@ enum GuiAlignment : s32
 
 struct GuiDrawCall
 {
-	s32 				count;	
-	ScreenRect * 		rects;
-	GuiTextureHandle	texture;
-	v4 					color;
-	GuiAlignment 		alignment;
+	s32 			count;	
+	ScreenRect * 	rects;
+	MaterialHandle	material;
+	v4 				color;
+	GuiAlignment 	alignment;
 };
 
 enum GuiColorFlags : s32
@@ -48,7 +48,7 @@ struct GuiClampValuesV2
 struct Gui
 {
 	// References
-	Font 			font;
+	Font *			font;
 	MaterialHandle 	fontMaterial;
 
 	// Settings
@@ -92,8 +92,8 @@ struct Gui
 	// s32 			lockedSliderIndex;
 
 
-	GuiTextureHandle	panelTexture;
-	bool32 				isPanelActive;
+	MaterialHandle	panelTexture;
+	bool32 			isPanelActive;
 
 	v4 				panelColor;
 	v2 				panelPosition;
@@ -129,7 +129,7 @@ struct Gui
 
 // Note(Leo): actual value does not matter, we only compare pointers, as long as it is unique
 char const * const GUI_NO_TITLE = "GUI_NO_TITLE";
-constexpr GuiTextureHandle GUI_NO_TEXTURE = {-1};
+// constexpr MaterialHandle GUI_NO_TEXTURE = {-1};
 
 // ............................................................................
 
@@ -151,7 +151,7 @@ internal void gui_end_panel();
 internal bool gui_button(char const * label);
 internal bool gui_toggle(char const * label, bool32 * value);
 internal void gui_text(char const * label);
-internal void gui_image(GuiTextureHandle texture, v2 size, v4 colour = colour_white);
+internal void gui_image(MaterialHandle texture, v2 size, v4 colour = colour_white);
 
 internal bool gui_float_slider(char const * label, f32 * value, f32 minValue, f32 maxValue);
 internal bool gui_float_field(char const * label, f32 * value, GuiClampValuesF32 clamp = {});
@@ -302,7 +302,6 @@ internal void gui_panel_add_text_draw_call(String const & text, v4 color, GuiAli
 	Assert(gui.panelDrawCallsCount < gui.panelDrawCallsCapacity);
 
 	f32 size 					= gui.textSize;
-	s32 firstCharacter 			= ' ';
 	s32 charactersPerDirection 	= 10;
 	f32 characterUvSize 		= 1.0f / charactersPerDirection;
 
@@ -318,35 +317,34 @@ internal void gui_panel_add_text_draw_call(String const & text, v4 color, GuiAli
 	{
 		Assert(rectCount < rectCapacity && "Too little room for such a long text");
 
-		if (text[i] == ' ')
-		{
-			xCursor 	+= size * gui.font.spaceWidth;
-			textWidth 			+= size * gui.font.spaceWidth;
-			continue;
-		}
+		u8 index = text[i] - Font::firstCharacter;
+		Assert(index > 0 && index < Font::characterCount && "Character must be more than null terminator and less than fonts range.");
 
-		s32 index = text[i] - firstCharacter;
-		v2 glyphStart 		= {xCursor + gui.font.leftSideBearings[index], gui.panelCursorY};
+		v2 glyphStart = {xCursor + gui.font->characters[index].leftSideBearing, gui.panelCursorY};
 
 		// Todo(Leo): also consider glyph's actual height
-		v2 glyphSize 		= {gui.font.characterWidths[index] * size, size};
+		v2 glyphSize = {gui.font->characters[index].characterWidth * size, size};
 
 		rects[rectCount] = 
 		{
 			.position 	= (glyphStart),
 			.size 		= (glyphSize),
-			.uvPosition = gui.font.uvPositionsAndSizes[index].xy,
-			.uvSize 	= gui.font.uvPositionsAndSizes[index].zw,
+			.uvPosition = gui.font->characters[index].uvPosition,
+			.uvSize 	= gui.font->characters[index].uvSize,
 		};
+
+		// rects[rectCount].uvPosition.y += rects[rectCount].uvSize.y;
+		// rects[rectCount].uvSize.y /= 2;
 
 		++rectCount;
 
-		xCursor 		+= size * gui.font.advanceWidths[index];
-		textWidth 		+= size * gui.font.advanceWidths[index];
+		f32 advance = size * gui.font->characters[index].advanceWidth;
+		xCursor 	+= advance;
+		textWidth 	+= advance;
 	}
 
 
-	gui.panelDrawCalls[gui.panelDrawCallsCount] 	= {rectCount, rects, gui.font.atlasTexture, color, alignment};
+	gui.panelDrawCalls[gui.panelDrawCallsCount] 	= {rectCount, rects, gui.font->atlasTexture, color, alignment};
 	gui.panelDrawCallsCount 						+= 1;
 
 	gui.panelSize.x 			= max_f32(gui.panelSize.x, textWidth + gui.padding);
@@ -473,7 +471,7 @@ internal void gui_end_panel()
 	for (s32 i = 0; i < gui.panelDrawCallsCount; ++i)
 	{
 		auto & call = gui.panelDrawCalls[i];
-		graphics_draw_screen_rects(platformGraphics, call.count, call.rects, call.texture, call.color);
+		graphics_draw_screen_rects(platformGraphics, call.count, call.rects, call.material, call.color);
 	}
 }
 
@@ -532,7 +530,7 @@ internal void gui_text(char const * text)
 	gui_panel_new_line();
 }
 
-internal void gui_image(GuiTextureHandle texture, v2 size, v4 colour)
+internal void gui_image(MaterialHandle material, v2 size, v4 colour)
 {	
 	Gui & gui = *global_currentGui;
 
@@ -545,12 +543,12 @@ internal void gui_image(GuiTextureHandle texture, v2 size, v4 colour)
 
 	ScreenRect rect = {position, size, {0, 0}, {1, 1}};
 
-	if (texture == GUI_NO_TEXTURE)
-	{
-		texture = gui.panelTexture;
-	}
+	// if (material == GUI_NO_TEXTURE)
+	// {
+	// 	material = gui.panelTexture;
+	// }
 
-	graphics_draw_screen_rects(platformGraphics, 1, &rect, texture, colour);
+	graphics_draw_screen_rects(platformGraphics, 1, &rect, material, colour);
 }
 
 internal bool gui_float_slider(char const * label, f32 * value, f32 minValue, f32 maxValue)
@@ -918,7 +916,7 @@ internal bool gui_colour_rgb(char const * label, v3 * color, GuiColorFlags flags
 	return modified;
 }
 
-internal void gui_background_image(GuiTextureHandle texture, s32 rows, v4 colour)
+internal void gui_background_image(MaterialHandle material, s32 rows, v4 colour)
 {	
 	Gui & gui = *global_currentGui;
 
@@ -932,7 +930,7 @@ internal void gui_background_image(GuiTextureHandle texture, s32 rows, v4 colour
 
 	ScreenRect rect = {position, size, {0, 0}, {1, 1}};
 
-	graphics_draw_screen_rects(platformGraphics, 1, &rect, texture, colour);
+	graphics_draw_screen_rects(platformGraphics, 1, &rect, material, colour);
 }
 
 internal void gui_line()

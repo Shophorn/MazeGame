@@ -155,12 +155,6 @@ struct VulkanTexture
 	u32 mipLevels;
 };
 
-struct VulkanGuiTexture
-{
-	VulkanTexture 	texture;
-	VkDescriptorSet descriptorSet;
-};
-
 struct VulkanMesh
 {
     VkBuffer        bufferReference;
@@ -366,10 +360,6 @@ struct PlatformGraphics
 	std::vector<VulkanMaterial>	loadedMaterials;
 	std::vector<VulkanModel>	loadedModels;
 
-	// Note(Leo): Guitextures are separeate becauses they are essentially texture AND material
-	// since they are used alone. We should maybe just use normal materials. I don't know yet.
-	std::vector<VulkanGuiTexture> 	loadedGuiTextures;
-
 
 	VulkanPipeline pipelines [GraphicsPipelineCount];
 
@@ -407,10 +397,10 @@ struct PlatformGraphics
 // containers, which is easier with helper function.
 // Todo(Leo): any case, think through these at some point
 
-internal VulkanGuiTexture & fsvulkan_get_loaded_gui_texture (VulkanContext & context, GuiTextureHandle id)
-{
-	return context.loadedGuiTextures[id];
-}
+// internal VulkanGuiTexture & fsvulkan_get_loaded_gui_texture (VulkanContext & context, GuiTextureHandle id)
+// {
+// 	return context.loadedGuiTextures[id];
+// }
 
 
 // TODo(Leo): inline in render function
