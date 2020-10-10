@@ -353,7 +353,7 @@ FS_ENTRY_POINT
 
 	/// ----- Cleanup Windows
 	{
-		// Note(Leo): Windows will mostly clean up after us once process exits :)
+		FS_DEVELOPMENT_ONLY(fswin32_game_unload_dll(&game));
 		log_application(0, "shut down");
 	}
 

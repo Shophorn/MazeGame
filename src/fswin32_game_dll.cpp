@@ -47,6 +47,8 @@ internal void fswin32_game_unload_dll(Win32Game * game)
 {
     FreeLibrary(game->dllHandle);
     game->dllHandle =  nullptr;
+
+    DeleteFileA(GAMECODE_DLL_FILE_NAME_TEMP);
 }
 
 internal void fswin32_game_reload(Win32Game & game)
