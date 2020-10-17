@@ -70,14 +70,6 @@ internal void draw_leaves(Leaves & leaves, f32 elapsedTime, v2 leafScale = {1,1}
 }
 
 
-struct Waters
-{
-	s32 			capacity;
-	s32 			count;
-	Transform3D * 	transforms;
-	f32	* 			levels;
-};
-
 // struct Module
 // {
 // 	char 	letter;

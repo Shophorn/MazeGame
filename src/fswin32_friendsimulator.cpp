@@ -110,7 +110,7 @@ FS_ENTRY_POINT
 	f64 networkNextSendTime     = 0;
 	
 	/// --------- INITIALIZE AUDIO ----------------
-	f32 audioBufferLengthSeconds(0.05);
+	f32 audioBufferLengthSeconds = 0.1;
 	WinApiAudio audio = fswin32_create_audio(audioBufferLengthSeconds);
 	fswin32_start_playing(&audio);                
 

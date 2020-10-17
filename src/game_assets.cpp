@@ -107,6 +107,7 @@ internal GameAssets init_game_assets(MemoryArena * allocator)
 	assets.materialLoadInfos[MaterialAssetId_raccoon] 			= {GraphicsPipeline_normal, TextureAssetId_raccoon_albedo, TextureAssetId_flat_normal, TextureAssetId_black};
 	assets.materialLoadInfos[MaterialAssetId_robot]				= {GraphicsPipeline_normal, TextureAssetId_robot_albedo, TextureAssetId_robot_normal, TextureAssetId_black};
 	assets.materialLoadInfos[MaterialAssetId_box]				= {GraphicsPipeline_normal, TextureAssetId_bark_albedo, TextureAssetId_bark_normal, TextureAssetId_black};
+	assets.materialLoadInfos[MaterialAssetId_clouds] 			= {GraphicsPipeline_normal, TextureAssetId_white, TextureAssetId_flat_normal, TextureAssetId_black};
 	assets.materialLoadInfos[MaterialAssetId_character] 		= {GraphicsPipeline_animated, TextureAssetId_red_tiles_albedo, TextureAssetId_tiles_normal, TextureAssetId_black};
 	assets.materialLoadInfos[MaterialAssetId_water] 			= {GraphicsPipeline_water, TextureAssetId_water_blue, TextureAssetId_flat_normal, TextureAssetId_black};
 	assets.materialLoadInfos[MaterialAssetId_sea] 				= {GraphicsPipeline_water, TextureAssetId_water_blue, TextureAssetId_flat_normal, TextureAssetId_black};

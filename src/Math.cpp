@@ -185,9 +185,14 @@ inline f32 arctan2(f32 y, f32 x)
     return result;
 }
 
-// Todo(Leo): remove, and just use radians :)
-constexpr inline f32 to_radians(f32 degrees)
+constexpr internal f32 to_radians(f32 degrees)
 {
     constexpr f32 conversion = π / 180.0f;
     return conversion * degrees;
+}
+
+constexpr internal f32 to_degrees(f32 radians)
+{
+    constexpr f32 conversion = 180.0f / π;
+    return conversion * radians;
 }

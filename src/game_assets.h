@@ -4,6 +4,34 @@ Leo Tamminen
 Enumeration definitions that are used both in game and asset cooking pipelines
 */
 
+
+// Todo(Leo): maybe do this :)
+// enum AssetId : s32
+// {
+// 	AssetId_cloud_mesh,
+
+// 	AssetId_character_mesh,
+// 	AssetId_raccoon_mesh,
+// 	AssetId_robot_mesh,
+// 	AssetId_skysphere_mesh,
+// 	AssetId_totem_mesh,
+// 	AssetId_small_pot_mesh,
+// 	AssetId_big_pot_mesh,
+// 	AssetId_seed_mesh,
+// 	AssetId_water_drop_mesh,
+// 	AssetId_train_mesh,
+
+// 	AssetId_monument_arcs_mesh,
+// 	AssetId_monument_base_mesh,
+// 	AssetId_monument_top_1_mesh,
+// 	AssetId_monument_top_2_mesh,
+
+// 	AssetId_box_mesh,
+// 	AssetId_box_cover_mesh,	
+
+// 	AssetIdCount
+// };
+
 enum MeshAssetId : s32
 {
 	MeshAssetId_character,
@@ -23,7 +51,9 @@ enum MeshAssetId : s32
 	MeshAssetId_monument_top_2,
 
 	MeshAssetId_box,
-	MeshAssetId_box_cover,	
+	MeshAssetId_box_cover,
+
+	MeshAssetId_cloud,
 
 	MeshAssetIdCount
 };
@@ -71,6 +101,7 @@ enum MaterialAssetId : s32
 	MaterialAssetId_sea,
 	MaterialAssetId_leaves,
 	MaterialAssetId_box,
+	MaterialAssetId_clouds,
 
 	MaterialAssetId_menu_background,
 

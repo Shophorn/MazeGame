@@ -13,7 +13,10 @@ Todo(leo): audio
 
 // Todo(Leo): Maybe try to get rid of this forward declaration
 struct Game;
-internal void game_spawn_tree(Game & game, v3 position, s32 treeTypeIndex);
+internal s32 game_spawn_tree(Game & game, v3 position, s32 treeTypeIndex, bool32 pushToPhysics = true);
+
+
+#include "map.cpp"
 
 #include "game_settings.cpp"
 
@@ -25,11 +28,6 @@ internal void game_spawn_tree(Game & game, v3 position, s32 treeTypeIndex);
 #include "scene3d_monuments.cpp"
 #include "scene3d_trees.cpp"
 
-#include "metaballs.cpp"
-#include "dynamic_mesh.cpp"
-#include "Trees3.cpp"
-#include "settings.cpp" // Todo(Leo): this is sky, name and reorganize properly
-
 enum CameraMode : s32
 { 
 	CameraMode_player, 
@@ -39,13 +37,19 @@ enum CameraMode : s32
 	CameraModeCount
 };
 
-enum GameObjectType : s32
+enum EntityType : s32
 { 	
-	GameObjectType_none,
-	GameObjectType_pot,
-	GameObjectType_water,
-	GameObjectType_raccoon,
-	GameObjectType_tree_3,
+	// Todo(Leo): none should be default value, but really it would be better to have it not
+	// contribute to count, basically be below 0 or above count
+	EntityType_none,
+	
+	EntityType_pot,
+	EntityType_water,
+	EntityType_raccoon,
+	EntityType_tree_3,
+	EntityType_box,
+
+	EntityTypeCount
 };
 
 enum TrainState : s32
@@ -69,12 +73,13 @@ enum RaccoonMode : s32
 	RaccoonMode_carried,
 };
 
-struct PhysicsObject
-{
-	GameObjectType 	type;
-	s32 			index;
-	f32 			velocity;
-};
+
+// Todo(Leo): Do array of these instead of enum.
+// struct MenuView
+// {
+// 	void (*view_func)(Menu & menu, void * data);
+// 	void * data;	
+// };
 
 enum MenuView : s32
 {
@@ -88,9 +93,47 @@ enum MenuView : s32
 	MenuView_save_complete,
 	MenuView_edit_monuments,
 	MenuView_edit_camera,
+	MenuView_edit_clouds,
 
 	MenuView_spawn,
 };
+
+
+struct PhysicsObject
+{
+	EntityType 	type;
+	s32 			index;
+	f32 			velocity;
+};
+
+
+struct PhysicsWorld
+{
+	Array2<PhysicsObject> objects;
+};
+
+internal void initialize_physics_world(PhysicsWorld & physicsWorld, MemoryArena & allocator)
+{
+	physicsWorld 			= {};
+	physicsWorld.objects 	= push_array_2<PhysicsObject>(allocator, 1000, ALLOC_GARBAGE);
+}
+
+internal void physics_world_push_entity(PhysicsWorld & physicsWorld, EntityType type, s32 index)
+{
+	Assert(physicsWorld.objects.count < physicsWorld.objects.capacity);
+	physicsWorld.objects[physicsWorld.objects.count++] = {type, index};
+}
+
+// Note(Leo): This maybe seems nice?
+#include "game_waters.cpp"
+#include "game_clouds.cpp"
+
+#include "metaballs.cpp"
+#include "dynamic_mesh.cpp"
+#include "Trees3.cpp"
+#include "settings.cpp" // Todo(Leo): this is sky, name and reorganize properly
+
+
 
 struct MenuState
 {
@@ -117,6 +160,7 @@ enum BoxState : s32
 	BoxState_open,
 	BoxState_closing,
 };
+
 
 struct Game
 {
@@ -201,10 +245,10 @@ struct Game
 
 	// ------------------------------------------------------
 
-	s32 playerCarryState;
-	s32 carriedItemIndex;
+	EntityType 	playerCarriedEntityType;
+	s32 		playerCarriedEntityIndex;
 
-	Array2<PhysicsObject> physicsObjects;
+	PhysicsWorld physicsWorld;
 
 	// ------------------------------------------------------
 
@@ -302,10 +346,16 @@ struct Game
 
 	s32 			inspectedTreeIndex;
 
-	Transform3D boxTransform;
-	Transform3D boxCoverLocalTransform;
-	BoxState 	boxState;
-	f32 		boxOpenPercent;
+	s32 			boxCount;
+	Transform3D * 	boxTransforms;
+	Transform3D * 	boxCoverLocalTransforms;
+	BoxState * 		boxStates;
+	f32 * 			boxOpenPercents;
+
+	EntityType * 	boxCarriedEntityTypes;
+	s32 * 			boxCarriedEntityIndices;
+
+	Clouds clouds;
 
 	// ----------------------------------------------
 	// AUDIO
@@ -318,6 +368,76 @@ struct Game
 	AudioClip 			backgroundAudioClip;
 	Array2<AudioClip> 	audioClipsOnPlay;
 };
+
+
+internal void simulate_physics_world(PhysicsWorld & physics, Game * game, f32 elapsedTime)
+{
+	for (s32 i = 0; i < physics.objects.count; ++i)
+	{
+		s32 index 		= physics.objects[i].index;
+		bool cancelFall = index == game->playerCarriedEntityIndex;
+
+		f32 & velocity = physics.objects[i].velocity;
+		v3 * position;
+
+		switch (physics.objects[i].type)
+		{
+			case EntityType_raccoon:	position = &game->raccoonTransforms[index].position; 	break;
+			case EntityType_water: 		position = &game->waters.transforms[index].position; 	break;
+			case EntityType_pot:		position = &game->potTransforms[index].position;		break;
+			case EntityType_tree_3: 	position = &game->trees[index].position; 				break;
+			case EntityType_box:		position = &game->boxTransforms[index].position;		break;
+
+			default:
+				Assert(false && "That item has not physics properties");
+		}
+	
+		f32 groundHeight = get_terrain_height(game->collisionSystem, position->xy);
+
+		if (cancelFall)
+		{
+			array_2_unordered_remove(physics.objects, i);
+			i -= 1;
+
+			continue;
+		}
+
+		// Todo(Leo): this is in reality dependent on frame rate, this works for development capped 30 ms frame time
+		// but is lower when frametime is lower
+		constexpr f32 physicsSleepThreshold = 0.2;
+
+		if (velocity < 0 && position->z < groundHeight)
+		{
+			position->z = groundHeight;
+
+			{
+				// log_debug(FILE_ADDRESS, velocity);
+				f32 maxVelocityForAudio = 10;
+				f32 velocityForAudio 	= clamp_f32(-velocity, 0, maxVelocityForAudio);
+				f32 volume 				= velocityForAudio / maxVelocityForAudio;
+
+				game->audioClipsOnPlay.push({game->stepSFX, 0, random_range(0.5, 1.5), volume, *position});
+			}
+
+
+			// todo (Leo): move to physics properties per game object type
+			f32 bounceFactor 	= 0.5;
+			velocity 			= -velocity * bounceFactor;
+
+			if (velocity < physicsSleepThreshold)
+			{
+				array_2_unordered_remove(physics.objects, i);
+				i -= 1;
+			}
+
+		}
+		else
+		{
+			velocity 		+= elapsedTime * physics_gravity_acceleration;
+			position->z 	+= elapsedTime * velocity;
+		}
+	}
+}
 
 
 internal auto game_get_serialized_objects(Game & game)
@@ -352,33 +472,22 @@ internal void game_spawn_water(Game & game, s32 count)
 		v3 position = { x + center.x, y + center.y, 0 };
 		position.z = get_terrain_height(game.collisionSystem, position.xy);
 
-		waters.transforms[waters.count].position = position;
-		waters.transforms[waters.count].rotation = identity_quaternion;
-		waters.transforms[waters.count].scale = {1,1,1};
-
-		waters.levels[waters.count] = game.fullWaterLevel;
-
-		waters.count += 1;
+		waters_instantiate(game.waters, game.physicsWorld, position, game.fullWaterLevel);
 	}
 }
 
-internal void push_physics_object(Array2<PhysicsObject> & array, GameObjectType type, s32 index)
-{
-	Assert(array.count < array.capacity);
-	array[array.count++] = {type, index};
-}
-
-internal void game_spawn_tree(Game & game, v3 position, s32 treeTypeIndex)
+internal s32 game_spawn_tree(Game & game, v3 position, s32 treeTypeIndex, bool32 pushToPhysics)
 {
 	// Assert(game.trees.count < game.trees.capacity);
 	if (game.trees.count >= game.trees.capacity)
 	{
 		// Todo(Leo): do something more interesting
 		log_debug(FILE_ADDRESS, "Trying to spawn tree, but out of tree capacity");
-		return;
+		return -1;
 	}
 
-	Tree3 & tree = game.trees[game.trees.count++];
+	s32 index = game.trees.count++;
+	Tree3 & tree = game.trees[index];
 
 	initialize_test_tree_3(*game.persistentMemory, tree, position, &game.treeSettings[treeTypeIndex]);
 
@@ -391,7 +500,12 @@ internal void game_spawn_tree(Game & game, v3 position, s32 treeTypeIndex)
 	tree.seedMesh 			= assets_get_mesh(game.assets, seedMesh);
 	tree.seedMaterial		= assets_get_material(game.assets, MaterialAssetId_seed);
 
-	push_physics_object(game.physicsObjects, GameObjectType_tree_3, game.trees.count -1);
+	if (pushToPhysics)
+	{
+		physics_world_push_entity(game.physicsWorld, EntityType_tree_3, game.trees.count -1);
+	}
+
+	return index;
 }
 
 internal void game_spawn_tree_on_player(Game & game)
@@ -593,74 +707,126 @@ internal bool32 game_update_game(Game * 					game,
 	/// *******************************************************************************************
 	
 
-	f32 grabDistance = 1.0f;
+	// Todo(leo): Should these be handled differently????
+	f32 playerPickupDistance 	= 1.0f;
+	f32 playerInteractDistance 	= 1.0f;
+
 	/// PICKUP OR DROP
 	if (playerInputAvailable && game->playerInputState.events.pickupOrDrop)
 	{
 		v3 playerPosition = game->playerCharacterTransform.position;
 
-		switch(game->playerCarryState)
+		switch(game->playerCarriedEntityType)
 		{
-			case GameObjectType_none: {
+			case EntityType_none:
+			{
+				bool pickup = true;
+
+				if (pickup)
+				{
+					for(s32 i  = 0; i < game->boxCount; ++i)
+					{
+						log_debug(FILE_ADDRESS, "Box carried item: ", game->boxCarriedEntityTypes[i], ", ", game->boxCarriedEntityIndices[i]);
+
+						f32 boxPickupDistance = 0.5f + playerPickupDistance;
+						if (v3_length(playerPosition - game->boxTransforms[i].position) < boxPickupDistance)
+						{
+							bool32 canPickInsides = game->boxCarriedEntityTypes[i] != EntityType_none
+													&& game->boxStates[i] == BoxState_open;
+
+							if (canPickInsides == false)
+							{
+								game->playerCarriedEntityType = EntityType_box;
+								game->playerCarriedEntityIndex = i;
+
+							}
+							else
+							{
+								game->playerCarriedEntityType = game->boxCarriedEntityTypes[i];
+								game->playerCarriedEntityIndex = game->boxCarriedEntityIndices[i];
+
+								game->boxCarriedEntityTypes[i] = EntityType_none;
+								game->boxCarriedEntityIndices[i] = -1;
+							}
+
+							pickup = false;
+						}
+					}
+				}
+
+				v3 playerPosition = game->playerCharacterTransform.position;
+
 				/* Todo(Leo): Do this properly, taking into account player facing direction and distances etc. */
-				auto check_pickup = [	playerPosition 		= game->playerCharacterTransform.position,
-										&playerCarryState 	= game->playerCarryState,
-										&carriedItemIndex 	= game->carriedItemIndex,
-										grabDistance]
-									(s32 count, Transform3D const * transforms, s32 carryState)
+				auto check_pickup = [&](s32 count, Transform3D const * transforms, EntityType entityType)
 				{
 					for (s32 i = 0; i < count; ++i)
 					{
-						if (v3_length(playerPosition - transforms[i].position) < grabDistance)
+						if (v3_length(playerPosition - transforms[i].position) < playerPickupDistance)
 						{
-							playerCarryState = carryState;
-							carriedItemIndex = i;
+							game->playerCarriedEntityType = entityType;
+							game->playerCarriedEntityIndex = i;
+
+							pickup = false;
 						}
 					}
 				};
 
-				check_pickup(game->potCount, game->potTransforms, GameObjectType_pot);
-				check_pickup(game->waters.count, game->waters.transforms, GameObjectType_water);
-				check_pickup(game->raccoonCount, game->raccoonTransforms, GameObjectType_raccoon);
 
+				if (pickup)
 				{
-					for (auto & tree : game->trees)
-					{
-						if (v3_length(playerPosition - tree.position) < grabDistance)
-						{
-							// f32 maxGrabbableLength 	= 1;
-							// f32 maxGrabbableRadius 	= maxGrabbableLength / tree.settings->maxHeightToWidthRatio;
-							// bool isGrabbable 		= tree.nodes[tree.branches[0].startNodeIndex].radius > maxGrabbableRadius;
+					check_pickup(game->potCount, game->potTransforms, EntityType_pot);
+				}
 
-							// if (isGrabbable)
+				if (pickup)
+				{
+					check_pickup(game->waters.count, game->waters.transforms, EntityType_water);
+				}
+
+				if (pickup)
+				{
+					check_pickup(game->raccoonCount, game->raccoonTransforms, EntityType_raccoon);
+				}
+
+				if (pickup)
+				{
+					for (s32 i = 0; i < game->trees.count; ++i)
+					{
+						Tree3 & tree = game->trees[i];
+
+						if (v3_length(playerPosition - game->trees[i].position) < playerPickupDistance)
+						{
+							// if (game->trees[i].planted == false)
 							{
-								game->playerCarryState = GameObjectType_tree_3;
-								game->carriedItemIndex = array_2_get_index_of(game->trees, tree);
+								game->playerCarriedEntityType = EntityType_tree_3;
+								game->playerCarriedEntityIndex = i;
 							}
+
+							pickup = false;
 						}
+
 					}
 				}
 			} break;
 
-			case GameObjectType_pot:
-				push_physics_object(game->physicsObjects, GameObjectType_pot, game->carriedItemIndex);
-				game->carriedItemIndex = -1;
-				game->playerCarryState = GameObjectType_none;
+			case EntityType_pot:
+				physics_world_push_entity(game->physicsWorld, EntityType_pot, game->playerCarriedEntityIndex);
+				game->playerCarriedEntityIndex = -1;
+				game->playerCarriedEntityType = EntityType_none;
 
 				break;
 	
-			case GameObjectType_water:
+			case EntityType_water:
 			{
-				Transform3D & waterTransform = game->waters.transforms[game->carriedItemIndex];
+				Transform3D & waterTransform = game->waters.transforms[game->playerCarriedEntityIndex];
 
-				push_physics_object(game->physicsObjects, GameObjectType_water, game->carriedItemIndex);
-				game->carriedItemIndex = -1;
-				game->playerCarryState = GameObjectType_none;
+				physics_world_push_entity(game->physicsWorld, EntityType_water, game->playerCarriedEntityIndex);
+				game->playerCarriedEntityIndex = -1;
+				game->playerCarriedEntityType = EntityType_none;
 
 				constexpr f32 waterSnapDistance 	= 0.5f;
 				constexpr f32 smallPotMaxWaterLevel = 1.0f;
 
-				f32 droppedWaterLevel = game->waters.levels[game->carriedItemIndex];
+				f32 droppedWaterLevel = game->waters.levels[game->playerCarriedEntityIndex];
 
 				for (s32 i = 0; i < game->potCount; ++i)
 				{
@@ -671,8 +837,8 @@ internal bool32 game_update_game(Game * 					game,
 						game->potWaterLevels[i] = min_f32(game->potWaterLevels[i] + droppedWaterLevel, smallPotMaxWaterLevel);
 
 						game->waters.count -= 1;
-						game->waters.transforms[game->carriedItemIndex] 	= game->waters.transforms[game->waters.count];
-						game->waters.levels[game->carriedItemIndex] 		= game->waters.levels[game->waters.count];
+						game->waters.transforms[game->playerCarriedEntityIndex] 	= game->waters.transforms[game->waters.count];
+						game->waters.levels[game->playerCarriedEntityIndex] 		= game->waters.levels[game->waters.count];
 
 						break;	
 					}
@@ -681,98 +847,152 @@ internal bool32 game_update_game(Game * 					game,
 
 			} break;
 
-			case GameObjectType_raccoon:
+			case EntityType_raccoon:
 			{
-				game->raccoonTransforms[game->carriedItemIndex].rotation = identity_quaternion;
-				push_physics_object(game->physicsObjects, GameObjectType_raccoon, game->carriedItemIndex);
-				game->carriedItemIndex = -1;
-				game->playerCarryState = GameObjectType_none;
+				game->raccoonTransforms[game->playerCarriedEntityIndex].rotation = identity_quaternion;
+				physics_world_push_entity(game->physicsWorld, EntityType_raccoon, game->playerCarriedEntityIndex);
+				game->playerCarriedEntityIndex = -1;
+				game->playerCarriedEntityType = EntityType_none;
 
 			} break;
 
-			case GameObjectType_tree_3:
+			case EntityType_tree_3:
 			{	
-				push_physics_object(game->physicsObjects, GameObjectType_tree_3, game->carriedItemIndex);
-				game->carriedItemIndex = -1;
-				game->playerCarryState = GameObjectType_none;
+				physics_world_push_entity(game->physicsWorld, EntityType_tree_3, game->playerCarriedEntityIndex);
+				game->playerCarriedEntityIndex = -1;
+				game->playerCarriedEntityType = EntityType_none;
 			} break;
-		}
-	} // endif input
 
-	if (playerInputAvailable && game->playerInputState.events.interact)
+			case EntityType_box:
+			{
+				physics_world_push_entity(game->physicsWorld, EntityType_box, game->playerCarriedEntityIndex);
+				game->playerCarriedEntityIndex = -1;
+				game->playerCarriedEntityType = EntityType_none;
+			} break;
+
+			default:
+				log_debug(FILE_ADDRESS, "cannot pickup or drop that entity: (", game->playerCarriedEntityType, ", #", game->playerCarriedEntityIndex, ")");
+		}
+	}
+
+	f32 boxInteractDistance = 0.5f + playerInteractDistance;
+
+	if (game->playerInputState.events.interact)
 	{
-		if (game->playerCarryState == GameObjectType_none)
+		bool32 interact = game->playerInputState.events.interact;
+
+		// TRY PUT STUFF INTO BOX	
+		bool playerCarriesContainableEntity = 	game->playerCarriedEntityType != EntityType_none
+												&& game->playerCarriedEntityType != EntityType_box;
+
+		if (interact && playerCarriesContainableEntity)
 		{
-			if(game->boxState == BoxState_closed)
+			for (s32 i = 0; i < game->boxCount; ++i)
 			{
-				v3 openPosition = multiply_point(transform_matrix(game->boxTransform), v3{0, 0.6, 0});
-
-				f32 distanceToBox = v3_length(game->boxTransform.position - game->playerCharacterTransform.position);
-				if (distanceToBox < grabDistance)
+				f32 distanceToBox = v3_length(game->boxTransforms[i].position - game->playerCharacterTransform.position);
+				if (distanceToBox < boxInteractDistance && game->boxCarriedEntityTypes[i] == EntityType_none)
 				{
-					game->playerCarryState = GameObjectType_none;
-				}
+					game->boxCarriedEntityIndices[i] = game->playerCarriedEntityIndex;
+					game->boxCarriedEntityTypes[i] = game->playerCarriedEntityType;
 
-				f32 distanceToOpenPosition = v3_length(openPosition - game->playerCharacterTransform.position);
-				if (distanceToOpenPosition < grabDistance)
-				{
-					game->boxState 			= BoxState_opening;
-					game->boxOpenPercent 	= 0;
-				}
+					game->playerCarriedEntityIndex = -1;
+					game->playerCarriedEntityType = EntityType_none;
+
+					interact = false;
+				}				
 			}
-			else if (game->boxState == BoxState_open)
+		}
+		
+		// TRY OPEN OR CLOSE NEARBY BOX
+		bool32 playerCarriesNothing = game->playerCarriedEntityType == EntityType_none;
+
+		if (interact && playerCarriesNothing)
+		{
+			for (s32 i = 0; i < game->boxCount; ++i)
 			{
-				v3 closePosition = multiply_point(transform_matrix(game->boxTransform), v3{0,-0.6,0});
-				f32 distanceToClosePosition = v3_length(closePosition - game->playerCharacterTransform.position);
-				if (distanceToClosePosition < grabDistance)
+				f32 distanceToBox = v3_length(game->boxTransforms[i].position - game->playerCharacterTransform.position);
+				if (distanceToBox < boxInteractDistance)
 				{
-					game->boxState 			= BoxState_closing;
-					game->boxOpenPercent 	= 0;
+					if (game->boxStates[i] == BoxState_closed)
+					{
+						game->boxStates[i] 			= BoxState_opening;
+						game->boxOpenPercents[i] 	= 0;
+
+						interact = false;
+					}
+
+					else if (game->boxStates[i] == BoxState_open)
+					{
+						game->boxStates[i] 			= BoxState_closing;
+						game->boxOpenPercents[i] 	= 0;
+
+						interact = false;
+					}
 				}
 			}
 		}
 
-		else if (game->playerCarryState == GameObjectType_tree_3)
-		{
-			game->trees[game->carriedItemIndex].planted = true;
-			push_physics_object(game->physicsObjects, GameObjectType_tree_3, game->carriedItemIndex);
-			game->carriedItemIndex = -1;
-			game->playerCarryState = GameObjectType_none;			
+		// PLANT THE CARRIED TREE
+		bool32 playerCarriesTree = game->playerCarriedEntityType == EntityType_tree_3;
 
+		if (interact && playerCarriesTree)
+		{
+			game->trees[game->playerCarriedEntityIndex].planted = true;
+			v3 position = game->trees[game->playerCarriedEntityIndex].position;
+			position.z = get_terrain_height(game->collisionSystem, position.xy);
+			game->trees[game->playerCarriedEntityIndex].position = position;
+			game->playerCarriedEntityIndex = -1;
+			game->playerCarriedEntityType = EntityType_none;			
+
+			interact = false;
 		}
 
 	}
 
 
+	for(s32 i = 0; i < game->boxCount; ++i)
+	{
+		v4 colour = game->boxCarriedEntityTypes[i] == EntityType_none ? colour_bright_red : colour_bright_green;
+		FS_DEBUG_NPC(debug_draw_circle_xy(game->boxTransforms[i].position + v3{0,0,0.6}, 1, colour));
+		FS_DEBUG_NPC(debug_draw_circle_xy(game->boxTransforms[i].position + v3{0,0,0.6}, 1.5, colour_bright_cyan));
+	}
+
 	v3 carriedPosition 			= multiply_point(transform_matrix(game->playerCharacterTransform), {0, 0.7, 0.7});
 	quaternion carriedRotation 	= game->playerCharacterTransform.rotation;
-	switch(game->playerCarryState)
+	switch(game->playerCarriedEntityType)
 	{
-		case GameObjectType_pot:
-			game->potTransforms[game->carriedItemIndex].position = carriedPosition;
-			game->potTransforms[game->carriedItemIndex].rotation = carriedRotation;
+		case EntityType_pot:
+			game->potTransforms[game->playerCarriedEntityIndex].position = carriedPosition;
+			game->potTransforms[game->playerCarriedEntityIndex].rotation = carriedRotation;
 			break;
 
-		case GameObjectType_water:
-			game->waters.transforms[game->carriedItemIndex].position = carriedPosition;
-			game->waters.transforms[game->carriedItemIndex].rotation = carriedRotation;
+		case EntityType_box:
+			game->boxTransforms[game->playerCarriedEntityIndex].position = carriedPosition;
+			game->boxTransforms[game->playerCarriedEntityIndex].rotation = carriedRotation;
 			break;
 
-		case GameObjectType_raccoon:
+
+		case EntityType_water:
+			game->waters.transforms[game->playerCarriedEntityIndex].position = carriedPosition;
+			game->waters.transforms[game->playerCarriedEntityIndex].rotation = carriedRotation;
+			break;
+
+		case EntityType_raccoon:
 		{
-			game->raccoonTransforms[game->carriedItemIndex].position 	= carriedPosition + v3{0,0,0.2};
+			game->raccoonTransforms[game->playerCarriedEntityIndex].position 	= carriedPosition + v3{0,0,0.2};
 
 			v3 right = rotate_v3(carriedRotation, v3_right);
-			game->raccoonTransforms[game->carriedItemIndex].rotation 	= carriedRotation * quaternion_axis_angle(right, 1.4f);
+			game->raccoonTransforms[game->playerCarriedEntityIndex].rotation 	= carriedRotation * quaternion_axis_angle(right, 1.4f);
 
 
 		} break;
 
-		case GameObjectType_tree_3:
-			game->trees[game->carriedItemIndex].position = carriedPosition;
+		case EntityType_tree_3:
+			game->trees[game->playerCarriedEntityIndex].position = carriedPosition;
+			game->trees[game->playerCarriedEntityIndex].rotation = carriedRotation;
 			break;
 
-		case GameObjectType_none:
+		case EntityType_none:
 			break;
 
 
@@ -781,109 +1001,93 @@ internal bool32 game_update_game(Game * 					game,
 			break;
 	}
 
+	for(s32 i = 0; i < game->boxCount; ++i)
+	{
+		v3 carriedPosition 			= multiply_point(transform_matrix(game->boxTransforms[i]), {0, 0, 0.1});
+		quaternion carriedRotation 	= game->boxTransforms[i].rotation;
+		switch(game->boxCarriedEntityTypes[i])
+		{
+			case EntityType_pot:
+				game->potTransforms[game->boxCarriedEntityIndices[i]].position = carriedPosition;
+				game->potTransforms[game->boxCarriedEntityIndices[i]].rotation = carriedRotation;
+				break;
+
+			case EntityType_box:
+				game->boxTransforms[game->boxCarriedEntityIndices[i]].position = carriedPosition;
+				game->boxTransforms[game->boxCarriedEntityIndices[i]].rotation = carriedRotation;
+				break;
+
+
+			case EntityType_water:
+				game->waters.transforms[game->boxCarriedEntityIndices[i]].position = carriedPosition;
+				game->waters.transforms[game->boxCarriedEntityIndices[i]].rotation = carriedRotation;
+				break;
+
+			case EntityType_raccoon:
+			{
+				game->raccoonTransforms[game->boxCarriedEntityIndices[i]].position 	= carriedPosition + v3{0,0,0.2};
+
+				v3 right = rotate_v3(carriedRotation, v3_right);
+				game->raccoonTransforms[game->boxCarriedEntityIndices[i]].rotation 	= carriedRotation * quaternion_axis_angle(right, 1.4f);
+
+
+			} break;
+
+			case EntityType_tree_3:
+				game->trees[game->boxCarriedEntityIndices[i]].position = carriedPosition;
+				break;
+
+			case EntityType_none:
+				break;
+
+
+			default:
+				Assert(false && "That cannot be carried!");
+				break;
+		}
+	}
+
+
 	/// UPDATE TREES IN POTS POSITIONS
 	// Todo(Leo):... trees and pots do not currently work together, they should though
 
 	// BOX
+	for (s32 i = 0; i < game->boxCount; ++i)
 	{
 		constexpr f32 openAngle 	= 5.0f/8.0f * π;
 		constexpr f32 openingTime 	= 0.7f;
 
-		if (game->boxState == BoxState_opening)
+		if (game->boxStates[i] == BoxState_opening)
 		{
-			game->boxOpenPercent += scaledTime / openingTime;
+			game->boxOpenPercents[i] += scaledTime / openingTime;
 
-			if (game->boxOpenPercent > 1.0f)
+			if (game->boxOpenPercents[i] > 1.0f)
 			{
-				game->boxState 			= BoxState_open;
-				game->boxOpenPercent 	= 1.0f;
+				game->boxStates[i] 			= BoxState_open;
+				game->boxOpenPercents[i] 	= 1.0f;
 			}
 
-			f32 angle = openAngle * game->boxOpenPercent;
-			game->boxCoverLocalTransform.rotation = quaternion_axis_angle(v3_right, angle);
+			f32 angle = openAngle * game->boxOpenPercents[i];
+			game->boxCoverLocalTransforms[i].rotation = quaternion_axis_angle(v3_right, angle);
 		}
-		else if (game->boxState == BoxState_closing)
+		else if (game->boxStates[i] == BoxState_closing)
 		{
-			game->boxOpenPercent += scaledTime / openingTime;
+			game->boxOpenPercents[i] += scaledTime / openingTime;
 
-			if (game->boxOpenPercent > 1.0f)
+			if (game->boxOpenPercents[i] > 1.0f)
 			{
-				game->boxState 			= BoxState_closed;
-				game->boxOpenPercent 	= 1.0f;
+				game->boxStates[i] 			= BoxState_closed;
+				game->boxOpenPercents[i] 	= 1.0f;
 			}
 
-			f32 angle = openAngle * (1 - game->boxOpenPercent);
-			game->boxCoverLocalTransform.rotation = quaternion_axis_angle(v3_right, angle);
-		}
-	}
-
-	// UPDATE physics objects
-	{
-		for (s32 i = 0; i < game->physicsObjects.count; ++i)
-		{
-			s32 index 		= game->physicsObjects[i].index;
-			bool cancelFall = index == game->carriedItemIndex;
-
-			f32 & velocity = game->physicsObjects[i].velocity;
-			v3 * position;
-
-			switch (game->physicsObjects[i].type)
-			{
-				case GameObjectType_raccoon:	position = &game->raccoonTransforms[index].position; 	break;
-				case GameObjectType_water: 		position = &game->waters.transforms[index].position; 	break;
-				case GameObjectType_pot:		position = &game->potTransforms[index].position;		break;
-				case GameObjectType_tree_3: 	position = &game->trees[index].position; 				break;
-
-				default:
-					Assert(false && "That item has not physics properties");
-			}
-		
-			f32 groundHeight = get_terrain_height(game->collisionSystem, position->xy);
-
-			if (cancelFall)
-			{
-				array_2_unordered_remove(game->physicsObjects, i);
-				i -= 1;
-
-				continue;
-			}
-
-			// Todo(Leo): this is in reality dependent on frame rate, this works for development capped 30 ms frame time
-			// but is lower when frametime is lower
-			constexpr f32 physicsSleepThreshold = 0.2;
-
-			if (velocity < 0 && position->z < groundHeight)
-			{
-				position->z = groundHeight;
-
-				{
-					// log_debug(FILE_ADDRESS, velocity);
-					f32 maxVelocityForAudio = 10;
-					f32 velocityForAudio 	= clamp_f32(-velocity, 0, maxVelocityForAudio);
-					f32 volume 				= velocityForAudio / maxVelocityForAudio;
-
-					game->audioClipsOnPlay.push({game->stepSFX, 0, random_range(0.5, 1.5), volume, *position});
-				}
-
-
-				// todo (Leo): move to physics properties per game object type
-				f32 bounceFactor 	= 0.5;
-				velocity 			= -velocity * bounceFactor;
-
-				if (velocity < physicsSleepThreshold)
-				{
-					array_2_unordered_remove(game->physicsObjects, i);
-					i -= 1;
-				}
-
-			}
-			else
-			{
-				velocity 		+= scaledTime * physics_gravity_acceleration;
-				position->z 	+= scaledTime * velocity;
-			}
+			f32 angle = openAngle * (1 - game->boxOpenPercents[i]);
+			game->boxCoverLocalTransforms[i].rotation = quaternion_axis_angle(v3_right, angle);
 		}
 	}
+
+	simulate_clouds(game->clouds, game->waters, game->physicsWorld, scaledTime);
+	simulate_physics_world(game->physicsWorld, game, scaledTime);
+
 	
 	// -----------------------------------------------------------------------------------------------------------
 	/// TRAIN
@@ -1000,6 +1204,23 @@ internal bool32 game_update_game(Game * 					game,
 	// -----------------------------------------------------------------------------------------------------------
 	/// Update RACCOONS
 	{
+		// Note(Leo): +1 for player
+		Array2<s32> carriedRaccoonIndices = push_array_2<s32>(*global_transientMemory, game->boxCount + 1, ALLOC_GARBAGE);
+		{
+			if(game->playerCarriedEntityType == EntityType_raccoon)
+			{
+				carriedRaccoonIndices.push(game->playerCarriedEntityIndex);
+			}
+			
+			for (s32 i = 0; i < game->boxCount; ++i)
+			{
+				if (game->boxCarriedEntityTypes[i] == EntityType_raccoon)
+				{
+					carriedRaccoonIndices.push(game->boxCarriedEntityIndices[i]);
+				}
+			}
+		}
+
 
 		for(s32 i = 0; i < game->raccoonCount; ++i)
 		{
@@ -1026,7 +1247,17 @@ internal bool32 game_update_game(Game * 					game,
 
 			raccoonCharacterMotorInput = {input, false, false};
 
-			bool isCarried = (game->playerCarryState == GameObjectType_raccoon) && (game->carriedItemIndex == i);
+
+			bool isCarried = false;
+			for (s32 carriedRaccoonIndex : carriedRaccoonIndices)
+			{
+				if (carriedRaccoonIndex == i)
+				{
+					isCarried = true;
+					break;
+				}
+			}
+
 
 			if (isCarried == false)
 			{
@@ -1047,6 +1278,8 @@ internal bool32 game_update_game(Game * 					game,
 
 
 	/// SUBMIT COLLIDERS
+	// Note(Leo): These colliders are used mainly in next game loop, since we update them here after everything has moved
+	// Make a proper decision whether or not this is something we need
 	{
 		clear_colliders(game->collisionSystem);
 		monuments_submit_colliders(game->monuments, game->collisionSystem);
@@ -1085,12 +1318,13 @@ internal bool32 game_update_game(Game * 					game,
 
 			submit_cylinder_collider(game->collisionSystem, collider, {tree.position, identity_quaternion, {1,1,1}});
 		}
-	}
 
+		submit_box_collider(game->collisionSystem, {{0.5,0.5,0.5}, identity_quaternion, {0,0,0.5}}, game->boxTransforms[0]);
+		submit_box_collider(game->collisionSystem, {{0.5,0.5,0.5}, identity_quaternion, {0,0,0.5}}, game->boxTransforms[1]);
+	}
 
 	update_skeleton_animator(game->playerSkeletonAnimator, scaledTime);
 	update_skeleton_animator(game->noblePersonSkeletonAnimator, scaledTime);
-	
 	
 	/// DRAW POTS
 	{
@@ -1130,11 +1364,17 @@ internal bool32 game_update_game(Game * 					game,
 		MeshHandle boxCoverMesh = assets_get_mesh(game->assets, MeshAssetId_box_cover);
 		MaterialHandle material = assets_get_material(game->assets, MaterialAssetId_box);
 
-		m44 boxTransformMatrix = transform_matrix(game->boxTransform);
-		m44 coverTransformMatrix = boxTransformMatrix * transform_matrix(game->boxCoverLocalTransform);
+		m44 * boxTransformMatrices = push_memory<m44>(*global_transientMemory, game->boxCount, ALLOC_GARBAGE);
+		m44 * coverTransformMatrices = push_memory<m44>(*global_transientMemory, game->boxCount, ALLOC_GARBAGE);
 
-		graphics_draw_meshes(platformGraphics, 1, &boxTransformMatrix, boxMesh, material);
-		graphics_draw_meshes(platformGraphics, 1, &coverTransformMatrix, boxCoverMesh, material);
+		for (s32 i = 0; i < game->boxCount; ++i)
+		{
+			boxTransformMatrices[i] = transform_matrix(game->boxTransforms[i]);
+			coverTransformMatrices[i] = boxTransformMatrices[i] * transform_matrix(game->boxCoverLocalTransforms[i]);
+		}
+
+		graphics_draw_meshes(platformGraphics, game->boxCount, boxTransformMatrices, boxMesh, material);
+		graphics_draw_meshes(platformGraphics, game->boxCount, coverTransformMatrices, boxCoverMesh, material);
 	}
 
 	/// DEBUG DRAW COLLIDERS
@@ -1293,28 +1533,19 @@ internal bool32 game_update_game(Game * 					game,
 
 
 	/// DRAW UNUSED WATER
-	if (game->waters.count > 0)
-	{
-		m44 * waterTransforms = push_memory<m44>(*global_transientMemory, game->waters.count, ALLOC_GARBAGE);
-		for (s32 i = 0; i < game->waters.count; ++i)
-		{
-			waterTransforms[i] = transform_matrix(	game->waters.transforms[i].position,
-													game->waters.transforms[i].rotation,
-													make_uniform_v3(game->waters.levels[i] / game->fullWaterLevel));
-		}
-		graphics_draw_meshes(platformGraphics, game->waters.count, waterTransforms, game->waterMesh, game->waterMaterial);
-	}
+	draw_clouds(game->clouds, platformGraphics, game->assets);
+	draw_waters(game->waters, platformGraphics, game->assets);
 
 	for (auto & tree : game->trees)
 	{
-		GetWaterFunc get_water = {game->waters, game->carriedItemIndex, game->playerCarryState == GameObjectType_water };
+		GetWaterFunc get_water = {game->waters, game->playerCarriedEntityIndex, game->playerCarriedEntityType == EntityType_water };
 		update_tree_3(tree, scaledTime, get_water);
 		
 		tree.leaves.position = tree.position;
-		tree.leaves.rotation = identity_quaternion;
+		tree.leaves.rotation = tree.rotation;
 
 
-		m44 transform = translation_matrix(tree.position);
+		m44 transform = transform_matrix(tree.position, tree.rotation, {1,1,1});
 		// Todo(Leo): make some kind of SLOPPY_ASSERT macro thing
 		if (tree.mesh.vertices.count > 0 || tree.mesh.indices.count > 0)
 		{
@@ -1336,7 +1567,7 @@ internal bool32 game_update_game(Game * 					game,
 
 		if (tree.hasFruit)
 		{
-			v3 fruitPosition = tree.position + tree.fruitPosition;
+			v3 fruitPosition = multiply_point(transform, tree.fruitPosition);
 
 			f32 fruitSize = tree.fruitAge / tree.fruitMaturationTime;
 			v3 fruitScale = {fruitSize, fruitSize, fruitSize};
@@ -1470,7 +1701,7 @@ internal Game * game_load_game(MemoryArena & persistentMemory, PlatformFileHandl
 	game->menuStateIndex 		= 0;
 	game->menuStates[0].view 	= MenuView_off;
 
-	game->physicsObjects 	= push_array_2<PhysicsObject>(persistentMemory, 100, ALLOC_ZERO_MEMORY);
+	initialize_physics_world(game->physicsWorld, persistentMemory);
 
 	log_application(1, "Allocations succesful! :)");
 
@@ -1483,7 +1714,7 @@ internal Game * game_load_game(MemoryArena & persistentMemory, PlatformFileHandl
 
 	// Characters
 	{
-		game->playerCarryState 			= GameObjectType_none;
+		game->playerCarriedEntityType 			= EntityType_none;
 		game->playerCharacterTransform 	= {.position = {10, 0, 5}};
 
 		auto & motor 	= game->playerCharacterMotor;
@@ -1788,26 +2019,7 @@ internal Game * game_load_game(MemoryArena & persistentMemory, PlatformFileHandl
 			// ----------------------------------------------------------------	
 
 			/// WATERS
-			{
-				game->waterMesh 		= assets_get_mesh(game->assets, MeshAssetId_water_drop);
-				game->waterMaterial 	= assets_get_material(game->assets, MaterialAssetId_water);
-
-				{				
-					game->waters.capacity 		= 200;
-					game->waters.count 		= 20;
-					game->waters.transforms 	= push_memory<Transform3D>(persistentMemory, game->waters.capacity, ALLOC_GARBAGE);
-					game->waters.levels 		= push_memory<f32>(persistentMemory, game->waters.capacity, ALLOC_GARBAGE);
-
-					for (s32 i = 0; i < game->waters.count; ++i)
-					{
-						v3 position = {random_range(-50, 50), random_range(-50, 50)};
-						position.z 	= get_terrain_height(game->collisionSystem, position.xy);
-
-						game->waters.transforms[i] 	= { .position = position };
-						game->waters.levels[i] 		= game->fullWaterLevel;
-					}
-				}
-			}
+			initialize_waters(game->waters, persistentMemory);
 
 
 		}
@@ -1942,17 +2154,35 @@ internal Game * game_load_game(MemoryArena & persistentMemory, PlatformFileHandl
 	}
 
 	{
-		v3 boxPosition 		= {20, 2, get_terrain_height(game->collisionSystem, {20, 2})};
-		game->boxTransform 	= {boxPosition};
+		v3 boxPosition0 		= {20, 2, get_terrain_height(game->collisionSystem, {20, 2})};
+		v3 boxPosition1 		= {30, 5, get_terrain_height(game->collisionSystem, {30, 5})};
+		v3 coverPositionOffset 	= {0, -0.5, 0.85};
 
-		v3 boxPositionOffset 			= {0, -0.5, 0.85};
-		game->boxCoverLocalTransform 	= {boxPositionOffset};
+		game->boxCount = 2;
+		game->boxTransforms 			= push_memory<Transform3D>(persistentMemory, game->boxCount, ALLOC_GARBAGE);
+		game->boxCoverLocalTransforms 	= push_memory<Transform3D>(persistentMemory, game->boxCount, ALLOC_GARBAGE);
+		game->boxStates 				= push_memory<BoxState>(persistentMemory, game->boxCount, ALLOC_ZERO_MEMORY);
+		game->boxOpenPercents			= push_memory<f32>(persistentMemory, game->boxCount, ALLOC_GARBAGE);
+
+		game->boxCarriedEntityIndices 	= push_memory<s32>(persistentMemory, game->boxCount, ALLOC_GARBAGE);
+		game->boxCarriedEntityTypes 	= push_memory<EntityType>(persistentMemory, game->boxCount, ALLOC_ZERO_MEMORY);
+
+		game->boxTransforms[0] = {boxPosition0};
+		game->boxTransforms[1] = {boxPosition1};
+
+		game->boxCoverLocalTransforms[0] = {coverPositionOffset};
+		game->boxCoverLocalTransforms[1] = {coverPositionOffset};
 	
-		push_static_box_collider(game->collisionSystem, {{0.5,0.5,0.5}, identity_quaternion, {0,0,0.5}}, game->boxTransform);
+		s32 treeIndex = game_spawn_tree(*game, boxPosition0 + v3{0,0,0.1}, 0, false);
 
-		game_spawn_tree(*game, boxPosition + v3{0,0,0.1}, 0);
+		game->boxCarriedEntityTypes[0] 		= EntityType_tree_3;
+		game->boxCarriedEntityIndices[0] 	= treeIndex;
 	}
 
+
+	// ----------------------------------------------------------------------------------
+
+	initialize_clouds(game->clouds, persistentMemory);
 
 	// ----------------------------------------------------------------------------------
 

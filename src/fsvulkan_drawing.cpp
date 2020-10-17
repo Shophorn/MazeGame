@@ -597,9 +597,21 @@ internal void graphics_draw_meshes(VulkanContext * context, s32 count, m44 const
 	VulkanVirtualFrame * frame = fsvulkan_get_current_virtual_frame(context);
 
 	// Todo(Leo): We should instead allocate these from transient memory, but we currently can't access to it from platform layer.
-	Assert(count <= 1000);
-	u32 uniformBufferOffsets [1000];
+	// Assert(count <= 2000);
 	
+	if (count > 1000)
+	{
+		while(count > 1000)
+		{
+			graphics_draw_meshes(context, 1000, transforms, meshHandle, materialHandle);
+
+			count 		-= 1000;
+			transforms 	+= 1000;
+		}
+	}
+	u32 uniformBufferOffsets [1000];
+
+
 	/* Note(Leo): This function does not consider animated skeletons, so we skip those.
 	We assume that shaders use first entry in uniform buffer as transfrom matrix, so it
 	is okay to ignore rest that are unnecessary and just set uniformbuffer offsets properly. */

@@ -5,19 +5,16 @@ shophorn @ internet
 3rd person character controller, nothhng less, nothing more
 =============================================================================*/
 
-struct PlayerInputEvents
-{
-	bool32 pickupOrDrop	= false;
-	bool32 interact		= false;
-};
-
-
 struct PlayerInputState
 {
 	bool32 	crouching;
 	// s32 	inputArrayIndex;
 
-	PlayerInputEvents events;
+	struct
+	{
+		bool32 pickupOrDrop	= false;
+		bool32 interact		= false;
+	} events;
 };
 
 

@@ -45,11 +45,12 @@ constexpr v4 colour_black 			= {0,0,0,1};
 constexpr v4 colour_aqua_blue 		= colour_v4_from_rgb_255(51, 255, 255);
 constexpr v4 colour_raw_umber 		= colour_v4_from_rgb_255(130, 102, 68);
 
-constexpr v4 colour_bright_red 		= {1.0, 0.0, 0.0, 1.0};
-constexpr v4 colour_bright_blue 	= {0.0, 0.0, 1.0, 1.0};
-constexpr v4 colour_bright_green 	= {0.0, 1.0, 0.0, 1.0};
-constexpr v4 colour_bright_yellow 	= {1.0, 1.0, 0.0, 1.0};
+constexpr v4 colour_bright_red 		= {1, 0, 0, 1};
+constexpr v4 colour_bright_blue 	= {0, 0, 1, 1};
+constexpr v4 colour_bright_green 	= {0, 1, 0, 1};
+constexpr v4 colour_bright_yellow 	= {1, 1, 0, 1};
 constexpr v4 colour_bright_purple 	= {1, 0, 1, 1};
+constexpr v4 colour_bright_cyan 	= {0, 1, 1, 1};
 
 constexpr v4 colour_dark_green 		= {0, 0.6, 0, 1};
 constexpr v4 colour_dark_red 		= {0.6, 0, 0, 1};

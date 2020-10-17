@@ -201,6 +201,11 @@ bool32 do_gui(Game * game, PlatformInput * input)
 				// gui_reset_selection();
 			}
 
+			if (gui_button("Edit Clouds"))
+			{
+				game_gui_push_menu(game, MenuView_edit_clouds);
+			}
+
 			if (gui_button("Read Settings"))
 			{
 				read_settings_file(game_get_serialized_objects(*game));
@@ -430,6 +435,16 @@ bool32 do_gui(Game * game, PlatformInput * input)
 
 		} break;
 
+		case MenuView_edit_clouds:
+		{
+			gui_position(corner_position);
+			clouds_menu(game->clouds);
+			if (event_escape)
+			{
+				game_gui_pop_menu(game);
+			};
+		} break;
+
 		case MenuView_edit_camera:
 		{
 			gui_position(corner_position);
@@ -443,7 +458,7 @@ bool32 do_gui(Game * game, PlatformInput * input)
 			gui_line();
 			if (gui_button("Back") || event_escape)
 			{
-				game_gui_push_menu(game, MenuView_main);
+				game_gui_pop_menu(game);
 			}
 			gui_end_panel();
 		};

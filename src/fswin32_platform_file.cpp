@@ -92,20 +92,3 @@ s64 platform_file_get_size(PlatformFileHandle file)
 
 	return fileSize.QuadPart;
 }
-
-// ----------- These do not belong to platform api ------------
-
-internal FILETIME fswin32_file_get_write_time(const char * fileName)
-{
-    // Todo(Leo): Make this function sensible
-    WIN32_FILE_ATTRIBUTE_DATA fileInfo = {};
-    if (GetFileAttributesExA(fileName, GetFileExInfoStandard, &fileInfo))
-    {
-    }
-    else
-    {
-        // Todo(Leo): Now what??? Getting file time failed --> file does not exist??
-    }    
-    FILETIME result = fileInfo.ftLastWriteTime;
-    return result;
-}

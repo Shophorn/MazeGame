@@ -308,6 +308,8 @@ int main()
 
 	cook_mesh(MeshAssetId_box, 		"box.glb", "box");
 	cook_mesh(MeshAssetId_box_cover, "box.glb", "cover");
+	cook_mesh(MeshAssetId_cloud, "cloud.glb", "cloud");
+
 
 	cout << "Meshes cooked!\n";
 

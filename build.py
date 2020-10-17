@@ -81,6 +81,10 @@ if devbuild:
 
 		game_result = compile(game_call)
 
+		if game_result == 0:
+			checkfile = open('friendsimulator_game_dll_built_checkfile', 'w')
+			checkfile.close()
+
 else:
 	# Build settings
 	# flags 		= "-static -std=c++17 -g -gcodeview -O0 -Werror"

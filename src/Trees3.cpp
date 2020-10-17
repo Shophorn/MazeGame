@@ -180,9 +180,8 @@ struct Tree3
 
 	f32 waterReservoir = 0;
 
-	v3 position;
-	// Todo(Leo): this is not used yet, make it so that it is
-	// quaternion rotation;
+	v3 			position;
+	quaternion 	rotation;
 
 	bool32 planted = false;
 	bool32 drawSeed = true;

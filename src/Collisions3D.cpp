@@ -25,7 +25,7 @@ struct CylinderCollider
 	v3 center;
 };
 
-struct StaticBoxCollider
+struct PrecomputedBoxCollider
 {
 	m44 transform;
 	m44 inverseTransform;
@@ -33,11 +33,13 @@ struct StaticBoxCollider
 
 struct CollisionSystem3D
 {
-	Array2<StaticBoxCollider> 	staticBoxColliders;
-	Array2<CylinderCollider> 	staticCylinderColliders;
+	Array2<PrecomputedBoxCollider> 	staticBoxColliders;
+	Array2<CylinderCollider> 		staticCylinderColliders;
 
-	Array2<StaticBoxCollider> 	submittedBoxColliders;
-	Array2<CylinderCollider> 	submittedCylinderColliders;
+	Array2<PrecomputedBoxCollider> 	submittedBoxColliders;
+	Array2<CylinderCollider> 		submittedCylinderColliders;
+
+
 
 	HeightMap 	terrainCollider;
 	v3 			terrainOffset;
@@ -47,7 +49,8 @@ internal CollisionSystem3D init_collision_system(MemoryArena & allocator)
 {
 	CollisionSystem3D system = {};
 
-	system.staticBoxColliders = push_array_2<StaticBoxCollider>(allocator, 100, ALLOC_GARBAGE);
+	system.staticBoxColliders = push_array_2<PrecomputedBoxCollider>(allocator, 100, ALLOC_GARBAGE);
+	// system.staticCylinderColliders = push_array_2<CylinderCollider>(allocator, 100, ALLOC_GARBAGE);
 
 	return system;
 }
@@ -71,7 +74,7 @@ internal m44 compute_inverse_box_collider_transform(BoxCollider const & collider
 internal void clear_colliders(CollisionSystem3D & system)
 {
 	// Note(Leo): This is reseted, so that it is empty for the new frame
-	system.submittedBoxColliders 		= push_array_2<StaticBoxCollider>(*global_transientMemory, 100, ALLOC_GARBAGE);
+	system.submittedBoxColliders 		= push_array_2<PrecomputedBoxCollider>(*global_transientMemory, 100, ALLOC_GARBAGE);
 	system.submittedCylinderColliders 	= push_array_2<CylinderCollider>(*global_transientMemory, 100, ALLOC_GARBAGE);
 }
 
@@ -87,6 +90,13 @@ internal void submit_cylinder_collider(CollisionSystem3D & system, CylinderColli
 	
 	system.submittedCylinderColliders.push(collider);
 }
+
+internal void submit_box_collider(CollisionSystem3D & system, BoxCollider collider, Transform3D const & transform)
+{
+	m44 transformMatrix = compute_box_collider_transform(collider, transform);
+	m44 inverseMatrix 	= compute_inverse_box_collider_transform(collider, transform);
+	system.submittedBoxColliders.push({transformMatrix, inverseMatrix});
+}	
 
 internal void push_static_box_collider(CollisionSystem3D & system, BoxCollider collider, Transform3D const & transform)
 {
@@ -107,7 +117,7 @@ internal f32 get_terrain_height(CollisionSystem3D const & system, v2 position)
 
 /// ----------- COLLISION MATH ---------------
 
-internal bool32 ray_box_collisions(	Array2<StaticBoxCollider> & colliders,
+internal bool32 ray_box_collisions(	Array2<PrecomputedBoxCollider> & colliders,
 									v3 rayStart,
 									v3 normalizedRayDirection,
 									f32 rayLength,
