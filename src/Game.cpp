@@ -133,8 +133,6 @@ internal void physics_world_push_entity(PhysicsWorld & physicsWorld, EntityType 
 #include "Trees3.cpp"
 #include "settings.cpp" // Todo(Leo): this is sky, name and reorganize properly
 
-
-
 struct MenuState
 {
 	MenuView 	view;
