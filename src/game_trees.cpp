@@ -38,7 +38,7 @@ struct GetWaterFunc
 				continue;
 			}
 
-			f32 distance = v3_length(waters.transforms[i].position - position);
+			f32 distance = v3_length(waters.positions[i] - position);
 			if (distance < closestDistance)
 			{
 				closestDistance = distance;
@@ -54,9 +54,11 @@ struct GetWaterFunc
 			waters.levels[closestIndex] -= requestedAmount;
 			if (waters.levels[closestIndex] < 0)
 			{
+				memory_unordered_pop(waters.positions, closestIndex, waters.count);
+				memory_unordered_pop(waters.rotations, closestIndex, waters.count);
+				memory_unordered_pop(waters.levels, closestIndex, waters.count);
+
 				waters.count -= 1;
-				waters.transforms[closestIndex] 	= waters.transforms[waters.count];
-				waters.levels[closestIndex] 		= waters.levels[waters.count];
 			}
 
 			amount = requestedAmount;
@@ -701,8 +703,11 @@ internal void build_tree_3_mesh(Tree3 & tree)
 	}
 }
 
-internal void reset_test_tree3(Tree3 & tree)
+internal void reset_tree_3(Tree3 & tree, Tree3Settings * settings, v3 position)
 {
+	tree.position = position;
+	tree.settings = settings;
+
 	// Note(Leo): arrays are initialized to 0
 	clear_array_2(tree.nodes);
 	clear_array_2(tree.buds);
@@ -721,7 +726,7 @@ internal void reset_test_tree3(Tree3 & tree)
 	build_tree_3_mesh(tree);
 }
 
-internal void initialize_test_tree_3(MemoryArena & allocator, Tree3 & tree, v3 position, Tree3Settings * settings)
+internal void allocate_tree_memory(MemoryArena & allocator, Tree3 & tree)
 {
 	tree = {};
 
@@ -731,10 +736,7 @@ internal void initialize_test_tree_3(MemoryArena & allocator, Tree3 & tree, v3 p
 	tree.leaves 	= make_leaves(allocator, 2000);
 	tree.mesh 		= push_dynamic_mesh(allocator, 10000, 40000);
 
-	tree.position = position;
-	tree.settings = settings;
-
-	reset_test_tree3(tree);
+	// reset_tree_3(tree);
 }
 
 internal void tree_gui(Tree3 & tree)
@@ -743,11 +745,6 @@ internal void tree_gui(Tree3 & tree)
 	gui_toggle("Enable Updates", &tree.enabled);
 	gui_toggle("Draw Gizmos", &tree.drawGizmos);
 	gui_float_field("Grow Speed Scale", &tree.settings->growSpeedScale);
-
-	if (gui_button("Reset tree"))
-	{
-		reset_test_tree3(tree);
-	}
 
 	gui_line();
 

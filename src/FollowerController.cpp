@@ -156,7 +156,7 @@ void update_random_walker_input(RandomWalkController & controller,
 		FS_DEBUG_NPC(debug_draw_diamond_xz(gizmoTransform, colour_muted_red));
 	}
 	
-	f32 distance = magnitude_v2(controller.transform->position.xy - controller.targetPosition);
+	f32 distance = v2_length(controller.transform->position.xy - controller.targetPosition);
 	if (distance < 1.0f && controller.isWaiting == false)
 	{
 		controller.waitTimer = 10;

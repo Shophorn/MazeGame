@@ -84,13 +84,13 @@ f32 dot_v2(v2 a, v2 b)
 	return p;
 }
 
-f32 magnitude_v2(v2 v)
+f32 v2_length(v2 v)
 {
 	f32 m = square_root_f32(v.x * v.x + v.y * v.y);
 	return m;
 }
 
-f32 square_magnitude_v2(v2 v)
+f32 v2_square_length(v2 v)
 {
 	f32 result = v.x * v.x + v.y * v.y;
 	return result;
@@ -98,7 +98,7 @@ f32 square_magnitude_v2(v2 v)
 
 v2 normalize_v2(v2 v)
 {
-	v = v / magnitude_v2(v);
+	v = v / v2_length(v);
 	return v;
 }
 
@@ -124,7 +124,7 @@ v2 rotate_v2 (v2 vec, f32 angle)
 
 v2 clamp_length_v2(v2 vec, f32 length)
 {
-	f32 magnitude = magnitude_v2(vec);
+	f32 magnitude = v2_length(vec);
 	if (magnitude > length)
 	{
 		vec = vec / magnitude;

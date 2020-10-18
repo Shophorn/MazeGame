@@ -117,7 +117,7 @@ internal void graphics_drawing_update_hdr_settings(VulkanContext * context, HdrS
 
 internal void graphics_drawing_prepare_frame(VulkanContext * context)
 {
-	AssertMsg((context->canDraw == false), "Invalid call to prepare_drawing() when finish_drawing() has not been called.")
+	Assert((context->canDraw == false) && "Invalid call to prepare_drawing() when finish_drawing() has not been called.")
 	context->canDraw = true;
 
 	// Todo(Leo): For the most part at least currently, we do not need these to be super dynamic, so maybe
@@ -133,7 +133,7 @@ internal void graphics_drawing_prepare_frame(VulkanContext * context)
 
 	// Note(Leo): We recreate these everytime we are here.
 	// https://software.intel.com/en-us/articles/api-without-secrets-introduction-to-vulkan-part-4#inpage-nav-5
-	vkDestroyFramebuffer(context->device, frame->framebuffer, nullptr);
+	vkDestroyFramebuffer(context->device, frame->sceneFramebuffer, nullptr);
 
 	// Todo(Leo): We should not recreate this every frame. It was done to easily adjust to
 	// screen size changes, but that is not something we expect player to do in the final product
@@ -145,18 +145,18 @@ internal void graphics_drawing_prepare_frame(VulkanContext * context)
 	};
 
 	// TODO HDR: use floating point frame buffer here
-	frame->framebuffer = vulkan::make_vk_framebuffer(   context->device,
-														context->renderPass,
-														array_count(attachments),
-														attachments,
-														context->swapchainExtent.width,
-														context->swapchainExtent.height);    
+	frame->sceneFramebuffer = vulkan::make_vk_framebuffer(  context->device,
+															context->renderPass,
+															array_count(attachments),
+															attachments,
+															context->swapchainExtent.width,
+															context->swapchainExtent.height);    
 
 	VkCommandBufferBeginInfo sceneCmdBeginInfo =
 	{
 		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
 		.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT | VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT,
-		.pInheritanceInfo = fsvulkan_drawing_internal_::get_vk_command_buffer_inheritance_info(context->renderPass, frame->framebuffer),
+		.pInheritanceInfo = fsvulkan_drawing_internal_::get_vk_command_buffer_inheritance_info(context->renderPass, frame->sceneFramebuffer),
 	};
 	VULKAN_CHECK (vkBeginCommandBuffer(frame->sceneCommandBuffer, &sceneCmdBeginInfo));
 
@@ -189,11 +189,11 @@ internal void graphics_drawing_prepare_frame(VulkanContext * context)
 		// Todo(Leo): shadow framebuffer needs to be separate per virtual frame
 		.pInheritanceInfo = fsvulkan_drawing_internal_::get_vk_command_buffer_inheritance_info(context->shadowRenderPass, context->shadowFramebuffer[context->virtualFrameIndex]),
 	};
-	VULKAN_CHECK(vkBeginCommandBuffer(frame->offscreenCommandBuffer, &shadowCmdBeginInfo));
+	VULKAN_CHECK(vkBeginCommandBuffer(frame->shadowCommandBuffer, &shadowCmdBeginInfo));
 
 	// Todo(Leo): this comment is not true anymore, but deductions from it have not been corrected
 	// Note(Leo): We only ever use this one pipeline with shadows, so it is sufficient to only bind it once, here.
-	vkCmdBindPipeline(frame->offscreenCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, context->shadowPipeline);
+	vkCmdBindPipeline(frame->shadowCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, context->shadowPipeline);
 }
 
 internal void graphics_drawing_finish_frame(VulkanContext * context)
@@ -202,7 +202,6 @@ internal void graphics_drawing_finish_frame(VulkanContext * context)
 	context->canDraw = false;
 
 	VulkanVirtualFrame * frame = fsvulkan_get_current_virtual_frame(context);
-
 
 	VkCommandBufferBeginInfo masterCmdBeginInfo =
 	{
@@ -213,11 +212,11 @@ internal void graphics_drawing_finish_frame(VulkanContext * context)
 
 	/* Note (Leo): beginning command buffer implicitly resets it, if we have specified
 	VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT in command pool creation */
-	VULKAN_CHECK(vkBeginCommandBuffer(frame->masterCommandBuffer, &masterCmdBeginInfo));
+	VULKAN_CHECK(vkBeginCommandBuffer(frame->mainCommandBuffer, &masterCmdBeginInfo));
 	
 
 	// SHADOWS RENDER PASS ----------------------------------------------------
-	VULKAN_CHECK(vkEndCommandBuffer(frame->offscreenCommandBuffer));
+	VULKAN_CHECK(vkEndCommandBuffer(frame->shadowCommandBuffer));
 
 	VkClearValue shadowClearValue = { .depthStencil = {1.0f, 0} };
 	VkRenderPassBeginInfo shadowRenderPassInfo =
@@ -234,9 +233,9 @@ internal void graphics_drawing_finish_frame(VulkanContext * context)
 		.clearValueCount    = 1,
 		.pClearValues       = &shadowClearValue,
 	};
-	vkCmdBeginRenderPass(frame->masterCommandBuffer, &shadowRenderPassInfo, VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS);
-	vkCmdExecuteCommands(frame->masterCommandBuffer, 1, &frame->offscreenCommandBuffer);
-	vkCmdEndRenderPass(frame->masterCommandBuffer);
+	vkCmdBeginRenderPass(frame->mainCommandBuffer, &shadowRenderPassInfo, VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS);
+	vkCmdExecuteCommands(frame->mainCommandBuffer, 1, &frame->shadowCommandBuffer);
+	vkCmdEndRenderPass(frame->mainCommandBuffer);
 
 	// MAIN SCENE RENDER PASS -------------------------------------------------
 	// Todo(Leo): add separate pass for gui and debug stuffs
@@ -252,7 +251,7 @@ internal void graphics_drawing_finish_frame(VulkanContext * context)
 	{
 		.sType              = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
 		.renderPass         = context->renderPass,
-		.framebuffer        = frame->framebuffer,
+		.framebuffer        = frame->sceneFramebuffer,
 		
 		.renderArea = {
 			.offset  = {0, 0},
@@ -262,9 +261,9 @@ internal void graphics_drawing_finish_frame(VulkanContext * context)
 		.clearValueCount    = 2,
 		.pClearValues       = clearValues,
 	};
-	vkCmdBeginRenderPass(frame->masterCommandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS);
-	vkCmdExecuteCommands(frame->masterCommandBuffer, 1, &frame->sceneCommandBuffer);
-	vkCmdEndRenderPass(frame->masterCommandBuffer);
+	vkCmdBeginRenderPass(frame->mainCommandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS);
+	vkCmdExecuteCommands(frame->mainCommandBuffer, 1, &frame->sceneCommandBuffer);
+	vkCmdEndRenderPass(frame->mainCommandBuffer);
 
 	/// HDR RENDER PASS --------------------------------------------------------------------
 	/*	
@@ -288,19 +287,19 @@ internal void graphics_drawing_finish_frame(VulkanContext * context)
 		.minDepth   = 0.0f,
 		.maxDepth   = 1.0f,
 	};
-	vkCmdSetViewport(frame->masterCommandBuffer, 0, 1, &viewport);
+	vkCmdSetViewport(frame->mainCommandBuffer, 0, 1, &viewport);
 
 	VkRect2D scissor =
 	{
 		.offset = {0, 0},
 		.extent = context->swapchainExtent,
 	};
-	vkCmdSetScissor(frame->masterCommandBuffer, 0, 1, &scissor);
+	vkCmdSetScissor(frame->mainCommandBuffer, 0, 1, &scissor);
 
 	// ------------------------------------------------------------
 
-	vkDestroyFramebuffer(context->device, frame->passThroughFramebuffer, nullptr);
-	frame->passThroughFramebuffer = vulkan::make_vk_framebuffer(context->device,
+	vkDestroyFramebuffer(context->device, frame->presentFramebuffer, nullptr);
+	frame->presentFramebuffer = vulkan::make_vk_framebuffer(context->device,
 																context->passThroughRenderPass,
 																1,
 																&context->swapchainImageViews[context->currentDrawFrameIndex],
@@ -309,28 +308,28 @@ internal void graphics_drawing_finish_frame(VulkanContext * context)
 
 	VkRenderPassBeginInfo passthroughPassBeginInfo 	= {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
 	passthroughPassBeginInfo.renderPass 			= context->passThroughRenderPass;
-	passthroughPassBeginInfo.framebuffer 			= frame->passThroughFramebuffer;
+	passthroughPassBeginInfo.framebuffer 			= frame->presentFramebuffer;
 	passthroughPassBeginInfo.renderArea 			= {{0,0}, context->swapchainExtent};
 	// Note(Leo): no need to clear this, we fill every pixel anyway
 
 
-	vkCmdBeginRenderPass(frame->masterCommandBuffer, &passthroughPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-	vkCmdBindPipeline(frame->masterCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, context->passThroughPipeline);
+	vkCmdBeginRenderPass(frame->mainCommandBuffer, &passthroughPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+	vkCmdBindPipeline(frame->mainCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, context->passThroughPipeline);
 
 	VkDescriptorSet testDescriptor = frame->resolveImageDescriptor;
-	vkCmdBindDescriptorSets(frame->masterCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, 
+	vkCmdBindDescriptorSets(frame->mainCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, 
 							context->passThroughPipelineLayout,
 							0, 1, &testDescriptor, 0, nullptr);
 
-	vkCmdPushConstants(frame->masterCommandBuffer, context->passThroughPipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(FSVulkanHdrSettings), &context->hdrSettings);
+	vkCmdPushConstants(frame->mainCommandBuffer, context->passThroughPipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(FSVulkanHdrSettings), &context->hdrSettings);
 
-	vkCmdDraw(frame->masterCommandBuffer, 3, 1, 0, 0);
+	vkCmdDraw(frame->mainCommandBuffer, 3, 1, 0, 0);
 
-	vkCmdEndRenderPass(frame->masterCommandBuffer);
+	vkCmdEndRenderPass(frame->mainCommandBuffer);
 
 	// PRIMARY COMMAND BUFFER -------------------------------------------------
 
-	VULKAN_CHECK(vkEndCommandBuffer(frame->masterCommandBuffer));
+	VULKAN_CHECK(vkEndCommandBuffer(frame->mainCommandBuffer));
 
 	/* Note(Leo): these have to do with sceneloading in game layer. We are then unloading
 	all resources associated with command buffer, which makes it invalid to submit to queue */
@@ -346,7 +345,7 @@ internal void graphics_drawing_finish_frame(VulkanContext * context)
 		.pWaitSemaphores        = &frame->imageAvailableSemaphore,
 		.pWaitDstStageMask      = waitStages,
 		.commandBufferCount     = (u32)(skipFrame ? 0 : 1),
-		.pCommandBuffers        = &frame->masterCommandBuffer,
+		.pCommandBuffers        = &frame->mainCommandBuffer,
 		.signalSemaphoreCount   = 1,
 		.pSignalSemaphores      = &frame->renderFinishedSemaphore,
 	};
@@ -461,8 +460,8 @@ internal void graphics_draw_model(VulkanContext * context, ModelHandle model, m4
 	///////////////////////////
 	if (castShadow)
 	{
-		vkCmdBindVertexBuffers(frame->offscreenCommandBuffer, 0, vertexBindingCount, vertexBuffers, vertexOffsets);
-		vkCmdBindIndexBuffer(frame->offscreenCommandBuffer, mesh->bufferReference, mesh->indexOffset, mesh->indexType);
+		vkCmdBindVertexBuffers(frame->shadowCommandBuffer, 0, vertexBindingCount, vertexBuffers, vertexOffsets);
+		vkCmdBindIndexBuffer(frame->shadowCommandBuffer, mesh->bufferReference, mesh->indexOffset, mesh->indexType);
 
 		VkDescriptorSet shadowSets [] =
 		{
@@ -470,7 +469,7 @@ internal void graphics_draw_model(VulkanContext * context, ModelHandle model, m4
 			context->modelDescriptorSet[context->virtualFrameIndex],
 		};
 
-		vkCmdBindDescriptorSets(frame->offscreenCommandBuffer,
+		vkCmdBindDescriptorSets(frame->shadowCommandBuffer,
 								VK_PIPELINE_BIND_POINT_GRAPHICS,
 								context->shadowPipelineLayout,
 								0,
@@ -479,10 +478,11 @@ internal void graphics_draw_model(VulkanContext * context, ModelHandle model, m4
 								1,
 								&dynamicOffsets[0]);
 
-		vkCmdDrawIndexed(frame->offscreenCommandBuffer, mesh->indexCount, 1, 0, 0, 0);
+		vkCmdDrawIndexed(frame->shadowCommandBuffer, mesh->indexCount, 1, 0, 0, 0);
 	}
 }
 
+// Note(Leo): these are notes :)
 // internal void * get_leaf_buffer_memory()
 // {
 // 	return context->persistentMappedLeafBufferMemory;
@@ -576,17 +576,17 @@ internal void graphics_draw_leaves(	VulkanContext * context,
 	VkPipeline shadowPipeline 				= context->leavesShadowPipeline;
 	VkPipelineLayout shadowPipelineLayout 	= context->leavesShadowPipelineLayout;
 
-	vkCmdBindPipeline(frame->offscreenCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, shadowPipeline);
+	vkCmdBindPipeline(frame->shadowCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, shadowPipeline);
 
-	vkCmdBindDescriptorSets(frame->offscreenCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, shadowPipelineLayout,
+	vkCmdBindDescriptorSets(frame->shadowCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, shadowPipelineLayout,
 							0, 1, &context->cameraDescriptorSet[context->virtualFrameIndex], 0, nullptr);
 
-	vkCmdBindDescriptorSets(frame->offscreenCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, shadowPipelineLayout,
+	vkCmdBindDescriptorSets(frame->shadowCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, shadowPipelineLayout,
 							1, 1, &materialDescriptorSet, 0, nullptr);
 
-	vkCmdBindVertexBuffers(frame->offscreenCommandBuffer, 0, 1, &context->leafBuffer, &instanceBufferOffset);
+	vkCmdBindVertexBuffers(frame->shadowCommandBuffer, 0, 1, &context->leafBuffer, &instanceBufferOffset);
 
-	vkCmdDraw(frame->offscreenCommandBuffer, leafVertexCount, instanceCount, 0, 0);
+	vkCmdDraw(frame->shadowCommandBuffer, leafVertexCount, instanceCount, 0, 0);
 }
 
 internal void graphics_draw_meshes(VulkanContext * context, s32 count, m44 const * transforms, MeshHandle meshHandle, MaterialHandle materialHandle)
@@ -683,8 +683,8 @@ internal void graphics_draw_meshes(VulkanContext * context, s32 count, m44 const
 		VkDeviceSize vertexOffsets [] 	= {mesh->vertexOffset, mesh->skinningOffset};
 		VkBuffer vertexBuffers [] 		= {mesh->bufferReference, mesh->bufferReference};
 
-		vkCmdBindVertexBuffers(frame->offscreenCommandBuffer, 0, 2, vertexBuffers, vertexOffsets);
-		vkCmdBindIndexBuffer(frame->offscreenCommandBuffer, mesh->bufferReference, mesh->indexOffset, mesh->indexType);
+		vkCmdBindVertexBuffers(frame->shadowCommandBuffer, 0, 2, vertexBuffers, vertexOffsets);
+		vkCmdBindIndexBuffer(frame->shadowCommandBuffer, mesh->bufferReference, mesh->indexOffset, mesh->indexType);
 
 		VkDescriptorSet shadowSets [] =
 		{
@@ -694,7 +694,7 @@ internal void graphics_draw_meshes(VulkanContext * context, s32 count, m44 const
 
 		for (s32 i = 0; i < count; ++i)
 		{
-			vkCmdBindDescriptorSets(frame->offscreenCommandBuffer,
+			vkCmdBindDescriptorSets(frame->shadowCommandBuffer,
 									VK_PIPELINE_BIND_POINT_GRAPHICS,
 									context->shadowPipelineLayout,
 									0,
@@ -703,7 +703,7 @@ internal void graphics_draw_meshes(VulkanContext * context, s32 count, m44 const
 									1,
 									&uniformBufferOffsets[i]);
 
-			vkCmdDrawIndexed(frame->offscreenCommandBuffer, mesh->indexCount, 1, 0, 0, 0);
+			vkCmdDrawIndexed(frame->shadowCommandBuffer, mesh->indexCount, 1, 0, 0, 0);
 		}
 	} 
 }
@@ -775,8 +775,8 @@ internal void graphics_draw_procedural_mesh(VulkanContext * context,
 	VkDeviceSize vertexOffsets [] 	= {vertexBufferOffset, 0};
 	VkBuffer vertexBuffers [] 		= {context->dynamicMeshBuffer, context->dynamicMeshBuffer};
 
-	vkCmdBindVertexBuffers(frame->offscreenCommandBuffer, 0, 2, vertexBuffers, vertexOffsets);
-	vkCmdBindIndexBuffer(frame->offscreenCommandBuffer, context->dynamicMeshBuffer, indexBufferOffset, VK_INDEX_TYPE_UINT16);
+	vkCmdBindVertexBuffers(frame->shadowCommandBuffer, 0, 2, vertexBuffers, vertexOffsets);
+	vkCmdBindIndexBuffer(frame->shadowCommandBuffer, context->dynamicMeshBuffer, indexBufferOffset, VK_INDEX_TYPE_UINT16);
 
 	VkDescriptorSet shadowSets [] =
 	{
@@ -784,7 +784,7 @@ internal void graphics_draw_procedural_mesh(VulkanContext * context,
 		context->modelDescriptorSet[context->virtualFrameIndex],
 	};
 
-	vkCmdBindDescriptorSets(frame->offscreenCommandBuffer,
+	vkCmdBindDescriptorSets(frame->shadowCommandBuffer,
 							VK_PIPELINE_BIND_POINT_GRAPHICS,
 							context->shadowPipelineLayout,
 							0,
@@ -793,7 +793,7 @@ internal void graphics_draw_procedural_mesh(VulkanContext * context,
 							1,
 							uniformBufferOffsets);
 
-	vkCmdDrawIndexed(frame->offscreenCommandBuffer, indexCount, 1, 0, 0, 0);
+	vkCmdDrawIndexed(frame->shadowCommandBuffer, indexCount, 1, 0, 0, 0);
 }
 
 internal void graphics_draw_lines(VulkanContext * context, s32 pointCount, v3 const * points, v4 color)

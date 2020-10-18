@@ -727,11 +727,11 @@ winapi::create_vulkan_context(Win32Window * window)
 		init_persistent_descriptor_pool (&context, 20, 20);
 		init_virtual_frames (&context);
 	
-		context.textureSampler = BAD_VULKAN_make_vk_sampler(context.device, VK_SAMPLER_ADDRESS_MODE_REPEAT);
+		context.repeatSampler = BAD_VULKAN_make_vk_sampler(context.device, VK_SAMPLER_ADDRESS_MODE_REPEAT);
 		context.clampSampler = BAD_VULKAN_make_vk_sampler(context.device, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE);
 		add_cleanup(&context, [](VulkanContext * context)
 		{
-			vkDestroySampler(context->device, context->textureSampler, nullptr);
+			vkDestroySampler(context->device, context->repeatSampler, nullptr);
 			vkDestroySampler(context->device, context->clampSampler, nullptr);
 		});
 
@@ -1439,19 +1439,19 @@ winapi_vulkan_internal_::init_virtual_frames(VulkanContext * context)
 	for (auto & frame : context->virtualFrames)
 	{
 		// Command buffers
-		bool32 success = vkAllocateCommandBuffers(context->device, &masterCmdAllocateInfo, &frame.masterCommandBuffer) == VK_SUCCESS;
+		bool32 success = vkAllocateCommandBuffers(context->device, &masterCmdAllocateInfo, &frame.mainCommandBuffer) == VK_SUCCESS;
 		success = success && vkAllocateCommandBuffers(context->device, &secondaryCmdAllocateInfo, &frame.sceneCommandBuffer) == VK_SUCCESS;
 		success = success && vkAllocateCommandBuffers(context->device, &secondaryCmdAllocateInfo, &frame.guiCommandBuffer) == VK_SUCCESS;
 
-		success = success && vkAllocateCommandBuffers(context->device, &secondaryCmdAllocateInfo, &frame.offscreenCommandBuffer) == VK_SUCCESS;
+		success = success && vkAllocateCommandBuffers(context->device, &secondaryCmdAllocateInfo, &frame.shadowCommandBuffer) == VK_SUCCESS;
 
 		// Synchronization stuff
-		success = success && vkCreateSemaphore(context->device, &semaphoreInfo, nullptr, &frame.shadowPassWaitSemaphore) == VK_SUCCESS;
+		// success = success && vkCreateSemaphore(context->device, &semaphoreInfo, nullptr, &frame.shadowPassWaitSemaphore) == VK_SUCCESS;
 		success = success && vkCreateSemaphore(context->device, &semaphoreInfo, nullptr, &frame.imageAvailableSemaphore) == VK_SUCCESS;
 		success = success && vkCreateSemaphore(context->device, &semaphoreInfo, nullptr, &frame.renderFinishedSemaphore) == VK_SUCCESS;
 		success = success && vkCreateFence(context->device, &fenceInfo, nullptr, &frame.queueSubmitFence) == VK_SUCCESS;
 
-		AssertMsg(success, "Failed to create VulkanVirtualFrame");
+		Assert(success && "Failed to create VulkanVirtualFrame");
 	}
 
 	add_cleanup(context, [](VulkanContext * context)
@@ -1461,16 +1461,12 @@ winapi_vulkan_internal_::init_virtual_frames(VulkanContext * context)
 			/* Note(Leo): command buffers are destroyed with command pool, but we need to destroy
 			framebuffers here, since they are always recreated immediately right after destroying
 			them in drawing procedure */
-			vkDestroyFramebuffer(context->device, frame.framebuffer, nullptr);
+			vkDestroyFramebuffer(context->device, frame.sceneFramebuffer, nullptr);
 			
-			vkDestroySemaphore(context->device, frame.shadowPassWaitSemaphore, nullptr);
+			// vkDestroySemaphore(context->device, frame.shadowPassWaitSemaphore, nullptr);
 			vkDestroySemaphore(context->device, frame.renderFinishedSemaphore, nullptr);
 			vkDestroySemaphore(context->device, frame.imageAvailableSemaphore, nullptr);
 			vkDestroyFence(context->device, frame.queueSubmitFence, nullptr);
-
-			// Todo(Leo): these maybe should be here, but for now at least they are created and destroed with swapchain
-			// vkDestroyImage(context->device, frame.colorImage, nullptr);
-			// vkDestroyImageView(context->device, frame.colorImageView, nullptr);
 		}
 	});
 }

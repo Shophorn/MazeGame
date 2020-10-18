@@ -207,7 +207,7 @@ internal VulkanTexture BAD_VULKAN_make_texture(VulkanContext * context, TextureA
 	{
 		.image      = resultImage,
 		.view       = resultView,
-		.sampler 	= asset->addressMode == TextureAddressMode_repeat ? context->textureSampler : context->clampSampler,
+		.sampler 	= asset->addressMode == TextureAddressMode_repeat ? context->repeatSampler : context->clampSampler,
 
 		.format 	= format,
 

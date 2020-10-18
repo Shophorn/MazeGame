@@ -259,7 +259,7 @@ internal bool32 ray_cylinder_collisions (Array2<CylinderCollider> colliders, Ray
 		if (vtMin > 0.00001f && vtMin < ray.length)
 		{
 			v3 pAtVttMin = p + v * vtMin;
-			f32 distanceFromCenter = magnitude_v2(pAtVttMin.xy);
+			f32 distanceFromCenter = v2_length(pAtVttMin.xy);
 			if (distanceFromCenter < collider.radius)
 			{
 				hit = true;

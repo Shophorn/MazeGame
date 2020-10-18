@@ -1,0 +1,23 @@
+TODO
+
+trees take water from pots
+trees limit growth in pots
+big pots interactable
+
+water runs down on hills, stopping on other water and other colliders
+	smaller water drops merge on contact
+
+BONUS:
+	water make combined meshes when close enough
+	water erodes ground
+
+Menu sfx
+save game
+loading status bar, this also means loading on separate thread
+
+DONE
+17.10
+trees allocate everthing on start
+
+18.10
+rain is single mesh and water spawn on ground

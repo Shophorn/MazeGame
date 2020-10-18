@@ -54,6 +54,7 @@ enum MeshAssetId : s32
 	MeshAssetId_box_cover,
 
 	MeshAssetId_cloud,
+	MeshAssetId_rain,
 
 	MeshAssetIdCount
 };
@@ -167,6 +168,9 @@ enum AudioAssetId : s32
 	AudioAssetId_step_1,
 	AudioAssetId_step_2,
 	AudioAssetId_birds,
+
+	AudioAssetId_electric_1,
+	AudioAssetId_electric_2,
 
 	AudioAssetIdCount
 };

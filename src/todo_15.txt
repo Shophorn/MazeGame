@@ -1,4 +1,16 @@
-todo
+TODO
+
+MVP game loop:
+	indicator on succesful puzzle completion
+
+Issues:
+	Name to title screen
+	make trees separate, and animate them swinging gently
+	game camera start at player position
+
+DONE
+
+Sound fx
 
 Distributable game:
 	compile to single exe
@@ -9,14 +21,6 @@ Distributable game:
 MVP game loop:
 	start with one seed of each tree, inside boxes
 	clouds, which give water
-	indicator on succesful puzzle completion
 
 Issues:
-	game camera start at player position
-	Name to title screen
 	Stop bouncing seeds in the beginning
-
-
-Sound fx
-
-Done

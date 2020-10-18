@@ -65,6 +65,12 @@ constexpr u64 megabytes 	(u64 amount) { return 1024 * kilobytes(amount); }
 constexpr u64 gigabytes 	(u64 amount) { return 1024 * megabytes(amount); }
 constexpr u64 terabytes 	(u64 amount) { return 1024 * gigabytes(amount); }
 
+f32 reverse_kilobytes (u64 size) { return size / 1024.0f; }
+f32 reverse_megabytes (u64 size) { return reverse_kilobytes(size) / 1024.0f; }
+f32 reverse_gigabytes (u64 size) { return reverse_megabytes(size) / 1024.0f; }
+f32 reverse_terabytes (u64 size) { return reverse_gigabytes(size) / 1024.0f; }
+
+
 template<typename _, u32 Count>
 constexpr u32 array_count(const _ (&array)[Count])
 {

@@ -978,7 +978,7 @@ internal bool gui_is_selected()
 
 	// Todo(Leo): do some kind of "current rect" thing, or pass it here
 	bool isUnderMouse 	= false;//gui_is_under_mouse(gui.panelPosition + v2{gui.padding, gui.padding} + v2{gui.panelCursorX, gui.panelCursorY}, {400, gui.textSize});// || isSelected;
-	bool mouseHasMoved 	= magnitude_v2(gui.mousePositionLastFrame - input_cursor_get_position(gui.input)) > 0.1f;
+	bool mouseHasMoved 	= v2_length(gui.mousePositionLastFrame - input_cursor_get_position(gui.input)) > 0.1f;
 
 	if (isUnderMouse && mouseHasMoved)
 	{

@@ -22,14 +22,21 @@ struct Clouds
 	f32 windDirectionAngle 	= 0;
 
 	f32 rainSizeThreshold  		= 50;
-	f32 rainSizeDecreaseSpeed 	= 10;
+	f32 rainSizeDecreaseSpeed 	= 1;
+
+	f32 rainWaterDropTotalGrowSpeedPerAreaPerSecond	= 0.001;
+	f32 rainMaxGrowSpeedForSingleDropPerSecond 		= 0.5;
+
+	MeshHandle 		rainMesh;
+	MaterialHandle 	rainMaterial;
 };
 
 internal void initialize_clouds(Clouds & clouds, MemoryArena & allocator)
 {
 	clouds = {};
 
-	s32 initialCloudCount 	= 50;
+	s32 initialCloudCount 	= 2;
+	// s32 initialCloudCount 	= 50;
 	s32 cloudCapacity 		= 1000;
 	
 	clouds.clouds 			= push_array_2<Cloud>(allocator, cloudCapacity, ALLOC_GARBAGE);
@@ -39,14 +46,22 @@ internal void initialize_clouds(Clouds & clouds, MemoryArena & allocator)
 	{
 		cloud.transform = identity_transform;
 
-		constexpr f32 range 		= 500;
+		// constexpr f32 range 		= 500;
+		// cloud.transform.position 	= random_inside_unit_square() * range - v3{range / 2, range / 2, 0};
+		// cloud.radius 				= random_range(5, 50);
+
+		constexpr f32 range 		= 50;
 		cloud.transform.position 	= random_inside_unit_square() * range - v3{range / 2, range / 2, 0};
-		cloud.radius 				= random_range(5, 50);
+		cloud.radius 				= random_range(45, 49);
 
 	}
 }
 
-internal void simulate_clouds(Clouds & clouds, Waters & waters, PhysicsWorld & physicsWorld, f32 elapsedTime)
+internal void update_clouds(Clouds & 			clouds,
+							Waters & 			waters,
+							PhysicsWorld & 		physicsWorld,
+							CollisionSystem3D & collisionSystem,
+							f32 				elapsedTime)
 {
 	v3 windDirection = rotate_v3(quaternion_axis_angle(v3_up, clouds.windDirectionAngle), v3_forward);
 
@@ -62,19 +77,60 @@ internal void simulate_clouds(Clouds & clouds, Waters & waters, PhysicsWorld & p
 
 		if (cloud.hasStartedRaining)
 		{
-			cloud.waterInstantiateTimer -= elapsedTime;
-			if (cloud.waterInstantiateTimer < 0)
 			{
-				cloud.waterInstantiateTimer = 0.1;
+				/*
+				1. Find all drops inside rain and that are small enough
+				2. if threre is not enough drops, spawn more
+				3. grow all selected drops by amount
+				*/
 
-				f32 distance 	= random_range(0, cloud.radius);
-				f32 angle 		= random_value() * 2 * π;
+				s32 maxWaterDropsInRain = 1000;
+				Array2<s32> selectedWaterDropIndices = push_array_2<s32>(*global_transientMemory, maxWaterDropsInRain, ALLOC_GARBAGE);
 
-				v3 localPosition 	= rotate_v3(quaternion_axis_angle(v3_up, angle), v3_forward) * distance;
-				v3 position 		= cloud.transform.position + localPosition;
+				for (s32 waterIndex = 0; waterIndex < waters.count; ++waterIndex)
+				{
+					f32 distanceToWaterDrop = v2_length(cloud.transform.position.xy - waters.positions[waterIndex].xy);
+					if (distanceToWaterDrop < cloud.radius && waters.levels[waterIndex] < 1)
+					{
+						selectedWaterDropIndices.push(waterIndex);
+					}
+				}
 
-				waters_instantiate(waters, physicsWorld, position, 1);
+				f32 area 					= π * cloud.radius * cloud.radius;
+				f32 totalWaterGrowthAmount 	= area * elapsedTime * clouds.rainWaterDropTotalGrowSpeedPerAreaPerSecond;
+
+				s32 requiredWaterDropCount 	= totalWaterGrowthAmount / (clouds.rainMaxGrowSpeedForSingleDropPerSecond * elapsedTime);
+				s32 spawnCount 				= requiredWaterDropCount - selectedWaterDropIndices.count;
+
+				while (spawnCount > 0)
+				{
+					spawnCount -= 1;
+
+					f32 distance 	= random_range(0, cloud.radius);
+					f32 angle 		= random_value() * 2 * π;
+
+					v3 localPosition 	= rotate_v3(quaternion_axis_angle(v3_up, angle), v3_forward) * distance;
+					v3 position 		= cloud.transform.position + localPosition;
+					position.z 			= get_terrain_height(collisionSystem, position.xy);
+
+					selectedWaterDropIndices.push(waters.count);
+
+					waters_instantiate(waters, physicsWorld, position, 0);	
+				}
+
+				f32 actualWaterDropGrowth = totalWaterGrowthAmount / selectedWaterDropIndices.count;
+
+				for (s32 index : selectedWaterDropIndices)
+				{
+					waters.levels[index] += actualWaterDropGrowth;
+					waters.levels[index] = min_f32(waters.levels[index], waters.fullWaterLevel);
+				}
 			}
+
+
+
+
+
 
 			cloud.radius 			-= clouds.rainSizeDecreaseSpeed * elapsedTime;
 			cloud.transform.scale 	= {cloud.radius, cloud.radius, cloud.radius};
@@ -117,6 +173,26 @@ internal void draw_clouds(Clouds & clouds, PlatformGraphics * graphics, GameAsse
 							clouds.clouds.count, matrices,
 							assets_get_mesh(assets, MeshAssetId_cloud),
 							assets_get_material(assets, MaterialAssetId_clouds));
+
+
+
+	for (s32 i = 0; i < clouds.clouds.count; ++i)
+	{
+		if (clouds.clouds[i].hasStartedRaining)
+		{
+			v3 rainPosition = clouds.clouds[i].transform.position;
+			
+			f32 rainRadius 	= clouds.clouds[i].radius;
+			f32 rainLength 	= clouds.altitude;
+			v3 rainScale 	= {rainRadius, rainRadius, rainLength};
+
+			m44 matrix = transform_matrix(rainPosition, identity_quaternion, rainScale);
+			graphics_draw_meshes(	graphics,
+									1, &matrix,
+									assets_get_mesh(assets, MeshAssetId_rain),
+									assets_get_material(assets, MaterialAssetId_water));
+		}
+	}
 }
 
 internal void clouds_menu(Clouds & clouds)

@@ -306,10 +306,10 @@ int main()
 	cook_mesh(MeshAssetId_monument_top_1,	"monuments.glb", "monument_ornament_01");
 	cook_mesh(MeshAssetId_monument_top_2, 	"monuments.glb", "monument_ornament_02");
 
-	cook_mesh(MeshAssetId_box, 		"box.glb", "box");
-	cook_mesh(MeshAssetId_box_cover, "box.glb", "cover");
-	cook_mesh(MeshAssetId_cloud, "cloud.glb", "cloud");
-
+	cook_mesh(MeshAssetId_box, 			"box.glb", "box");
+	cook_mesh(MeshAssetId_box_cover, 	"box.glb", "cover");
+	cook_mesh(MeshAssetId_cloud, 		"cloud.glb", "cloud");
+	cook_mesh(MeshAssetId_rain,			"cloud.glb", "rain");
 
 	cout << "Meshes cooked!\n";
 
@@ -331,9 +331,11 @@ int main()
 	_chdir("../sounds/");
 
 	cook_audio(AudioAssetId_background, "Wind-Mark_DiAngelo-1940285615.wav");
-	cook_audio(AudioAssetId_step_1, "step_9.wav");
-	cook_audio(AudioAssetId_step_2, "step_10.wav");
-	cook_audio(AudioAssetId_birds, "Falcon-Mark_Mattingly-169493032.wav");
+	cook_audio(AudioAssetId_step_1, 	"step_9.wav");
+	cook_audio(AudioAssetId_step_2, 	"step_10.wav");
+	cook_audio(AudioAssetId_birds, 		"Falcon-Mark_Mattingly-169493032.wav");
+	// cook_audio(AudioAssetId_electric_1, "arc1_freesoundeffects_com_NO_LICENSE.wav");
+	// cook_audio(AudioAssetId_electric_2, "earcing_freesoundeffects_com_NO_LICENSE.wav");
 
 	// -------------------------------------------------------------
 

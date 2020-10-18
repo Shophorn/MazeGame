@@ -23,6 +23,7 @@ struct AudioClip
 	f32 volume = 1;
 
 	v3 position;
+	bool32 loop;
 };
 
 // AudioAsset load_audio_clip(MemoryArena & allocator, char const * filename)
@@ -81,6 +82,11 @@ internal bool32 get_next_sample(AudioClip & clip, PlatformStereoSoundSample & ou
 
 	clip.sampleIndex 	+= clip.pitch;
 	bool32 result 		= clip.sampleIndex < clip.asset->sampleCount;
+	if (clip.loop)
+	{
+		result = true;
+	}
+
 	clip.sampleIndex 	= mod_f32(clip.sampleIndex, clip.asset->sampleCount);
 
 	return result;

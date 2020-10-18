@@ -193,18 +193,14 @@ struct VulkanPipeline
 
 struct VulkanVirtualFrame
 {
-	VkCommandBuffer masterCommandBuffer;
+	VkCommandBuffer mainCommandBuffer;
 	VkCommandBuffer sceneCommandBuffer;
 	VkCommandBuffer guiCommandBuffer;
-	VkCommandBuffer offscreenCommandBuffer;
+	VkCommandBuffer shadowCommandBuffer;
 
-	VkFramebuffer  	framebuffer;
-
-	// Todo(Leo): more like 'final framebuffer' or 'present framebuffer'
-	VkFramebuffer 	passThroughFramebuffer;
-
-    // Note(Leo): these are attchaments.
-	// VkDeviceMemory attachmentMemory;
+	// Note(Leo): These are re-created every frame
+	VkFramebuffer  	sceneFramebuffer;
+	VkFramebuffer 	presentFramebuffer;
 
 	VkImage 	colorImage;
 	VkImageView colorImageView;
@@ -218,11 +214,7 @@ struct VulkanVirtualFrame
 	// Note(Leo): This is used as input to hdr->ldr tonemap shader
 	VkDescriptorSet resolveImageDescriptor;
 
-	// Todo(Leo): this is not enough, the complete shadow texture mess needs to be per virtual frame
-	// Extre Todo(Leo): this is not even used even though it should be instead of static single one
-    // VkFramebuffer  	shadowFramebuffer;
-
-    VkSemaphore 	shadowPassWaitSemaphore;
+    // VkSemaphore 	shadowPassWaitSemaphore;
 	VkSemaphore    	imageAvailableSemaphore;
 	VkSemaphore    	renderFinishedSemaphore;
 	VkFence        	queueSubmitFence;
@@ -279,9 +271,8 @@ struct PlatformGraphics
 	VkCommandPool 			commandPool;
     VkSampleCountFlagBits 	msaaSamples;
 
-    /* Note(Leo): we need a separate sampler for each address mode (and other properties).
-	'textureSampler' has REPEAT address mode*/
-    VkSampler 				textureSampler;			
+    /* Note(Leo): we need a separate sampler for each address mode (and other properties).*/
+    VkSampler 				repeatSampler;			
     VkSampler 				clampSampler;			
 	
 	VkFormat 				hdrFormat;
@@ -360,7 +351,6 @@ struct PlatformGraphics
 	std::vector<VulkanMaterial>	loadedMaterials;
 	std::vector<VulkanModel>	loadedModels;
 
-
 	VulkanPipeline pipelines [GraphicsPipelineCount];
 
 	VkPipeline 				linePipeline;
@@ -373,6 +363,7 @@ struct PlatformGraphics
 
 	// Note(Leo): This is a list of functions to call when destroying this.
 	// Todo(Leo): Do not use std::vector; we know explicitly how many we have at compile time
+	// Todo(Leo): This is stupid, do not do this
     using CleanupFunc 					= void (VulkanContext*);
 	std::vector<CleanupFunc*> cleanups 	= {};
 

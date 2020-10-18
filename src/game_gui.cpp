@@ -5,7 +5,7 @@ internal Gui init_game_gui(GameAssets & assets)
 	gui 					= {};
 	gui.textSize 			= 20;
 	gui.textColor 			= colour_white;
-	gui.selectedTextColor 	= colour_muted_red;
+	gui.selectedTextColor 	= colour_bright_green;
 	gui.spacing 			= 5;
 	gui.padding 			= 10;
 	gui.font 				= assets_get_font(assets, FontAssetId_game);
@@ -66,14 +66,14 @@ bool32 do_gui(Game * game, PlatformInput * input)
 {	
 	if (game_gui_menu_visible(game) == false)
 	{
-		// Note(Leo): return if we want to keep game alive
+		// Note(Leo): return whether or not we want to keep game alive
 		return true;
 	}
 
 	// Note(Leo): idk, testing alternative convention
 	constexpr v2 corner_position = {30, 30};
 	constexpr v2 center_position = {850, 400};
-	v4 menuColor = colour_rgb_alpha(colour_bright_blue.rgb, 0.5);
+	v4 menuColor = {};
 
 	bool32 event_escape = input_button_went_down(input, InputButton_nintendo_b)
 							|| input_button_went_down(input, InputButton_keyboard_backspace);

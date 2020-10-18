@@ -1012,7 +1012,7 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 
 				VkDescriptorImageInfo info = 
 				{
-					context.textureSampler,
+					context.repeatSampler,
 					context.virtualFrames[i].resolveImageView,
 					VK_IMAGE_LAYOUT_GENERAL,
 					// VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,

@@ -290,7 +290,7 @@ vulkan::destroy_drawing_resources(VulkanContext * context)
 		vkDestroyImage(context->device, context->virtualFrames[i].resolveImage, nullptr);
 		vkDestroyImageView(context->device, context->virtualFrames[i].resolveImageView, nullptr);
 
-		vkDestroyFramebuffer(context->device, context->virtualFrames[i].passThroughFramebuffer, nullptr);
+		vkDestroyFramebuffer(context->device, context->virtualFrames[i].presentFramebuffer, nullptr);
 
 		context->virtualFrames[i].colorImage 				= VK_NULL_HANDLE;
 		context->virtualFrames[i].colorImageView 			= VK_NULL_HANDLE;
@@ -298,7 +298,7 @@ vulkan::destroy_drawing_resources(VulkanContext * context)
 		context->virtualFrames[i].depthImageView 			= VK_NULL_HANDLE;
 		context->virtualFrames[i].resolveImage 				= VK_NULL_HANDLE;
 		context->virtualFrames[i].resolveImageView 			= VK_NULL_HANDLE;
-		context->virtualFrames[i].passThroughFramebuffer 	= VK_NULL_HANDLE;
+		context->virtualFrames[i].presentFramebuffer 	= VK_NULL_HANDLE;
 	}
 
 	vkFreeMemory        (context->device, context->virtualFrameAttachmentMemory, nullptr);
