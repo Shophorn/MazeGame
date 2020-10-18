@@ -98,7 +98,6 @@ constexpr u32 array_count(const _ (&array)[Count])
 #include <cmath>
 #include <limits>
 
-
 #include "Memory.cpp"
 #include "Math.cpp"
 
@@ -110,8 +109,7 @@ constexpr u32 array_count(const _ (&array)[Count])
 #include "Quaternion.cpp"
 #include "Matrices.cpp"
 
-
-#include "array2.cpp"
+#include "array.cpp"
 #include "serialization.cpp"
 
 #define FS_ESSENTIALS_HPP

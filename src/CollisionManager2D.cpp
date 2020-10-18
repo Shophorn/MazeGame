@@ -27,8 +27,8 @@
 
 // struct CollisionManager2D
 // {
-// 	Array2<Collider2D> colliders;
-// 	Array2<Collision2D> collisions;
+// 	Array<Collider2D> colliders;
+// 	Array<Collision2D> collisions;
 
 // 	bool32
 // 	raycast(v2 origin, v2 ray, bool32 laddersBlock)

@@ -14,7 +14,7 @@ struct Cloud
 
 struct Clouds
 {
-	Array2<Cloud> clouds;
+	Array<Cloud> clouds;
 
 	f32 growSpeed 			= 0.1;
 	f32 altitude 			= 200;
@@ -39,7 +39,7 @@ internal void initialize_clouds(Clouds & clouds, MemoryArena & allocator)
 	// s32 initialCloudCount 	= 50;
 	s32 cloudCapacity 		= 1000;
 	
-	clouds.clouds 			= push_array_2<Cloud>(allocator, cloudCapacity, ALLOC_GARBAGE);
+	clouds.clouds 			= push_array<Cloud>(allocator, cloudCapacity, ALLOC_GARBAGE);
 	clouds.clouds.count 	= initialCloudCount;
 
 	for (auto & cloud : clouds.clouds)
@@ -85,7 +85,7 @@ internal void update_clouds(Clouds & 			clouds,
 				*/
 
 				s32 maxWaterDropsInRain = 1000;
-				Array2<s32> selectedWaterDropIndices = push_array_2<s32>(*global_transientMemory, maxWaterDropsInRain, ALLOC_GARBAGE);
+				Array<s32> selectedWaterDropIndices = push_array<s32>(*global_transientMemory, maxWaterDropsInRain, ALLOC_GARBAGE);
 
 				for (s32 waterIndex = 0; waterIndex < waters.count; ++waterIndex)
 				{
@@ -137,7 +137,7 @@ internal void update_clouds(Clouds & 			clouds,
 
 			if (cloud.radius < 0)
 			{
-				array_2_unordered_remove(clouds.clouds, i);
+				array_unordered_remove(clouds.clouds, i);
 				i -= 1;
 			}
 		}

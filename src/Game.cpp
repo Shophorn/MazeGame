@@ -121,13 +121,13 @@ struct PhysicsEntity
 
 struct PhysicsWorld
 {
-	Array2<PhysicsEntity> entities;
+	Array<PhysicsEntity> entities;
 };
 
 internal void initialize_physics_world(PhysicsWorld & physicsWorld, MemoryArena & allocator)
 {
 	physicsWorld 			= {};
-	physicsWorld.entities 	= push_array_2<PhysicsEntity>(allocator, 1000, ALLOC_GARBAGE);
+	physicsWorld.entities 	= push_array<PhysicsEntity>(allocator, 1000, ALLOC_GARBAGE);
 }
 
 internal void physics_world_push_entity(PhysicsWorld & physicsWorld, EntityReference entity)
@@ -231,7 +231,7 @@ struct Game
 
 		MeshHandle 			bigPotMesh;
 		MaterialHandle		bigPotMaterial;
-		Array2<Transform3D> bigPotTransforms;
+		Array<Transform3D> bigPotTransforms;
 
 	// ------------------------------------------------------
 
@@ -353,8 +353,8 @@ struct Game
 	constexpr static s32 	timeScaleCount = 3;
 	s32 					timeScaleIndex;
 
-	Array2<Tree3> 	trees;
-	Tree3Settings 	treeSettings [2];
+	Array<Tree> 	trees;
+	TreeSettings 	treeSettings [2];
 
 	s32 			inspectedTreeIndex;
 
@@ -376,7 +376,7 @@ struct Game
 	AudioAsset * stepSFX3;
 
 	AudioClip 			backgroundAudioClip;
-	Array2<AudioClip> 	audioClipsOnPlay;
+	Array<AudioClip> 	audioClipsOnPlay;
 };
 
 
@@ -408,7 +408,7 @@ internal void update_physics_world(PhysicsWorld & physics, Game * game, f32 elap
 
 		if (cancelFall)
 		{
-			array_2_unordered_remove(physics.entities, i);
+			array_unordered_remove(physics.entities, i);
 			i -= 1;
 
 			continue;
@@ -438,7 +438,7 @@ internal void update_physics_world(PhysicsWorld & physics, Game * game, f32 elap
 
 			if (velocity < physicsSleepThreshold)
 			{
-				array_2_unordered_remove(physics.entities, i);
+				array_unordered_remove(physics.entities, i);
 				i -= 1;
 			}
 
@@ -499,7 +499,7 @@ internal s32 game_spawn_tree(Game & game, v3 position, s32 treeTypeIndex, bool32
 	}
 
 	s32 index = game.trees.count++;
-	Tree3 & tree = game.trees[index];
+	Tree & tree = game.trees[index];
 
 	reset_tree_3(tree, &game.treeSettings[treeTypeIndex], position);
 
@@ -805,7 +805,7 @@ internal bool32 game_update_game(Game * 					game,
 				{
 					for (s32 i = 0; i < game->trees.count; ++i)
 					{
-						Tree3 & tree = game->trees[i];
+						Tree & tree = game->trees[i];
 
 						if (v3_length(playerPosition - game->trees[i].position) < playerPickupDistance)
 						{
@@ -1154,7 +1154,7 @@ internal bool32 game_update_game(Game * 					game,
 	{
 		// Note(Leo): +1 for player
 		s32 maxCarriedRaccoons = game->boxCount + game->potCount + 1;
-		Array2<s32> carriedRaccoonIndices = push_array_2<s32>(*global_transientMemory, maxCarriedRaccoons, ALLOC_GARBAGE);
+		Array<s32> carriedRaccoonIndices = push_array<s32>(*global_transientMemory, maxCarriedRaccoons, ALLOC_GARBAGE);
 		{
 			if(game->playerCarriedEntity.type == EntityType_raccoon)
 			{
@@ -1602,7 +1602,7 @@ internal bool32 game_update_game(Game * 					game,
 
 				if (hasSamplesLeft == false)
 				{
-					array_2_unordered_remove(game->audioClipsOnPlay, i);
+					array_unordered_remove(game->audioClipsOnPlay, i);
 					i -= 1;
 				}
 			}
@@ -1699,10 +1699,10 @@ internal Game * game_load_game(MemoryArena & persistentMemory, PlatformFileHandl
 			.animationCount = CharacterAnimations::ANIMATION_COUNT
 		};
 
-		game->playerSkeletonAnimator.boneBoneSpaceTransforms = push_array_2<Transform3D>(	persistentMemory,
+		game->playerSkeletonAnimator.boneBoneSpaceTransforms = push_array<Transform3D>(	persistentMemory,
 																							game->playerSkeletonAnimator.skeleton->boneCount,
 																							ALLOC_ZERO_MEMORY);
-		array_2_fill_with_value(game->playerSkeletonAnimator.boneBoneSpaceTransforms, identity_transform);
+		array_fill_with_value(game->playerSkeletonAnimator.boneBoneSpaceTransforms, identity_transform);
 
 		auto model = graphics_memory_push_model(platformGraphics,
 												assets_get_mesh(game->assets, MeshAssetId_character),
@@ -1740,10 +1740,10 @@ internal Game * game_load_game(MemoryArena & persistentMemory, PlatformFileHandl
 			.weights 		= game->noblePersonCharacterMotor.animationWeights,
 			.animationCount = CharacterAnimations::ANIMATION_COUNT
 		};
-		game->noblePersonSkeletonAnimator.boneBoneSpaceTransforms = push_array_2<Transform3D>(	persistentMemory,
+		game->noblePersonSkeletonAnimator.boneBoneSpaceTransforms = push_array<Transform3D>(	persistentMemory,
 																								game->noblePersonSkeletonAnimator.skeleton->boneCount,
 																								ALLOC_ZERO_MEMORY);
-		array_2_fill_with_value(game->noblePersonSkeletonAnimator.boneBoneSpaceTransforms, identity_transform);
+		array_fill_with_value(game->noblePersonSkeletonAnimator.boneBoneSpaceTransforms, identity_transform);
 
 		auto model = graphics_memory_push_model(platformGraphics,
 												assets_get_mesh(game->assets, MeshAssetId_character), 
@@ -1964,7 +1964,7 @@ internal Game * game_load_game(MemoryArena & persistentMemory, PlatformFileHandl
 
 			game->bigPotMesh 		= assets_get_mesh(game->assets, MeshAssetId_big_pot);
 			game->bigPotMaterial 	= assets_get_material(game->assets, MaterialAssetId_environment);
-			game->bigPotTransforms 	= push_array_2<Transform3D>(persistentMemory, bigPotCount, ALLOC_GARBAGE);
+			game->bigPotTransforms 	= push_array<Transform3D>(persistentMemory, bigPotCount, ALLOC_GARBAGE);
 			game->bigPotTransforms.count = bigPotCount;
 
 			for (s32 i = 0; i < bigPotCount; ++i)
@@ -2089,7 +2089,7 @@ internal Game * game_load_game(MemoryArena & persistentMemory, PlatformFileHandl
 	// ----------------------------------------------------------------------------------
 	
 	{	
-		game->trees = push_array_2<Tree3>(persistentMemory, 200, ALLOC_ZERO_MEMORY);
+		game->trees = push_array<Tree>(persistentMemory, 200, ALLOC_ZERO_MEMORY);
 		for (s32 i = 0; i < game->trees.capacity; ++i)
 		{
 			allocate_tree_memory(persistentMemory, game->trees.memory[i]);
@@ -2133,7 +2133,7 @@ internal Game * game_load_game(MemoryArena & persistentMemory, PlatformFileHandl
 
 	game->backgroundAudioClip 	= {game->backgroundAudio, 0};
 
-	game->audioClipsOnPlay = push_array_2<AudioClip>(persistentMemory, 1000, ALLOC_ZERO_MEMORY);
+	game->audioClipsOnPlay = push_array<AudioClip>(persistentMemory, 1000, ALLOC_ZERO_MEMORY);
 
 	// ----------------------------------------------------------------------------------
 

@@ -48,15 +48,7 @@ constexpr f32 physics_gravity_acceleration = -9.81;
 
 #include "CameraController.cpp"
 #include "RenderingSystem.cpp"
-
-// Todo(Leo): remove these, since we now use asset pack fil
-#include "Files.cpp"
-#include "TextureLoader.cpp"
-// #include "MeshLoader.cpp"
-// #include "AudioFile.cpp"
-
 #include "Gui.cpp"
-
 
 #include "audio_mixer.cpp"
 #include "Game.cpp"

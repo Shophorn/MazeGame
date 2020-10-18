@@ -29,7 +29,7 @@ FollowerController make_follower_controller(Transform3D * 	transform,
 }
 
 void update_follower_input(	FollowerController 		& controller,
-							Array2<CharacterInput> 	& motorInputs,
+							Array<CharacterInput> 	& motorInputs,
 							f32 elapsedTime)
 {
 	v3 toTarget 			= controller.targetTransform->position - controller.transform->position;
@@ -137,7 +137,7 @@ struct RandomWalkController
 };
 
 void update_random_walker_input(RandomWalkController & controller,
-								Array2<CharacterInput> & motorInputs,
+								Array<CharacterInput> & motorInputs,
 								f32 elapsedTime)
 {
 	if (controller.isWaiting)

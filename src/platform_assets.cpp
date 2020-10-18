@@ -95,6 +95,19 @@ struct TextureAssetData
 	TextureFormat 		format;
 };
 
+internal TextureAssetData
+make_texture_asset(u32 * pixelMemory, s32 width, s32 height, s32 channels)
+{
+    TextureAssetData result = 
+    {
+        .pixelMemory     = pixelMemory,
+        .width      = width,
+        .height     = height,
+        .channels   = channels,
+    };
+    return result;
+}
+
 constexpr u64 texture_format_component_size(TextureFormat format)
 {
 	switch(format)

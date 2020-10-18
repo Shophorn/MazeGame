@@ -69,14 +69,14 @@ struct GetWaterFunc
 };
 
 
-struct Tree3Node
+struct TreeNode
 {
 	v3 			position;
 	quaternion 	rotation;
 	f32 		radius;
 };
 
-struct Tree3Branch
+struct TreeBranch
 {
 	s64 startNodeIndex;
 	s64 endNodeIndex;
@@ -92,7 +92,7 @@ struct Tree3Branch
 	bool32	dontGrowLength;
 };
 
-struct Tree3Bud
+struct TreeBud
 {
 	bool32 		hasLeaf;
 	s64 		firstLeafIndex;
@@ -107,7 +107,7 @@ struct Tree3Bud
 	f32 		size;
 };
 
-struct Tree3Settings
+struct TreeSettings
 {
 	f32 maxHeight 					= 10;
 	f32 growSpeedScale 				= 1;
@@ -140,7 +140,7 @@ struct Tree3Settings
 
 	static constexpr auto serializedProperties = make_property_list
 	(	
-		#define SERIALIZE(name) serialize_property(#name, &Tree3Settings::name)
+		#define SERIALIZE(name) serialize_property(#name, &TreeSettings::name)
 
 		SERIALIZE(maxHeight),
 		SERIALIZE(growSpeedScale),
@@ -168,11 +168,11 @@ struct Tree3Settings
 	);
 };
 
-struct Tree3
+struct Tree
 {
-	Array2<Tree3Node> 	nodes;
-	Array2<Tree3Bud> 	buds;
-	Array2<Tree3Branch> branches;
+	Array<TreeNode> 	nodes;
+	Array<TreeBud> 	buds;
+	Array<TreeBranch> branches;
 
 	Leaves 		leaves;
 	DynamicMesh mesh;
@@ -202,19 +202,19 @@ struct Tree3
 	v3 		fruitPosition;
 
 	s32 			typeIndex;
-	Tree3Settings * settings;
+	TreeSettings * settings;
 
 
 	// Todo(Leo): I would like not to include this here, but we do need connection to falling system etc.
 	Game * game;
 };
-bool32 Tree3::globalEnabled = true;
+bool32 Tree::globalEnabled = true;
 
 
-internal void tree_3_add_branch(Tree3 & tree, s64 parentBranchIndex, v3 position, quaternion rotation, f32 distanceFromParentStartNode)
+internal void tree_3_add_branch(Tree & tree, s64 parentBranchIndex, v3 position, quaternion rotation, f32 distanceFromParentStartNode)
 {
 	s32 newBranchIndex 				= tree.branches.count++;
-	Tree3Branch & newBranch 		= tree.branches[newBranchIndex];
+	TreeBranch & newBranch 		= tree.branches[newBranchIndex];
 
 	newBranch.startNodeIndex 			= tree.nodes.count++;
 	newBranch.endNodeIndex 				= tree.nodes.count++;
@@ -242,7 +242,7 @@ internal void tree_3_add_branch(Tree3 & tree, s64 parentBranchIndex, v3 position
 	};
 
 	// Todo(Leo): reset new bud here
-	Tree3Bud & newBud 		= tree.buds[newBranch.budIndex];
+	TreeBud & newBud 		= tree.buds[newBranch.budIndex];
 	newBud.hasLeaf	 		= true;
 	newBud.firstLeafIndex 	= tree.leaves.count;
 	tree.leaves.count 		+= tree.settings->leafCountPerBud;
@@ -259,7 +259,7 @@ internal void tree_3_add_branch(Tree3 & tree, s64 parentBranchIndex, v3 position
 	tree.branches[parentBranchIndex].childBranchCount += 1;
 }
 
-internal void grow_tree_3(Tree3 & tree, f32 elapsedTime, GetWaterFunc & get_water)
+internal void grow_tree_3(Tree & tree, f32 elapsedTime, GetWaterFunc & get_water)
 {
 	elapsedTime *= tree.settings->growSpeedScale;
 
@@ -283,10 +283,10 @@ internal void grow_tree_3(Tree3 & tree, f32 elapsedTime, GetWaterFunc & get_wate
 	s32 branchCountBefore = tree.branches.count;
 	for (s32 branchIndex = 0; branchIndex < branchCountBefore; ++branchIndex)
 	{
-		Tree3Branch & branch 	= tree.branches[branchIndex];
+		TreeBranch & branch 	= tree.branches[branchIndex];
 
-		Tree3Node & startNode 	= tree.nodes[branch.startNodeIndex];
-		Tree3Node & endNode 	= tree.nodes[branch.endNodeIndex];
+		TreeNode & startNode 	= tree.nodes[branch.startNodeIndex];
+		TreeNode & endNode 	= tree.nodes[branch.endNodeIndex];
 
 		// GROW WIDTH
 		{
@@ -294,7 +294,7 @@ internal void grow_tree_3(Tree3 & tree, f32 elapsedTime, GetWaterFunc & get_wate
 
 			if (branch.parentBranchIndex >= 0)
 			{
-				Tree3Branch & parentBranch = tree.branches[branch.parentBranchIndex];
+				TreeBranch & parentBranch = tree.branches[branch.parentBranchIndex];
 
 				s32 parentBranchChildCount 		= parentBranch.childBranchCount;
 				f32 parentBranchStartNodeRadius	= tree.nodes[parentBranch.startNodeIndex].radius;
@@ -400,11 +400,11 @@ internal void grow_tree_3(Tree3 & tree, f32 elapsedTime, GetWaterFunc & get_wate
 
 	for (s32 i = 0; i < tree.buds.count; ++i)
 	{
-		Tree3Bud & bud = tree.buds[i];
+		TreeBud & bud = tree.buds[i];
 
 		bud.age += elapsedTime;
 
-		Tree3Node const & branchEndNode = tree.nodes[tree.branches[bud.parentBranchIndex].endNodeIndex];
+		TreeNode const & branchEndNode = tree.nodes[tree.branches[bud.parentBranchIndex].endNodeIndex];
 		f32 distanceFromApex 			= v3_length(bud.position - branchEndNode.position);
 
 		if (bud.hasLeaf && (distanceFromApex > tree.settings->budTerminalDistanceFromApex))
@@ -458,7 +458,7 @@ internal void grow_tree_3(Tree3 & tree, f32 elapsedTime, GetWaterFunc & get_wate
 	}
 }
 
-internal void build_tree_3_mesh(Tree3 & tree)
+internal void build_tree_3_mesh(Tree & tree)
 {
 	DynamicMesh & mesh 	= tree.mesh;
 	Leaves & leaves 	= tree.leaves;
@@ -509,8 +509,8 @@ internal void build_tree_3_mesh(Tree3 & tree)
 	for (s32 branchIndex = 0; branchIndex < tree.branches.count; ++branchIndex)
 	// for (s32 branchIndex = 0; branchIndex < 1; ++branchIndex)
 	{
-		Tree3Node const & startNode = tree.nodes[tree.branches[branchIndex].startNodeIndex];
-		Tree3Node const & endNode 	= tree.nodes[tree.branches[branchIndex].endNodeIndex];
+		TreeNode const & startNode = tree.nodes[tree.branches[branchIndex].startNodeIndex];
+		TreeNode const & endNode 	= tree.nodes[tree.branches[branchIndex].endNodeIndex];
 
 		/// BOTTOM DOME
 		{
@@ -703,15 +703,15 @@ internal void build_tree_3_mesh(Tree3 & tree)
 	}
 }
 
-internal void reset_tree_3(Tree3 & tree, Tree3Settings * settings, v3 position)
+internal void reset_tree_3(Tree & tree, TreeSettings * settings, v3 position)
 {
 	tree.position = position;
 	tree.settings = settings;
 
 	// Note(Leo): arrays are initialized to 0
-	clear_array_2(tree.nodes);
-	clear_array_2(tree.buds);
-	clear_array_2(tree.branches);
+	clear_array(tree.nodes);
+	clear_array(tree.buds);
+	clear_array(tree.branches);
 
 	flush_leaves(tree.leaves);
 	flush_dynamic_mesh(tree.mesh);
@@ -726,22 +726,22 @@ internal void reset_tree_3(Tree3 & tree, Tree3Settings * settings, v3 position)
 	build_tree_3_mesh(tree);
 }
 
-internal void allocate_tree_memory(MemoryArena & allocator, Tree3 & tree)
+internal void allocate_tree_memory(MemoryArena & allocator, Tree & tree)
 {
 	tree = {};
 
-	tree.nodes 		= push_array_2<Tree3Node>(allocator, 1000, ALLOC_ZERO_MEMORY);
-	tree.buds 		= push_array_2<Tree3Bud>(allocator, 1000, ALLOC_ZERO_MEMORY);
-	tree.branches 	= push_array_2<Tree3Branch>(allocator, 1000, ALLOC_ZERO_MEMORY);
+	tree.nodes 		= push_array<TreeNode>(allocator, 1000, ALLOC_ZERO_MEMORY);
+	tree.buds 		= push_array<TreeBud>(allocator, 1000, ALLOC_ZERO_MEMORY);
+	tree.branches 	= push_array<TreeBranch>(allocator, 1000, ALLOC_ZERO_MEMORY);
 	tree.leaves 	= make_leaves(allocator, 2000);
 	tree.mesh 		= push_dynamic_mesh(allocator, 10000, 40000);
 
 	// reset_tree_3(tree);
 }
 
-internal void tree_gui(Tree3 & tree)
+internal void tree_gui(Tree & tree)
 {
-	gui_toggle("Global Enable", &Tree3::globalEnabled);
+	gui_toggle("Global Enable", &Tree::globalEnabled);
 	gui_toggle("Enable Updates", &tree.enabled);
 	gui_toggle("Draw Gizmos", &tree.drawGizmos);
 	gui_float_field("Grow Speed Scale", &tree.settings->growSpeedScale);
@@ -823,14 +823,14 @@ internal void tree_gui(Tree3 & tree)
 	gui_toggle("Break On Update", &tree.breakOnUpdate);
 }
 
-internal void update_tree_3(Tree3 & tree, f32 elapsedTime, GetWaterFunc & get_water)
+internal void update_tree_3(Tree & tree, f32 elapsedTime, GetWaterFunc & get_water)
 {
 	if (tree.breakOnUpdate)
 	{
 		tree.breakOnUpdate = false;
 	}
 
-	if (Tree3::globalEnabled && tree.planted && tree.enabled && !tree.resourceLimitReached)
+	if (Tree::globalEnabled && tree.planted && tree.enabled && !tree.resourceLimitReached)
 	{
 		grow_tree_3(tree, elapsedTime, get_water);
 		build_tree_3_mesh(tree);

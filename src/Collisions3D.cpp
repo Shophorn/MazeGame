@@ -33,11 +33,11 @@ struct PrecomputedBoxCollider
 
 struct CollisionSystem3D
 {
-	Array2<PrecomputedBoxCollider> 	staticBoxColliders;
-	Array2<CylinderCollider> 		staticCylinderColliders;
+	Array<PrecomputedBoxCollider> 	staticBoxColliders;
+	Array<CylinderCollider> 		staticCylinderColliders;
 
-	Array2<PrecomputedBoxCollider> 	submittedBoxColliders;
-	Array2<CylinderCollider> 		submittedCylinderColliders;
+	Array<PrecomputedBoxCollider> 	submittedBoxColliders;
+	Array<CylinderCollider> 		submittedCylinderColliders;
 
 
 
@@ -49,8 +49,8 @@ internal CollisionSystem3D init_collision_system(MemoryArena & allocator)
 {
 	CollisionSystem3D system = {};
 
-	system.staticBoxColliders = push_array_2<PrecomputedBoxCollider>(allocator, 100, ALLOC_GARBAGE);
-	// system.staticCylinderColliders = push_array_2<CylinderCollider>(allocator, 100, ALLOC_GARBAGE);
+	system.staticBoxColliders = push_array<PrecomputedBoxCollider>(allocator, 100, ALLOC_GARBAGE);
+	// system.staticCylinderColliders = push_array<CylinderCollider>(allocator, 100, ALLOC_GARBAGE);
 
 	return system;
 }
@@ -74,8 +74,8 @@ internal m44 compute_inverse_box_collider_transform(BoxCollider const & collider
 internal void clear_colliders(CollisionSystem3D & system)
 {
 	// Note(Leo): This is reseted, so that it is empty for the new frame
-	system.submittedBoxColliders 		= push_array_2<PrecomputedBoxCollider>(*global_transientMemory, 100, ALLOC_GARBAGE);
-	system.submittedCylinderColliders 	= push_array_2<CylinderCollider>(*global_transientMemory, 100, ALLOC_GARBAGE);
+	system.submittedBoxColliders 		= push_array<PrecomputedBoxCollider>(*global_transientMemory, 100, ALLOC_GARBAGE);
+	system.submittedCylinderColliders 	= push_array<CylinderCollider>(*global_transientMemory, 100, ALLOC_GARBAGE);
 }
 
 internal void submit_cylinder_collider(CollisionSystem3D & system, CylinderCollider collider, Transform3D const & transform)
@@ -117,7 +117,7 @@ internal f32 get_terrain_height(CollisionSystem3D const & system, v2 position)
 
 /// ----------- COLLISION MATH ---------------
 
-internal bool32 ray_box_collisions(	Array2<PrecomputedBoxCollider> & colliders,
+internal bool32 ray_box_collisions(	Array<PrecomputedBoxCollider> & colliders,
 									v3 rayStart,
 									v3 normalizedRayDirection,
 									f32 rayLength,
@@ -237,7 +237,7 @@ internal bool32 ray_box_collisions(	Array2<PrecomputedBoxCollider> & colliders,
 	return hit;
 }
 
-internal bool32 ray_cylinder_collisions (Array2<CylinderCollider> colliders, Ray ray, RaycastResult * outResult, f32 * rayHitSquareDistance)
+internal bool32 ray_cylinder_collisions (Array<CylinderCollider> colliders, Ray ray, RaycastResult * outResult, f32 * rayHitSquareDistance)
 {
 	bool32 hit = false;
 

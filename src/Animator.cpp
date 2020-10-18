@@ -30,7 +30,7 @@ struct AnimatedSkeleton
 struct SkeletonAnimator
 {
 	AnimatedSkeleton *	skeleton;
-	Array2<Transform3D> boneBoneSpaceTransforms;
+	Array<Transform3D> boneBoneSpaceTransforms;
 
 	Animation const ** 	animations;
 	f32 *				weights;
