@@ -1,14 +1,6 @@
-struct quaternion
-{
-	union
-	{
-		v3 vector;
-		struct {f32 x, y, z; };
-	};
-	f32 w;
-};
 
-static_assert(std::is_aggregate_v<quaternion>, "");
+
+// static_assert(std::is_aggregate_v<quaternion>, "");
 static_assert(std::is_standard_layout_v<quaternion>, "");
 static_assert(std::is_trivial_v<quaternion>, "");
 
@@ -43,8 +35,6 @@ internal quaternion quaternion_axis_angle(v3 normalizedAxis, f32 angleInRadians)
 	// Todo(Leo): This seems horribly wrong, but as everything breaks when this is
 	// removed, we probably have mitigated this everywhere.
 	angleInRadians 		*= -1;
-
-
 
 	f32 halfAngle 		= angleInRadians / 2.0f;
 

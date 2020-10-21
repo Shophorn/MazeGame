@@ -24,11 +24,6 @@ f32 magnitude_v1(f32 f)
 
 /// ------- v2 ------------
 
-struct v2
-{	
-	f32 x, y;
-};
-
 v2 operator + (v2 a, v2 b)
 {
 	a.x += b.x;
@@ -145,13 +140,6 @@ f32 v2_signed_angle(v2 from, v2 to)
 }
 
 // ------------ v3 ----------------
-
-union v3
-{
-	struct { f32 x, y, z; };
-	struct { f32 r, g, b; };
-	struct { v2 xy; f32 ignored_; };
-};
 
 constexpr v3 v3_right 	= {1,0,0};
 constexpr v3 v3_forward = {0,1,0};
@@ -313,28 +301,6 @@ v3 make_uniform_v3(f32 value)
 
 
 // ----------- v4 ----------------
-
-union v4
-{
-	struct { f32 x, y, z, w; };
-	struct
-	{
-		v3 xyz;
-		f32 ignored_1;
-	};
-
-	struct
-	{
-		v2 xy, zw;
-	};
-
-	struct { f32 r, g, b, a; };
-	struct
-	{
-		v3 rgb; 
-		f32 ignored_2;
-	};
-};
 
 internal v4 operator * (v4 v, f32 f)
 {

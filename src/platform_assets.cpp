@@ -19,7 +19,7 @@ struct MeshHandle : AssetHandle {};
 struct TextureHandle : AssetHandle {};
 struct MaterialHandle : AssetHandle {};
 
-// Todo(Leo): these 2 should not be needed
+// Todo(Leo): this should not be needed
 struct ModelHandle : AssetHandle {};
 
 static_assert(sizeof(MeshHandle) == 8);
@@ -116,13 +116,15 @@ constexpr u64 texture_format_component_size(TextureFormat format)
 		case TextureFormat_u8_linear: 	return sizeof(u8);
 		case TextureFormat_f32: 		return sizeof(f32);
 	}
-	Assert(false && "Invalid texture formmat");
+	// Todo(Leo): Add this back by moving this function elsewhere
+	// Assert(false && "Invalid texture formmat");
 	return 0;	
 }
 
 u64 texture_asset_data_get_memory_size(TextureAssetData & asset)
 {
-	Assert(asset.channels == 4);
+	// Todo(Leo): Add this back by moving this function elsewhere
+	// Assert(asset.channels == 4);
 
 	u64 pixelCount 		= asset.width * asset.height;
 	u64 componenCount 	= pixelCount * asset.channels;
@@ -144,7 +146,8 @@ struct FontCharacterInfo
 
 // Note(Leo): This is saved to asset pack file, so we must be confident about its layout
 static_assert(sizeof(FontCharacterInfo) == 7 * sizeof(f32));
-static_assert(std::is_standard_layout_v<FontCharacterInfo>);
+	// Todo(Leo): Add this back
+// static_assert(std::is_standard_layout_v<FontCharacterInfo>);
 
 struct Font
 {
@@ -153,4 +156,29 @@ struct Font
 
 	MaterialHandle atlasTexture;
 	FontCharacterInfo characters[characterCount];
+};
+
+// Todo(Leo): This maybe does not belong here, I just dumped it here
+enum CharacterSkeletonBone : s32
+{
+	CharacterSkeletonBone_root,
+	CharacterSkeletonBone_hip,
+	CharacterSkeletonBone_back,
+	CharacterSkeletonBone_neck,
+	CharacterSkeletonBone_head,
+	CharacterSkeletonBone_left_arm,
+	CharacterSkeletonBone_left_forearm,
+	CharacterSkeletonBone_left_hand,
+	CharacterSkeletonBone_right_arm,
+	CharacterSkeletonBone_right_forearm,
+	CharacterSkeletonBone_right_hand,
+	CharacterSkeletonBone_left_thigh,
+	CharacterSkeletonBone_left_shin,
+	CharacterSkeletonBone_left_foot,
+	CharacterSkeletonBone_right_thigh,
+	CharacterSkeletonBone_right_shin,
+	CharacterSkeletonBone_right_foot,
+
+	CharacterSkeletonBoneCount,
+	CharacterSkeletonBone_invalid,
 };

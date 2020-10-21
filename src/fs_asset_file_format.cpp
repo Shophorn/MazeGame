@@ -38,7 +38,7 @@ struct AssetFileSkeleton
 	s32 boneCount;
 };
 
-struct AssetFileAudio
+struct AssetFileSound
 {
 	u64 dataOffset;
 	s32 sampleCount;
@@ -48,20 +48,45 @@ struct AssetFileAudio
 // We just write character info after texture
 using AssetFileFont = AssetFileTexture;
 
+constexpr u32 asset_file_magic_value 		= 0x66736166;
+constexpr u32 asset_file_current_version 	= 1;
 
-struct AssetFileHeader
+// struct AssetFileHeader
+// {
+// 	u32 magic;
+// 	u32 version;
+
+// 	AssetFileTexture 	textures [TextureAssetIdCount];
+// 	AssetFileMesh 		meshes [MeshAssetIdCount];
+// 	AssetFileAnimation 	animations [AnimationAssetIdCount];
+// 	AssetFileSkeleton 	skeletons [SkeletonAssetIdCount];
+// 	AssetFileSound		sounds [SoundAssetIdCount];
+// 	AssetFileFont 		fonts [FontAssetIdCount];
+// };
+
+struct AssetTypeHeaderInfo
 {
-	static constexpr u32 magicValue 	= 0x66736166;
-	static constexpr u32 currentVersion = 1;
+	u64 offsetToFirst;
+	u64 count;
+};
 
+struct AssetFileHeader2
+{
 	u32 magic;
 	u32 version;
 
-	AssetFileTexture 	textures [TextureAssetIdCount];
-	AssetFileMesh 		meshes [MeshAssetIdCount];
-	AssetFileAnimation 	animations [AnimationAssetIdCount];
-	AssetFileSkeleton 	skeletons [SkeletonAssetIdCount];
-	AssetFileAudio		audios [AudioAssetIdCount];
-	AssetFileFont 		fonts [FontAssetIdCount];
+	// u64 offsetToTextures;
+	// u64 offsetToMeshes;
+	// u64 offsetToAnimations;
+	// u64 offsetToSkeletons;
+	// u64 offsetToSounds;
+	// u64 offsetToFonts;
+
+	AssetTypeHeaderInfo	 textures;
+	AssetTypeHeaderInfo	 meshes;
+	AssetTypeHeaderInfo	 animations;
+	AssetTypeHeaderInfo	 skeletons;
+	AssetTypeHeaderInfo	 sounds;
+	AssetTypeHeaderInfo	 fonts;
 };
 #pragma pack(pop)

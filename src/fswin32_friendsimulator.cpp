@@ -5,7 +5,14 @@ Windows platform implementation layer for Friendsimulator.
 This is the first file to compile, and everything is included from here.
 */
 
+/*
+Note(Leo): There is fuckery going inside win32 things
+WinSock2 must be included before lean and mean and windows.h
+*/
+#define NOMINMAX
 #include <WinSock2.h>
+
+#define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
 #include <Windowsx.h>
 #include <xinput.h>
@@ -35,7 +42,8 @@ This is the first file to compile, and everything is included from here.
 #endif
 
 // Todo(Leo): these should be in different order, maybe. Essentials describe some c++ stuff that shouldn't concern platform api
-#include "fs_essentials.hpp"
+#include "fs_standard_types.h"
+#include "fs_standard_functions.h"
 #include "fs_platform_interface.hpp"
 
 #include "logging.cpp"

@@ -40,11 +40,21 @@ struct GameAssets
 
 	Animation *			animations [AnimationAssetIdCount];
 	AnimatedSkeleton * 	skeletons [SkeletonAssetIdCount];
-	AudioAsset * 		audio [AudioAssetIdCount];
+	AudioAsset * 		audio [SoundAssetIdCount];
 	Font * 				fonts [FontAssetIdCount];
 
 	PlatformFileHandle 	file;
-	AssetFileHeader 	fileHeader;
+	// AssetFileHeader 	fileHeader;
+
+	AssetFileTexture 	textureHeaders[TextureAssetIdCount];
+	AssetFileMesh		meshHeaders[MeshAssetIdCount];
+	AssetFileAnimation	animationHeaders[AnimationAssetIdCount];
+	AssetFileSkeleton	skeletonHeaders[SkeletonAssetIdCount];
+	AssetFileSound		soundHeaders[SoundAssetIdCount];
+	AssetFileFont		fontHeaders[FontAssetIdCount];
+
+	PlatformFileHandle 	meshFile;
+	PlatformFileHandle 	meshFileHeader;
 };
 
 internal GameAssets init_game_assets(MemoryArena * allocator)
@@ -52,10 +62,29 @@ internal GameAssets init_game_assets(MemoryArena * allocator)
 	// Note(Leo): apparently this does indeed set MeshHandles to -1, which is what we want. I do not know why, though.
 	GameAssets assets 	= {};
 	assets.file 		= platform_file_open("assets.fsa", FILE_MODE_READ);
-	platform_file_read(assets.file, 0, sizeof(AssetFileHeader), &assets.fileHeader);
+	// platform_file_read(assets.file, 0, sizeof(AssetFileHeader), &assets.fileHeader);
 
-	Assert(assets.fileHeader.magic = AssetFileHeader::magicValue);
-	Assert(assets.fileHeader.version = AssetFileHeader::currentVersion);
+
+
+	AssetFileHeader2 header2 = {};
+	platform_file_read(assets.file, 0, sizeof(AssetFileHeader2), &header2);
+	Assert(header2.magic = asset_file_magic_value);
+	Assert(header2.version = asset_file_current_version);
+
+	Assert(header2.textures.count == TextureAssetIdCount && "Invalid number of textures in asset file");
+	Assert(header2.meshes.count == MeshAssetIdCount && "Invalid number of meshes in asset file");
+	Assert(header2.animations.count == AnimationAssetIdCount && "Invalid number of animations in asset file");
+	Assert(header2.skeletons.count == SkeletonAssetIdCount && "Invalid number of skeletons in asset file");
+	Assert(header2.sounds.count == SoundAssetIdCount && "Invalid number of sounds in asset file");
+	Assert(header2.fonts.count == FontAssetIdCount && "Invalid number of fonts in asset file");
+
+	platform_file_read(assets.file, header2.textures.offsetToFirst, sizeof(assets.textureHeaders), assets.textureHeaders);
+	platform_file_read(assets.file, header2.meshes.offsetToFirst, sizeof(assets.meshHeaders), assets.meshHeaders);
+	platform_file_read(assets.file, header2.animations.offsetToFirst, sizeof(assets.animationHeaders), assets.animationHeaders);
+	platform_file_read(assets.file, header2.skeletons.offsetToFirst, sizeof(assets.skeletonHeaders), assets.skeletonHeaders);
+	platform_file_read(assets.file, header2.sounds.offsetToFirst, sizeof(assets.soundHeaders), assets.soundHeaders);
+	platform_file_read(assets.file, header2.fonts.offsetToFirst, sizeof(assets.fontHeaders), assets.fontHeaders);
+
 
 	assets.allocator 		= allocator;
 
@@ -125,7 +154,7 @@ internal MeshHandle assets_get_mesh(GameAssets & assets, MeshAssetId id)
 	
 	if (is_valid_handle(handle) == false)
 	{
-		AssetFileMesh assetMesh = assets.fileHeader.meshes[id];
+		AssetFileMesh assetMesh = assets.meshHeaders[id];//fileHeader.meshes[id];
 
 		u64 vertexMemorySize 	= assetMesh.vertexCount * sizeof(Vertex);
 		u64 skinMemorySize 		= assetMesh.hasSkinning ? assetMesh.vertexCount * sizeof(VertexSkinData) : 0;
@@ -166,7 +195,7 @@ internal TextureHandle assets_get_texture(GameAssets & assets, TextureAssetId id
 		TextureAssetData assetData;
 		if (loadInfo.generateAssetData == false)
 		{
-			AssetFileTexture assetTexture = assets.fileHeader.textures[id];
+			AssetFileTexture assetTexture = assets.textureHeaders[id];
 
 			u64 memorySize = assetTexture.width * assetTexture.height * assetTexture.channels;
 
@@ -208,7 +237,7 @@ internal TextureAssetData assets_get_texture_data(GameAssets & assets, TextureAs
 	TextureAssetData assetData;
 	if (loadInfo.generateAssetData == false)
 	{
-		AssetFileTexture assetTexture = assets.fileHeader.textures[id];
+		AssetFileTexture assetTexture = assets.textureHeaders[id]; //fileHeader.textures[id];
 
 		u64 memorySize = assetTexture.width * assetTexture.height * assetTexture.channels;
 
@@ -292,7 +321,7 @@ internal Animation * assets_get_animation(GameAssets & assets, AnimationAssetId 
 		}
 		else
 		{
-			AssetFileAnimation asset = assets.fileHeader.animations[id];
+			AssetFileAnimation asset = assets.animationHeaders[id];//fileHeader.animations[id];
 
 			animation = push_memory<Animation>(*assets.allocator, 1, ALLOC_ZERO_MEMORY);
 
@@ -344,7 +373,7 @@ internal AnimatedSkeleton * assets_get_skeleton(GameAssets & assets, SkeletonAss
 	{
 		skeleton 		= push_memory<AnimatedSkeleton>(*assets.allocator, 1, ALLOC_GARBAGE);
 
-		AssetFileSkeleton assetSkeleton = assets.fileHeader.skeletons[id];
+		AssetFileSkeleton assetSkeleton = assets.skeletonHeaders[id];//fileHeader.skeletons[id];
 
 		s32 boneCount 				= assetSkeleton.boneCount;
 		AnimatedBone * bonesMemory 	= push_memory<AnimatedBone>(*assets.allocator, boneCount, ALLOC_GARBAGE);
@@ -361,7 +390,7 @@ internal AnimatedSkeleton * assets_get_skeleton(GameAssets & assets, SkeletonAss
 	return skeleton;
 }
 
-internal AudioAsset * assets_get_audio(GameAssets & assets, AudioAssetId id)
+internal AudioAsset * assets_get_audio(GameAssets & assets, SoundAssetId id)
 {
 	AudioAsset * audio = assets.audio[id];
 
@@ -369,7 +398,7 @@ internal AudioAsset * assets_get_audio(GameAssets & assets, AudioAssetId id)
 	{
 		audio = push_memory<AudioAsset>(*assets.allocator, 1, ALLOC_GARBAGE);
 
-		AssetFileAudio asset 	= assets.fileHeader.audios[id];
+		AssetFileSound asset 	= assets.soundHeaders[id]; //fileHeader.sounds[id];
 		audio->sampleCount 		= asset.sampleCount;
 		audio->leftChannel 		= push_memory<f32>(*assets.allocator, asset.sampleCount, ALLOC_GARBAGE);
 		audio->rightChannel 	= push_memory<f32>(*assets.allocator, asset.sampleCount, ALLOC_GARBAGE);
@@ -392,7 +421,7 @@ internal Font * assets_get_font(GameAssets & assets, FontAssetId id)
 	if (font == nullptr)
 	{
 		#if 1
-		AssetFileFont assetFont = assets.fileHeader.fonts[id];
+		AssetFileFont assetFont = assets.fontHeaders[id];//fileHeader.fonts[id];
 
 		u64 textureMemorySize 	= assetFont.width * assetFont.height * assetFont.channels;
 		u64 textureMemoryOffset = assetFont.dataOffset;

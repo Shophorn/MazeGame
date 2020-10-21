@@ -5,21 +5,6 @@ Matrix structure declaration and definition.
 Matrices are column major.
 =============================================================================*/
 
-struct m44
-{
-	v4 columns [4];
-
-	v4 & operator [] (s32 column)
-	{ 
-		return columns[column];
-	}
-
-	v4 operator [] (s32 column) const
-	{ 
-		return columns[column];
-	}
-};
-
 internal constexpr m44 identity_m44 = {	1, 0, 0, 0,
 										0, 1, 0, 0,
 										0, 0, 1, 0,

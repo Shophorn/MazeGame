@@ -103,17 +103,6 @@ using JsonDocument 	= rapidjson::Document;
 using JsonValue 	= rapidjson::Value;
 using JsonArray 	= rapidjson::GenericArray<true, JsonValue>;
 
-// struct GltfFile
-// {
-// 	Array2<byte> 	memory;
-// 	JsonDocument 	json;
-// 	u64 			binaryChunkOffset;
-
-// 	byte const * binary() const { return memory.memory + binaryChunkOffset; }
-// };
-
-
-
 struct glTFHeader
 {
 	u32 magic;

@@ -7,7 +7,10 @@ Friendsimulator game code main file.
 #if !defined FS_FULL_GAME
 	#define FS_GAME_DLL
 
-	#include "fs_essentials.hpp"
+	#include "fs_standard_types.h"
+
+	// Todo(Leo): make this .cpp file
+	#include "fs_standard_functions.h"
 	#include "fs_platform_interface.hpp"
 	#include "logging.cpp"
 #endif

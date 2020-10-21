@@ -2126,10 +2126,10 @@ internal Game * game_load_game(MemoryArena & persistentMemory, PlatformFileHandl
 
 	// ----------------------------------------------------------------------------------
 
-	game->backgroundAudio 	= assets_get_audio(game->assets, AudioAssetId_background);
-	game->stepSFX			= assets_get_audio(game->assets, AudioAssetId_step_1);
-	game->stepSFX2			= assets_get_audio(game->assets, AudioAssetId_step_2);
-	game->stepSFX3			= assets_get_audio(game->assets, AudioAssetId_birds);
+	game->backgroundAudio 	= assets_get_audio(game->assets, SoundAssetId_background);
+	game->stepSFX			= assets_get_audio(game->assets, SoundAssetId_step_1);
+	game->stepSFX2			= assets_get_audio(game->assets, SoundAssetId_step_2);
+	game->stepSFX3			= assets_get_audio(game->assets, SoundAssetId_birds);
 
 	game->backgroundAudioClip 	= {game->backgroundAudio, 0};
 

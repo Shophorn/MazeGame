@@ -2,35 +2,12 @@
 Leo Tamminen
 
 Enumeration definitions that are used both in game and asset cooking pipelines
+
+NOTICE(LEO): This file is also parsed manually by us, in asset cooker, so avoid comments,
+especially ones that contain things like "MeshAssetId _ NNNNNN". This even broke it :)
 */
 
-
-// Todo(Leo): maybe do this :)
-// enum AssetId : s32
-// {
-// 	AssetId_cloud_mesh,
-
-// 	AssetId_character_mesh,
-// 	AssetId_raccoon_mesh,
-// 	AssetId_robot_mesh,
-// 	AssetId_skysphere_mesh,
-// 	AssetId_totem_mesh,
-// 	AssetId_small_pot_mesh,
-// 	AssetId_big_pot_mesh,
-// 	AssetId_seed_mesh,
-// 	AssetId_water_drop_mesh,
-// 	AssetId_train_mesh,
-
-// 	AssetId_monument_arcs_mesh,
-// 	AssetId_monument_base_mesh,
-// 	AssetId_monument_top_1_mesh,
-// 	AssetId_monument_top_2_mesh,
-
-// 	AssetId_box_mesh,
-// 	AssetId_box_cover_mesh,	
-
-// 	AssetIdCount
-// };
+#include "fs_standard_types.h"
 
 enum MeshAssetId : s32
 {
@@ -130,57 +107,21 @@ enum SkeletonAssetId : s32
 	SkeletonAssetIdCount
 };
 
-// enum SkeletonType : s32
-// {
-// 	SKELETON_TYPE_CHARACTER,
-// 	SKELETON_TYPE_RACCOON,
-
-// 	SKELETON_TYPE_COUNT
-// };
-
-enum CharacterSkeletonBone : s32
+enum SoundAssetId : s32
 {
-	CharacterSkeletonBone_root,
-	CharacterSkeletonBone_hip,
-	CharacterSkeletonBone_back,
-	CharacterSkeletonBone_neck,
-	CharacterSkeletonBone_head,
-	CharacterSkeletonBone_left_arm,
-	CharacterSkeletonBone_left_forearm,
-	CharacterSkeletonBone_left_hand,
-	CharacterSkeletonBone_right_arm,
-	CharacterSkeletonBone_right_forearm,
-	CharacterSkeletonBone_right_hand,
-	CharacterSkeletonBone_left_thigh,
-	CharacterSkeletonBone_left_shin,
-	CharacterSkeletonBone_left_foot,
-	CharacterSkeletonBone_right_thigh,
-	CharacterSkeletonBone_right_shin,
-	CharacterSkeletonBone_right_foot,
+	SoundAssetId_background,
+	SoundAssetId_step_1,
+	SoundAssetId_step_2,
+	SoundAssetId_birds,
 
-	CharacterSkeletonBoneCount,
-	CharacterSkeletonBone_invalid,
-};
+	SoundAssetId_electric_1,
+	SoundAssetId_electric_2,
 
-enum AudioAssetId : s32
-{
-	AudioAssetId_background,
-	AudioAssetId_step_1,
-	AudioAssetId_step_2,
-	AudioAssetId_birds,
-
-	AudioAssetId_electric_1,
-	AudioAssetId_electric_2,
-
-	AudioAssetIdCount
+	SoundAssetIdCount
 };
 
 enum FontAssetId : s32
 {
 	FontAssetId_game,
-	// FontAssetId_menu,
-
 	FontAssetIdCount,
-
-	// FontAssetId_menu = FontAssetId_game
 };

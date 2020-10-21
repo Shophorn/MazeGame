@@ -1,0 +1,76 @@
+{
+	"meshes" :
+	[
+		{ "id" : "MeshAssetId_raccoon", 		"filename" : "raccoon.glb", 		"name" : "raccoon" },
+		{ "id" : "MeshAssetId_robot", 			"filename" : "Robot53.glb", 		"name" : "model_rigged" },
+		{ "id" : "MeshAssetId_character", 		"filename" : "cube_head_v4.glb", 	"name" : "cube_head" },
+		{ "id" : "MeshAssetId_skysphere", 		"filename" : "skysphere.glb", 		"name" : "skysphere" },
+		{ "id" : "MeshAssetId_totem", 			"filename" : "totem.glb", 			"name" : "totem" },
+		{ "id" : "MeshAssetId_small_pot", 		"filename" : "scenery.glb", 		"name" : "small_pot" },
+		{ "id" : "MeshAssetId_big_pot", 		"filename" : "scenery.glb", 		"name" : "big_pot" },
+		{ "id" : "MeshAssetId_seed", 			"filename" : "scenery.glb", 		"name" : "acorn" },
+		{ "id" : "MeshAssetId_water_drop", 		"filename" : "scenery.glb", 		"name" : "water_drop" },
+		{ "id" : "MeshAssetId_train", 			"filename" : "train.glb", 			"name" : "train" },
+		{ "id" : "MeshAssetId_monument_arcs", 	"filename" : "monuments.glb", 		"name" : "monument_arches" },
+		{ "id" : "MeshAssetId_monument_base",	"filename" : "monuments.glb", 		"name" : "monument_base" },
+		{ "id" : "MeshAssetId_monument_top_1",	"filename" : "monuments.glb", 		"name" : "monument_ornament_01" },
+		{ "id" : "MeshAssetId_monument_top_2", 	"filename" : "monuments.glb", 		"name" : "monument_ornament_02" },
+		{ "id" : "MeshAssetId_box", 			"filename" : "box.glb", 			"name" : "box" },
+		{ "id" : "MeshAssetId_box_cover", 		"filename" : "box.glb", 			"name" : "cover" },
+		{ "id" : "MeshAssetId_cloud", 			"filename" : "cloud.glb", 			"name" : "cloud" },
+		{ "id" : "MeshAssetId_rain",			"filename" : "cloud.glb", 			"name" : "rain" },
+	],
+
+	"textures" :
+	[
+		{ "id" : "TextureAssetId_ground_albedo", 		"filename" : "ground.png", 				"format" : "TextureFormat_u8_srgb" },
+		{ "id" : "TextureAssetId_tiles_albedo", 		"filename" : "tiles.png", 				"format" : "TextureFormat_u8_srgb" },
+		{ "id" : "TextureAssetId_red_tiles_albedo", 	"filename" : "tiles_red.png", 			"format" : "TextureFormat_u8_srgb" },
+		{ "id" : "TextureAssetId_seed_albedo", 			"filename" : "Acorn_albedo.png", 		"format" : "TextureFormat_u8_srgb" },
+		{ "id" : "TextureAssetId_bark_albedo", 			"filename" : "bark.png", 				"format" : "TextureFormat_u8_srgb" },
+		{ "id" : "TextureAssetId_raccoon_albedo", 		"filename" : "RaccoonAlbedo.png", 		"format" : "TextureFormat_u8_srgb" },
+		{ "id" : "TextureAssetId_robot_albedo", 		"filename" : "Robot_53_albedo_4k.png", 	"format" : "TextureFormat_u8_srgb" },
+		{ "id" : "TextureAssetId_leaves_mask", 			"filename" : "leaf_mask.png", 			"format" : "TextureFormat_u8_srgb" },
+		{ "id" : "TextureAssetId_ground_normal", 		"filename" : "ground_normal.png", 		"format" : "TextureFormat_u8_linear" },
+		{ "id" : "TextureAssetId_tiles_normal", 		"filename" : "tiles_normal.png", 		"format" : "TextureFormat_u8_linear" },
+		{ "id" : "TextureAssetId_bark_normal", 			"filename" : "bark_normal.png", 		"format" : "TextureFormat_u8_linear" },
+		{ "id" : "TextureAssetId_robot_normal", 		"filename" : "Robot_53_normal_4k.png", 	"format" : "TextureFormat_u8_linear" },
+		{ "id" : "TextureAssetId_heightmap", 			"filename" : "heightmap_island.png", 	"format" : "TextureFormat_u8_srgb" },
+		{ "id" : "TextureAssetId_menu_background", 		"filename" : "keyart.png", 				"format" : "TextureFormat_u8_srgb" },
+	],
+
+	"skeletons" :
+	[
+		{ "id" : "SkeletonAssetId_character", "filename" : "cube_head_v4.glb", "name" : "cube_head" }
+	],
+
+	"animations" :
+	 [
+		{ "id" : "AnimationAssetId_character_idle",		 "filename" : "cube_head_v3.glb", "name" : "Idle" },
+		{ "id" : "AnimationAssetId_character_walk",		 "filename" : "cube_head_v3.glb", "name" : "Walk" },
+		{ "id" : "AnimationAssetId_character_run",		 "filename" : "cube_head_v3.glb", "name" : "Run" },
+		{ "id" : "AnimationAssetId_character_jump",		 "filename" : "cube_head_v3.glb", "name" : "JumpUp" },
+		{ "id" : "AnimationAssetId_character_fall",		 "filename" : "cube_head_v3.glb", "name" : "JumpDown" },
+		{ "id" : "AnimationAssetId_character_crouch", 	 "filename" : "cube_head_v3.glb", "name" : "Crouch" },
+	 ],
+
+	 "sounds" :
+	 [
+		{ "id" : "SoundAssetId_background", "filename" : "Wind-Mark_DiAngelo-1940285615.wav" },
+		{ "id" : "SoundAssetId_step_1", 	"filename" : "step_9.wav" },
+		{ "id" : "SoundAssetId_step_2", 	"filename" : "step_10.wav" },
+		{ "id" : "SoundAssetId_birds", 		"filename" : "Falcon-Mark_Mattingly-169493032.wav" },
+		// { "id" : "SoundAssetId_electric_1", "filename" : "arc1_freesoundeffects_com_NO_LICENSE.wav" },
+		// { "id" : "SoundAssetId_electric_2", "filename" : "earcing_freesoundeffects_com_NO_LICENSE.wav" },
+	 ],
+
+	 "fonts" :
+	 [
+	 	// Todo(Leo): There is some fuckery going around here >:(
+		{ "id" : "FontAssetId_game", "filename" : "SourceCodePro-Regular.ttf" },
+		// { "id" : "FontAssetId_menu", "filename" : "SourceCodePro-Regular.ttf" },
+		// { "id" : "FontAssetId_menu", "filename" : "TheStrangerBrush.ttf" },
+	 ]
+
+
+}
