@@ -96,7 +96,7 @@ internal PlatformGraphicsFrameResult fsvulkan_prepare_frame(VulkanContext * cont
 
 internal void graphics_development_reload_shaders(VulkanContext * context)
 {
-	system("compile-shaders.py");
+	system("compile_shaders.py");
 
 	context->onPostRender = [](VulkanContext * context)
 	{

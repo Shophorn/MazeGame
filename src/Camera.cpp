@@ -52,8 +52,13 @@ internal m44 camera_projection_matrix(Camera const * camera)
 
 
     /* Study(Leo): why does this seem to use y-up and z-forward,
-    when actual world coordinates are z-up and y-forward */
+    when actual world coordinates are z-up and y-forward 
+	
+	update: this is projection matrix and operates in screen space (canonical space??) where xy are screen coordinates and z is depth
+		this is achieved with view matrix, where z and y axises are flipped
+    */
     // Todo(Leo): change axises here and in get_view_transform()
+   	// Todo(Leo): minus sign on [1,1] may invalidly correlate to b - t being the wrong way
 	m44 result = {
 		2*n / (r - l), 		0, 					0, 							0,
 		0, 					-2 * n / (b - t), 	0, 							0,

@@ -3,7 +3,6 @@
 /textures/
 /models/
 /sounds/
-assets/
 
 # External code
 include/
@@ -19,6 +18,10 @@ misc/
 *.sublime-*
 *.build_output
 *.bat
+
+# Built things
+development/
+release/
 
 videocaptures/
 logs/

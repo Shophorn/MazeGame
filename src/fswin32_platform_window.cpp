@@ -37,9 +37,9 @@ internal void platform_window_set_fullscreen(Win32Window * window, bool32 setFul
 
         success = GetWindowPlacement(window->hwnd, &window->windowedWindowPosition); 
 
-        HMONITOR monitor = MonitorFromWindow(window->hwnd, MONITOR_DEFAULTTOPRIMARY);
-        MONITORINFO monitorInfo = { sizeof(MONITORINFO) };
-        success = GetMonitorInfoW(monitor, &monitorInfo);
+        HMONITOR monitor        = MonitorFromWindow(window->hwnd, MONITOR_DEFAULTTOPRIMARY);
+        MONITORINFO monitorInfo = {sizeof(MONITORINFO)};
+        success                 = GetMonitorInfoW(monitor, &monitorInfo);
 
         DWORD fullScreenStyle = (style & ~WS_OVERLAPPEDWINDOW);
         SetWindowLongPtrW(window->hwnd, GWL_STYLE, fullScreenStyle);
@@ -60,7 +60,6 @@ internal void platform_window_set_fullscreen(Win32Window * window, bool32 setFul
         SetWindowPlacement(window->hwnd, &window->windowedWindowPosition);
         SetWindowPos(   window->hwnd, NULL, 0, 0, 0, 0,
                         SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
-
 
         window->isFullscreen = false;
 

@@ -25,6 +25,15 @@ targets = [
 ]
 
 import os
-# -V means outputting spir-v intermediate binary code
-for target in targets:
-	os.system("glslangValidator -V src/shaders/{} -o assets/shaders/{}".format(target[0], target[1]))
+import sys
+
+def compile(output_folder):
+	# -V means outputting spir-v intermediate binary code
+	for target in targets:
+		os.system("glslangValidator -V src/shaders/{} -o {}/{}".format(target[0], output_folder, target[1]))
+
+if __name__ == '__main__':
+	output_folder = "shaders"
+	if len(sys.argv) > 1:
+		output_folder = sys.argv[1]
+	compile(output_folder)

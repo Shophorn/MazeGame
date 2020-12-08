@@ -41,20 +41,20 @@ int main()
 	counts.font 		= FontAssetIdCount;
 
 
-	cook_initialize("../assets.fsa", counts);
+	cook_initialize("../development/assets.fsa", counts);
 
 	// -------------------------------------------------------------
 
 	_chdir("textures/");
 
-	struct Texture
+	struct TextureAssetInfo
 	{
 		TextureAssetId 	id;
 		char const * 	filename;
 		TextureFormat 	format;
 	};
 
-	Texture textures [] =
+	TextureAssetInfo textures [] =
 	{
 		{ TextureAssetId_ground_albedo, 	"ground.png" },
 		{ TextureAssetId_ground_albedo, 	"ground.png" },
@@ -86,14 +86,14 @@ int main()
 
 	_chdir("../models/");
 
-	struct Mesh
+	struct MeshAssetInfo
 	{
 		MeshAssetId 	id;
 		char const * 	filename;
 		char const * 	name;
 	};
 
-	Mesh meshes [] = 
+	MeshAssetInfo meshes [] = 
 	{
 		{ MeshAssetId_raccoon, 		"raccoon.glb", 		"raccoon" },
 		{ MeshAssetId_robot, 		"Robot53.glb", 		"model_rigged" },
@@ -128,14 +128,14 @@ int main()
 
 	// -------------------------------------------------------------
 
-	struct Animation
+	struct AnimationAssetInfo
 	{
 		AnimationAssetId 	id;
 		char const * 		filename;
 		char const * 		name;
 	};
 
-	Animation animations [] =
+	AnimationAssetInfo animations [] =
 	{
 		{ AnimationAssetId_character_idle,		 "cube_head_v3.glb", "Idle" },
 		{ AnimationAssetId_character_walk,		 "cube_head_v3.glb", "Walk" },
@@ -154,13 +154,13 @@ int main()
 
 	_chdir("../sounds/");
 
-	struct Sound
+	struct SoundAssetInfo
 	{
 		SoundAssetId id;
 		char const * filename;
 	};
 
-	Sound sounds [] =
+	SoundAssetInfo sounds [] =
 	{
 		{ SoundAssetId_background, 	"Wind-Mark_DiAngelo-1940285615.wav" },
 		{ SoundAssetId_step_1, 		"step_9.wav" },

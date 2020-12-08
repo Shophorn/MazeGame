@@ -146,7 +146,6 @@ EXPORT void cook_complete()
 	free (global_skeletonHeaders);
 	free (global_soundHeaders);
 	free (global_fontHeaders);
-
 }
 
 

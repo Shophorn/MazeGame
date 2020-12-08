@@ -8,16 +8,13 @@ import subprocess
 import os
 import sys
 import psutil
+import shutil
 from datetime import datetime
-
-# from termcolor import cprint
 
 buildTime = datetime.now().strftime("%B %d, %Y, %H:%M:%S")
 buildTime = '\\""{}\\""'.format(buildTime)
 
-
 silent = '--silent' in sys.argv
-# compiler = 'clang++'
 
 compile_platform = 1
 compile_game = 1
@@ -31,78 +28,94 @@ for proc in psutil.process_iter():
 		pass
 
 def compile(call):
-	if not silent:
-		print ("Call: " + call)
-
 	result = subprocess.run(call)
 
 	if not silent:
 		if result.returncode == 0:
-			print ("\tGreat SUCCESS")
-			# print ('\033[92m' + "Great SUCCESS" + '\033[0m')
+			print ("[92mGreat SUCCESS[0m")
 		else:
-			print ("\tDid NOT WORK ({})".format(result.returncode))	
+			print ("[91mDid NOT WORK ({})[0m".format(result.returncode))
 
 	return result.returncode
 
 vulkan_sdk = os.environ['VULKAN_SDK']
 print (vulkan_sdk)
 
-devbuild = False
-devbuild = True
+platform_dependencies = (	"-I" + vulkan_sdk + "\Include "
+							"-L" + vulkan_sdk + "\Lib "
+							"-lvulkan-1 -luser32 -lgdi32 -lws2_32 -lole32 -lwinmm"
+						)
+
+
+devbuild = not 'release' in sys.argv
 
 ### BUILD DEVELOPMENT GAME WITH SEPARATE GAME CODE DLL
 if devbuild:
-	# Build settings
-	flags 		= "-static -std=c++17 -g -gcodeview -O0 -Werror"
-	# flags 		= "-static -std=c++17 -O3"
+	print ("FRIENDSIMULATOR [95mDEVELOPMENT[0m BUILD")
 
-	definitions = "-DFS_DEVELOPMENT -DFS_VULKAN_USE_VALIDATION=1 -DBUILD_DATE_TIME=" + buildTime
-	includePath	= "-Iinclude -I{}/Include".format(vulkan_sdk)
-	libPath 	= "-L{}/Lib".format(vulkan_sdk)
-	libLinks	= "-lvulkan-1 -luser32 -lgdi32 -lws2_32 -lole32 -lwinmm"
+	flags 		= "-static -std=c++17 -g -gcodeview -O0 -Werror "
+	definitions = "-DFS_DEVELOPMENT -DFS_VULKAN_USE_VALIDATION=1 -DBUILD_DATE_TIME=" + buildTime + " "	
 
-	compiler_path = "clang++"
+	os.chdir("development")
 
 	### COMPILE PLATFORM LAYER
 	platform_result = 0
 	if compile_platform:
-		# Specify '-mwindows' to get .exe to launch without console
-		platform_call = "{} {} {} {} -o win32_friendsimulator.exe src/fswin32_friendsimulator.cpp -ferror-limit=100 {} {}".format(
-					compiler_path, flags, definitions, includePath, libPath, libLinks)
-		
-		platform_result = compile(platform_call)
+		print("Compile platform")
+		call = (
+			"clang++ "
+			"../src/fswin32_friendsimulator.cpp "
+			"-o win32_friendsimulator.exe "
+			+ flags + definitions + platform_dependencies
+		)
+
+		platform_result = compile(call)
 
 	### COMPILE GAME CODE DLL
 	game_result = 0
 	if compile_game:
-		game_call = "{} -shared {} {} {} -o friendsimulator.dll src/friendsimulator.cpp -DLL".format(
-					compiler_path, flags, definitions, includePath)
-
-		game_result = compile(game_call)
+		print("Compile game")
+		call = (
+			"clang++ "
+			"-shared "
+			"../src/friendsimulator.cpp "
+			"-o friendsimulator.dll "
+			+ flags + definitions
+		)
+		
+		game_result = compile(call)
 
 		if game_result == 0:
 			checkfile = open('friendsimulator_game_dll_built_checkfile', 'w')
 			checkfile.close()
 
+	os.chdir("..")
+
 else:
-	# Build settings
-	# flags 		= "-static -std=c++17 -g -gcodeview -O0 -Werror"
-	flags 		= "-static -std=c++17 -O0 -Werror"
+	print ("FRIENDSIMULATOR [94mRELEASE[0m BUILD")
 
-	definitions = "-DFS_FULL_GAME -DBUILD_DATE_TIME=" + buildTime
-	includePath	= "-Iinclude -I{}/Include".format(vulkan_sdk)
-	libPath 	= "-L{}/Lib".format(vulkan_sdk)
-	libLinks	= "-lvulkan-1 -luser32 -lgdi32 -lws2_32 -lole32 -lwinmm"
+	shutil.rmtree("release", True)
+	os.mkdir("release")
 
-	compiler_path = "clang++"
+	call = (
+		"clang++ "
+		"src/fswin32_friendsimulator.cpp "
+		"-o release/win32_friendsimulator_distributable.exe "
+		"-static -std=c++17 -O3 -ffast-math -Werror "
+		"-DFS_FULL_GAME -DBUILD_DATE_TIME=" + buildTime + " "
+		+ platform_dependencies
+	)
 
-	### COMPILE PLATFORM LAYER
-	platform_call = "{} {} {} {} -o win32_friendsimulator_distributable.exe src/fswin32_friendsimulator.cpp {} {}".format(
-				compiler_path, flags, definitions, includePath, libPath, libLinks)
-	
-	platform_result = compile(platform_call)
+	platform_result = compile(call)
 	game_result 	= 0
+
+	if platform_result == 0:
+		shutil.copy("development/assets.fsa", "release/assets.fsa")
+		shutil.copy("development/settings", "release/settings")
+		shutil.copytree("development/shaders", "release/shaders")
+
+		print ("Assets copied")
+
 
 if (platform_result == 0) and (game_result == 0):
 	exit (0)

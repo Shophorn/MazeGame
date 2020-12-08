@@ -316,6 +316,13 @@ FS_ENTRY_POINT
 			PlatformTimePoint now   = platform_time_now();
 			lastFrameElapsedSeconds = platform_time_elapsed_seconds(frameFlipTime, now);
 
+
+		// Todo(Leo): FIX THISSSSSS
+		// Todo(Leo): FIX THISSSSSS
+		// Todo(Leo): FIX THISSSSSS
+		// Todo(Leo): FIX THISSSSSS
+		// Todo(Leo): FIX THISSSSSS
+		// #if defined FS_DEVELOPMENT
 		#if 1
 			// Restrict framerate so we do not burn our computer
 			f32 targetFrameTime2 = 1.0f / 30;
@@ -345,6 +352,8 @@ FS_ENTRY_POINT
 
 			// approxAvgFrameTime = interpolate(approxAvgFrameTime, lastFrameElapsedSeconds, approxAvgFrameTimeAlpha);
 			// log_console(0) << approxAvgFrameTime;
+
+		// #endif
 		}
 	}
 	///////////////////////////////////////
