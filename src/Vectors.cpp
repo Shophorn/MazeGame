@@ -280,7 +280,7 @@ f32 angle_v3(v3 from, v3 to)
 	if (denominator < v3_sqr_epsilon)
 		return 0.0f;
 
-	f32 dot = clamp_f32(dot_v3(from, to) / denominator, -1.0f, 1.0f);
+	f32 dot = f32_clamp(dot_v3(from, to) / denominator, -1.0f, 1.0f);
 	f32 angle = arc_cosine(dot);
 	return angle;
 }

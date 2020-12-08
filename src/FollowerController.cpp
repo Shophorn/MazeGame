@@ -62,7 +62,7 @@ void update_follower_input(	FollowerController 		& controller,
 			we will always keep  moving.
 
 			Todo(Leo): clamping lower end might be clunky, investigate and maybe fix. */
-			inputVector = normalize_v3(toTarget) * clamp_f32(distanceToTarget - controller.stopFollowDistance, 0.05f, 1.0f);
+			inputVector = normalize_v3(toTarget) * f32_clamp(distanceToTarget - controller.stopFollowDistance, 0.05f, 1.0f);
 		}
 		else
 		{
@@ -74,7 +74,7 @@ void update_follower_input(	FollowerController 		& controller,
 	{
 		if (distanceToTarget > controller.startFollowDistance)
 		{
-			inputVector = normalize_v3(toTarget) * clamp_f32(distanceToTarget - controller.startFollowDistance, 0.0f, 1.0f);
+			inputVector = normalize_v3(toTarget) * f32_clamp(distanceToTarget - controller.startFollowDistance, 0.0f, 1.0f);
 			controller.isFollowing = true;
 		}
 		else
@@ -168,7 +168,7 @@ void update_random_walker_input(RandomWalkController & controller,
 	input.xy	 		= controller.targetPosition - controller.transform->position.xy;
 	f32 inputMagnitude 	= v3_length(input);
 	input 				= input / inputMagnitude;
-	inputMagnitude 		= clamp_f32(inputMagnitude, 0.0f, 1.0f);
+	inputMagnitude 		= f32_clamp(inputMagnitude, 0.0f, 1.0f);
 	input 				= input * inputMagnitude;
 
 	motorInputs[controller.motorInputIndex] = {input, false, false};

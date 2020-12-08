@@ -204,11 +204,11 @@ internal void gui_start_frame(Gui & gui, PlatformInput * input, f32 elapsedTime)
 
 	gui.event_moveDown = input_button_went_down(input, InputButton_dpad_down)
 							|| input_button_went_down(input, InputButton_keyboard_down)
-							|| input_button_went_down(input, InputButton_keyboard_wasd_down);
+							|| input_button_went_down(input, InputButton_wasd_down);
 
 	gui.event_moveUp = input_button_went_down(input, InputButton_dpad_up)
 						|| input_button_went_down(input, InputButton_keyboard_up)
-						|| input_button_went_down(input, InputButton_keyboard_wasd_up);
+						|| input_button_went_down(input, InputButton_wasd_up);
 
 
 	// ---------------- Handle selection -----------------
@@ -582,7 +582,7 @@ internal bool gui_float_slider(char const * label, f32 * value, f32 minValue, f3
 	v4 colour 		= isSelected ? gui.selectedTextColor : gui.textColor;
 	gui_label(label, colour);
 
-	*value = clamp_f32(*value, minValue, maxValue);
+	*value = f32_clamp(*value, minValue, maxValue);
 
 	String valueFormat = push_temp_string_format(16, *value);
 	f32 backupPanelLineLength = gui.panelCurrentLineLength;
@@ -609,7 +609,7 @@ internal bool gui_float_slider(char const * label, f32 * value, f32 minValue, f3
 		x /= (sliderWidth - handleWidth);
 
 		handlePositionTime = x;
-		handlePositionTime = clamp_f32(handlePositionTime, 0, 1);
+		handlePositionTime = f32_clamp(handlePositionTime, 0, 1);
 
 		*value = f32_lerp(minValue, maxValue, handlePositionTime);
 	}
@@ -697,7 +697,7 @@ internal bool gui_float_field(char const * label, f32 * value, GuiClampValuesF32
 		*value 			+= mouseDelta;
 	}
 
-	*value = clamp_f32(*value, clamp.min, clamp.max);
+	*value = f32_clamp(*value, clamp.min, clamp.max);
 
 	v4 colour = isSelected ? gui.selectedTextColor : gui.textColor;
 
@@ -818,7 +818,7 @@ internal bool gui_float_value_field(char const * label, f32 * value, GuiClampVal
 		*value 			+= mouseDelta;
 	}
 
-	*value = clamp_f32(*value, clamp.min, clamp.max);
+	*value = f32_clamp(*value, clamp.min, clamp.max);
 
 	v4 colour = isSelected ? gui.selectedTextColor : gui.textColor;
 

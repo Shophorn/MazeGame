@@ -268,12 +268,12 @@ internal void grow_tree_3(Tree & tree, f32 elapsedTime, GetWaterFunc & get_water
 	tree.waterReservoir 		+= get_water(tree.position, waterDrain);
 	
 	tree.waterReservoir         -= tree.settings->waterUsageSpeed * elapsedTime;
-	tree.waterReservoir 		= clamp_f32(tree.waterReservoir, 0, tree.settings->waterReservoirCapacity);
+	tree.waterReservoir 		= f32_clamp(tree.waterReservoir, 0, tree.settings->waterReservoirCapacity);
 
 
 	f32 waterGrowthFactor;
 	{
-		waterGrowthFactor = clamp_f32(tree.waterReservoir / tree.settings->waterReservoirCapacity, 0, 1);
+		waterGrowthFactor = f32_clamp(tree.waterReservoir / tree.settings->waterReservoirCapacity, 0, 1);
 		waterGrowthFactor = pow_f32(waterGrowthFactor, 0.5);
 		// waterGrowthFactor = waterGrowthFactor * waterGrowthFactor;
 		// waterGrowthFactor *= -1;
@@ -324,9 +324,9 @@ internal void grow_tree_3(Tree & tree, f32 elapsedTime, GetWaterFunc & get_water
 			f32 distanceFromStart 	= v3_length(endNode.position - startNode.position);
 			f32 distanceFromRoot 	= distanceFromStart + branch.startNodeDistance;
 
-			f32 hFactor 			= clamp_f32(1 - (distanceFromRoot / tree.settings->maxHeight), 0, 1);
+			f32 hFactor 			= f32_clamp(1 - (distanceFromRoot / tree.settings->maxHeight), 0, 1);
 			f32 hwRatio 			= distanceFromStart / startNode.radius;
-			f32 hwFactor 			= clamp_f32(1 - (hwRatio / tree.settings->maxHeightToWidthRatio), 0, 1);
+			f32 hwFactor 			= f32_clamp(1 - (hwRatio / tree.settings->maxHeightToWidthRatio), 0, 1);
 			f32 growFactor  		= hFactor * hwFactor * tree.settings->lengthGrowthSpeed * elapsedTime;
 			growFactor 				*= waterGrowthFactor;
 
@@ -443,7 +443,7 @@ internal void grow_tree_3(Tree & tree, f32 elapsedTime, GetWaterFunc & get_water
 				quaternion rotation 			= bud.rotation * quaternion_axis_angle(rotate_v3(bud.rotation, v3_up), angle);
 				tree.leaves.localRotations[l] 	= rotation;
 
-				tree.leaves.localScales[l] 		= clamp_f32(bud.age / tree.settings->leafMaturationTime, 0, 1) * bud.size;
+				tree.leaves.localScales[l] 		= f32_clamp(bud.age / tree.settings->leafMaturationTime, 0, 1) * bud.size;
 				tree.leaves.swayAxes[l] 		= rotate_v3(rotation, v3_forward);
 			}
 		}

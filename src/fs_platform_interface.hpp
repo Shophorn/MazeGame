@@ -101,6 +101,10 @@ struct PlatformTimePoint
 
 enum PlatformInputButton : s32
 {
+	// Note(Leo): invalid is "default" button, and it can be written values to,
+	// but reading it will not result in anything sensible.
+	InputButton_invalid,
+
 	InputButton_xbox_y,
 	InputButton_xbox_x,
 	InputButton_xbox_b,
@@ -120,20 +124,31 @@ enum PlatformInputButton : s32
 	InputButton_keyboard_enter,
 	InputButton_keyboard_escape,
 	InputButton_keyboard_backspace,
+	InputButton_keyboard_space,
 
 	InputButton_keyboard_left,
 	InputButton_keyboard_right,
 	InputButton_keyboard_down,
 	InputButton_keyboard_up,
 
-	InputButton_keyboard_wasd_left,
-	InputButton_keyboard_wasd_right,
-	InputButton_keyboard_wasd_down,
-	InputButton_keyboard_wasd_up,
+	InputButton_keyboard_f1,
+	InputButton_keyboard_f2,
+	InputButton_keyboard_f3,
+	InputButton_keyboard_f4,
+
+	InputButton_keyboard_w,
+	InputButton_keyboard_a,
+	InputButton_keyboard_s,
+	InputButton_keyboard_d,
 
 	InputButtonCount,
 
 	// Note(Leo): these are merely different mappings, that may be more useful in certain contexts
+	InputButton_wasd_up 	= InputButton_keyboard_w,
+	InputButton_wasd_down 	= InputButton_keyboard_s,
+	InputButton_wasd_right 	= InputButton_keyboard_d,
+	InputButton_wasd_left 	= InputButton_keyboard_a,
+
 	InputButton_nintendo_x 	= InputButton_xbox_y,
 	InputButton_nintendo_y 	= InputButton_xbox_x,
 	InputButton_nintendo_a 	= InputButton_xbox_b,

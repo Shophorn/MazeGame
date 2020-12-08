@@ -76,8 +76,8 @@ FS_ENTRY_POINT
 {
 	HINSTANCE hInstance = GetModuleHandle(nullptr);
 	
-	SYSTEMTIME time_;
-	GetLocalTime(&time_);
+	// SYSTEMTIME time_;
+	// GetLocalTime(&time_);
 
 	log_application(0,"\n",
 				"\t----- FriendSimulator -----\n",
@@ -86,7 +86,10 @@ FS_ENTRY_POINT
 	// ----------------------------------------------------------------------------------
 
 	Win32ApplicationState state = {};
+
 	load_xinput();
+	Win32PlatformInput platformInput = {};
+	state.input = &platformInput;
 
 	// ---------- INITIALIZE PLATFORM ------------
 	PlatformWindow window 	= fswin32_make_window(hInstance, 960, 540);
@@ -136,11 +139,10 @@ FS_ENTRY_POINT
 	////////////////////////////////////////////////////
 
 	bool gameIsRunning = true;
-	PlatformInput platformInput = {};
 
 	/// --------- TIMING ---------------------------
-	PlatformTimePoint frameFlipTime;
-	f64 lastFrameElapsedSeconds;
+	PlatformTimePoint frameFlipTime = platform_time_now();
+	f64 lastFrameElapsedSeconds 	= 0;
 
 	while(gameIsRunning)
 	{
@@ -151,10 +153,18 @@ FS_ENTRY_POINT
 		/// ----- HANDLE INPUT -----
 		{
 			// Note(Leo): this is not input only...
-		
 			fswin32_process_pending_messages(&state, window.hwnd);
 
-			if (window.isCursorVisible == false)
+			if (input_button_went_down(state.input, InputButton_keyboard_f1))
+			{
+				platform_window_set_cursor_visible(&window, !window.isCursorVisible);
+				// Todo(Leo): should we "eat" keypress? i.e. set state to is_down?
+			}
+
+			HWND foregroundWindow = GetForegroundWindow();
+			bool32 windowIsActive = window.hwnd == foregroundWindow;
+
+			if (windowIsActive && window.isCursorVisible == false)
 			{
 				f32 cursorX = window.width / 2;
 				f32 cursorY = window.height / 2;
@@ -170,12 +180,6 @@ FS_ENTRY_POINT
 				SetCursorPos((s32)cursorX, (s32)cursorY);
 			}
 
-
-
-
-			HWND foregroundWindow = GetForegroundWindow();
-			bool32 windowIsActive = window.hwnd == foregroundWindow;
-
 			/* Note(Leo): Only get input from a single controller, locally this is a single
 			player game. Use global controller index depending on network status to test
 			multiplayering */
@@ -185,19 +189,6 @@ FS_ENTRY_POINT
 			XINPUT_STATE xinputState;
 			bool32 xinputReceived = xinput_get_state(globalXinputControllerIndex, &xinputState) == ERROR_SUCCESS;
 			bool32 xinputUsed = xinputReceived && xinput_is_used(state.gamepadInput, xinputState);
-
-			for(auto & button : platformInput.buttons)
-			{
-				if (button == InputButtonState_went_down)
-				{
-					button = InputButtonState_is_down;
-				}
-
-				else if (button == InputButtonState_went_up)
-				{
-					button = InputButtonState_is_up;
-				}
-			}
 
 			if (xinputUsed)
 			{
@@ -211,20 +202,12 @@ FS_ENTRY_POINT
 
 			if (state.keyboardInputIsUsed)
 			{
-				update_keyboard_input(&platformInput, &state.keyboardInput);
 				platformInput.mouseAndKeyboardInputUsed = true;
 			}
 			else
 			{
 				platformInput.mouseAndKeyboardInputUsed = false;
 			}
-
-			// Todo(Leo): Totally in wrong place :))
-			platformInput.mousePosition = state.keyboardInput.mousePosition;
-    		platformInput.axes[InputAxis_mouse_scroll]	= state.keyboardInput.mouseScroll;
-
-    		state.keyboardInput.mouseScroll = 0;
-
 		}
 
 
@@ -313,47 +296,25 @@ FS_ENTRY_POINT
 
 		// ----- MEASURE ELAPSED TIME ----- 
 		{
+			#if defined FS_DEVELOPMENT && 0
+			{
+				PlatformTimePoint currentTime 	= platform_time_now();
+				f64 elapsedTimeBeforeSleep 		= platform_time_elapsed_seconds(frameFlipTime, currentTime);
+				f32 minFrameTime 				= 1.0f / 30;
+				s32 millisecondsToSleep 		= static_cast<s32>((minFrameTime - elapsedTimeBeforeSleep) * 1000);
+
+				if (millisecondsToSleep > 0)
+				{
+					timeBeginPeriod(1);
+					Sleep(millisecondsToSleep);
+					timeEndPeriod(1);
+				}
+			}
+			#endif
+
 			PlatformTimePoint now   = platform_time_now();
 			lastFrameElapsedSeconds = platform_time_elapsed_seconds(frameFlipTime, now);
-
-
-		// Todo(Leo): FIX THISSSSSS
-		// Todo(Leo): FIX THISSSSSS
-		// Todo(Leo): FIX THISSSSSS
-		// Todo(Leo): FIX THISSSSSS
-		// Todo(Leo): FIX THISSSSSS
-		// #if defined FS_DEVELOPMENT
-		#if 1
-			// Restrict framerate so we do not burn our computer
-			f32 targetFrameTime2 = 1.0f / 30;
-
-			s32 targetMilliseconds = (s32)(targetFrameTime2 * 1000);  
-			s32 elapsedMilliseconds = (s32)(lastFrameElapsedSeconds * 1000);
-
-			s32 millisecondsToSleep = targetMilliseconds - elapsedMilliseconds;
-
-		#if 1
-			// Todo(leo): This for debugger also, it seems to get stuck on sleep on first round
-			// Also application itself...
-			millisecondsToSleep = min_s32(millisecondsToSleep, 100);
-		#endif
-
-			if (millisecondsToSleep > 2)
-			{
-				timeBeginPeriod(1);
-				Sleep(millisecondsToSleep);
-				timeEndPeriod(1);
-			}
-
-			now   					= platform_time_now();
-			lastFrameElapsedSeconds = platform_time_elapsed_seconds(frameFlipTime, now);
-		#endif
 			frameFlipTime           = now;
-
-			// approxAvgFrameTime = interpolate(approxAvgFrameTime, lastFrameElapsedSeconds, approxAvgFrameTimeAlpha);
-			// log_console(0) << approxAvgFrameTime;
-
-		// #endif
 		}
 	}
 	///////////////////////////////////////

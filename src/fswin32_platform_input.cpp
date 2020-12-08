@@ -4,8 +4,6 @@ Leo Tamminen
 Windows platform input functions
 */
 
-// Todo(Leo): These button state things are implementation details and may even vary per platform,
-// so consider moving them elsewhere. Maybe only expose is_clicked etc. as
 enum InputButtonState : s8
 {
 	InputButtonState_is_up,
@@ -16,46 +14,47 @@ enum InputButtonState : s8
 
 struct PlatformInput
 {
-	f32 axes[InputAxisCount];
-	InputButtonState buttons [InputButtonCount];
-	v2  mousePosition;
+	f32 				axes[InputAxisCount];
+	InputButtonState 	buttons[InputButtonCount];
+
+	v2 mousePosition;
 
 	bool32 gamepadInputUsed;
 	bool32 mouseAndKeyboardInputUsed;
 };
 
+using Win32PlatformInput = PlatformInput;
 
-f32 input_axis_get_value(PlatformInput * input, PlatformInputAxis axis)
+f32 input_axis_get_value(Win32PlatformInput * input, PlatformInputAxis axis)
 {
 	f32 value = input->axes[axis];
 	return value;
 }
 
-v2 input_cursor_get_position(PlatformInput * input)
+v2 input_cursor_get_position(Win32PlatformInput * input)
 {
 	return input->mousePosition;
 }
 
-
-internal bool32 input_button_went_down(PlatformInput * input, PlatformInputButton button)
+internal bool32 input_button_went_down(Win32PlatformInput * input, PlatformInputButton button)
 {
 	InputButtonState state = input->buttons[button];
 	return (state == InputButtonState_went_down);
 }
 
-internal bool32 input_button_is_down (PlatformInput * input, PlatformInputButton button)
+internal bool32 input_button_is_down (Win32PlatformInput * input, PlatformInputButton button)
 {
 	InputButtonState state = input->buttons[button];
 	return (state == InputButtonState_is_down) || (state == InputButtonState_went_down);
 }
 
-internal bool32 input_button_went_up (PlatformInput * input, PlatformInputButton button)
+internal bool32 input_button_went_up (Win32PlatformInput * input, PlatformInputButton button)
 {
 	InputButtonState state = input->buttons[button];
 	return state == InputButtonState_went_up;
 }
 
-internal bool32 input_is_device_used (PlatformInput * input, PlatformInputDevice device)
+internal bool32 input_is_device_used (Win32PlatformInput * input, PlatformInputDevice device)
 {
 	switch(device)
 	{
@@ -64,7 +63,6 @@ internal bool32 input_is_device_used (PlatformInput * input, PlatformInputDevice
 	}
 	return false;
 }
-
 
 internal void fswin32_input_update_button_state(InputButtonState & buttonState, bool32 isDown)
 {
@@ -81,20 +79,6 @@ internal void fswin32_input_update_button_state(InputButtonState & buttonState, 
 			break;
 	}
 }
-
-
-struct Win32KeyboardInput
-{
-	bool8 left, right, up, down;
-	bool8 space;
-	bool8 enter, escape, back;
-	bool8 w, a, s, d;
-
-	bool8 mouse0, mouse1;
-
-	v2     mousePosition;
-	f32    mouseScroll;
-};
 
 struct Win32XInput
 {
@@ -170,7 +154,7 @@ enum {
 };
 
 internal void
-update_controller_input(PlatformInput * input, XINPUT_STATE * xinput)
+update_controller_input(Win32PlatformInput * input, XINPUT_STATE * xinput)
 {
 	v2 move = { 
 		xinput_convert_joystick_value(xinput->Gamepad.sThumbLX),
@@ -194,12 +178,11 @@ update_controller_input(PlatformInput * input, XINPUT_STATE * xinput)
 		return isDown;
 	};
 
-
+	// Todo(Leo): remove these too like keyboard stuff when we find controller
 	fswin32_input_update_button_state(input->buttons[InputButton_nintendo_a],  is_down(NINTENDO_GAMEPAD_A));
 	fswin32_input_update_button_state(input->buttons[InputButton_nintendo_b],  is_down(NINTENDO_GAMEPAD_B));
 	fswin32_input_update_button_state(input->buttons[InputButton_nintendo_y],  is_down(NINTENDO_GAMEPAD_Y));
 	fswin32_input_update_button_state(input->buttons[InputButton_nintendo_x],  is_down(NINTENDO_GAMEPAD_X));
-
 
 	fswin32_input_update_button_state(input->buttons[InputButton_start],       is_down(XINPUT_GAMEPAD_START));
 	fswin32_input_update_button_state(input->buttons[InputButton_select],      is_down(XINPUT_GAMEPAD_BACK));
@@ -212,64 +195,31 @@ update_controller_input(PlatformInput * input, XINPUT_STATE * xinput)
 	fswin32_input_update_button_state(input->buttons[InputButton_dpad_up],     is_down(XINPUT_GAMEPAD_DPAD_UP));
 }
 
-/* Todo(Leo): this may not be thread-safe because windows callbacks can probably come anytime.
-Maybe make 2 structs and toggle between them, so when we start reading, we use the other one for writing*/
-internal void
-update_keyboard_input(PlatformInput * platformInput, Win32KeyboardInput * keyboardInput)
+static PlatformInputButton win32_input_button_map(WPARAM key)
 {
-	// Note(Leo): array of anon structs, maybe is nice, maybe is shit
-	struct 
+	switch(key)
 	{
-		PlatformInputButton button;
-		bool32 				isDown;
-	}
-	updateButtons [] =
-	{
-		InputButton_keyboard_enter, 		keyboardInput->enter,
-		InputButton_keyboard_escape, 		keyboardInput->escape,
-		InputButton_keyboard_backspace, 	keyboardInput->back,
+		case 'W': return InputButton_keyboard_w;
+		case 'A': return InputButton_keyboard_a;
+		case 'S': return InputButton_keyboard_s;
+		case 'D': return InputButton_keyboard_d;
 
-		InputButton_keyboard_left, 			keyboardInput->left,
-		InputButton_keyboard_right, 		keyboardInput->right,
-		InputButton_keyboard_down, 			keyboardInput->down,
-		InputButton_keyboard_up, 			keyboardInput->up,
+		case VK_LEFT: 	return InputButton_keyboard_left;
+		case VK_RIGHT: 	return InputButton_keyboard_right;
+		case VK_UP:		return InputButton_keyboard_up;
+		case VK_DOWN: 	return InputButton_keyboard_down;
 
-		// Note(Leo): notice crooked order :)
-		InputButton_keyboard_wasd_up, 		keyboardInput->w,
-		InputButton_keyboard_wasd_left, 	keyboardInput->a,
-		InputButton_keyboard_wasd_down, 	keyboardInput->s,
-		InputButton_keyboard_wasd_right, 	keyboardInput->d,
+		case VK_RETURN: return InputButton_keyboard_enter;
+		case VK_ESCAPE: return InputButton_keyboard_escape;
+		case VK_BACK: 	return InputButton_keyboard_backspace;
+		case VK_SPACE: 	return InputButton_keyboard_space;
 
-		// Mouse
-		InputButton_mouse_0,				keyboardInput->mouse0,
-		InputButton_mouse_1,				keyboardInput->mouse1,
-	};
+		case VK_F1: return InputButton_keyboard_f1;
+		case VK_F2: return InputButton_keyboard_f2;
+		case VK_F3: return InputButton_keyboard_f3;
+		case VK_F4: return InputButton_keyboard_f4;
 
-	for (s32 i = 0; i < array_count(updateButtons); ++i)
-	{
-		fswin32_input_update_button_state(platformInput->buttons[updateButtons[i].button], updateButtons[i].isDown);
-	}
-}
-
-internal void
-process_keyboard_input(Win32KeyboardInput & keyboardInput, WPARAM keycode, bool32 isDown)
-{
-	switch(keycode)
-	{
-		case 'W': keyboardInput.w = isDown; break;
-		case 'A': keyboardInput.a = isDown; break;
-		case 'S': keyboardInput.s = isDown; break;
-		case 'D': keyboardInput.d = isDown; break;
-
-		case VK_LEFT: 	keyboardInput.left = isDown; break;
-		case VK_RIGHT: 	keyboardInput.right = isDown; break;
-		case VK_DOWN: 	keyboardInput.down = isDown; break;
-		case VK_UP:		keyboardInput.up = isDown; break;
-
-		case VK_RETURN: keyboardInput.enter = isDown; break;
-		case VK_ESCAPE:	keyboardInput.escape = isDown; break;
-		case VK_BACK:	keyboardInput.back = isDown; break;
-
-		case VK_SPACE:	keyboardInput.space = isDown; break;
+		default:
+			return InputButton_invalid;
 	}
 }

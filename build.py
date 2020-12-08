@@ -101,7 +101,7 @@ else:
 		"clang++ "
 		"src/fswin32_friendsimulator.cpp "
 		"-o release/win32_friendsimulator_distributable.exe "
-		"-static -std=c++17 -O3 -ffast-math -Werror "
+		"-static -std=c++17 -O0 -Werror "
 		"-DFS_FULL_GAME -DBUILD_DATE_TIME=" + buildTime + " "
 		+ platform_dependencies
 	)

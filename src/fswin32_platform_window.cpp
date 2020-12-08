@@ -110,12 +110,10 @@ struct Win32ApplicationState
     bool32 xinputIsUsed;
 
     Win32XInput         gamepadInput;
-    Win32KeyboardInput  keyboardInput;
 
-    Win32Window *       window;
+    Win32Window *           window;
+    Win32PlatformInput *    input;
 };  
-
-
 
 internal Win32ApplicationState * fswin32_get_user_pointer(HWND hwnd)
 {
@@ -131,63 +129,59 @@ internal LRESULT CALLBACK fswin32_window_callback (HWND hwnd, UINT message, WPAR
 
     switch (message)
     {
-        case WM_MOUSEMOVE:
-        {
-            Win32ApplicationState & state = *fswin32_get_user_pointer(hwnd);
-            state.keyboardInput.mousePosition.x = GET_X_LPARAM(lParam);
-            state.keyboardInput.mousePosition.y = GET_Y_LPARAM(lParam);
-        } break;
-
         case WM_LBUTTONDOWN:
         {
-            Win32ApplicationState & state   = *fswin32_get_user_pointer(hwnd);
-            state.keyboardInput.mouse0      = true;
-            state.keyboardInputIsUsed       = true;
-
-            // log_debug(FILE_ADDRESS, "WM_LBUTTONDOWN: ", state.keyboardInput.mouse0);
+            Win32ApplicationState & state               = *fswin32_get_user_pointer(hwnd);
+            state.input->buttons[InputButton_mouse_0]   = InputButtonState_went_down;
+            state.keyboardInputIsUsed                   = true;
         } break;
 
         case WM_LBUTTONUP:
         {
-            Win32ApplicationState & state   = *fswin32_get_user_pointer(hwnd);
-            state.keyboardInput.mouse0      = false;
-            state.keyboardInputIsUsed       = true;
+            Win32ApplicationState & state               = *fswin32_get_user_pointer(hwnd);
+            state.input->buttons[InputButton_mouse_0]   = InputButtonState_went_up;
+            state.keyboardInputIsUsed                   = true;
         } break;
 
         case WM_RBUTTONDOWN:
         {           
-            Win32ApplicationState & state   = *fswin32_get_user_pointer(hwnd);
-            state.keyboardInput.mouse1      = true;
-            state.keyboardInputIsUsed       = true;
+            Win32ApplicationState & state               = *fswin32_get_user_pointer(hwnd);
+            state.input->buttons[InputButton_mouse_1]   = InputButtonState_went_down;
+            state.keyboardInputIsUsed                   = true;
         } break;
 
         case WM_RBUTTONUP:
         {
-            Win32ApplicationState & state   = *fswin32_get_user_pointer(hwnd);
-            state.keyboardInput.mouse1      = false;
-            state.keyboardInputIsUsed       = true;
+            Win32ApplicationState & state               = *fswin32_get_user_pointer(hwnd);
+            state.input->buttons[InputButton_mouse_1]   = InputButtonState_went_up;
+            state.keyboardInputIsUsed                   = true;
         } break;
-
 
         case WM_MOUSEWHEEL:
         {
-            constexpr f32 windowsScrollConstant = 120;
-            
-            Win32ApplicationState & state   = *fswin32_get_user_pointer(hwnd);
-            state.keyboardInput.mouseScroll       += GET_WHEEL_DELTA_WPARAM(wParam) / windowsScrollConstant;
+            // Note(Leo): this may come multiple times per frame, if player scrolls furiously
+            // so we add value to current value here, and value must be reset before input each frame. 
+            Win32ApplicationState & state               = *fswin32_get_user_pointer(hwnd);
+            f32 delta = static_cast<f32>(GET_WHEEL_DELTA_WPARAM(wParam)) / static_cast<f32>(WHEEL_DELTA);
+            state.input->axes[InputAxis_mouse_scroll]  += delta;
+
+            log_debug(FILE_ADDRESS, "WM_MOUSEWHEEL: ", state.input->axes[InputAxis_mouse_scroll], ", ", delta);
+
         } break;
 
         case WM_KEYDOWN:
         {
             Win32ApplicationState * state = fswin32_get_user_pointer(hwnd);
-            process_keyboard_input(state->keyboardInput, wParam, true);
+            // Note(Leo): InputButton_invalid has trash value by definition, so we can carelessly write to it
+            state->input->buttons[win32_input_button_map(wParam)]  = InputButtonState_went_down;
             state->keyboardInputIsUsed = true;
         } break;
 
         case WM_KEYUP:
         {
             Win32ApplicationState * state = fswin32_get_user_pointer(hwnd);
-            process_keyboard_input(state->keyboardInput, wParam, false);
+            // Note(Leo): InputButton_invalid has trash value by definition, so we can carelessly write to it
+            state->input->buttons[win32_input_button_map(wParam)] = InputButtonState_went_up;
             state->keyboardInputIsUsed = true;
         } break;
 
@@ -250,7 +244,23 @@ internal LRESULT CALLBACK fswin32_window_callback (HWND hwnd, UINT message, WPAR
 internal void fswin32_process_pending_messages(Win32ApplicationState * state, HWND winWindow)
 {
     // Note(Leo): This must be reseted manually
-    state->keyboardInputIsUsed = false;
+    state->keyboardInputIsUsed                  = false;
+    state->input->axes[InputAxis_mouse_scroll]  = 0;
+
+    for(auto & button : state->input->buttons)
+    {
+        if (button == InputButtonState_went_down)
+        {
+            button = InputButtonState_is_down;
+        }
+
+        else if (button == InputButtonState_went_up)
+        {
+            button = InputButtonState_is_up;
+        }
+    }
+
+    /// ---------------------------------------------------------
 
     MSG message;
     while (PeekMessageW(&message, winWindow, 0, 0, PM_REMOVE))
@@ -291,7 +301,6 @@ internal Win32Window fswin32_make_window(HINSTANCE winInstance, u32 width, u32 h
     GetWindowRect(hwnd, &windowRect);
 
     Win32Window window = {};
-
 
     window.width        = windowRect.right - windowRect.left;
     window.height       = windowRect.bottom - windowRect.top;

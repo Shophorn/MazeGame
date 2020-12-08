@@ -100,7 +100,7 @@ update_character_motor( CharacterMotor & 	motor,
 	if (square_v3_length(inputVector) > v3_sqr_epsilon)
 	{
 		f32 angle = v2_signed_angle(inputVector.xy, forward.xy);
-		rightInput = clamp_f32(angle, -1.0f, 1.0f);
+		rightInput = f32_clamp(angle, -1.0f, 1.0f);
 	}
 
 	FS_DEBUG(debugLevel, debug_draw_axes(translation_matrix({0,0,2}) * transform_matrix(*motor.transform), 0.3f));
@@ -363,7 +363,7 @@ update_character_motor( CharacterMotor & 	motor,
 	{
 		motor.landingDepth = (abs_f32(motor.zSpeed) - motor.minLandingDepthZSpeed)
 									/ (motor.maxLandingDepthZSpeed - motor.minLandingDepthZSpeed);
-		motor.landingDepth = clamp_f32(motor.landingDepth, 0.0f, 1.0f);
+		motor.landingDepth = f32_clamp(motor.landingDepth, 0.0f, 1.0f);
 
 		motor.landingDuration = motor.maxlandingDuration * motor.landingDepth;
 		motor.landingTimer = motor.landingDuration;

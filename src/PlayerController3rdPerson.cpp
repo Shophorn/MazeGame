@@ -31,24 +31,27 @@ CharacterInput update_player_input(	PlayerInputState & 	state,
 	constexpr PlatformInputButton pickupOrDropButton 	= InputButton_nintendo_a;
 
 	v2 inputComponents;
+	bool32 jumpInput = false; 
 
 	if (input_is_device_used(platformInput, PlatformInputDevice_gamepad))
 	{
 		inputComponents.x 	= input_axis_get_value(platformInput, InputAxis_move_x);
 		inputComponents.y 	= input_axis_get_value(platformInput, InputAxis_move_y);
+		jumpInput			= input_button_went_down(platformInput, InputButton_nintendo_x);
 	}
 	else
 	{
-		inputComponents.x = input_button_is_down(platformInput, InputButton_keyboard_wasd_right)
-								- input_button_is_down(platformInput, InputButton_keyboard_wasd_left);
+		inputComponents.x = input_button_is_down(platformInput, InputButton_wasd_right)
+								- input_button_is_down(platformInput, InputButton_wasd_left);
 
-		inputComponents.y = input_button_is_down(platformInput, InputButton_keyboard_wasd_up)
-								- input_button_is_down(platformInput, InputButton_keyboard_wasd_down);
+		inputComponents.y = input_button_is_down(platformInput, InputButton_wasd_up)
+								- input_button_is_down(platformInput, InputButton_wasd_down);
+
+		jumpInput			= input_button_went_down(platformInput, InputButton_keyboard_space);
 	}
 
 	inputComponents 	= clamp_length_v2(inputComponents, 1);
 	v3 worldSpaceInput 	= viewRight * inputComponents.x + viewForward * inputComponents.y;
-	bool32 jumpInput 	= input_button_went_down(platformInput, InputButton_nintendo_x);
 	bool32 crouchInput 	= false;
 
 	state.events = {};

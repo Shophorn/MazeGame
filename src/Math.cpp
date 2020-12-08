@@ -106,7 +106,7 @@ internal s32 clamp_s32(s32 value, s32 minValue, s32 maxValue)
     return value;
 }
 
-inline f32 clamp_f32(f32 value, f32 min, f32 max)
+inline f32 f32_clamp(f32 value, f32 min, f32 max)
 {
     value = value < min ? min : value;
     value = value > max ? max : value;

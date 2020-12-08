@@ -57,7 +57,7 @@ internal bool32 point_inside_bounds(v3 point, v3 bounds)
 // https://www.iquilezles.org/www/articles/distfunctions/distfunctions.htm
 float opSmoothUnion( float d1, float d2, float k )
 {
-    float h = clamp_f32(0.5f + 0.5f*(d2-d1)/k, 0.0f, 1.0f);
+    float h = f32_clamp(0.5f + 0.5f*(d2-d1)/k, 0.0f, 1.0f);
     return interpolate(d2, d1, h) - k*h*(1.0f-h);
 }
 

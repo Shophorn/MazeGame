@@ -57,12 +57,15 @@ internal void update_camera_controller(	PlayerCameraController & controller,
 	{
 		orbitMovement 	= input_axis_get_value(input, InputAxis_mouse_move_x) * controller.mouseRotateSpeed * elapsedTime;
     	tumbleMovement = input_axis_get_value(input, InputAxis_mouse_move_y) * controller.mouseRotateSpeed * elapsedTime;	
+
+    	// log_debug(FILE_ADDRESS, "mouseRotateSpeed = ", controller.mouseRotateSpeed);
+    	// log_debug(FILE_ADDRESS, "orbit = ", orbitMovement, ", tumble = ", tumbleMovement);
 	}
 
     controller.orbitDegrees += orbitMovement;
     controller.tumbleDegrees += tumbleMovement;
 
-    controller.tumbleDegrees = clamp_f32(controller.tumbleDegrees, controller.minTumble, controller.maxTumble);
+    controller.tumbleDegrees = f32_clamp(controller.tumbleDegrees, controller.minTumble, controller.maxTumble);
 
     f32 cameraDistance = controller.distance;
     f32 cameraHorizontalDistance = cosine(to_radians(controller.tumbleDegrees)) * cameraDistance;
@@ -124,7 +127,7 @@ internal m44 update_free_camera(FreeCameraController & controller, PlatformInput
 	controller.panAngle += -1 * input_axis_get_value(input, InputAxis_look_x) * rotateSpeed * elapsedTime;
 
 	controller.tiltAngle += -1 * input_axis_get_value(input, InputAxis_look_y) * rotateSpeed * elapsedTime;
-	controller.tiltAngle = clamp_f32(controller.tiltAngle, -maxTilt, maxTilt);
+	controller.tiltAngle = f32_clamp(controller.tiltAngle, -maxTilt, maxTilt);
 
 	quaternion pan 	= quaternion_axis_angle(v3_up, controller.panAngle);
 	m44 panMatrix 	= rotation_matrix(pan);
@@ -136,7 +139,7 @@ internal m44 update_free_camera(FreeCameraController & controller, PlatformInput
 
 	constexpr f32 minHeight = 10;
 	constexpr f32 maxHeight = 50;
-	f32 heightValue = clamp_f32(controller.position.z, minHeight, maxHeight) / maxHeight;
+	f32 heightValue = f32_clamp(controller.position.z, minHeight, maxHeight) / maxHeight;
 	f32 moveSpeed 	= interpolate(lowMoveSpeed, highMoveSpeed, heightValue);
 
 	f32 moveStep 		= moveSpeed * elapsedTime;
@@ -191,14 +194,14 @@ internal void update_mouse_camera(MouseCameraController & controller, PlatformIn
 	v3 right 		= normalize_v3(cross_v3(direction, v3_up));
 
 	f32 tiltAngle 	= -1 * mouseInput.y * rotateSpeed * elapsedTime;
-	tiltAngle 		= clamp_f32(tiltAngle, -maxTilt, maxTilt);
+	tiltAngle 		= f32_clamp(tiltAngle, -maxTilt, maxTilt);
 	quaternion tilt = quaternion_axis_angle(right, tiltAngle);
 
 	direction 		= rotate_v3(tilt, direction);
 
 	constexpr f32 minHeight = 10;
 	constexpr f32 maxHeight = 50;
-	f32 heightValue = clamp_f32(controller.targetPosition.z, minHeight, maxHeight) / maxHeight;
+	f32 heightValue = f32_clamp(controller.targetPosition.z, minHeight, maxHeight) / maxHeight;
 	f32 moveSpeed 	= interpolate(lowMoveSpeed, highMoveSpeed, heightValue);
 
 	f32 moveStep 		= moveSpeed * elapsedTime;
@@ -211,7 +214,7 @@ internal void update_mouse_camera(MouseCameraController & controller, PlatformIn
 
 	f32 scrollMovement 	= input_axis_get_value(input, InputAxis_mouse_scroll) * scrollMoveSpeed;
 	controller.distance += scrollMovement;
-	controller.distance = clamp_f32(controller.distance, 0, 10000);
+	controller.distance = f32_clamp(controller.distance, 0, 10000);
 
 	controller.position = controller.targetPosition - controller.direction * controller.distance;
 }

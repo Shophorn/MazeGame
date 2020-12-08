@@ -425,7 +425,7 @@ internal void update_physics_world(PhysicsWorld & physics, Game * game, f32 elap
 			{
 				// log_debug(FILE_ADDRESS, velocity);
 				f32 maxVelocityForAudio = 10;
-				f32 velocityForAudio 	= clamp_f32(-velocity, 0, maxVelocityForAudio);
+				f32 velocityForAudio 	= f32_clamp(-velocity, 0, maxVelocityForAudio);
 				f32 volume 				= velocityForAudio / maxVelocityForAudio;
 
 				game->audioClipsOnPlay.push({game->stepSFX, 0, random_range(0.5, 1.5), volume, *position});
@@ -1134,7 +1134,7 @@ internal bool32 game_update_game(Game * 					game,
 				input.xy	 		= game->nobleWanderTargetPosition.xy - game->noblePersonTransform.position.xy;
 				f32 inputMagnitude 	= v3_length(input);
 				input 				= input / inputMagnitude;
-				inputMagnitude 		= clamp_f32(inputMagnitude, 0.0f, 1.0f);
+				inputMagnitude 		= f32_clamp(inputMagnitude, 0.0f, 1.0f);
 				input 				= input * inputMagnitude;
 
 				nobleCharacterMotorInput = {input, false, false};
@@ -1206,7 +1206,7 @@ internal bool32 game_update_game(Game * 					game,
 				input.xy	 		= game->raccoonTargetPositions[i].xy - game->raccoonTransforms[i].position.xy;
 				f32 inputMagnitude 	= v3_length(input);
 				input 				= input / inputMagnitude;
-				inputMagnitude 		= clamp_f32(inputMagnitude, 0.0f, 1.0f);
+				inputMagnitude 		= f32_clamp(inputMagnitude, 0.0f, 1.0f);
 				input 				= input * inputMagnitude;
 			}
 
@@ -1293,11 +1293,20 @@ internal bool32 game_update_game(Game * 					game,
 	
 	/// DRAW POTS
 	{
+		local_persist float testScale = 1;
+		constexpr float minTestScale = 0.5;
+		constexpr float maxTestScale = 19;
+
+		testScale += input_axis_get_value(input, InputAxis_mouse_scroll);
+		testScale = f32_clamp(testScale, minTestScale, maxTestScale);
+
+		log_debug(FILE_ADDRESS, "testScale = ", testScale);
+
 		// Todo(Leo): store these as matrices, we can easily retrieve position (that is needed somwhere) from that too.
 		m44 * potTransformMatrices = push_memory<m44>(*global_transientMemory, game->potCount, ALLOC_GARBAGE);
 		for(s32 i = 0; i < game->potCount; ++i)
 		{
-			potTransformMatrices[i] = transform_matrix(game->potTransforms[i]);
+			potTransformMatrices[i] = transform_matrix(game->potTransforms[i]) * scale_matrix({testScale, testScale, testScale});
 		}
 		graphics_draw_meshes(platformGraphics, game->potCount, potTransformMatrices, game->potMesh, game->potMaterial);
 	}
@@ -1592,7 +1601,7 @@ internal bool32 game_update_game(Game * 					game,
 				f32 attenuation;
 				{
 					f32 distanceToPlayer = v3_length(clip.position - game->playerCharacterTransform.position);
-					distanceToPlayer = clamp_f32(distanceToPlayer, 0, 50);
+					distanceToPlayer = f32_clamp(distanceToPlayer, 0, 50);
 					attenuation = 1 - (distanceToPlayer / 50);
 				}
 
