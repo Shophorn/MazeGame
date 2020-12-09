@@ -42,9 +42,9 @@ struct AudioClip
 // 	return clip;
 // }
 
-// internal PlatformStereoSoundSample get_next_sample_looping(AudioClip & clip)
+// internal StereoSoundSample get_next_sample_looping(AudioClip & clip)
 // {
-// 	PlatformStereoSoundSample sample = {
+// 	StereoSoundSample sample = {
 // 		.left = clip.asset->file.samples[0][clip.sampleIndex],
 // 		.right = clip.asset->file.samples[1][clip.sampleIndex]
 // 	};
@@ -56,19 +56,19 @@ struct AudioClip
 // 	return sample;
 // }
 
-internal bool32 get_next_sample(AudioClip & clip, PlatformStereoSoundSample & outSample)
+internal bool32 get_next_sample(AudioClip & clip, StereoSoundSample & outSample)
 {
 	s32 previousIndex 	= floor_f32(clip.sampleIndex);
 	s32 nextIndex 		= previousIndex + 1;
 	f32 lerpTime 		= clip.sampleIndex - previousIndex;
 
-	PlatformStereoSoundSample previous = 
+	StereoSoundSample previous = 
 	{
 		.left = clip.asset->leftChannel[previousIndex],
 		.right = clip.asset->rightChannel[previousIndex]
 	};
 
-	PlatformStereoSoundSample next = 
+	StereoSoundSample next = 
 	{
 		.left = clip.asset->leftChannel[nextIndex],
 		.right = clip.asset->rightChannel[nextIndex]

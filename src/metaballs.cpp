@@ -277,7 +277,7 @@ internal void generate_mesh_marching_cubes(	s32 vertexCapacity, Vertex * vertice
 	u32 vertexCount = 0;
 	u32 indexCount = 0;
 
-	PlatformTimePoint startTime = platform_time_now();
+	s64 startTime = platform_time_now();
 
 	constexpr s32 edges [24][2] = 
 	{

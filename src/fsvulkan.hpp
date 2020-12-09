@@ -236,6 +236,9 @@ struct PlatformGraphics
 	VkQueue graphicsQueue;
 	VkQueue presentQueue;
 
+	u32 graphicsQueueFamily;
+	u32 presentQueueFamily;
+
     VulkanVirtualFrame 	virtualFrames [VIRTUAL_FRAME_COUNT];
     u32 				virtualFrameIndex = 0;
 	VkDeviceMemory 		virtualFrameAttachmentMemory;
@@ -244,7 +247,8 @@ struct PlatformGraphics
     VkDescriptorPool 		materialDescriptorPool;
 
 	// Note(Leo): these are not cleared on unload
-    VkDescriptorPool		persistentDescriptorPool;
+    VkDescriptorPool		drawingResourceDescriptorPool;
+    VkDescriptorPool 		persistentDescriptorPool;
 
     VkDescriptorSetLayout 	modelDescriptorSetLayout;
     VkDescriptorSet 		modelDescriptorSet[VIRTUAL_FRAME_COUNT];
@@ -371,6 +375,7 @@ struct PlatformGraphics
     bool32 canDraw = false;
 
     bool32 sceneUnloaded = false;
+    bool32 unloadAfterRender = false;
 
     VkBuffer 		leafBuffer;
     VkDeviceMemory 	leafBufferMemory;

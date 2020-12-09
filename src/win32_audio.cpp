@@ -8,10 +8,13 @@ Audio interface for win32 platform.
 /// ***********************************************************************************
 /// API
 
+#include "win32_error_strings.hpp"
+#define WIN32_CHECK(result) {if (result != S_OK) { log_debug(FILE_ADDRESS, fswin32_error_string(result), " (", (s32)result, ")"); abort(); }}
+
+
 // Todo(Leo): Do this when better control of audio is required
-// using WinApiAudio = PlatformAudio
-// struct PlatformAudio
-struct WinApiAudio
+struct PlatformAudio
+// struct Win32Audio
 {
 	IMMDeviceEnumerator *	pEnumerator;
 	IMMDevice *				pDevice;
@@ -23,13 +26,14 @@ struct WinApiAudio
 
     bool32                  isPlaying;
 };
+using Win32Audio = PlatformAudio;
 
-internal WinApiAudio fswin32_create_audio(f32 audioBufferLength);          
-internal void fswin32_release_audio (WinApiAudio * audio);
-internal void fswin32_start_playing(WinApiAudio * audio);
-internal void fswin32_stop_playing(WinApiAudio * audio);
-internal void fswin32_get_audio_buffer(WinApiAudio * audio, int * sampleCount, PlatformStereoSoundSample ** samples);
-internal void fswin32_release_audio_buffer(WinApiAudio * audio, int sampleCount);
+internal Win32Audio fswin32_create_audio(f32 audioBufferLength);          
+internal void fswin32_release_audio (Win32Audio * audio);
+internal void fswin32_start_playing(Win32Audio * audio);
+internal void fswin32_stop_playing(Win32Audio * audio);
+internal void fswin32_get_audio_buffer(Win32Audio * audio, int * sampleCount, StereoSoundSample ** samples);
+internal void fswin32_release_audio_buffer(Win32Audio * audio, int sampleCount);
 
 /// ***********************************************************************************
 /// IMPLEMENTATION
@@ -66,14 +70,14 @@ UNKNOWN_GetFormatTag( const WAVEFORMATEX* wfx )
     }
 }
 
-internal WinApiAudio fswin32_create_audio (f32 audioBufferLength)
+internal Win32Audio fswin32_create_audio (f32 audioBufferLength)
 {
     const CLSID CLSID_MMDeviceEnumerator =   __uuidof(MMDeviceEnumerator);
     const IID IID_IMMDeviceEnumerator =      __uuidof(IMMDeviceEnumerator);
     const IID IID_IAudioClient =             __uuidof(IAudioClient);
     const IID IID_IAudioRenderClient =       __uuidof(IAudioRenderClient);
 
-    WinApiAudio audio = {};    
+    Win32Audio audio = {};    
 
     CoInitializeEx(nullptr, COINIT_MULTITHREADED);
     /*
@@ -126,7 +130,7 @@ internal WinApiAudio fswin32_create_audio (f32 audioBufferLength)
     return audio;
 }
 
-internal void fswin32_release_audio(WinApiAudio * audio)
+internal void fswin32_release_audio(Win32Audio * audio)
 {
     CoTaskMemFree(audio->pFormat);
 
@@ -146,7 +150,7 @@ internal void fswin32_release_audio(WinApiAudio * audio)
 }
 
 // Todo(Leo): this seems unnecessary function
-internal void fswin32_start_playing(WinApiAudio * audio)
+internal void fswin32_start_playing(Win32Audio * audio)
 {
     // WinApiLog("Start playing audio", audio->pClient->Start());
     WIN32_CHECK(audio->pClient->Start());
@@ -154,13 +158,13 @@ internal void fswin32_start_playing(WinApiAudio * audio)
 
 // Todo(Leo): this seems unnecessary function
 // Todo(Leo): maybe add function to clear audio buffer
-internal void fswin32_stop_playing(WinApiAudio * audio)
+internal void fswin32_stop_playing(Win32Audio * audio)
 {
     // WinApiLog("Stop playing audio", audio->pClient->Stop());
     WIN32_CHECK(audio->pClient->Stop());
 }
 
-internal void fswin32_get_audio_buffer(WinApiAudio * audio, int * frameCount, PlatformStereoSoundSample ** samples)
+internal void fswin32_get_audio_buffer(Win32Audio * audio, int * frameCount, StereoSoundSample ** samples)
 {
     u32 currentPadding;
     WIN32_CHECK(audio->pClient->GetCurrentPadding(&currentPadding));
@@ -172,7 +176,19 @@ internal void fswin32_get_audio_buffer(WinApiAudio * audio, int * frameCount, Pl
     *frameCount = framesAvailable;
 }
 
-internal void fswin32_release_audio_buffer(WinApiAudio * audio, s32 frameCount)
+internal void fswin32_release_audio_buffer(Win32Audio * audio, s32 frameCount)
 {
     WIN32_CHECK(audio->pRenderClient->ReleaseBuffer(frameCount, 0));
+}
+
+StereoSoundOutput audio_get_output_buffer(Win32Audio * audio)
+{
+    StereoSoundOutput output = {};
+    fswin32_get_audio_buffer(audio, &output.sampleCount, &output.samples);
+    return output;
+}
+
+void audio_release_output_buffer(Win32Audio * audio, StereoSoundOutput output)
+{
+    fswin32_release_audio_buffer(audio, output.sampleCount);
 }

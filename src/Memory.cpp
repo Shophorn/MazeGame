@@ -7,6 +7,12 @@ Memory managing things in Friendsimulator
 // Note(Leo): We kinda have expected to always use 64 bit systems.
 static_assert(sizeof(void*) == sizeof(u64));
 
+struct MemoryBlock
+{
+	s64 	size;
+	u8 * 	memory;
+};
+
 /// ----------------- RANDOM UTITLITES --------------------------------
 
 internal u64

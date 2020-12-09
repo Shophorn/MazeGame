@@ -321,7 +321,7 @@ internal void fsvulkan_recreate_drawing_resources(VulkanContext * context, u32 w
 	vulkan::destroy_drawing_resources(context);
 	vulkan::create_drawing_resources(context, width, height);
 
-	vkResetDescriptorPool(context->device, context->persistentDescriptorPool, 0);
+	vkResetDescriptorPool(context->device, context->drawingResourceDescriptorPool, 0);
 
 	fsvulkan_cleanup_pipelines(context);
 	fsvulkan_initialize_pipelines(*context);
@@ -330,9 +330,8 @@ internal void fsvulkan_recreate_drawing_resources(VulkanContext * context, u32 w
 	{
 		context->shadowMapTextureDescriptorSet[i] = make_material_vk_descriptor_set_2( context,
 																					context->shadowMapTextureDescriptorSetLayout,
-																					// context->pipelines[GraphicsPipeline_SCREEN_GUI].descriptorSetLayout,
 																					context->shadowAttachment[i].view,
-																					context->persistentDescriptorPool,
+																					context->drawingResourceDescriptorPool,
 																					context->shadowTextureSampler,
 																					VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 	}

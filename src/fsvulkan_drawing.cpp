@@ -117,6 +117,19 @@ internal void graphics_drawing_update_hdr_settings(VulkanContext * context, HdrS
 
 internal void graphics_drawing_prepare_frame(VulkanContext * context)
 {
+	{
+		VulkanVirtualFrame * frame = fsvulkan_get_current_virtual_frame(context);
+	    VULKAN_CHECK(vkWaitForFences(context->device, 1, &frame->queueSubmitFence, VK_TRUE, VULKAN_NO_TIME_OUT));
+
+	    VkResult result = vkAcquireNextImageKHR(context->device,
+	                                            context->swapchain,
+	                                            VULKAN_NO_TIME_OUT,
+	                                            frame->imageAvailableSemaphore,
+	                                            VK_NULL_HANDLE,
+	                                            &context->currentDrawFrameIndex);
+	}
+
+
 	Assert((context->canDraw == false) && "Invalid call to prepare_drawing() when finish_drawing() has not been called.")
 	context->canDraw = true;
 
@@ -383,6 +396,13 @@ internal void graphics_drawing_finish_frame(VulkanContext * context)
 		vkDeviceWaitIdle(context->device);
 		context->onPostRender(context);
 		context->onPostRender = nullptr;
+	}
+
+	if (context->unloadAfterRender)
+	{
+		vkDeviceWaitIdle(context->device);
+		BAD_BUT_ACTUAL_graphics_memory_unload(context);
+		context->unloadAfterRender = false;
 	}
 }
 

@@ -68,7 +68,7 @@ fsvulkan_write_descriptor_set_buffer (VkDescriptorSet dstSet, u32 descriptorCoun
 
 
 // Todo(Leo): this is weird, it doesnt feel at home here.
-internal PlatformGraphicsFrameResult fsvulkan_prepare_frame(VulkanContext * context)
+internal void fsvulkan_prepare_frame(VulkanContext * context)
 {
 	VulkanVirtualFrame * frame = fsvulkan_get_current_virtual_frame(context);
 
@@ -80,18 +80,19 @@ internal PlatformGraphicsFrameResult fsvulkan_prepare_frame(VulkanContext * cont
                                             frame->imageAvailableSemaphore,
                                             VK_NULL_HANDLE,
                                             &context->currentDrawFrameIndex);
-    switch(result)
-    {
-    	case VK_SUCCESS:
-    		return PGFR_FRAME_OK;
 
-	    case VK_SUBOPTIMAL_KHR:
-	    case VK_ERROR_OUT_OF_DATE_KHR:
-	    	return PGFR_FRAME_RECREATE;
+    // switch(result)
+    // {
+    // 	case VK_SUCCESS:
+    // 		return PGFR_FRAME_OK;
 
-	    default:
-	    	return PGFR_FRAME_BAD_PROBLEM;
-    }
+	   //  case VK_SUBOPTIMAL_KHR:
+	   //  case VK_ERROR_OUT_OF_DATE_KHR:
+	   //  	return PGFR_FRAME_RECREATE;
+
+	   //  default:
+	   //  	return PGFR_FRAME_BAD_PROBLEM;
+    // }
 }
 
 internal void graphics_development_reload_shaders(VulkanContext * context)
@@ -101,7 +102,7 @@ internal void graphics_development_reload_shaders(VulkanContext * context)
 	context->onPostRender = [](VulkanContext * context)
 	{
 		VkDevice device = context->device;
-		vkResetDescriptorPool(context->device, context->persistentDescriptorPool, 0);
+		vkResetDescriptorPool(context->device, context->drawingResourceDescriptorPool, 0);
 
 		fsvulkan_cleanup_pipelines(context);
 		fsvulkan_initialize_pipelines(*context);
@@ -112,7 +113,7 @@ internal void graphics_development_reload_shaders(VulkanContext * context)
 																					context->shadowMapTextureDescriptorSetLayout,
 																					// context->pipelines[GraphicsPipeline_SCREEN_GUI].descriptorSetLayout,
 																					context->shadowAttachment[i].view,
-																					context->persistentDescriptorPool,
+																					context->drawingResourceDescriptorPool,
 																					context->shadowTextureSampler,
 																					VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 		}
@@ -606,7 +607,7 @@ VKAPI_ATTR VkBool32 VKAPI_CALL fsvulkan_debug_callback (VkDebugUtilsMessageSever
 Make better separation between windows part of this and vulkan part of this. */
 namespace winapi
 {
-	internal VulkanContext create_vulkan_context  (Win32Window*);
+	internal VulkanContext create_vulkan_context  (Win32PlatformWindow*);
 	internal void destroy_vulkan_context        (VulkanContext*);
 }
 
@@ -617,7 +618,7 @@ namespace winapi_vulkan_internal_
 	internal void add_cleanup(VulkanContext*, VulkanContext::CleanupFunc * cleanupFunc);
 
 	internal VkInstance             create_vk_instance();
-	internal VkSurfaceKHR           create_vk_surface(VkInstance, Win32Window*);
+	internal VkSurfaceKHR           create_vk_surface(VkInstance, Win32PlatformWindow*);
 	internal VkPhysicalDevice       create_vk_physical_device(VkInstance, VkSurfaceKHR);
 	internal VkDevice               create_vk_device(VkPhysicalDevice, VkSurfaceKHR);
 	internal VkSampleCountFlagBits  get_max_usable_msaa_samplecount(VkPhysicalDevice);
@@ -638,7 +639,7 @@ internal void fsvulkan_destroy_memory(VulkanContext *);
 
 
 internal VulkanContext
-winapi::create_vulkan_context(Win32Window * window)
+winapi::create_vulkan_context(Win32PlatformWindow * window)
 {
 	// Note(Leo): This is actual winapi part of vulkan context
 	VulkanContext context = {};
@@ -703,6 +704,8 @@ winapi::create_vulkan_context(Win32Window * window)
 		vkGetDeviceQueue(context.device, queueFamilyIndices.graphics, 0, &context.graphicsQueue);
 		vkGetDeviceQueue(context.device, queueFamilyIndices.present, 0, &context.presentQueue);
 
+		context.graphicsQueueFamily = queueFamilyIndices.graphics;
+		context.presentQueueFamily = queueFamilyIndices.present;
 
 		/// START OF RESOURCES SECTION ////////////////////
 		VkCommandPoolCreateInfo poolInfo =
@@ -760,7 +763,7 @@ winapi::create_vulkan_context(Win32Window * window)
 																					context.shadowMapTextureDescriptorSetLayout,
 																					// context.pipelines[GraphicsPipeline_SCREEN_GUI].descriptorSetLayout,
 																					context.shadowAttachment[i].view,
-																					context.persistentDescriptorPool,
+																					context.drawingResourceDescriptorPool,
 																					context.shadowTextureSampler,
 																					VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 		}
@@ -779,7 +782,7 @@ winapi::destroy_vulkan_context(VulkanContext * context)
 	// Note(Leo): All draw frame operations are asynchronous, must wait for them to finish
 	vkDeviceWaitIdle(context->device);
 
-	graphics_memory_unload(context);
+	BAD_BUT_ACTUAL_graphics_memory_unload(context);
 
 	fsvulkan_destroy_memory(context);
 
@@ -876,7 +879,7 @@ winapi_vulkan_internal_::create_vk_instance()
 }
 
 internal VkSurfaceKHR
-winapi_vulkan_internal_::create_vk_surface(VkInstance instance, Win32Window * window)
+winapi_vulkan_internal_::create_vk_surface(VkInstance instance, Win32PlatformWindow * window)
 {
 	VkWin32SurfaceCreateInfoKHR surfaceCreateInfo =
 	{
@@ -1186,10 +1189,13 @@ winapi_vulkan_internal_::init_persistent_descriptor_pool(VulkanContext * context
 		.pPoolSizes     = &poolSize,
 	};
 
+	VULKAN_CHECK(vkCreateDescriptorPool(context->device, &poolCreateInfo, nullptr, &context->drawingResourceDescriptorPool));
 	VULKAN_CHECK(vkCreateDescriptorPool(context->device, &poolCreateInfo, nullptr, &context->persistentDescriptorPool));
+
 
 	add_cleanup(context, [](VulkanContext * context)
 	{
+		vkDestroyDescriptorPool(context->device, context->drawingResourceDescriptorPool, nullptr);
 		vkDestroyDescriptorPool(context->device, context->persistentDescriptorPool, nullptr);
 	});
 }

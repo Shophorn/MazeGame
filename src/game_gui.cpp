@@ -20,7 +20,7 @@ internal Gui init_game_gui(GameAssets & assets)
 
 internal void game_gui_set_cursor_visible(bool menuVisible)
 {
-	bool windowIsFullscreen = platform_window_is_fullscreen(platformWindow);
+	bool windowIsFullscreen = platform_window_get_fullscreen(platformWindow);
 	bool cursorVisible 		= !windowIsFullscreen || menuVisible;
 	platform_window_set_cursor_visible(platformWindow, cursorVisible);
 }

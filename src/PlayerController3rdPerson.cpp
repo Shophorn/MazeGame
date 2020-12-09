@@ -27,13 +27,13 @@ CharacterInput update_player_input(	PlayerInputState & 	state,
 	viewForward 		= normalize_v3(viewForward);
 	v3 viewRight 		= cross_v3(viewForward, v3_up);
 
-	constexpr PlatformInputButton interactButton 		= InputButton_nintendo_b;
-	constexpr PlatformInputButton pickupOrDropButton 	= InputButton_nintendo_a;
+	constexpr InputButton interactButton 		= InputButton_nintendo_b;
+	constexpr InputButton pickupOrDropButton 	= InputButton_nintendo_a;
 
 	v2 inputComponents;
 	bool32 jumpInput = false; 
 
-	if (input_is_device_used(platformInput, PlatformInputDevice_gamepad))
+	if (input_is_device_used(platformInput, InputDevice_gamepad))
 	{
 		inputComponents.x 	= input_axis_get_value(platformInput, InputAxis_move_x);
 		inputComponents.y 	= input_axis_get_value(platformInput, InputAxis_move_y);

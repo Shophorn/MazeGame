@@ -3,8 +3,15 @@ Leo Tamminen
 
 Friendsimulator game code main file.
 */
+#if defined FS_DEVELOPMENT
+	#define _CRT_SECURE_NO_WARNINGS
 
-#if !defined FS_FULL_GAME
+	#include <imgui/imgui.h>
+	#include <imgui/imgui.cpp>
+	#include <imgui/imgui_widgets.cpp>
+	#include <imgui/imgui_draw.cpp>
+	#include <imgui/imgui_demo.cpp>
+
 	#define FS_GAME_DLL
 
 	#include "fs_standard_types.h"
@@ -13,7 +20,17 @@ Friendsimulator game code main file.
 	#include "fs_standard_functions.h"
 	#include "fs_platform_interface.hpp"
 	#include "logging.cpp"
+
+	FS_GAME_API void game_set_platform_functions(PlatformApiDescription * apiDescripition, ImGuiContext * imguiContext)
+	{
+		platform_set_api(apiDescripition);
+		ImGui::SetCurrentContext(imguiContext);
+	}
+
+
 #endif
+
+
 
 static PlatformGraphics * 	platformGraphics;
 static PlatformWindow * 	platformWindow;
@@ -97,18 +114,18 @@ static Gui make_main_menu_gui(MemoryArena & allocator, GameAssets & assets)
 	return gui;
 }
 
-static void game_init_state(GameState * state, PlatformMemory * memory)
+static void game_init_state(GameState * state, MemoryBlock memory)
 {
 	*state = {};
 
 	// // Note(Leo): Create persistent arena in the same memoryblock as game state, right after it.
 	u64 gameStateSize 				= memory_align_up(sizeof(GameState), MemoryArena::defaultAlignment);
-	byte * persistentMemory 		= reinterpret_cast<byte *>(memory->memory) + gameStateSize;
-	u64 persistentMemorySize 		= (memory->size / 2) - gameStateSize;
+	byte * persistentMemory 		= reinterpret_cast<byte *>(memory.memory) + gameStateSize;
+	u64 persistentMemorySize 		= (memory.size / 2) - gameStateSize;
 	state->persistentMemoryArena 	= memory_arena(persistentMemory, persistentMemorySize); 
 
-	byte * transientMemory 			= reinterpret_cast<byte*>(memory->memory) + gameStateSize + persistentMemorySize;
-	u64 transientMemorySize 		= memory->size / 2;
+	byte * transientMemory 			= reinterpret_cast<byte*>(memory.memory) + gameStateSize + persistentMemorySize;
+	u64 transientMemorySize 		= memory.size / 2;
 	state->transientMemoryArena 	= memory_arena(transientMemory, transientMemorySize);
 
 	state->assets 	= init_game_assets(&state->persistentMemoryArena);
@@ -119,34 +136,20 @@ static void game_init_state(GameState * state, PlatformMemory * memory)
 
 // Note(Leo): return whether or not game still continues
 // Todo(Leo): indicate meaning of return value betterly somewhere, I almost forgot it.
-FS_GAME_API bool32 update_game(	PlatformInput  *		input,
-								PlatformTime const *	time,
-
-								PlatformMemory * 		memory,
-								PlatformNetwork *		network,
-								PlatformSoundOutput *	soundOutput,
-
-								PlatformGraphics * 		graphics,
-								PlatformWindow * 		window,
-								PlatformApiDescription * apiDescripition,
-
-								bool32 gameShouldReInitializeGlobalVariables)
+FS_GAME_API bool32 game_update(	MemoryBlock 				gameMemory,
+								PlatformInput  *			input,
+								PlatformGraphics * 			graphics,
+								PlatformWindow * 			window,
+								PlatformAudio *				audio,
+								f32 						elapsedTimeSeconds)
 {
-	if (gameShouldReInitializeGlobalVariables)
-	{
-		platformGraphics 	= graphics;
-		platformWindow 		= window;
+	platformGraphics 	= graphics;
+	platformWindow 		= window;
 
-	#if defined FS_GAME_DLL
-		platform_set_api(apiDescripition);
-	#endif
-
-		log_application(1, "Reinitialized global variables");
-	}	
 
 	/* Note(Leo): This is reinterpreted each frame, we don't know and don't care
 	if it has been moved or whatever in platform layer*/
-	GameState * state = reinterpret_cast<GameState*>(memory->memory);
+	GameState * state = reinterpret_cast<GameState*>(gameMemory.memory);
 
 	// Note(Leo): Testing out this idea
 	// Note(Leo): So far, so good 12.06.2020
@@ -157,7 +160,7 @@ FS_GAME_API bool32 update_game(	PlatformInput  *		input,
 
 	if (state->isInitialized == false)
 	{
-		game_init_state (state, memory);
+		game_init_state (state, gameMemory);
 	}
 	
 	bool32 gameIsAlive = true;
@@ -165,20 +168,21 @@ FS_GAME_API bool32 update_game(	PlatformInput  *		input,
 
 	enum { ACTION_NONE, ACTION_NEW_GAME, ACTION_LOAD_GAME, ACTION_QUIT } action = ACTION_NONE;
 
-	graphics_drawing_prepare_frame(graphics);
+	// graphics_drawing_prepare_frame(graphics);
 
 	if (state->loadedGame != nullptr)
 	{
-		sceneIsAlive = game_update_game(state->loadedGame, input, soundOutput, *time);
+		StereoSoundOutput soundOutput = audio_get_output_buffer(audio);
+		sceneIsAlive = game_game_update(state->loadedGame, input, &soundOutput, elapsedTimeSeconds);
+		audio_release_output_buffer(audio, soundOutput);
 	}
 	else
 	{
-		for (s32  i = 0 ; i < soundOutput->sampleCount; ++i)
-		{
-			soundOutput->samples[i] = {};
-		}
+		gui_start_frame(state->gui, input, elapsedTimeSeconds);
 
-		gui_start_frame(state->gui, input, time->elapsedTime);
+		// ImGui::Begin("Game Panel");
+		// ImGui::End();
+
 
 		gui_position({0,0});
 		gui_image(assets_get_material(state->assets, MaterialAssetId_menu_background), {1920, 1080}, {1,1,1,1});
@@ -212,7 +216,7 @@ FS_GAME_API bool32 update_game(	PlatformInput  *		input,
 	because we have at this point issued commands to vulkan command buffers,
 	and we currently have no mechanism to abort those. */
 	// Todo(Leo): We maybe could use onpostrender on this
-	graphics_drawing_finish_frame(graphics);
+	// graphics_drawing_finish_frame(graphics);
 
 	if(action == ACTION_NEW_GAME)
 	{
@@ -230,32 +234,18 @@ FS_GAME_API bool32 update_game(	PlatformInput  *		input,
 		graphics_memory_unload(platformGraphics);
 		flush_memory_arena(&state->persistentMemoryArena);
 
-		// Note(Leo): we flushed graphics and cpu memory, our assets are gone :)
-		state->assets 	= init_game_assets(&state->persistentMemoryArena);
-		state->gui 		= make_main_menu_gui(state->persistentMemoryArena, state->assets);	
-
+		// // Note(Leo): we flushed graphics and cpu memory, our assets are gone, we will reinit them next frame
+		state->isInitialized 	= false;
 		state->loadedGame 		= nullptr;
 	}
 
 	// Todo(Leo): These still MAYBE do not belong here
-	if (input_button_went_down(input, InputButton_select))
+	if (input_button_went_down(input, InputButton_select) || input_button_went_down(input, InputButton_keyboard_f2))
 	{
-		bool isFullScreen = platform_window_is_fullscreen(platformWindow);
+		bool isFullScreen = platform_window_get_fullscreen(platformWindow);
 		platform_window_set_fullscreen(platformWindow, !isFullScreen);
 		platform_window_set_cursor_visible(platformWindow, isFullScreen);
 	}
 
-	// Note(Leo): This is just a reminder
-	// Todo(Leo): Remove if unnecessary
-	/// Update network
-	{
-		// network->outPackage = {};
-		// network->outPackage.characterPosition = state->character.position;
-		// network->outPackage.characterRotation = state->character.rotation;
-	}
 	return gameIsAlive;
 }
-
-
-// Note(Leo): This makes sure we have actually defined this correctly.
-static_assert(is_same_type<UpdateGameFunc, decltype(update_game)>);

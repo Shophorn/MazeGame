@@ -48,7 +48,7 @@ internal void update_camera_controller(	PlayerCameraController & controller,
 	f32 orbitMovement;
 	f32 tumbleMovement;
 
-	if (input_is_device_used(input, PlatformInputDevice_gamepad))
+	if (input_is_device_used(input, InputDevice_gamepad))
 	{
 		orbitMovement 	= input_axis_get_value(input, InputAxis_look_x) * controller.gamepadRotateSpeed * elapsedTime;
     	tumbleMovement = input_axis_get_value(input, InputAxis_look_y) * controller.gamepadRotateSpeed * elapsedTime;

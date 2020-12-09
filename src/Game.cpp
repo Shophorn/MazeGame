@@ -548,11 +548,14 @@ internal void game_spawn_tree_on_player(Game & game)
 
 // Todo(Leo): add this to syntax higlight, so that 'GAME UPDATE' is different color
 /// ------------------ GAME UPDATE -------------------------
-internal bool32 game_update_game(Game * 					game,
+internal bool32 game_game_update(Game * 				game,
 								PlatformInput * 		input,
-								PlatformSoundOutput *	soundOutput,
-								PlatformTime const & 	time)
+								StereoSoundOutput *	soundOutput,
+								f32 					elapsedTimeSeconds)
 {
+	ImGui::ShowDemoWindow();
+
+
 	struct SnapOnGround
 	{
 		CollisionSystem3D & collisionSystem;
@@ -576,8 +579,8 @@ internal bool32 game_update_game(Game * 					game,
 	/// TIME
 
 	f32 const timeScales [game->timeScaleCount] { 1.0f, 0.1f, 0.5f }; 
-	f32 scaledTime 		= time.elapsedTime * timeScales[game->timeScaleIndex];
-	f32 unscaledTime 	= time.elapsedTime;
+	f32 scaledTime 		= elapsedTimeSeconds * timeScales[game->timeScaleIndex];
+	f32 unscaledTime 	= elapsedTimeSeconds;
 
 	/// ****************************************************************************
 
@@ -1300,8 +1303,6 @@ internal bool32 game_update_game(Game * 					game,
 		testScale += input_axis_get_value(input, InputAxis_mouse_scroll);
 		testScale = f32_clamp(testScale, minTestScale, maxTestScale);
 
-		log_debug(FILE_ADDRESS, "testScale = ", testScale);
-
 		// Todo(Leo): store these as matrices, we can easily retrieve position (that is needed somwhere) from that too.
 		m44 * potTransformMatrices = push_memory<m44>(*global_transientMemory, game->potCount, ALLOC_GARBAGE);
 		for(s32 i = 0; i < game->potCount; ++i)
@@ -1595,7 +1596,7 @@ internal bool32 game_update_game(Game * 					game,
 			{
 				auto & clip = game->audioClipsOnPlay[i];
 
-				PlatformStereoSoundSample sample;
+				StereoSoundSample sample;
 				bool32 hasSamplesLeft = get_next_sample(clip, sample);
 
 				f32 attenuation;

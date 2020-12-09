@@ -4,21 +4,20 @@ Leo Tamminen
 Dynamically loaded game code dll
 */
 
-// Todo(Leo): Change to wide strings???
 constexpr internal char const * gamecode_dll_file_name 		= "friendsimulator.dll";
 constexpr internal char const * gamecode_dll_file_name_temp = "friendsimulator_temp.dll";
-constexpr internal char const * gamecode_update_func_name	= "update_game";
+constexpr internal char const * gamecode_update_func_name	= "game_update";
 constexpr internal char const * gamecode_checkfilename 		= "friendsimulator_game_dll_built_checkfile";
+
 
 struct Win32Game
 {
 	// Note(Leo): these are for hot reloading game code during development
 	// Todo(Leo): Remove functionality from final game
-	HMODULE dllHandle;
-	FILETIME dllWriteTime;
-	bool32 shouldReInitializeGlobalVariables;
+	HMODULE 	dllHandle;
+	FILETIME 	dllWriteTime;
 
-	UpdateGameFunc * update;	
+	GameUpdateFunc * update;	
 };
 
 internal bool32 fswin32_game_is_loaded(Win32Game * game)
@@ -48,15 +47,27 @@ internal void fswin32_game_load_dll(Win32Game * game)
 {
 	Assert(fswin32_game_is_loaded(game) == false && "Game code is already loaded, unload before reloading");
 
-	CopyFileA(gamecode_dll_file_name, gamecode_dll_file_name_temp, false);
-	game->dllHandle = LoadLibraryA(gamecode_dll_file_name_temp);
+	CopyFile(gamecode_dll_file_name, gamecode_dll_file_name_temp, false);
+	game->dllHandle = LoadLibrary(gamecode_dll_file_name_temp);
 	if(game->dllHandle != nullptr)
 	{
 		FARPROC procAddress = GetProcAddress(game->dllHandle, gamecode_update_func_name);
-		game->update        = reinterpret_cast<UpdateGameFunc*>(procAddress);
+		game->update        = reinterpret_cast<GameUpdateFunc*>(procAddress);
 		game->dllWriteTime  = fswin32_file_get_write_time(gamecode_dll_file_name);
 
-		DeleteFileA(gamecode_checkfilename);
+
+		using SetPlatformFunctionsFunc 		= void(*)(PlatformApiDescription*, ImGuiContext*);
+		procAddress 						= GetProcAddress(game->dllHandle, "game_set_platform_functions");
+		auto game_set_platform_functions 	= reinterpret_cast<SetPlatformFunctionsFunc>(procAddress);
+
+		PlatformApiDescription apiDescription;
+		platform_set_api(&apiDescription);
+
+		ImGuiContext * imguiContext = ImGui::GetCurrentContext();
+
+		game_set_platform_functions(&apiDescription, imguiContext);
+
+		DeleteFile(gamecode_checkfilename);
 	}
 
 	Assert(fswin32_game_is_loaded(game) && "Game not loaded");
@@ -67,7 +78,7 @@ internal void fswin32_game_unload_dll(Win32Game * game)
 	FreeLibrary(game->dllHandle);
 	game->dllHandle =  nullptr;
 
-	DeleteFileA(gamecode_dll_file_name_temp);
+	DeleteFile(gamecode_dll_file_name_temp);
 }
 
 internal void fswin32_game_reload(Win32Game & game)
@@ -87,8 +98,6 @@ internal void fswin32_game_reload(Win32Game & game)
 			fswin32_game_load_dll(&game);
 
 			log_application(0, "Reloaded game");
-
-			game.shouldReInitializeGlobalVariables = true;
 		}
 		else
 		{

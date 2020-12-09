@@ -5,13 +5,8 @@ Windows platform implementation layer for Friendsimulator.
 This is the first file to compile, and everything is included from here.
 */
 
-/*
-Note(Leo): There is fuckery going inside win32 things
-WinSock2 must be included before lean and mean and windows.h
-*/
+#define _CRT_SECURE_NO_WARNINGS
 #define NOMINMAX
-#include <WinSock2.h>
-
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
 #include <Windowsx.h>
@@ -21,29 +16,34 @@ WinSock2 must be included before lean and mean and windows.h
 #include <mmdeviceapi.h>
 #include <audioclient.h>
 
-#define FS_PLATFORM
+/*
+Note(Leo): Define configurations here. Currently we split develompnent code to platform layer executable
+and game layer hot-reloadable dll. We also define different entrypoint names, because release mode does
+not need console to be created.
+*/
 
-#if defined FS_FULL_GAME
+#if defined FS_RELEASE
 
 	#define FS_DEVELOPMENT_ONLY(expr) (void(0))
-	#define FS_FULL_GAME_ONLY(expr) expr
+	#define FS_RELEASE_ONLY(expr) expr
 
 	#define FS_ENTRY_POINT int WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 
 #elif defined FS_DEVELOPMENT
 
 	#define FS_DEVELOPMENT_ONLY(expr) expr
-	#define FS_FULL_GAME_ONLY(expr) (void(0))
+	#define FS_RELEASE_ONLY(expr) (void(0))
 
 	#define FS_ENTRY_POINT int main()
 
 #else
-	#error "FS_DEVELOPMENT or FS_FULL_GAME must be defined."
+	#error "FS_DEVELOPMENT or FS_RELEASE must be defined."
 #endif
 
-// Todo(Leo): these should be in different order, maybe. Essentials describe some c++ stuff that shouldn't concern platform api
 #include "fs_standard_types.h"
 #include "fs_standard_functions.h"
+
+#define FS_PLATFORM
 #include "fs_platform_interface.hpp"
 
 #include "logging.cpp"
@@ -51,98 +51,144 @@ WinSock2 must be included before lean and mean and windows.h
 #include "fswin32_platform_log.cpp"
 #include "fswin32_platform_time.cpp"
 #include "fswin32_platform_file.cpp"
-#include "fswin32_platform_input.cpp"
 
-#include "fswin32_platform_window.cpp"
-#include "fswin32_game_dll.cpp"
+// Todo(Leo): these can be in same file, and maybe even combine them. Windows seems to do that.
+#include "win32_platform_window.cpp"
+#include "win32_platform_input.cpp"
 
-#include "winapi_ErrorStrings.hpp"
-
-#define WIN32_CHECK(result) {if (result != S_OK) { log_debug(FILE_ADDRESS, fswin32_error_string(result), " (", (s32)result, ")"); abort(); }}
-
-#include "winapi_WinSocketDebugStrings.cpp"
-#include "winapi_Audio.cpp"
-#include "winapi_Network.cpp"
+#include "win32_audio.cpp"
 
 // Todo(Leo): Get rid of this :) It is used in some stupid places anyway
 #include <vector>
 #include "fsvulkan.cpp"
 
-#if defined FS_FULL_GAME
+#include <imgui/imgui.cpp>
+#include <imgui/imgui_draw.cpp>
+#include <imgui/imgui_widgets.cpp>
+#include <imgui/imgui_demo.cpp>
+
+#include <imgui/imgui_impl_win32.cpp>
+#include <imgui/imgui_impl_vulkan.cpp>
+
+#include "win32_game_dll.cpp"
+#include "win32_window_callback.cpp"
+
+#if defined FS_RELEASE
 	#include "friendsimulator.cpp"
 #endif
 
 FS_ENTRY_POINT
 {
-	HINSTANCE hInstance = GetModuleHandle(nullptr);
-	
-	// SYSTEMTIME time_;
-	// GetLocalTime(&time_);
-
 	log_application(0,"\n",
 				"\t----- FriendSimulator -----\n",
 				"\tBuild time: ", BUILD_DATE_TIME, "\n");
 
 	// ----------------------------------------------------------------------------------
 
-	Win32ApplicationState state = {};
+	Win32PlatformWindow window;
+	Win32PlatformInput input;
 
-	load_xinput();
-	Win32PlatformInput platformInput = {};
-	state.input = &platformInput;
+	Win32WindowUserData userData = {&window, &input};
 
-	// ---------- INITIALIZE PLATFORM ------------
-	PlatformWindow window 	= fswin32_make_window(hInstance, 960, 540);
-	state.window 			= &window;
-	SetWindowLongPtrW(window.hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(&state));
+	window 	= win32_platform_window_create(&userData, win32_window_callback, 960, 540);
+	input 	= win32_platform_input_create();
+	
 
-	VulkanContext vulkanContext = winapi::create_vulkan_context(&window);
-   
-	// ------- MEMORY ---------------------------
-	PlatformMemory platformMemory = {};
+	/// --------- INITIALIZE AUDIO ----------------
+	f32 audioBufferLengthSeconds = 0.1;
+	Win32Audio audio = fswin32_create_audio(audioBufferLengthSeconds);
+	fswin32_start_playing(&audio);                
+
+	MemoryBlock gameMemory = {};
 	{
 		// TODO [MEMORY] (Leo): Properly measure required amount
 		// TODO [MEMORY] (Leo): Think of alignment
-		platformMemory.size = gigabytes(2);
+		gameMemory.size = gigabytes(2);
 
 		// TODO [MEMORY] (Leo): Check support for large pages
 		FS_DEVELOPMENT_ONLY(void * baseAddress = (void*)terabytes(2));
-		FS_FULL_GAME_ONLY(void * baseAddress = nullptr);
-		platformMemory.memory = VirtualAlloc(baseAddress, platformMemory.size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-		Assert(platformMemory.memory != nullptr);
+		FS_RELEASE_ONLY(void * baseAddress = nullptr);
+		gameMemory.memory = reinterpret_cast<u8*>(VirtualAlloc(baseAddress, gameMemory.size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE));
+		Assert(gameMemory.memory != nullptr);
 	}
 
-	// -------- INITIALIZE NETWORK ---------
-	bool32 networkIsRuined = false;
-	// WinApiNetwork network = winapi::CreateNetwork();
-	WinApiNetwork network       = {};
-	PlatformNetwork platformNetwork   = {};
-	f64 networkSendDelay        = 1.0 / 20;
-	f64 networkNextSendTime     = 0;
-	
-	/// --------- INITIALIZE AUDIO ----------------
-	f32 audioBufferLengthSeconds = 0.1;
-	WinApiAudio audio = fswin32_create_audio(audioBufferLengthSeconds);
-	fswin32_start_playing(&audio);                
+	VulkanContext graphics = winapi::create_vulkan_context(&window);
+   
+
+
+
+	{
+		IMGUI_CHECKVERSION();
+		ImGui::CreateContext();
+		ImGuiIO & io = ImGui::GetIO();
+		(void)io;
+		// io.ConfigFlags |= 
+
+		ImGui::StyleColorsDark();
+
+		ImGui_ImplWin32_Init(window.hwnd);
+
+		ImGui_ImplVulkan_InitInfo initInfo 	= {};
+		initInfo.Instance 					= graphics.instance;
+		initInfo.PhysicalDevice 			= graphics.physicalDevice;
+		initInfo.Device 					= graphics.device;
+		initInfo.QueueFamily 				= graphics.graphicsQueueFamily;
+		initInfo.Queue 						= graphics.graphicsQueue;
+		initInfo.PipelineCache 				= VK_NULL_HANDLE;
+		initInfo.DescriptorPool 			= graphics.persistentDescriptorPool;
+		initInfo.MinImageCount 				= 2;
+		initInfo.ImageCount 				= graphics.swapchainImages.size();
+		initInfo.MSAASamples 				= graphics.msaaSamples;
+		initInfo.Allocator 					= nullptr;
+		initInfo.CheckVkResultFn 			= nullptr;
+
+		ImGui_ImplVulkan_Init(&initInfo, graphics.renderPass);
+
+		VkCommandBufferBeginInfo beginInfo = {};
+		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+		beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+		VULKAN_CHECK(vkBeginCommandBuffer(graphics.virtualFrames[0].mainCommandBuffer, &beginInfo));
+		
+		ImGui_ImplVulkan_CreateFontsTexture(graphics.virtualFrames[0].mainCommandBuffer);
+
+		VULKAN_CHECK(vkEndCommandBuffer(graphics.virtualFrames[0].mainCommandBuffer));
+
+		VkSubmitInfo submitInfo = {};
+		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+		submitInfo.commandBufferCount = 1;
+		submitInfo.pCommandBuffers = &graphics.virtualFrames[0].mainCommandBuffer;
+
+		VULKAN_CHECK(vkQueueSubmit(graphics.graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE));
+
+		VULKAN_CHECK(vkDeviceWaitIdle(graphics.device));
+
+		ImGui_ImplVulkan_DestroyFontUploadObjects();
+
+	}
+
+
+
+
+
+
+
+
+
+
+
+
 
 	/// ---------- LOAD GAME CODE ----------------------
 	// Note(Leo): Only load game dynamically in development.
 	Win32Game game = {};
 
 	FS_DEVELOPMENT_ONLY(fswin32_game_load_dll(&game));
-	FS_FULL_GAME_ONLY(game.update = update_game);
+	FS_RELEASE_ONLY(game.update = game_update);	
 
-	game.shouldReInitializeGlobalVariables = true;
+	s64 frameFlipTime 			= platform_time_now();
+	f64 lastFrameElapsedSeconds = 0;
 
-	  ////////////////////////////////////////////////////
-	 ///             MAIN LOOP                        ///
-	////////////////////////////////////////////////////
-
-	bool gameIsRunning = true;
-
-	/// --------- TIMING ---------------------------
-	PlatformTimePoint frameFlipTime = platform_time_now();
-	f64 lastFrameElapsedSeconds 	= 0;
+	bool gameIsRunning 			= true;
 
 	while(gameIsRunning)
 	{
@@ -151,154 +197,55 @@ FS_ENTRY_POINT
 		FS_DEVELOPMENT_ONLY(fswin32_game_reload(game));
 
 		/// ----- HANDLE INPUT -----
+
+		win32_input_reset(input);
+		win32_window_process_messages(window);
+		win32_input_update(input, window);
+
+		if (window.events.resized && window.isMinimized == false)
 		{
-			// Note(Leo): this is not input only...
-			fswin32_process_pending_messages(&state, window.hwnd);
-
-			if (input_button_went_down(state.input, InputButton_keyboard_f1))
-			{
-				platform_window_set_cursor_visible(&window, !window.isCursorVisible);
-				// Todo(Leo): should we "eat" keypress? i.e. set state to is_down?
-			}
-
-			HWND foregroundWindow = GetForegroundWindow();
-			bool32 windowIsActive = window.hwnd == foregroundWindow;
-
-			if (windowIsActive && window.isCursorVisible == false)
-			{
-				f32 cursorX = window.width / 2;
-				f32 cursorY = window.height / 2;
-
-				POINT currentCursorPosition;
-				GetCursorPos(&currentCursorPosition);
-
-				v2 mouseMovement = {currentCursorPosition.x - cursorX, currentCursorPosition.y - cursorY};
-
-				platformInput.axes[InputAxis_mouse_move_x] = mouseMovement.x;
-				platformInput.axes[InputAxis_mouse_move_y] = mouseMovement.y;
-
-				SetCursorPos((s32)cursorX, (s32)cursorY);
-			}
-
-			/* Note(Leo): Only get input from a single controller, locally this is a single
-			player game. Use global controller index depending on network status to test
-			multiplayering */
-		   /* TODO [Input](Leo): Test controller and index behaviour when being connected and
-			disconnected */
-
-			XINPUT_STATE xinputState;
-			bool32 xinputReceived = xinput_get_state(globalXinputControllerIndex, &xinputState) == ERROR_SUCCESS;
-			bool32 xinputUsed = xinputReceived && xinput_is_used(state.gamepadInput, xinputState);
-
-			if (xinputUsed)
-			{
-				update_controller_input(&platformInput, &xinputState);
-				platformInput.gamepadInputUsed = true;
-			}
-			else
-			{
-				platformInput.gamepadInputUsed = false;
-			}
-
-			if (state.keyboardInputIsUsed)
-			{
-				platformInput.mouseAndKeyboardInputUsed = true;
-			}
-			else
-			{
-				platformInput.mouseAndKeyboardInputUsed = false;
-			}
+			fsvulkan_recreate_drawing_resources(&graphics, window.width, window.height);
 		}
 
-
-		/// ----- PRE-UPDATE NETWORK PASS -----
+		if (input_button_went_down(&input, InputButton_keyboard_f1))
 		{
-			// Todo(Leo): just quit now if some unhandled network error occured
-			if (networkIsRuined)
-			{
-				auto error = WSAGetLastError();
-				log_network(1, "failed: ", WinSocketErrorString(error), " (", error, ")"); 
-				break;
-			}
-
-			if (network.isListening)
-			{
-				winapi::NetworkListen(&network);
-			}
-			else if (network.isConnected)
-			{
-				winapi::NetworkReceive(&network, &platformNetwork.inPackage);
-			}
-			platformNetwork.isConnected = network.isConnected;
+			platform_window_set_cursor_visible(&window, !window.isCursorVisible);
+			// Todo(Leo): should we "eat" keypress? i.e. set application to is_down?
 		}
 
-		PlatformTime platformTime = {};
-		platformTime.elapsedTime = (f32)lastFrameElapsedSeconds;
-
-		/// --------- UPDATE GAME -------------
-		// Note(Leo): Game is not updated when window is not drawable.
-		if (fswin32_is_window_drawable(&window))
+		// Todo(Leo): Also ask vulkan
+		if (win32_window_is_drawable(&window))
 		{
-			PlatformSoundOutput gameSoundOutput = {};
-			fswin32_get_audio_buffer(&audio, &gameSoundOutput.sampleCount, &gameSoundOutput.samples);
-	
-			switch(fsvulkan_prepare_frame(&vulkanContext))
-			{
-				case PGFR_FRAME_OK:
-					PlatformApiDescription apiDescription;
-					platform_set_api(&apiDescription);
-					gameIsRunning = game.update(&platformInput, 
-												&platformTime,
-												&platformMemory,
-												&platformNetwork,
-												&gameSoundOutput,
-												
-												&vulkanContext,
-												&window,
-												&apiDescription,
-												game.shouldReInitializeGlobalVariables);
+			graphics_drawing_prepare_frame(&graphics);
 
-					// Note(Leo): We must set this to false if we actually have passed it to dll function
-					game.shouldReInitializeGlobalVariables = false;
+			ImGui_ImplVulkan_NewFrame();			
+			ImGui_ImplWin32_NewFrame();
+			ImGui::NewFrame();
 
-					break;
+			gameIsRunning = game.update(gameMemory,
+										&input, &graphics, &window, &audio,
+										lastFrameElapsedSeconds);
 
 
-				case PGFR_FRAME_RECREATE:
-					fsvulkan_recreate_drawing_resources(&vulkanContext, window.width, window.height);
-					break;
-
-				case PGFR_FRAME_BAD_PROBLEM:
-					AssertMsg(false, "We should not be here, please investigate");
+			ImGui::EndFrame();
+			ImGui::Render();
+			ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(),
+											graphics.virtualFrames[graphics.virtualFrameIndex].sceneCommandBuffer);
 
 
-			}
-
-			fswin32_release_audio_buffer(&audio, gameSoundOutput.sampleCount);
-
-			// Note(Leo): It doesn't so much matter where this is checked.
-			if (state.shouldClose)
-			{
-				gameIsRunning = false;
-			}
-
+			graphics_drawing_finish_frame(&graphics);
 		}
 
-
-		// ----- POST-UPDATE NETWORK PASS ------
-		// TODO[network](Leo): Now that we have fixed frame rate, we should count frames passed instead of time
-		// if (network.isConnected && frameStartTime > networkNextSendTime)
-		// {
-		// 	networkNextSendTime = frameStartTime + networkSendDelay;
-		// 	winapi::NetworkSend(&network, &platformNetwork.outPackage);
-		// }
-
+		if (window.shouldClose)
+		{
+			gameIsRunning = false;
+		}
 
 		// ----- MEASURE ELAPSED TIME ----- 
 		{
 			#if defined FS_DEVELOPMENT && 0
 			{
-				PlatformTimePoint currentTime 	= platform_time_now();
+				s64 currentTime 				= platform_time_now();
 				f64 elapsedTimeBeforeSleep 		= platform_time_elapsed_seconds(frameFlipTime, currentTime);
 				f32 minFrameTime 				= 1.0f / 30;
 				s32 millisecondsToSleep 		= static_cast<s32>((minFrameTime - elapsedTimeBeforeSleep) * 1000);
@@ -312,9 +259,9 @@ FS_ENTRY_POINT
 			}
 			#endif
 
-			PlatformTimePoint now   = platform_time_now();
-			lastFrameElapsedSeconds = platform_time_elapsed_seconds(frameFlipTime, now);
-			frameFlipTime           = now;
+			s64 currentTime   		= platform_time_now();
+			lastFrameElapsedSeconds = platform_time_elapsed_seconds(frameFlipTime, currentTime);
+			frameFlipTime           = currentTime;
 		}
 	}
 	///////////////////////////////////////
@@ -323,12 +270,17 @@ FS_ENTRY_POINT
 
 
 	/// -------- CLEANUP ---------
+
+	vkDeviceWaitIdle(graphics.device);
+	ImGui_ImplVulkan_Shutdown();
+	ImGui_ImplWin32_Shutdown();
+	ImGui::DestroyContext();
+
+	winapi::destroy_vulkan_context(&graphics);
+	
 	fswin32_stop_playing(&audio);
 	fswin32_release_audio(&audio);
-	winapi::CloseNetwork(&network);
-
-	winapi::destroy_vulkan_context(&vulkanContext);
-
+	
 	/// ----- Cleanup Windows
 	{
 		FS_DEVELOPMENT_ONLY(fswin32_game_unload_dll(&game));

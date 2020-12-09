@@ -1002,7 +1002,7 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 		{
 			for(s32 i = 0; i < VIRTUAL_FRAME_COUNT; ++i)
 			{	
-				auto allocateInfo = fsvulkan_descriptor_set_allocate_info(	context.persistentDescriptorPool,
+				auto allocateInfo = fsvulkan_descriptor_set_allocate_info(	context.drawingResourceDescriptorPool,
 																			1,
 																			&context.passThroughDescriptorSetLayout);
 				VULKAN_CHECK(vkAllocateDescriptorSets(	context.device,

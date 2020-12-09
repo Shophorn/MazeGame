@@ -39,9 +39,9 @@ def compile(call):
 	return result.returncode
 
 vulkan_sdk = os.environ['VULKAN_SDK']
-print (vulkan_sdk)
+imgui_include = os.environ['LEO_EXTERNAL_LIBRARIES_INCLUDE']
 
-platform_dependencies = (	"-I" + vulkan_sdk + "\Include "
+platform_dependencies = (	"-I" + vulkan_sdk + "\Include -I" + imgui_include + " "
 							"-L" + vulkan_sdk + "\Lib "
 							"-lvulkan-1 -luser32 -lgdi32 -lws2_32 -lole32 -lwinmm"
 						)
@@ -80,6 +80,7 @@ if devbuild:
 			"-shared "
 			"../src/friendsimulator.cpp "
 			"-o friendsimulator.dll "
+			"-I" + imgui_include + " "
 			+ flags + definitions
 		)
 		
@@ -102,7 +103,7 @@ else:
 		"src/fswin32_friendsimulator.cpp "
 		"-o release/win32_friendsimulator_distributable.exe "
 		"-static -std=c++17 -O0 -Werror "
-		"-DFS_FULL_GAME -DBUILD_DATE_TIME=" + buildTime + " "
+		"-DFS_RELEASE -DBUILD_DATE_TIME=" + buildTime + " "
 		+ platform_dependencies
 	)
 
