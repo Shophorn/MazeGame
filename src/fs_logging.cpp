@@ -41,7 +41,7 @@ struct enabled_LogChannel
 
 		// Todo(Leo): handle verbosity
 		// Todo(Leo): add temp string support
-		local_persist thread_local char bufferMemory[1024] = {};
+		local_persist thread_local char bufferMemory[2048] = {};
 		String buffer = {0, bufferMemory};
 
 		if constexpr(is_same_type<TFirst, LogFileAddress>)

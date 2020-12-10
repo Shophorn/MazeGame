@@ -19,7 +19,7 @@ Friendsimulator game code main file.
 	// Todo(Leo): make this .cpp file
 	#include "fs_standard_functions.h"
 	#include "fs_platform_interface.hpp"
-	#include "logging.cpp"
+	#include "fs_logging.cpp"
 
 	FS_GAME_API void game_set_platform_functions(PlatformApiDescription * apiDescripition, ImGuiContext * imguiContext)
 	{

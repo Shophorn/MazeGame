@@ -1448,6 +1448,7 @@ winapi_vulkan_internal_::init_virtual_frames(VulkanContext * context)
 		bool32 success = vkAllocateCommandBuffers(context->device, &masterCmdAllocateInfo, &frame.mainCommandBuffer) == VK_SUCCESS;
 		success = success && vkAllocateCommandBuffers(context->device, &secondaryCmdAllocateInfo, &frame.sceneCommandBuffer) == VK_SUCCESS;
 		success = success && vkAllocateCommandBuffers(context->device, &secondaryCmdAllocateInfo, &frame.guiCommandBuffer) == VK_SUCCESS;
+		success = success && vkAllocateCommandBuffers(context->device, &secondaryCmdAllocateInfo, &frame.postProcessCommandBuffer) == VK_SUCCESS;
 
 		success = success && vkAllocateCommandBuffers(context->device, &secondaryCmdAllocateInfo, &frame.shadowCommandBuffer) == VK_SUCCESS;
 

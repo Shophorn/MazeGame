@@ -191,6 +191,24 @@ internal void graphics_drawing_prepare_frame(VulkanContext * context)
 	};
 	vkCmdSetScissor(frame->sceneCommandBuffer, 0, 1, &scissor);
 
+	vkDestroyFramebuffer(context->device, frame->presentFramebuffer, nullptr);
+	frame->presentFramebuffer = vulkan::make_vk_framebuffer(context->device,
+																context->passThroughRenderPass,
+																1,
+																&context->swapchainImageViews[context->currentDrawFrameIndex],
+																context->swapchainExtent.width,
+																context->swapchainExtent.height);	
+
+	VkCommandBufferBeginInfo guiCommandBeginInfo = {};
+	guiCommandBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	guiCommandBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT | VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT;
+	guiCommandBeginInfo.pInheritanceInfo = fsvulkan_drawing_internal_::get_vk_command_buffer_inheritance_info(context->passThroughRenderPass, frame->presentFramebuffer);
+
+	VULKAN_CHECK (vkBeginCommandBuffer(frame->guiCommandBuffer, &guiCommandBeginInfo));
+
+	vkCmdSetViewport(frame->guiCommandBuffer, 0, 1, &viewport);
+	vkCmdSetScissor(frame->guiCommandBuffer, 0, 1, &scissor);
+
 	// -----------------------------------------------------
 
 	VkCommandBufferBeginInfo shadowCmdBeginInfo =
@@ -311,13 +329,7 @@ internal void graphics_drawing_finish_frame(VulkanContext * context)
 
 	// ------------------------------------------------------------
 
-	vkDestroyFramebuffer(context->device, frame->presentFramebuffer, nullptr);
-	frame->presentFramebuffer = vulkan::make_vk_framebuffer(context->device,
-																context->passThroughRenderPass,
-																1,
-																&context->swapchainImageViews[context->currentDrawFrameIndex],
-																context->swapchainExtent.width,
-																context->swapchainExtent.height);	
+
 
 	VkRenderPassBeginInfo passthroughPassBeginInfo 	= {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
 	passthroughPassBeginInfo.renderPass 			= context->passThroughRenderPass;
@@ -325,7 +337,7 @@ internal void graphics_drawing_finish_frame(VulkanContext * context)
 	passthroughPassBeginInfo.renderArea 			= {{0,0}, context->swapchainExtent};
 	// Note(Leo): no need to clear this, we fill every pixel anyway
 
-
+	#if 0
 	vkCmdBeginRenderPass(frame->mainCommandBuffer, &passthroughPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 	vkCmdBindPipeline(frame->mainCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, context->passThroughPipeline);
 
@@ -339,6 +351,52 @@ internal void graphics_drawing_finish_frame(VulkanContext * context)
 	vkCmdDraw(frame->mainCommandBuffer, 3, 1, 0, 0);
 
 	vkCmdEndRenderPass(frame->mainCommandBuffer);
+	#else
+
+	// begin render pass
+	// begin post process command buffer
+	// do commands
+	// end command buffer
+	// execute commands
+	// end render pass
+
+	VkRenderPassBeginInfo postProcessRenderPassBeginInfo = {};
+	postProcessRenderPassBeginInfo.sType 		= VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+	postProcessRenderPassBeginInfo.renderPass 	= context->passThroughRenderPass;
+	postProcessRenderPassBeginInfo.framebuffer 	= frame->presentFramebuffer;
+	postProcessRenderPassBeginInfo.renderArea 	= {{0,0}, context->swapchainExtent};
+
+	vkCmdBeginRenderPass(frame->mainCommandBuffer, &postProcessRenderPassBeginInfo, VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS);
+
+	VkCommandBufferBeginInfo postProcessCommandBufferBeginInfo = {};
+	postProcessCommandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	postProcessCommandBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT | VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT;
+	postProcessCommandBufferBeginInfo.pInheritanceInfo = fsvulkan_drawing_internal_::get_vk_command_buffer_inheritance_info(context->passThroughRenderPass, frame->presentFramebuffer);
+
+	VULKAN_CHECK(vkBeginCommandBuffer(frame->postProcessCommandBuffer, &postProcessCommandBufferBeginInfo));
+
+	vkCmdSetViewport(frame->postProcessCommandBuffer, 0, 1, &viewport);
+	vkCmdSetScissor(frame->postProcessCommandBuffer, 0, 1, &scissor);
+
+	vkCmdBindPipeline(frame->postProcessCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, context->passThroughPipeline);
+
+	VkDescriptorSet BAD_BADLY_NAMED_descriptor = frame->resolveImageDescriptor;
+	vkCmdBindDescriptorSets(frame->postProcessCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+							context->passThroughPipelineLayout, 0, 1, &BAD_BADLY_NAMED_descriptor, 0, nullptr);
+
+	vkCmdPushConstants(frame->postProcessCommandBuffer, context->passThroughPipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(FSVulkanHdrSettings), &context->hdrSettings);
+
+	vkCmdDraw(frame->postProcessCommandBuffer, 3, 1, 0, 0);
+
+	VULKAN_CHECK(vkEndCommandBuffer(frame->postProcessCommandBuffer));
+	VULKAN_CHECK(vkEndCommandBuffer(frame->guiCommandBuffer));
+
+	vkCmdExecuteCommands(frame->mainCommandBuffer, 1, &frame->postProcessCommandBuffer);
+	vkCmdExecuteCommands(frame->mainCommandBuffer, 1, &frame->guiCommandBuffer);
+
+	vkCmdEndRenderPass(frame->mainCommandBuffer);
+
+	#endif
 
 	// PRIMARY COMMAND BUFFER -------------------------------------------------
 

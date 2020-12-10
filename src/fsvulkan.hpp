@@ -197,6 +197,7 @@ struct VulkanVirtualFrame
 	VkCommandBuffer sceneCommandBuffer;
 	VkCommandBuffer guiCommandBuffer;
 	VkCommandBuffer shadowCommandBuffer;
+	VkCommandBuffer postProcessCommandBuffer;
 
 	// Note(Leo): These are re-created every frame
 	VkFramebuffer  	sceneFramebuffer;

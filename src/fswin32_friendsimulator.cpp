@@ -46,7 +46,7 @@ not need console to be created.
 #define FS_PLATFORM
 #include "fs_platform_interface.hpp"
 
-#include "logging.cpp"
+#include "fs_logging.cpp"
 
 #include "fswin32_platform_log.cpp"
 #include "fswin32_platform_time.cpp"
@@ -138,11 +138,11 @@ FS_ENTRY_POINT
 		initInfo.DescriptorPool 			= graphics.persistentDescriptorPool;
 		initInfo.MinImageCount 				= 2;
 		initInfo.ImageCount 				= graphics.swapchainImages.size();
-		initInfo.MSAASamples 				= graphics.msaaSamples;
+		initInfo.MSAASamples 				= VK_SAMPLE_COUNT_1_BIT;
 		initInfo.Allocator 					= nullptr;
 		initInfo.CheckVkResultFn 			= nullptr;
 
-		ImGui_ImplVulkan_Init(&initInfo, graphics.renderPass);
+		ImGui_ImplVulkan_Init(&initInfo, graphics.passThroughRenderPass);
 
 		VkCommandBufferBeginInfo beginInfo = {};
 		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -229,7 +229,7 @@ FS_ENTRY_POINT
 			ImGui::EndFrame();
 			ImGui::Render();
 			ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(),
-											graphics.virtualFrames[graphics.virtualFrameIndex].sceneCommandBuffer);
+											graphics.virtualFrames[graphics.virtualFrameIndex].guiCommandBuffer);
 
 
 			graphics_drawing_finish_frame(&graphics);
