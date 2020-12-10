@@ -42,37 +42,45 @@ struct SkySettings
 };
 
 
+static f32 * v3_array(v3 & v)
+{
+	return reinterpret_cast<f32*>(&v);
+}
+
 internal void sky_gui(SkySettings & settings)
 {
-	gui_float_slider("Sky Color", &settings.skyColourSelection, 0,1);
+	using namespace ImGui;	
+	Begin("Sky Settings");
 
-	gui_float_slider("Sun Height Angle", &settings.sunHeightAngle, -1, 1);
-	gui_float_slider("Sun Orbit Angle", &settings.sunOrbitAngle, 0, 1);
+	SliderFloat("Sun Height Angle", &settings.sunHeightAngle, -1, 1);
+	SliderFloat("Sun Orbit Angle", &settings.sunOrbitAngle, -1, 1);
 
-	gui_line();
+	Separator();
 
-	gui_colour_rgb("Sky Gradient Ground", &settings.skyGradientGround, GUI_COLOR_FLAGS_HDR);
-	gui_colour_rgb("Sky Gradient Bottom", &settings.skyGradientBottom, GUI_COLOR_FLAGS_HDR);
-	gui_colour_rgb("Sky Gradient Top", &settings.skyGradientTop, GUI_COLOR_FLAGS_HDR);
+	ColorEdit3("Sky Gradient Ground", v3_array(settings.skyGradientGround), ImGuiColorEditFlags_HDR);
+	ColorEdit3("Sky Gradient Bottom", v3_array(settings.skyGradientBottom), ImGuiColorEditFlags_HDR);
+	ColorEdit3("Sky Gradient Top", v3_array(settings.skyGradientTop), ImGuiColorEditFlags_HDR);
 
-	gui_line();
+	Separator();
 
-	gui_colour_rgb("Horizon Halo Color", &settings.horizonHaloColour, GUI_COLOR_FLAGS_HDR);
-	gui_float_slider("Horizon Halo Falloff", &settings.horizonHaloFalloff, 0.0001, 1);
+	ColorEdit3("Horizon Halo Color", v3_array(settings.horizonHaloColour), ImGuiColorEditFlags_HDR);
+	SliderFloat("Horizon Halo Falloff", &settings.horizonHaloFalloff, 0.0001, 1);
 
-	gui_line();
+	Separator();
 
-	gui_colour_rgb("Sun Halo Color", &settings.sunHaloColour, GUI_COLOR_FLAGS_HDR);
-	gui_float_slider("Sun Halo Falloff", &settings.sunHaloFalloff, 0.0001, 1);
+	ColorEdit3("Sun Halo Color", v3_array(settings.sunHaloColour), ImGuiColorEditFlags_HDR);
+	SliderFloat("Sun Halo Falloff", &settings.sunHaloFalloff, 0.0001, 1);
+	
+	Separator();
 
-	gui_line();
+	ColorEdit3("Sun Disc Color", v3_array(settings.sunDiscColour), ImGuiColorEditFlags_HDR);
+	SliderFloat("Sun Disc Size", &settings.sunDiscSize, 0, 0.01);
+	SliderFloat("Sun Disc Falloff", &settings.sunDiscFalloff, 0, 1);
 
-	gui_colour_rgb("Sun Disc Color", &settings.sunDiscColour, GUI_COLOR_FLAGS_HDR);
-	gui_float_slider("Sun Disc Size", &settings.sunDiscSize, 0, 0.01);
-	gui_float_slider("Sun Disc Falloff", &settings.sunDiscFalloff, 0, 1);
+	Separator();
 
-	gui_line();
+	SliderFloat("HDR Exposure", &settings.hdrExposure, 0.1, 10);
+	SliderFloat("HDR Contrast", &settings.hdrContrast, -0.5, 1);
 
-	gui_float_slider("HDR Exposure", &settings.hdrExposure, 0.1, 10);
-	gui_float_slider("HDR Contrast", &settings.hdrContrast, -1, 1);
+	End();
 };

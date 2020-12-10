@@ -183,7 +183,7 @@ FS_ENTRY_POINT
 	Win32Game game = {};
 
 	FS_DEVELOPMENT_ONLY(fswin32_game_load_dll(&game));
-	FS_RELEASE_ONLY(game.update = game_update);	
+	FS_RELEASE_ONLY(game.update = game_update );	
 
 	s64 frameFlipTime 			= platform_time_now();
 	f64 lastFrameElapsedSeconds = 0;
@@ -225,7 +225,6 @@ FS_ENTRY_POINT
 			gameIsRunning = game.update(gameMemory,
 										&input, &graphics, &window, &audio,
 										lastFrameElapsedSeconds);
-
 
 			ImGui::EndFrame();
 			ImGui::Render();

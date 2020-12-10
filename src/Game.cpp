@@ -85,7 +85,7 @@ enum RaccoonMode : s32
 };
 
 
-// Todo(Leo): Do array of these instead of enum.
+// Todo(Leo): Do a stack of these instead of enum.
 // struct MenuView
 // {
 // 	void (*view_func)(Menu & menu, void * data);
@@ -138,7 +138,7 @@ internal void physics_world_push_entity(PhysicsWorld & physicsWorld, EntityRefer
 
 #include "metaballs.cpp"
 #include "dynamic_mesh.cpp"
-#include "settings.cpp" // Todo(Leo): this is sky, name and reorganize properly
+#include "sky_settings.cpp"
 
 // Note(Leo): This maybe seems nice?
 #include "game_waters.cpp"
