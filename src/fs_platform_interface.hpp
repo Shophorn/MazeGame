@@ -224,9 +224,7 @@ static f32 					FS_PLATFORM_API(input_axis_get_value) (PlatformInput * input, In
 static v2 					FS_PLATFORM_API(input_cursor_get_position) (PlatformInput * input);
 static bool32 				FS_PLATFORM_API(input_is_device_used) (PlatformInput *, InputDevice);
 
-
-static void 				FS_PLATFORM_API(graphics_drawing_prepare_frame)(PlatformGraphics*);
-static void 				FS_PLATFORM_API(graphics_drawing_finish_frame)(PlatformGraphics*);
+// static void 				FS_PLATFORM_API(graphics_set)(PlatformGraphics*, GraphicsSetting, void const *);
 
 static void 				FS_PLATFORM_API(graphics_drawing_update_camera)(PlatformGraphics*, Camera const *);
 static void 				FS_PLATFORM_API(graphics_drawing_update_lighting)(PlatformGraphics*, Light const *, Camera const * camera, v3 ambient);
@@ -286,10 +284,6 @@ struct PlatformApiDescription
 	FS_PLATFORM_FUNC_PTR(input_cursor_get_position) inputCursorGetPosition;
 	FS_PLATFORM_FUNC_PTR(input_is_device_used) inputDeviceIsUsed;
 
-
-
-	FS_PLATFORM_FUNC_PTR(graphics_drawing_prepare_frame) drawingPrepareFrame;
-	FS_PLATFORM_FUNC_PTR(graphics_drawing_finish_frame) drawingFinishFrame;
 	FS_PLATFORM_FUNC_PTR(graphics_drawing_update_camera) drawingUpdateCamera;
 	FS_PLATFORM_FUNC_PTR(graphics_drawing_update_lighting) drawingUpdateLighting;
 	FS_PLATFORM_FUNC_PTR(graphics_drawing_update_hdr_settings) drawingUpdateHdrSettings;
@@ -342,9 +336,6 @@ void platform_set_api(PlatformApiDescription * api)
 	FS_PLATFORM_API_SET_FUNCTION(input_cursor_get_position, api->inputCursorGetPosition);
 	FS_PLATFORM_API_SET_FUNCTION(input_is_device_used, api->inputDeviceIsUsed);
 
-
-	FS_PLATFORM_API_SET_FUNCTION(graphics_drawing_prepare_frame, api->drawingPrepareFrame);
-	FS_PLATFORM_API_SET_FUNCTION(graphics_drawing_finish_frame, api->drawingFinishFrame);
 	FS_PLATFORM_API_SET_FUNCTION(graphics_drawing_update_camera, api->drawingUpdateCamera);
 	FS_PLATFORM_API_SET_FUNCTION(graphics_drawing_update_lighting, api->drawingUpdateLighting);
 	FS_PLATFORM_API_SET_FUNCTION(graphics_drawing_update_hdr_settings, api->drawingUpdateHdrSettings);

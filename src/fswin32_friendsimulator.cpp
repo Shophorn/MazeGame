@@ -3,6 +3,9 @@ Leo Tamminen
 
 Windows platform implementation layer for Friendsimulator.
 This is the first file to compile, and everything is included from here.
+
+Todo(Leo):
+	- Use win32 AdjustClientRect thing when creating window to make right sized window
 */
 
 #define _CRT_SECURE_NO_WARNINGS
@@ -142,7 +145,7 @@ FS_ENTRY_POINT
 		initInfo.Allocator 					= nullptr;
 		initInfo.CheckVkResultFn 			= nullptr;
 
-		ImGui_ImplVulkan_Init(&initInfo, graphics.passThroughRenderPass);
+		ImGui_ImplVulkan_Init(&initInfo, graphics.screenSpaceRenderPass);
 
 		VkCommandBufferBeginInfo beginInfo = {};
 		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -204,7 +207,7 @@ FS_ENTRY_POINT
 
 		if (window.events.resized && window.isMinimized == false)
 		{
-			fsvulkan_recreate_drawing_resources(&graphics, window.width, window.height);
+			vulkan_recreate_drawing_resources(&graphics, window.width, window.height);
 		}
 
 		if (input_button_went_down(&input, InputButton_keyboard_f1))
@@ -216,12 +219,13 @@ FS_ENTRY_POINT
 		// Todo(Leo): Also ask vulkan
 		if (win32_window_is_drawable(&window))
 		{
-			graphics_drawing_prepare_frame(&graphics);
+			vulkan_prepare_frame(&graphics);
 
 			ImGui_ImplVulkan_NewFrame();			
 			ImGui_ImplWin32_NewFrame();
 			ImGui::NewFrame();
 
+			// Todo(Leo): use function directly in release build
 			gameIsRunning = game.update(gameMemory,
 										&input, &graphics, &window, &audio,
 										lastFrameElapsedSeconds);
@@ -232,7 +236,7 @@ FS_ENTRY_POINT
 											graphics.virtualFrames[graphics.virtualFrameIndex].guiCommandBuffer);
 
 
-			graphics_drawing_finish_frame(&graphics);
+			vulkan_render_frame(&graphics);
 		}
 
 		if (window.shouldClose)

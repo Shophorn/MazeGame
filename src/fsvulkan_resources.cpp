@@ -372,7 +372,7 @@ internal ModelHandle graphics_memory_push_model (VulkanContext * context, MeshHa
 
 internal void graphics_memory_unload(VulkanContext * context)
 {
-	context->unloadAfterRender = true;
+	context->postRenderEvents.unloadAssets = true;
 }
 
 internal void BAD_BUT_ACTUAL_graphics_memory_unload(VulkanContext * context)
@@ -396,8 +396,6 @@ internal void BAD_BUT_ACTUAL_graphics_memory_unload(VulkanContext * context)
 
 	// Rendered objects
 	context->loadedModels.resize(0);
-
-	context->sceneUnloaded = true;
 }
 
 internal u32

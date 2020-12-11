@@ -40,7 +40,6 @@ internal VkShaderModule fsvulkan_make_shader_module(VkDevice device, char const 
 	s64 fileSize 			= platform_file_get_size(file);
 
 	u32 * memory = reinterpret_cast<u32*>(malloc(fileSize));
-	// Todo(Leo): test if ReadFile also moves file pointer, WriteFile does
 	platform_file_read(file, 0, fileSize, memory);
 
 	VkShaderModuleCreateInfo createInfo = {};
@@ -336,9 +335,25 @@ These are default values, so those that are not needed can just be left away (ex
 
 //////////////////////////////////////////////////////////////////////////////////////
 
-internal void fsvulkan_initialize_pipelines(VulkanContext & context)
+internal void fsvulkan_initialize_pipelines(VulkanContext & context, u32 targetTextureWidth, u32 targetTextureHeight)
 {
+	// Todo(Leo): Target texture sizes are not taken into consideration anywhere yet, they probably fall back
+	// to swapchain sizes, but it is not this functions problem.
+
 	context.skyGradientDescriptorSetLayout = fsvulkan_make_material_descriptor_set_layout(context.device, 2);
+
+	// Note(Leo): These are common to every pipeline, right??
+	VkViewport viewport = {0, 0, (f32)targetTextureWidth, (f32)targetTextureHeight, 0, 1};
+	VkRect2D scissor 	= {{0,0}, {targetTextureWidth, targetTextureHeight}};
+
+	auto common_viewportState = vk_pipeline_viewport_state_create_info();
+	{
+		common_viewportState.viewportCount 	= 1;
+		common_viewportState.pViewports 	= &viewport;
+		common_viewportState.scissorCount 	= 1;
+		common_viewportState.pScissors 		= &scissor;
+	}
+
 
 	/// GraphicsPipeline_normal
 	log_graphics(1, "Initializing Normal Pipeline");
@@ -375,7 +390,7 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 		auto vertexInputState 	= fsvulkan_pipeline_vertex_input_state_create_info	(normalBindingCount, fsvulkan_defaultVertexBinding,
 																					normalAttributeCount, fsvulkan_defaultVertexAttributes);
 		auto inputAssemblyState = fsvulkan_pipeline_input_assembly_create_info		(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
-		auto viewportState 		= fsvulkan_pipeline_viewport_state_create_info		(1, &fsvulkan_zero_viewport, 1, &fsvulkan_zero_scissor);
+		// auto viewportState 		= fsvulkan_pipeline_viewport_state_create_info		(1, &common_viewport, 1, &common_scissor);
 
 		// Todo(Leo): Cull mode is disabled while we develop marching cubes thing
 		// auto rasterizationState = fsvulkan_pipeline_rasterization_state_create_info	(VK_CULL_MODE_NONE);
@@ -383,7 +398,7 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 		auto multisampleState 	= fsvulkan_pipeline_multisample_state_create_info	(context.msaaSamples);
 		auto depthStencilState 	= fsvulkan_pipeline_depth_stencil_create_info		(VK_TRUE, VK_TRUE);
 		auto colorBlendState 	= fsvulkan_pipeline_color_blend_state_create_info	(1, &fsvulkan_default_pipeline_color_blend_attachment_state);
-		auto dynamicState 		= fsvulkan_pipeline_dynamic_state_create_info		(array_count(fsvulkan_default_dynamic_states), fsvulkan_default_dynamic_states);
+		// auto dynamicState 		= fsvulkan_pipeline_dynamic_state_create_info		(array_count(fsvulkan_default_dynamic_states), fsvulkan_default_dynamic_states);
 
 
 		VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo =
@@ -394,15 +409,15 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 
 			.pVertexInputState 		= &vertexInputState,
 			.pInputAssemblyState 	= &inputAssemblyState,
-			.pViewportState 		= &viewportState,
+			.pViewportState 		= &common_viewportState,
 			.pRasterizationState 	= &rasterizationState,
 			.pMultisampleState 		= &multisampleState,
 			.pDepthStencilState 	= &depthStencilState,
 			.pColorBlendState 		= &colorBlendState,
-			.pDynamicState 			= &dynamicState,
+			// .pDynamicState 			= &dynamicState,
 			
 			.layout 				= context.pipelines[GraphicsPipeline_normal].pipelineLayout,
-			.renderPass 			= context.renderPass,
+			.renderPass 			= context.sceneRenderPass,
 		};
 
 		vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &context.pipelines[GraphicsPipeline_normal].pipeline);
@@ -448,7 +463,7 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 		auto vertexInputState 	= fsvulkan_pipeline_vertex_input_state_create_info	(normalBindingCount, fsvulkan_defaultVertexBinding,
 																					normalAttributeCount, fsvulkan_defaultVertexAttributes);
 		auto inputAssemblyState = fsvulkan_pipeline_input_assembly_create_info		(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
-		auto viewportState 		= fsvulkan_pipeline_viewport_state_create_info		(1, &fsvulkan_zero_viewport, 1, &fsvulkan_zero_scissor);
+		// auto viewportState 		= fsvulkan_pipeline_viewport_state_create_info		(1, &common_viewport, 1, &common_scissor);
 
 		// Todo(Leo): Cull mode is disabled while we develop marching cubes thing
 		// auto rasterizationState = fsvulkan_pipeline_rasterization_state_create_info	(VK_CULL_MODE_NONE);	
@@ -456,7 +471,7 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 		auto multisampleState 	= fsvulkan_pipeline_multisample_state_create_info	(context.msaaSamples);
 		auto depthStencilState 	= fsvulkan_pipeline_depth_stencil_create_info		(VK_TRUE, VK_TRUE);
 		auto colorBlendState 	= fsvulkan_pipeline_color_blend_state_create_info	(1, &fsvulkan_default_pipeline_color_blend_attachment_state);
-		auto dynamicState 		= fsvulkan_pipeline_dynamic_state_create_info		(array_count(fsvulkan_default_dynamic_states), fsvulkan_default_dynamic_states);
+		// auto dynamicState 		= fsvulkan_pipeline_dynamic_state_create_info		(array_count(fsvulkan_default_dynamic_states), fsvulkan_default_dynamic_states);
 
 
 		VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo =
@@ -467,15 +482,15 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 
 			.pVertexInputState 		= &vertexInputState,
 			.pInputAssemblyState 	= &inputAssemblyState,
-			.pViewportState 		= &viewportState,
+			.pViewportState 		= &common_viewportState,
 			.pRasterizationState 	= &rasterizationState,
 			.pMultisampleState 		= &multisampleState,
 			.pDepthStencilState 	= &depthStencilState,
 			.pColorBlendState 		= &colorBlendState,
-			.pDynamicState 			= &dynamicState,
+			// .pDynamicState 			= &dynamicState,
 			
 			.layout 				= context.pipelines[GraphicsPipeline_triplanar].pipelineLayout,
-			.renderPass 			= context.renderPass,
+			.renderPass 			= context.sceneRenderPass,
 		};
 
 		vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &context.pipelines[GraphicsPipeline_triplanar].pipeline);
@@ -522,12 +537,12 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 		auto vertexInputState 	= fsvulkan_pipeline_vertex_input_state_create_info	(animatedBindingCount, fsvulkan_defaultVertexBinding,
 																					animatedAttributeCount, fsvulkan_defaultVertexAttributes);
 		auto inputAssemblyState = fsvulkan_pipeline_input_assembly_create_info		(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
-		auto viewportState 		= fsvulkan_pipeline_viewport_state_create_info		(1, &fsvulkan_zero_viewport, 1, &fsvulkan_zero_scissor);
+		// auto viewportState 		= fsvulkan_pipeline_viewport_state_create_info		(1, &common_viewport, 1, &common_scissor);
 		auto rasterizationState = fsvulkan_pipeline_rasterization_state_create_info	(VK_CULL_MODE_BACK_BIT);
 		auto multisampleState 	= fsvulkan_pipeline_multisample_state_create_info	(context.msaaSamples);
 		auto depthStencilState 	= fsvulkan_pipeline_depth_stencil_create_info		(VK_TRUE, VK_TRUE);
 		auto colorBlendState 	= fsvulkan_pipeline_color_blend_state_create_info	(1, &fsvulkan_default_pipeline_color_blend_attachment_state);
-		auto dynamicState 		= fsvulkan_pipeline_dynamic_state_create_info		(array_count(fsvulkan_default_dynamic_states), fsvulkan_default_dynamic_states);
+		// auto dynamicState 		= fsvulkan_pipeline_dynamic_state_create_info		(array_count(fsvulkan_default_dynamic_states), fsvulkan_default_dynamic_states);
 
 
 		VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo =
@@ -538,15 +553,15 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 
 			.pVertexInputState 		= &vertexInputState,
 			.pInputAssemblyState 	= &inputAssemblyState,
-			.pViewportState 		= &viewportState,
+			.pViewportState 		= &common_viewportState,
 			.pRasterizationState 	= &rasterizationState,
 			.pMultisampleState 		= &multisampleState,
 			.pDepthStencilState 	= &depthStencilState,
 			.pColorBlendState 		= &colorBlendState,
-			.pDynamicState 			= &dynamicState,
+			// .pDynamicState 			= &dynamicState,
 			
 			.layout 				= context.pipelines[GraphicsPipeline_animated].pipelineLayout,
-			.renderPass 			= context.renderPass,
+			.renderPass 			= context.sceneRenderPass,
 		};
 
 		vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &context.pipelines[GraphicsPipeline_animated].pipeline);
@@ -594,12 +609,12 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 		auto vertexInputState 	= fsvulkan_pipeline_vertex_input_state_create_info	(1, &vertexInputBinding,
 																					1, &attributeDescription);
 		auto inputAssemblyState = fsvulkan_pipeline_input_assembly_create_info		(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
-		auto viewportState 		= fsvulkan_pipeline_viewport_state_create_info		(1, &fsvulkan_zero_viewport, 1, &fsvulkan_zero_scissor);
+		// auto viewportState 		= fsvulkan_pipeline_viewport_state_create_info		(1, &common_viewport, 1, &common_scissor);
 		auto rasterizationState = fsvulkan_pipeline_rasterization_state_create_info	(VK_CULL_MODE_NONE);
 		auto multisampleState 	= fsvulkan_pipeline_multisample_state_create_info	(context.msaaSamples);
 		auto depthStencilState 	= fsvulkan_pipeline_depth_stencil_create_info		(VK_FALSE, VK_FALSE);
 		auto colorBlendState 	= fsvulkan_pipeline_color_blend_state_create_info	(1, &fsvulkan_default_pipeline_color_blend_attachment_state);
-		auto dynamicState 		= fsvulkan_pipeline_dynamic_state_create_info		(array_count(fsvulkan_default_dynamic_states), fsvulkan_default_dynamic_states);
+		// auto dynamicState 		= fsvulkan_pipeline_dynamic_state_create_info		(array_count(fsvulkan_default_dynamic_states), fsvulkan_default_dynamic_states);
 
 		VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo =
 		{
@@ -608,14 +623,14 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 			.pStages 				= shaderStages,
 			.pVertexInputState 		= &vertexInputState,
 			.pInputAssemblyState 	= &inputAssemblyState,
-			.pViewportState 		= &viewportState,
+			.pViewportState 		= &common_viewportState,
 			.pRasterizationState 	= &rasterizationState,
 			.pMultisampleState 		= &multisampleState,
 			.pDepthStencilState 	= &depthStencilState,
 			.pColorBlendState 		= &colorBlendState,
-			.pDynamicState 			= &dynamicState,
+			// .pDynamicState 			= &dynamicState,
 			.layout 				= context.pipelines[GraphicsPipeline_skybox].pipelineLayout,
-			.renderPass 			= context.renderPass,
+			.renderPass 			= context.sceneRenderPass,
 		};
 
 		vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &context.pipelines[GraphicsPipeline_skybox].pipeline);
@@ -655,7 +670,7 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 
 		auto vertexInputState 		= fsvulkan_pipeline_vertex_input_state_create_info	(	0, nullptr, 0, nullptr);
 		auto inputAssemblyState 	= fsvulkan_pipeline_input_assembly_create_info		(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP);
-		auto viewportState 			= fsvulkan_pipeline_viewport_state_create_info		(1, &fsvulkan_zero_viewport, 1, &fsvulkan_zero_scissor);
+		// auto viewportState 			= fsvulkan_pipeline_viewport_state_create_info		(1, &common_viewport, 1, &common_scissor);
 		auto rasterizationState 	= fsvulkan_pipeline_rasterization_state_create_info	(VK_CULL_MODE_NONE);
 		auto multisampleState 		= fsvulkan_pipeline_multisample_state_create_info	(context.msaaSamples);
 		auto depthStencilState 		= fsvulkan_pipeline_depth_stencil_create_info		(VK_FALSE, VK_FALSE);
@@ -678,7 +693,7 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 		};
 		auto colorBlendState 		= fsvulkan_pipeline_color_blend_state_create_info(1, &colorBlendAttachment);
 
-		auto dynamicState 			= fsvulkan_pipeline_dynamic_state_create_info(array_count(fsvulkan_default_dynamic_states), fsvulkan_default_dynamic_states);
+		// auto dynamicState 			= fsvulkan_pipeline_dynamic_state_create_info(array_count(fsvulkan_default_dynamic_states), fsvulkan_default_dynamic_states);
 
 		VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo =
 		{
@@ -687,14 +702,14 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 			.pStages 				= shaderStages,
 			.pVertexInputState 		= &vertexInputState,
 			.pInputAssemblyState 	= &inputAssemblyState,
-			.pViewportState 		= &viewportState,
+			.pViewportState 		= &common_viewportState,
 			.pRasterizationState 	= &rasterizationState,
 			.pMultisampleState 		= &multisampleState,
 			.pDepthStencilState 	= &depthStencilState,
 			.pColorBlendState 		= &colorBlendState,
-			.pDynamicState 			= &dynamicState,
+			// .pDynamicState 			= &dynamicState,
 			.layout 				= context.pipelines[GraphicsPipeline_screen_gui].pipelineLayout,
-			.renderPass 			= context.renderPass,
+			.renderPass 			= context.sceneRenderPass,
 		};
 
 		vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &context.pipelines[GraphicsPipeline_screen_gui].pipeline);
@@ -748,12 +763,12 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 		auto vertexInputState 	= fsvulkan_pipeline_vertex_input_state_create_info	(1, & vertexBindingDescription,
 																					array_count(vertexAttributeDescriptions), vertexAttributeDescriptions);
 		auto inputAssemblyState	= fsvulkan_pipeline_input_assembly_create_info		(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP);
-		auto viewportState 		= fsvulkan_pipeline_viewport_state_create_info		(1, &fsvulkan_zero_viewport, 1, &fsvulkan_zero_scissor);
+		// auto viewportState 		= fsvulkan_pipeline_viewport_state_create_info		(1, &common_viewport, 1, &common_scissor);
 		auto rasterizationState = fsvulkan_pipeline_rasterization_state_create_info	(VK_CULL_MODE_NONE);
 		auto multisampleState 	= fsvulkan_pipeline_multisample_state_create_info	(context.msaaSamples);
 		auto depthStencilState 	= fsvulkan_pipeline_depth_stencil_create_info		(VK_TRUE, VK_TRUE);
 		auto colorBlendState 	= fsvulkan_pipeline_color_blend_state_create_info	(1, &fsvulkan_default_pipeline_color_blend_attachment_state);
-		auto dynamicState 		= fsvulkan_pipeline_dynamic_state_create_info		(array_count(fsvulkan_default_dynamic_states), fsvulkan_default_dynamic_states);
+		// auto dynamicState 		= fsvulkan_pipeline_dynamic_state_create_info		(array_count(fsvulkan_default_dynamic_states), fsvulkan_default_dynamic_states);
 
 		VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo =
 		{
@@ -762,14 +777,14 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 			.pStages 				= shaderStages,
 			.pVertexInputState 		= &vertexInputState,
 			.pInputAssemblyState 	= &inputAssemblyState,
-			.pViewportState 		= &viewportState,
+			.pViewportState 		= &common_viewportState,
 			.pRasterizationState 	= &rasterizationState,
 			.pMultisampleState 		= &multisampleState,
 			.pDepthStencilState 	= &depthStencilState,
 			.pColorBlendState 		= &colorBlendState,
-			.pDynamicState 			= &dynamicState,
+			// .pDynamicState 			= &dynamicState,
 			.layout 				= context.pipelines[GraphicsPipeline_leaves].pipelineLayout,
-			.renderPass 			= context.renderPass,
+			.renderPass 			= context.sceneRenderPass,
 		};
 
 		vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &context.pipelines[GraphicsPipeline_leaves].pipeline);
@@ -817,7 +832,7 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 		auto vertexInputState 	= fsvulkan_pipeline_vertex_input_state_create_info	(normalBindingCount, fsvulkan_defaultVertexBinding,
 																					normalAttributeCount, fsvulkan_defaultVertexAttributes);
 		auto inputAssemblyState = fsvulkan_pipeline_input_assembly_create_info		(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
-		auto viewportState 		= fsvulkan_pipeline_viewport_state_create_info		(1, &fsvulkan_zero_viewport, 1, &fsvulkan_zero_scissor);
+		// auto viewportState 		= fsvulkan_pipeline_viewport_state_create_info		(1, &common_viewport, 1, &common_scissor);
 		auto rasterizationState = fsvulkan_pipeline_rasterization_state_create_info	(VK_CULL_MODE_BACK_BIT);
 		auto multisampleState 	= fsvulkan_pipeline_multisample_state_create_info	(context.msaaSamples);
 		auto depthStencilState 	= fsvulkan_pipeline_depth_stencil_create_info		(VK_TRUE, VK_FALSE);
@@ -837,7 +852,7 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 		};
 
 		auto colorBlendState 	= fsvulkan_pipeline_color_blend_state_create_info	(1, &colorBlendAttachment);
-		auto dynamicState 		= fsvulkan_pipeline_dynamic_state_create_info		(array_count(fsvulkan_default_dynamic_states), fsvulkan_default_dynamic_states);
+		// auto dynamicState 		= fsvulkan_pipeline_dynamic_state_create_info		(array_count(fsvulkan_default_dynamic_states), fsvulkan_default_dynamic_states);
 
 
 		VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo =
@@ -848,15 +863,15 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 
 			.pVertexInputState 		= &vertexInputState,
 			.pInputAssemblyState 	= &inputAssemblyState,
-			.pViewportState 		= &viewportState,
+			.pViewportState 		= &common_viewportState,
 			.pRasterizationState 	= &rasterizationState,
 			.pMultisampleState 		= &multisampleState,
 			.pDepthStencilState 	= &depthStencilState,
 			.pColorBlendState 		= &colorBlendState,
-			.pDynamicState 			= &dynamicState,
+			// .pDynamicState 			= &dynamicState,
 			
 			.layout 				= context.pipelines[GraphicsPipeline_water].pipelineLayout,
-			.renderPass 			= context.renderPass,
+			.renderPass 			= context.sceneRenderPass,
 		};
 
 		vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &context.pipelines[GraphicsPipeline_water].pipeline);
@@ -902,12 +917,12 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 		auto vertexInputState = fsvulkan_pipeline_vertex_input_state_create_info	(1, &vertexBindingDescription,
 																					array_count(vertexAttributeDescriptions), vertexAttributeDescriptions);
 		auto inputAssemblyState = fsvulkan_pipeline_input_assembly_create_info		(VK_PRIMITIVE_TOPOLOGY_LINE_LIST);
-		auto viewportState 		= fsvulkan_pipeline_viewport_state_create_info		(1, &fsvulkan_zero_viewport, 1, &fsvulkan_zero_scissor);
+		// auto viewportState 		= fsvulkan_pipeline_viewport_state_create_info		(1, &common_viewport, 1, &common_scissor);
 		auto rasterizationState = fsvulkan_pipeline_rasterization_state_create_info	(VK_CULL_MODE_NONE);
 		auto multisampleState 	= fsvulkan_pipeline_multisample_state_create_info	(context.msaaSamples);
 		auto depthStencilState 	= fsvulkan_pipeline_depth_stencil_create_info		(VK_TRUE, VK_TRUE);
 		auto colorBlendState 	= fsvulkan_pipeline_color_blend_state_create_info	(1, &fsvulkan_default_pipeline_color_blend_attachment_state);
-		auto dynamicState 		= fsvulkan_pipeline_dynamic_state_create_info		(array_count(fsvulkan_default_dynamic_states), fsvulkan_default_dynamic_states);
+		// auto dynamicState 		= fsvulkan_pipeline_dynamic_state_create_info		(array_count(fsvulkan_default_dynamic_states), fsvulkan_default_dynamic_states);
 
 		auto pipelineLayoutCreateInfo = fsvulkan_pipeline_layout_create_info(1, &context.cameraDescriptorSetLayout, 0, nullptr);
 
@@ -920,14 +935,14 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 			.pStages 				= shaderStages,
 			.pVertexInputState 		= &vertexInputState,
 			.pInputAssemblyState 	= &inputAssemblyState,
-			.pViewportState 		= &viewportState,
+			.pViewportState 		= &common_viewportState,
 			.pRasterizationState 	= &rasterizationState,
 			.pMultisampleState 		= &multisampleState,
 			.pDepthStencilState 	= &depthStencilState,
 			.pColorBlendState 		= &colorBlendState,
-			.pDynamicState 			= &dynamicState,
+			// .pDynamicState 			= &dynamicState,
 			.layout 				= context.linePipelineLayout,
-			.renderPass 			= context.renderPass,
+			.renderPass 			= context.sceneRenderPass,
 		};
 
 		vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &context.linePipeline);
@@ -950,7 +965,7 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 		VkPushConstantRange pushConstantRange = {VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(FSVulkanHdrSettings)};
 
 		auto pipelineLayoutCreateInfo 	= fsvulkan_pipeline_layout_create_info(array_count(layouts), layouts, 1, &pushConstantRange);
-		VULKAN_CHECK(vkCreatePipelineLayout (context.device, &pipelineLayoutCreateInfo, nullptr, &context.passThroughPipelineLayout));
+		VULKAN_CHECK(vkCreatePipelineLayout (context.device, &pipelineLayoutCreateInfo, nullptr, &context.screenSpacePipelineLayout));
 
 		// ---------------------------------------------------------------------------------------------------------------------------
 
@@ -965,12 +980,12 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 
 		auto vertexInputState 		= fsvulkan_pipeline_vertex_input_state_create_info	(0, nullptr, 0, nullptr);
 		auto inputAssemblyState 	= fsvulkan_pipeline_input_assembly_create_info		(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
-		auto viewportState 			= fsvulkan_pipeline_viewport_state_create_info		(1, &fsvulkan_zero_viewport, 1, &fsvulkan_zero_scissor);
+		// auto viewportState 			= fsvulkan_pipeline_viewport_state_create_info		(1, &common_viewport, 1, &common_scissor);
 		auto rasterizationState 	= fsvulkan_pipeline_rasterization_state_create_info	(VK_CULL_MODE_NONE);
 		auto multisampleState 		= fsvulkan_pipeline_multisample_state_create_info	(VK_SAMPLE_COUNT_1_BIT);
 		auto depthStencilState 		= fsvulkan_pipeline_depth_stencil_create_info		(VK_FALSE, VK_FALSE);
 		auto colorBlendState 		= fsvulkan_pipeline_color_blend_state_create_info	(1, &fsvulkan_default_pipeline_color_blend_attachment_state);
-		auto dynamicState 			= fsvulkan_pipeline_dynamic_state_create_info		(array_count(fsvulkan_default_dynamic_states), fsvulkan_default_dynamic_states);
+		// auto dynamicState 			= fsvulkan_pipeline_dynamic_state_create_info		(array_count(fsvulkan_default_dynamic_states), fsvulkan_default_dynamic_states);
 
 		VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo =
 		{
@@ -979,19 +994,21 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 			.pStages 				= shaderStages,
 			.pVertexInputState 		= &vertexInputState,
 			.pInputAssemblyState 	= &inputAssemblyState,
-			.pViewportState 		= &viewportState,
+
+			// Todo(Leo): This pipeline may not actually use common viewport, look into that
+			.pViewportState 		= &common_viewportState,
 			.pRasterizationState 	= &rasterizationState,
 			.pMultisampleState 		= &multisampleState,
 			.pDepthStencilState 	= &depthStencilState,
 			.pColorBlendState 		= &colorBlendState,
-			.pDynamicState 			= &dynamicState,
-			.layout 				= context.passThroughPipelineLayout,
-			.renderPass 			= context.passThroughRenderPass,
+			// .pDynamicState 			= &dynamicState,
+			.layout 				= context.screenSpacePipelineLayout,
+			.renderPass 			= context.screenSpaceRenderPass,
 		};
 
-		vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &context.passThroughPipeline);
+		vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &context.screenSpacePipeline);
 
-		context.passThroughDescriptorSetLayout = materialLayout;
+		context.screenSpaceDescriptorSetLayout = materialLayout;
 
 		vkDestroyShaderModule(context.device, fragmentShaderModule, nullptr);
 		vkDestroyShaderModule(context.device, vertexShaderModule, nullptr);
@@ -1004,16 +1021,17 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 			{	
 				auto allocateInfo = fsvulkan_descriptor_set_allocate_info(	context.drawingResourceDescriptorPool,
 																			1,
-																			&context.passThroughDescriptorSetLayout);
+																			&context.screenSpaceDescriptorSetLayout);
 				VULKAN_CHECK(vkAllocateDescriptorSets(	context.device,
 														&allocateInfo,
-														&context.virtualFrames[i].resolveImageDescriptor));
+														&context.sceneRenderTargetSamplerDescriptors[i]));
 
 
+				// Todo(Leo): specify fields
 				VkDescriptorImageInfo info = 
 				{
 					context.repeatSampler,
-					context.virtualFrames[i].resolveImageView,
+					context.sceneRenderTargets[i].resolveAttachment,
 					VK_IMAGE_LAYOUT_GENERAL,
 					// VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
 					// VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
@@ -1022,7 +1040,7 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 				VkWriteDescriptorSet write = 
 				{
 					.sType              = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-					.dstSet             = context.virtualFrames[i].resolveImageDescriptor,
+					.dstSet             = context.sceneRenderTargetSamplerDescriptors[i],
 					.dstBinding         = 0,
 					.dstArrayElement    = 0,
 					.descriptorCount    = 1,
@@ -1186,9 +1204,9 @@ internal void fsvulkan_cleanup_pipelines(VulkanContext * context)
 	vkDestroyPipelineLayout(device, context->linePipelineLayout, nullptr);
 	vkDestroyPipeline(device, context->linePipeline, nullptr);
 
-	vkDestroyDescriptorSetLayout(device, context->passThroughDescriptorSetLayout, nullptr);
-	vkDestroyPipelineLayout(device, context->passThroughPipelineLayout, nullptr);
-	vkDestroyPipeline(device, context->passThroughPipeline, nullptr);
+	vkDestroyDescriptorSetLayout(device, context->screenSpaceDescriptorSetLayout, nullptr);
+	vkDestroyPipelineLayout(device, context->screenSpacePipelineLayout, nullptr);
+	vkDestroyPipeline(device, context->screenSpacePipeline, nullptr);
 
 	vkDestroyDescriptorSetLayout(device, context->skyGradientDescriptorSetLayout, nullptr);
 }

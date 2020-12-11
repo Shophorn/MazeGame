@@ -2,6 +2,8 @@
 Leo Tamminen
 
 Implementations of vulkan related functions
+
+Todo(Leo): this is horrible file :)
 =============================================================================*/
 #include "fsvulkan.hpp"
 
@@ -72,7 +74,7 @@ internal void fsvulkan_prepare_frame(VulkanContext * context)
 {
 	VulkanVirtualFrame * frame = fsvulkan_get_current_virtual_frame(context);
 
-    VULKAN_CHECK(vkWaitForFences(context->device, 1, &frame->queueSubmitFence, VK_TRUE, VULKAN_NO_TIME_OUT));
+    VULKAN_CHECK(vkWaitForFences(context->device, 1, &frame->frameInUseFence, VK_TRUE, VULKAN_NO_TIME_OUT));
 
     VkResult result = vkAcquireNextImageKHR(context->device,
                                             context->swapchain,
@@ -97,27 +99,17 @@ internal void fsvulkan_prepare_frame(VulkanContext * context)
 
 internal void graphics_development_reload_shaders(VulkanContext * context)
 {
-	system("compile_shaders.py");
+	context->postRenderEvents.reloadShaders = true;
 
-	context->onPostRender = [](VulkanContext * context)
-	{
-		VkDevice device = context->device;
-		vkResetDescriptorPool(context->device, context->drawingResourceDescriptorPool, 0);
+	// context->onPostRender = [](VulkanContext * context)
+	// {
+	// 	// char const * command = "\"../compile_shaders.py\"";
+	// 	// log_graphics(0, "Reloading shaders, command: '", command, "'");
 
-		fsvulkan_cleanup_pipelines(context);
-		fsvulkan_initialize_pipelines(*context);
+	// 	// system(command);
+	
 
-		for (s32 i = 0; i < VIRTUAL_FRAME_COUNT; ++i)
-		{
-			context->shadowMapTextureDescriptorSet[i] = make_material_vk_descriptor_set_2( context,
-																					context->shadowMapTextureDescriptorSetLayout,
-																					// context->pipelines[GraphicsPipeline_SCREEN_GUI].descriptorSetLayout,
-																					context->shadowAttachment[i].view,
-																					context->drawingResourceDescriptorPool,
-																					context->shadowTextureSampler,
-																					VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-		}
-	};
+	// };
 }
 
 internal VkFormat
@@ -647,7 +639,6 @@ winapi::create_vulkan_context(Win32PlatformWindow * window)
 		using namespace winapi_vulkan_internal_;
 
 		context.instance          = create_vk_instance();
-		// TODO(Leo): (if necessary, but at this point) Setup debug callbacks, look vulkan-tutorial.com
 
 		#if FS_VULKAN_USE_VALIDATION
 		{
@@ -738,17 +729,21 @@ winapi::create_vulkan_context(Win32PlatformWindow * window)
 			vkDestroySampler(context->device, context->clampSampler, nullptr);
 		});
 
-		vulkan::create_drawing_resources(&context, window->width, window->height);
+		vulkan_create_drawing_resources(&context, window->width, window->height);
+		vulkan_create_scene_render_targets(&context, context.sceneRenderTargetWidth, context.sceneRenderTargetHeight);
+
+
 		add_cleanup(&context, [](VulkanContext * context)
 		{
-			vulkan::destroy_drawing_resources(context);
+			vulkan_destroy_scene_render_targets(context);
+			vulkan_destroy_drawing_resources(context);
 		});
 		
 		init_shadow_pass(&context, 1024 * 8, 1024 * 8);
 
 		/// PIPELINES
 		{
-			fsvulkan_initialize_pipelines(context);
+			fsvulkan_initialize_pipelines(context, context.swapchainExtent.width, context.swapchainExtent.height);
 			add_cleanup(&context, [](VulkanContext * context)
 			{
 				// Todo(Leo): this kinda goes to show that this add_cleanup is stupid, we should just create
@@ -765,7 +760,7 @@ winapi::create_vulkan_context(Win32PlatformWindow * window)
 																					context.shadowAttachment[i].view,
 																					context.drawingResourceDescriptorPool,
 																					context.shadowTextureSampler,
-																					VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+																					VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);    
 		}
 	}
 
@@ -783,6 +778,11 @@ winapi::destroy_vulkan_context(VulkanContext * context)
 	vkDeviceWaitIdle(context->device);
 
 	BAD_BUT_ACTUAL_graphics_memory_unload(context);
+
+	for (s32 i = 0; i < VIRTUAL_FRAME_COUNT; ++i)
+	{
+		vkDestroyFramebuffer(context->device, context->presentFramebuffers[i], nullptr);
+	}
 
 	fsvulkan_destroy_memory(context);
 
@@ -1453,10 +1453,9 @@ winapi_vulkan_internal_::init_virtual_frames(VulkanContext * context)
 		success = success && vkAllocateCommandBuffers(context->device, &secondaryCmdAllocateInfo, &frame.shadowCommandBuffer) == VK_SUCCESS;
 
 		// Synchronization stuff
-		// success = success && vkCreateSemaphore(context->device, &semaphoreInfo, nullptr, &frame.shadowPassWaitSemaphore) == VK_SUCCESS;
 		success = success && vkCreateSemaphore(context->device, &semaphoreInfo, nullptr, &frame.imageAvailableSemaphore) == VK_SUCCESS;
 		success = success && vkCreateSemaphore(context->device, &semaphoreInfo, nullptr, &frame.renderFinishedSemaphore) == VK_SUCCESS;
-		success = success && vkCreateFence(context->device, &fenceInfo, nullptr, &frame.queueSubmitFence) == VK_SUCCESS;
+		success = success && vkCreateFence(context->device, &fenceInfo, nullptr, &frame.frameInUseFence) == VK_SUCCESS;
 
 		Assert(success && "Failed to create VulkanVirtualFrame");
 	}
@@ -1465,15 +1464,13 @@ winapi_vulkan_internal_::init_virtual_frames(VulkanContext * context)
 	{
 		for (auto & frame : context->virtualFrames)
 		{
-			/* Note(Leo): command buffers are destroyed with command pool, but we need to destroy
-			framebuffers here, since they are always recreated immediately right after destroying
-			them in drawing procedure */
-			vkDestroyFramebuffer(context->device, frame.sceneFramebuffer, nullptr);
-			
-			// vkDestroySemaphore(context->device, frame.shadowPassWaitSemaphore, nullptr);
 			vkDestroySemaphore(context->device, frame.renderFinishedSemaphore, nullptr);
 			vkDestroySemaphore(context->device, frame.imageAvailableSemaphore, nullptr);
-			vkDestroyFence(context->device, frame.queueSubmitFence, nullptr);
+			vkDestroyFence(context->device, frame.frameInUseFence, nullptr);
+
+			frame.renderFinishedSemaphore 	= VK_NULL_HANDLE;
+			frame.imageAvailableSemaphore 	= VK_NULL_HANDLE;
+			frame.frameInUseFence 			= VK_NULL_HANDLE;
 		}
 	});
 }

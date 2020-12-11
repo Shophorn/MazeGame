@@ -168,8 +168,6 @@ FS_GAME_API bool32 game_update(	MemoryBlock 				gameMemory,
 
 	enum { ACTION_NONE, ACTION_NEW_GAME, ACTION_LOAD_GAME, ACTION_QUIT } action = ACTION_NONE;
 
-	// graphics_drawing_prepare_frame(graphics);
-
 	if (state->loadedGame != nullptr)
 	{
 		StereoSoundOutput soundOutput = audio_get_output_buffer(audio);
@@ -211,12 +209,6 @@ FS_GAME_API bool32 game_update(	MemoryBlock 				gameMemory,
 		gui_end_panel();
 		gui_end_frame();
 	}
-
-	/* Note(Leo): We MUST currently finish the frame before unloading scene, 
-	because we have at this point issued commands to vulkan command buffers,
-	and we currently have no mechanism to abort those. */
-	// Todo(Leo): We maybe could use onpostrender on this
-	// graphics_drawing_finish_frame(graphics);
 
 	if(action == ACTION_NEW_GAME)
 	{

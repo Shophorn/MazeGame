@@ -1,20 +1,3 @@
-
-// Todo(Leo): this is not nice yet :(
-namespace vulkan
-{
-	/// INITIALIZATION CALLS
-	internal void create_drawing_resources      (VulkanContext*, u32 width, u32 height);
-	internal void destroy_drawing_resources     (VulkanContext*);                   
-}
-
-
-namespace vulkan_swapchain_internal_
-{
-	using namespace vulkan;
-	internal void create_attachments(VulkanContext * context);
-}
-
-
 internal VulkanSwapchainSupportDetails fsvulkan_query_swap_chain_support(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface)
 {
 	VulkanSwapchainSupportDetails result = {};
@@ -43,27 +26,20 @@ internal VulkanSwapchainSupportDetails fsvulkan_query_swap_chain_support(VkPhysi
 
 internal VkSurfaceFormatKHR fsvulkan_choose_swapchain_surface_format(std::vector<VkSurfaceFormatKHR>& availableFormats)
 {
+	// Todo(Leo): make these paramterized
 	constexpr VkFormat preferredFormat              = VK_FORMAT_B8G8R8A8_SRGB;
 	constexpr VkColorSpaceKHR preferredColorSpace   = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
-
-	// log_graphics(0, "surface format preferred, format = ", fsvulkan_format_string(preferredFormat), " color space = ", fsvulkan_color_space_khr_string(preferredColorSpace));
 
 	VkSurfaceFormatKHR result = availableFormats [0];
 	s32 resultFormatIndex;
 	for (s32 i = 0; i < availableFormats.size(); ++i)
 	{	
-		// log_graphics(0, i, ": surface format prospect, format = ", fsvulkan_format_string(availableFormats[i].format), " color space = ", fsvulkan_color_space_khr_string(availableFormats[i].colorSpace));
-
 		if (availableFormats[i].format == preferredFormat && availableFormats[i].colorSpace == preferredColorSpace)
 		{
-			// log_graphics(0, i, ": preferred surface format found, format = ", fsvulkan_format_string(availableFormats[i].format), " color space = ", fsvulkan_color_space_khr_string(availableFormats[i].colorSpace));
-
 			resultFormatIndex 	= i;
 			result 				= availableFormats [i];
 		}   
 	}
-
-	// log_graphics(0, "result format index = ", resultFormatIndex);
 
 	return result;
 }
@@ -88,9 +64,170 @@ internal VkPresentModeKHR fsvulkan_choose_surface_present_mode(std::vector<VkPre
 	return result;
 }
 
-internal void
-vulkan::create_drawing_resources(VulkanContext * context, u32 width, u32 height)
+internal void vulkan_create_scene_render_targets(VulkanContext * context, u32 width, u32 height)
 {
+	using namespace vulkan;
+
+	width = context->swapchainExtent.width;
+	height = context->swapchainExtent.height;
+
+	/*
+	1. Create images
+	2. Allocate single memory for both
+	3. Bind images to memory
+	4. Create image views
+	5. Transition image layouts to attachments optimal
+	*/
+
+	/// 1. CREATE IMAGES
+	VkFormat colorFormat = context->hdrFormat;
+	VkFormat depthFormat = find_supported_depth_format(context->physicalDevice);
+	for (s32 i = 0; i < VIRTUAL_FRAME_COUNT; ++i)
+	{
+		context->sceneRenderTargets[i].colorAttachmentImage = make_vk_image(   context, width, height,
+																1, colorFormat, VK_IMAGE_TILING_OPTIMAL,
+																VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+																context->msaaSamples);
+
+		context->sceneRenderTargets[i].depthAttachmentImage = make_vk_image(   context, width, height,
+																1, depthFormat, VK_IMAGE_TILING_OPTIMAL,
+																VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+																context->msaaSamples);
+
+		context->sceneRenderTargets[i].resolveAttachmentImage = make_vk_image(context, width, height,
+																1, colorFormat, VK_IMAGE_TILING_OPTIMAL,
+																VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+																VK_SAMPLE_COUNT_1_BIT);
+	}
+
+	/// 2. ALLOCATE MEMORY
+	VkMemoryRequirements colorMemReqs;
+	vkGetImageMemoryRequirements(context->device, context->sceneRenderTargets[0].colorAttachmentImage, &colorMemReqs);
+	u64 colorMemorySize = memory_align_up(colorMemReqs.size, colorMemReqs.alignment);
+
+	VkMemoryRequirements depthMemReqs;
+	vkGetImageMemoryRequirements(context->device, context->sceneRenderTargets[0].depthAttachmentImage, &depthMemReqs);
+	u64 depthMemorySize = memory_align_up(depthMemReqs.size, depthMemReqs.alignment);
+
+	VkMemoryRequirements resolveMemoryRequirements;
+	vkGetImageMemoryRequirements(context->device, context->sceneRenderTargets[0].resolveAttachmentImage, &resolveMemoryRequirements);
+	u64 resolveMemorySize = memory_align_up(resolveMemoryRequirements.size, resolveMemoryRequirements.alignment);
+
+
+	// Todo(Leo): this is required for naive alignment stuff below, it should be changed
+	Assert(colorMemReqs.alignment == depthMemReqs.alignment);
+	Assert(colorMemReqs.alignment == resolveMemoryRequirements.alignment);
+
+	u32 memoryTypeIndex = find_memory_type( context->physicalDevice,
+											colorMemReqs.memoryTypeBits | depthMemReqs.memoryTypeBits | resolveMemoryRequirements.memoryTypeBits,
+											VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+
+	u64 totalColourMemorySize   = colorMemorySize * VIRTUAL_FRAME_COUNT;
+	u64 totalDepthMemorySize    = depthMemorySize * VIRTUAL_FRAME_COUNT;
+	u64 totalResolveMemorySize  = resolveMemorySize * VIRTUAL_FRAME_COUNT;
+
+	VkMemoryAllocateInfo allocateInfo   = { VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO };
+	allocateInfo.allocationSize         = totalColourMemorySize + totalDepthMemorySize + totalResolveMemorySize;
+	allocateInfo.memoryTypeIndex        = memoryTypeIndex;
+
+	VULKAN_CHECK(vkAllocateMemory(context->device, &allocateInfo, nullptr, &context->sceneRenderTargetsAttachmentMemory));
+
+	/// 3. BIND MEMORY
+	for (s32 i = 0; i < VIRTUAL_FRAME_COUNT; ++i)
+	{
+		VULKAN_CHECK(vkBindImageMemory(	context->device,
+										context->sceneRenderTargets[i].colorAttachmentImage,
+										context->sceneRenderTargetsAttachmentMemory,
+										i * colorMemorySize));
+
+		VULKAN_CHECK(vkBindImageMemory(	context->device,
+										context->sceneRenderTargets[i].depthAttachmentImage,
+										context->sceneRenderTargetsAttachmentMemory,
+										totalColourMemorySize + i * depthMemorySize));
+
+		VULKAN_CHECK(vkBindImageMemory(	context->device,
+										context->sceneRenderTargets[i].resolveAttachmentImage,
+										context->sceneRenderTargetsAttachmentMemory,
+										totalColourMemorySize + totalDepthMemorySize + i * resolveMemorySize));
+
+	}
+
+
+	/// 4. CREATE IMAGE VIEWS
+	for (s32 i = 0; i < VIRTUAL_FRAME_COUNT; ++i)
+	{
+		context->sceneRenderTargets[i].colorAttachment = make_vk_image_view(context->device, context->sceneRenderTargets[i].colorAttachmentImage, 1, colorFormat, VK_IMAGE_ASPECT_COLOR_BIT);
+		context->sceneRenderTargets[i].depthAttachment = make_vk_image_view(context->device, context->sceneRenderTargets[i].depthAttachmentImage, 1, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT);
+		context->sceneRenderTargets[i].resolveAttachment = make_vk_image_view(context->device, context->sceneRenderTargets[i].resolveAttachmentImage, 1, colorFormat, VK_IMAGE_ASPECT_COLOR_BIT);
+	}
+
+	/// 5. TRANSITION LAYOUTS
+	VkCommandBuffer cmd = begin_command_buffer(context->device, context->commandPool);
+
+	for (s32 i = 0; i < VIRTUAL_FRAME_COUNT; ++i)
+	{
+		// Todo(Leo): vulkan-tutorials proposed layout transition function is bad, just do like resolve attachment :)
+
+		cmd_transition_image_layout(cmd, context->device, context->graphicsQueue, context->sceneRenderTargets[i].colorAttachmentImage, colorFormat, 1,
+									VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+
+		cmd_transition_image_layout(cmd, context->device, context->graphicsQueue, context->sceneRenderTargets[i].depthAttachmentImage, depthFormat, 1,
+									VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+
+		/// RESOLVE ATTACHMENT
+		{
+		    VkImageMemoryBarrier barrier 	= { VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER };
+		    barrier.srcAccessMask 			= 0;
+		    barrier.dstAccessMask 			= VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+		    barrier.oldLayout 				= VK_IMAGE_LAYOUT_UNDEFINED;
+		    // Todo(Leo): see if could be more specific
+		    barrier.newLayout 				= VK_IMAGE_LAYOUT_GENERAL;
+		    barrier.srcQueueFamilyIndex 	= VK_QUEUE_FAMILY_IGNORED;
+		    barrier.dstQueueFamilyIndex 	= VK_QUEUE_FAMILY_IGNORED;
+
+		    barrier.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
+		    barrier.subresourceRange.baseMipLevel   = 0;
+		    barrier.subresourceRange.levelCount     = 1;
+		    barrier.subresourceRange.baseArrayLayer = 0;
+		    barrier.subresourceRange.layerCount     = 1;
+
+		    barrier.image = context->sceneRenderTargets[i].resolveAttachmentImage;
+
+		    vkCmdPipelineBarrier(   cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0,
+		                            0, nullptr, 0, nullptr, 1, &barrier);
+		}
+
+	}
+
+	execute_command_buffer (cmd, context->device, context->commandPool, context->graphicsQueue);
+
+	for (s32 i = 0; i <VIRTUAL_FRAME_COUNT; ++i)
+	{
+		auto & drawing = context->sceneRenderTargets[i];
+
+		VkImageView attachments [] =
+		{
+			drawing.colorAttachment,
+			drawing.depthAttachment,
+			drawing.resolveAttachment,
+		};
+
+		context->sceneRenderTargets[i].framebuffer = vulkan::make_vk_framebuffer(  context->device,
+																context->sceneRenderPass,
+																array_count(attachments),
+																attachments,
+																width,
+																height);
+	}
+}
+
+
+internal void
+vulkan_create_drawing_resources(VulkanContext * context, u32 width, u32 height)
+{
+	using namespace vulkan;
+
 	VulkanSwapchainSupportDetails swapchainSupport  = fsvulkan_query_swap_chain_support(context->physicalDevice, context->surface);
 	VkSurfaceFormatKHR surfaceFormat                = fsvulkan_choose_swapchain_surface_format(swapchainSupport.formats);
 	VkPresentModeKHR presentMode                    = fsvulkan_choose_surface_present_mode(swapchainSupport.presentModes);
@@ -174,45 +311,11 @@ vulkan::create_drawing_resources(VulkanContext * context, u32 width, u32 height)
 	}
 
 	context->hdrFormat 	= VK_FORMAT_R32G32B32A32_SFLOAT;
-	context->renderPass = make_vk_render_pass(context, context->hdrFormat, context->msaaSamples);
+	context->sceneRenderPass = make_vk_render_pass(context, context->hdrFormat, context->msaaSamples);
 	
 	/// PASS-THROUGH RENDER PASS FOR HDR-RENDERING
-	#if 1
 	{
-		// Todo(Leo): Clean, 'context' is used here for logical and physical devices only
-		// enum : s32
-		// { 
-		//     COLOR_ATTACHMENT_ID     = 0,
-		//     DEPTH_ATTACHMENT_ID     = 1,
-		//     RESOLVE_ATTACHMENT_ID   = 2,
-		//     ATTACHMENT_COUNT        = 3,
-		// };
-		// VkAttachmentDescription attachments[ATTACHMENT_COUNT] = {};
 		VkAttachmentDescription attachment = {};
-
-		/*
-		Note(Leo): We render internally to color attachment and depth attachment
-		using multisampling. After that final image is compiled to 'resolve'
-		attachment that is image from swapchain and present that
-		*/
-
-		// attachments[COLOR_ATTACHMENT_ID].format         = format;
-		// attachments[COLOR_ATTACHMENT_ID].samples        = msaaSamples;
-		// attachments[COLOR_ATTACHMENT_ID].loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
-		// attachments[COLOR_ATTACHMENT_ID].storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
-		// attachments[COLOR_ATTACHMENT_ID].stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-		// attachments[COLOR_ATTACHMENT_ID].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-		// attachments[COLOR_ATTACHMENT_ID].initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
-		// attachments[COLOR_ATTACHMENT_ID].finalLayout    = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-
-		// attachments[DEPTH_ATTACHMENT_ID].format         = find_supported_depth_format(context->physicalDevice);
-		// attachments[DEPTH_ATTACHMENT_ID].samples        = msaaSamples;
-		// attachments[DEPTH_ATTACHMENT_ID].loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
-		// attachments[DEPTH_ATTACHMENT_ID].storeOp        = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-		// attachments[DEPTH_ATTACHMENT_ID].stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-		// attachments[DEPTH_ATTACHMENT_ID].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-		// attachments[DEPTH_ATTACHMENT_ID].initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
-		// attachments[DEPTH_ATTACHMENT_ID].finalLayout    = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
 		attachment.format         = context->swapchainImageFormat;
 		attachment.samples        = VK_SAMPLE_COUNT_1_BIT;
@@ -223,23 +326,10 @@ vulkan::create_drawing_resources(VulkanContext * context, u32 width, u32 height)
 		attachment.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
 		attachment.finalLayout    = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
-		// constexpr s32 COLOR_ATTACHMENT_COUNT = 1;        
-		// VkAttachmentReference colorAttachmentRefs[COLOR_ATTACHMENT_COUNT] = {};
-		// colorAttachmentRefs[0].attachment = COLOR_ATTACHMENT_ID;
-		// colorAttachmentRefs[0].layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-
 		VkAttachmentReference attachmentRef = {};
 		attachmentRef.attachment 			= 0;
 		attachmentRef.layout 				= VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
-		// // Note(Leo): there can be only one depth attachment
-		// VkAttachmentReference depthStencilAttachmentRef = {};
-		// depthStencilAttachmentRef.attachment = DEPTH_ATTACHMENT_ID;
-		// depthStencilAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-
-		// VkAttachmentReference resolveAttachmentRefs [COLOR_ATTACHMENT_COUNT] = {};
-		// resolveAttachmentRefs[0].attachment = RESOLVE_ATTACHMENT_ID;
-		// resolveAttachmentRefs[0].layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
 		VkSubpassDescription subpasses[1]       = {};
 		subpasses[0].pipelineBindPoint          = VK_PIPELINE_BIND_POINT_GRAPHICS;
@@ -265,46 +355,44 @@ vulkan::create_drawing_resources(VulkanContext * context, u32 width, u32 height)
 		renderPassInfo.dependencyCount          = array_count(dependencies);
 		renderPassInfo.pDependencies            = &dependencies[0];
 
-		// VkRenderPass resultRenderPass;
-		VULKAN_CHECK (vkCreateRenderPass(context->device, &renderPassInfo, nullptr, &context->passThroughRenderPass));
- 
+		VULKAN_CHECK (vkCreateRenderPass(context->device, &renderPassInfo, nullptr, &context->screenSpaceRenderPass));
 	}
-	#endif		
-
-	vulkan_swapchain_internal_::create_attachments(context);
 }
 
 
-internal void
-vulkan::destroy_drawing_resources(VulkanContext * context)
-{
-	// Todo(Leo): these should be decoupled from swapchain later in production, when user can manually select render size
+static void vulkan_destroy_scene_render_targets(VulkanContext * context)
+{	
+
 	for (s32 i = 0; i < VIRTUAL_FRAME_COUNT; ++i)
 	{
-		vkDestroyImage(context->device, context->virtualFrames[i].colorImage, nullptr);
-		vkDestroyImageView(context->device, context->virtualFrames[i].colorImageView, nullptr);
+		vkDestroyFramebuffer(context->device, context->sceneRenderTargets[i].framebuffer, nullptr);
+	
+		vkDestroyImage(context->device, context->sceneRenderTargets[i].colorAttachmentImage, nullptr);
+		vkDestroyImageView(context->device, context->sceneRenderTargets[i].colorAttachment, nullptr);
 
-		vkDestroyImage(context->device, context->virtualFrames[i].depthImage, nullptr);
-		vkDestroyImageView(context->device, context->virtualFrames[i].depthImageView, nullptr);
+		vkDestroyImage(context->device, context->sceneRenderTargets[i].depthAttachmentImage, nullptr);
+		vkDestroyImageView(context->device, context->sceneRenderTargets[i].depthAttachment, nullptr);
 
-		vkDestroyImage(context->device, context->virtualFrames[i].resolveImage, nullptr);
-		vkDestroyImageView(context->device, context->virtualFrames[i].resolveImageView, nullptr);
+		vkDestroyImage(context->device, context->sceneRenderTargets[i].resolveAttachmentImage, nullptr);
+		vkDestroyImageView(context->device, context->sceneRenderTargets[i].resolveAttachment, nullptr);
 
-		vkDestroyFramebuffer(context->device, context->virtualFrames[i].presentFramebuffer, nullptr);
-
-		context->virtualFrames[i].colorImage 				= VK_NULL_HANDLE;
-		context->virtualFrames[i].colorImageView 			= VK_NULL_HANDLE;
-		context->virtualFrames[i].depthImage 				= VK_NULL_HANDLE;
-		context->virtualFrames[i].depthImageView 			= VK_NULL_HANDLE;
-		context->virtualFrames[i].resolveImage 				= VK_NULL_HANDLE;
-		context->virtualFrames[i].resolveImageView 			= VK_NULL_HANDLE;
-		context->virtualFrames[i].presentFramebuffer 	= VK_NULL_HANDLE;
+		context->sceneRenderTargets[i].colorAttachmentImage 		= VK_NULL_HANDLE;
+		context->sceneRenderTargets[i].colorAttachment 			= VK_NULL_HANDLE;
+		context->sceneRenderTargets[i].depthAttachmentImage 		= VK_NULL_HANDLE;
+		context->sceneRenderTargets[i].depthAttachment 			= VK_NULL_HANDLE;
+		context->sceneRenderTargets[i].resolveAttachmentImage 	= VK_NULL_HANDLE;
+		context->sceneRenderTargets[i].resolveAttachment 		= VK_NULL_HANDLE;
 	}
 
-	vkFreeMemory        (context->device, context->virtualFrameAttachmentMemory, nullptr);
+	vkFreeMemory (context->device, context->sceneRenderTargetsAttachmentMemory, nullptr);
+}
 
-	vkDestroyRenderPass(context->device, context->renderPass, nullptr);
-	vkDestroyRenderPass(context->device, context->passThroughRenderPass, nullptr);
+internal void
+vulkan_destroy_drawing_resources(VulkanContext * context)
+{
+
+	vkDestroyRenderPass(context->device, context->sceneRenderPass, nullptr);
+	vkDestroyRenderPass(context->device, context->screenSpaceRenderPass, nullptr);
 
 	for (auto imageView : context->swapchainImageViews)
 	{
@@ -314,17 +402,22 @@ vulkan::destroy_drawing_resources(VulkanContext * context)
 	vkDestroySwapchainKHR(context->device, context->swapchain, nullptr);
 }
 
-internal void fsvulkan_recreate_drawing_resources(VulkanContext * context, u32 width, u32 height)
+
+
+internal void vulkan_recreate_drawing_resources(VulkanContext * context, u32 width, u32 height)
 {
 	vkDeviceWaitIdle(context->device);
 
-	vulkan::destroy_drawing_resources(context);
-	vulkan::create_drawing_resources(context, width, height);
+	vulkan_destroy_scene_render_targets(context);
+	vulkan_destroy_drawing_resources(context);
+
+	vulkan_create_drawing_resources(context, width, height);
+	vulkan_create_scene_render_targets(context, context->sceneRenderTargetWidth, context->sceneRenderTargetHeight);
 
 	vkResetDescriptorPool(context->device, context->drawingResourceDescriptorPool, 0);
 
 	fsvulkan_cleanup_pipelines(context);
-	fsvulkan_initialize_pipelines(*context);
+	fsvulkan_initialize_pipelines(*context, width, height);
 
 	for (s32 i = 0; i < VIRTUAL_FRAME_COUNT; ++i)
 	{
@@ -335,131 +428,5 @@ internal void fsvulkan_recreate_drawing_resources(VulkanContext * context, u32 w
 																					context->shadowTextureSampler,
 																					VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 	}
-	
-	/* Todo(Leo, 28.5.): We currently have viewport and scissor sizes as dynamic
-	things in all pipelines, so we do not need to recreate those. But if we change that,
-	then we will need to. */
-}
-
-internal void
-vulkan_swapchain_internal_::create_attachments(VulkanContext * context)
-{
-	/*
-	1. Create images
-	2. Allocate single memory for both
-	3. Bind images to memory
-	4. Create image views
-	5. Transition image layouts to attachments optimal
-	*/
-
-	/// 1. CREATE IMAGES
-	VkFormat colorFormat = context->hdrFormat;
-	VkFormat depthFormat = find_supported_depth_format(context->physicalDevice);
-	for (s32 i = 0; i < VIRTUAL_FRAME_COUNT; ++i)
-	{
-		context->virtualFrames[i].colorImage = make_vk_image(   context, context->swapchainExtent.width, context->swapchainExtent.height,
-																1, colorFormat, VK_IMAGE_TILING_OPTIMAL,
-																VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-																context->msaaSamples);
-
-		context->virtualFrames[i].depthImage = make_vk_image(   context, context->swapchainExtent.width, context->swapchainExtent.height,
-																1, depthFormat, VK_IMAGE_TILING_OPTIMAL,
-																VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
-																context->msaaSamples);
-
-		context->virtualFrames[i].resolveImage = make_vk_image(context, context->swapchainExtent.width, context->swapchainExtent.height,
-																1, colorFormat, VK_IMAGE_TILING_OPTIMAL,
-																VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-																VK_SAMPLE_COUNT_1_BIT);
-	}
-
-	/// 2. ALLOCATE MEMORY
-	VkMemoryRequirements colorMemReqs;
-	vkGetImageMemoryRequirements(context->device, context->virtualFrames[0].colorImage, &colorMemReqs);
-	u64 colorMemorySize = memory_align_up(colorMemReqs.size, colorMemReqs.alignment);
-
-	VkMemoryRequirements depthMemReqs;
-	vkGetImageMemoryRequirements(context->device, context->virtualFrames[0].depthImage, &depthMemReqs);
-	u64 depthMemorySize = memory_align_up(depthMemReqs.size, depthMemReqs.alignment);
-
-	VkMemoryRequirements resolveMemoryRequirements;
-	vkGetImageMemoryRequirements(context->device, context->virtualFrames[0].resolveImage, &resolveMemoryRequirements);
-	u64 resolveMemorySize = memory_align_up(resolveMemoryRequirements.size, resolveMemoryRequirements.alignment);
-
-
-	// Todo(Leo): this is required for naive alignment stuff below, it should be changed
-	Assert(colorMemReqs.alignment == depthMemReqs.alignment);
-	Assert(colorMemReqs.alignment == resolveMemoryRequirements.alignment);
-
-	u32 memoryTypeIndex = find_memory_type( context->physicalDevice,
-											colorMemReqs.memoryTypeBits | depthMemReqs.memoryTypeBits | resolveMemoryRequirements.memoryTypeBits,
-											VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-
-
-	u64 totalColourMemorySize   = colorMemorySize * VIRTUAL_FRAME_COUNT;
-	u64 totalDepthMemorySize    = depthMemorySize * VIRTUAL_FRAME_COUNT;
-	u64 totalResolveMemorySize  = resolveMemorySize * VIRTUAL_FRAME_COUNT;
-
-	VkMemoryAllocateInfo allocateInfo   = { VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO };
-	allocateInfo.allocationSize         = totalColourMemorySize + totalDepthMemorySize + totalResolveMemorySize;
-	allocateInfo.memoryTypeIndex        = memoryTypeIndex;
-
-	VULKAN_CHECK(vkAllocateMemory(context->device, &allocateInfo, nullptr, &context->virtualFrameAttachmentMemory));
-
-	/// 3. BIND MEMORY
-	for (s32 i = 0; i < VIRTUAL_FRAME_COUNT; ++i)
-	{
-		VULKAN_CHECK(vkBindImageMemory(context->device, context->virtualFrames[i].colorImage, context->virtualFrameAttachmentMemory, i * colorMemorySize));
-		VULKAN_CHECK(vkBindImageMemory(context->device, context->virtualFrames[i].depthImage, context->virtualFrameAttachmentMemory, totalColourMemorySize + i * depthMemorySize));
-		VULKAN_CHECK(vkBindImageMemory(context->device, context->virtualFrames[i].resolveImage, context->virtualFrameAttachmentMemory, totalColourMemorySize + totalDepthMemorySize + i * resolveMemorySize));
-	}
-
-
-	/// 4. CREATE IMAGE VIEWS
-	for (s32 i = 0; i < VIRTUAL_FRAME_COUNT; ++i)
-	{
-		context->virtualFrames[i].colorImageView = make_vk_image_view(context->device, context->virtualFrames[i].colorImage, 1, colorFormat, VK_IMAGE_ASPECT_COLOR_BIT);
-		context->virtualFrames[i].depthImageView = make_vk_image_view(context->device, context->virtualFrames[i].depthImage, 1, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT);
-		context->virtualFrames[i].resolveImageView = make_vk_image_view(context->device, context->virtualFrames[i].resolveImage, 1, colorFormat, VK_IMAGE_ASPECT_COLOR_BIT);
-	}
-
-	/// 5. TRANSITION LAYOUTS
-	VkCommandBuffer cmd = begin_command_buffer(context->device, context->commandPool);
-
-	for (s32 i = 0; i < VIRTUAL_FRAME_COUNT; ++i)
-	{
-		cmd_transition_image_layout(cmd, context->device, context->graphicsQueue, context->virtualFrames[i].colorImage, colorFormat, 1,
-									VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-
-		cmd_transition_image_layout(cmd, context->device, context->graphicsQueue, context->virtualFrames[i].depthImage, depthFormat, 1,
-									VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
-
-		// cmd_transition_image_layout(cmd, context->device, context->graphicsQueue, context->virtualFrames[i].resolveImage, colorFormat, 1,
-		// 							VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-
-		{
-		    VkImageMemoryBarrier barrier 	= { VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER };
-		    barrier.srcAccessMask 			= 0;
-		    barrier.dstAccessMask 			= VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-		    barrier.oldLayout 				= VK_IMAGE_LAYOUT_UNDEFINED;
-		    barrier.newLayout 				= VK_IMAGE_LAYOUT_GENERAL;
-		    barrier.srcQueueFamilyIndex 	= VK_QUEUE_FAMILY_IGNORED;
-		    barrier.dstQueueFamilyIndex 	= VK_QUEUE_FAMILY_IGNORED;
-
-		    barrier.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
-		    barrier.subresourceRange.baseMipLevel   = 0;
-		    barrier.subresourceRange.levelCount     = 1;
-		    barrier.subresourceRange.baseArrayLayer = 0;
-		    barrier.subresourceRange.layerCount     = 1;
-
-		    barrier.image = context->virtualFrames[i].resolveImage;
-
-		    vkCmdPipelineBarrier(   cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0,
-		                            0, nullptr, 0, nullptr, 1, &barrier);
-		}
-
-	}
-
-	execute_command_buffer (cmd, context->device, context->commandPool, context->graphicsQueue);
 }
 

@@ -17,8 +17,11 @@ STUDY: https://devblogs.nvidia.com/vulkan-dos-donts/
 
 #ifndef WIN_VULKAN_HPP
 
+// Todo(Leo): Platform maybe should be defined elsewhere, if we want to use same vulkan implementation elsewhere??
 #define VK_USE_PLATFORM_WIN32_KHR
 #include <vulkan/vulkan.h>
+#include "generated/vulkan_initializers.cpp"
+
 
 #include "fsvulkan_debug_strings.cpp"
 
@@ -44,13 +47,16 @@ constexpr f32 VULKAN_MAX_LOD_FLOAT = 100.0f;
 constexpr s32 VULKAN_MAX_MODEL_COUNT = 2000;
 constexpr s32 VULKAN_MAX_MATERIAL_COUNT = 100;
 
-
 constexpr VkSampleCountFlagBits VULKAN_MAX_MSAA_SAMPLE_COUNT = VK_SAMPLE_COUNT_2_BIT;
 
-
+// Todo(Leo): these need to align properly
+// Todo(Leo): these need to align properly
+// Todo(Leo): these need to align properly
+// Todo(Leo): these need to align properly
 // Todo(Leo): these need to align properly
 // Note(Leo): these need to align properly
 // Study(Leo): these need to align properly
+// Todo(Leo): Also check that sizes are not too much
 struct FSVulkanCameraUniformBuffer
 {
 	alignas(16) m44 view;
@@ -194,31 +200,43 @@ struct VulkanPipeline
 struct VulkanVirtualFrame
 {
 	VkCommandBuffer mainCommandBuffer;
-	VkCommandBuffer sceneCommandBuffer;
-	VkCommandBuffer guiCommandBuffer;
 	VkCommandBuffer shadowCommandBuffer;
+	VkCommandBuffer sceneCommandBuffer;
+
+	// Todo(Leo): These maybe don't need to be separate, but currently it makes things a little more clearer
 	VkCommandBuffer postProcessCommandBuffer;
+	VkCommandBuffer guiCommandBuffer;
 
-	// Note(Leo): These are re-created every frame
-	VkFramebuffer  	sceneFramebuffer;
-	VkFramebuffer 	presentFramebuffer;
-
-	VkImage 	colorImage;
-	VkImageView colorImageView;
-
-	VkImage 	depthImage;	
-	VkImageView depthImageView;
-
-	VkImage 	resolveImage;
-	VkImageView resolveImageView;
-
-	// Note(Leo): This is used as input to hdr->ldr tonemap shader
-	VkDescriptorSet resolveImageDescriptor;
-
-    // VkSemaphore 	shadowPassWaitSemaphore;
+    /* Note(Leo):
+    These are signaled and waited on same frame
+    imageAvailableSemaphore: 	Wait on main command buffer submit, that image has been acquired from swapchain.
+								We use the actual acquired image as final framebuffer.
+	renderFinishedSemaphore: 	Wait on present queue that rendering on image has been finished.
+	
+	This is signaled and waited on different frames
+	frameInUseFence: 			Wait on beginning of frame that rendering on previous frame (multiple frames behind actually)
+								that rendering on that frame is complete, and we can start using its resources again. This ensures
+								we do not e.g. write to uniform etc. buffers from game, while they are still being used to render
+								stuff from couple frames behind.
+    */
 	VkSemaphore    	imageAvailableSemaphore;
 	VkSemaphore    	renderFinishedSemaphore;
-	VkFence        	queueSubmitFence;
+	VkFence        	frameInUseFence;
+};
+
+// Todo(Leo): name betterly
+struct VulkanSceneRenderTarget
+{
+	VkImage 	colorAttachmentImage;
+	VkImageView colorAttachment;
+
+	VkImage 	depthAttachmentImage;	
+	VkImageView depthAttachment;
+
+	VkImage 	resolveAttachmentImage;
+	VkImageView resolveAttachment;
+
+	VkFramebuffer  	framebuffer;
 };
 
 struct PlatformGraphics
@@ -240,9 +258,31 @@ struct PlatformGraphics
 	u32 graphicsQueueFamily;
 	u32 presentQueueFamily;
 
-    VulkanVirtualFrame 	virtualFrames [VIRTUAL_FRAME_COUNT];
+	// Note(Leo): Above this line are stuff that DO NOT change during runtime
+	// ==============================================
+
     u32 				virtualFrameIndex = 0;
-	VkDeviceMemory 		virtualFrameAttachmentMemory;
+    VulkanVirtualFrame 	virtualFrames [VIRTUAL_FRAME_COUNT];
+
+    // ----------------------------------------------
+
+    u32 sceneRenderTargetWidth = 800;
+    u32 sceneRenderTargetHeight = 600;
+
+    VulkanSceneRenderTarget 	sceneRenderTargets[VIRTUAL_FRAME_COUNT];
+	VkDeviceMemory 				sceneRenderTargetsAttachmentMemory;
+	VkDescriptorSet 			sceneRenderTargetSamplerDescriptors[VIRTUAL_FRAME_COUNT];
+
+	VkRenderPass 				sceneRenderPass;
+    
+    // ----------------------------------------------
+
+    VkRenderPass 		screenSpaceRenderPass;
+
+
+    // Note(Leo): These are separate, since their creation etc. are handled differently at different times.
+    VkFramebuffer 		presentFramebuffers[VIRTUAL_FRAME_COUNT];
+
 
     VkDescriptorPool 		uniformDescriptorPool;
     VkDescriptorPool 		materialDescriptorPool;
@@ -268,9 +308,10 @@ struct PlatformGraphics
     VkBuffer 		sceneUniformBuffer;
     VkDeviceMemory 	sceneUniformBufferMemory;
 
+    // Todo(Leo): Maybe make these also use push constants, that's what hdr setting already do
     FSVulkanCameraUniformBuffer * 	persistentMappedCameraUniformBufferMemory[VIRTUAL_FRAME_COUNT];
     FSVulkanLightingUniformBuffer * persistentMappedLightingUniformBufferMemory[VIRTUAL_FRAME_COUNT];
-    FSVulkanHdrSettings * 			frameHdrSettings[VIRTUAL_FRAME_COUNT];
+    // FSVulkanHdrSettings * 			frameHdrSettings[VIRTUAL_FRAME_COUNT];
 
     // Uncategorized
 	VkCommandPool 			commandPool;
@@ -285,8 +326,7 @@ struct PlatformGraphics
 
     VkSwapchainKHR 	swapchain;
 	VkExtent2D 		swapchainExtent;
-    VkRenderPass 	renderPass;
-    VkRenderPass 	passThroughRenderPass;
+
 
     // Note(Leo): these are images from gpu for presentation, we use them to form final framebuffers
     // Todo(Leo): get rid of std::vector...
@@ -317,10 +357,6 @@ struct PlatformGraphics
 	
 
 	// ----------------------------------------------------------------------------------
-
-	// Todo(Leo): This is stupid, just use bool, we only have one use case, probably never have a ton, so just add more bools
-	using PostRenderFunc = void(VulkanContext*);
-	PostRenderFunc * onPostRender;
 
 	// Todo(Leo): Guard against multithreaded race condition once we have that
 	VkDeviceSize	stagingBufferCapacity;
@@ -362,9 +398,9 @@ struct PlatformGraphics
 	VkPipelineLayout 		linePipelineLayout;
 
 	// Todo(Leo): these refer to hdr tonemap/post process pipeline
-	VkPipeline 				passThroughPipeline;
-	VkPipelineLayout 		passThroughPipelineLayout;
-	VkDescriptorSetLayout 	passThroughDescriptorSetLayout; // Todo(Leo): make better name; what descriptor set this is
+	VkPipeline 				screenSpacePipeline;
+	VkPipelineLayout 		screenSpacePipelineLayout;
+	VkDescriptorSetLayout 	screenSpaceDescriptorSetLayout; // Todo(Leo): make better name; what descriptor set this is
 
 	// Note(Leo): This is a list of functions to call when destroying this.
 	// Todo(Leo): Do not use std::vector; we know explicitly how many we have at compile time
@@ -373,10 +409,14 @@ struct PlatformGraphics
 	std::vector<CleanupFunc*> cleanups 	= {};
 
     u32 currentDrawFrameIndex;
-    bool32 canDraw = false;
 
-    bool32 sceneUnloaded = false;
-    bool32 unloadAfterRender = false;
+    struct
+    {
+    	bool32 unloadAssets;
+    	bool32 reloadShaders;
+    } postRenderEvents;
+
+    // bool32 unloadAfterRender = false;
 
     VkBuffer 		leafBuffer;
     VkDeviceMemory 	leafBufferMemory;
