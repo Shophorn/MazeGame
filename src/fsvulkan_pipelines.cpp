@@ -981,6 +981,19 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context, u32 targetT
 		auto vertexInputState 		= fsvulkan_pipeline_vertex_input_state_create_info	(0, nullptr, 0, nullptr);
 		auto inputAssemblyState 	= fsvulkan_pipeline_input_assembly_create_info		(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
 		// auto viewportState 			= fsvulkan_pipeline_viewport_state_create_info		(1, &common_viewport, 1, &common_scissor);
+
+		VkViewport viewport = {0, 0, (f32)context.swapchainExtent.width, (f32)context.swapchainExtent.height, 0, 1};
+		VkRect2D scissor 	= {{0,0}, {context.swapchainExtent.width, context.swapchainExtent.height}};
+
+		auto viewportState = vk_pipeline_viewport_state_create_info();
+		{
+			viewportState.viewportCount = 1;
+			viewportState.pViewports 	= &viewport;
+			viewportState.scissorCount 	= 1;
+			viewportState.pScissors 	= &scissor;
+		}
+
+
 		auto rasterizationState 	= fsvulkan_pipeline_rasterization_state_create_info	(VK_CULL_MODE_NONE);
 		auto multisampleState 		= fsvulkan_pipeline_multisample_state_create_info	(VK_SAMPLE_COUNT_1_BIT);
 		auto depthStencilState 		= fsvulkan_pipeline_depth_stencil_create_info		(VK_FALSE, VK_FALSE);
@@ -996,7 +1009,7 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context, u32 targetT
 			.pInputAssemblyState 	= &inputAssemblyState,
 
 			// Todo(Leo): This pipeline may not actually use common viewport, look into that
-			.pViewportState 		= &common_viewportState,
+			.pViewportState 		= &viewportState,
 			.pRasterizationState 	= &rasterizationState,
 			.pMultisampleState 		= &multisampleState,
 			.pDepthStencilState 	= &depthStencilState,
@@ -1027,10 +1040,11 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context, u32 targetT
 														&context.sceneRenderTargetSamplerDescriptors[i]));
 
 
-				// Todo(Leo): specify fields
+				// Todo(Leo): specify fields maybe grrr
 				VkDescriptorImageInfo info = 
 				{
-					context.repeatSampler,
+					context.linearRepeatSampler,
+					// context.nearestRepeatSampler,
 					context.sceneRenderTargets[i].resolveAttachment,
 					VK_IMAGE_LAYOUT_GENERAL,
 					// VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,

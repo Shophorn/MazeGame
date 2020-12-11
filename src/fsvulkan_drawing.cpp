@@ -274,7 +274,7 @@ internal void vulkan_render_frame(VulkanContext * context)
 		auto sceneRenderPassBegin 				= vk_render_pass_begin_info();
 		sceneRenderPassBegin.renderPass 		= context->sceneRenderPass;
 		sceneRenderPassBegin.framebuffer 		= context->sceneRenderTargets[context->virtualFrameIndex].framebuffer;
-		sceneRenderPassBegin.renderArea 		= {{0,0}, context->swapchainExtent};
+		sceneRenderPassBegin.renderArea 		= {{0,0}, {context->sceneRenderTargetWidth, context->sceneRenderTargetHeight}};
 		sceneRenderPassBegin.clearValueCount 	= array_count(clearValues);
 		sceneRenderPassBegin.pClearValues 		= clearValues;
 
@@ -355,20 +355,18 @@ internal void vulkan_render_frame(VulkanContext * context)
 		vkResetDescriptorPool(context->device, context->drawingResourceDescriptorPool, 0);
 
 		fsvulkan_cleanup_pipelines(context);
-		fsvulkan_initialize_pipelines(*context, context->swapchainExtent.width, context->swapchainExtent.height);
+		fsvulkan_initialize_pipelines(*context, context->sceneRenderTargetWidth, context->sceneRenderTargetHeight);
+
 
 		for (s32 i = 0; i < VIRTUAL_FRAME_COUNT; ++i)
 		{
+			// Todo(Leo): not cool man!
 			context->shadowMapTextureDescriptorSet[i] = make_material_vk_descriptor_set_2( context,
 																					context->shadowMapTextureDescriptorSetLayout,
-																					// context->pipelines[GraphicsPipeline_SCREEN_GUI].descriptorSetLayout,
 																					context->shadowAttachment[i].view,
 																					context->drawingResourceDescriptorPool,
 																					context->shadowTextureSampler,
 																					VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-			
-			// Todo(Leo): maybe need to recreate virtual frame framebuffers also?
-			// or split virtual frames more into different kind of chunks
 		}
 
 		log_graphics(0, "Reloaded shaders");

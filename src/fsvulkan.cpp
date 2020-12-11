@@ -550,13 +550,13 @@ vulkan::make_vk_image( VulkanContext * context,
 
 
 VkSampler
-BAD_VULKAN_make_vk_sampler(VkDevice device, VkSamplerAddressMode addressMode)
+BAD_VULKAN_make_vk_sampler(VkDevice device, VkSamplerAddressMode addressMode, VkFilter filter = VK_FILTER_LINEAR)
 {
 	VkSamplerCreateInfo samplerInfo =
 	{ 
 		.sType              = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
-		.magFilter          = VK_FILTER_LINEAR,
-		.minFilter          = VK_FILTER_LINEAR,
+		.magFilter          = filter,
+		.minFilter          = filter,
 		.mipmapMode         = VK_SAMPLER_MIPMAP_MODE_LINEAR,
 
 		.addressModeU       = addressMode,
@@ -721,11 +721,13 @@ winapi::create_vulkan_context(Win32PlatformWindow * window)
 		init_persistent_descriptor_pool (&context, 20, 20);
 		init_virtual_frames (&context);
 	
-		context.repeatSampler = BAD_VULKAN_make_vk_sampler(context.device, VK_SAMPLER_ADDRESS_MODE_REPEAT);
+		context.linearRepeatSampler = BAD_VULKAN_make_vk_sampler(context.device, VK_SAMPLER_ADDRESS_MODE_REPEAT);
+		context.nearestRepeatSampler = BAD_VULKAN_make_vk_sampler(context.device, VK_SAMPLER_ADDRESS_MODE_REPEAT, VK_FILTER_NEAREST);
 		context.clampSampler = BAD_VULKAN_make_vk_sampler(context.device, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE);
 		add_cleanup(&context, [](VulkanContext * context)
 		{
-			vkDestroySampler(context->device, context->repeatSampler, nullptr);
+			vkDestroySampler(context->device, context->linearRepeatSampler, nullptr);
+			vkDestroySampler(context->device, context->nearestRepeatSampler, nullptr);
 			vkDestroySampler(context->device, context->clampSampler, nullptr);
 		});
 
@@ -743,7 +745,8 @@ winapi::create_vulkan_context(Win32PlatformWindow * window)
 
 		/// PIPELINES
 		{
-			fsvulkan_initialize_pipelines(context, context.swapchainExtent.width, context.swapchainExtent.height);
+			// fsvulkan_initialize_pipelines(context, context.swapchainExtent.width, context.swapchainExtent.height);
+			fsvulkan_initialize_pipelines(context, context.sceneRenderTargetWidth, context.sceneRenderTargetHeight);
 			add_cleanup(&context, [](VulkanContext * context)
 			{
 				// Todo(Leo): this kinda goes to show that this add_cleanup is stupid, we should just create

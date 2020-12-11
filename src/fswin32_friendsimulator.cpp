@@ -119,7 +119,7 @@ FS_ENTRY_POINT
    
 
 
-
+	// Todo(Leo): Move imgui stuff away, maybe after we have imguizmo
 	{
 		IMGUI_CHECKVERSION();
 		ImGui::CreateContext();
@@ -275,6 +275,7 @@ FS_ENTRY_POINT
 	/// -------- CLEANUP ---------
 
 	vkDeviceWaitIdle(graphics.device);
+
 	ImGui_ImplVulkan_Shutdown();
 	ImGui_ImplWin32_Shutdown();
 	ImGui::DestroyContext();

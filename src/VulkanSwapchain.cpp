@@ -68,8 +68,12 @@ internal void vulkan_create_scene_render_targets(VulkanContext * context, u32 wi
 {
 	using namespace vulkan;
 
+	// Todo(Leo): this is temporary until we make some proper settings stuff.
 	width = context->swapchainExtent.width;
 	height = context->swapchainExtent.height;
+
+	context->sceneRenderTargetWidth = width;
+	context->sceneRenderTargetHeight = height;
 
 	/*
 	1. Create images
@@ -155,11 +159,29 @@ internal void vulkan_create_scene_render_targets(VulkanContext * context, u32 wi
 
 
 	/// 4. CREATE IMAGE VIEWS
+	auto colorAttachmentCreateInfo 				= vk_image_view_create_info();
+	colorAttachmentCreateInfo.viewType 			= VK_IMAGE_VIEW_TYPE_2D;
+	colorAttachmentCreateInfo.format 			= colorFormat;
+	colorAttachmentCreateInfo.subresourceRange 	= {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+
+	auto depthAttachmentCreateInfo 				= vk_image_view_create_info();
+	depthAttachmentCreateInfo.viewType 			= VK_IMAGE_VIEW_TYPE_2D;
+	depthAttachmentCreateInfo.format 			= depthFormat;
+	depthAttachmentCreateInfo.subresourceRange 	= {VK_IMAGE_ASPECT_DEPTH_BIT, 0, 1, 0,1};
+
 	for (s32 i = 0; i < VIRTUAL_FRAME_COUNT; ++i)
 	{
-		context->sceneRenderTargets[i].colorAttachment = make_vk_image_view(context->device, context->sceneRenderTargets[i].colorAttachmentImage, 1, colorFormat, VK_IMAGE_ASPECT_COLOR_BIT);
-		context->sceneRenderTargets[i].depthAttachment = make_vk_image_view(context->device, context->sceneRenderTargets[i].depthAttachmentImage, 1, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT);
-		context->sceneRenderTargets[i].resolveAttachment = make_vk_image_view(context->device, context->sceneRenderTargets[i].resolveAttachmentImage, 1, colorFormat, VK_IMAGE_ASPECT_COLOR_BIT);
+		auto & targets = context->sceneRenderTargets[i];
+
+		colorAttachmentCreateInfo.image = targets.colorAttachmentImage;
+		VULKAN_CHECK(vkCreateImageView(context->device, &colorAttachmentCreateInfo, nullptr, &targets.colorAttachment));
+
+		depthAttachmentCreateInfo.image = targets.depthAttachmentImage;
+		VULKAN_CHECK(vkCreateImageView(context->device, &depthAttachmentCreateInfo, nullptr, &targets.depthAttachment));
+
+		// Note(Leo): We are reusing color attachment create info
+		colorAttachmentCreateInfo.image = targets.resolveAttachmentImage;
+		VULKAN_CHECK(vkCreateImageView(context->device, &colorAttachmentCreateInfo, nullptr, &targets.resolveAttachment));
 	}
 
 	/// 5. TRANSITION LAYOUTS
@@ -204,21 +226,21 @@ internal void vulkan_create_scene_render_targets(VulkanContext * context, u32 wi
 
 	for (s32 i = 0; i <VIRTUAL_FRAME_COUNT; ++i)
 	{
-		auto & drawing = context->sceneRenderTargets[i];
+		auto & targets = context->sceneRenderTargets[i];
 
 		VkImageView attachments [] =
 		{
-			drawing.colorAttachment,
-			drawing.depthAttachment,
-			drawing.resolveAttachment,
+			targets.colorAttachment,
+			targets.depthAttachment,
+			targets.resolveAttachment,
 		};
 
-		context->sceneRenderTargets[i].framebuffer = vulkan::make_vk_framebuffer(  context->device,
-																context->sceneRenderPass,
-																array_count(attachments),
-																attachments,
-																width,
-																height);
+		targets.framebuffer = vulkan::make_vk_framebuffer(  context->device,
+															context->sceneRenderPass,
+															array_count(attachments),
+															attachments,
+															width,
+															height);
 	}
 }
 
@@ -313,7 +335,7 @@ vulkan_create_drawing_resources(VulkanContext * context, u32 width, u32 height)
 	context->hdrFormat 	= VK_FORMAT_R32G32B32A32_SFLOAT;
 	context->sceneRenderPass = make_vk_render_pass(context, context->hdrFormat, context->msaaSamples);
 	
-	/// PASS-THROUGH RENDER PASS FOR HDR-RENDERING
+	/// SCREEN SPACE RENDER PASS FOR HDR-RENDERING
 	{
 		VkAttachmentDescription attachment = {};
 
@@ -417,7 +439,9 @@ internal void vulkan_recreate_drawing_resources(VulkanContext * context, u32 wid
 	vkResetDescriptorPool(context->device, context->drawingResourceDescriptorPool, 0);
 
 	fsvulkan_cleanup_pipelines(context);
-	fsvulkan_initialize_pipelines(*context, width, height);
+	// fsvulkan_initialize_pipelines(*context, width, height);
+	fsvulkan_initialize_pipelines(*context, context->sceneRenderTargetWidth, context->sceneRenderTargetHeight);
+
 
 	for (s32 i = 0; i < VIRTUAL_FRAME_COUNT; ++i)
 	{

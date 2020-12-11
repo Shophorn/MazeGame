@@ -266,8 +266,8 @@ struct PlatformGraphics
 
     // ----------------------------------------------
 
-    u32 sceneRenderTargetWidth = 800;
-    u32 sceneRenderTargetHeight = 600;
+    u32 sceneRenderTargetWidth = 320;
+    u32 sceneRenderTargetHeight = 180;
 
     VulkanSceneRenderTarget 	sceneRenderTargets[VIRTUAL_FRAME_COUNT];
 	VkDeviceMemory 				sceneRenderTargetsAttachmentMemory;
@@ -318,9 +318,11 @@ struct PlatformGraphics
     VkSampleCountFlagBits 	msaaSamples;
 
     /* Note(Leo): we need a separate sampler for each address mode (and other properties).*/
-    VkSampler 				repeatSampler;			
-    VkSampler 				clampSampler;			
-	
+    VkSampler 	linearRepeatSampler;			
+    VkSampler 	clampSampler;			
+	VkSampler 	nearestRepeatSampler;
+
+
 	VkFormat 				hdrFormat;
 	FSVulkanHdrSettings 	hdrSettings;
 
