@@ -9,7 +9,7 @@ Friendsimulator game specific serialized objects
 template<typename ... Ts>
 internal void read_settings_file(SerializedPropertyList<Ts...> serializedObjects)
 {
-	PlatformFileHandle file = platform_file_open("settings", FILE_MODE_READ);
+	PlatformFileHandle file = platform_file_open("settings", FileMode_read);
 
 	s32 fileSize 	= platform_file_get_size(file);
 	char * buffer 	= push_memory<char>(*global_transientMemory, fileSize, ALLOC_GARBAGE);

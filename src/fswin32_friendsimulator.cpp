@@ -65,13 +65,15 @@ not need console to be created.
 #include <vector>
 #include "fsvulkan.cpp"
 
-#include <imgui/imgui.cpp>
-#include <imgui/imgui_draw.cpp>
-#include <imgui/imgui_widgets.cpp>
-#include <imgui/imgui_demo.cpp>
+#include <ImGui/imgui.cpp>
+#include <ImGui/imgui_draw.cpp>
+#include <ImGui/imgui_widgets.cpp>
+#include <ImGui/imgui_demo.cpp>
 
-#include <imgui/imgui_impl_win32.cpp>
-#include <imgui/imgui_impl_vulkan.cpp>
+#include <ImGui/imgui_impl_win32.cpp>
+#include <ImGui/imgui_impl_vulkan.cpp>
+
+#include <ImGui/ImGuizmo.cpp>
 
 #include "win32_game_dll.cpp"
 #include "win32_window_callback.cpp"
@@ -224,6 +226,8 @@ FS_ENTRY_POINT
 			ImGui_ImplVulkan_NewFrame();			
 			ImGui_ImplWin32_NewFrame();
 			ImGui::NewFrame();
+			// ImGuizmo::BeginFrame();
+
 
 			// Todo(Leo): use function directly in release build
 			gameIsRunning = game.update(gameMemory,

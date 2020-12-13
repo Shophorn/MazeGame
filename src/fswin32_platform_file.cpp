@@ -9,12 +9,12 @@ PlatformFileHandle platform_file_open(char const * filename, FileMode fileMode)
 	DWORD access;
 	// Todo(Leo): this should only be enabled in development
 	DWORD share = 0;
-	if(fileMode == FILE_MODE_READ)
+	if(fileMode == FileMode_read)
 	{
 		access = GENERIC_READ;
 		share = FILE_SHARE_READ;
 	}
-	else if (fileMode == FILE_MODE_WRITE)
+	else if (fileMode == FileMode_write)
 	{
 		access = GENERIC_WRITE;
 	}
@@ -38,7 +38,7 @@ PlatformFileHandle platform_file_open(char const * filename, FileMode fileMode)
 	SetFilePointer((HANDLE)file, 0, nullptr, FILE_BEGIN);
 
 	// Todo(Leo): this may be unwanted
-	if (fileMode == FILE_MODE_WRITE)
+	if (fileMode == FileMode_write)
 	{
 		SetEndOfFile((HANDLE)file);
 	}

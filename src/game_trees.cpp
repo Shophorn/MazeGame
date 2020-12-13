@@ -210,6 +210,15 @@ struct Tree
 };
 bool32 Tree::globalEnabled = true;
 
+// Study(Leo): this would be fun?
+// struct Trees : public Array<Tree>
+struct Trees
+{
+	Array<Tree> 	array;
+	s32 			selectedIndex;
+	TreeSettings 	settings[2];	
+};
+
 
 internal void tree_3_add_branch(Tree & tree, s64 parentBranchIndex, v3 position, quaternion rotation, f32 distanceFromParentStartNode)
 {
@@ -739,8 +748,108 @@ internal void allocate_tree_memory(MemoryArena & allocator, Tree & tree)
 	// reset_tree_3(tree);
 }
 
-internal void tree_gui(Tree & tree)
+namespace ImGui
 {
+    IMGUI_API bool Checkbox32(const char* label, bool32* v)
+    {
+    	bool regularBoolV 	= *v;
+    	bool result 		= Checkbox(label, &regularBoolV);
+    	*v 					= regularBoolV;
+
+    	return result;
+    }
+
+    IMGUI_API bool ColorEditV3(const char* label, v3 * v, ImGuiColorEditFlags flags = 0)
+    {
+    	return ColorEdit3(label, reinterpret_cast<f32*>(v), flags);
+    }
+
+
+}
+
+internal void trees_editor(Trees & trees)
+{
+	using namespace ImGui;
+
+	if(InputInt("Tree Index", &trees.selectedIndex, 1, 1))
+	{
+		trees.selectedIndex = s32_clamp(trees.selectedIndex, 0, trees.array.count - 1);
+	}
+
+	Tree & tree = trees.array[trees.selectedIndex];
+
+	if (ImGui::TreeNode("Misc"))
+	{
+		Checkbox32("Global Enable", &Tree::globalEnabled);
+		Checkbox32("Enable Updates", &tree.enabled);
+		Checkbox32("Draw Gizmos", &tree.drawGizmos);
+		DragFloat("Grow Speed Scale", &tree.settings->growSpeedScale, 0.01);
+
+		TreePop();
+	}
+
+	if (ImGui::TreeNode("Properties"))
+	{
+		DragFloat("Area Grow Speed", &tree.settings->areaGrowthSpeed, 0.01, 0, highest_f32);
+		DragFloat("Length Grow Speed", &tree.settings->lengthGrowthSpeed, 0.01, 0, highest_f32);
+		DragFloat("Tangent Scale", &tree.settings->tangentScale, 0.01, 0, highest_f32);
+		DragFloat("Max Height", &tree.settings->maxHeight, 0.01, 0, highest_f32);
+		DragFloat("Max Height To Width Ratio", &tree.settings->maxHeightToWidthRatio, 0.01, 0, highest_f32);
+
+		DragFloat("Bud Interval", &tree.settings->budInterval, 0.01, 0, highest_f32);
+		SliderFloat("Bud Interval Randomness", &tree.settings->budIntervalRandomness, 0, 1);
+		DragFloat("Bud Angle", &tree.settings->budAngle, 0.01, 0, 2.0f*π);
+		SliderFloat("Bud Angle Randomness", &tree.settings->budAngleRandomness, 0, 1);
+		DragFloat("Bud Terminal Distance From Apex", &tree.settings->budTerminalDistanceFromApex, 0.01, 0, highest_f32);
+
+		SliderFloat("Apex Branching Probability", &tree.settings->apexBranchingProbability, 0, 1);
+
+		TreePop();
+	}
+
+	if (ImGui::TreeNode("Leaves"))
+	{
+		DragFloat("Leaf Maturation Time", &tree.settings->leafMaturationTime, 0.1, 0, highest_f32);
+		ColorEditV3("Leaf Colour", &tree.settings->leafColour);
+
+		if(InputInt("Leaf Count Per Bud", &tree.settings->leafCountPerBud, 1, 1))
+		{
+			tree.settings->leafCountPerBud = s32_max(0, tree.settings->leafCountPerBud);
+		}
+		DragV2("Leaf Size", &tree.settings->leafSize, 0.01, 0, highest_f32);		
+
+		TreePop();
+	}
+
+	if (ImGui::TreeNode("Waters"))
+	{
+		DragFloat("Water Drain Speed", &tree.settings->waterDrainSpeed, 0.01, 0, highest_f32);
+		DragFloat("Water Usage Speed", &tree.settings->waterUsageSpeed, 0.01, 0, highest_f32);
+		DragFloat("Water Reservoir Capacity", &tree.settings->waterReservoirCapacity, 0.01, 0, highest_f32);
+
+		TreePop();
+	}
+
+	if (ImGui::TreeNode("Stats"))
+	{
+		s32 budCount 				= tree.buds.count;
+		s32 vertexCount 			= tree.mesh.vertices.count;
+		s32 indexCount 				= tree.mesh.indices.count;
+		s32 leafCount 				= tree.leaves.count;
+		bool resourceLimitReached = tree.resourceLimitReached;
+
+		Value("Buds", budCount);
+		Value("Vertices", vertexCount);
+		Value("Indices", indexCount);
+		Value("Leaves", leafCount);
+		Value("Resources reached", resourceLimitReached);
+
+		f32 waterReservoir = tree.waterReservoir;
+		Value("Water", waterReservoir);
+
+		TreePop();
+	}
+/*
 	gui_toggle("Global Enable", &Tree::globalEnabled);
 	gui_toggle("Enable Updates", &tree.enabled);
 	gui_toggle("Draw Gizmos", &tree.drawGizmos);
@@ -821,6 +930,8 @@ internal void tree_gui(Tree & tree)
 	gui_line();
 
 	gui_toggle("Break On Update", &tree.breakOnUpdate);
+
+	*/
 }
 
 internal void update_tree_3(Tree & tree, f32 elapsedTime, GetWaterFunc & get_water)

@@ -140,6 +140,12 @@ static void win32_input_update(Win32PlatformInput & input, Win32PlatformWindow c
 
 		SetCursorPos((s32)cursorX, (s32)cursorY);
 	}
+	else
+	{
+		// Todo(Leo): this may not be good though, but works now
+		input.axes[InputAxis_mouse_move_x] = 0;
+		input.axes[InputAxis_mouse_move_y] = 0;
+	}
 
 	/* Note(Leo): Only get input from a single controller, locally this is a single
 	player game. Use global controller index depending on network status to test
@@ -251,6 +257,17 @@ static InputButton win32_input_button_map(WPARAM key)
 		case 'A': return InputButton_keyboard_a;
 		case 'S': return InputButton_keyboard_s;
 		case 'D': return InputButton_keyboard_d;
+		
+		case '1': return InputButton_keyboard_1;
+		case '2': return InputButton_keyboard_2;
+		case '3': return InputButton_keyboard_3;
+		case '4': return InputButton_keyboard_4;
+		case '5': return InputButton_keyboard_5;
+		case '6': return InputButton_keyboard_6;
+		case '7': return InputButton_keyboard_7;
+		case '8': return InputButton_keyboard_8;
+		case '9': return InputButton_keyboard_9;
+		case '0': return InputButton_keyboard_0;
 
 		case VK_LEFT: 	return InputButton_keyboard_left;
 		case VK_RIGHT: 	return InputButton_keyboard_right;

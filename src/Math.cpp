@@ -89,20 +89,20 @@ f32 max_f32(f32 a, f32 b)
     return (a > b) ? a : b;
 }
 
-s32 min_s32(s32 a, s32 b)
+s32 s32_min(s32 a, s32 b)
 {
     return (a < b) ? a : b;
 }
 
-s32 max_s32(s32 a, s32 b)
+s32 s32_max(s32 a, s32 b)
 {
     return (a > b) ? a : b;
 }
 
-internal s32 clamp_s32(s32 value, s32 minValue, s32 maxValue)
+internal s32 s32_clamp(s32 value, s32 minValue, s32 maxValue)
 {
-    value = max_s32(value, minValue);
-    value = min_s32(value, maxValue);
+    value = s32_max(value, minValue);
+    value = s32_min(value, maxValue);
     return value;
 }
 

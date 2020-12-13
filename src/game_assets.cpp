@@ -61,7 +61,7 @@ internal GameAssets init_game_assets(MemoryArena * allocator)
 {
 	// Note(Leo): apparently this does indeed set MeshHandles to -1, which is what we want. I do not know why, though.
 	GameAssets assets 	= {};
-	assets.file 		= platform_file_open("assets.fsa", FILE_MODE_READ);
+	assets.file 		= platform_file_open("assets.fsa", FileMode_read);
 	// platform_file_read(assets.file, 0, sizeof(AssetFileHeader), &assets.fileHeader);
 
 
@@ -143,6 +143,8 @@ internal GameAssets init_game_assets(MemoryArena * allocator)
 	assets.materialLoadInfos[MaterialAssetId_leaves] 			= {GraphicsPipeline_leaves, TextureAssetId_leaves_mask};
 	assets.materialLoadInfos[MaterialAssetId_sky] 				= {GraphicsPipeline_skybox, TextureAssetId_black, TextureAssetId_black};
 	assets.materialLoadInfos[MaterialAssetId_tree]				= {GraphicsPipeline_triplanar, TextureAssetId_tiles_albedo};
+	assets.materialLoadInfos[MaterialAssetId_building_block]	= {GraphicsPipeline_normal, TextureAssetId_tiles_2_albedo, TextureAssetId_tiles_2_normal, TextureAssetId_black};
+
 	assets.materialLoadInfos[MaterialAssetId_menu_background] 	= {GraphicsPipeline_screen_gui, TextureAssetId_menu_background};
 
 	return assets;

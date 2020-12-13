@@ -71,8 +71,8 @@ struct PlatformApiDescription;
 
 enum FileMode 
 {
-	FILE_MODE_READ,
-	FILE_MODE_WRITE,
+	FileMode_read,
+	FileMode_write,
 };
 
 using PlatformFileHandle = void*;
@@ -122,6 +122,17 @@ enum InputButton : s32
 	InputButton_keyboard_a,
 	InputButton_keyboard_s,
 	InputButton_keyboard_d,
+
+	InputButton_keyboard_1,
+	InputButton_keyboard_2,
+	InputButton_keyboard_3,
+	InputButton_keyboard_4,
+	InputButton_keyboard_5,
+	InputButton_keyboard_6,
+	InputButton_keyboard_7,
+	InputButton_keyboard_8,
+	InputButton_keyboard_9,
+	InputButton_keyboard_0,
 
 	InputButtonCount,
 

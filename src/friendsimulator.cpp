@@ -6,11 +6,13 @@ Friendsimulator game code main file.
 #if defined FS_DEVELOPMENT
 	#define _CRT_SECURE_NO_WARNINGS
 
-	#include <imgui/imgui.h>
-	#include <imgui/imgui.cpp>
-	#include <imgui/imgui_widgets.cpp>
-	#include <imgui/imgui_draw.cpp>
-	#include <imgui/imgui_demo.cpp>
+	#include <ImGui/imgui.h>
+	#include <ImGui/imgui.cpp>
+	#include <ImGui/imgui_widgets.cpp>
+	#include <ImGui/imgui_draw.cpp>
+	#include <ImGui/imgui_demo.cpp>
+
+	#include <ImGui/ImGuizmo.cpp>
 
 	#define FS_GAME_DLL
 
@@ -27,6 +29,13 @@ Friendsimulator game code main file.
 		ImGui::SetCurrentContext(imguiContext);
 	}
 
+	namespace ImGui
+	{
+	    IMGUI_API bool DragV2(const char* label, v2 * v, float v_speed = 1.0f, float v_min = 0.0f, float v_max = 0.0f, const char* format = "%.3f", ImGuiSliderFlags flags = 0)
+	    {
+	    	return DragFloat2(label, reinterpret_cast<f32*>(v), v_speed, v_min, v_max, format, flags);
+	    }
+	}
 
 #endif
 
@@ -216,7 +225,7 @@ FS_GAME_API bool32 game_update(	MemoryBlock 				gameMemory,
 	}	
 	else if (action == ACTION_LOAD_GAME)
 	{
-		PlatformFileHandle saveFile = platform_file_open("save_game.fssave", FILE_MODE_READ);
+		PlatformFileHandle saveFile = platform_file_open("save_game.fssave", FileMode_read);
 		state->loadedGame 			= game_load_game(state->persistentMemoryArena, saveFile);
 		platform_file_close(saveFile);
 	}

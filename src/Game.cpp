@@ -24,8 +24,7 @@ internal s32 game_spawn_tree(Game & game, v3 position, s32 treeTypeIndex, bool32
 #include "PlayerController3rdPerson.cpp"
 #include "FollowerController.cpp"
 
-#include "game_assets.cpp"
-#include "scene3d_monuments.cpp"
+
 
 enum CameraMode : s32
 { 
@@ -141,10 +140,16 @@ internal void physics_world_push_entity(PhysicsWorld & physicsWorld, EntityRefer
 #include "sky_settings.cpp"
 
 // Note(Leo): This maybe seems nice?
+#include "game_assets.cpp"
+#include "game_monuments.cpp"
 #include "game_waters.cpp"
 #include "game_clouds.cpp"
 #include "game_leaves.cpp"
 #include "game_trees.cpp"
+
+// Todo(Leo): actually other way aroung, but now scene saving button is on blocks editor
+#include "scene_data.cpp"
+#include "game_building_blocks.cpp"
 
 
 struct MenuState
@@ -231,7 +236,7 @@ struct Game
 
 		MeshHandle 			bigPotMesh;
 		MaterialHandle		bigPotMaterial;
-		Array<Transform3D> bigPotTransforms;
+		Array<Transform3D> 	bigPotTransforms;
 
 	// ------------------------------------------------------
 
@@ -341,22 +346,9 @@ struct Game
 	Gui 		gui;
 	CameraMode 	cameraMode;
 	bool32		drawDebugShadowTexture;
+	f32 		timeScale = 1;
 
-
-	MenuState 	menuStates[20];
-	s32 		menuStateIndex = -1;
-
-	MaterialHandle guiPanelImage;
-	v4 guiPanelColour;
-
-	// Todo(Leo): this is kinda too hacky
-	constexpr static s32 	timeScaleCount = 3;
-	s32 					timeScaleIndex;
-
-	Array<Tree> 	trees;
-	TreeSettings 	treeSettings [2];
-
-	s32 			inspectedTreeIndex;
+	Trees trees;
 
 	s32 				boxCount;
 	Transform3D * 		boxTransforms;
@@ -368,6 +360,13 @@ struct Game
 	Clouds clouds;
 
 	// ----------------------------------------------
+
+	Scene scene;
+
+	s64 selectedBuildingBlockIndex;
+
+	// ----------------------------------------------
+	
 	// AUDIO
 
 	AudioAsset * backgroundAudio;
@@ -397,7 +396,7 @@ internal void update_physics_world(PhysicsWorld & physics, Game * game, f32 elap
 			case EntityType_raccoon:	position = &game->raccoonTransforms[index].position; 	break;
 			case EntityType_water: 		position = &game->waters.positions[index]; 				break;
 			case EntityType_pot:		position = &game->potTransforms[index].position;		break;
-			case EntityType_tree_3: 	position = &game->trees[index].position; 				break;
+			case EntityType_tree_3: 	position = &game->trees.array[index].position; 			break;
 			case EntityType_box:		position = &game->boxTransforms[index].position;		break;
 
 			default:
@@ -457,8 +456,8 @@ internal auto game_get_serialized_objects(Game & game)
 	auto serializedObjects = make_property_list
 	(
 		serialize_object("sky", game.skySettings),
-		serialize_object("tree_0", game.treeSettings[0]),
-		serialize_object("tree_1", game.treeSettings[1]),
+		serialize_object("tree_0", game.trees.settings[0]),
+		serialize_object("tree_1", game.trees.settings[1]),
 		serialize_object("player_camera", game.playerCamera)
 	);
 
@@ -491,17 +490,17 @@ internal void game_spawn_water(Game & game, s32 count)
 internal s32 game_spawn_tree(Game & game, v3 position, s32 treeTypeIndex, bool32 pushToPhysics)
 {
 	// Assert(game.trees.count < game.trees.capacity);
-	if (game.trees.count >= game.trees.capacity)
+	if (game.trees.array.count >= game.trees.array.capacity)
 	{
 		// Todo(Leo): do something more interesting
 		log_debug(FILE_ADDRESS, "Trying to spawn tree, but out of tree capacity");
 		return -1;
 	}
 
-	s32 index = game.trees.count++;
-	Tree & tree = game.trees[index];
+	s32 index = game.trees.array.count++;
+	Tree & tree = game.trees.array[index];
 
-	reset_tree_3(tree, &game.treeSettings[treeTypeIndex], position);
+	reset_tree_3(tree, &game.trees.settings[treeTypeIndex], position);
 
 	tree.typeIndex 	= treeTypeIndex;
 	tree.game 		= &game;
@@ -514,7 +513,7 @@ internal s32 game_spawn_tree(Game & game, v3 position, s32 treeTypeIndex, bool32
 
 	if (pushToPhysics)
 	{
-		physics_world_push_entity(game.physicsWorld, {EntityType_tree_3, (s32)game.trees.count - 1});
+		physics_world_push_entity(game.physicsWorld, {EntityType_tree_3, (s32)game.trees.array.count - 1});
 	}
 
 	return index;
@@ -553,9 +552,6 @@ internal bool32 game_game_update(Game * 				game,
 								StereoSoundOutput *	soundOutput,
 								f32 					elapsedTimeSeconds)
 {
-	ImGui::ShowDemoWindow();
-
-
 	struct SnapOnGround
 	{
 		CollisionSystem3D & collisionSystem;
@@ -572,14 +568,12 @@ internal bool32 game_game_update(Game * 				game,
 			return result;
 		}
 	};
-
 	SnapOnGround snap_on_ground = {game->collisionSystem};
 
 	/// ****************************************************************************
 	/// TIME
 
-	f32 const timeScales [game->timeScaleCount] { 1.0f, 0.1f, 0.5f }; 
-	f32 scaledTime 		= elapsedTimeSeconds * timeScales[game->timeScaleIndex];
+	f32 scaledTime 		= elapsedTimeSeconds * game->timeScale;
 	f32 unscaledTime 	= elapsedTimeSeconds;
 
 	/// ****************************************************************************
@@ -595,7 +589,7 @@ internal bool32 game_game_update(Game * 				game,
 	// 					assets_get_material(game->assets, MaterialAssetId_sky));
 
 
-	bool playerInputAvailable = game->cameraMode == CameraMode_player && game_gui_menu_visible(game) == false;
+	bool playerInputAvailable = game->cameraMode == CameraMode_player;
 
 	// Game Logic section
 	switch (game->cameraMode)
@@ -606,10 +600,10 @@ internal bool32 game_game_update(Game * 				game,
 
 			if (playerInputAvailable)
 			{
-				if (input_button_went_down(input, InputButton_dpad_down))
-				{
-					game_gui_push_menu(game, MenuView_spawn);
-				}
+				// if (input_button_went_down(input, InputButton_dpad_down))
+				// {
+				// 	game_gui_push_menu(game, MenuView_spawn);
+				// }
 
 				if (input_button_went_down(input, InputButton_nintendo_y))
 				{
@@ -643,14 +637,14 @@ internal bool32 game_game_update(Game * 				game,
 			game->worldCamera.position = game->freeCamera.position;
 			game->worldCamera.direction = game->freeCamera.direction;
 
-			/// Document(Leo): Teleport player
-			if (game_gui_menu_visible(game) == false && input_button_went_down(input, InputButton_nintendo_a))
-			{
-				// game->menuView = MenuView_confirm_teleport;
-				game_gui_push_menu(game, MenuView_confirm_teleport);
-				gui_ignore_input();
-				gui_reset_selection();
-			}
+			// /// Document(Leo): Teleport player
+			// if (game_gui_menu_visible(game) == false && input_button_went_down(input, InputButton_nintendo_a))
+			// {
+			// 	// game->menuView = MenuView_confirm_teleport;
+			// 	game_gui_push_menu(game, MenuView_confirm_teleport);
+			// 	gui_ignore_input();
+			// 	gui_reset_selection();
+			// }
 
 			game->worldCamera.farClipPlane = 2000;
 		} break;
@@ -662,14 +656,14 @@ internal bool32 game_game_update(Game * 				game,
 			game->worldCamera.position = game->mouseCamera.position;
 			game->worldCamera.direction = game->mouseCamera.direction;
 
-			/// Document(Leo): Teleport player
-			if (game_gui_menu_visible(game) == false && input_button_went_down(input, InputButton_nintendo_a))
-			{
-				// game->menuView = MenuView_confirm_teleport;
-				game_gui_push_menu(game, MenuView_confirm_teleport);
-				gui_ignore_input();
-				gui_reset_selection();
-			}
+			// /// Document(Leo): Teleport player
+			// if (game_gui_menu_visible(game) == false && input_button_went_down(input, InputButton_nintendo_a))
+			// {
+			// 	// game->menuView = MenuView_confirm_teleport;
+			// 	game_gui_push_menu(game, MenuView_confirm_teleport);
+			// 	gui_ignore_input();
+			// 	gui_reset_selection();
+			// }
 
 			game->worldCamera.farClipPlane = 2000;
 		} break;
@@ -721,7 +715,6 @@ internal bool32 game_game_update(Game * 				game,
 
 	/// *******************************************************************************************
 	
-
 	// Todo(leo): Should these be handled differently????
 	f32 playerPickupDistance 	= 1.0f;
 	f32 playerInteractDistance 	= 1.0f;
@@ -806,13 +799,13 @@ internal bool32 game_game_update(Game * 				game,
 
 				if (pickup)
 				{
-					for (s32 i = 0; i < game->trees.count; ++i)
+					for (s32 i = 0; i < game->trees.array.count; ++i)
 					{
-						Tree & tree = game->trees[i];
+						Tree & tree = game->trees.array[i];
 
-						if (v3_length(playerPosition - game->trees[i].position) < playerPickupDistance)
+						if (v3_length(playerPosition - game->trees.array[i].position) < playerPickupDistance)
 						{
-							// if (game->trees[i].planted == false)
+							// if (game->trees.array[i].planted == false)
 							{
 								game->playerCarriedEntity = {EntityType_tree_3, i};
 							}
@@ -923,10 +916,10 @@ internal bool32 game_game_update(Game * 				game,
 
 		if (interact && playerCarriesTree)
 		{
-			game->trees[game->playerCarriedEntity.index].planted = true;
-			v3 position = game->trees[game->playerCarriedEntity.index].position;
+			game->trees.array[game->playerCarriedEntity.index].planted = true;
+			v3 position = game->trees.array[game->playerCarriedEntity.index].position;
 			position.z = get_terrain_height(game->collisionSystem, position.xy);
-			game->trees[game->playerCarriedEntity.index].position = position;
+			game->trees.array[game->playerCarriedEntity.index].position = position;
 			game->playerCarriedEntity.index = -1;
 			game->playerCarriedEntity.type = EntityType_none;			
 
@@ -986,8 +979,8 @@ internal bool32 game_game_update(Game * 				game,
 				} break;
 
 				case EntityType_tree_3:
-					game->trees[carriedEntities[i].index].position = carriedPosition;
-					game->trees[carriedEntities[i].index].rotation = carriedRotation;
+					game->trees.array[carriedEntities[i].index].position = carriedPosition;
+					game->trees.array[carriedEntities[i].index].rotation = carriedRotation;
 					break;
 
 				default:
@@ -1275,7 +1268,7 @@ internal bool32 game_game_update(Game * 				game,
 
 
 		// NEW TREES 3
-		for (auto tree : game->trees)
+		for (auto tree : game->trees.array)
 		{
 			CylinderCollider collider =
 			{
@@ -1289,6 +1282,32 @@ internal bool32 game_game_update(Game * 				game,
 
 		submit_box_collider(game->collisionSystem, {{0.5,0.5,0.5}, identity_quaternion, {0,0,0.5}}, game->boxTransforms[0]);
 		submit_box_collider(game->collisionSystem, {{0.5,0.5,0.5}, identity_quaternion, {0,0,0.5}}, game->boxTransforms[1]);
+
+		/// BUILDING BLOCKS
+		for (s32 i = 0; i < game->scene.buildingBlocks.count; ++i)
+		{
+			// v3 position = multiply_point(game->scene.buildingBlocks[i], {0,0,0});
+			// v3 scale 	= multiply_direction(game->scene.buildingBlocks[i], {1,1,1});
+
+			// v3 position;
+			// v3 eulerRotation;
+			// v3 scale;
+
+			// ImGuizmo::DecomposeMatrixToComponents(reinterpret_cast<f32*>(&game->scene.buildingBlocks[i]),
+			// 										reinterpret_cast<f32*>(&position),
+			// 										reinterpret_cast<f32*>(&eulerRotation),
+			// 										reinterpret_cast<f32*>(&scale));
+
+			// https://math.stackexchange.com/questions/893984/conversion-of-rotation-matrix-to-quaternion
+
+			// eulerRotation *= (π / 180.0f);
+
+			submit_box_collider(game->collisionSystem,
+								{{1,1,1}, identity_quaternion, {0,0,0}},
+								game->scene.buildingBlocks[i]);
+								// {position, euler_angles_quaternion(eulerRotation), scale});
+								// {game->scene.buildingBlocks[i], identity_quaternion, {1,1,1}});
+		}
 	}
 
 	update_skeleton_animator(game->playerSkeletonAnimator, scaledTime);
@@ -1511,7 +1530,7 @@ internal bool32 game_game_update(Game * 				game,
 	draw_clouds(game->clouds, platformGraphics, game->assets);
 	draw_waters(game->waters, platformGraphics, game->assets);
 
-	for (auto & tree : game->trees)
+	for (auto & tree : game->trees.array)
 	{
 		GetWaterFunc get_water = {game->waters, game->playerCarriedEntity.index, game->playerCarriedEntity.type == EntityType_water };
 		update_tree_3(tree, scaledTime, get_water);
@@ -1558,10 +1577,23 @@ internal bool32 game_game_update(Game * 				game,
 	}
 
 	{
-		for (auto & tree : game->trees)
+		for (auto & tree : game->trees.array)
 		{
 			draw_leaves(tree.leaves, scaledTime, tree.settings->leafSize, tree.settings->leafColour);
 		}
+	}
+
+	{
+		m44 * buildingBlockTransforms = push_memory<m44>(*global_transientMemory, game->scene.buildingBlocks.count, ALLOC_GARBAGE);
+		for (s64 i = 0; i < game->scene.buildingBlocks.count; ++i)
+		{
+			buildingBlockTransforms[i] = game->scene.buildingBlocks[i];
+		}
+		graphics_draw_meshes(	platformGraphics,
+								game->scene.buildingBlocks.count,
+								buildingBlockTransforms,
+								assets_get_mesh(game->assets, MeshAssetId_cube),
+								assets_get_material(game->assets, MaterialAssetId_building_block));
 	}
 
 	// ---------- PROCESS AUDIO -------------------------
@@ -1612,24 +1644,14 @@ internal bool32 game_game_update(Game * 				game,
 
 	// ------------------------------------------------------------------------
 
-	bool32 toggle_menu = input_button_went_down(input, InputButton_start)
-						|| input_button_went_down(input, InputButton_keyboard_escape);
+	// bool32 toggle_menu = input_button_went_down(input, InputButton_start)
+	// 					|| input_button_went_down(input, InputButton_keyboard_escape);
 
-	if (toggle_menu && game_gui_menu_visible(game) == false)
-	{
-		game_gui_push_menu(game, MenuView_main);
-	}
 
 	auto gui_result = do_gui(game, input);
 
 	gui_end_frame();
 
-
-	// if (game->settings.dirty)
-	// {
-	// 	write_settings_file(game->settings, game);
-	// 	game->settings.dirty = false;
-	// }
 
 	return gui_result;
 }
@@ -1656,9 +1678,9 @@ internal Game * game_load_game(MemoryArena & persistentMemory, PlatformFileHandl
 	game->assets 			= init_game_assets(&persistentMemory);
 	game->collisionSystem 	= init_collision_system(persistentMemory);
 
-	game->gui = init_game_gui(game->assets);
-	game->menuStateIndex 		= 0;
-	game->menuStates[0].view 	= MenuView_off;
+	game->gui = {}; // Todo(Leo): remove this we now use ImGui
+	// game->menuStateIndex 		= 0;
+	// game->menuStates[0].view 	= MenuView_off;
 
 	initialize_physics_world(game->physicsWorld, persistentMemory);
 
@@ -2088,12 +2110,12 @@ internal Game * game_load_game(MemoryArena & persistentMemory, PlatformFileHandl
 	// ----------------------------------------------------------------------------------
 	
 	{	
-		game->trees = push_array<Tree>(persistentMemory, 200, ALLOC_ZERO_MEMORY);
-		for (s32 i = 0; i < game->trees.capacity; ++i)
+		game->trees.array = push_array<Tree>(persistentMemory, 200, ALLOC_ZERO_MEMORY);
+		for (s32 i = 0; i < game->trees.array.capacity; ++i)
 		{
-			allocate_tree_memory(persistentMemory, game->trees.memory[i]);
+			allocate_tree_memory(persistentMemory, game->trees.array.memory[i]);
 		}
-		game->inspectedTreeIndex = 0;
+		game->trees.selectedIndex = 0;
 	}
 
 	{
@@ -2122,6 +2144,13 @@ internal Game * game_load_game(MemoryArena & persistentMemory, PlatformFileHandl
 	// ----------------------------------------------------------------------------------
 
 	initialize_clouds(game->clouds, persistentMemory);
+
+	// ----------------------------------------------------------------------------------
+
+	game->scene.buildingBlocks = push_array<m44>(persistentMemory, 1000, ALLOC_GARBAGE);
+	scene_asset_load_2(game->scene);
+
+	game->selectedBuildingBlockIndex = 0;
 
 	// ----------------------------------------------------------------------------------
 

@@ -47,6 +47,13 @@ int main()
 
 	_chdir("textures/");
 
+	// Todo(Leo): do this maybe
+	// enum TextureAssetType
+	// {
+	// 	TextureAssetType_albedo,
+	// 	TextureAssetType_normal,
+	// };
+
 	struct TextureAssetInfo
 	{
 		TextureAssetId 	id;
@@ -75,6 +82,9 @@ int main()
 		{ TextureAssetId_heightmap, 		"heightmap_island.png" },
 
 		{ TextureAssetId_menu_background, 	"keyart.png" },
+
+		{ TextureAssetId_tiles_2_albedo,  	"DungeonTiles_albedo.png" },
+		{ TextureAssetId_tiles_2_normal,  	"DungeonTiles_normal.png",	TextureFormat_u8_linear },
 	};
 
 	for (auto & texture : textures)
@@ -115,6 +125,8 @@ int main()
 		{ MeshAssetId_box_cover, 	"box.glb",		"cover" },
 		{ MeshAssetId_cloud, 		"cloud.glb", 	"cloud" },
 		{ MeshAssetId_rain,			"cloud.glb", 	"rain" },
+
+		{ MeshAssetId_cube,			"cube_2m.glb", 	"Cube" },
 	};
 
 	for (auto & mesh : meshes)

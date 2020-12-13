@@ -136,3 +136,57 @@ internal void monuments_refresh_transforms(Monuments & monuments, CollisionSyste
 		monuments.transforms[i] = {position, rotation, {2,2,2}};
 	}
 }
+
+static void monuments_editor(Monuments & monuments, CollisionSystem3D & collisionSystem)
+{
+	using namespace ImGui;
+
+	// Todo(Leo): Use move gizmo and rotation
+	for (s32 i = 0; i < monuments.count; ++i)
+	{
+		PushID(i);
+
+		Text("Monument %i", i);
+
+		float rotation = monuments.monuments[i].rotation;
+		if (DragFloat("Rotation", &rotation))
+		{
+			if (rotation > 360)
+			{
+				rotation = mod_f32(rotation, 360);
+			}
+
+			if (rotation < 0)
+			{
+				rotation = 360 - mod_f32(rotation, 360);
+			}
+
+			monuments.monuments[i].rotation = rotation;
+			monuments.transforms[i].rotation 	= quaternion_axis_angle(v3_up, to_radians(rotation));						
+		}
+
+
+		v2 xy = monuments.monuments[i].position;
+		if (DragV2("Position XY", &xy))
+		{
+			v3 position = {xy.x, xy.y, get_terrain_height(collisionSystem, xy)};
+			monuments.monuments[i].position = position.xy;
+			monuments.transforms[i].position = position;
+		}
+
+
+		FS_DEBUG_ALWAYS
+		(
+			v3 position = (monuments.transforms[i].position + v3{0,0,30});
+
+			v3 right = rotate_v3(monuments.transforms[i].rotation, v3_right);
+			debug_draw_line(position - right * 300, position + right * 300, colour_bright_red);										
+
+			v3 forward = rotate_v3(monuments.transforms[i].rotation, v3_forward);
+			debug_draw_line(position - forward * 300, position + forward * 300, colour_bright_red);
+		)
+
+		Separator();
+		PopID();
+	}
+}

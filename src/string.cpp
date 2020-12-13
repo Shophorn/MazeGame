@@ -9,13 +9,18 @@ TODO(LEO): I had some mental designual issues with generic append and parse func
 	
 */
 
+#include <cstdio> // snprintf
+
 struct String
 {
-	s32 	length;
+	s64 	length;
 	char * 	memory;
 
 	char & operator [] (s32 index) { return memory[index]; }
 	char operator [] (s32 index) const { return memory[index]; }
+
+	char * begin() { return memory; }
+	char * end() { return memory + length; }
 };
 
 // Todo(Leo): This is "dangerous", we are casting the const away :) Let's just be careful
@@ -288,145 +293,22 @@ internal void string_append_cstring(String & string, s32 capacity, char const * 
 	string_append_string(string, capacity, from_cstring(cstring));
 }
 
-internal void string_append_f32(String & string, s32 capacity, f32 value, s32 precision = 8)
-{	
-	// Todo(Leo): check that range is valid
-
-	constexpr s32 digitCapacity = 8;
-
-	// Note(Leo): added one is for possible negative sign
-	char digits[digitCapacity + 1] = {};
-	s32 characterCount = 0;
-
-	memory_set(digits, '0', array_count(digits));
-	Assert((capacity - string.length) > array_count(digits))
-	
-
-	if (value < 0)
-	{
-		digits[characterCount++] = '-';
-		value = abs_f32(value);
-	}
-
-	constexpr s32 maxExponent 	= 6;
-	
-	constexpr f32 powers [2 * maxExponent + 1] =
-	{
-		0.000001,
-		0.00001,
-		0.0001,
-		0.001,
-		0.01,
-		0.1,
-		1,
-		10,
-		100,
-		1000,
-		10000,
-		100000,
-		1000000,
-	};
-
-	auto get_digit = [&powers, value](s32 exponent) -> char
-	{
-		f32 power 	= powers[exponent + maxExponent];
-	
-		// Note(Leo): Modulo limits upper bound, max limits lower bound;
-		s32 digit 	= ((s32)(value / power)) % 10;
-		digit 		= max_s32(0, digit);
-	
-		return '0' + (char)digit;
-	};
-
-	s32 exponent 	= maxExponent;
-
-	bool addedValueAboveOne = false;
-	// Note(Leo): first loop to find first number, so we don't write leading zeros wastefully
-	while(exponent >= 0)
-	{
-		char digit = get_digit(exponent);
-		exponent--;
-
-		if (digit != '0')
-		{
-			// Note(Leo): characterCount includes decimal point and minus sign
-			digits[characterCount++] 	= digit;
-			addedValueAboveOne 			= true;
-			break;
-		}
-	}
-
-	if (!addedValueAboveOne)
-	{
-		digits[characterCount++] = '0';
-	}
-
-	s32 digitCount = 1;
-
-	// Note(Leo): second loop to find rest
-	while((characterCount < array_count(digits)) && (digitCount < precision)  && (exponent >= -maxExponent))
-	{
-		if (exponent == -1)
-		{
-			digits[characterCount++] = '.';
-		}
-		
-		digits[characterCount++] = get_digit(exponent);
-
-		digitCount++;
-		exponent--;
-	}
-
-	string_append_string(string, capacity, String{characterCount, digits});
+static void string_append_f32(String & string, s64 capacity, f32 value)
+{
+	s64 length 		= snprintf(string.end(), capacity - string.length, "%f", value);
+	string.length 	+= length;
 }
 
-internal void string_append_s32(String & string, s32 capacity, s32 value)
-{	
-	// Todo(Leo): check that range is valid
+static void string_append_s32(String & string, s64 capacity, s32 value)
+{
+	s64 length 		= snprintf(string.end(), capacity - string.length, "%i", value);
+	string.length 	+= length;	
+}
 
-	// Note(Leo): these are connected
-	constexpr s32 digitCapacity 	= 8;
-	constexpr s32 startMultiplier 	= 10'000'000;
-
-	// Note(Leo): added one is for possible negative sign
-	char digits[digitCapacity + 1] = {};
-	memory_set(digits, '0', array_count(digits));
-	s32 digitCount = 0;
-
-	Assert((capacity - string.length) > array_count(digits));
-
-	if (value == 0)
-	{
-		string[string.length++] = '0';
-		// *string.end() = '0';
-		// string.length += 1;
-	}
-	else
-	{
-		if (value < 0)
-		{
-			value *= -1;
-			digits[digitCount++] = '-';
-		}
-
-		s32 multiplier 				= startMultiplier;
-		bool32 firstNonZeroFound 	= false;
-
-		for (s32 i = 0; i < digitCapacity; ++i)
-		{
-			s32 valueAtMultiplier = (value / multiplier) % 10;
-			multiplier /= 10;
-
-			firstNonZeroFound = firstNonZeroFound || (valueAtMultiplier > 0);
-
-			if (firstNonZeroFound)
-			{
-				digits[digitCount++] = '0' + valueAtMultiplier;
-			}
-		}
-
-		string_append_string(string, capacity, {digitCount, digits});
-	}
+static void string_append_s64(String & string, s64 capacity, s64 value)
+{
+	s64 length 		= snprintf(string.end(), capacity - string.length, "%lli", value);
+	string.length 	+= length;
 }
 
 internal void string_append_char(String & string, s32 capacity, char character)
@@ -440,6 +322,7 @@ GENERIC_STRING_APPEND(String, string_append_string);
 GENERIC_STRING_APPEND(char const *, string_append_cstring);
 GENERIC_STRING_APPEND(f32, string_append_f32);
 GENERIC_STRING_APPEND(s32, string_append_s32);
+GENERIC_STRING_APPEND(s64, string_append_s64);
 GENERIC_STRING_APPEND(char, string_append_char);
 
 #undef GENERIC_STRING_APPEND

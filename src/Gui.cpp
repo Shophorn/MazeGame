@@ -748,7 +748,7 @@ internal bool gui_int_field(char const * label, s32 * value, GuiClampValuesS32 c
 			modified 	= true;
 		}
 	}
-	*value = clamp_s32(*value, clamp.min, clamp.max);
+	*value = s32_clamp(*value, clamp.min, clamp.max);
 
 
 	v4 colour = isSelected ? gui.selectedTextColor : gui.textColor;
@@ -825,7 +825,7 @@ internal bool gui_float_value_field(char const * label, f32 * value, GuiClampVal
 	s32 capacity = 16;
 	String string = push_temp_string(capacity);
 	string_append_format(string, capacity, label, ": ");
-	string_append_f32(string, capacity, *value, 4);
+	string_append_f32(string, capacity, *value);
 
 	// f32 backUpCursorX = gui.panelCursorX;
 	// gui.panelCursorX = 0;

@@ -47,10 +47,9 @@ static f32 * v3_array(v3 & v)
 	return reinterpret_cast<f32*>(&v);
 }
 
-internal void sky_gui(SkySettings & settings)
+internal void sky_editor(SkySettings & settings)
 {
-	using namespace ImGui;	
-	Begin("Sky Settings");
+	using namespace ImGui;
 
 	SliderFloat("Sun Height Angle", &settings.sunHeightAngle, -1, 1);
 	SliderFloat("Sun Orbit Angle", &settings.sunOrbitAngle, -1, 1);
@@ -81,6 +80,4 @@ internal void sky_gui(SkySettings & settings)
 
 	SliderFloat("HDR Exposure", &settings.hdrExposure, 0.1, 10);
 	SliderFloat("HDR Contrast", &settings.hdrContrast, -0.5, 1);
-
-	End();
 };

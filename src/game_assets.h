@@ -33,6 +33,8 @@ enum MeshAssetId : s32
 	MeshAssetId_cloud,
 	MeshAssetId_rain,
 
+	MeshAssetId_cube,
+
 	MeshAssetIdCount
 };
 
@@ -45,6 +47,7 @@ enum TextureAssetId : s32
 	TextureAssetId_bark_albedo,
 	TextureAssetId_raccoon_albedo,
 	TextureAssetId_robot_albedo,
+	TextureAssetId_tiles_2_albedo,
 
 	TextureAssetId_leaves_mask,
 
@@ -52,6 +55,7 @@ enum TextureAssetId : s32
 	TextureAssetId_tiles_normal,
 	TextureAssetId_bark_normal,
 	TextureAssetId_robot_normal,
+	TextureAssetId_tiles_2_normal,
 
 	TextureAssetId_white,
 	TextureAssetId_black,
@@ -80,6 +84,7 @@ enum MaterialAssetId : s32
 	MaterialAssetId_leaves,
 	MaterialAssetId_box,
 	MaterialAssetId_clouds,
+	MaterialAssetId_building_block,
 
 	MaterialAssetId_menu_background,
 

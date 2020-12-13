@@ -195,16 +195,16 @@ internal void draw_clouds(Clouds & clouds, PlatformGraphics * graphics, GameAsse
 	}
 }
 
-internal void clouds_menu(Clouds & clouds)
+internal void clouds_editor(Clouds & clouds)
 {
-	gui_start_panel("EDIT CLOUDS", {});
+	using namespace ImGui;
 
-	gui_float_field("Grow speed", &clouds.growSpeed);
-	gui_float_field("Cloud altitude", &clouds.altitude);
-	gui_float_field("Wind Speed", &clouds.windSpeed);
+	DragFloat("Grow speed", &clouds.growSpeed, 0.1);
+	DragFloat("Cloud altitude", &clouds.altitude, 0.1);
+	DragFloat("Wind Speed", &clouds.windSpeed, 0.1);
 
 	f32 windDirectionAngleDegrees = to_degrees(clouds.windDirectionAngle);
-	if (gui_float_field("Wind Direction Angle", &windDirectionAngleDegrees))
+	if (DragFloat("Wind Direction Angle", &windDirectionAngleDegrees, 0.1))
 	{
 		if (windDirectionAngleDegrees < 0)
 		{
@@ -213,9 +213,6 @@ internal void clouds_menu(Clouds & clouds)
 		clouds.windDirectionAngle = to_radians(mod_f32(windDirectionAngleDegrees, 360));
 	}
 
-	gui_float_field("Rain Size Threshold", &clouds.rainSizeThreshold);
-	gui_float_field("Rain Size Decrease Speed", &clouds.rainSizeDecreaseSpeed);
-
-	gui_end_panel();
-
+	DragFloat("Rain Size Threshold", &clouds.rainSizeThreshold, 0.1);
+	DragFloat("Rain Size Decrease Speed", &clouds.rainSizeDecreaseSpeed, 0.1);
 }

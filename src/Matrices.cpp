@@ -185,3 +185,52 @@ internal v3 get_translation(m44 matrix)
 	v3 translation = multiply_point(matrix, {0,0,0});
 	return translation;
 }
+
+// From: https://stackoverflow.com/questions/2624422/efficient-4x4-matrix-inverse-affine-transform
+// public static double[,] GetInverse(double[,] a)
+static m44 m44_inverse(m44 & m)
+{
+	// f32  *  * a = reinterpret_cast<f32  *  *>(&m);
+	auto & a = m;
+
+    f32 s0 = a[0].x * a[1].y - a[1].x * a[0].y;
+    f32 s1 = a[0].x * a[1].z - a[1].x * a[0].z;
+    f32 s2 = a[0].x * a[1].w - a[1].x * a[0].w;
+    f32 s3 = a[0].y * a[1].z - a[1].y * a[0].z;
+    f32 s4 = a[0].y * a[1].w - a[1].y * a[0].w;
+    f32 s5 = a[0].z * a[1].w - a[1].z * a[0].w;
+
+    f32 c5 = a[2].z * a[3].w - a[3].z * a[2].w;
+    f32 c4 = a[2].y * a[3].w - a[3].y * a[2].w;
+    f32 c3 = a[2].y * a[3].z - a[3].y * a[2].z;
+    f32 c2 = a[2].x * a[3].w - a[3].x * a[2].w;
+    f32 c1 = a[2].x * a[3].z - a[3].x * a[2].z;
+    f32 c0 = a[2].x * a[3].y - a[3].x * a[2].y;
+
+    // Should check for 0 determinant
+    f32 invdet = 1.0 / (s0 * c5 - s1 * c4 + s2 * c3 + s3 * c2 - s4 * c1 + s5 * c0);
+
+    m44 result;
+    auto & b = result;
+    b[0].x = ( a[1].y * c5 - a[1].z * c4 + a[1].w * c3) * invdet;
+    b[0].y = (-a[0].y * c5 + a[0].z * c4 - a[0].w * c3) * invdet;
+    b[0].z = ( a[3].y * s5 - a[3].z * s4 + a[3].w * s3) * invdet;
+    b[0].w = (-a[2].y * s5 + a[2].z * s4 - a[2].w * s3) * invdet;
+
+    b[1].x = (-a[1].x * c5 + a[1].z * c2 - a[1].w * c1) * invdet;
+    b[1].y = ( a[0].x * c5 - a[0].z * c2 + a[0].w * c1) * invdet;
+    b[1].z = (-a[3].x * s5 + a[3].z * s2 - a[3].w * s1) * invdet;
+    b[1].w = ( a[2].x * s5 - a[2].z * s2 + a[2].w * s1) * invdet;
+
+    b[2].x = ( a[1].x * c4 - a[1].y * c2 + a[1].w * c0) * invdet;
+    b[2].y = (-a[0].x * c4 + a[0].y * c2 - a[0].w * c0) * invdet;
+    b[2].z = ( a[3].x * s4 - a[3].y * s2 + a[3].w * s0) * invdet;
+    b[2].w = (-a[2].x * s4 + a[2].y * s2 - a[2].w * s0) * invdet;
+
+    b[3].x = (-a[1].x * c3 + a[1].y * c1 - a[1].z * c0) * invdet;
+    b[3].y = ( a[0].x * c3 - a[0].y * c1 + a[0].z * c0) * invdet;
+    b[3].z = (-a[3].x * s3 + a[3].y * s1 - a[3].z * s0) * invdet;
+    b[3].w = ( a[2].x * s3 - a[2].y * s1 + a[2].z * s0) * invdet;
+
+    return result;
+}

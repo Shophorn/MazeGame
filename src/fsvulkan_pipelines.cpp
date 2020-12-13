@@ -36,7 +36,7 @@ internal VkDescriptorSetLayout fsvulkan_make_material_descriptor_set_layout(VkDe
 
 internal VkShaderModule fsvulkan_make_shader_module(VkDevice device, char const * sourceFilename)
 {
-	PlatformFileHandle file = platform_file_open(sourceFilename, FILE_MODE_READ);
+	PlatformFileHandle file = platform_file_open(sourceFilename, FileMode_read);
 	s64 fileSize 			= platform_file_get_size(file);
 
 	u32 * memory = reinterpret_cast<u32*>(malloc(fileSize));

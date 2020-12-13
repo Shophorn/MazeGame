@@ -91,6 +91,15 @@ internal void submit_cylinder_collider(CollisionSystem3D & system, CylinderColli
 	system.submittedCylinderColliders.push(collider);
 }
 
+internal void submit_box_collider(CollisionSystem3D & system, BoxCollider collider, m44 & transformMatrix)
+{
+	m44 colliderMatrix 			= transform_matrix(collider.center, collider.orientation, collider.extents);
+	m44 inverseColliderMatrix 	= inverse_transform_matrix(collider.center, collider.orientation, collider.extents);
+	m44 inverseTransformMatrix 	= m44_inverse(transformMatrix);
+
+	system.submittedBoxColliders.push({transformMatrix * colliderMatrix, inverseColliderMatrix * inverseTransformMatrix});
+};
+
 internal void submit_box_collider(CollisionSystem3D & system, BoxCollider collider, Transform3D const & transform)
 {
 	m44 transformMatrix = compute_box_collider_transform(collider, transform);

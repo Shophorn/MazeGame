@@ -134,11 +134,11 @@ internal f32 sample_heightmap_for_mc(v3 position, void const * dataPtr)
 	s32 iy1 = iy0 + 1;
 	f32 ty 	= iy0 - position.y;
 
-	ix0 = clamp_s32(ix0, 0, map->gridSize - 1);
-	iy0 = clamp_s32(iy0, 0, map->gridSize - 1);
+	ix0 = s32_clamp(ix0, 0, map->gridSize - 1);
+	iy0 = s32_clamp(iy0, 0, map->gridSize - 1);
 
-	ix1 = clamp_s32(ix1, 0, map->gridSize - 1);
-	iy1 = clamp_s32(iy1, 0, map->gridSize - 1);
+	ix1 = s32_clamp(ix1, 0, map->gridSize - 1);
+	iy1 = s32_clamp(iy1, 0, map->gridSize - 1);
 
 	f32 values [4] =
 	{
@@ -174,13 +174,13 @@ internal f32 sample_voxel_field(v3 position, void const * dataPtr)
 	s32 iz1 = iz0 + 1;
 	f32 tz 	= iz0 - position.z;
 
-	ix0 = clamp_s32(ix0, 0, field->xSize - 1);
-	iy0 = clamp_s32(iy0, 0, field->ySize - 1);
-	iz0 = clamp_s32(iz0, 0, field->zSize - 1);
+	ix0 = s32_clamp(ix0, 0, field->xSize - 1);
+	iy0 = s32_clamp(iy0, 0, field->ySize - 1);
+	iz0 = s32_clamp(iz0, 0, field->zSize - 1);
 
-	ix1 = clamp_s32(ix1, 0, field->xSize - 1);
-	iy1 = clamp_s32(iy1, 0, field->ySize - 1);
-	iz1 = clamp_s32(iz1, 0, field->zSize - 1);
+	ix1 = s32_clamp(ix1, 0, field->xSize - 1);
+	iy1 = s32_clamp(iy1, 0, field->ySize - 1);
+	iz1 = s32_clamp(iz1, 0, field->zSize - 1);
 
 	f32 v000 = field->memory[ix0 + iy0 * (s32)field->xSize + (s32)(iz0 * field->xSize * field->ySize)];
 	f32 v100 = field->memory[ix1 + iy0 * (s32)field->xSize + (s32)(iz0 * field->xSize * field->ySize)];

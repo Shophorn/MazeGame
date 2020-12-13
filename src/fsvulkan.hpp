@@ -266,9 +266,11 @@ struct PlatformGraphics
 
     // ----------------------------------------------
 
+    // Todo(Leo): These are now overridden in render target create function, make these used and controlled nicely
     u32 sceneRenderTargetWidth = 320;
     u32 sceneRenderTargetHeight = 180;
 
+    // Note(Leo): this is nice!
     VulkanSceneRenderTarget 	sceneRenderTargets[VIRTUAL_FRAME_COUNT];
 	VkDeviceMemory 				sceneRenderTargetsAttachmentMemory;
 	VkDescriptorSet 			sceneRenderTargetSamplerDescriptors[VIRTUAL_FRAME_COUNT];
