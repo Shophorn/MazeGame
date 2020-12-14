@@ -9,7 +9,7 @@ f32 move_towards(f32 target, f32 elapsedTime, BufferedPercent & buffer)
 	if (target < buffer.current)
 	{
 		buffer.current -= elapsedTime / buffer.duration;
-		buffer.current = max_f32(target, buffer.current);
+		buffer.current = f32_max(target, buffer.current);
 	}
 	else if (target > buffer.current)
 	{
@@ -180,7 +180,7 @@ update_character_motor( CharacterMotor & 	motor,
 	else if (speed < motor.currentSpeed)
 	{
 		motor.currentSpeed += motor.deceleration * elapsedTime;
-		motor.currentSpeed = max_f32(motor.currentSpeed, speed);
+		motor.currentSpeed = f32_max(motor.currentSpeed, speed);
 	}
 
 	speed = motor.currentSpeed;
@@ -192,7 +192,7 @@ update_character_motor( CharacterMotor & 	motor,
 	{
 		if (motor.landingTimer > 0)
 		{
-			motor.landingTimer = max_f32(motor.landingTimer -elapsedTime, 0.0f);
+			motor.landingTimer = f32_max(motor.landingTimer -elapsedTime, 0.0f);
 
 			// Note(Leo): this is basically a relative time passed, to be used in other evaluations too
 			// landingValue = motor.landingDepth * (1 - mathfun_smooth_f32((motor.landingDuration - motor.landingTimer) / motor.landingDuration));
@@ -302,7 +302,7 @@ update_character_motor( CharacterMotor & 	motor,
 		if(motor.jumpTimer > 0)
 		{
 			motor.jumpTimer -= elapsedTime;
-			motor.jumpTimer = max_f32(motor.jumpTimer - elapsedTime, 0.0f);
+			motor.jumpTimer = f32_max(motor.jumpTimer - elapsedTime, 0.0f);
 
 			// Note(Leo): Sorry future me, math is fun :D If this is confusing try plotting it in desmos.com
 			crouchWeightFromJumping = mathfun_smooth_f32(1.0f - abs_f32((-2 * motor.jumpTimer + motor.jumpDuration) / motor.jumpDuration));
@@ -326,13 +326,13 @@ update_character_motor( CharacterMotor & 	motor,
 		f32 groundRaySkinWidth 	= 1.0f;
 		v3 groundRayStart 		= motor.transform->position + v3{0,0,groundRaySkinWidth};
 		v3 groundRayDirection 	= -v3_up;
-		f32 groundRayLength 	= groundRaySkinWidth + max_f32(0.1f, abs_f32(motor.zSpeed));
+		f32 groundRayLength 	= groundRaySkinWidth + f32_max(0.1f, abs_f32(motor.zSpeed));
 
 		RaycastResult rayResult;
 		if (raycast_3d(&collisionSystem, groundRayStart, groundRayDirection, groundRayLength, &rayResult))
 		{
 			// Notice: Only store more dramatic state
-			groundHeight 	= max_f32(groundHeight, rayResult.hitPosition.z);
+			groundHeight 	= f32_max(groundHeight, rayResult.hitPosition.z);
 			grounded 		= grounded || motor.transform->position.z < (groundThreshold + groundHeight);
 
 			FS_DEBUG(debugLevel, debug_draw_line(motor.transform->position, rayResult.hitPosition, colour_dark_red));
@@ -378,7 +378,7 @@ update_character_motor( CharacterMotor & 	motor,
 	}
 	else
 	{
-		motor.zSpeed = max_f32(0.0f, motor.zSpeed);
+		motor.zSpeed = f32_max(0.0f, motor.zSpeed);
         motor.transform->position.z = groundHeight;
 	}
 
@@ -421,6 +421,6 @@ update_character_motor( CharacterMotor & 	motor,
 
 	override_weight(FALL, mathfun_smooth_f32(motor.fallPercent.current));
 	override_weight(JUMP, mathfun_smooth_f32(motor.jumpPercent.current));
-	override_weight(CROUCH, max_f32(crouchWeightFromJumping, crouchWeightFromLanding));
+	override_weight(CROUCH, f32_max(crouchWeightFromJumping, crouchWeightFromLanding));
 	
 } // update_character()

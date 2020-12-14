@@ -134,6 +134,8 @@ enum InputButton : s32
 	InputButton_keyboard_9,
 	InputButton_keyboard_0,
 
+	InputButton_keyboard_left_alt,
+
 	InputButtonCount,
 
 	// Note(Leo): these are merely different mappings, that may be more useful in certain contexts
@@ -171,6 +173,12 @@ enum InputDevice : s32
 {
 	InputDevice_gamepad,
 	InputDevice_mouse_and_keyboard,
+};
+
+enum PlatformWindowSetting
+{
+	PlatformWindowSetting_cursor_hidden_and_locked,
+	PlatformWindowSetting_fullscreen,
 };
 
 
@@ -224,9 +232,9 @@ static f64 					FS_PLATFORM_API(platform_time_elapsed_seconds)(s64 start, s64 en
 
 static u32 					FS_PLATFORM_API(platform_window_get_width) (PlatformWindow const *);
 static u32 					FS_PLATFORM_API(platform_window_get_height) (PlatformWindow const *);
-static bool32 				FS_PLATFORM_API(platform_window_get_fullscreen) (PlatformWindow const *);
-static void 				FS_PLATFORM_API(platform_window_set_fullscreen) (PlatformWindow*, bool32 value);
-static void 				FS_PLATFORM_API(platform_window_set_cursor_visible) (PlatformWindow*, bool32 value);
+
+static void 				FS_PLATFORM_API(platform_window_set)(PlatformWindow*, PlatformWindowSetting, bool32);
+static bool32 				FS_PLATFORM_API(platform_window_get)(PlatformWindow*, PlatformWindowSetting);
 
 static bool32 				FS_PLATFORM_API(input_button_went_down) (PlatformInput*, InputButton);
 static bool32 				FS_PLATFORM_API(input_button_is_down) (PlatformInput*, InputButton);
@@ -234,8 +242,6 @@ static bool32 				FS_PLATFORM_API(input_button_went_up) (PlatformInput*, InputBu
 static f32 					FS_PLATFORM_API(input_axis_get_value) (PlatformInput * input, InputAxis axis);
 static v2 					FS_PLATFORM_API(input_cursor_get_position) (PlatformInput * input);
 static bool32 				FS_PLATFORM_API(input_is_device_used) (PlatformInput *, InputDevice);
-
-// static void 				FS_PLATFORM_API(graphics_set)(PlatformGraphics*, GraphicsSetting, void const *);
 
 static void 				FS_PLATFORM_API(graphics_drawing_update_camera)(PlatformGraphics*, Camera const *);
 static void 				FS_PLATFORM_API(graphics_drawing_update_lighting)(PlatformGraphics*, Light const *, Camera const * camera, v3 ambient);
@@ -283,9 +289,12 @@ struct PlatformApiDescription
 
 	FS_PLATFORM_FUNC_PTR(platform_window_get_width) windowGetWidth;
 	FS_PLATFORM_FUNC_PTR(platform_window_get_height) windowGetHeight;
-	FS_PLATFORM_FUNC_PTR(platform_window_get_fullscreen) windowIsFullscreen;
-	FS_PLATFORM_FUNC_PTR(platform_window_set_fullscreen) windowSetFullscreen;
-	FS_PLATFORM_FUNC_PTR(platform_window_set_cursor_visible) windowSetCursorVisible;
+	// FS_PLATFORM_FUNC_PTR(platform_window_get_fullscreen) windowIsFullscreen;
+	// FS_PLATFORM_FUNC_PTR(platform_window_set_fullscreen) windowSetFullscreen;
+	// FS_PLATFORM_FUNC_PTR(platform_window_set_cursor_locked) windowSetCursorVisible;
+	FS_PLATFORM_FUNC_PTR(platform_window_get) platformWindowGet;
+	FS_PLATFORM_FUNC_PTR(platform_window_set) platformWindowSet;
+
 
 	FS_PLATFORM_FUNC_PTR(input_button_went_down) buttonWentDown;
 	FS_PLATFORM_FUNC_PTR(input_button_is_down) buttonIsDown;
@@ -334,9 +343,12 @@ void platform_set_api(PlatformApiDescription * api)
 
 	FS_PLATFORM_API_SET_FUNCTION(platform_window_get_width, api->windowGetWidth);
 	FS_PLATFORM_API_SET_FUNCTION(platform_window_get_height, api->windowGetHeight);
-	FS_PLATFORM_API_SET_FUNCTION(platform_window_get_fullscreen, api->windowIsFullscreen);
-	FS_PLATFORM_API_SET_FUNCTION(platform_window_set_fullscreen, api->windowSetFullscreen);
-	FS_PLATFORM_API_SET_FUNCTION(platform_window_set_cursor_visible, api->windowSetCursorVisible);
+	// FS_PLATFORM_API_SET_FUNCTION(platform_window_get_fullscreen, api->windowIsFullscreen);
+	// FS_PLATFORM_API_SET_FUNCTION(platform_window_set_fullscreen, api->windowSetFullscreen);
+	// FS_PLATFORM_API_SET_FUNCTION(platform_window_set_cursor_locked, api->windowSetCursorVisible);
+
+	FS_PLATFORM_API_SET_FUNCTION(platform_window_get, api->platformWindowGet);
+	FS_PLATFORM_API_SET_FUNCTION(platform_window_set, api->platformWindowSet);
 
 	FS_PLATFORM_API_SET_FUNCTION(input_button_went_down, api->buttonWentDown);
 	FS_PLATFORM_API_SET_FUNCTION(input_button_is_down, api->buttonIsDown);

@@ -401,7 +401,7 @@ internal void BAD_BUT_ACTUAL_graphics_memory_unload(VulkanContext * context)
 internal u32
 fsvulkan_resources_internal_::compute_mip_levels(u32 texWidth, u32 texHeight)
 {
-   u32 result = floor_f32(std::log2(max_f32(texWidth, texHeight))) + 1;
+   u32 result = floor_f32(std::log2(f32_max(texWidth, texHeight))) + 1;
    return result;
 }
 

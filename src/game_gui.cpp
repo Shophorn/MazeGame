@@ -52,7 +52,7 @@ bool32 do_gui(Game * game, PlatformInput * input)
 		}
 
 		{
-				constexpr char const * const cameraModeLabels [] = { "Player", "Free", "Mouse" };
+				constexpr char const * const cameraModeLabels [] = { "Player", "Editor" };
 
 	 			if(BeginCombo("Camera Mode", cameraModeLabels[game->cameraMode]))
 				{
@@ -183,10 +183,25 @@ bool32 do_gui(Game * game, PlatformInput * input)
 		{
 			Indent();
 
-			DragFloat("Distance", &game->playerCamera.distance, 0.1);
+			PushID("playercamera");
+			Text("Player Camera");
+			DragFloat("Distance", &game->playerCamera.distance, 0.1, 0.1, highest_f32);
 			DragFloat("Base Offset", &game->playerCamera.baseOffset, 0.1);
 			DragFloat("Gamepad Rotate Speed", &game->playerCamera.gamepadRotateSpeed, 0.1);
 			DragFloat("Mouse Rotate Speed", &game->playerCamera.mouseRotateSpeed, 0.1);
+			PopID();
+
+			Spacing();
+
+			PushID("Editor");
+			Text("Editor Camera");
+			DragFloat("Distance", &game->editorCamera.distance, 0.1, 0.1, highest_f32);
+			DragFloat("Base Offset", &game->editorCamera.baseOffset, 0.1);
+			DragFloat("Gamepad Rotate Speed", &game->editorCamera.gamepadRotateSpeed, 0.1);
+			DragFloat("Mouse Rotate Speed", &game->editorCamera.mouseRotateSpeed, 0.1);
+			DragFloat("Right/Up Speed", &game->editorCamera.rightAndUpMoveSpeed, 0.1);
+			DragFloat("Forward Speed", &game->editorCamera.forwardMoveSpeed, 0.1);
+			PopID();
 
 			Unindent();
 		}

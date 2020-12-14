@@ -33,6 +33,16 @@ static void building_blocks_editor(	Array<m44> & 	blocks,
 			}
 		}
 
+		if(Button("Duplicate Box"))
+		{
+			if (blocks.count < blocks.capacity)
+			{
+				blocks.push(blocks[selectedBuildingBlockIndex]);
+				selectedBuildingBlockIndex = blocks.count - 1;
+			}
+		}
+
+
 		if (Button("Delete Box"))
 		{
 			if(blocks.count > 0)

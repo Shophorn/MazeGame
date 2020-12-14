@@ -14,7 +14,7 @@ struct PlayerCameraController
 {
 	// State, these change from frame to frame
 	v3 position;
-	v3 direction;
+	v3 direction 			= v3_forward;
 	v3 lastTrackedPosition;
 
 	f32 orbitDegrees 		= 180.0f;
@@ -40,7 +40,7 @@ struct PlayerCameraController
 	f32 maxTumble 			= 85.0f;
 };
 
-internal void update_camera_controller(	PlayerCameraController & controller,
+internal void player_camera_update(		PlayerCameraController & controller,
 										v3 targetPosition,
 										PlatformInput * input,
 										f32 elapsedTime)
@@ -105,6 +105,113 @@ internal void update_camera_controller(	PlayerCameraController & controller,
 	controller.direction = -normalize_v3(localPosition);
 
 	Assert(abs_f32(square_v3_length(controller.direction) - 1.0f) < 0.00001f);
+}
+
+struct EditorCameraController
+{
+	// State, these change from frame to frame
+	v3 position;
+	v3 direction 			= v3_forward;
+	v3 lastTrackedPosition;
+
+	f32 orbitDegrees 		= 180.0f;
+	f32 tumbleDegrees 		= 0.0f;
+
+
+	// Properties
+	f32 distance 			= 20.0f;
+	f32 baseOffset 			= 3.0f;//{0, 0, 3.0f};
+	f32 gamepadRotateSpeed 	= 180.0f;
+	f32 mouseRotateSpeed 	= 2;
+
+	f32 rightAndUpMoveSpeed = 8;
+	f32 forwardMoveSpeed 	= 10;
+
+	static constexpr auto serializedProperties = make_property_list
+	(
+		serialize_property("distance", &EditorCameraController::distance),
+		serialize_property("baseOffset", &EditorCameraController::baseOffset),
+		serialize_property("gamepadRotateSpeed", &EditorCameraController::gamepadRotateSpeed),
+		serialize_property("mouseRotateSpeed", &EditorCameraController::mouseRotateSpeed),
+		serialize_property("rightAndUpMoveSpeed", &EditorCameraController::rightAndUpMoveSpeed),
+		serialize_property("forwardMoveSpeed", &EditorCameraController::forwardMoveSpeed)
+	);
+	
+	// Note(Leo): No need to serialize these, they don't so much yield to artistic expression
+	f32 minTumble 			= -85.0f;
+	f32 maxTumble 			= 85.0f;
+};
+
+internal void editor_camera_update(		EditorCameraController & controller,
+										v3 targetPosition,
+										PlatformInput * input,
+										f32 elapsedTime)
+{
+	f32 orbitMovement = 0;
+	f32 tumbleMovement = 0;
+
+	f32 rightMovement = 0;
+	f32 upMovement = 0;
+
+	f32 forwardMovement = 0;
+
+	if (input_is_device_used(input, InputDevice_gamepad))
+	{
+	}
+	else
+	{
+		if (input_button_is_down(input, InputButton_mouse_0))
+		{
+			if (input_button_is_down(input, InputButton_keyboard_left_alt))
+			{
+				orbitMovement 	= input_axis_get_value(input, InputAxis_mouse_move_x) * controller.mouseRotateSpeed * elapsedTime;
+	    		tumbleMovement 	= input_axis_get_value(input, InputAxis_mouse_move_y) * controller.mouseRotateSpeed * elapsedTime;	
+			}
+			else
+			{
+				rightMovement 	= input_axis_get_value(input, InputAxis_mouse_move_x) * -controller.rightAndUpMoveSpeed * elapsedTime;
+	    		upMovement 		= input_axis_get_value(input, InputAxis_mouse_move_y) * controller.rightAndUpMoveSpeed * elapsedTime;		
+			}
+		}
+
+		forwardMovement = input_axis_get_value(input, InputAxis_mouse_scroll);
+		forwardMovement *= controller.forwardMoveSpeed * elapsedTime;
+	}
+
+    controller.orbitDegrees += orbitMovement;
+    controller.tumbleDegrees += tumbleMovement;
+
+    controller.tumbleDegrees = f32_clamp(controller.tumbleDegrees, controller.minTumble, controller.maxTumble);
+
+    f32 cameraDistance = controller.distance;
+
+    // cameraDistance -= forwardMovement;
+    // cameraDistance = f32_max(0.1f, cameraDistance);
+
+    controller.direction = normalize_v3(controller.direction);
+
+	v3 viewForward 	= controller.direction;
+	v3 viewRight 	= normalize_v3(cross_v3(viewForward, v3_up));
+	v3 viewUp 		= cross_v3(viewRight, viewForward);
+
+
+	v3 worldSpaceInput 	= viewRight * rightMovement + viewUp * upMovement + viewForward * forwardMovement;
+
+	log_debug(FILE_ADDRESS, rightMovement, ", ", forwardMovement, ", ", upMovement);
+
+	controller.position += worldSpaceInput;
+
+    f32 cameraHorizontalDistance = cosine(to_radians(controller.tumbleDegrees)) * cameraDistance;
+    v3 localPosition =
+    {
+		sine(to_radians(controller.orbitDegrees)) * cameraHorizontalDistance,
+		cosine(to_radians(controller.orbitDegrees)) * cameraHorizontalDistance,
+		sine(to_radians(controller.tumbleDegrees)) * cameraDistance
+    };
+
+	controller.direction = -normalize_v3(localPosition);
+
+	Assert(abs_f32(square_v3_length(controller.direction) - 1.0f) < 0.00001f && "Too short vector would mean no direction.");
 }
 
 struct FreeCameraController

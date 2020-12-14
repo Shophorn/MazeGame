@@ -21,7 +21,7 @@ struct PlatformInput
 	bool32 gamepadInputUsed;
 	bool32 mouseAndKeyboardInputUsed;
 
-	v2 mousePosition;
+	POINT cursorPosition;
 
 	decltype(XInputGetState) * xinput_get_state;
 	decltype(XInputSetState) * xinput_set_state;
@@ -44,7 +44,9 @@ f32 input_axis_get_value(Win32PlatformInput * input, InputAxis axis)
 
 v2 input_cursor_get_position(Win32PlatformInput * input)
 {
-	return input->mousePosition;
+	// Todo(Leo): fix or remove
+	Assert("mouse position is not implemented");
+	return {};
 }
 
 static bool32 input_button_went_down(Win32PlatformInput * input, InputButton button)
@@ -125,20 +127,23 @@ static void win32_input_update(Win32PlatformInput & input, Win32PlatformWindow c
 	HWND foregroundWindow = GetForegroundWindow();
 	bool32 windowIsActive = window.hwnd == foregroundWindow;
 
-	if (windowIsActive && window.isCursorVisible == false)
+	if (windowIsActive)
 	{
-		f32 cursorX = window.width / 2;
-		f32 cursorY = window.height / 2;
-
 		POINT currentCursorPosition;
 		GetCursorPos(&currentCursorPosition);
 
-		v2 mouseMovement = {currentCursorPosition.x - cursorX, currentCursorPosition.y - cursorY};
+		input.axes[InputAxis_mouse_move_x] = static_cast<f32>(currentCursorPosition.x - input.cursorPosition.x);
+		input.axes[InputAxis_mouse_move_y] = static_cast<f32>(currentCursorPosition.y - input.cursorPosition.y);
 
-		input.axes[InputAxis_mouse_move_x] = mouseMovement.x;
-		input.axes[InputAxis_mouse_move_y] = mouseMovement.y;
+		if (window.cursorHiddenAndLocked)
+		{
+			// Todo(Leo): This is okay since most of the time we are expected to be in fullscreen
+			// sized window, but we should add window position to this
+			currentCursorPosition = {window.width / 2, window.height / 2};
+			SetCursorPos(currentCursorPosition.x, currentCursorPosition.y);
+		}
 
-		SetCursorPos((s32)cursorX, (s32)cursorY);
+		input.cursorPosition = currentCursorPosition;
 	}
 	else
 	{
@@ -174,7 +179,7 @@ static void win32_input_update(Win32PlatformInput & input, Win32PlatformWindow c
 			float sign = sign_f32(result);
 			result *= sign; // cheap abs()
 			result -= deadZone;
-			result = max_f32(0.0f, result);
+			result = f32_max(0.0f, result);
 			result /= (1.0f - deadZone);
 			result *= sign;
 
@@ -247,6 +252,11 @@ static void win32_input_update(Win32PlatformInput & input, Win32PlatformWindow c
 	{
 		input.gamepadInputUsed = false;
 	}
+
+	// Note(Leo): this way we can always also read this and get consistent result
+	input.buttons[InputButton_invalid] = InputButtonState_is_up;
+	// input.axes[InputAxis_invalid] = 0;
+
 }
 
 static InputButton win32_input_button_map(WPARAM key)
@@ -283,6 +293,8 @@ static InputButton win32_input_button_map(WPARAM key)
 		case VK_F2: return InputButton_keyboard_f2;
 		case VK_F3: return InputButton_keyboard_f3;
 		case VK_F4: return InputButton_keyboard_f4;
+
+		case VK_MENU: return InputButton_keyboard_left_alt;
 
 		default:
 			return InputButton_invalid;

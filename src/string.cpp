@@ -311,6 +311,12 @@ static void string_append_s64(String & string, s64 capacity, s64 value)
 	string.length 	+= length;
 }
 
+static void string_append_u64(String & string, s64 capacity, u64 value)
+{
+	s64 length 		= snprintf(string.end(), capacity - string.length, "%llu", value);
+	string.length 	+= length;
+}
+
 internal void string_append_char(String & string, s32 capacity, char character)
 {
 	string_append_string(string, capacity, {1, &character});
@@ -323,6 +329,7 @@ GENERIC_STRING_APPEND(char const *, string_append_cstring);
 GENERIC_STRING_APPEND(f32, string_append_f32);
 GENERIC_STRING_APPEND(s32, string_append_s32);
 GENERIC_STRING_APPEND(s64, string_append_s64);
+GENERIC_STRING_APPEND(u64, string_append_u64);
 GENERIC_STRING_APPEND(char, string_append_char);
 
 #undef GENERIC_STRING_APPEND

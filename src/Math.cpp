@@ -84,7 +84,7 @@ f32 min_f32(f32 a, f32 b)
     return (a < b) ? a : b;
 }
 
-f32 max_f32(f32 a, f32 b)
+f32 f32_max(f32 a, f32 b)
 {
     return (a > b) ? a : b;
 }

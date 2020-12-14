@@ -29,8 +29,7 @@ internal s32 game_spawn_tree(Game & game, v3 position, s32 treeTypeIndex, bool32
 enum CameraMode : s32
 { 
 	CameraMode_player, 
-	CameraMode_elevator,
-	CameraMode_mouse_and_keyboard,
+	CameraMode_editor,
 
 	CameraModeCount
 };
@@ -201,8 +200,7 @@ struct Game
 
 	Camera 						worldCamera;
 	PlayerCameraController 		playerCamera;
-	FreeCameraController		freeCamera;
-	MouseCameraController		mouseCamera;
+	EditorCameraController 		editorCamera;
 
 	// ---------------------------------------
 
@@ -458,7 +456,8 @@ internal auto game_get_serialized_objects(Game & game)
 		serialize_object("sky", game.skySettings),
 		serialize_object("tree_0", game.trees.settings[0]),
 		serialize_object("tree_1", game.trees.settings[1]),
-		serialize_object("player_camera", game.playerCamera)
+		serialize_object("player_camera", game.playerCamera),
+		serialize_object("editor_camera", game.editorCamera)
 	);
 
 	return serializedObjects;
@@ -540,7 +539,6 @@ internal void game_spawn_tree_on_player(Game & game)
 	treeTypeIndex %= 2;
 }
 
-
 // Note(Leo): These seem to naturally depend on the game struct, so they are here.
 // Todo(Leo): This may be a case for header file, at least for game itself
 #include "game_gui.cpp"
@@ -591,6 +589,18 @@ internal bool32 game_game_update(Game * 				game,
 
 	bool playerInputAvailable = game->cameraMode == CameraMode_player;
 
+	if (input_button_went_down(input, InputButton_keyboard_f1))
+	{
+		game->cameraMode = 	game->cameraMode == CameraMode_player ?
+							CameraMode_editor :
+							CameraMode_player;
+
+		platform_window_set(platformWindow,
+							PlatformWindowSetting_cursor_hidden_and_locked,
+							game->cameraMode == CameraMode_player);
+	}
+
+
 	// Game Logic section
 	switch (game->cameraMode)
 	{
@@ -600,11 +610,6 @@ internal bool32 game_game_update(Game * 				game,
 
 			if (playerInputAvailable)
 			{
-				// if (input_button_went_down(input, InputButton_dpad_down))
-				// {
-				// 	game_gui_push_menu(game, MenuView_spawn);
-				// }
-
 				if (input_button_went_down(input, InputButton_nintendo_y))
 				{
 					game->nobleWanderTargetPosition = game->playerCharacterTransform.position;
@@ -612,12 +617,14 @@ internal bool32 game_game_update(Game * 				game,
 					game->nobleWanderIsWaiting 		= false;
 				}
 
-				playerCharacterMotorInput = update_player_input(game->playerInputState, game->worldCamera, input);
+				playerCharacterMotorInput = update_player_input(game->playerInputState,
+																game->worldCamera,
+																player_input_from_platform_input(input));
 			}
 
 			update_character_motor(game->playerCharacterMotor, playerCharacterMotorInput, game->collisionSystem, scaledTime, DEBUG_LEVEL_PLAYER);
 
-			update_camera_controller(game->playerCamera, game->playerCharacterTransform.position, input, scaledTime);
+			player_camera_update(game->playerCamera, game->playerCharacterTransform.position, input, scaledTime);
 
 			game->worldCamera.position = game->playerCamera.position;
 			game->worldCamera.direction = game->playerCamera.direction;
@@ -630,43 +637,53 @@ internal bool32 game_game_update(Game * 				game,
 			FS_DEBUG_NPC(debug_draw_circle_xy(game->nobleWanderTargetPosition + v3{0,0,0.5}, 0.9, colour_bright_green));
 		} break;
 
-		case CameraMode_elevator:
+		case CameraMode_editor:
 		{
-			m44 cameraMatrix = update_free_camera(game->freeCamera, input, unscaledTime);
+			editor_camera_update(game->editorCamera, game->playerCharacterTransform.position, input, scaledTime);
 
-			game->worldCamera.position = game->freeCamera.position;
-			game->worldCamera.direction = game->freeCamera.direction;
+			game->worldCamera.position = game->editorCamera.position;
+			game->worldCamera.direction = game->editorCamera.direction;
 
-			// /// Document(Leo): Teleport player
-			// if (game_gui_menu_visible(game) == false && input_button_went_down(input, InputButton_nintendo_a))
-			// {
-			// 	// game->menuView = MenuView_confirm_teleport;
-			// 	game_gui_push_menu(game, MenuView_confirm_teleport);
-			// 	gui_ignore_input();
-			// 	gui_reset_selection();
-			// }
+			game->worldCamera.farClipPlane = 1000;
 
-			game->worldCamera.farClipPlane = 2000;
 		} break;
+		// case CameraMode_elevator:
+		// {
+		// 	m44 cameraMatrix = update_free_camera(game->freeCamera, input, unscaledTime);
 
-		case CameraMode_mouse_and_keyboard:
-		{
-			update_mouse_camera(game->mouseCamera, input, unscaledTime);
+		// 	game->worldCamera.position = game->freeCamera.position;
+		// 	game->worldCamera.direction = game->freeCamera.direction;
 
-			game->worldCamera.position = game->mouseCamera.position;
-			game->worldCamera.direction = game->mouseCamera.direction;
+		// 	// /// Document(Leo): Teleport player
+		// 	// if (game_gui_menu_visible(game) == false && input_button_went_down(input, InputButton_nintendo_a))
+		// 	// {
+		// 	// 	// game->menuView = MenuView_confirm_teleport;
+		// 	// 	game_gui_push_menu(game, MenuView_confirm_teleport);
+		// 	// 	gui_ignore_input();
+		// 	// 	gui_reset_selection();
+		// 	// }
 
-			// /// Document(Leo): Teleport player
-			// if (game_gui_menu_visible(game) == false && input_button_went_down(input, InputButton_nintendo_a))
-			// {
-			// 	// game->menuView = MenuView_confirm_teleport;
-			// 	game_gui_push_menu(game, MenuView_confirm_teleport);
-			// 	gui_ignore_input();
-			// 	gui_reset_selection();
-			// }
+		// 	game->worldCamera.farClipPlane = 2000;
+		// } break;
 
-			game->worldCamera.farClipPlane = 2000;
-		} break;
+		// case CameraMode_mouse_and_keyboard:
+		// {
+		// 	update_mouse_camera(game->mouseCamera, input, unscaledTime);
+
+		// 	game->worldCamera.position = game->mouseCamera.position;
+		// 	game->worldCamera.direction = game->mouseCamera.direction;
+
+		// 	// /// Document(Leo): Teleport player
+		// 	// if (game_gui_menu_visible(game) == false && input_button_went_down(input, InputButton_nintendo_a))
+		// 	// {
+		// 	// 	// game->menuView = MenuView_confirm_teleport;
+		// 	// 	game_gui_push_menu(game, MenuView_confirm_teleport);
+		// 	// 	gui_ignore_input();
+		// 	// 	gui_reset_selection();
+		// 	// }
+
+		// 	game->worldCamera.farClipPlane = 2000;
+		// } break;
 
 		case CameraModeCount:
 			Assert(false && "Bad execution path");
@@ -1059,7 +1076,7 @@ internal bool32 game_game_update(Game * 				game,
 			else
 			{
 				game->trainCurrentSpeed -= scaledTime * game->trainAcceleration;
-				game->trainCurrentSpeed = max_f32(game->trainCurrentSpeed, game->trainStationMinSpeed);
+				game->trainCurrentSpeed = f32_max(game->trainCurrentSpeed, game->trainStationMinSpeed);
 			}
 
 			if (directionDot > 0)
@@ -1286,27 +1303,7 @@ internal bool32 game_game_update(Game * 				game,
 		/// BUILDING BLOCKS
 		for (s32 i = 0; i < game->scene.buildingBlocks.count; ++i)
 		{
-			// v3 position = multiply_point(game->scene.buildingBlocks[i], {0,0,0});
-			// v3 scale 	= multiply_direction(game->scene.buildingBlocks[i], {1,1,1});
-
-			// v3 position;
-			// v3 eulerRotation;
-			// v3 scale;
-
-			// ImGuizmo::DecomposeMatrixToComponents(reinterpret_cast<f32*>(&game->scene.buildingBlocks[i]),
-			// 										reinterpret_cast<f32*>(&position),
-			// 										reinterpret_cast<f32*>(&eulerRotation),
-			// 										reinterpret_cast<f32*>(&scale));
-
-			// https://math.stackexchange.com/questions/893984/conversion-of-rotation-matrix-to-quaternion
-
-			// eulerRotation *= (π / 180.0f);
-
-			submit_box_collider(game->collisionSystem,
-								{{1,1,1}, identity_quaternion, {0,0,0}},
-								game->scene.buildingBlocks[i]);
-								// {position, euler_angles_quaternion(eulerRotation), scale});
-								// {game->scene.buildingBlocks[i], identity_quaternion, {1,1,1}});
+			submit_box_collider(game->collisionSystem, {{1,1,1}, identity_quaternion, {0,0,0}}, game->scene.buildingBlocks[i]);
 		}
 	}
 
@@ -1430,9 +1427,9 @@ internal bool32 game_game_update(Game * 				game,
 			f32 rA = 1;
 			f32 rB = 1;
 
-			// f32 d = min_f32(1, max_f32(0, dot_v3()))
+			// f32 d = min_f32(1, f32_max(0, dot_v3()))
 
-			f32 t = min_f32(1, max_f32(0, dot_v3(position - a, b - a) / square_v3_length(b-a)));
+			f32 t = min_f32(1, f32_max(0, dot_v3(position - a, b - a) / square_v3_length(b-a)));
 			f32 d = v3_length(position - a  - t * (b -a));
 
 			return d - f32_lerp(0.5,0.1,t);
@@ -1584,14 +1581,9 @@ internal bool32 game_game_update(Game * 				game,
 	}
 
 	{
-		m44 * buildingBlockTransforms = push_memory<m44>(*global_transientMemory, game->scene.buildingBlocks.count, ALLOC_GARBAGE);
-		for (s64 i = 0; i < game->scene.buildingBlocks.count; ++i)
-		{
-			buildingBlockTransforms[i] = game->scene.buildingBlocks[i];
-		}
 		graphics_draw_meshes(	platformGraphics,
 								game->scene.buildingBlocks.count,
-								buildingBlockTransforms,
+								game->scene.buildingBlocks.memory,
 								assets_get_mesh(game->assets, MeshAssetId_cube),
 								assets_get_material(game->assets, MaterialAssetId_building_block));
 	}
@@ -1665,7 +1657,7 @@ internal Game * game_load_game(MemoryArena & persistentMemory, PlatformFileHandl
 
 	// Todo(Leo): this is stupidly zero initialized here, before we read settings file, so that we don't override its settings
 	game->playerCamera = {};
-
+	game->editorCamera = {};
 
 	// Note(Leo): We currently only have statically allocated stuff (or rather allocated with game),
 	// this can be read here, at the top. If we need to allocate some stuff, we need to reconsider.
@@ -2018,17 +2010,17 @@ internal Game * game_load_game(MemoryArena & persistentMemory, PlatformFileHandl
 
 			game->trainStopPosition 	= {50, 0, 0};
 			game->trainStopPosition.z 	= get_terrain_height(game->collisionSystem, game->trainStopPosition.xy);
-			game->trainStopPosition.z 	= max_f32(0, game->trainStopPosition.z);
+			game->trainStopPosition.z 	= f32_max(0, game->trainStopPosition.z);
 
 			f32 trainFarDistance 		= 2000;
 
 			game->trainFarPositionA 	= {50, trainFarDistance, 0};
 			game->trainFarPositionA.z 	= get_terrain_height(game->collisionSystem, game->trainFarPositionA.xy);
-			game->trainFarPositionA.z 	= max_f32(0, game->trainFarPositionA.z);
+			game->trainFarPositionA.z 	= f32_max(0, game->trainFarPositionA.z);
 
 			game->trainFarPositionB 	= {50, -trainFarDistance, 0};
 			game->trainFarPositionB.z 	= get_terrain_height(game->collisionSystem, game->trainFarPositionB.xy);
-			game->trainFarPositionB.z 	= max_f32(0, game->trainFarPositionB.z);
+			game->trainFarPositionB.z 	= f32_max(0, game->trainFarPositionB.z);
 
 			game->trainTransform.position 			= game->trainStopPosition;
 

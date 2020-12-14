@@ -67,23 +67,39 @@ static LRESULT CALLBACK win32_window_callback (HWND hwnd, UINT message, WPARAM w
 			// so we add value to current value here, and value must be reset before input each frame. 
 			Win32PlatformInput & input 			= *userData->input;
 			input.axes[InputAxis_mouse_scroll] 	+= static_cast<f32>(GET_WHEEL_DELTA_WPARAM(wParam)) / static_cast<f32>(WHEEL_DELTA);
+			input.mouseAndKeyboardInputUsed 	= true;
 
 		} break;
 
 		case WM_KEYDOWN:
-		{
-			Win32PlatformInput & input 						= *userData->input;
-			input.buttons[win32_input_button_map(wParam)] 	= InputButtonState_went_down;
-			input.mouseAndKeyboardInputUsed		        	= true;
-		} break;
-
 		case WM_KEYUP:
 		{
 			Win32PlatformInput & input = *userData->input;
-			// Note(Leo): InputButton_invalid has trash value by definition, so we can carelessly write to it
-			input.buttons[win32_input_button_map(wParam)] = InputButtonState_went_up;
-			input.mouseAndKeyboardInputUsed		        = true;
+			input.buttons[win32_input_button_map(wParam)] 	= message == WM_KEYDOWN ?
+															InputButtonState_went_down :
+															InputButtonState_went_up;
+			input.mouseAndKeyboardInputUsed = true;
 		} break;
+
+		case WM_SYSKEYDOWN:
+		case WM_SYSKEYUP:
+		{				
+			if (wParam == VK_MENU) // Alt key
+			{
+				Win32PlatformInput & input 						= *userData->input;
+				input.buttons[win32_input_button_map(wParam)] 	= message == WM_SYSKEYDOWN ?
+																InputButtonState_went_down :
+															 	InputButtonState_went_up;
+				input.mouseAndKeyboardInputUsed = true;
+			}
+			// Todo(Leo): We can handle alt + f4 here if we want to.
+			else
+			{
+				goto DEFAULT;
+			}
+
+		} break;
+
 
 		case WM_SIZE:
 		{
@@ -166,11 +182,9 @@ static LRESULT CALLBACK win32_window_callback (HWND hwnd, UINT message, WPARAM w
 				userData->window->events.resized 	= true;
 			}
 		} break;
-		// case platform_window_set_cursor_visible:
-		// {
-		// } break;
 
 		default:
+		DEFAULT:
 			result = DefWindowProc(hwnd, message, wParam, lParam);
 	}
 	return result;

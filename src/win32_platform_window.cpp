@@ -1,12 +1,12 @@
 
 struct PlatformWindow
 {
-	u32 width;
-	u32 height;
+	s32 width;
+	s32 height;
 	bool32 isFullscreen;
 	bool32 isMinimized;
 
-	bool32 isCursorVisible = true;
+	bool32 cursorHiddenAndLocked = false;
 
 	bool32 shouldClose;
 
@@ -32,19 +32,45 @@ enum WindowMessage : u32
 
 // ---------- PLATFORM API FUNCTIONS --------------------------
 
-static void platform_window_set_fullscreen(Win32PlatformWindow * window, bool32 setFullscreen)
+static void platform_window_set(Win32PlatformWindow * window, PlatformWindowSetting setting, bool32 value)
 {
-	PostMessage(window->hwnd, WindowMessage_set_fullscreen, static_cast<WPARAM>(setFullscreen), 0);
-}
-
-static void platform_window_set_cursor_visible(Win32PlatformWindow * window, bool32 visible)
-{
-	if (window->isCursorVisible != visible)
+	switch(setting)
 	{
-		window->isCursorVisible = visible;
-		ShowCursor(visible);
+		case PlatformWindowSetting_fullscreen:
+		{
+			PostMessage(window->hwnd, WindowMessage_set_fullscreen, static_cast<WPARAM>(value), 0);
+		} break;
+
+		case PlatformWindowSetting_cursor_hidden_and_locked:
+		{
+			if (window->cursorHiddenAndLocked != value)
+			{
+				window->cursorHiddenAndLocked = value;
+				bool32 visible = !window->cursorHiddenAndLocked;
+				ShowCursor(visible);
+			}
+		};
 	}
 }
+
+static bool32 platform_window_get_fullscreen(Win32PlatformWindow const * window)
+{
+	return window->isFullscreen;
+}
+
+static bool32 platform_window_get (Win32PlatformWindow * window, PlatformWindowSetting setting)
+{
+	switch(setting)
+	{
+		case PlatformWindowSetting_fullscreen:
+			return window->isFullscreen;
+
+		case PlatformWindowSetting_cursor_hidden_and_locked:
+			return window->cursorHiddenAndLocked;
+	};
+}
+
+
 
 static u32 platform_window_get_width(Win32PlatformWindow const * window)
 {
@@ -56,10 +82,6 @@ static u32 platform_window_get_height(Win32PlatformWindow const * window)
 	return window->height;
 }
 
-static bool32 platform_window_get_fullscreen(Win32PlatformWindow const * window)
-{
-	return window->isFullscreen;
-}
 
 
 // Todo(Leo): this needs also to be asked from vulkan

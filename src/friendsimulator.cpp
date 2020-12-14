@@ -243,9 +243,8 @@ FS_GAME_API bool32 game_update(	MemoryBlock 				gameMemory,
 	// Todo(Leo): These still MAYBE do not belong here
 	if (input_button_went_down(input, InputButton_select) || input_button_went_down(input, InputButton_keyboard_f2))
 	{
-		bool isFullScreen = platform_window_get_fullscreen(platformWindow);
-		platform_window_set_fullscreen(platformWindow, !isFullScreen);
-		platform_window_set_cursor_visible(platformWindow, isFullScreen);
+		bool isFullScreen = platform_window_get(platformWindow, PlatformWindowSetting_fullscreen);
+		platform_window_set(platformWindow, PlatformWindowSetting_fullscreen, !isFullScreen);
 	}
 
 	return gameIsAlive;

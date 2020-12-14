@@ -347,7 +347,7 @@ internal void gui_panel_add_text_draw_call(String const & text, v4 color, GuiAli
 	gui.panelDrawCalls[gui.panelDrawCallsCount] 	= {rectCount, rects, gui.font->atlasTexture, color, alignment};
 	gui.panelDrawCallsCount 						+= 1;
 
-	gui.panelSize.x 			= max_f32(gui.panelSize.x, textWidth + gui.padding);
+	gui.panelSize.x 			= f32_max(gui.panelSize.x, textWidth + gui.padding);
 	gui.panelCurrentLineLength 	+= textWidth;
 	xCursor 					+= gui.padding;
 
@@ -1022,8 +1022,8 @@ internal void gui_panel_new_line()
 
 	// f32 lineLength = gui.panelLeftCursorX + gui.panelCenterCursorX + gui.panelRightCursorX;
 
-	// gui.panelMaxLineLength 		= max_f32(lineLength, gui.panelMaxLineLength);
-	gui.panelMaxLineLength 		= max_f32(gui.panelCurrentLineLength, gui.panelMaxLineLength);
+	// gui.panelMaxLineLength 		= f32_max(lineLength, gui.panelMaxLineLength);
+	gui.panelMaxLineLength 		= f32_max(gui.panelCurrentLineLength, gui.panelMaxLineLength);
 	gui.panelCurrentLineLength 	= 0;
 
 	// gui.panelCursorX 	= 0;

@@ -183,7 +183,7 @@ internal bool32 ray_box_collisions(	Array<PrecomputedBoxCollider> & colliders,
 			continue;
 		}			
 
-		f32 distanceToMin = max_f32(xDistanceToMin, yDistanceToMin);
+		f32 distanceToMin = f32_max(xDistanceToMin, yDistanceToMin);
 		f32 distanceToMax = min_f32(xDistanceToMax, yDistanceToMax);
 		
 
@@ -193,7 +193,7 @@ internal bool32 ray_box_collisions(	Array<PrecomputedBoxCollider> & colliders,
 			continue;
 		}			
 
-		distanceToMin = max_f32(distanceToMin, zDistanceToMin);
+		distanceToMin = f32_max(distanceToMin, zDistanceToMin);
 		distanceToMax = min_f32(distanceToMax, zDistanceToMax);
 
 		if (0.00001f < distanceToMin && distanceToMin < colliderSpaceRayLength)

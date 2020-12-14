@@ -43,7 +43,7 @@ struct CharacterControllerSideScroller
 			bool32 leftRayHit 		= collisionManager->raycast(leftRayOrigin, leftRay, false);
 
 			if (leftRayHit)
-				xMovement = max_f32(0.0f, xMovement);
+				xMovement = f32_max(0.0f, xMovement);
 
 			targetRotationRadians = π / 2.0f;
 		}
@@ -82,8 +82,8 @@ struct CharacterControllerSideScroller
 		bool32 downRayHit = collisionManager->raycast(downRayOrigin, downRay, movingDown);
 		if (downRayHit)
 		{
-			zMovement = max_f32(0.0f, zMovement);
-			zSpeed = max_f32(0.0f, zSpeed);
+			zMovement = f32_max(0.0f, zMovement);
+			zSpeed = f32_max(0.0f, zSpeed);
 		}
 
 		if ((abs_f32(zMovement) > abs_f32(xMovement)) && (abs_f32(xMovement / elapsedTime) < (0.1f * speed)))

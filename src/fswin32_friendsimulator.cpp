@@ -203,6 +203,7 @@ FS_ENTRY_POINT
 
 		/// ----- HANDLE INPUT -----
 
+		// Todo(Leo): merge to single function call, these are not used anywhere else (or at least they should not)
 		win32_input_reset(input);
 		win32_window_process_messages(window);
 		win32_input_update(input, window);
@@ -212,32 +213,30 @@ FS_ENTRY_POINT
 			vulkan_recreate_drawing_resources(&graphics, window.width, window.height);
 		}
 
-		if (input_button_went_down(&input, InputButton_keyboard_f1))
-		{
-			platform_window_set_cursor_visible(&window, !window.isCursorVisible);
-			// Todo(Leo): should we "eat" keypress? i.e. set application to is_down?
-		}
-
 		// Todo(Leo): Also ask vulkan
 		if (win32_window_is_drawable(&window))
 		{
 			vulkan_prepare_frame(&graphics);
 
-			ImGui_ImplVulkan_NewFrame();			
-			ImGui_ImplWin32_NewFrame();
-			ImGui::NewFrame();
-			// ImGuizmo::BeginFrame();
-
+			// Todo(Leo): merge
+			{
+				ImGui_ImplVulkan_NewFrame();			
+				ImGui_ImplWin32_NewFrame();
+				ImGui::NewFrame();
+			}
 
 			// Todo(Leo): use function directly in release build
 			gameIsRunning = game.update(gameMemory,
 										&input, &graphics, &window, &audio,
 										lastFrameElapsedSeconds);
 
-			ImGui::EndFrame();
-			ImGui::Render();
-			ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(),
-											graphics.virtualFrames[graphics.virtualFrameIndex].guiCommandBuffer);
+			// Todo(Leo): merge
+			{
+				ImGui::EndFrame();
+				ImGui::Render();
+				ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(),
+												graphics.virtualFrames[graphics.virtualFrameIndex].guiCommandBuffer);
+			}
 
 
 			vulkan_render_frame(&graphics);
