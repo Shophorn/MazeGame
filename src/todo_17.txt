@@ -1,6 +1,9 @@
 14.12.
 editor camera
 
+15.12
+ambient occlusion textures
+
 TODO
 climbing
 
@@ -16,6 +19,8 @@ fog
 
 config.cpp
 unitybuild.cpp
-	--> sama??
+	--> same??
+move imgui etc to different compilation unit to speed up compilation
+use assimp on asset_cooker to read meshes and animation
 
 

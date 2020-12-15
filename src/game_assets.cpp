@@ -130,20 +130,20 @@ internal GameAssets init_game_assets(MemoryArena * allocator)
  
 	// ----------- MATERIALS -------------------
 
-	assets.materialLoadInfos[MaterialAssetId_ground] 			= {GraphicsPipeline_normal, TextureAssetId_ground_albedo, TextureAssetId_ground_normal, TextureAssetId_black};
-	assets.materialLoadInfos[MaterialAssetId_environment] 		= {GraphicsPipeline_normal, TextureAssetId_tiles_albedo, TextureAssetId_tiles_normal, TextureAssetId_black};
-	assets.materialLoadInfos[MaterialAssetId_seed] 				= {GraphicsPipeline_normal, TextureAssetId_seed_albedo, TextureAssetId_flat_normal, TextureAssetId_black};
-	assets.materialLoadInfos[MaterialAssetId_raccoon] 			= {GraphicsPipeline_normal, TextureAssetId_raccoon_albedo, TextureAssetId_flat_normal, TextureAssetId_black};
-	assets.materialLoadInfos[MaterialAssetId_robot]				= {GraphicsPipeline_normal, TextureAssetId_robot_albedo, TextureAssetId_robot_normal, TextureAssetId_black};
-	assets.materialLoadInfos[MaterialAssetId_box]				= {GraphicsPipeline_normal, TextureAssetId_bark_albedo, TextureAssetId_bark_normal, TextureAssetId_black};
-	assets.materialLoadInfos[MaterialAssetId_clouds] 			= {GraphicsPipeline_normal, TextureAssetId_white, TextureAssetId_flat_normal, TextureAssetId_black};
-	assets.materialLoadInfos[MaterialAssetId_character] 		= {GraphicsPipeline_animated, TextureAssetId_red_tiles_albedo, TextureAssetId_tiles_normal, TextureAssetId_black};
-	assets.materialLoadInfos[MaterialAssetId_water] 			= {GraphicsPipeline_water, TextureAssetId_water_blue, TextureAssetId_flat_normal, TextureAssetId_black};
-	assets.materialLoadInfos[MaterialAssetId_sea] 				= {GraphicsPipeline_water, TextureAssetId_water_blue, TextureAssetId_flat_normal, TextureAssetId_black};
+	assets.materialLoadInfos[MaterialAssetId_ground] 			= {GraphicsPipeline_normal, TextureAssetId_ground_albedo, TextureAssetId_ground_normal, TextureAssetId_white};
+	assets.materialLoadInfos[MaterialAssetId_environment] 		= {GraphicsPipeline_normal, TextureAssetId_tiles_albedo, TextureAssetId_tiles_normal, TextureAssetId_white};
+	assets.materialLoadInfos[MaterialAssetId_seed] 				= {GraphicsPipeline_normal, TextureAssetId_seed_albedo, TextureAssetId_flat_normal, TextureAssetId_white};
+	assets.materialLoadInfos[MaterialAssetId_raccoon] 			= {GraphicsPipeline_normal, TextureAssetId_raccoon_albedo, TextureAssetId_flat_normal, TextureAssetId_white};
+	assets.materialLoadInfos[MaterialAssetId_robot]				= {GraphicsPipeline_normal, TextureAssetId_robot_albedo, TextureAssetId_robot_normal, TextureAssetId_white};
+	assets.materialLoadInfos[MaterialAssetId_box]				= {GraphicsPipeline_normal, TextureAssetId_bark_albedo, TextureAssetId_bark_normal, TextureAssetId_white};
+	assets.materialLoadInfos[MaterialAssetId_clouds] 			= {GraphicsPipeline_normal, TextureAssetId_white, TextureAssetId_flat_normal, TextureAssetId_white};
+	assets.materialLoadInfos[MaterialAssetId_character] 		= {GraphicsPipeline_animated, TextureAssetId_red_tiles_albedo, TextureAssetId_tiles_normal, TextureAssetId_white};
+	assets.materialLoadInfos[MaterialAssetId_water] 			= {GraphicsPipeline_water, TextureAssetId_water_blue, TextureAssetId_flat_normal, TextureAssetId_white};
+	assets.materialLoadInfos[MaterialAssetId_sea] 				= {GraphicsPipeline_water, TextureAssetId_water_blue, TextureAssetId_flat_normal, TextureAssetId_white};
 	assets.materialLoadInfos[MaterialAssetId_leaves] 			= {GraphicsPipeline_leaves, TextureAssetId_leaves_mask};
 	assets.materialLoadInfos[MaterialAssetId_sky] 				= {GraphicsPipeline_skybox, TextureAssetId_black, TextureAssetId_black};
 	assets.materialLoadInfos[MaterialAssetId_tree]				= {GraphicsPipeline_triplanar, TextureAssetId_tiles_albedo};
-	assets.materialLoadInfos[MaterialAssetId_building_block]	= {GraphicsPipeline_normal, TextureAssetId_tiles_2_albedo, TextureAssetId_tiles_2_normal, TextureAssetId_black};
+	assets.materialLoadInfos[MaterialAssetId_building_block]	= {GraphicsPipeline_normal, TextureAssetId_tiles_2_albedo, TextureAssetId_tiles_2_normal, TextureAssetId_tiles_2_ao};
 
 	assets.materialLoadInfos[MaterialAssetId_menu_background] 	= {GraphicsPipeline_screen_gui, TextureAssetId_menu_background};
 

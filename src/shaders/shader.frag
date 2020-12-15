@@ -23,7 +23,7 @@ layout(location = 0) out vec4 outColor;
 
 const int ALBEDO_INDEX 		= 0;
 const int NORMAL_INDEX 		= 1; 
-const int TEST_MASK_INDEX 	= 2;
+const int AO_INDEX 			= 2;
 const int TEXTURE_COUNT 	= 3;
 
 layout(set = 1, binding = 0) uniform sampler2D texSampler[TEXTURE_COUNT];
@@ -69,6 +69,8 @@ void main()
 
 	SunAndAmbientLights lights = BETTER_compute_sky_color(worldSpaceNormal);
 
+	float ambientOcclusion = texture(texSampler[AO_INDEX], fragTexCoord).r;
+
 	// outColor.rgb = lights.ambient;
 	// outColor.a = 1;
 	// return;
@@ -95,7 +97,7 @@ void main()
 	vec3 ambientColor 		= lightColor; //compute_sky_color(worldSpaceNormal);
 	// float ambientIntensity 	= 0.3;
 	// vec3 ambientTerm 		= ambientIntensity * ambientColor * albedo;
-	vec3 ambientTerm = lights.ambient * albedo;
+	vec3 ambientTerm = lights.ambient * albedo * ambientOcclusion;
 	diffuseTerm = lights.sun * albedo * inLight;
 
 

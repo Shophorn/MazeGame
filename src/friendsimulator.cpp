@@ -183,13 +183,8 @@ FS_GAME_API bool32 game_update(	MemoryBlock 				gameMemory,
 	{
 		gui_start_frame(state->gui, input, elapsedTimeSeconds);
 
-		// ImGui::Begin("Game Panel");
-		// ImGui::End();
-
-
 		gui_position({0,0});
 		gui_image(assets_get_material(state->assets, MaterialAssetId_menu_background), {1920, 1080}, {1,1,1,1});
-
 
 		gui_position({870, 500});
 

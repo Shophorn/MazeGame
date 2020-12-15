@@ -211,6 +211,11 @@ update_character_motor( CharacterMotor & 	motor,
 	}
 
 	speed = motor.currentSpeed;
+	if (motor.movementMode == CharacterMovementMode_climbing)
+	{
+		motor.currentSpeed 	= 0;
+		speed 				= 0;
+	}
 
 
 	// Note(Leo): 0 when landing does not affect, 1 when it affects at max;
@@ -239,7 +244,6 @@ update_character_motor( CharacterMotor & 	motor,
 		if (speed > 0)
 		{
 			v3 rayDirection = forward;
-			f32 rayDistance = elapsedTime * speed;
 
 			constexpr int rayCount = 5;
 			v3 up 	= get_up(*motor.transform);
@@ -253,62 +257,70 @@ update_character_motor( CharacterMotor & 	motor,
 			{
 				f32 sine 				= -1.0f + (i - 1) * sineStep;
 				f32 angle 				= -arc_cosine(sine);
-				rayStartPositions[i] 	= v3_rotate(rayStartPositions[0], up, angle);
+				rayStartPositions[i] 	= v3_rotate(rayStartPositions[0], up, angle) - skinwidth * rayDirection;
 			}
+
+			f32 rayLength = elapsedTime * speed + skinwidth;
 
 			RaycastResult rayHitResults[rayCount];
 			s32 rayHitCount = 0;
 
 			for (int i  = 0; i < rayCount; ++i)
 			{
-				v3 start = rayStartPositions[i] + up * 0.25f + motor.transform->position;
+				v3 rayStart = rayStartPositions[i] + up * 0.25f + motor.transform->position;
 
 				RaycastResult currentResult;
-				bool32 hit = raycast_3d(&collisionSystem, start, rayDirection, (rayDistance * 2 + skinwidth), &currentResult);
+				bool32 hit = raycast_3d(&collisionSystem, rayStart, rayDirection, rayLength, &currentResult);
 
 				if (hit)
 				{
 					rayHitResults[rayHitCount] = currentResult;
 					++rayHitCount;
 
-					FS_DEBUG(debugLevel, debug_draw_line(start, start + rayDirection, colour_bright_red));
+					FS_DEBUG(debugLevel, debug_draw_line(rayStart, rayStart + rayDirection, colour_bright_red));
 					FS_DEBUG(debugLevel, debug_draw_vector(currentResult.hitPosition, currentResult.hitNormal, colour_bright_yellow));
 				}
 				else
 				{
-					FS_DEBUG(debugLevel, debug_draw_line(start, start + rayDirection, colour_muted_green));
+					FS_DEBUG(debugLevel, debug_draw_line(rayStart, rayStart + rayDirection, colour_muted_green));
 				}
 			}
 
-			if (rayHitCount == 0)
+			if (rayHitCount <= 0)
 			{
-				motor.transform->position += rayDirection * rayDistance;
+				motor.transform->position += rayDirection * rayLength;
 			}
 			else
 			{
-				// Note(Leo): if angle is steep and key is pressed, we start climbing
-				v3 movement = rayDirection * rayDistance;
+				v3 movement = rayDirection * rayLength;
 
-				// Todo(Leo): only check shortest ray result.
+				// Todo(Leo): only check the most shortening ray result.
 				for (s32 i = 0; i < rayHitCount; ++i)
 				{
-					f32 projectionLength 	= f32_min(0.0f, v3_dot(movement, rayHitResults[i].hitNormal));
+					f32 projectionLength 	= f32_min(0, v3_dot(movement, rayHitResults[i].hitNormal));
 					v3 projection 			= rayHitResults[i].hitNormal * projectionLength;
 					movement 				-= projection;
 
 					// Todo(Leo): also slow down slide direction if angle is steep, maybe
 
-					f32 steepAngleLimit = f32_cos(to_radians(20));
-					f32 dot 			= v3_dot(rayHitResults[i].hitNormal, -forward);
+					// f32 steepAngleLimit = f32_cos(to_radians(30));
+					// f32 dot 			= v3_dot(rayHitResults[i].hitNormal, -forward);
 
-					if (dot > steepAngleLimit)
+					v3 climbRayStart 		= rayStartPositions[i] + 1.0f * up + motor.transform->position;
+					v3 climbRayDirection 	= rayDirection;
+					climbRayStart 			+= -rayDirection * skinwidth;
+					f32 climbRayLength 		= 0.5 + skinwidth;
+
+
+					f32 angleThreshold 	= 30;
+					f32 angle 			= v3_unsigned_angle(rayHitResults[i].hitNormal, -forward);
+					
+					// if (dot > steepAngleLimit)
+					// if (angle < angleThreshold)
 					{
-						// if (input.testClimb) // || !grounded)
-						v3 climbRayStart 		= rayStartPositions[i] + 1.0f * up + motor.transform->position;
-						v3 climbRayDirection 	= rayDirection;
-						climbRayStart 			+= -rayDirection * skinwidth;
-						f32 climbRayLength 		= rayDistance + skinwidth;
 
+						FS_DEBUG_ALWAYS(debug_draw_line(climbRayStart, climbRayStart + climbRayDirection, colour_bright_blue));
+	
 						RaycastResult climbRayResult;
 						if (raycast_3d(&collisionSystem, climbRayStart, climbRayDirection, climbRayLength, &climbRayResult))
 						{
@@ -316,6 +328,10 @@ update_character_motor( CharacterMotor & 	motor,
 							motor.climbingSurfaceNormal = rayHitResults[i].hitNormal;
 						}
 					}
+					// else
+					// {
+					// 	FS_DEBUG_ALWAYS(debug_draw_line(climbRayStart, climbRayStart + climbRayDirection, colour_bright_red));
+					// }
 				}
 
 				motor.transform->position += movement;
@@ -336,6 +352,7 @@ update_character_motor( CharacterMotor & 	motor,
 	{
 		v3 up 	= v3_up;
 		v3 side = v3_normalize(v3_cross(up, motor.climbingSurfaceNormal));
+		up 		= v3_cross(motor.climbingSurfaceNormal, side);
 
 		// Todo(Leo): proper number please
 		v3 rayStart 	= motor.transform->position + v3 {0,0, 1};
@@ -346,6 +363,20 @@ update_character_motor( CharacterMotor & 	motor,
 		rayStart 		+= rayDirection * (motor.collisionRadius - skinwidth);
 		rayLength 		+= skinwidth;
 		
+		f32 secondaryRayDepth 				= rayLength;
+		f32 secondaryRayLength 				= 0.5 + skinwidth;
+		v3 verticalSecondaryRayStart 		= rayStart + rayDirection * (secondaryRayDepth + skinwidth);
+		v3 verticalSecondaryRayDirection 	= -v3_up;
+
+		FS_DEBUG_ALWAYS(debug_draw_line(	verticalSecondaryRayStart - verticalSecondaryRayDirection,
+											verticalSecondaryRayStart + verticalSecondaryRayDirection,
+											colour_bright_blue));
+	
+		FS_DEBUG_ALWAYS(debug_draw_line(	rayStart - verticalSecondaryRayDirection,
+											rayStart + verticalSecondaryRayDirection,
+											colour_bright_green));
+	
+
 		RaycastResult rayResult;
 		if (raycast_3d(&collisionSystem, rayStart, rayDirection, rayLength, &rayResult))
 		{
@@ -354,8 +385,36 @@ update_character_motor( CharacterMotor & 	motor,
 		}
 		else
 		{
-			FS_DEBUG_ALWAYS(debug_draw_line(rayStart, rayStart + rayDirection, colour_muted_green));
-			motor.movementMode = CharacterMovementMode_walking;
+			// FS_DEBUG_ALWAYS(debug_draw_line(rayStart, rayStart + rayDirection, colour_muted_green));
+			// motor.movementMode = CharacterMovementMode_walking;
+
+
+			// f32 skinwidth 				= 0.1;
+			verticalSecondaryRayStart 	-= verticalSecondaryRayDirection * skinwidth;
+			secondaryRayLength 			+= skinwidth;
+
+			if (raycast_3d(&collisionSystem, verticalSecondaryRayStart, verticalSecondaryRayDirection, secondaryRayLength, &rayResult))
+			{
+				// Note(Leo): Jump over the edge
+				motor.movementMode 	= CharacterMovementMode_walking;
+				motor.zSpeed 		= motor.jumpSpeed;
+
+				FS_DEBUG(debugLevel, debug_draw_line(	verticalSecondaryRayStart - verticalSecondaryRayDirection,
+														verticalSecondaryRayStart + verticalSecondaryRayDirection,
+														colour_bright_blue));
+			}
+			else
+			{
+				motor.movementMode = CharacterMovementMode_walking;
+	
+				FS_DEBUG(debugLevel, debug_draw_line(	verticalSecondaryRayStart - verticalSecondaryRayDirection,
+														verticalSecondaryRayStart + verticalSecondaryRayDirection,
+														colour_bright_green));
+			}
+
+
+
+
 		}
 
 		motor.transform->position += up * input.climbInput.y * elapsedTime * 3
@@ -387,32 +446,49 @@ update_character_motor( CharacterMotor & 	motor,
 	// ----------------------------------------------------------------------------------
 
 
-	f32 groundThreshold = 0.01f;
-	f32 groundHeight 	= get_terrain_height(collisionSystem, motor.transform->position.xy);
-	bool32 grounded 	= motor.transform->position.z < (groundThreshold + groundHeight);
-
-	// CHECK COLLISION WITH OTHER COLLIDERS TOO
+	bool32 grounded;
+	f32 groundHeight;
 	{
+		f32 groundThreshold = 0.01f;
+		groundHeight 		= get_terrain_height(collisionSystem, motor.transform->position.xy);
+		grounded 			= motor.transform->position.z < (groundThreshold + groundHeight);
+
 		f32 groundRaySkinWidth 	= 1.0f;
-		v3 groundRayStart 		= motor.transform->position + v3{0,0,groundRaySkinWidth};
 		v3 groundRayDirection 	= -v3_up;
+		// if (motor.movementMode == CharacterMovementMode_climbing)
+		// {
+		// 	v3 up 				= v3_up;
+		// 	v3 side 			= v3_normalize(v3_cross(up, motor.climbingSurfaceNormal));
+		// 	up 					= v3_cross(motor.climbingSurfaceNormal, side);
+		// 	groundRayDirection 	= -up;
+		// }
+		v3 groundRayStart 		= motor.transform->position - groundRayDirection * groundRaySkinWidth;
 		f32 groundRayLength 	= groundRaySkinWidth + f32_max(0.1f, abs_f32(motor.zSpeed));
 
 		RaycastResult rayResult;
 		if (raycast_3d(&collisionSystem, groundRayStart, groundRayDirection, groundRayLength, &rayResult))
 		{
-			// Note(Leo): Only store more dramatic state
-			groundHeight 	= f32_max(groundHeight, rayResult.hitPosition.z);
-			grounded 		= grounded || motor.transform->position.z < (groundThreshold + groundHeight);
+			float angle = v3_unsigned_angle(v3_up, rayResult.hitNormal);
+			if (angle < 0.25f * π)
+			{
+				// Note(Leo): Only store more dramatic state
+				groundHeight 	= f32_max(groundHeight, rayResult.hitPosition.z);
+				grounded 		= grounded || motor.transform->position.z < (groundThreshold + groundHeight);
 
-			FS_DEBUG(debugLevel, debug_draw_line(motor.transform->position, rayResult.hitPosition, colour_dark_red));
-			FS_DEBUG(debugLevel, debug_draw_cross_xy(motor.transform->position, 0.3, colour_bright_yellow));
-			FS_DEBUG(debugLevel, debug_draw_cross_xy(rayResult.hitPosition, 0.3, colour_bright_purple));
+				FS_DEBUG(debugLevel, debug_draw_line(motor.transform->position, rayResult.hitPosition, colour_dark_red));
+				FS_DEBUG(debugLevel, debug_draw_cross_xy(motor.transform->position, 0.3, colour_bright_yellow));
+				FS_DEBUG(debugLevel, debug_draw_cross_xy(rayResult.hitPosition, 0.3, colour_bright_purple));
+			}
 		}
 		else
 		{
-			FS_DEBUG(debugLevel, debug_draw_line(motor.transform->position, motor.transform->position - v3{0,0,1}, colour_bright_green));
+			FS_DEBUG(debugLevel, debug_draw_line(motor.transform->position, motor.transform->position + groundRayDirection, colour_bright_green));
 		}
+	}
+
+	if (grounded && motor.movementMode == CharacterMovementMode_climbing)
+	{
+		motor.movementMode = CharacterMovementMode_walking;
 	}
 
 	bool32 startLanding 		= motor.wasGroundedLastFrame == false && grounded == true;

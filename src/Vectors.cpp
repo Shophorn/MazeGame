@@ -259,7 +259,7 @@ v3 v3_rotate(v3 vec, v3 axis, f32 angleInRadians)
 
 constexpr f32 v3_sqr_epsilon = 1e-15f;
 
-f32 angle_v3(v3 from, v3 to)
+f32 v3_unsigned_angle(v3 from, v3 to)
 {
 	// Note(Leo): copied from unity3d vector.cs...
 
@@ -272,13 +272,12 @@ f32 angle_v3(v3 from, v3 to)
 	return angle;
 }
 
-f32 signed_angle_v3(v3 from, v3 to, v3 axis)
+f32 v3_signed_angle(v3 from, v3 to, v3 axis)
 {
-	f32 unsignedAngle 	= angle_v3(from, to);
+	f32 unsignedAngle 	= v3_unsigned_angle(from, to);
 	f32 sign 			= v3_dot(axis, v3_cross(from, to));
 	return unsignedAngle * sign;
 }
-
 
 v3 make_uniform_v3(f32 value)
 {

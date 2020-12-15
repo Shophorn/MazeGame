@@ -57,6 +57,8 @@ enum TextureAssetId : s32
 	TextureAssetId_robot_normal,
 	TextureAssetId_tiles_2_normal,
 
+	TextureAssetId_tiles_2_ao,
+
 	TextureAssetId_white,
 	TextureAssetId_black,
 	TextureAssetId_flat_normal,

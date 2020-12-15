@@ -266,7 +266,7 @@ quaternion quaternion_slerp(quaternion from, quaternion to, f32 t)
 
 quaternion quaternion_from_to(v3 from, v3 to)
 {
-	f32 angle = angle_v3(from, to);
+	f32 angle = v3_unsigned_angle(from, to);
 
 	v3 axis = v3_normalize(v3_cross(from, to));
 

@@ -85,6 +85,7 @@ int main()
 
 		{ TextureAssetId_tiles_2_albedo,  	"DungeonTiles_albedo.png" },
 		{ TextureAssetId_tiles_2_normal,  	"DungeonTiles_normal.png",	TextureFormat_u8_linear },
+		{ TextureAssetId_tiles_2_ao,  		"DungeonTiles_AO.png" },
 	};
 
 	for (auto & texture : textures)
