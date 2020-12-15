@@ -1,3 +1,3 @@
-Maze Game
+Friendsimulator
 =========
-Vulkan based game prototype for a simple 2 player online game.
+Interactive media piece with lots of climbing. Maybe it is a game, but probably not.
