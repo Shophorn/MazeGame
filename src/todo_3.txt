@@ -1,0 +1,50 @@
+todo
+
+
+vulkan memory management
+	-> also stupid not working shadow buffer things
+
+
+Plantable and carryable seeds/trees
+roots
+fruits/seeds
+
+twist behaviours:
+	turn up against gravity
+	turn to light
+	turn away to weighted center of nodes
+
+systems:
+	trees
+	shadows
+	skylight
+		-> hsl lerp
+		-> hdr lerp
+		-> srgb lerp??
+
+Save game, again
+
+Camera
+	- avoid going below ground
+	- take better position
+
+Fog
+
+
+assets:
+	train lazer beam
+	warlocks house
+
+	road under the train
+		would not work with the planet idea...
+	graveyard	
+
+
+DONE:
+
+27.8
+trees bear fruit
+Alloc options:
+	ALLOC_GARBAGE
+	ALLOC_ZERO_MEMORY
+	ALLOC_DEFAULT_INITIALIZE

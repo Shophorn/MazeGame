@@ -5,10 +5,10 @@ shophorn @ internet
 Skybox mesh creation and drawing.
 =============================================================================*/
 
-internal MeshAsset
-create_skybox_mesh(MemoryArena * arena)
+internal MeshAssetData
+create_skybox_mesh(MemoryArena * allocator)
 {
-	auto vertices = allocate_array<Vertex>(*arena, 
+	Vertex vertices [] = 
 	{
 		// Vertex { .position = {-1, -1, -1}, },
 		// Vertex { .position = { 1, -1, -1}, },
@@ -54,10 +54,10 @@ create_skybox_mesh(MemoryArena * arena)
 		Vertex { .position = { 1,  1, -1}, .texCoord = { 1, 0}, },
 		Vertex { .position = { 1, -1,  1}, .texCoord = { 0, 1}, },
 		Vertex { .position = { 1,  1,  1}, .texCoord = { 1, 1}, },
-	});
+	};
 
 	// Face normals inside
-	auto indices = allocate_array<u16>(*arena,
+	u16 indices [] =
 	{
 		0, 1, 2, 1, 3, 2,
 		4, 6, 5, 6, 7, 5,
@@ -66,8 +66,14 @@ create_skybox_mesh(MemoryArena * arena)
 		12, 14, 13, 14, 15, 13,
 		16, 19, 17, 19, 16, 18,
 		20, 22, 21, 22, 23, 21
-	});
+	};
 
-	auto result = make_mesh_asset(std::move(vertices), std::move(indices));
+	MeshAssetData result = {};
+
+	result.vertexCount 	= array_count(vertices);
+	result.vertices 	= push_and_copy_memory(*allocator, array_count(vertices), vertices);
+
+	result.indexCount 	= array_count(indices);
+	result.indices 		= push_and_copy_memory(*allocator, array_count(indices), indices);
 	return result;
 }

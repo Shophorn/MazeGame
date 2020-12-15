@@ -1,21 +1,37 @@
-/*=============================================================================
+/*
 Leo Tamminen
-shophorn @ internet
-
 
 Windows-Vulkan interface. And lots of rubbish at the moment.
 
+// TODO(Leo): Make sure that arrays for getting extensions ana layers are large enough
+
+TODO(Leo) extra: Use separate queuefamily thing for transfering between vertex
+staging buffer and actual vertex buffer. https://vulkan-tutorial.com/en/Vertex_buffers/Staging_buffer
+
+STUDY(Leo):
+	http://asawicki.info/news_1698_vulkan_sparse_binding_-_a_quick_overview.html
+
+
 STUDY: https://devblogs.nvidia.com/vulkan-dos-donts/
-=============================================================================*/
+*/
 
 #ifndef WIN_VULKAN_HPP
+
+// Todo(Leo): Platform maybe should be defined elsewhere, if we want to use same vulkan implementation elsewhere??
+#define VK_USE_PLATFORM_WIN32_KHR
+#include <vulkan/vulkan.h>
+#include "generated/vulkan_initializers.cpp"
+
+
+#include "fsvulkan_debug_strings.cpp"
+
 
 using VulkanContext = PlatformGraphics;
 
 internal void 
-print_vulkan_assert(LogInput::FileAddress address, VkResult result)
+print_vulkan_assert(LogFileAddress address, VkResult result)
 {
-    logVulkan(0) << address << "Vulkan check failed " << vulkan::to_str(result) << "(" << result << ")\n";
+    log_graphics(0, address, "Vulkan check failed ", fsvulkan_result_string(result), "(", result, ")");
 }
 
 #define VULKAN_CHECK(result) if (result != VK_SUCCESS) { print_vulkan_assert(FILE_ADDRESS, result); abort();}
@@ -31,13 +47,16 @@ constexpr f32 VULKAN_MAX_LOD_FLOAT = 100.0f;
 constexpr s32 VULKAN_MAX_MODEL_COUNT = 2000;
 constexpr s32 VULKAN_MAX_MATERIAL_COUNT = 100;
 
-
 constexpr VkSampleCountFlagBits VULKAN_MAX_MSAA_SAMPLE_COUNT = VK_SAMPLE_COUNT_2_BIT;
 
-
+// Todo(Leo): these need to align properly
+// Todo(Leo): these need to align properly
+// Todo(Leo): these need to align properly
+// Todo(Leo): these need to align properly
 // Todo(Leo): these need to align properly
 // Note(Leo): these need to align properly
 // Study(Leo): these need to align properly
+// Todo(Leo): Also check that sizes are not too much
 struct FSVulkanCameraUniformBuffer
 {
 	alignas(16) m44 view;
@@ -67,7 +86,7 @@ struct FSVulkanLightingUniformBuffer
 	f32 skyColor;
 };
 
-struct FSVulkanModelUniformBuffer
+struct VulkanModelUniformBuffer
 {
 	// Note(Leo): matrices must be aligned on 16 byte boundaries
 	// Todo(Leo): Find the confirmation for this from Vulkan documentation
@@ -142,21 +161,18 @@ struct VulkanTexture
 	u32 mipLevels;
 };
 
-struct VulkanGuiTexture
-{
-	VulkanTexture 	texture;
-	VkDescriptorSet descriptorSet;
-};
-
 struct VulkanMesh
 {
     VkBuffer        bufferReference;
-    // VkDeviceMemory  memoryReference;
 
-    VkDeviceSize    vertexOffset;
-    VkDeviceSize    indexOffset;
     u32             indexCount;
     VkIndexType     indexType;
+
+    VkDeviceSize    indexOffset;
+    VkDeviceSize    vertexOffset;
+    VkDeviceSize 	skinningOffset;
+
+    bool 			hasSkinning;
 };
 
 struct VulkanMaterial
@@ -173,15 +189,7 @@ struct VulkanModel
 	MaterialHandle 	material;
 };
 
-struct VulkanLoadedPipeline
-{
-	// Note(Leo): we need info for recreating pipelines after swapchain recreation
-	VkPipeline 				pipeline;
-	VkPipelineLayout 		layout;
-	VkDescriptorSetLayout	materialLayout;
-};
-
-struct FSVulkanPipeline
+struct VulkanPipeline
 {
 	VkPipeline 				pipeline;
 	VkPipelineLayout 		pipelineLayout;
@@ -191,47 +199,44 @@ struct FSVulkanPipeline
 
 struct VulkanVirtualFrame
 {
-	// Todo(Leo): these anon structs are stupid idea, that merely introduces more complexity, and are not even supported by c++ standard
-	struct
-	{
-		VkCommandBuffer master;
-		VkCommandBuffer scene;
-		VkCommandBuffer gui;
+	VkCommandBuffer mainCommandBuffer;
+	VkCommandBuffer shadowCommandBuffer;
+	VkCommandBuffer sceneCommandBuffer;
 
-        VkCommandBuffer offscreen;
+	// Todo(Leo): These maybe don't need to be separate, but currently it makes things a little more clearer
+	VkCommandBuffer postProcessCommandBuffer;
+	VkCommandBuffer guiCommandBuffer;
 
-		// Todo(Leo): Do we want this too?
-		// VkCommandBuffer debug;
-	} commandBuffers;
-
-	VkFramebuffer  	framebuffer;
-
-	// Todo(Leo): more like 'final framebuffer' or 'present framebuffer'
-	VkFramebuffer 	passThroughFramebuffer;
-
-    // Note(Leo): these are attchaments.
-	// VkDeviceMemory attachmentMemory;
-
-	VkImage 	colorImage;
-	VkImageView colorImageView;
-
-	VkImage 	depthImage;	
-	VkImageView depthImageView;
-
-	VkImage 	resolveImage;
-	VkImageView resolveImageView;
-
-	// Note(Leo): This is used as input to hdr->ldr tonemap shader
-	VkDescriptorSet resolveImageDescriptor;
-
-	// Todo(Leo): this is not enough, the complete shadow texture mess needs to be per virtual frame
-	// Extre Todo(Leo): this is not even used even though it should be instead of static single one
-    // VkFramebuffer  	shadowFramebuffer;
-
-    VkSemaphore 	shadowPassWaitSemaphore;
+    /* Note(Leo):
+    These are signaled and waited on same frame
+    imageAvailableSemaphore: 	Wait on main command buffer submit, that image has been acquired from swapchain.
+								We use the actual acquired image as final framebuffer.
+	renderFinishedSemaphore: 	Wait on present queue that rendering on image has been finished.
+	
+	This is signaled and waited on different frames
+	frameInUseFence: 			Wait on beginning of frame that rendering on previous frame (multiple frames behind actually)
+								that rendering on that frame is complete, and we can start using its resources again. This ensures
+								we do not e.g. write to uniform etc. buffers from game, while they are still being used to render
+								stuff from couple frames behind.
+    */
 	VkSemaphore    	imageAvailableSemaphore;
 	VkSemaphore    	renderFinishedSemaphore;
-	VkFence        	queueSubmitFence;
+	VkFence        	frameInUseFence;
+};
+
+// Todo(Leo): name betterly
+struct VulkanSceneRenderTarget
+{
+	VkImage 	colorAttachmentImage;
+	VkImageView colorAttachment;
+
+	VkImage 	depthAttachmentImage;	
+	VkImageView depthAttachment;
+
+	VkImage 	resolveAttachmentImage;
+	VkImageView resolveAttachment;
+
+	VkFramebuffer  	framebuffer;
 };
 
 struct PlatformGraphics
@@ -250,18 +255,46 @@ struct PlatformGraphics
 	VkQueue graphicsQueue;
 	VkQueue presentQueue;
 
-    VulkanVirtualFrame 	virtualFrames [VIRTUAL_FRAME_COUNT];
+	u32 graphicsQueueFamily;
+	u32 presentQueueFamily;
+
+	// Note(Leo): Above this line are stuff that DO NOT change during runtime
+	// ==============================================
+
     u32 				virtualFrameIndex = 0;
-	VkDeviceMemory 		virtualFrameAttachmentMemory;
+    VulkanVirtualFrame 	virtualFrames [VIRTUAL_FRAME_COUNT];
+
+    // ----------------------------------------------
+
+    // Todo(Leo): These are now overridden in render target create function, make these used and controlled nicely
+    u32 sceneRenderTargetWidth = 320;
+    u32 sceneRenderTargetHeight = 180;
+
+    // Note(Leo): this is nice!
+    VulkanSceneRenderTarget 	sceneRenderTargets[VIRTUAL_FRAME_COUNT];
+	VkDeviceMemory 				sceneRenderTargetsAttachmentMemory;
+	VkDescriptorSet 			sceneRenderTargetSamplerDescriptors[VIRTUAL_FRAME_COUNT];
+
+	VkRenderPass 				sceneRenderPass;
+    
+    // ----------------------------------------------
+
+    VkRenderPass 		screenSpaceRenderPass;
+
+
+    // Note(Leo): These are separate, since their creation etc. are handled differently at different times.
+    VkFramebuffer 		presentFramebuffers[VIRTUAL_FRAME_COUNT];
+
 
     VkDescriptorPool 		uniformDescriptorPool;
     VkDescriptorPool 		materialDescriptorPool;
 
 	// Note(Leo): these are not cleared on unload
-    VkDescriptorPool		persistentDescriptorPool;
+    VkDescriptorPool		drawingResourceDescriptorPool;
+    VkDescriptorPool 		persistentDescriptorPool;
 
     VkDescriptorSetLayout 	modelDescriptorSetLayout;
-    VkDescriptorSet 		modelDescriptorSet;
+    VkDescriptorSet 		modelDescriptorSet[VIRTUAL_FRAME_COUNT];
 
 	VkDescriptorSetLayout 	cameraDescriptorSetLayout;
     VkDescriptorSet 		cameraDescriptorSet[VIRTUAL_FRAME_COUNT];
@@ -277,26 +310,27 @@ struct PlatformGraphics
     VkBuffer 		sceneUniformBuffer;
     VkDeviceMemory 	sceneUniformBufferMemory;
 
+    // Todo(Leo): Maybe make these also use push constants, that's what hdr setting already do
     FSVulkanCameraUniformBuffer * 	persistentMappedCameraUniformBufferMemory[VIRTUAL_FRAME_COUNT];
     FSVulkanLightingUniformBuffer * persistentMappedLightingUniformBufferMemory[VIRTUAL_FRAME_COUNT];
-    FSVulkanHdrSettings * 			frameHdrSettings[VIRTUAL_FRAME_COUNT];
+    // FSVulkanHdrSettings * 			frameHdrSettings[VIRTUAL_FRAME_COUNT];
 
     // Uncategorized
 	VkCommandPool 			commandPool;
     VkSampleCountFlagBits 	msaaSamples;
 
-    /* Note(Leo): we need a separate sampler for each address mode (and other properties).
-	'textureSampler' has REPEAT address mode*/
-    VkSampler 				textureSampler;			
-    VkSampler 				clampSampler;			
-	
+    /* Note(Leo): we need a separate sampler for each address mode (and other properties).*/
+    VkSampler 	linearRepeatSampler;			
+    VkSampler 	clampSampler;			
+	VkSampler 	nearestRepeatSampler;
+
+
 	VkFormat 				hdrFormat;
 	FSVulkanHdrSettings 	hdrSettings;
 
     VkSwapchainKHR 	swapchain;
 	VkExtent2D 		swapchainExtent;
-    VkRenderPass 	renderPass;
-    VkRenderPass 	passThroughRenderPass;
+
 
     // Note(Leo): these are images from gpu for presentation, we use them to form final framebuffers
     // Todo(Leo): get rid of std::vector...
@@ -328,10 +362,6 @@ struct PlatformGraphics
 
 	// ----------------------------------------------------------------------------------
 
-	// Todo(Leo): This is stupid, just use bool, we only have one use case, probably never have a ton, so just add more bools
-	using PostRenderFunc = void(VulkanContext*);
-	PostRenderFunc * onPostRender;
-
 	// Todo(Leo): Guard against multithreaded race condition once we have that
 	VkDeviceSize	stagingBufferCapacity;
 	VkBuffer 		stagingBuffer;
@@ -339,7 +369,24 @@ struct PlatformGraphics
 	u8 * 			persistentMappedStagingBufferMemory;
 
     VulkanBufferResource staticMeshPool;
-    VulkanBufferResource modelUniformBuffer;
+
+    // VulkanBufferResource modelUniformBuffer[VIRTUAL_FRAME_COUNT];
+
+    VkBuffer 		modelUniformBufferBuffer;
+    VkDeviceMemory 	modelUniformBufferMemory;
+    u8 * 			persistentMappedModelUniformBufferMemory;
+
+    VkDeviceSize	modelUniformBufferFrameCapacity;
+    VkDeviceSize	modelUniformBufferFrameStart[VIRTUAL_FRAME_COUNT];
+    VkDeviceSize	modelUniformBufferFrameUsed[VIRTUAL_FRAME_COUNT];
+
+    VkBuffer  		dynamicMeshBuffer;
+    VkDeviceMemory	dynamicMeshDeviceMemory;
+    u8 *			persistentMappedDynamicMeshMemory;
+
+    VkDeviceSize	dynamicMeshFrameCapacity;
+    VkDeviceSize	dynamicMeshFrameStart[VIRTUAL_FRAME_COUNT];
+    VkDeviceSize	dynamicMeshFrameUsed[VIRTUAL_FRAME_COUNT];
 
     // Todo(Leo): Use our own arena arrays for these.
     // Todo(Leo): That requires access to persistent memory block at platform layer
@@ -349,35 +396,37 @@ struct PlatformGraphics
 	std::vector<VulkanMaterial>	loadedMaterials;
 	std::vector<VulkanModel>	loadedModels;
 
-	// Note(Leo): Guitextures are separeate becauses they are essentially texture AND material
-	// since they are used alone. We should maybe just use normal materials. I don't know yet.
-	std::vector<VulkanGuiTexture> 	loadedGuiTextures;
-
-
-	FSVulkanPipeline pipelines [GRAPHICS_PIPELINE_COUNT];
+	VulkanPipeline pipelines [GraphicsPipelineCount];
 
 	VkPipeline 				linePipeline;
 	VkPipelineLayout 		linePipelineLayout;
 
-	VkPipeline 				passThroughPipeline;
-	VkPipelineLayout 		passThroughPipelineLayout;
-	VkDescriptorSetLayout 	passThroughDescriptorSetLayout; // Todo(Leo): make better name; what descriptor set this is
+	// Todo(Leo): these refer to hdr tonemap/post process pipeline
+	VkPipeline 				screenSpacePipeline;
+	VkPipelineLayout 		screenSpacePipelineLayout;
+	VkDescriptorSetLayout 	screenSpaceDescriptorSetLayout; // Todo(Leo): make better name; what descriptor set this is
 
 	// Note(Leo): This is a list of functions to call when destroying this.
 	// Todo(Leo): Do not use std::vector; we know explicitly how many we have at compile time
+	// Todo(Leo): This is stupid, do not do this
     using CleanupFunc 					= void (VulkanContext*);
 	std::vector<CleanupFunc*> cleanups 	= {};
 
     u32 currentDrawFrameIndex;
-    bool32 canDraw = false;
 
-    bool32 sceneUnloaded = false;
+    struct
+    {
+    	bool32 unloadAssets;
+    	bool32 reloadShaders;
+    } postRenderEvents;
+
+    // bool32 unloadAfterRender = false;
 
     VkBuffer 		leafBuffer;
     VkDeviceMemory 	leafBufferMemory;
     VkDeviceSize 	leafBufferCapacity;
     VkDeviceSize 	leafBufferUsed[VIRTUAL_FRAME_COUNT];
-    void * 			persistentMappedLeafBufferMemory;
+    u8 * 			persistentMappedLeafBufferMemory;
 
     // HÄXÖR SKY
     // Todo(Leo): make smarter
@@ -389,10 +438,10 @@ struct PlatformGraphics
 // containers, which is easier with helper function.
 // Todo(Leo): any case, think through these at some point
 
-internal VulkanGuiTexture & fsvulkan_get_loaded_gui_texture (VulkanContext & context, GuiTextureHandle id)
-{
-	return context.loadedGuiTextures[id];
-}
+// internal VulkanGuiTexture & fsvulkan_get_loaded_gui_texture (VulkanContext & context, GuiTextureHandle id)
+// {
+// 	return context.loadedGuiTextures[id];
+// }
 
 
 // TODo(Leo): inline in render function

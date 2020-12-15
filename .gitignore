@@ -1,9 +1,8 @@
 # Asset files
-# shaders/
-# textures/
-# models/
-# sounds/
-assets/
+/shaders/
+/textures/
+/models/
+/sounds/
 
 # External code
 include/
@@ -20,6 +19,28 @@ misc/
 *.build_output
 *.bat
 
+# Built things
+development/
+release/
+
 videocaptures/
 logs/
 *.fssave
+*.fsa
+*.glb
+*.blend
+*.blend1
+*.obj
+*.stl
+*.mtl
+*.wav
+*.mp3
+*.ttf
+*.kra
+*.kra~
+*.png
+*.jpg
+*.png~
+*.jpg~
+*.zip
+*.pdf

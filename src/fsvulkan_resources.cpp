@@ -74,7 +74,7 @@ internal VkDescriptorSet fsvulkan_make_texture_descriptor_set(  VulkanContext * 
 	return resultSet;
 }
 
-internal VulkanTexture BAD_VULKAN_make_texture(VulkanContext * context, TextureAsset * asset)
+internal VulkanTexture BAD_VULKAN_make_texture(VulkanContext * context, TextureAssetData * asset)
 {
 	using namespace fsvulkan_resources_internal_;
 
@@ -82,10 +82,10 @@ internal VulkanTexture BAD_VULKAN_make_texture(VulkanContext * context, TextureA
 	u32 height       = asset->height;
 	u32 mipLevels    = compute_mip_levels(width, height);
 
-	VkDeviceSize textureMemorySize = get_texture_asset_memory_size(*asset);
+	VkDeviceSize textureMemorySize = texture_asset_data_get_memory_size(*asset);
 
 	Assert(textureMemorySize <= context->stagingBufferCapacity);
-	copy_memory(context->persistentMappedStagingBufferMemory, asset->pixelMemory, textureMemorySize);
+	memory_copy(context->persistentMappedStagingBufferMemory, asset->pixelMemory, textureMemorySize);
 
 	constexpr VkFormat formatTable [] =
 	{
@@ -207,7 +207,7 @@ internal VulkanTexture BAD_VULKAN_make_texture(VulkanContext * context, TextureA
 	{
 		.image      = resultImage,
 		.view       = resultView,
-		.sampler 	= asset->addressMode == TEXTURE_ADDRESS_MODE_REPEAT ? context->textureSampler : context->clampSampler,
+		.sampler 	= asset->addressMode == TextureAddressMode_repeat ? context->linearRepeatSampler : context->clampSampler,
 
 		.format 	= format,
 
@@ -221,14 +221,14 @@ internal VulkanTexture BAD_VULKAN_make_texture(VulkanContext * context, TextureA
 }
 
 internal VkIndexType
-BAD_VULKAN_convert_index_type(IndexType type)
+BAD_VULKAN_convert_index_type(MeshIndexType type)
 {
 	switch (type)
 	{
-		case IndexType::UInt16:
+		case MeshIndexType_uint16:
 			return VK_INDEX_TYPE_UINT16;
 
-		case IndexType::UInt32:
+		case MeshIndexType_uint32:
 			return VK_INDEX_TYPE_UINT32;
 
 		default:
@@ -236,27 +236,27 @@ BAD_VULKAN_convert_index_type(IndexType type)
 	};
 }
 
-internal TextureHandle fsvulkan_resources_push_texture(VulkanContext * context, TextureAsset * texture)
+internal TextureHandle graphics_memory_push_texture(VulkanContext * context, TextureAssetData * texture)
 {
 	TextureHandle handle = { (s64)context->loadedTextures.size() };
 	context->loadedTextures.push_back(BAD_VULKAN_make_texture(context, texture));
 	return handle;
 }
 
-internal GuiTextureHandle fsvulkan_resources_push_gui_texture(VulkanContext * context, TextureAsset * asset)
-{
-	VulkanTexture texture 			= BAD_VULKAN_make_texture(context, asset);
-	VkDescriptorSet descriptorSet 	= fsvulkan_make_texture_descriptor_set(	context,	
-																			context->pipelines[GRAPHICS_PIPELINE_SCREEN_GUI].descriptorSetLayout,
-																			context->materialDescriptorPool,
-																			1, &texture.view, &context->clampSampler);
-	s64 index = context->loadedGuiTextures.size();
-	context->loadedGuiTextures.push_back({texture, descriptorSet});
+// internal GuiTextureHandle graphics_memory_push_gui_texture(VulkanContext * context, TextureAssetData * asset)
+// {
+// 	VulkanTexture texture 			= BAD_VULKAN_make_texture(context, asset);
+// 	VkDescriptorSet descriptorSet 	= fsvulkan_make_texture_descriptor_set(	context,	
+// 																			context->pipelines[GraphicsPipeline_screen_gui].descriptorSetLayout,
+// 																			context->materialDescriptorPool,
+// 																			1, &texture.view, &context->clampSampler);
+// 	s64 index = context->loadedGuiTextures.size();
+// 	context->loadedGuiTextures.push_back({texture, descriptorSet});
 
-	return {index};
-}
+// 	return {index};
+// }
 
-internal MaterialHandle fsvulkan_resources_push_material (	VulkanContext *     context,
+internal MaterialHandle graphics_memory_push_material (	VulkanContext *     context,
 															GraphicsPipeline    pipeline,
 															s32                 textureCount,
 															TextureHandle *     textures)
@@ -284,7 +284,7 @@ internal MaterialHandle fsvulkan_resources_push_material (	VulkanContext *     c
 	context->loadedMaterials.push_back({pipeline, descriptorSet});
 
 
-	if (pipeline == GRAPHICS_PIPELINE_SKYBOX)
+	if (pipeline == GraphicsPipeline_skybox)
 	{
 		context->skyGradientDescriptorSet = descriptorSet;
 	}
@@ -292,28 +292,38 @@ internal MaterialHandle fsvulkan_resources_push_material (	VulkanContext *     c
 	return {index};
 }
 
-internal MeshHandle fsvulkan_resources_push_mesh(VulkanContext * context, MeshAsset * mesh)
+internal MeshHandle graphics_memory_push_mesh(VulkanContext * context, MeshAssetData * assetData)
 {
-	// Todo(Leo): this is messy af
-	// at least map staging buffer persitently
+	bool hasSkinning = assetData->skinning != nullptr;
 
+	u64 indexBufferSize  = assetData->indexCount * sizeof(assetData->indices[0]);
+	u64 vertexBufferSize = assetData->vertexCount * sizeof(assetData->vertices[0]);
 
-	u64 indexBufferSize  = mesh->indices.count() * sizeof(mesh->indices[0]);
-	u64 vertexBufferSize = mesh->vertices.count() * sizeof(mesh->vertices[0]);
+	u64 skinningBufferSize = 0;
+	if (hasSkinning)
+	{
+		skinningBufferSize = assetData->vertexCount * sizeof(assetData->skinning[0]);
+	}
+
+	// u64 vertexBufferSize = assetData->vertices.count() * sizeof(assetData->vertices[0]);
 
 	// Todo(Leo): Currently we align on 4 on both indices and vertices, indices maybe wouldn't need to,
 	// and vertices maybe have something else sometimes.
-	u64 alignedIndexBufferSize = align_up(indexBufferSize, 4);
-	u64 alignedVertexBufferSize = align_up(vertexBufferSize, 4);
+	u64 alignedIndexBufferSize = memory_align_up(indexBufferSize, 4);
+	u64 alignedVertexBufferSize = memory_align_up(vertexBufferSize, 4);
 
-	u64 totalBufferSize = alignedIndexBufferSize + alignedVertexBufferSize;
+	u64 alignedSkinningBufferSize = skinningBufferSize == 0 ? 0 : memory_align_up(skinningBufferSize, 4);
 
-	u64 indexOffset = 0;
-	u64 vertexOffset = alignedIndexBufferSize;
+	u64 totalBufferSize = alignedIndexBufferSize + alignedSkinningBufferSize + alignedVertexBufferSize;
+
+	u64 indexOffset 	= 0;
+	u64 vertexOffset 	= indexOffset + alignedIndexBufferSize;
+	u64 skinningOffset 	= vertexOffset + alignedVertexBufferSize;
 
 	Assert(totalBufferSize <= context->stagingBufferCapacity);
-	copy_memory(context->persistentMappedStagingBufferMemory, mesh->indices.data(), indexBufferSize);
-	copy_memory(context->persistentMappedStagingBufferMemory + vertexOffset, mesh->vertices.data(), vertexBufferSize);
+	memory_copy(context->persistentMappedStagingBufferMemory, assetData->indices, indexBufferSize);
+	memory_copy(context->persistentMappedStagingBufferMemory + vertexOffset, assetData->vertices, vertexBufferSize);
+	memory_copy(context->persistentMappedStagingBufferMemory + skinningOffset, assetData->skinning, skinningBufferSize);
 
 	VkCommandBuffer commandBuffer = vulkan::begin_command_buffer(context->device, context->commandPool);
 
@@ -322,29 +332,29 @@ internal MeshHandle fsvulkan_resources_push_mesh(VulkanContext * context, MeshAs
 
 	vulkan::execute_command_buffer(commandBuffer,context->device, context->commandPool, context->graphicsQueue);
 
-	VulkanMesh model = {};
+	VulkanMesh mesh = {};
+	mesh.hasSkinning = hasSkinning;
 
-	model.bufferReference = context->staticMeshPool.buffer;
-	// model.memoryReference = context->staticMeshPool.memory;
+	mesh.bufferReference = context->staticMeshPool.buffer;
+	// mesh.memoryReference = context->staticMeshPool.memory;
 
-	model.vertexOffset = context->staticMeshPool.used + vertexOffset;
-	model.indexOffset = context->staticMeshPool.used + indexOffset;
+	// Todo(Leo): make MemoryArena like interface for this
+	mesh.indexOffset 		= context->staticMeshPool.used + indexOffset;
+	mesh.vertexOffset 		= context->staticMeshPool.used + vertexOffset;
+	mesh.skinningOffset 	= context->staticMeshPool.used + skinningOffset;
 	
 	context->staticMeshPool.used += totalBufferSize;
 
-	model.indexCount = mesh->indices.count();
-	model.indexType = BAD_VULKAN_convert_index_type(mesh->indexType);
+	mesh.indexCount = assetData->indexCount;
+	mesh.indexType = BAD_VULKAN_convert_index_type(assetData->indexType);
 
-	u32 modelIndex = context->loadedMeshes.size();
-
-	context->loadedMeshes.push_back(model);
-
-	MeshHandle resultHandle = { modelIndex };
+	MeshHandle resultHandle = {(s64)context->loadedMeshes.size()};
+	context->loadedMeshes.push_back(mesh);
 
 	return resultHandle;
 }
 
-internal ModelHandle fsvulkan_resources_push_model (VulkanContext * context, MeshHandle mesh, MaterialHandle material)
+internal ModelHandle graphics_memory_push_model (VulkanContext * context, MeshHandle mesh, MaterialHandle material)
 {
 	u32 objectIndex = context->loadedModels.size();
 
@@ -360,8 +370,12 @@ internal ModelHandle fsvulkan_resources_push_model (VulkanContext * context, Mes
 	return resultHandle;    
 }
 
+internal void graphics_memory_unload(VulkanContext * context)
+{
+	context->postRenderEvents.unloadAssets = true;
+}
 
-internal void fsvulkan_resources_unload_resources(VulkanContext * context)
+internal void BAD_BUT_ACTUAL_graphics_memory_unload(VulkanContext * context)
 {
 	vkDeviceWaitIdle(context->device);
 
@@ -376,29 +390,18 @@ internal void fsvulkan_resources_unload_resources(VulkanContext * context)
 	}
 	context->loadedTextures.resize(0);
 
-	for(VulkanGuiTexture & gui : context->loadedGuiTextures)
-	{
-		vulkan::destroy_texture(context, &gui.texture);
-	}
-	context->loadedGuiTextures.resize(0);
-
 	// Materials
 	vkResetDescriptorPool(context->device, context->materialDescriptorPool, 0);   
 	context->loadedMaterials.resize(0);
 
 	// Rendered objects
 	context->loadedModels.resize(0);
-
-
-
-
-	context->sceneUnloaded = true;
 }
 
 internal u32
 fsvulkan_resources_internal_::compute_mip_levels(u32 texWidth, u32 texHeight)
 {
-   u32 result = floor_f32(std::log2(max_f32(texWidth, texHeight))) + 1;
+   u32 result = floor_f32(std::log2(f32_max(texWidth, texHeight))) + 1;
    return result;
 }
 
@@ -597,7 +600,7 @@ make_shadow_texture(VulkanContext * context, u32 width, u32 height, VkFormat for
 	return resultTexture;
 }
 
-internal void fsvulkan_resources_update_texture(VulkanContext * context, TextureHandle textureHandle, TextureAsset * asset)
+internal void graphics_development_update_texture(VulkanContext * context, TextureHandle textureHandle, TextureAssetData * asset)
 {
 	using namespace fsvulkan_resources_internal_;
 
@@ -608,10 +611,10 @@ internal void fsvulkan_resources_update_texture(VulkanContext * context, Texture
 	Assert(asset->height == texture.height);
 	// Todo(Leo): Also assert format and miplevels
 
-	VkDeviceSize textureMemorySize = get_texture_asset_memory_size(*asset);
+	VkDeviceSize textureMemorySize = texture_asset_data_get_memory_size(*asset);
 
 	Assert(textureMemorySize <= context->stagingBufferCapacity);
-	copy_memory(context->persistentMappedStagingBufferMemory, asset->pixelMemory, textureMemorySize);
+	memory_copy(context->persistentMappedStagingBufferMemory, asset->pixelMemory, textureMemorySize);
 
 	VkCommandBuffer cmd 	= vulkan::begin_command_buffer(context->device, context->commandPool);
 	

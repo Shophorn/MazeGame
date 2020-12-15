@@ -1,8 +1,12 @@
-// TODO(Leo): Proper unit testing!!
-// Note(Leo): Thesee use standard math for now. Actually implement these ourself, for the kicks of course.
-#include <cmath>
+/*
+Leo Tamminen
 
-#include <limits>
+Scalar types math wrapper
+
+TODO(Leo): Proper unit testing!!
+*/
+
+
 constexpr f32 highest_f32   = std::numeric_limits<f32>::max();
 constexpr f32 lowest_f32    = std::numeric_limits<f32>::lowest();
 constexpr f32 smallest_f32  = std::numeric_limits<f32>::min();
@@ -64,45 +68,53 @@ inline f32 square_root_f32 (f32 value)
     return sqrtf(value);
 }
 
-inline f32 lerp_f32(f32 a, f32 b, f32 t)
+inline f32 f32_lerp(f32 a, f32 b, f32 t)
 {
     return a + t * (b - a);
 }
 
-inline f32 interpolate(f32 from, f32 to, f32 t)
+static f32 f32_unlerp(f32 a, f32 b, f32 value)
 {
-    f32 result = (1.0f - t) * from + t * to;
-    return result;
+    // Todo(Leo): comment on commentors comment on naming
+    // https://www.gamedev.net/articles/programming/general-and-gameplay-programming/inverse-lerp-a-super-useful-yet-often-overlooked-function-r5230/
+    return (value - a) / (b - a);
 }
 
-f32 min_f32(f32 a, f32 b)
+f32 f32_min(f32 a, f32 b)
 {
     return (a < b) ? a : b;
 }
 
-f32 max_f32(f32 a, f32 b)
+f32 f32_max(f32 a, f32 b)
 {
     return (a > b) ? a : b;
 }
 
-s32 min_s32(s32 a, s32 b)
+s32 s32_min(s32 a, s32 b)
 {
     return (a < b) ? a : b;
 }
 
-s32 max_s32(s32 a, s32 b)
+s32 s32_max(s32 a, s32 b)
 {
     return (a > b) ? a : b;
 }
 
-internal s32 clamp_s32(s32 value, s32 minValue, s32 maxValue)
+internal s32 s32_clamp(s32 value, s32 minValue, s32 maxValue)
 {
-    value = max_s32(value, minValue);
-    value = min_s32(value, maxValue);
+    value = (value < minValue) ? minValue : value;
+    value = (value > maxValue) ? maxValue : value;
     return value;
 }
 
-inline f32 clamp_f32(f32 value, f32 min, f32 max)
+internal s64 s64_clamp(s64 value, s64 minValue, s64 maxValue)
+{
+    value = (value < minValue) ? minValue : value;
+    value = (value > maxValue) ? maxValue : value;
+    return value;
+}
+
+internal f32 f32_clamp(f32 value, f32 min, f32 max)
 {
     value = value < min ? min : value;
     value = value > max ? max : value;
@@ -116,7 +128,7 @@ internal f32 pow_f32(f32 value, f32 pow)
 
 /// ******************************************************************
 /// MATHFUN, fun math stuff :)
-f32 mathfun_smooth_f32 (f32 v)
+f32 f32_mathfun_smooth (f32 v)
 {
     v = v * v * (v * -2 + 3);
     return v;
@@ -149,7 +161,7 @@ inline f32 sine (f32 value)
     return result;
 }
 
-inline f32 cosine(f32 value)
+inline f32 f32_cos(f32 value)
 {
     f32 result = cosf(value);
     return result;
@@ -181,9 +193,14 @@ inline f32 arctan2(f32 y, f32 x)
     return result;
 }
 
-// Todo(Leo): remove, and just use radians :)
-constexpr inline f32 to_radians(f32 degrees)
+constexpr internal f32 to_radians(f32 degrees)
 {
     constexpr f32 conversion = π / 180.0f;
     return conversion * degrees;
+}
+
+constexpr internal f32 to_degrees(f32 radians)
+{
+    constexpr f32 conversion = 180.0f / π;
+    return conversion * radians;
 }

@@ -34,9 +34,9 @@ void update_follower_input(	FollowerController 		& controller,
 {
 	v3 toTarget 			= controller.targetTransform->position - controller.transform->position;
 	toTarget.z 				= 0;
-	f32 distanceToTarget 	= magnitude_v3(toTarget);
+	f32 distanceToTarget 	= v3_length(toTarget);
 
-	m44 gizmoTransform = make_transform_matrix(	controller.transform->position + up_v3 * controller.transform->scale.z * 2.0f, 
+	m44 gizmoTransform = make_transform_matrix(	controller.transform->position + v3_up * controller.transform->scale.z * 2.0f, 
 												controller.transform->rotation,
 												0.2f);
 	if (distanceToTarget < controller.stopFollowDistance)
@@ -62,7 +62,7 @@ void update_follower_input(	FollowerController 		& controller,
 			we will always keep  moving.
 
 			Todo(Leo): clamping lower end might be clunky, investigate and maybe fix. */
-			inputVector = normalize_v3(toTarget) * clamp_f32(distanceToTarget - controller.stopFollowDistance, 0.05f, 1.0f);
+			inputVector = v3_normalize(toTarget) * f32_clamp(distanceToTarget - controller.stopFollowDistance, 0.05f, 1.0f);
 		}
 		else
 		{
@@ -74,7 +74,7 @@ void update_follower_input(	FollowerController 		& controller,
 	{
 		if (distanceToTarget > controller.startFollowDistance)
 		{
-			inputVector = normalize_v3(toTarget) * clamp_f32(distanceToTarget - controller.startFollowDistance, 0.0f, 1.0f);
+			inputVector = v3_normalize(toTarget) * f32_clamp(distanceToTarget - controller.startFollowDistance, 0.0f, 1.0f);
 			controller.isFollowing = true;
 		}
 		else
@@ -150,13 +150,13 @@ void update_random_walker_input(RandomWalkController & controller,
 		}
 
 
-		m44 gizmoTransform = make_transform_matrix(	controller.transform->position + up_v3 * controller.transform->scale.z * 2.0f, 
+		m44 gizmoTransform = make_transform_matrix(	controller.transform->position + v3_up * controller.transform->scale.z * 2.0f, 
 													controller.transform->rotation,
 													controller.waitTimer);
 		FS_DEBUG_NPC(debug_draw_diamond_xz(gizmoTransform, colour_muted_red));
 	}
 	
-	f32 distance = magnitude_v2(controller.transform->position.xy - controller.targetPosition);
+	f32 distance = v2_length(controller.transform->position.xy - controller.targetPosition);
 	if (distance < 1.0f && controller.isWaiting == false)
 	{
 		controller.waitTimer = 10;
@@ -166,9 +166,9 @@ void update_random_walker_input(RandomWalkController & controller,
 
 	v3 input 			= {};
 	input.xy	 		= controller.targetPosition - controller.transform->position.xy;
-	f32 inputMagnitude 	= magnitude_v3(input);
+	f32 inputMagnitude 	= v3_length(input);
 	input 				= input / inputMagnitude;
-	inputMagnitude 		= clamp_f32(inputMagnitude, 0.0f, 1.0f);
+	inputMagnitude 		= f32_clamp(inputMagnitude, 0.0f, 1.0f);
 	input 				= input * inputMagnitude;
 
 	motorInputs[controller.motorInputIndex] = {input, false, false};

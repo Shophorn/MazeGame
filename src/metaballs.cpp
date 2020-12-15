@@ -57,8 +57,8 @@ internal bool32 point_inside_bounds(v3 point, v3 bounds)
 // https://www.iquilezles.org/www/articles/distfunctions/distfunctions.htm
 float opSmoothUnion( float d1, float d2, float k )
 {
-    float h = clamp_f32(0.5f + 0.5f*(d2-d1)/k, 0.0f, 1.0f);
-    return interpolate(d2, d1, h) - k*h*(1.0f-h);
+    float h = f32_clamp(0.5f + 0.5f*(d2-d1)/k, 0.0f, 1.0f);
+    return f32_lerp(d2, d1, h) - k*h*(1.0f-h);
 }
 
 struct VoxelField
@@ -69,11 +69,11 @@ struct VoxelField
 	f32 * memory;
 };
 
-internal f32 lerp_f32_square(f32 const * values, v2 t)
+internal f32 f32_lerp_square(f32 const * values, v2 t)
 {
-	f32 v0 		= lerp_f32(values[0], values[1], t.x);
-	f32 v1 		= lerp_f32(values[2], values[3], t.x);
-	f32 result 	= lerp_f32(v0, v1, t.y);
+	f32 v0 		= f32_lerp(values[0], values[1], t.x);
+	f32 v1 		= f32_lerp(values[2], values[3], t.x);
+	f32 result 	= f32_lerp(v0, v1, t.y);
 
 	return result;
 }
@@ -105,17 +105,17 @@ internal f32 lerp_f32_square(f32 const * values, v2 t)
 
 // };
 
-// internal f32 lerp_f32_cube(f32 (&values)[8], v3 t)
+// internal f32 f32_lerp_cube(f32 (&values)[8], v3 t)
 // {
-// 	f32 v00 = lerp_f32(values[0], values[1], t.x);
-// 	f32 v10 = lerp_f32(values[2], values[3], t.x);
-// 	f32 v01 = lerp_f32(values[4], values[5], t.x);
-// 	f32 v11 = lerp_f32(values[6], values[7], t.x);
+// 	f32 v00 = f32_lerp(values[0], values[1], t.x);
+// 	f32 v10 = f32_lerp(values[2], values[3], t.x);
+// 	f32 v01 = f32_lerp(values[4], values[5], t.x);
+// 	f32 v11 = f32_lerp(values[6], values[7], t.x);
 
-// 	f32 v0 = lerp_f32(v00, v10, t.y);
-// 	f32 v1 = lerp_f32(v01, v11, t.y);
+// 	f32 v0 = f32_lerp(v00, v10, t.y);
+// 	f32 v1 = f32_lerp(v01, v11, t.y);
 
-// 	f32 v = lerp_f32(v0, v1, t.z);	
+// 	f32 v = f32_lerp(v0, v1, t.z);	
 
 // 	return v;
 // }
@@ -134,11 +134,11 @@ internal f32 sample_heightmap_for_mc(v3 position, void const * dataPtr)
 	s32 iy1 = iy0 + 1;
 	f32 ty 	= iy0 - position.y;
 
-	ix0 = clamp_s32(ix0, 0, map->gridSize - 1);
-	iy0 = clamp_s32(iy0, 0, map->gridSize - 1);
+	ix0 = s32_clamp(ix0, 0, map->gridSize - 1);
+	iy0 = s32_clamp(iy0, 0, map->gridSize - 1);
 
-	ix1 = clamp_s32(ix1, 0, map->gridSize - 1);
-	iy1 = clamp_s32(iy1, 0, map->gridSize - 1);
+	ix1 = s32_clamp(ix1, 0, map->gridSize - 1);
+	iy1 = s32_clamp(iy1, 0, map->gridSize - 1);
 
 	f32 values [4] =
 	{
@@ -147,7 +147,7 @@ internal f32 sample_heightmap_for_mc(v3 position, void const * dataPtr)
 		map->values[ix0 + iy1 * map->gridSize],
 		map->values[ix1 + iy1 * map->gridSize],
 	};
-	f32 mapHeight 	= lerp_f32_square(values, {tx, ty});
+	f32 mapHeight 	= f32_lerp_square(values, {tx, ty});
 	mapHeight *= 5;
 	f32 height 		= position.z;
 
@@ -174,13 +174,13 @@ internal f32 sample_voxel_field(v3 position, void const * dataPtr)
 	s32 iz1 = iz0 + 1;
 	f32 tz 	= iz0 - position.z;
 
-	ix0 = clamp_s32(ix0, 0, field->xSize - 1);
-	iy0 = clamp_s32(iy0, 0, field->ySize - 1);
-	iz0 = clamp_s32(iz0, 0, field->zSize - 1);
+	ix0 = s32_clamp(ix0, 0, field->xSize - 1);
+	iy0 = s32_clamp(iy0, 0, field->ySize - 1);
+	iz0 = s32_clamp(iz0, 0, field->zSize - 1);
 
-	ix1 = clamp_s32(ix1, 0, field->xSize - 1);
-	iy1 = clamp_s32(iy1, 0, field->ySize - 1);
-	iz1 = clamp_s32(iz1, 0, field->zSize - 1);
+	ix1 = s32_clamp(ix1, 0, field->xSize - 1);
+	iy1 = s32_clamp(iy1, 0, field->ySize - 1);
+	iz1 = s32_clamp(iz1, 0, field->zSize - 1);
 
 	f32 v000 = field->memory[ix0 + iy0 * (s32)field->xSize + (s32)(iz0 * field->xSize * field->ySize)];
 	f32 v100 = field->memory[ix1 + iy0 * (s32)field->xSize + (s32)(iz0 * field->xSize * field->ySize)];
@@ -191,15 +191,15 @@ internal f32 sample_voxel_field(v3 position, void const * dataPtr)
 	f32 v011 = field->memory[ix0 + iy1 * (s32)field->xSize + (s32)(iz1 * field->xSize * field->ySize)];
 	f32 v111 = field->memory[ix1 + iy1 * (s32)field->xSize + (s32)(iz1 * field->xSize * field->ySize)];
 
-	f32 v00 = lerp_f32(v000, v100, tx);
-	f32 v10 = lerp_f32(v010, v110, tx);
-	f32 v01 = lerp_f32(v001, v101, tx);
-	f32 v11 = lerp_f32(v011, v111, tx);
+	f32 v00 = f32_lerp(v000, v100, tx);
+	f32 v10 = f32_lerp(v010, v110, tx);
+	f32 v01 = f32_lerp(v001, v101, tx);
+	f32 v11 = f32_lerp(v011, v111, tx);
 
-	f32 v0 = lerp_f32(v00, v10, ty);
-	f32 v1 = lerp_f32(v01, v11, ty);
+	f32 v0 = f32_lerp(v00, v10, ty);
+	f32 v1 = f32_lerp(v01, v11, ty);
 
-	f32 v = lerp_f32(v0, v1, tz);
+	f32 v = f32_lerp(v0, v1, tz);
 
 	return v;
 }
@@ -243,7 +243,7 @@ internal f32 sample_test_voxel_field(v3 pos, void const * dataPtr)
 	s32 y = floor_f32(pos.y) * fieldSize.x;
 	s32 z = floor_f32(pos.z) * fieldSize.x * fieldSize.y;
 
-	// logDebug(0) << pos << ", " << x << ", " << y << ", " << z;
+	// log_debug(0) << pos << ", " << x << ", " << y << ", " << z;
 
 	u8 value = field[x + y + z];
 
@@ -254,10 +254,10 @@ internal f32 sample_four_sdf_balls (v3 pos, void const * data)
 {
 	v4 const * positions = (v4 const *)data;
 
-	f32 d1 = magnitude_v3(pos - positions[0].xyz) - positions[0].w;
-	f32 d2 = magnitude_v3(pos - positions[1].xyz) - positions[1].w;
-	f32 d3 = magnitude_v3(pos - positions[2].xyz) - positions[2].w;
-	f32 d4 = magnitude_v3(pos - positions[3].xyz) - positions[3].w;
+	f32 d1 = v3_length(pos - positions[0].xyz) - positions[0].w;
+	f32 d2 = v3_length(pos - positions[1].xyz) - positions[1].w;
+	f32 d3 = v3_length(pos - positions[2].xyz) - positions[2].w;
+	f32 d4 = v3_length(pos - positions[3].xyz) - positions[3].w;
 
 	f32 result = opSmoothUnion(d1, d2, 0.5f);
 	result = opSmoothUnion(result, d3, 0.5f);
@@ -277,7 +277,7 @@ internal void generate_mesh_marching_cubes(	s32 vertexCapacity, Vertex * vertice
 	u32 vertexCount = 0;
 	u32 indexCount = 0;
 
-	PlatformTimePoint startTime = platformApi->current_time();
+	s64 startTime = platform_time_now();
 
 	constexpr s32 edges [24][2] = 
 	{
@@ -659,7 +659,7 @@ internal void generate_mesh_marching_cubes(	s32 vertexCapacity, Vertex * vertice
 
 				 	constexpr f32 isoLevel = 0;
 				 	f32 t 		= (isoLevel - gridValues[e0]) / (gridValues[e1] - gridValues[e0]);
-				 	v3 position = lerp_v3(gridVertices[e0], gridVertices[e1], t);
+				 	v3 position = v3_lerp(gridVertices[e0], gridVertices[e1], t);
 
 					vertices[vertexCount + i].position = v3{x,y,z} + gridScale * position;
 					vertices[vertexCount + i].texCoord = vertices[vertexCount + i].position.xy;
@@ -676,16 +676,16 @@ internal void generate_mesh_marching_cubes(	s32 vertexCapacity, Vertex * vertice
 
 				if (c.vertexCount == 0 && caseId != 0 && caseId != 255)
 				{
-					logDebug(0) << "Missing case: " << (u32)caseId;
+					log_debug(FILE_ADDRESS, "Missing case: ", (s32)caseId);
 				}
 			}
 		}
 	}
 
-	// logDebug(0) << "zCount = " << zCount;
+	// log_debug(0) << "zCount = " << zCount;
 
-	// logDebug(0) << "Marching Cubes Took: " << platformApi->elapsed_seconds(startTime, platformApi->current_time()) << " s";
-	// logDebug(0) << "Vertices: " << vertexCount << "/" << vertexCapacity << ", indices: " << indexCount << "/" << indexCapacity;
+	// log_debug(0) << "Marching Cubes Took: " << platformApi->elapsed_seconds(startTime, platformApi->current_time()) << " s";
+	// log_debug(0) << "Vertices: " << vertexCount << "/" << vertexCapacity << ", indices: " << indexCount << "/" << indexCapacity;
 
 	mesh_generate_normals(vertexCount, vertices, indexCount, indices);
 	mesh_generate_tangents(vertexCount, vertices, indexCount, indices);

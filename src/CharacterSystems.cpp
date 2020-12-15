@@ -4,7 +4,6 @@ shophorn@protonmail.com
 
 Player Character Systems
 =============================================================================*/
-#include <functional>
 
 struct CharacterControllerSideScroller
 {
@@ -44,7 +43,7 @@ struct CharacterControllerSideScroller
 			bool32 leftRayHit 		= collisionManager->raycast(leftRayOrigin, leftRay, false);
 
 			if (leftRayHit)
-				xMovement = max_f32(0.0f, xMovement);
+				xMovement = f32_max(0.0f, xMovement);
 
 			targetRotationRadians = π / 2.0f;
 		}
@@ -58,7 +57,7 @@ struct CharacterControllerSideScroller
 			bool32 rightRayHit		= collisionManager->raycast(rightRayOrigin, rightRay, false); 
 
 			if (rightRayHit)
-				xMovement = min_f32(0.0f, xMovement);
+				xMovement = f32_min(0.0f, xMovement);
 
 			targetRotationRadians = -π / 2.0f;
 		}
@@ -83,8 +82,8 @@ struct CharacterControllerSideScroller
 		bool32 downRayHit = collisionManager->raycast(downRayOrigin, downRay, movingDown);
 		if (downRayHit)
 		{
-			zMovement = max_f32(0.0f, zMovement);
-			zSpeed = max_f32(0.0f, zSpeed);
+			zMovement = f32_max(0.0f, zMovement);
+			zSpeed = f32_max(0.0f, zSpeed);
 		}
 
 		if ((abs_f32(zMovement) > abs_f32(xMovement)) && (abs_f32(xMovement / elapsedTime) < (0.1f * speed)))
@@ -99,7 +98,7 @@ struct CharacterControllerSideScroller
 		}
 
 		transform->position += {xMovement, 0, zMovement};
-		transform->rotation = axis_angle_quaternion(up_v3, currentRotationRadians);
+		transform->rotation = quaternion_axis_angle(v3_up, currentRotationRadians);
 
 		if (collider->hasCollision && collider->collision->tag == ColliderTag::Trigger)
 		{

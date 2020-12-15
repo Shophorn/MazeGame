@@ -8,11 +8,11 @@ Terrain generator prototype
 struct HeightMap
 {
 	// gridSize rows and gridSize colums
-	Array<f32> 	values;
-	u32 		gridSize;
-	f32			worldSize;
-	f32 		minHeight;
-	f32			maxHeight;
+	f32 * 	values;
+	u32 	gridSize;
+	f32		worldSize;
+	f32 	minHeight;
+	f32		maxHeight;
 };
 
 internal f32
@@ -44,26 +44,30 @@ get_height_at(HeightMap const * map, v2 worldScalePosition)
 	f32 value01 	= get_value(x0, y1);
 	f32 value11 	= get_value(x1, y1);
 
-	f32 value0 	= interpolate(value00, value10, xFraction);
-	f32 value1 	= interpolate(value01, value11, xFraction);
+	f32 value0 	= f32_lerp(value00, value10, xFraction);
+	f32 value1 	= f32_lerp(value01, value11, xFraction);
 
-	f32 value 	= interpolate(value0, value1, yFraction);
+	f32 value 	= f32_lerp(value0, value1, yFraction);
 
-	return interpolate(map->minHeight, map->maxHeight, value);
+	return f32_lerp(map->minHeight, map->maxHeight, value);
 }
 
 internal HeightMap
-make_heightmap(MemoryArena * memory, TextureAsset * texture, u32 gridSize, f32 worldSize, f32 minHeight, f32 maxHeight)
+make_heightmap(MemoryArena * memory, TextureAssetData * texture, u32 gridSize, f32 worldSize, f32 minHeight, f32 maxHeight)
 {
 	u64 pixelCount 		= gridSize * gridSize;
-	auto heightValues 	= allocate_array<f32>(*memory, pixelCount, ALLOC_FILL | ALLOC_NO_CLEAR);
+	auto heightValues 	= push_memory<f32>(*memory, pixelCount, ALLOC_GARBAGE);
 
 	f32 textureScale 	= 1.0f / gridSize;
 
 	auto get_value = [texture](u32 u, u32 v) -> f32
 	{
-		auto pixel 	= get_pixel(texture, u, v);
-		f32 red 	= ((0x00ff0000 & pixel) >> 16) / 255.0f;
+		s64 index 		= u + v * texture->width;
+		u32 * u32memory = reinterpret_cast<u32*>(texture->pixelMemory);
+		u32 value 		= u32memory[index];
+
+		// Todo(Leo): seems like not red, but whatever
+		f32 red 		= ((0x00ff0000 & value) >> 16) / 255.0f;
 		return red;
 	};
 
@@ -87,10 +91,10 @@ make_heightmap(MemoryArena * memory, TextureAsset * texture, u32 gridSize, f32 w
 			f32 height01  = get_value(u0, v1);
 			f32 height11  = get_value(u1, v1);
 
-			f32 height0 	= interpolate(height00, height10, uFraction);
-			f32 height1 	= interpolate(height01, height11, uFraction);
+			f32 height0 	= f32_lerp(height00, height10, uFraction);
+			f32 height1 	= f32_lerp(height01, height11, uFraction);
 
-			f32 height 	= interpolate (height0, height1, vFraction);
+			f32 height 	= f32_lerp (height0, height1, vFraction);
 
 			u64 mapIndex 		= x + gridSize * y;
 			heightValues[mapIndex] 	= height;
@@ -98,7 +102,7 @@ make_heightmap(MemoryArena * memory, TextureAsset * texture, u32 gridSize, f32 w
 	}
 
 	return {
-		.values 	= std::move(heightValues),
+		.values 	= heightValues,
 		.gridSize 	= gridSize,
 		.worldSize 	= worldSize,
 
@@ -112,7 +116,7 @@ internal void mesh_generate_tangents(s32 vertexCount, Vertex * vertices, s32 ind
 {
 	s64 triangleCount = indexCount / 3;
 
-	v3 * vertexTangents = push_memory<v3>(*global_transientMemory, vertexCount, 0);
+	v3 * vertexTangents = push_memory<v3>(*global_transientMemory, vertexCount, ALLOC_ZERO_MEMORY);
 	
 	for(s64 i = 0; i < triangleCount; ++i)
 	{
@@ -140,7 +144,7 @@ internal void mesh_generate_tangents(s32 vertexCount, Vertex * vertices, s32 ind
 		f32 r = 1.0f / (uv01.x * uv02.y - uv01.y * uv02.x);
 
 		v3 tangent = (p01 * uv02.y - p02 * uv01.y) * r;
-		tangent = normalize_v3(tangent);
+		tangent = v3_normalize(tangent);
 
 		vertexTangents[index0] += tangent;
 		vertexTangents[index1] += tangent;
@@ -149,18 +153,18 @@ internal void mesh_generate_tangents(s32 vertexCount, Vertex * vertices, s32 ind
 
 	for (u32 i = 0; i < vertexCount; ++i)
 	{
-		vertices[i].tangent = normalize_v3(vertexTangents[i]);
+		vertices[i].tangent = v3_normalize(vertexTangents[i]);
 	}
 }
 
-internal void mesh_generate_tangents(MeshAsset & mesh)
+internal void mesh_generate_tangents(MeshAssetData & mesh)
 {
-	mesh_generate_tangents(mesh.vertices.count(), mesh.vertices.data(), mesh.indices.count(), mesh.indices.data());
+	mesh_generate_tangents(mesh.vertexCount, mesh.vertices, mesh.indexCount, mesh.indices);
 }
 
 internal void mesh_generate_normals(s32 vertexCount, Vertex * vertices, s32 indexCount, u16 * indices)
 {
-	v3 * normals = push_memory<v3>(*global_transientMemory, vertexCount, 0);
+	v3 * normals = push_memory<v3>(*global_transientMemory, vertexCount, ALLOC_ZERO_MEMORY);
 
 	for (u32 i = 0; i < indexCount; i += 3)
 	{
@@ -175,7 +179,7 @@ internal void mesh_generate_normals(s32 vertexCount, Vertex * vertices, s32 inde
 		v3 p01 = p1 - p0;
 		v3 p02 = p2 - p0;
 
-		v3 normal = normalize_v3(cross_v3(p01, p02));
+		v3 normal = v3_normalize(v3_cross(p01, p02));
 
 		normals[i0] += normal;
 		normals[i1] += normal;
@@ -184,19 +188,19 @@ internal void mesh_generate_normals(s32 vertexCount, Vertex * vertices, s32 inde
 
 	for (s32 i = 0; i < vertexCount; ++i)
 	{
-		vertices[i].normal = normalize_v3(normals[i]);
+		vertices[i].normal = v3_normalize(normals[i]);
 	}	
 }
 
-internal void mesh_generate_normals (MeshAsset & mesh)
+internal void mesh_generate_normals (MeshAssetData & mesh)
 {
-	// Todo(Leo): why this
-	Assert(mesh.indices.count() <= max_value_u32);
+	// Todo(Leo): why does this exist?? 
+	Assert(mesh.indexCount <= max_value_u32);
 
-	u32 vertexCount = mesh.vertices.count();
-	u32 indexCount 	= mesh.indices.count();
+	u32 vertexCount = mesh.vertexCount;
+	u32 indexCount 	= mesh.indexCount;
 
-	v3 * normals = push_memory<v3>(*global_transientMemory, vertexCount, 0);
+	v3 * normals = push_memory<v3>(*global_transientMemory, vertexCount, ALLOC_ZERO_MEMORY);
 
 	for (u32 i = 0; i < indexCount; i += 3)
 	{
@@ -211,7 +215,7 @@ internal void mesh_generate_normals (MeshAsset & mesh)
 		v3 p01 = p1 - p0;
 		v3 p02 = p2 - p0;
 
-		v3 normal = normalize_v3(cross_v3(p01, p02));
+		v3 normal = v3_normalize(v3_cross(p01, p02));
 
 		normals[i0] += normal;
 		normals[i1] += normal;
@@ -220,11 +224,11 @@ internal void mesh_generate_normals (MeshAsset & mesh)
 
 	for (s32 i = 0; i < vertexCount; ++i)
 	{
-		mesh.vertices[i].normal = normalize_v3(normals[i]);
+		mesh.vertices[i].normal = v3_normalize(normals[i]);
 	}
 }
 
-internal MeshAsset generate_terrain(MemoryArena & 	allocator,
+internal MeshAssetData generate_terrain(MemoryArena & 	allocator,
 									HeightMap & 	heightMap,
 
 									/// Note(Leo): relative to scale of map
@@ -241,8 +245,8 @@ internal MeshAsset generate_terrain(MemoryArena & 	allocator,
 	s32 triangleIndexCount 	= 6 * (meshResolution - 1) * (meshResolution - 1);
 
 	// Note(Leo): Clear vertices so that attributes we do not set here are initialized to zero
-	Vertex * vertices 	= push_memory<Vertex>(allocator, vertexCount, 0);
-	u16 * indices 		= push_memory<u16> (allocator, triangleIndexCount, ALLOC_NO_CLEAR); 
+	Vertex * vertices 	= push_memory<Vertex>(allocator, vertexCount, ALLOC_ZERO_MEMORY);
+	u16 * indices 		= push_memory<u16> (allocator, triangleIndexCount, ALLOC_ZERO_MEMORY); 
 
 	/// FILL VERTICES
 	for (s32 y = 0; y < meshResolution; ++y)
@@ -290,85 +294,16 @@ internal MeshAsset generate_terrain(MemoryArena & 	allocator,
 
 
 	// Todo(Leo): Stop using array in mesh asset
-	MeshAsset result = make_mesh_asset(	Array<Vertex>(vertices, vertexCount, vertexCount),
-										Array<u16>(indices, triangleIndexCount, triangleIndexCount));
+	MeshAssetData result 	= {}; 
+	
+	result.vertexCount 	= vertexCount;
+	result.vertices 	= vertices;
+
+	result.indexCount 	= triangleIndexCount;
+	result.indices 		= indices;
 
 	mesh_generate_normals(result);
 	mesh_generate_tangents(result);
 
-	return std::move(result);
-}
-
-internal MeshAsset generate_terrain(MemoryArena * 	memory, 
-									f32 			texcoordScale,
-									HeightMap * 	heightMap)
-{
-	s32 vertexCountPerSide 	= heightMap->gridSize;
-	s32 vertexCount 			= vertexCountPerSide * vertexCountPerSide;
-
-	s32 quadCountPerSide 		= heightMap->gridSize - 1;
-	s32 triangleIndexCount 	= 6 * quadCountPerSide * quadCountPerSide;
-
-	Array<Vertex> vertices = allocate_array<Vertex>(*memory, vertexCount);
-	Array<u16> indices	= allocate_array<u16>(*memory, triangleIndexCount);
-
-	texcoordScale = texcoordScale / heightMap->gridSize;
-
-	auto get_clamped_height = [heightMap](u32 x, u32 y) -> f32
-	{
-		x = clamp_f32(x, 0u, heightMap->gridSize - 1);
-		y = clamp_f32(y, 0u, heightMap->gridSize - 1);
-
-		u32 valueIndex = x + y * heightMap->gridSize;
-		f32 result = interpolate(	heightMap->minHeight,
-									heightMap->maxHeight,
-									heightMap->values[valueIndex]);
-		return result;
-	};
-
-	f32 gridTileSize = heightMap->worldSize / heightMap->gridSize;
-
-	for (s32 y = 0; y < vertexCountPerSide; ++y)
-	{
-		for (s32 x = 0; x < vertexCountPerSide; ++x)
-		{
-			/* Note(Leo): for normals, use "Finite Differece Method".
-		 	https://stackoverflow.com/questions/13983189/opengl-how-to-calculate-normals-in-a-terrain-height-grid
-
-			Study(Leo): This is supposed to be more accurate. Also look wikipedia.
-			https://stackoverflow.com/questions/6656358/calculating-normals-in-a-triangle-mesh/21660173#21660173
-
-			Note(Leo): Do study this, but now we are genrating normals from triangle normals
-			*/
-			f32 height 		= get_clamped_height(x, y);
-
-			Vertex vertex = 
-			{
-				.position 	= {x * gridTileSize, y * gridTileSize, height},
-				.texCoord 	= {x * texcoordScale, y * texcoordScale},
-			};
-			vertices.push(vertex);
-		}
-	}
-
-	for (s32 y = 0; y < quadCountPerSide; ++y)
-	{
-		for (int x = 0; x < quadCountPerSide; ++x)
-		{
-			u16 a = x + vertexCountPerSide * y;
-
-			u16 b = a + 1;
-			u16 c = a + vertexCountPerSide;
-			u16 d = a + 1 + vertexCountPerSide;
-
-			indices.push_many({a, b, c, c, b, d});
-		}
-	}
-
-	MeshAsset result = make_mesh_asset(std::move(vertices), std::move(indices));
-
-	mesh_generate_normals(result);
-	mesh_generate_tangents(result);
-
-	return std::move(result);
+	return result;
 }

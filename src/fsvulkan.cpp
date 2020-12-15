@@ -2,6 +2,8 @@
 Leo Tamminen
 
 Implementations of vulkan related functions
+
+Todo(Leo): this is horrible file :)
 =============================================================================*/
 #include "fsvulkan.hpp"
 
@@ -68,11 +70,11 @@ fsvulkan_write_descriptor_set_buffer (VkDescriptorSet dstSet, u32 descriptorCoun
 
 
 // Todo(Leo): this is weird, it doesnt feel at home here.
-internal PlatformGraphicsFrameResult fsvulkan_prepare_frame(VulkanContext * context)
+internal void fsvulkan_prepare_frame(VulkanContext * context)
 {
 	VulkanVirtualFrame * frame = fsvulkan_get_current_virtual_frame(context);
 
-    VULKAN_CHECK(vkWaitForFences(context->device, 1, &frame->queueSubmitFence, VK_TRUE, VULKAN_NO_TIME_OUT));
+    VULKAN_CHECK(vkWaitForFences(context->device, 1, &frame->frameInUseFence, VK_TRUE, VULKAN_NO_TIME_OUT));
 
     VkResult result = vkAcquireNextImageKHR(context->device,
                                             context->swapchain,
@@ -80,75 +82,34 @@ internal PlatformGraphicsFrameResult fsvulkan_prepare_frame(VulkanContext * cont
                                             frame->imageAvailableSemaphore,
                                             VK_NULL_HANDLE,
                                             &context->currentDrawFrameIndex);
-    switch(result)
-    {
-    	case VK_SUCCESS:
-    		return PGFR_FRAME_OK;
 
-	    case VK_SUBOPTIMAL_KHR:
-	    case VK_ERROR_OUT_OF_DATE_KHR:
-	    	return PGFR_FRAME_RECREATE;
+    // switch(result)
+    // {
+    // 	case VK_SUCCESS:
+    // 		return PGFR_FRAME_OK;
 
-	    default:
-	    	return PGFR_FRAME_BAD_PROBLEM;
-    }
+	   //  case VK_SUBOPTIMAL_KHR:
+	   //  case VK_ERROR_OUT_OF_DATE_KHR:
+	   //  	return PGFR_FRAME_RECREATE;
+
+	   //  default:
+	   //  	return PGFR_FRAME_BAD_PROBLEM;
+    // }
 }
 
-internal void fsvulkan_reload_shaders(VulkanContext * context)
+internal void graphics_development_reload_shaders(VulkanContext * context)
 {
-	system("compile-shaders.py");
+	context->postRenderEvents.reloadShaders = true;
 
-	context->onPostRender = [](VulkanContext * context)
-	{
-		VkDevice device = context->device;
+	// context->onPostRender = [](VulkanContext * context)
+	// {
+	// 	// char const * command = "\"../compile_shaders.py\"";
+	// 	// log_graphics(0, "Reloading shaders, command: '", command, "'");
 
-		logVulkan(0) << "Hello";
+	// 	// system(command);
+	
 
-		vkResetDescriptorPool(context->device, context->persistentDescriptorPool, 0);
-
-		fsvulkan_cleanup_pipelines(context);
-		fsvulkan_initialize_pipelines(*context);
-
-		for (s32 i = 0; i < VIRTUAL_FRAME_COUNT; ++i)
-		{
-			context->shadowMapTextureDescriptorSet[i] = make_material_vk_descriptor_set_2( context,
-																					context->shadowMapTextureDescriptorSetLayout,
-																					// context->pipelines[GRAPHICS_PIPELINE_SCREEN_GUI].descriptorSetLayout,
-																					context->shadowAttachment[i].view,
-																					context->persistentDescriptorPool,
-																					context->shadowTextureSampler,
-																					VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-		}
-
-		logVulkan(0) << "Hello2";
-	};
-}
-
-internal void fsvulkan_set_platform_graphics_api(VulkanContext * context, PlatformApi * api)
-{
- 	api->push_mesh          = fsvulkan_resources_push_mesh;
- 	api->push_texture       = fsvulkan_resources_push_texture;
- 	api->push_material      = fsvulkan_resources_push_material;
- 	api->push_gui_texture 	= fsvulkan_resources_push_gui_texture;
- 	api->push_model         = fsvulkan_resources_push_model;
- 	api->unload_scene       = fsvulkan_resources_unload_resources;
-
- 	api->update_texture		= fsvulkan_resources_update_texture;
-
- 	api->reload_shaders 	= fsvulkan_reload_shaders;
-
- 	api->prepare_frame      	= fsvulkan_drawing_prepare_frame;
- 	api->finish_frame       	= fsvulkan_drawing_finish_frame;
- 	api->update_camera      	= fsvulkan_drawing_update_camera;
- 	api->update_lighting		= fsvulkan_drawing_update_lighting;
- 	api->update_hdr_settings 	= fsvulkan_drawing_update_hdr_settings;
- 	
- 	api->draw_model         	= fsvulkan_drawing_draw_model;
- 	api->draw_meshes 			= fsvulkan_drawing_draw_meshes;
- 	api->draw_screen_rects		= fsvulkan_drawing_draw_screen_rects;
- 	api->draw_lines 			= fsvulkan_drawing_draw_lines;
- 	api->draw_procedural_mesh 	= fsvulkan_drawing_draw_procedural_mesh;
- 	api->draw_leaves 			= fsvulkan_drawing_draw_leaves;
+	// };
 }
 
 internal VkFormat
@@ -589,13 +550,13 @@ vulkan::make_vk_image( VulkanContext * context,
 
 
 VkSampler
-BAD_VULKAN_make_vk_sampler(VkDevice device, VkSamplerAddressMode addressMode)
+BAD_VULKAN_make_vk_sampler(VkDevice device, VkSamplerAddressMode addressMode, VkFilter filter = VK_FILTER_LINEAR)
 {
 	VkSamplerCreateInfo samplerInfo =
 	{ 
 		.sType              = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
-		.magFilter          = VK_FILTER_LINEAR,
-		.minFilter          = VK_FILTER_LINEAR,
+		.magFilter          = filter,
+		.minFilter          = filter,
 		.mipmapMode         = VK_SAMPLER_MIPMAP_MODE_LINEAR,
 
 		.addressModeU       = addressMode,
@@ -628,7 +589,7 @@ VKAPI_ATTR VkBool32 VKAPI_CALL fsvulkan_debug_callback (VkDebugUtilsMessageSever
 														const VkDebugUtilsMessengerCallbackDataEXT * 	data,
 														void * 											userData)
 {
-	logVulkan(0) << data->pMessage;
+	log_graphics(0, data->pMessage);
 	return VK_FALSE;
 }
 
@@ -638,7 +599,7 @@ VKAPI_ATTR VkBool32 VKAPI_CALL fsvulkan_debug_callback (VkDebugUtilsMessageSever
 Make better separation between windows part of this and vulkan part of this. */
 namespace winapi
 {
-	internal VulkanContext create_vulkan_context  (WinAPIWindow*);
+	internal VulkanContext create_vulkan_context  (Win32PlatformWindow*);
 	internal void destroy_vulkan_context        (VulkanContext*);
 }
 
@@ -649,13 +610,12 @@ namespace winapi_vulkan_internal_
 	internal void add_cleanup(VulkanContext*, VulkanContext::CleanupFunc * cleanupFunc);
 
 	internal VkInstance             create_vk_instance();
-	internal VkSurfaceKHR           create_vk_surface(VkInstance, WinAPIWindow*);
+	internal VkSurfaceKHR           create_vk_surface(VkInstance, Win32PlatformWindow*);
 	internal VkPhysicalDevice       create_vk_physical_device(VkInstance, VkSurfaceKHR);
 	internal VkDevice               create_vk_device(VkPhysicalDevice, VkSurfaceKHR);
 	internal VkSampleCountFlagBits  get_max_usable_msaa_samplecount(VkPhysicalDevice);
 
 	// Todo(Leo): These are not winapi specific, so they could move to universal vulkan layer
-	internal void init_memory           (VulkanContext*);
 	internal void init_uniform_buffers  (VulkanContext*);
 
 	internal void init_material_descriptor_pool     (VulkanContext*);
@@ -664,8 +624,14 @@ namespace winapi_vulkan_internal_
 	internal void init_shadow_pass                  (VulkanContext*, u32 width, u32 height);
 }
 
+
+// Todo(Leo): define proper structs for these and move to other file 
+internal void fsvulkan_create_memory(VulkanContext *);
+internal void fsvulkan_destroy_memory(VulkanContext *);
+
+
 internal VulkanContext
-winapi::create_vulkan_context(WinAPIWindow * window)
+winapi::create_vulkan_context(Win32PlatformWindow * window)
 {
 	// Note(Leo): This is actual winapi part of vulkan context
 	VulkanContext context = {};
@@ -673,7 +639,6 @@ winapi::create_vulkan_context(WinAPIWindow * window)
 		using namespace winapi_vulkan_internal_;
 
 		context.instance          = create_vk_instance();
-		// TODO(Leo): (if necessary, but at this point) Setup debug callbacks, look vulkan-tutorial.com
 
 		#if FS_VULKAN_USE_VALIDATION
 		{
@@ -730,6 +695,8 @@ winapi::create_vulkan_context(WinAPIWindow * window)
 		vkGetDeviceQueue(context.device, queueFamilyIndices.graphics, 0, &context.graphicsQueue);
 		vkGetDeviceQueue(context.device, queueFamilyIndices.present, 0, &context.presentQueue);
 
+		context.graphicsQueueFamily = queueFamilyIndices.graphics;
+		context.presentQueueFamily = queueFamilyIndices.present;
 
 		/// START OF RESOURCES SECTION ////////////////////
 		VkCommandPoolCreateInfo poolInfo =
@@ -746,7 +713,7 @@ winapi::create_vulkan_context(WinAPIWindow * window)
 		});
 
 		// Note(Leo): these are expected to add_cleanup any functionality required
-		init_memory(&context);
+		fsvulkan_create_memory(&context);
 
 		init_uniform_buffers (&context);
 
@@ -754,25 +721,32 @@ winapi::create_vulkan_context(WinAPIWindow * window)
 		init_persistent_descriptor_pool (&context, 20, 20);
 		init_virtual_frames (&context);
 	
-		context.textureSampler = BAD_VULKAN_make_vk_sampler(context.device, VK_SAMPLER_ADDRESS_MODE_REPEAT);
+		context.linearRepeatSampler = BAD_VULKAN_make_vk_sampler(context.device, VK_SAMPLER_ADDRESS_MODE_REPEAT);
+		context.nearestRepeatSampler = BAD_VULKAN_make_vk_sampler(context.device, VK_SAMPLER_ADDRESS_MODE_REPEAT, VK_FILTER_NEAREST);
 		context.clampSampler = BAD_VULKAN_make_vk_sampler(context.device, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE);
 		add_cleanup(&context, [](VulkanContext * context)
 		{
-			vkDestroySampler(context->device, context->textureSampler, nullptr);
+			vkDestroySampler(context->device, context->linearRepeatSampler, nullptr);
+			vkDestroySampler(context->device, context->nearestRepeatSampler, nullptr);
 			vkDestroySampler(context->device, context->clampSampler, nullptr);
 		});
 
-		vulkan::create_drawing_resources(&context, window->width, window->height);
+		vulkan_create_drawing_resources(&context, window->width, window->height);
+		vulkan_create_scene_render_targets(&context, context.sceneRenderTargetWidth, context.sceneRenderTargetHeight);
+
+
 		add_cleanup(&context, [](VulkanContext * context)
 		{
-			vulkan::destroy_drawing_resources(context);
+			vulkan_destroy_scene_render_targets(context);
+			vulkan_destroy_drawing_resources(context);
 		});
 		
 		init_shadow_pass(&context, 1024 * 8, 1024 * 8);
 
 		/// PIPELINES
 		{
-			fsvulkan_initialize_pipelines(context);
+			// fsvulkan_initialize_pipelines(context, context.swapchainExtent.width, context.swapchainExtent.height);
+			fsvulkan_initialize_pipelines(context, context.sceneRenderTargetWidth, context.sceneRenderTargetHeight);
 			add_cleanup(&context, [](VulkanContext * context)
 			{
 				// Todo(Leo): this kinda goes to show that this add_cleanup is stupid, we should just create
@@ -785,19 +759,20 @@ winapi::create_vulkan_context(WinAPIWindow * window)
 		{
 			context.shadowMapTextureDescriptorSet[i] = make_material_vk_descriptor_set_2( 	&context,
 																					context.shadowMapTextureDescriptorSetLayout,
-																					// context.pipelines[GRAPHICS_PIPELINE_SCREEN_GUI].descriptorSetLayout,
+																					// context.pipelines[GraphicsPipeline_SCREEN_GUI].descriptorSetLayout,
 																					context.shadowAttachment[i].view,
-																					context.persistentDescriptorPool,
+																					context.drawingResourceDescriptorPool,
 																					context.shadowTextureSampler,
-																					VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+																					VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);    
 		}
 	}
 
 
-	logVulkan() << "Initialized succesfully";
+	log_graphics(1, "Initialized succesfully");
 
 	return context;
 }
+
 
 internal void
 winapi::destroy_vulkan_context(VulkanContext * context)
@@ -805,7 +780,14 @@ winapi::destroy_vulkan_context(VulkanContext * context)
 	// Note(Leo): All draw frame operations are asynchronous, must wait for them to finish
 	vkDeviceWaitIdle(context->device);
 
-	fsvulkan_resources_unload_resources(context);
+	BAD_BUT_ACTUAL_graphics_memory_unload(context);
+
+	for (s32 i = 0; i < VIRTUAL_FRAME_COUNT; ++i)
+	{
+		vkDestroyFramebuffer(context->device, context->presentFramebuffers[i], nullptr);
+	}
+
+	fsvulkan_destroy_memory(context);
 
 	while(context->cleanups.size() > 0)
 	{
@@ -817,7 +799,7 @@ winapi::destroy_vulkan_context(VulkanContext * context)
 	vkDestroySurfaceKHR (context->instance, context->surface, nullptr);
 	vkDestroyInstance   (context->instance, nullptr);
 	
-	logVulkan() << "Shut down\n";
+	log_graphics(1, "Shut down");
 }
 
 internal void 
@@ -854,7 +836,7 @@ winapi_vulkan_internal_::create_vk_instance()
 			Assert(layerFound);
 		}
 		
-		logVulkan(0) << "Validation layers ok!";
+		log_graphics(0, "Validation layers ok!");
 	}
 
 
@@ -900,7 +882,7 @@ winapi_vulkan_internal_::create_vk_instance()
 }
 
 internal VkSurfaceKHR
-winapi_vulkan_internal_::create_vk_surface(VkInstance instance, WinAPIWindow * window)
+winapi_vulkan_internal_::create_vk_surface(VkInstance instance, Win32PlatformWindow * window)
 {
 	VkWin32SurfaceCreateInfoKHR surfaceCreateInfo =
 	{
@@ -1082,18 +1064,18 @@ winapi_vulkan_internal_::get_max_usable_msaa_samplecount(VkPhysicalDevice physic
 	return result;
 }
 
-internal void
-winapi_vulkan_internal_::init_memory(VulkanContext * context)
+internal void fsvulkan_create_memory(VulkanContext * context)
 {
 	// TODO [MEMORY] (Leo): Properly measure required amount
+	// TODO [MEMORY] (Leo): Measure something at all...
 	// TODO[memory] (Leo): Log usage
-	u64 staticMeshPoolSize       	= gigabytes(2);
-	context->stagingBufferCapacity 	= megabytes(100);
-	u64 modelUniformBufferSize   	= megabytes(500);
-	// u64 sceneUniformBufferSize   	= megabytes(100);
-	u64 guiUniformBufferSize     	= megabytes(100);
+	u64 staticMeshPoolSize       				= megabytes(500);
+	context->stagingBufferCapacity 				= megabytes(100);
+	context->modelUniformBufferFrameCapacity 	= megabytes(100);
+	context->dynamicMeshFrameCapacity 			= megabytes(100);
+	u64 guiUniformBufferSize     				= megabytes(100);
 
-	// TODO[MEMORY] (Leo): This will need guarding against multithreads once we get there
+	// TODO[MEMORY] (Leo): These will need guarding against multithreads once we get there
 	context->staticMeshPool = BAD_VULKAN_make_buffer_resource(  
 									context, staticMeshPoolSize,
 									VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
@@ -1108,15 +1090,32 @@ winapi_vulkan_internal_::init_memory(VulkanContext * context)
 										VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 	vkMapMemory(context->device, context->stagingBufferDeviceMemory, 0, VK_WHOLE_SIZE, 0, (void**)&context->persistentMappedStagingBufferMemory);
 
-	context->modelUniformBuffer = BAD_VULKAN_make_buffer_resource(  
-									context, modelUniformBufferSize,
-									VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-									VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+	fsvulkan_create_and_allocate_buffer(context->device,
+										context->physicalDevice,
+										&context->modelUniformBufferBuffer,
+										&context->modelUniformBufferMemory,
+										VIRTUAL_FRAME_COUNT * context->modelUniformBufferFrameCapacity,
+										VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+										VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+	vkMapMemory(context->device, context->modelUniformBufferMemory, 0, VK_WHOLE_SIZE, 0, (void**)&context->persistentMappedModelUniformBufferMemory);
+	
+	fsvulkan_create_and_allocate_buffer(context->device,
+										context->physicalDevice,
+										&context->dynamicMeshBuffer,
+										&context->dynamicMeshDeviceMemory,
+										VIRTUAL_FRAME_COUNT * context->dynamicMeshFrameCapacity,
+										VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+										VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+	vkMapMemory(context->device, context->dynamicMeshDeviceMemory, 0, VK_WHOLE_SIZE, 0, (void**)&context->persistentMappedDynamicMeshMemory);
 
-	// context->sceneUniformBuffer = BAD_VULKAN_make_buffer_resource(
-	// 								context, sceneUniformBufferSize,
-	// 								VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-	// 								VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+	for (s32 i = 0; i < VIRTUAL_FRAME_COUNT; ++i)
+	{
+		context->modelUniformBufferFrameStart[i] 	= i * context->modelUniformBufferFrameCapacity;
+		context->modelUniformBufferFrameUsed[i] 	= 0;
+
+		context->dynamicMeshFrameStart[i] 	= i * context->dynamicMeshFrameCapacity;
+		context->dynamicMeshFrameUsed[i] 	= 0;
+	}
 
 	{
 		s64 leafBufferSize = megabytes(200);
@@ -1139,7 +1138,7 @@ winapi_vulkan_internal_::init_memory(VulkanContext * context)
 		{
 			.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
 			.allocationSize = memoryRequirements.size,
-			.memoryTypeIndex = find_memory_type(context->physicalDevice,
+			.memoryTypeIndex = vulkan::find_memory_type(context->physicalDevice,
 												memoryRequirements.memoryTypeBits,
 												VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT),
 		};
@@ -1152,21 +1151,27 @@ winapi_vulkan_internal_::init_memory(VulkanContext * context)
 		vkBindBufferMemory(context->device, context->leafBuffer, context->leafBufferMemory, 0); 
 
 		context->leafBufferCapacity = leafBufferSize;
-		vkMapMemory(context->device, context->leafBufferMemory, 0, VK_WHOLE_SIZE, 0, &context->persistentMappedLeafBufferMemory);
+		vkMapMemory(context->device, context->leafBufferMemory, 0, VK_WHOLE_SIZE, 0, (void**)&context->persistentMappedLeafBufferMemory);
 	}
-
-	add_cleanup(context, [](VulkanContext * context){
-		BAD_VULKAN_destroy_buffer_resource(context->device, &context->staticMeshPool);
-		BAD_VULKAN_destroy_buffer_resource(context->device, &context->modelUniformBuffer);
-
-		vkDestroyBuffer(context->device, context->stagingBuffer, nullptr);
-		vkFreeMemory(context->device, context->stagingBufferDeviceMemory, nullptr);
-
-		vkDestroyBuffer(context->device, context->leafBuffer, nullptr);
-		// Todo(Leo): Is it required to free memory on application exit?
-		vkFreeMemory(context->device, context->leafBufferMemory, nullptr);
-	});
 };
+
+internal void fsvulkan_destroy_memory(VulkanContext * context)
+{
+	BAD_VULKAN_destroy_buffer_resource(context->device, &context->staticMeshPool);
+
+	vkDestroyBuffer(context->device, context->dynamicMeshBuffer, nullptr);
+	vkFreeMemory(context->device, context->dynamicMeshDeviceMemory, nullptr);
+
+	vkDestroyBuffer(context->device, context->modelUniformBufferBuffer, nullptr);
+	vkFreeMemory(context->device, context->modelUniformBufferMemory, nullptr);
+
+	vkDestroyBuffer(context->device, context->stagingBuffer, nullptr);
+	vkFreeMemory(context->device, context->stagingBufferDeviceMemory, nullptr);
+
+	vkDestroyBuffer(context->device, context->leafBuffer, nullptr);
+	// Todo(Leo): Is it required to free memory on application exit?
+	vkFreeMemory(context->device, context->leafBufferMemory, nullptr);	
+}
 
 internal void
 winapi_vulkan_internal_::init_persistent_descriptor_pool(VulkanContext * context, u32 descriptorCount, u32 maxSets)
@@ -1187,10 +1192,13 @@ winapi_vulkan_internal_::init_persistent_descriptor_pool(VulkanContext * context
 		.pPoolSizes     = &poolSize,
 	};
 
+	VULKAN_CHECK(vkCreateDescriptorPool(context->device, &poolCreateInfo, nullptr, &context->drawingResourceDescriptorPool));
 	VULKAN_CHECK(vkCreateDescriptorPool(context->device, &poolCreateInfo, nullptr, &context->persistentDescriptorPool));
+
 
 	add_cleanup(context, [](VulkanContext * context)
 	{
+		vkDestroyDescriptorPool(context->device, context->drawingResourceDescriptorPool, nullptr);
 		vkDestroyDescriptorPool(context->device, context->persistentDescriptorPool, nullptr);
 	});
 }
@@ -1231,8 +1239,11 @@ winapi_vulkan_internal_::init_uniform_buffers(VulkanContext * context)
 	// auto hdrDescriptorSetLayoutCreateInfo 	= fsvulkan_descriptor_set_layout_create_info(1, & hdrBinding);
 	// VULKAN_CHECK(vkCreateDescriptorSetLayout(context->device, &hdrDescriptorSetLayoutCreateInfo, nullptr, &context->hdrSettingsDescriptorSetLayout));
 
+	// Todo(Leo): Separate to separate calls per type, so we don't need to do remap below
 	VkDescriptorSetLayout layouts [] =
 	{
+		context->modelDescriptorSetLayout,
+		context->modelDescriptorSetLayout,
 		context->modelDescriptorSetLayout,
 
 		context->cameraDescriptorSetLayout,
@@ -1252,15 +1263,17 @@ winapi_vulkan_internal_::init_uniform_buffers(VulkanContext * context)
 	auto allocateInfo = fsvulkan_descriptor_set_allocate_info(context->uniformDescriptorPool, array_count(layouts), layouts);
 	VULKAN_CHECK(vkAllocateDescriptorSets(context->device, &allocateInfo, resultSets));
 
-	context->modelDescriptorSet = resultSets[0];
+	context->modelDescriptorSet[0] = resultSets[0];
+	context->modelDescriptorSet[1] = resultSets[1];
+	context->modelDescriptorSet[2] = resultSets[2];
 
-	context->cameraDescriptorSet[0] = resultSets[1];
-	context->cameraDescriptorSet[1] = resultSets[2];
-	context->cameraDescriptorSet[2] = resultSets[3];
+	context->cameraDescriptorSet[0] = resultSets[3];
+	context->cameraDescriptorSet[1] = resultSets[4];
+	context->cameraDescriptorSet[2] = resultSets[5];
 	
-	context->lightingDescriptorSet[0] = resultSets[4];
-	context->lightingDescriptorSet[1] = resultSets[5];
-	context->lightingDescriptorSet[2] = resultSets[6];
+	context->lightingDescriptorSet[0] = resultSets[6];
+	context->lightingDescriptorSet[1] = resultSets[7];
+	context->lightingDescriptorSet[2] = resultSets[8];
 
 	// context->hdrSettingsDescriptorSet[0] = resultSets[7];
 	// context->hdrSettingsDescriptorSet[1] = resultSets[8];
@@ -1292,7 +1305,9 @@ winapi_vulkan_internal_::init_uniform_buffers(VulkanContext * context)
 	// ------------------------------------------------------------------------------------
 
     // Todo(Leo): This would seem not to belong here
-	VkDescriptorBufferInfo modelBufferInfo 	= { context->modelUniformBuffer.buffer, 0, sizeof(m44) };
+	VkDescriptorBufferInfo modelBufferInfo_0 = { context->modelUniformBufferBuffer, 0, sizeof(m44) };
+	VkDescriptorBufferInfo modelBufferInfo_1 = { context->modelUniformBufferBuffer, 0, sizeof(m44) };
+	VkDescriptorBufferInfo modelBufferInfo_2 = { context->modelUniformBufferBuffer, 0, sizeof(m44) };
 
 	VkDescriptorBufferInfo cameraBufferInfo [] =
 	{
@@ -1318,7 +1333,9 @@ winapi_vulkan_internal_::init_uniform_buffers(VulkanContext * context)
 	// Todo(Leo): Why is this 'lIGHTINGbufferwrite' ??????
 	VkWriteDescriptorSet lightingBufferWrite [] = 
 	{
-		fsvulkan_write_descriptor_set_buffer(context->modelDescriptorSet, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, &modelBufferInfo),
+		fsvulkan_write_descriptor_set_buffer(context->modelDescriptorSet[0], 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, &modelBufferInfo_0),
+		fsvulkan_write_descriptor_set_buffer(context->modelDescriptorSet[1], 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, &modelBufferInfo_1),
+		fsvulkan_write_descriptor_set_buffer(context->modelDescriptorSet[2], 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, &modelBufferInfo_2),
 		
 		fsvulkan_write_descriptor_set_buffer(context->cameraDescriptorSet[0], 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, &cameraBufferInfo[0]),		
 		fsvulkan_write_descriptor_set_buffer(context->cameraDescriptorSet[1], 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, &cameraBufferInfo[1]),		
@@ -1431,46 +1448,40 @@ winapi_vulkan_internal_::init_virtual_frames(VulkanContext * context)
 	for (auto & frame : context->virtualFrames)
 	{
 		// Command buffers
-		bool32 success = vkAllocateCommandBuffers(context->device, &masterCmdAllocateInfo, &frame.commandBuffers.master) == VK_SUCCESS;
-		success = success && vkAllocateCommandBuffers(context->device, &secondaryCmdAllocateInfo, &frame.commandBuffers.scene) == VK_SUCCESS;
-		success = success && vkAllocateCommandBuffers(context->device, &secondaryCmdAllocateInfo, &frame.commandBuffers.gui) == VK_SUCCESS;
+		bool32 success = vkAllocateCommandBuffers(context->device, &masterCmdAllocateInfo, &frame.mainCommandBuffer) == VK_SUCCESS;
+		success = success && vkAllocateCommandBuffers(context->device, &secondaryCmdAllocateInfo, &frame.sceneCommandBuffer) == VK_SUCCESS;
+		success = success && vkAllocateCommandBuffers(context->device, &secondaryCmdAllocateInfo, &frame.guiCommandBuffer) == VK_SUCCESS;
+		success = success && vkAllocateCommandBuffers(context->device, &secondaryCmdAllocateInfo, &frame.postProcessCommandBuffer) == VK_SUCCESS;
 
-		success = success && vkAllocateCommandBuffers(context->device, &secondaryCmdAllocateInfo, &frame.commandBuffers.offscreen) == VK_SUCCESS;
+		success = success && vkAllocateCommandBuffers(context->device, &secondaryCmdAllocateInfo, &frame.shadowCommandBuffer) == VK_SUCCESS;
 
 		// Synchronization stuff
-		success = success && vkCreateSemaphore(context->device, &semaphoreInfo, nullptr, &frame.shadowPassWaitSemaphore) == VK_SUCCESS;
 		success = success && vkCreateSemaphore(context->device, &semaphoreInfo, nullptr, &frame.imageAvailableSemaphore) == VK_SUCCESS;
 		success = success && vkCreateSemaphore(context->device, &semaphoreInfo, nullptr, &frame.renderFinishedSemaphore) == VK_SUCCESS;
-		success = success && vkCreateFence(context->device, &fenceInfo, nullptr, &frame.queueSubmitFence) == VK_SUCCESS;
+		success = success && vkCreateFence(context->device, &fenceInfo, nullptr, &frame.frameInUseFence) == VK_SUCCESS;
 
-		AssertMsg(success, "Failed to create VulkanVirtualFrame");
+		Assert(success && "Failed to create VulkanVirtualFrame");
 	}
 
 	add_cleanup(context, [](VulkanContext * context)
 	{
 		for (auto & frame : context->virtualFrames)
 		{
-			/* Note(Leo): command buffers are destroyed with command pool, but we need to destroy
-			framebuffers here, since they are always recreated immediately right after destroying
-			them in drawing procedure */
-			vkDestroyFramebuffer(context->device, frame.framebuffer, nullptr);
-			
-			vkDestroySemaphore(context->device, frame.shadowPassWaitSemaphore, nullptr);
 			vkDestroySemaphore(context->device, frame.renderFinishedSemaphore, nullptr);
 			vkDestroySemaphore(context->device, frame.imageAvailableSemaphore, nullptr);
-			vkDestroyFence(context->device, frame.queueSubmitFence, nullptr);
+			vkDestroyFence(context->device, frame.frameInUseFence, nullptr);
 
-			// Todo(Leo): these maybe should be here, but for now at least they are created and destroed with swapchain
-			// vkDestroyImage(context->device, frame.colorImage, nullptr);
-			// vkDestroyImageView(context->device, frame.colorImageView, nullptr);
+			frame.renderFinishedSemaphore 	= VK_NULL_HANDLE;
+			frame.imageAvailableSemaphore 	= VK_NULL_HANDLE;
+			frame.frameInUseFence 			= VK_NULL_HANDLE;
 		}
 	});
 }
 
+
+
 void winapi_vulkan_internal_::init_shadow_pass(VulkanContext * context, u32 width, u32 height)
 {
-		// init_shadow_pass(&context, 1024 * 4, 1024 * 4);
-
 	using namespace vulkan;
 
 	// Todo(Leo): This may not be a valid format, query support or check if vulkan spec requires this.

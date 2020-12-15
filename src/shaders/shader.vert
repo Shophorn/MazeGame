@@ -16,10 +16,8 @@ layout(set = 2, binding = 0) uniform ModelProjection
 
 layout (location = 0) in vec3 inPosition;
 layout (location = 1) in vec3 inNormal;
-layout (location = 2) in vec3 inColor;
+layout (location = 2) in vec3 inTangent;
 layout (location = 3) in vec2 inTexCoord;
-layout (location = 6) in vec3 inTangent;
-layout (location = 7) in vec3 inBiTangent;
 
 layout (location = 0) out vec3 fragColor;
 layout (location = 1) out vec2 fragTexCoord;
@@ -59,7 +57,7 @@ void main ()
 	distance = distance / transitionDistance;
 	lightCoords.w = clamp (1.0 - distance, 0, 1);
 
-	fragColor 		= inColor;
+	// fragColor 		= inColor;
 	fragTexCoord 	= inTexCoord;
 }
 

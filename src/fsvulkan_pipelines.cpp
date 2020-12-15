@@ -33,36 +33,58 @@ internal VkDescriptorSetLayout fsvulkan_make_material_descriptor_set_layout(VkDe
 }
 
 
-internal VkShaderModule fsvulkan_make_shader_module(VkDevice device, BinaryAsset code)
+
+internal VkShaderModule fsvulkan_make_shader_module(VkDevice device, char const * sourceFilename)
 {
+	PlatformFileHandle file = platform_file_open(sourceFilename, FileMode_read);
+	s64 fileSize 			= platform_file_get_size(file);
+
+	u32 * memory = reinterpret_cast<u32*>(malloc(fileSize));
+	platform_file_read(file, 0, fileSize, memory);
+
 	VkShaderModuleCreateInfo createInfo = {};
-	createInfo.sType 					= VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-	createInfo.codeSize 				= code.size();
-	createInfo.pCode 					= reinterpret_cast<u32*>(code.data());
+	createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+	createInfo.codeSize = fileSize;
+	createInfo.pCode = memory;
+
 
 	VkShaderModule result;
-	VULKAN_CHECK(vkCreateShaderModule (device, &createInfo, nullptr, &result));
+	VULKAN_CHECK(vkCreateShaderModule(device, &createInfo, nullptr, &result));
+
+
+	platform_file_close(file);
+	free(memory);
 
 	return result;
 }
-
 
 // *************************************************************************
 /// GOOD INITIALIZERS
 // Note(Leo): Only expose from these functions properties we are interested to change
 
-constexpr VkVertexInputBindingDescription fsvulkan_defaultVertexBinding = { 0, sizeof(Vertex), VK_VERTEX_INPUT_RATE_VERTEX };
+constexpr VkVertexInputBindingDescription fsvulkan_defaultVertexBinding [] =
+{ 
+	{ 0, sizeof(Vertex), VK_VERTEX_INPUT_RATE_VERTEX },
+	{ 1, sizeof(VertexSkinData), VK_VERTEX_INPUT_RATE_VERTEX },
+};
 
 constexpr VkVertexInputAttributeDescription fsvulkan_defaultVertexAttributes [] =
 {
 	{0, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, position)},
 	{1, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, normal)},
-	{2, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, color)},
+	{2, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, tangent)},
 	{3, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(Vertex, texCoord)},
-	{4, 0, VK_FORMAT_R32G32B32A32_UINT, offsetof(Vertex, boneIndices)},
-	{5, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(Vertex, boneWeights)},
-	{6, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, tangent)},
+
+	{4, 1, VK_FORMAT_R32G32B32A32_UINT, offsetof(VertexSkinData, boneIndices)},
+	{5, 1, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(VertexSkinData, boneWeights)},
 };
+
+constexpr s32 normalBindingCount = 1;
+constexpr s32 animatedBindingCount = 2;
+
+constexpr s32 normalAttributeCount = 4;
+constexpr s32 animatedAttributeCount = 6;
+
 
 
 // Note(Leo): We can specify zero viewport and scissors now since we use dynamic state on those,
@@ -313,11 +335,28 @@ These are default values, so those that are not needed can just be left away (ex
 
 //////////////////////////////////////////////////////////////////////////////////////
 
-internal void fsvulkan_initialize_pipelines(VulkanContext & context)
+internal void fsvulkan_initialize_pipelines(VulkanContext & context, u32 targetTextureWidth, u32 targetTextureHeight)
 {
+	// Todo(Leo): Target texture sizes are not taken into consideration anywhere yet, they probably fall back
+	// to swapchain sizes, but it is not this functions problem.
+
 	context.skyGradientDescriptorSetLayout = fsvulkan_make_material_descriptor_set_layout(context.device, 2);
 
-	/// GRAPHICS_PIPELINE_NORMAL
+	// Note(Leo): These are common to every pipeline, right??
+	VkViewport viewport = {0, 0, (f32)targetTextureWidth, (f32)targetTextureHeight, 0, 1};
+	VkRect2D scissor 	= {{0,0}, {targetTextureWidth, targetTextureHeight}};
+
+	auto common_viewportState = vk_pipeline_viewport_state_create_info();
+	{
+		common_viewportState.viewportCount 	= 1;
+		common_viewportState.pViewports 	= &viewport;
+		common_viewportState.scissorCount 	= 1;
+		common_viewportState.pScissors 		= &scissor;
+	}
+
+
+	/// GraphicsPipeline_normal
+	log_graphics(1, "Initializing Normal Pipeline");
 	{
 		auto materialLayout = fsvulkan_make_material_descriptor_set_layout(context.device, 3);
 
@@ -337,10 +376,10 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 		auto pipelineLayoutCreateInfo = fsvulkan_pipeline_layout_create_info(	array_count(descriptorSetLayouts), descriptorSetLayouts,
 																				1, &pushConstantRange);
 
-		VULKAN_CHECK(vkCreatePipelineLayout (context.device, &pipelineLayoutCreateInfo, nullptr, &context.pipelines[GRAPHICS_PIPELINE_NORMAL].pipelineLayout));
+		VULKAN_CHECK(vkCreatePipelineLayout (context.device, &pipelineLayoutCreateInfo, nullptr, &context.pipelines[GraphicsPipeline_normal].pipelineLayout));
 
-		VkShaderModule vertexShaderModule 	= fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/vert.spv"));
-		VkShaderModule fragmentShaderModule = fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/frag.spv"));
+		VkShaderModule vertexShaderModule 	= fsvulkan_make_shader_module(context.device, "shaders/vert.spv");
+		VkShaderModule fragmentShaderModule = fsvulkan_make_shader_module(context.device, "shaders/frag.spv");
 
 		VkPipelineShaderStageCreateInfo shaderStages [] =
 		{
@@ -348,10 +387,10 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 			fsvulkan_pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, fragmentShaderModule, "main"),
 		};
 
-		auto vertexInputState 	= fsvulkan_pipeline_vertex_input_state_create_info	(1, &fsvulkan_defaultVertexBinding,
-																					array_count(fsvulkan_defaultVertexAttributes), fsvulkan_defaultVertexAttributes);
+		auto vertexInputState 	= fsvulkan_pipeline_vertex_input_state_create_info	(normalBindingCount, fsvulkan_defaultVertexBinding,
+																					normalAttributeCount, fsvulkan_defaultVertexAttributes);
 		auto inputAssemblyState = fsvulkan_pipeline_input_assembly_create_info		(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
-		auto viewportState 		= fsvulkan_pipeline_viewport_state_create_info		(1, &fsvulkan_zero_viewport, 1, &fsvulkan_zero_scissor);
+		// auto viewportState 		= fsvulkan_pipeline_viewport_state_create_info		(1, &common_viewport, 1, &common_scissor);
 
 		// Todo(Leo): Cull mode is disabled while we develop marching cubes thing
 		// auto rasterizationState = fsvulkan_pipeline_rasterization_state_create_info	(VK_CULL_MODE_NONE);
@@ -359,7 +398,7 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 		auto multisampleState 	= fsvulkan_pipeline_multisample_state_create_info	(context.msaaSamples);
 		auto depthStencilState 	= fsvulkan_pipeline_depth_stencil_create_info		(VK_TRUE, VK_TRUE);
 		auto colorBlendState 	= fsvulkan_pipeline_color_blend_state_create_info	(1, &fsvulkan_default_pipeline_color_blend_attachment_state);
-		auto dynamicState 		= fsvulkan_pipeline_dynamic_state_create_info		(array_count(fsvulkan_default_dynamic_states), fsvulkan_default_dynamic_states);
+		// auto dynamicState 		= fsvulkan_pipeline_dynamic_state_create_info		(array_count(fsvulkan_default_dynamic_states), fsvulkan_default_dynamic_states);
 
 
 		VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo =
@@ -370,27 +409,28 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 
 			.pVertexInputState 		= &vertexInputState,
 			.pInputAssemblyState 	= &inputAssemblyState,
-			.pViewportState 		= &viewportState,
+			.pViewportState 		= &common_viewportState,
 			.pRasterizationState 	= &rasterizationState,
 			.pMultisampleState 		= &multisampleState,
 			.pDepthStencilState 	= &depthStencilState,
 			.pColorBlendState 		= &colorBlendState,
-			.pDynamicState 			= &dynamicState,
+			// .pDynamicState 			= &dynamicState,
 			
-			.layout 				= context.pipelines[GRAPHICS_PIPELINE_NORMAL].pipelineLayout,
-			.renderPass 			= context.renderPass,
+			.layout 				= context.pipelines[GraphicsPipeline_normal].pipelineLayout,
+			.renderPass 			= context.sceneRenderPass,
 		};
 
-		vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &context.pipelines[GRAPHICS_PIPELINE_NORMAL].pipeline);
+		vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &context.pipelines[GraphicsPipeline_normal].pipeline);
 
-		context.pipelines[GRAPHICS_PIPELINE_NORMAL].descriptorSetLayout = materialLayout;
-		context.pipelines[GRAPHICS_PIPELINE_NORMAL].textureCount 		= 3;
+		context.pipelines[GraphicsPipeline_normal].descriptorSetLayout = materialLayout;
+		context.pipelines[GraphicsPipeline_normal].textureCount 		= 3;
 
 		vkDestroyShaderModule(context.device, fragmentShaderModule, nullptr);
 		vkDestroyShaderModule(context.device, vertexShaderModule, nullptr);
 	}
 
-	/// GRAPHICS_PIPELINE_TRIPLANAR
+	/// GraphicsPipeline_triplanar
+	log_graphics(1, "Initializing Triplanar Pipeline");
 	{
 		s32 textureCount = 1;
 		auto materialLayout = fsvulkan_make_material_descriptor_set_layout(context.device, textureCount);
@@ -409,10 +449,10 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 
 		auto pipelineLayoutCreateInfo = fsvulkan_pipeline_layout_create_info(array_count(descriptorSetLayouts), descriptorSetLayouts, 0, nullptr);
 
-		VULKAN_CHECK(vkCreatePipelineLayout (context.device, &pipelineLayoutCreateInfo, nullptr, &context.pipelines[GRAPHICS_PIPELINE_TRIPLANAR].pipelineLayout));
+		VULKAN_CHECK(vkCreatePipelineLayout (context.device, &pipelineLayoutCreateInfo, nullptr, &context.pipelines[GraphicsPipeline_triplanar].pipelineLayout));
 
-		VkShaderModule vertexShaderModule 	= fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/vert.spv"));
-		VkShaderModule fragmentShaderModule = fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/triplanar_frag.spv"));
+		VkShaderModule vertexShaderModule 	= fsvulkan_make_shader_module(context.device, "shaders/vert.spv");
+		VkShaderModule fragmentShaderModule = fsvulkan_make_shader_module(context.device, "shaders/triplanar_frag.spv");
 
 		VkPipelineShaderStageCreateInfo shaderStages [] =
 		{
@@ -420,10 +460,10 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 			fsvulkan_pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, fragmentShaderModule, "main"),
 		};
 
-		auto vertexInputState 	= fsvulkan_pipeline_vertex_input_state_create_info	(1, &fsvulkan_defaultVertexBinding,
-																					array_count(fsvulkan_defaultVertexAttributes), fsvulkan_defaultVertexAttributes);
+		auto vertexInputState 	= fsvulkan_pipeline_vertex_input_state_create_info	(normalBindingCount, fsvulkan_defaultVertexBinding,
+																					normalAttributeCount, fsvulkan_defaultVertexAttributes);
 		auto inputAssemblyState = fsvulkan_pipeline_input_assembly_create_info		(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
-		auto viewportState 		= fsvulkan_pipeline_viewport_state_create_info		(1, &fsvulkan_zero_viewport, 1, &fsvulkan_zero_scissor);
+		// auto viewportState 		= fsvulkan_pipeline_viewport_state_create_info		(1, &common_viewport, 1, &common_scissor);
 
 		// Todo(Leo): Cull mode is disabled while we develop marching cubes thing
 		// auto rasterizationState = fsvulkan_pipeline_rasterization_state_create_info	(VK_CULL_MODE_NONE);	
@@ -431,7 +471,7 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 		auto multisampleState 	= fsvulkan_pipeline_multisample_state_create_info	(context.msaaSamples);
 		auto depthStencilState 	= fsvulkan_pipeline_depth_stencil_create_info		(VK_TRUE, VK_TRUE);
 		auto colorBlendState 	= fsvulkan_pipeline_color_blend_state_create_info	(1, &fsvulkan_default_pipeline_color_blend_attachment_state);
-		auto dynamicState 		= fsvulkan_pipeline_dynamic_state_create_info		(array_count(fsvulkan_default_dynamic_states), fsvulkan_default_dynamic_states);
+		// auto dynamicState 		= fsvulkan_pipeline_dynamic_state_create_info		(array_count(fsvulkan_default_dynamic_states), fsvulkan_default_dynamic_states);
 
 
 		VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo =
@@ -442,27 +482,28 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 
 			.pVertexInputState 		= &vertexInputState,
 			.pInputAssemblyState 	= &inputAssemblyState,
-			.pViewportState 		= &viewportState,
+			.pViewportState 		= &common_viewportState,
 			.pRasterizationState 	= &rasterizationState,
 			.pMultisampleState 		= &multisampleState,
 			.pDepthStencilState 	= &depthStencilState,
 			.pColorBlendState 		= &colorBlendState,
-			.pDynamicState 			= &dynamicState,
+			// .pDynamicState 			= &dynamicState,
 			
-			.layout 				= context.pipelines[GRAPHICS_PIPELINE_TRIPLANAR].pipelineLayout,
-			.renderPass 			= context.renderPass,
+			.layout 				= context.pipelines[GraphicsPipeline_triplanar].pipelineLayout,
+			.renderPass 			= context.sceneRenderPass,
 		};
 
-		vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &context.pipelines[GRAPHICS_PIPELINE_TRIPLANAR].pipeline);
+		vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &context.pipelines[GraphicsPipeline_triplanar].pipeline);
 
-		context.pipelines[GRAPHICS_PIPELINE_TRIPLANAR].descriptorSetLayout = materialLayout;
-		context.pipelines[GRAPHICS_PIPELINE_TRIPLANAR].textureCount 		= textureCount;
+		context.pipelines[GraphicsPipeline_triplanar].descriptorSetLayout = materialLayout;
+		context.pipelines[GraphicsPipeline_triplanar].textureCount 		= textureCount;
 
 		vkDestroyShaderModule(context.device, fragmentShaderModule, nullptr);
 		vkDestroyShaderModule(context.device, vertexShaderModule, nullptr);
 	}
 
-	/// GRAPHICS_PIPELINE_ANIMATED
+	/// GraphicsPipeline_animated
+	log_graphics(1, "Initializing Animated Pipeline");
 	{
 		auto materialLayout = fsvulkan_make_material_descriptor_set_layout(context.device, 3);
 
@@ -482,10 +523,10 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 		auto pipelineLayoutCreateInfo = fsvulkan_pipeline_layout_create_info(	array_count(descriptorSetLayouts), descriptorSetLayouts,
 																				1, &pushConstantRange);
 
-		VULKAN_CHECK(vkCreatePipelineLayout (context.device, &pipelineLayoutCreateInfo, nullptr, &context.pipelines[GRAPHICS_PIPELINE_ANIMATED].pipelineLayout));
+		VULKAN_CHECK(vkCreatePipelineLayout (context.device, &pipelineLayoutCreateInfo, nullptr, &context.pipelines[GraphicsPipeline_animated].pipelineLayout));
 
-		VkShaderModule vertexShaderModule 	= fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/animated_vert.spv"));
-		VkShaderModule fragmentShaderModule = fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/frag.spv"));
+		VkShaderModule vertexShaderModule 	= fsvulkan_make_shader_module(context.device, "shaders/animated_vert.spv");
+		VkShaderModule fragmentShaderModule = fsvulkan_make_shader_module(context.device, "shaders/frag.spv");
 
 		VkPipelineShaderStageCreateInfo shaderStages [] =
 		{
@@ -493,15 +534,15 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 			fsvulkan_pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, fragmentShaderModule, "main"),
 		};
 
-		auto vertexInputState 	= fsvulkan_pipeline_vertex_input_state_create_info	(1, &fsvulkan_defaultVertexBinding,
-																					array_count(fsvulkan_defaultVertexAttributes), fsvulkan_defaultVertexAttributes);
+		auto vertexInputState 	= fsvulkan_pipeline_vertex_input_state_create_info	(animatedBindingCount, fsvulkan_defaultVertexBinding,
+																					animatedAttributeCount, fsvulkan_defaultVertexAttributes);
 		auto inputAssemblyState = fsvulkan_pipeline_input_assembly_create_info		(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
-		auto viewportState 		= fsvulkan_pipeline_viewport_state_create_info		(1, &fsvulkan_zero_viewport, 1, &fsvulkan_zero_scissor);
+		// auto viewportState 		= fsvulkan_pipeline_viewport_state_create_info		(1, &common_viewport, 1, &common_scissor);
 		auto rasterizationState = fsvulkan_pipeline_rasterization_state_create_info	(VK_CULL_MODE_BACK_BIT);
 		auto multisampleState 	= fsvulkan_pipeline_multisample_state_create_info	(context.msaaSamples);
 		auto depthStencilState 	= fsvulkan_pipeline_depth_stencil_create_info		(VK_TRUE, VK_TRUE);
 		auto colorBlendState 	= fsvulkan_pipeline_color_blend_state_create_info	(1, &fsvulkan_default_pipeline_color_blend_attachment_state);
-		auto dynamicState 		= fsvulkan_pipeline_dynamic_state_create_info		(array_count(fsvulkan_default_dynamic_states), fsvulkan_default_dynamic_states);
+		// auto dynamicState 		= fsvulkan_pipeline_dynamic_state_create_info		(array_count(fsvulkan_default_dynamic_states), fsvulkan_default_dynamic_states);
 
 
 		VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo =
@@ -512,27 +553,28 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 
 			.pVertexInputState 		= &vertexInputState,
 			.pInputAssemblyState 	= &inputAssemblyState,
-			.pViewportState 		= &viewportState,
+			.pViewportState 		= &common_viewportState,
 			.pRasterizationState 	= &rasterizationState,
 			.pMultisampleState 		= &multisampleState,
 			.pDepthStencilState 	= &depthStencilState,
 			.pColorBlendState 		= &colorBlendState,
-			.pDynamicState 			= &dynamicState,
+			// .pDynamicState 			= &dynamicState,
 			
-			.layout 				= context.pipelines[GRAPHICS_PIPELINE_ANIMATED].pipelineLayout,
-			.renderPass 			= context.renderPass,
+			.layout 				= context.pipelines[GraphicsPipeline_animated].pipelineLayout,
+			.renderPass 			= context.sceneRenderPass,
 		};
 
-		vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &context.pipelines[GRAPHICS_PIPELINE_ANIMATED].pipeline);
+		vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &context.pipelines[GraphicsPipeline_animated].pipeline);
 
-		context.pipelines[GRAPHICS_PIPELINE_ANIMATED].descriptorSetLayout = materialLayout;
-		context.pipelines[GRAPHICS_PIPELINE_ANIMATED].textureCount 		= 3;
+		context.pipelines[GraphicsPipeline_animated].descriptorSetLayout = materialLayout;
+		context.pipelines[GraphicsPipeline_animated].textureCount 		= 3;
 
 		vkDestroyShaderModule(context.device, fragmentShaderModule, nullptr);
 		vkDestroyShaderModule(context.device, vertexShaderModule, nullptr);
 	}
 
-	/// GRAPHICS_PIPELINE_SKYBOX
+	/// GraphicsPipeline_skybox
+	log_graphics(1, "Initializing Skybox Pipeline");
 	{
 		constexpr s32 gradientTextureCount = 2;
 		auto materialLayout = fsvulkan_make_material_descriptor_set_layout(context.device, gradientTextureCount);
@@ -548,12 +590,12 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 		};
 
 		auto pipelineLayoutCreateInfo = fsvulkan_pipeline_layout_create_info(array_count(descriptorSetLayouts), descriptorSetLayouts, 0, nullptr);
-		VULKAN_CHECK(vkCreatePipelineLayout (context.device, &pipelineLayoutCreateInfo, nullptr, &context.pipelines[GRAPHICS_PIPELINE_SKYBOX].pipelineLayout));
+		VULKAN_CHECK(vkCreatePipelineLayout (context.device, &pipelineLayoutCreateInfo, nullptr, &context.pipelines[GraphicsPipeline_skybox].pipelineLayout));
 
 		// --------------------------------------------------------------------------------------------
 
-		VkShaderModule vertexShaderModule 	= fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/vert_sky.spv"));
-		VkShaderModule fragmentShaderModule = fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/frag_sky.spv"));
+		VkShaderModule vertexShaderModule 	= fsvulkan_make_shader_module(context.device, "shaders/vert_sky.spv");
+		VkShaderModule fragmentShaderModule = fsvulkan_make_shader_module(context.device, "shaders/frag_sky.spv");
 
 		VkPipelineShaderStageCreateInfo shaderStages [] =
 		{
@@ -561,15 +603,18 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 			fsvulkan_pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, fragmentShaderModule, "main"),
 		};
 
-		auto vertexInputState 	= fsvulkan_pipeline_vertex_input_state_create_info	(1, &fsvulkan_defaultVertexBinding,
-																					array_count(fsvulkan_defaultVertexAttributes), fsvulkan_defaultVertexAttributes);
+		VkVertexInputBindingDescription vertexInputBinding 		= {0, sizeof(Vertex), VK_VERTEX_INPUT_RATE_VERTEX};
+		VkVertexInputAttributeDescription attributeDescription 	= {0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0};
+
+		auto vertexInputState 	= fsvulkan_pipeline_vertex_input_state_create_info	(1, &vertexInputBinding,
+																					1, &attributeDescription);
 		auto inputAssemblyState = fsvulkan_pipeline_input_assembly_create_info		(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
-		auto viewportState 		= fsvulkan_pipeline_viewport_state_create_info		(1, &fsvulkan_zero_viewport, 1, &fsvulkan_zero_scissor);
+		// auto viewportState 		= fsvulkan_pipeline_viewport_state_create_info		(1, &common_viewport, 1, &common_scissor);
 		auto rasterizationState = fsvulkan_pipeline_rasterization_state_create_info	(VK_CULL_MODE_NONE);
 		auto multisampleState 	= fsvulkan_pipeline_multisample_state_create_info	(context.msaaSamples);
 		auto depthStencilState 	= fsvulkan_pipeline_depth_stencil_create_info		(VK_FALSE, VK_FALSE);
 		auto colorBlendState 	= fsvulkan_pipeline_color_blend_state_create_info	(1, &fsvulkan_default_pipeline_color_blend_attachment_state);
-		auto dynamicState 		= fsvulkan_pipeline_dynamic_state_create_info		(array_count(fsvulkan_default_dynamic_states), fsvulkan_default_dynamic_states);
+		// auto dynamicState 		= fsvulkan_pipeline_dynamic_state_create_info		(array_count(fsvulkan_default_dynamic_states), fsvulkan_default_dynamic_states);
 
 		VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo =
 		{
@@ -578,26 +623,27 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 			.pStages 				= shaderStages,
 			.pVertexInputState 		= &vertexInputState,
 			.pInputAssemblyState 	= &inputAssemblyState,
-			.pViewportState 		= &viewportState,
+			.pViewportState 		= &common_viewportState,
 			.pRasterizationState 	= &rasterizationState,
 			.pMultisampleState 		= &multisampleState,
 			.pDepthStencilState 	= &depthStencilState,
 			.pColorBlendState 		= &colorBlendState,
-			.pDynamicState 			= &dynamicState,
-			.layout 				= context.pipelines[GRAPHICS_PIPELINE_SKYBOX].pipelineLayout,
-			.renderPass 			= context.renderPass,
+			// .pDynamicState 			= &dynamicState,
+			.layout 				= context.pipelines[GraphicsPipeline_skybox].pipelineLayout,
+			.renderPass 			= context.sceneRenderPass,
 		};
 
-		vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &context.pipelines[GRAPHICS_PIPELINE_SKYBOX].pipeline);
+		vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &context.pipelines[GraphicsPipeline_skybox].pipeline);
 
-		context.pipelines[GRAPHICS_PIPELINE_SKYBOX].descriptorSetLayout = materialLayout;
-		context.pipelines[GRAPHICS_PIPELINE_SKYBOX].textureCount 		= gradientTextureCount;
+		context.pipelines[GraphicsPipeline_skybox].descriptorSetLayout = materialLayout;
+		context.pipelines[GraphicsPipeline_skybox].textureCount 		= gradientTextureCount;
 
 		vkDestroyShaderModule(context.device, fragmentShaderModule, nullptr);
 		vkDestroyShaderModule(context.device, vertexShaderModule, nullptr);
 	}
 
-	/// GRAPHICS_PIPELINE_SCREEN_GUI
+	/// GraphicsPipeline_screen_gui
+	log_graphics(1, "Initializing Screen Gui Pipeline");
 	{
 		auto materialLayout = fsvulkan_make_material_descriptor_set_layout(context.device, 1);
 
@@ -609,12 +655,12 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 		};
 
 		auto pipelineLayoutCreateInfo 			= fsvulkan_pipeline_layout_create_info(1, &materialLayout, array_count(pushConstantRanges), pushConstantRanges);
-		VULKAN_CHECK(vkCreatePipelineLayout (context.device, &pipelineLayoutCreateInfo, nullptr, &context.pipelines[GRAPHICS_PIPELINE_SCREEN_GUI].pipelineLayout));
+		VULKAN_CHECK(vkCreatePipelineLayout (context.device, &pipelineLayoutCreateInfo, nullptr, &context.pipelines[GraphicsPipeline_screen_gui].pipelineLayout));
 
 		// ---------------------------------------------------------------------------------------------------------------------------
 
-		VkShaderModule vertexShaderModule 	= fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/gui_vert.spv"));
-		VkShaderModule fragmentShaderModule = fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/gui_frag.spv"));
+		VkShaderModule vertexShaderModule 	= fsvulkan_make_shader_module(context.device, "shaders/gui_vert.spv");
+		VkShaderModule fragmentShaderModule = fsvulkan_make_shader_module(context.device, "shaders/gui_frag.spv");
 
 		VkPipelineShaderStageCreateInfo shaderStages [] =
 		{
@@ -624,7 +670,7 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 
 		auto vertexInputState 		= fsvulkan_pipeline_vertex_input_state_create_info	(	0, nullptr, 0, nullptr);
 		auto inputAssemblyState 	= fsvulkan_pipeline_input_assembly_create_info		(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP);
-		auto viewportState 			= fsvulkan_pipeline_viewport_state_create_info		(1, &fsvulkan_zero_viewport, 1, &fsvulkan_zero_scissor);
+		// auto viewportState 			= fsvulkan_pipeline_viewport_state_create_info		(1, &common_viewport, 1, &common_scissor);
 		auto rasterizationState 	= fsvulkan_pipeline_rasterization_state_create_info	(VK_CULL_MODE_NONE);
 		auto multisampleState 		= fsvulkan_pipeline_multisample_state_create_info	(context.msaaSamples);
 		auto depthStencilState 		= fsvulkan_pipeline_depth_stencil_create_info		(VK_FALSE, VK_FALSE);
@@ -647,7 +693,7 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 		};
 		auto colorBlendState 		= fsvulkan_pipeline_color_blend_state_create_info(1, &colorBlendAttachment);
 
-		auto dynamicState 			= fsvulkan_pipeline_dynamic_state_create_info(array_count(fsvulkan_default_dynamic_states), fsvulkan_default_dynamic_states);
+		// auto dynamicState 			= fsvulkan_pipeline_dynamic_state_create_info(array_count(fsvulkan_default_dynamic_states), fsvulkan_default_dynamic_states);
 
 		VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo =
 		{
@@ -656,26 +702,27 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 			.pStages 				= shaderStages,
 			.pVertexInputState 		= &vertexInputState,
 			.pInputAssemblyState 	= &inputAssemblyState,
-			.pViewportState 		= &viewportState,
+			.pViewportState 		= &common_viewportState,
 			.pRasterizationState 	= &rasterizationState,
 			.pMultisampleState 		= &multisampleState,
 			.pDepthStencilState 	= &depthStencilState,
 			.pColorBlendState 		= &colorBlendState,
-			.pDynamicState 			= &dynamicState,
-			.layout 				= context.pipelines[GRAPHICS_PIPELINE_SCREEN_GUI].pipelineLayout,
-			.renderPass 			= context.renderPass,
+			// .pDynamicState 			= &dynamicState,
+			.layout 				= context.pipelines[GraphicsPipeline_screen_gui].pipelineLayout,
+			.renderPass 			= context.sceneRenderPass,
 		};
 
-		vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &context.pipelines[GRAPHICS_PIPELINE_SCREEN_GUI].pipeline);
+		vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &context.pipelines[GraphicsPipeline_screen_gui].pipeline);
 
-		context.pipelines[GRAPHICS_PIPELINE_SCREEN_GUI].descriptorSetLayout = materialLayout;
-		context.pipelines[GRAPHICS_PIPELINE_SCREEN_GUI].textureCount 		= 1;
+		context.pipelines[GraphicsPipeline_screen_gui].descriptorSetLayout = materialLayout;
+		context.pipelines[GraphicsPipeline_screen_gui].textureCount 		= 1;
 
 		vkDestroyShaderModule(context.device, fragmentShaderModule, nullptr);
 		vkDestroyShaderModule(context.device, vertexShaderModule, nullptr);
 	}
 
-	/// GRAPHICS_PIPELINE_LEAVES
+	/// GraphicsPipeline_leaves
+	log_graphics(1, "Initializing Leaves Pipeline");
 	{
 		auto materialLayout = fsvulkan_make_material_descriptor_set_layout(context.device, 1);
 
@@ -691,7 +738,7 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 		VkPushConstantRange pushConstantRange = {VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(v3)};
 
 		auto pipelineLayoutCreateInfo = fsvulkan_pipeline_layout_create_info(array_count(descriptorSetLayouts), descriptorSetLayouts, 1, &pushConstantRange);
-		VULKAN_CHECK(vkCreatePipelineLayout (context.device, &pipelineLayoutCreateInfo, nullptr, &context.pipelines[GRAPHICS_PIPELINE_LEAVES].pipelineLayout));
+		VULKAN_CHECK(vkCreatePipelineLayout (context.device, &pipelineLayoutCreateInfo, nullptr, &context.pipelines[GraphicsPipeline_leaves].pipelineLayout));
 
 		VkVertexInputBindingDescription vertexBindingDescription = { 0, sizeof(m44), VK_VERTEX_INPUT_RATE_INSTANCE };
 
@@ -704,8 +751,8 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 			{ 3, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 3 * sizeof(v4)},
 		};
 		
-		VkShaderModule vertexShaderModule 	= fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/leaves_vert.spv"));
-		VkShaderModule fragmentShaderModule = fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/leaves_frag.spv"));
+		VkShaderModule vertexShaderModule 	= fsvulkan_make_shader_module(context.device, "shaders/leaves_vert.spv");
+		VkShaderModule fragmentShaderModule = fsvulkan_make_shader_module(context.device, "shaders/leaves_frag.spv");
 
 		VkPipelineShaderStageCreateInfo shaderStages [] =
 		{
@@ -716,12 +763,12 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 		auto vertexInputState 	= fsvulkan_pipeline_vertex_input_state_create_info	(1, & vertexBindingDescription,
 																					array_count(vertexAttributeDescriptions), vertexAttributeDescriptions);
 		auto inputAssemblyState	= fsvulkan_pipeline_input_assembly_create_info		(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP);
-		auto viewportState 		= fsvulkan_pipeline_viewport_state_create_info		(1, &fsvulkan_zero_viewport, 1, &fsvulkan_zero_scissor);
+		// auto viewportState 		= fsvulkan_pipeline_viewport_state_create_info		(1, &common_viewport, 1, &common_scissor);
 		auto rasterizationState = fsvulkan_pipeline_rasterization_state_create_info	(VK_CULL_MODE_NONE);
 		auto multisampleState 	= fsvulkan_pipeline_multisample_state_create_info	(context.msaaSamples);
 		auto depthStencilState 	= fsvulkan_pipeline_depth_stencil_create_info		(VK_TRUE, VK_TRUE);
 		auto colorBlendState 	= fsvulkan_pipeline_color_blend_state_create_info	(1, &fsvulkan_default_pipeline_color_blend_attachment_state);
-		auto dynamicState 		= fsvulkan_pipeline_dynamic_state_create_info		(array_count(fsvulkan_default_dynamic_states), fsvulkan_default_dynamic_states);
+		// auto dynamicState 		= fsvulkan_pipeline_dynamic_state_create_info		(array_count(fsvulkan_default_dynamic_states), fsvulkan_default_dynamic_states);
 
 		VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo =
 		{
@@ -730,27 +777,28 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 			.pStages 				= shaderStages,
 			.pVertexInputState 		= &vertexInputState,
 			.pInputAssemblyState 	= &inputAssemblyState,
-			.pViewportState 		= &viewportState,
+			.pViewportState 		= &common_viewportState,
 			.pRasterizationState 	= &rasterizationState,
 			.pMultisampleState 		= &multisampleState,
 			.pDepthStencilState 	= &depthStencilState,
 			.pColorBlendState 		= &colorBlendState,
-			.pDynamicState 			= &dynamicState,
-			.layout 				= context.pipelines[GRAPHICS_PIPELINE_LEAVES].pipelineLayout,
-			.renderPass 			= context.renderPass,
+			// .pDynamicState 			= &dynamicState,
+			.layout 				= context.pipelines[GraphicsPipeline_leaves].pipelineLayout,
+			.renderPass 			= context.sceneRenderPass,
 		};
 
-		vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &context.pipelines[GRAPHICS_PIPELINE_LEAVES].pipeline);
+		vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &context.pipelines[GraphicsPipeline_leaves].pipeline);
 
-		context.pipelines[GRAPHICS_PIPELINE_LEAVES].descriptorSetLayout = materialLayout;
-		context.pipelines[GRAPHICS_PIPELINE_LEAVES].textureCount 		= 1;
+		context.pipelines[GraphicsPipeline_leaves].descriptorSetLayout = materialLayout;
+		context.pipelines[GraphicsPipeline_leaves].textureCount 		= 1;
 
 		// Note(Leo): Always remember to destroy these :)
 		vkDestroyShaderModule(context.device, fragmentShaderModule, nullptr);
 		vkDestroyShaderModule(context.device, vertexShaderModule, nullptr);	
 	}
 
-	/// GRAPHICS_PIPELINE_WATER
+	/// GraphicsPipeline_water
+	log_graphics(1, "Initializing Water Pipeline");
 	{
 		auto materialLayout = fsvulkan_make_material_descriptor_set_layout(context.device, 3);
 
@@ -770,10 +818,10 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 		auto pipelineLayoutCreateInfo = fsvulkan_pipeline_layout_create_info(	array_count(descriptorSetLayouts), descriptorSetLayouts,
 																				1, &pushConstantRange);
 
-		VULKAN_CHECK(vkCreatePipelineLayout (context.device, &pipelineLayoutCreateInfo, nullptr, &context.pipelines[GRAPHICS_PIPELINE_WATER].pipelineLayout));
+		VULKAN_CHECK(vkCreatePipelineLayout (context.device, &pipelineLayoutCreateInfo, nullptr, &context.pipelines[GraphicsPipeline_water].pipelineLayout));
 
-		VkShaderModule vertexShaderModule 	= fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/vert.spv"));
-		VkShaderModule fragmentShaderModule = fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/frag.spv"));
+		VkShaderModule vertexShaderModule 	= fsvulkan_make_shader_module(context.device, "shaders/vert.spv");
+		VkShaderModule fragmentShaderModule = fsvulkan_make_shader_module(context.device, "shaders/frag.spv");
 
 		VkPipelineShaderStageCreateInfo shaderStages [] =
 		{
@@ -781,10 +829,10 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 			fsvulkan_pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, fragmentShaderModule, "main"),
 		};
 
-		auto vertexInputState 	= fsvulkan_pipeline_vertex_input_state_create_info	(1, &fsvulkan_defaultVertexBinding,
-																					array_count(fsvulkan_defaultVertexAttributes), fsvulkan_defaultVertexAttributes);
+		auto vertexInputState 	= fsvulkan_pipeline_vertex_input_state_create_info	(normalBindingCount, fsvulkan_defaultVertexBinding,
+																					normalAttributeCount, fsvulkan_defaultVertexAttributes);
 		auto inputAssemblyState = fsvulkan_pipeline_input_assembly_create_info		(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
-		auto viewportState 		= fsvulkan_pipeline_viewport_state_create_info		(1, &fsvulkan_zero_viewport, 1, &fsvulkan_zero_scissor);
+		// auto viewportState 		= fsvulkan_pipeline_viewport_state_create_info		(1, &common_viewport, 1, &common_scissor);
 		auto rasterizationState = fsvulkan_pipeline_rasterization_state_create_info	(VK_CULL_MODE_BACK_BIT);
 		auto multisampleState 	= fsvulkan_pipeline_multisample_state_create_info	(context.msaaSamples);
 		auto depthStencilState 	= fsvulkan_pipeline_depth_stencil_create_info		(VK_TRUE, VK_FALSE);
@@ -804,7 +852,7 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 		};
 
 		auto colorBlendState 	= fsvulkan_pipeline_color_blend_state_create_info	(1, &colorBlendAttachment);
-		auto dynamicState 		= fsvulkan_pipeline_dynamic_state_create_info		(array_count(fsvulkan_default_dynamic_states), fsvulkan_default_dynamic_states);
+		// auto dynamicState 		= fsvulkan_pipeline_dynamic_state_create_info		(array_count(fsvulkan_default_dynamic_states), fsvulkan_default_dynamic_states);
 
 
 		VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo =
@@ -815,27 +863,28 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 
 			.pVertexInputState 		= &vertexInputState,
 			.pInputAssemblyState 	= &inputAssemblyState,
-			.pViewportState 		= &viewportState,
+			.pViewportState 		= &common_viewportState,
 			.pRasterizationState 	= &rasterizationState,
 			.pMultisampleState 		= &multisampleState,
 			.pDepthStencilState 	= &depthStencilState,
 			.pColorBlendState 		= &colorBlendState,
-			.pDynamicState 			= &dynamicState,
+			// .pDynamicState 			= &dynamicState,
 			
-			.layout 				= context.pipelines[GRAPHICS_PIPELINE_WATER].pipelineLayout,
-			.renderPass 			= context.renderPass,
+			.layout 				= context.pipelines[GraphicsPipeline_water].pipelineLayout,
+			.renderPass 			= context.sceneRenderPass,
 		};
 
-		vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &context.pipelines[GRAPHICS_PIPELINE_WATER].pipeline);
+		vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &context.pipelines[GraphicsPipeline_water].pipeline);
 
-		context.pipelines[GRAPHICS_PIPELINE_WATER].descriptorSetLayout = materialLayout;
-		context.pipelines[GRAPHICS_PIPELINE_WATER].textureCount 		= 3;
+		context.pipelines[GraphicsPipeline_water].descriptorSetLayout = materialLayout;
+		context.pipelines[GraphicsPipeline_water].textureCount 		= 3;
 
 		vkDestroyShaderModule(context.device, fragmentShaderModule, nullptr);
 		vkDestroyShaderModule(context.device, vertexShaderModule, nullptr);
 	}
 
 	/// INTERNAL LINE PIPELINE
+	log_graphics(1, "Initializing Line Pipeline");
 	{
 		/*
 		Document(Leo): Lines are drawn by building line lists on demand. List
@@ -856,8 +905,8 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 		};
 
 		// Note(Leo): Always remember to destroy these :)
-		VkShaderModule vertexShaderModule 	= fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/line_vert.spv"));
-		VkShaderModule fragmentShaderModule = fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/line_frag.spv"));
+		VkShaderModule vertexShaderModule 	= fsvulkan_make_shader_module(context.device, "shaders/line_vert.spv");
+		VkShaderModule fragmentShaderModule = fsvulkan_make_shader_module(context.device, "shaders/line_frag.spv");
 
 		VkPipelineShaderStageCreateInfo shaderStages [] =
 		{
@@ -868,12 +917,12 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 		auto vertexInputState = fsvulkan_pipeline_vertex_input_state_create_info	(1, &vertexBindingDescription,
 																					array_count(vertexAttributeDescriptions), vertexAttributeDescriptions);
 		auto inputAssemblyState = fsvulkan_pipeline_input_assembly_create_info		(VK_PRIMITIVE_TOPOLOGY_LINE_LIST);
-		auto viewportState 		= fsvulkan_pipeline_viewport_state_create_info		(1, &fsvulkan_zero_viewport, 1, &fsvulkan_zero_scissor);
+		// auto viewportState 		= fsvulkan_pipeline_viewport_state_create_info		(1, &common_viewport, 1, &common_scissor);
 		auto rasterizationState = fsvulkan_pipeline_rasterization_state_create_info	(VK_CULL_MODE_NONE);
 		auto multisampleState 	= fsvulkan_pipeline_multisample_state_create_info	(context.msaaSamples);
 		auto depthStencilState 	= fsvulkan_pipeline_depth_stencil_create_info		(VK_TRUE, VK_TRUE);
 		auto colorBlendState 	= fsvulkan_pipeline_color_blend_state_create_info	(1, &fsvulkan_default_pipeline_color_blend_attachment_state);
-		auto dynamicState 		= fsvulkan_pipeline_dynamic_state_create_info		(array_count(fsvulkan_default_dynamic_states), fsvulkan_default_dynamic_states);
+		// auto dynamicState 		= fsvulkan_pipeline_dynamic_state_create_info		(array_count(fsvulkan_default_dynamic_states), fsvulkan_default_dynamic_states);
 
 		auto pipelineLayoutCreateInfo = fsvulkan_pipeline_layout_create_info(1, &context.cameraDescriptorSetLayout, 0, nullptr);
 
@@ -886,14 +935,14 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 			.pStages 				= shaderStages,
 			.pVertexInputState 		= &vertexInputState,
 			.pInputAssemblyState 	= &inputAssemblyState,
-			.pViewportState 		= &viewportState,
+			.pViewportState 		= &common_viewportState,
 			.pRasterizationState 	= &rasterizationState,
 			.pMultisampleState 		= &multisampleState,
 			.pDepthStencilState 	= &depthStencilState,
 			.pColorBlendState 		= &colorBlendState,
-			.pDynamicState 			= &dynamicState,
+			// .pDynamicState 			= &dynamicState,
 			.layout 				= context.linePipelineLayout,
-			.renderPass 			= context.renderPass,
+			.renderPass 			= context.sceneRenderPass,
 		};
 
 		vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &context.linePipeline);
@@ -904,6 +953,7 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 	}
 
 	/// INTERNAL HDR TONEMAP PIPELINE
+	log_graphics(1, "Initializing Postprocess Pipeline");
 	{
 		auto materialLayout 			= fsvulkan_make_material_descriptor_set_layout(context.device, 1);
 
@@ -915,12 +965,12 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 		VkPushConstantRange pushConstantRange = {VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(FSVulkanHdrSettings)};
 
 		auto pipelineLayoutCreateInfo 	= fsvulkan_pipeline_layout_create_info(array_count(layouts), layouts, 1, &pushConstantRange);
-		VULKAN_CHECK(vkCreatePipelineLayout (context.device, &pipelineLayoutCreateInfo, nullptr, &context.passThroughPipelineLayout));
+		VULKAN_CHECK(vkCreatePipelineLayout (context.device, &pipelineLayoutCreateInfo, nullptr, &context.screenSpacePipelineLayout));
 
 		// ---------------------------------------------------------------------------------------------------------------------------
 
-		VkShaderModule vertexShaderModule 	= fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/hdr_vert.spv"));
-		VkShaderModule fragmentShaderModule = fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/hdr_frag.spv"));
+		VkShaderModule vertexShaderModule 	= fsvulkan_make_shader_module(context.device, "shaders/hdr_vert.spv");
+		VkShaderModule fragmentShaderModule = fsvulkan_make_shader_module(context.device, "shaders/hdr_frag.spv");
 
 		VkPipelineShaderStageCreateInfo shaderStages [] =
 		{
@@ -930,12 +980,25 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 
 		auto vertexInputState 		= fsvulkan_pipeline_vertex_input_state_create_info	(0, nullptr, 0, nullptr);
 		auto inputAssemblyState 	= fsvulkan_pipeline_input_assembly_create_info		(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
-		auto viewportState 			= fsvulkan_pipeline_viewport_state_create_info		(1, &fsvulkan_zero_viewport, 1, &fsvulkan_zero_scissor);
+		// auto viewportState 			= fsvulkan_pipeline_viewport_state_create_info		(1, &common_viewport, 1, &common_scissor);
+
+		VkViewport viewport = {0, 0, (f32)context.swapchainExtent.width, (f32)context.swapchainExtent.height, 0, 1};
+		VkRect2D scissor 	= {{0,0}, {context.swapchainExtent.width, context.swapchainExtent.height}};
+
+		auto viewportState = vk_pipeline_viewport_state_create_info();
+		{
+			viewportState.viewportCount = 1;
+			viewportState.pViewports 	= &viewport;
+			viewportState.scissorCount 	= 1;
+			viewportState.pScissors 	= &scissor;
+		}
+
+
 		auto rasterizationState 	= fsvulkan_pipeline_rasterization_state_create_info	(VK_CULL_MODE_NONE);
 		auto multisampleState 		= fsvulkan_pipeline_multisample_state_create_info	(VK_SAMPLE_COUNT_1_BIT);
 		auto depthStencilState 		= fsvulkan_pipeline_depth_stencil_create_info		(VK_FALSE, VK_FALSE);
 		auto colorBlendState 		= fsvulkan_pipeline_color_blend_state_create_info	(1, &fsvulkan_default_pipeline_color_blend_attachment_state);
-		auto dynamicState 			= fsvulkan_pipeline_dynamic_state_create_info		(array_count(fsvulkan_default_dynamic_states), fsvulkan_default_dynamic_states);
+		// auto dynamicState 			= fsvulkan_pipeline_dynamic_state_create_info		(array_count(fsvulkan_default_dynamic_states), fsvulkan_default_dynamic_states);
 
 		VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo =
 		{
@@ -944,19 +1007,21 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 			.pStages 				= shaderStages,
 			.pVertexInputState 		= &vertexInputState,
 			.pInputAssemblyState 	= &inputAssemblyState,
+
+			// Todo(Leo): This pipeline may not actually use common viewport, look into that
 			.pViewportState 		= &viewportState,
 			.pRasterizationState 	= &rasterizationState,
 			.pMultisampleState 		= &multisampleState,
 			.pDepthStencilState 	= &depthStencilState,
 			.pColorBlendState 		= &colorBlendState,
-			.pDynamicState 			= &dynamicState,
-			.layout 				= context.passThroughPipelineLayout,
-			.renderPass 			= context.passThroughRenderPass,
+			// .pDynamicState 			= &dynamicState,
+			.layout 				= context.screenSpacePipelineLayout,
+			.renderPass 			= context.screenSpaceRenderPass,
 		};
 
-		vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &context.passThroughPipeline);
+		vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &context.screenSpacePipeline);
 
-		context.passThroughDescriptorSetLayout = materialLayout;
+		context.screenSpaceDescriptorSetLayout = materialLayout;
 
 		vkDestroyShaderModule(context.device, fragmentShaderModule, nullptr);
 		vkDestroyShaderModule(context.device, vertexShaderModule, nullptr);
@@ -967,19 +1032,20 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 		{
 			for(s32 i = 0; i < VIRTUAL_FRAME_COUNT; ++i)
 			{	
-				auto allocateInfo = fsvulkan_descriptor_set_allocate_info(	context.persistentDescriptorPool,
+				auto allocateInfo = fsvulkan_descriptor_set_allocate_info(	context.drawingResourceDescriptorPool,
 																			1,
-																			&context.passThroughDescriptorSetLayout);
+																			&context.screenSpaceDescriptorSetLayout);
 				VULKAN_CHECK(vkAllocateDescriptorSets(	context.device,
 														&allocateInfo,
-														&context.virtualFrames[i].resolveImageDescriptor));
+														&context.sceneRenderTargetSamplerDescriptors[i]));
 
-				logVulkan(0) << "Allocated: " << context.virtualFrames[i].resolveImageDescriptor;
 
+				// Todo(Leo): specify fields maybe grrr
 				VkDescriptorImageInfo info = 
 				{
-					context.textureSampler,
-					context.virtualFrames[i].resolveImageView,
+					context.linearRepeatSampler,
+					// context.nearestRepeatSampler,
+					context.sceneRenderTargets[i].resolveAttachment,
 					VK_IMAGE_LAYOUT_GENERAL,
 					// VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
 					// VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
@@ -988,7 +1054,7 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 				VkWriteDescriptorSet write = 
 				{
 					.sType              = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-					.dstSet             = context.virtualFrames[i].resolveImageDescriptor,
+					.dstSet             = context.sceneRenderTargetSamplerDescriptors[i],
 					.dstBinding         = 0,
 					.dstArrayElement    = 0,
 					.descriptorCount    = 1,
@@ -1003,12 +1069,21 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context)
 
 internal void fsvulkan_initialize_shadow_pipeline(VulkanContext & context)
 {
-	VkShaderModule vertexShaderModule = fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/shadow_vert.spv"));
+	VkShaderModule vertexShaderModule = fsvulkan_make_shader_module(context.device, "shaders/shadow_vert.spv");
 
 	auto vertexShaderStage 	= fsvulkan_pipeline_shader_stage_create_info(VK_SHADER_STAGE_VERTEX_BIT, vertexShaderModule, "main");
 
-	auto vertexInputState 	= fsvulkan_pipeline_vertex_input_state_create_info(1, &fsvulkan_defaultVertexBinding,
-																			array_count(fsvulkan_defaultVertexAttributes), fsvulkan_defaultVertexAttributes);
+
+	constexpr VkVertexInputAttributeDescription attributeDescriptions [] =
+	{
+		{0, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, position)},
+
+		{5, 1, VK_FORMAT_R32G32B32A32_UINT, offsetof(VertexSkinData, boneIndices)},
+		{6, 1, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(VertexSkinData, boneWeights)},
+	};
+
+	auto vertexInputState 	= fsvulkan_pipeline_vertex_input_state_create_info(animatedBindingCount, fsvulkan_defaultVertexBinding,
+																				array_count(attributeDescriptions), attributeDescriptions);
 	auto inputAssemblyState	= fsvulkan_pipeline_input_assembly_create_info(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
 
 	VkViewport viewport 	= {0, 0, (f32)context.shadowTextureWidth, (f32)context.shadowTextureHeight, 0, 1};
@@ -1071,8 +1146,8 @@ internal void fsvulkan_initialize_leaves_shadow_pipeline(VulkanContext & context
 
 	/// ----------------------------------------------------------------------------------------------
 
-	VkShaderModule vertexShaderModule	= fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/leaves_shadow_vert.spv"));
-	VkShaderModule fragmentShaderModule = fsvulkan_make_shader_module(context.device, BAD_read_binary_file("assets/shaders/leaves_shadow_frag.spv"));
+	VkShaderModule vertexShaderModule	= fsvulkan_make_shader_module(context.device, "shaders/leaves_shadow_vert.spv");
+	VkShaderModule fragmentShaderModule = fsvulkan_make_shader_module(context.device, "shaders/leaves_shadow_frag.spv");
 
 	VkPipelineShaderStageCreateInfo shaderStages [] =
 	{
@@ -1133,7 +1208,7 @@ internal void fsvulkan_cleanup_pipelines(VulkanContext * context)
 {
 	VkDevice device = context->device;
 
-	for (s32 i = 0; i < GRAPHICS_PIPELINE_COUNT; ++i)
+	for (s32 i = 0; i < GraphicsPipelineCount; ++i)
 	{
 		vkDestroyDescriptorSetLayout(device, context->pipelines[i].descriptorSetLayout, nullptr);
 		vkDestroyPipelineLayout(device, context->pipelines[i].pipelineLayout, nullptr);
@@ -1143,9 +1218,9 @@ internal void fsvulkan_cleanup_pipelines(VulkanContext * context)
 	vkDestroyPipelineLayout(device, context->linePipelineLayout, nullptr);
 	vkDestroyPipeline(device, context->linePipeline, nullptr);
 
-	vkDestroyDescriptorSetLayout(device, context->passThroughDescriptorSetLayout, nullptr);
-	vkDestroyPipelineLayout(device, context->passThroughPipelineLayout, nullptr);
-	vkDestroyPipeline(device, context->passThroughPipeline, nullptr);
+	vkDestroyDescriptorSetLayout(device, context->screenSpaceDescriptorSetLayout, nullptr);
+	vkDestroyPipelineLayout(device, context->screenSpacePipelineLayout, nullptr);
+	vkDestroyPipeline(device, context->screenSpacePipeline, nullptr);
 
 	vkDestroyDescriptorSetLayout(device, context->skyGradientDescriptorSetLayout, nullptr);
 }

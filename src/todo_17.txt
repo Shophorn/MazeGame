@@ -1,0 +1,26 @@
+14.12.
+editor camera
+
+15.12
+ambient occlusion textures
+
+TODO
+climbing
+
+pillars to editor
+wooden balcony blocks
+	--> separate planks maybe
+	--> editor multiselect
+		--> editor mousepick
+			--> camera ray
+			--> entity ids to colliders
+fix shadows
+fog
+
+config.cpp
+unitybuild.cpp
+	--> same??
+move imgui etc to different compilation unit to speed up compilation
+use assimp on asset_cooker to read meshes and animation
+
+
