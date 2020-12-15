@@ -24,8 +24,6 @@ internal s32 game_spawn_tree(Game & game, v3 position, s32 treeTypeIndex, bool32
 #include "PlayerController3rdPerson.cpp"
 #include "FollowerController.cpp"
 
-
-
 enum CameraMode : s32
 { 
 	CameraMode_player, 
@@ -34,6 +32,7 @@ enum CameraMode : s32
 	CameraModeCount
 };
 
+// Todo(Leo): maybe Actor? as opposed to static Scenery
 enum EntityType : s32
 { 	
 	// Todo(Leo): none should be default value, but really it would be better to have it not
@@ -82,57 +81,7 @@ enum RaccoonMode : s32
 	RaccoonMode_carried,
 };
 
-
-// Todo(Leo): Do a stack of these instead of enum.
-// struct MenuView
-// {
-// 	void (*view_func)(Menu & menu, void * data);
-// 	void * data;	
-// };
-
-enum MenuView : s32
-{
-	MenuView_off,
-	MenuView_main,
-	MenuView_confirm_exit,
-	MenuView_confirm_teleport,
-	MenuView_edit_sky,
-	MenuView_edit_mesh_generation,
-	MenuView_edit_tree,
-	MenuView_save_complete,
-	MenuView_edit_monuments,
-	MenuView_edit_camera,
-	MenuView_edit_clouds,
-
-	MenuView_spawn,
-};
-
-
-struct PhysicsEntity
-{
-	// EntityType 	type;
-	// s32 			index;
-	EntityReference entity;
-	f32 			velocity;
-};
-
-
-struct PhysicsWorld
-{
-	Array<PhysicsEntity> entities;
-};
-
-internal void initialize_physics_world(PhysicsWorld & physicsWorld, MemoryArena & allocator)
-{
-	physicsWorld 			= {};
-	physicsWorld.entities 	= push_array<PhysicsEntity>(allocator, 1000, ALLOC_GARBAGE);
-}
-
-internal void physics_world_push_entity(PhysicsWorld & physicsWorld, EntityReference entity)
-{
-	Assert(physicsWorld.entities.count < physicsWorld.entities.capacity);
-	physicsWorld.entities[physicsWorld.entities.count++] = {entity, 0};
-}
+#include "physics.cpp"
 
 #include "metaballs.cpp"
 #include "dynamic_mesh.cpp"
@@ -151,24 +100,6 @@ internal void physics_world_push_entity(PhysicsWorld & physicsWorld, EntityRefer
 #include "game_building_blocks.cpp"
 
 
-struct MenuState
-{
-	MenuView 	view;
-	s32 		selectedIndex;
-};
-
-internal m44 * compute_transform_matrices(MemoryArena & allocator, s32 count, Transform3D * transforms)
-{
-	m44 * result = push_memory<m44>(allocator, count, ALLOC_GARBAGE);
-
-	for (s32 i = 0; i < count; ++i)
-	{
-		result[i] = transform_matrix(transforms[i]);
-	}
-
-	return result;
-}
-
 enum BoxState : s32
 {
 	BoxState_closed,
@@ -176,7 +107,6 @@ enum BoxState : s32
 	BoxState_open,
 	BoxState_closing,
 };
-
 
 struct Game
 {
@@ -201,6 +131,8 @@ struct Game
 	Camera 						worldCamera;
 	PlayerCameraController 		playerCamera;
 	EditorCameraController 		editorCamera;
+	f32 						cameraSelectPercent = 0;
+	f32 						cameraTransitionDuration = 0.5;
 
 	// ---------------------------------------
 
@@ -247,7 +179,7 @@ struct Game
 	// ------------------------------------------------------
 
 	s32 				raccoonCount;
-	s32 *				raccoonModes;
+	RaccoonMode *		raccoonModes;
 	Transform3D * 		raccoonTransforms;
 	v3 *				raccoonTargetPositions;
 	CharacterMotor * 	raccoonCharacterMotors;
@@ -339,12 +271,11 @@ struct Game
 	ModelHandle 	skybox;
 
 	// Random
-	bool32 		getSkyColorFromTreeDistance;
-
 	Gui 		gui;
 	CameraMode 	cameraMode;
 	bool32		drawDebugShadowTexture;
 	f32 		timeScale = 1;
+	bool32 		guiVisible;
 
 	Trees trees;
 
@@ -376,33 +307,26 @@ struct Game
 	Array<AudioClip> 	audioClipsOnPlay;
 };
 
+internal v3 * game_get_entity_position(Game * game, EntityReference entity)
+{
+	switch(entity.type)
+	{
+		case EntityType_raccoon:	return &game->raccoonTransforms[entity.index].position;
+		case EntityType_water: 		return &game->waters.positions[entity.index];
+		case EntityType_pot:		return &game->potTransforms[entity.index].position;
+		case EntityType_tree_3: 	return &game->trees.array[entity.index].position;
+		case EntityType_box:		return &game->boxTransforms[entity.index].position;
+
+		default:
+			return nullptr;
+	}
+}
 
 internal void update_physics_world(PhysicsWorld & physics, Game * game, f32 elapsedTime)
 {
 	for (s32 i = 0; i < physics.entities.count; ++i)
 	{
 		bool cancelFall = physics.entities[i].entity == game->playerCarriedEntity;
-
-		s32 index 		= physics.entities[i].entity.index;
-		// bool cancelFall = index == game->playerCarriedEntity.index;
-
-		f32 & velocity = physics.entities[i].velocity;
-		v3 * position;
-
-		switch (physics.entities[i].entity.type)
-		{
-			case EntityType_raccoon:	position = &game->raccoonTransforms[index].position; 	break;
-			case EntityType_water: 		position = &game->waters.positions[index]; 				break;
-			case EntityType_pot:		position = &game->potTransforms[index].position;		break;
-			case EntityType_tree_3: 	position = &game->trees.array[index].position; 			break;
-			case EntityType_box:		position = &game->boxTransforms[index].position;		break;
-
-			default:
-				Assert(false && "That item has not physics properties");
-		}
-	
-		f32 groundHeight = get_terrain_height(game->collisionSystem, position->xy);
-
 		if (cancelFall)
 		{
 			array_unordered_remove(physics.entities, i);
@@ -411,10 +335,16 @@ internal void update_physics_world(PhysicsWorld & physics, Game * game, f32 elap
 			continue;
 		}
 
+		v3 * position 	= game_get_entity_position(game, physics.entities[i].entity);
+		Assert(position != nullptr && "That entity has not position");
+
+		f32 groundHeight = get_terrain_height(game->collisionSystem, position->xy);
+
 		// Todo(Leo): this is in reality dependent on frame rate, this works for development capped 30 ms frame time
 		// but is lower when frametime is lower
 		constexpr f32 physicsSleepThreshold = 0.2;
 
+		f32 & velocity 	= physics.entities[i].velocity;
 		if (velocity < 0 && position->z < groundHeight)
 		{
 			position->z = groundHeight;
@@ -456,7 +386,7 @@ internal auto game_get_serialized_objects(Game & game)
 		serialize_object("sky", game.skySettings),
 		serialize_object("tree_0", game.trees.settings[0]),
 		serialize_object("tree_1", game.trees.settings[1]),
-		serialize_object("player_camera", game.playerCamera),
+		serialize_object("player_camera", game.playerCamera), 
 		serialize_object("editor_camera", game.editorCamera)
 	);
 
@@ -469,20 +399,20 @@ internal void game_spawn_water(Game & game, s32 count)
 
 	v2 center = game.playerCharacterTransform.position.xy;
 
-	count = min_f32(count, waters.capacity - waters.count);
+	count = f32_min(count, waters.capacity - waters.count);
 
 	for (s32 i = 0; i < count; ++i)
 	{
 		f32 distance 	= random_range(1, 5);
 		f32 angle 		= random_range(0, 2 * π);
 
-		f32 x = cosine(angle) * distance;
+		f32 x = f32_cos(angle) * distance;
 		f32 y = sine(angle) * distance;
 
 		v3 position = { x + center.x, y + center.y, 0 };
-		position.z = get_terrain_height(game.collisionSystem, position.xy);
+		position.z 	= get_terrain_height(game.collisionSystem, position.xy);
 
-		waters_instantiate(game.waters, game.physicsWorld, position, game.fullWaterLevel);
+		waters_instantiate(game.waters, position, game.fullWaterLevel);
 	}
 }
 
@@ -525,7 +455,7 @@ internal void game_spawn_tree_on_player(Game & game)
 	f32 distance 	= random_range(1, 5);
 	f32 angle 		= random_range(0, 2 * π);
 
-	f32 x = cosine(angle) * distance;
+	f32 x = f32_cos(angle) * distance;
 	f32 y = sine(angle) * distance;
 
 	v3 position = { x + center.x, y + center.y, 0 };
@@ -600,96 +530,37 @@ internal bool32 game_game_update(Game * 				game,
 							game->cameraMode == CameraMode_player);
 	}
 
+	bool mouseInputAvailable = !ImGui::GetIO().WantCaptureMouse;
 
 	// Game Logic section
-	switch (game->cameraMode)
+
+	if (mouseInputAvailable)
 	{
-		case CameraMode_player:
+		switch (game->cameraMode)
 		{
-			CharacterInput playerCharacterMotorInput = {};
-
-			if (playerInputAvailable)
+			case CameraMode_player:
 			{
-				if (input_button_went_down(input, InputButton_nintendo_y))
-				{
-					game->nobleWanderTargetPosition = game->playerCharacterTransform.position;
-					game->nobleWanderWaitTimer 		= 0;
-					game->nobleWanderIsWaiting 		= false;
-				}
+				player_camera_update(game->playerCamera, game->playerCharacterTransform.position, input, scaledTime);
+				game->cameraSelectPercent = f32_max(0, game->cameraSelectPercent - unscaledTime / game->cameraTransitionDuration);
+			} break;
 
-				playerCharacterMotorInput = update_player_input(game->playerInputState,
-																game->worldCamera,
-																player_input_from_platform_input(input));
-			}
+			case CameraMode_editor:
+			{
+				editor_camera_update(game->editorCamera, input, scaledTime);
+				game->cameraSelectPercent = f32_min(1, game->cameraSelectPercent + unscaledTime / game->cameraTransitionDuration);
+			} break;
 
-			update_character_motor(game->playerCharacterMotor, playerCharacterMotorInput, game->collisionSystem, scaledTime, DEBUG_LEVEL_PLAYER);
-
-			player_camera_update(game->playerCamera, game->playerCharacterTransform.position, input, scaledTime);
-
-			game->worldCamera.position = game->playerCamera.position;
-			game->worldCamera.direction = game->playerCamera.direction;
-
-			game->worldCamera.farClipPlane = 1000;
-
-			/// ---------------------------------------------------------------------------------------------------
-
-			FS_DEBUG_NPC(debug_draw_circle_xy(game->nobleWanderTargetPosition + v3{0,0,0.5}, 1.0, colour_bright_green));
-			FS_DEBUG_NPC(debug_draw_circle_xy(game->nobleWanderTargetPosition + v3{0,0,0.5}, 0.9, colour_bright_green));
-		} break;
-
-		case CameraMode_editor:
-		{
-			editor_camera_update(game->editorCamera, game->playerCharacterTransform.position, input, scaledTime);
-
-			game->worldCamera.position = game->editorCamera.position;
-			game->worldCamera.direction = game->editorCamera.direction;
-
-			game->worldCamera.farClipPlane = 1000;
-
-		} break;
-		// case CameraMode_elevator:
-		// {
-		// 	m44 cameraMatrix = update_free_camera(game->freeCamera, input, unscaledTime);
-
-		// 	game->worldCamera.position = game->freeCamera.position;
-		// 	game->worldCamera.direction = game->freeCamera.direction;
-
-		// 	// /// Document(Leo): Teleport player
-		// 	// if (game_gui_menu_visible(game) == false && input_button_went_down(input, InputButton_nintendo_a))
-		// 	// {
-		// 	// 	// game->menuView = MenuView_confirm_teleport;
-		// 	// 	game_gui_push_menu(game, MenuView_confirm_teleport);
-		// 	// 	gui_ignore_input();
-		// 	// 	gui_reset_selection();
-		// 	// }
-
-		// 	game->worldCamera.farClipPlane = 2000;
-		// } break;
-
-		// case CameraMode_mouse_and_keyboard:
-		// {
-		// 	update_mouse_camera(game->mouseCamera, input, unscaledTime);
-
-		// 	game->worldCamera.position = game->mouseCamera.position;
-		// 	game->worldCamera.direction = game->mouseCamera.direction;
-
-		// 	// /// Document(Leo): Teleport player
-		// 	// if (game_gui_menu_visible(game) == false && input_button_went_down(input, InputButton_nintendo_a))
-		// 	// {
-		// 	// 	// game->menuView = MenuView_confirm_teleport;
-		// 	// 	game_gui_push_menu(game, MenuView_confirm_teleport);
-		// 	// 	gui_ignore_input();
-		// 	// 	gui_reset_selection();
-		// 	// }
-
-		// 	game->worldCamera.farClipPlane = 2000;
-		// } break;
-
-		case CameraModeCount:
-			Assert(false && "Bad execution path");
-			break;
+			case CameraModeCount:
+				Assert(false && "Bad execution path");
+				break;
+		}
 	}
 
+	f32 cameraSelectPercent = f32_mathfun_smooth(game->cameraSelectPercent);
+	game->worldCamera.position 	= v3_lerp(game->playerCamera.position, game->editorCamera.position, cameraSelectPercent);
+	game->worldCamera.direction = v3_lerp(game->playerCamera.direction, game->editorCamera.direction, cameraSelectPercent);
+	game->worldCamera.direction = v3_normalize(game->worldCamera.direction);
+	game->worldCamera.farClipPlane = 1000;
 
 	/// *******************************************************************************************
 
@@ -697,11 +568,11 @@ internal bool32 game_game_update(Game * 				game,
 
 	{
 		v3 lightDirection = {0,0,1};
-		lightDirection = rotate_v3(quaternion_axis_angle(v3_right, game->skySettings.sunHeightAngle * π), lightDirection);
-		lightDirection = rotate_v3(quaternion_axis_angle(v3_up, game->skySettings.sunOrbitAngle * 2 * π), lightDirection);
-		lightDirection = normalize_v3(-lightDirection);
+		lightDirection = quaternion_rotate_v3(quaternion_axis_angle(v3_right, game->skySettings.sunHeightAngle * π), lightDirection);
+		lightDirection = quaternion_rotate_v3(quaternion_axis_angle(v3_up, game->skySettings.sunOrbitAngle * 2 * π), lightDirection);
+		lightDirection = v3_normalize(-lightDirection);
 
-		Light light = { .direction 	= lightDirection, //normalize_v3({-1, 1.2, -8}), 
+		Light light = { .direction 	= lightDirection, //v3_normalize({-1, 1.2, -8}), 
 						.color 		= v3{0.95, 0.95, 0.9}};
 		v3 ambient 	= {0.05, 0.05, 0.3};
 
@@ -731,7 +602,27 @@ internal bool32 game_game_update(Game * 				game,
 	}
 
 	/// *******************************************************************************************
+
+	CharacterInput playerCharacterMotorInput = {};
+	if (playerInputAvailable)
+	{
+		if (input_button_went_down(input, InputButton_nintendo_y))
+		{
+			game->nobleWanderTargetPosition = game->playerCharacterTransform.position;
+			game->nobleWanderWaitTimer 		= 0;
+			game->nobleWanderIsWaiting 		= false;
+		}
+
+		playerCharacterMotorInput = update_player_input(game->playerInputState,
+														game->worldCamera,
+														player_input_from_platform_input(input));
 	
+		playerCharacterMotorInput.testClimb = input_button_is_down(input, InputButton_keyboard_left_alt);
+
+	}
+	update_character_motor(game->playerCharacterMotor, playerCharacterMotorInput, game->collisionSystem, scaledTime, DEBUG_LEVEL_PLAYER);
+
+
 	// Todo(leo): Should these be handled differently????
 	f32 playerPickupDistance 	= 1.0f;
 	f32 playerInteractDistance 	= 1.0f;
@@ -835,7 +726,7 @@ internal bool32 game_game_update(Game * 				game,
 			} break;
 
 			case EntityType_raccoon:
-				game->raccoonTransforms[game->playerCarriedEntity.index].rotation = identity_quaternion;
+				game->raccoonTransforms[game->playerCarriedEntity.index].rotation = quaternion_identity;
 				// Todo(Leo): notice no break here, little sketcthy, maybe do something about it, probably in raccoon movement code
 
 			case EntityType_pot:
@@ -991,7 +882,7 @@ internal bool32 game_game_update(Game * 				game,
 				{
 					game->raccoonTransforms[carriedEntities[i].index].position 	= carriedPosition + v3{0,0,0.2};
 
-					v3 right = rotate_v3(carriedRotation, v3_right);
+					v3 right = quaternion_rotate_v3(carriedRotation, v3_right);
 					game->raccoonTransforms[carriedEntities[i].index].rotation 	= carriedRotation * quaternion_axis_angle(right, 1.4f);
 				} break;
 
@@ -1065,13 +956,13 @@ internal bool32 game_game_update(Game * 				game,
 		{
 
 			v3 trainMoveVector 	= game->trainCurrentTargetPosition - game->trainTransform.position;
-			f32 directionDot 	= dot_v3(trainMoveVector, game->trainCurrentDirection);
+			f32 directionDot 	= v3_dot(trainMoveVector, game->trainCurrentDirection);
 			f32 moveDistance	= v3_length(trainMoveVector);
 
 			if (moveDistance > game->trainBrakeBeforeStationDistance)
 			{
 				game->trainCurrentSpeed += scaledTime * game->trainAcceleration;
-				game->trainCurrentSpeed = min_f32(game->trainCurrentSpeed, game->trainFullSpeed);
+				game->trainCurrentSpeed = f32_min(game->trainCurrentSpeed, game->trainFullSpeed);
 			}
 			else
 			{
@@ -1105,7 +996,7 @@ internal bool32 game_game_update(Game * 				game,
 				game->trainWayPointIndex %= array_count(trainWayPoints);
 
 				game->trainCurrentTargetPosition 	= end;
-				game->trainCurrentDirection 		= normalize_v3(end - start);
+				game->trainCurrentDirection 		= v3_normalize(end - start);
 			}
 		}
 	}
@@ -1258,8 +1149,10 @@ internal bool32 game_game_update(Game * 				game,
 	/// SUBMIT COLLIDERS
 	// Note(Leo): These colliders are used mainly in next game loop, since we update them here after everything has moved
 	// Make a proper decision whether or not this is something we need
+	// Todo(Leo): most colliders are really static, so this is major stupid
 	{
-		clear_colliders(game->collisionSystem);
+		collision_system_reset_submitted_colliders(game->collisionSystem);
+
 		monuments_submit_colliders(game->monuments, game->collisionSystem);
 
 		// Todo(Leo): Maybe make something like that these would have predetermined range, that is only updated when
@@ -1294,16 +1187,16 @@ internal bool32 game_game_update(Game * 				game,
 				.center 	= {0,0,1}
 			};
 
-			submit_cylinder_collider(game->collisionSystem, collider, {tree.position, identity_quaternion, {1,1,1}});
+			submit_cylinder_collider(game->collisionSystem, collider, {tree.position, quaternion_identity, {1,1,1}});
 		}
 
-		submit_box_collider(game->collisionSystem, {{0.5,0.5,0.5}, identity_quaternion, {0,0,0.5}}, game->boxTransforms[0]);
-		submit_box_collider(game->collisionSystem, {{0.5,0.5,0.5}, identity_quaternion, {0,0,0.5}}, game->boxTransforms[1]);
+		submit_box_collider(game->collisionSystem, {{0.5,0.5,0.5}, quaternion_identity, {0,0,0.5}}, game->boxTransforms[0]);
+		submit_box_collider(game->collisionSystem, {{0.5,0.5,0.5}, quaternion_identity, {0,0,0.5}}, game->boxTransforms[1]);
 
 		/// BUILDING BLOCKS
 		for (s32 i = 0; i < game->scene.buildingBlocks.count; ++i)
 		{
-			submit_box_collider(game->collisionSystem, {{1,1,1}, identity_quaternion, {0,0,0}}, game->scene.buildingBlocks[i]);
+			submit_box_collider(game->collisionSystem, {{1,1,1}, quaternion_identity, {0,0,0}}, game->scene.buildingBlocks[i]);
 		}
 	}
 
@@ -1312,18 +1205,11 @@ internal bool32 game_game_update(Game * 				game,
 	
 	/// DRAW POTS
 	{
-		local_persist float testScale = 1;
-		constexpr float minTestScale = 0.5;
-		constexpr float maxTestScale = 19;
-
-		testScale += input_axis_get_value(input, InputAxis_mouse_scroll);
-		testScale = f32_clamp(testScale, minTestScale, maxTestScale);
-
 		// Todo(Leo): store these as matrices, we can easily retrieve position (that is needed somwhere) from that too.
 		m44 * potTransformMatrices = push_memory<m44>(*global_transientMemory, game->potCount, ALLOC_GARBAGE);
 		for(s32 i = 0; i < game->potCount; ++i)
 		{
-			potTransformMatrices[i] = transform_matrix(game->potTransforms[i]) * scale_matrix({testScale, testScale, testScale});
+			potTransformMatrices[i] = transform_matrix(game->potTransforms[i]);
 		}
 		graphics_draw_meshes(platformGraphics, game->potCount, potTransformMatrices, game->potMesh, game->potMaterial);
 	}
@@ -1336,6 +1222,18 @@ internal bool32 game_game_update(Game * 				game,
 		}
 
 		graphics_draw_meshes(platformGraphics, 1, &game->seaTransform, game->seaMesh, game->seaMaterial);
+
+		auto compute_transform_matrices = [](MemoryArena & allocator, s32 count, Transform3D * transforms)
+		{
+			m44 * result = push_memory<m44>(allocator, count, ALLOC_GARBAGE);
+
+			for (s32 i = 0; i < count; ++i)
+			{
+				result[i] = transform_matrix(transforms[i]);
+			}
+
+			return result;
+		};
 
 		m44 * totemTransforms = compute_transform_matrices(*global_transientMemory, array_count(game->totemTransforms), game->totemTransforms);
 		graphics_draw_meshes(platformGraphics, array_count(game->totemTransforms), totemTransforms, game->totemMesh, game->totemMaterial);		
@@ -1427,14 +1325,14 @@ internal bool32 game_game_update(Game * 				game,
 			f32 rA = 1;
 			f32 rB = 1;
 
-			// f32 d = min_f32(1, f32_max(0, dot_v3()))
+			// f32 d = f32_min(1, f32_max(0, v3_dot()))
 
-			f32 t = min_f32(1, f32_max(0, dot_v3(position - a, b - a) / square_v3_length(b-a)));
+			f32 t = f32_min(1, f32_max(0, v3_dot(position - a, b - a) / square_v3_length(b-a)));
 			f32 d = v3_length(position - a  - t * (b -a));
 
 			return d - f32_lerp(0.5,0.1,t);
 
-			// return min_f32(v3_length(a - position) - rA, v3_length(b - position) - rB);
+			// return f32_min(v3_length(a - position) - rA, v3_length(b - position) - rB);
 		};
 
 		f32 fieldMemory [] =
@@ -1563,7 +1461,7 @@ internal bool32 game_game_update(Game * 				game,
 			f32 fruitSize = tree.fruitAge / tree.fruitMaturationTime;
 			v3 fruitScale = {fruitSize, fruitSize, fruitSize};
 
-			m44 fruitTransform = transform_matrix(fruitPosition, identity_quaternion, fruitScale);
+			m44 fruitTransform = transform_matrix(fruitPosition, quaternion_identity, fruitScale);
 
 			FS_DEBUG_ALWAYS(debug_draw_circle_xy(fruitPosition, 0.5, colour_bright_red));
 
@@ -1580,6 +1478,7 @@ internal bool32 game_game_update(Game * 				game,
 		}
 	}
 
+	/// SCENE BUILDING BLOCKS
 	{
 		graphics_draw_meshes(	platformGraphics,
 								game->scene.buildingBlocks.count,
@@ -1587,6 +1486,25 @@ internal bool32 game_game_update(Game * 				game,
 								assets_get_mesh(game->assets, MeshAssetId_cube),
 								assets_get_material(game->assets, MaterialAssetId_building_block));
 	}
+
+	/// CAMERA TARGET GIZMO
+	if (game->cameraMode == CameraMode_editor && game->editorCamera.showPivot)
+	{
+		m44 transform = transform_matrix(	game->editorCamera.pivotPosition,
+											quaternion_identity,
+											{0.1, 0.1, 0.1});
+
+		// Note(Leo): these are random different color materials we had available at the time
+		MaterialAssetId materialId = (game->editorCamera.usedControlMode == EditorCameraControlMode_translate) ?
+										MaterialAssetId_raccoon :
+										MaterialAssetId_character;
+
+		graphics_draw_meshes(	platformGraphics,
+								1, &transform,
+								assets_get_mesh(game->assets, MeshAssetId_cube),
+								assets_get_material(game->assets, materialId));
+	}
+
 
 	// ---------- PROCESS AUDIO -------------------------
 
@@ -1632,18 +1550,16 @@ internal bool32 game_game_update(Game * 				game,
 		}
 	}
 
-
-
 	// ------------------------------------------------------------------------
 
-	// bool32 toggle_menu = input_button_went_down(input, InputButton_start)
-	// 					|| input_button_went_down(input, InputButton_keyboard_escape);
+	if (input_button_went_down(input, InputButton_keyboard_escape))
+	{
+		game->guiVisible = !game->guiVisible;
+	}
 
-
-	auto gui_result = do_gui(game, input);
+	auto gui_result = game->guiVisible ? do_gui(game, input) : true;
 
 	gui_end_frame();
-
 
 	return gui_result;
 }
@@ -1663,6 +1579,9 @@ internal Game * game_load_game(MemoryArena & persistentMemory, PlatformFileHandl
 	// this can be read here, at the top. If we need to allocate some stuff, we need to reconsider.
 	read_settings_file(game_get_serialized_objects(*game));
 
+	game->cameraMode = CameraMode_player;
+	platform_window_set(platformWindow, PlatformWindowSetting_cursor_hidden_and_locked, true);
+
 	// ----------------------------------------------------------------------------------
 
 	// Todo(Leo): Think more about implications of storing pointer to persistent memory here
@@ -1671,8 +1590,6 @@ internal Game * game_load_game(MemoryArena & persistentMemory, PlatformFileHandl
 	game->collisionSystem 	= init_collision_system(persistentMemory);
 
 	game->gui = {}; // Todo(Leo): remove this we now use ImGui
-	// game->menuStateIndex 		= 0;
-	// game->menuStates[0].view 	= MenuView_off;
 
 	initialize_physics_world(game->physicsWorld, persistentMemory);
 
@@ -1694,14 +1611,13 @@ internal Game * game_load_game(MemoryArena & persistentMemory, PlatformFileHandl
 		motor.transform = &game->playerCharacterTransform;
 
 		{
-			using namespace CharacterAnimations;			
-
-			motor.animations[WALK] 		= assets_get_animation(game->assets, AnimationAssetId_character_walk);
-			motor.animations[RUN] 		= assets_get_animation(game->assets, AnimationAssetId_character_run);
-			motor.animations[IDLE] 		= assets_get_animation(game->assets, AnimationAssetId_character_idle);
-			motor.animations[JUMP]		= assets_get_animation(game->assets, AnimationAssetId_character_jump);
-			motor.animations[FALL]		= assets_get_animation(game->assets, AnimationAssetId_character_fall);
-			motor.animations[CROUCH] 	= assets_get_animation(game->assets, AnimationAssetId_character_crouch);
+			motor.animations[CharacterAnimation_walk] 		= assets_get_animation(game->assets, AnimationAssetId_character_walk);
+			motor.animations[CharacterAnimation_run] 		= assets_get_animation(game->assets, AnimationAssetId_character_run);
+			motor.animations[CharacterAnimation_idle] 		= assets_get_animation(game->assets, AnimationAssetId_character_idle);
+			motor.animations[CharacterAnimation_jump]		= assets_get_animation(game->assets, AnimationAssetId_character_jump);
+			motor.animations[CharacterAnimation_fall]		= assets_get_animation(game->assets, AnimationAssetId_character_fall);
+			motor.animations[CharacterAnimation_crouch] 	= assets_get_animation(game->assets, AnimationAssetId_character_crouch);
+			motor.animations[CharacterAnimation_climb] 		= assets_get_animation(game->assets, AnimationAssetId_character_climb);
 		}
 
 		game->playerSkeletonAnimator = 
@@ -1709,7 +1625,7 @@ internal Game * game_load_game(MemoryArena & persistentMemory, PlatformFileHandl
 			.skeleton 		= assets_get_skeleton(game->assets, SkeletonAssetId_character),
 			.animations 	= motor.animations,
 			.weights 		= motor.animationWeights,
-			.animationCount = CharacterAnimations::ANIMATION_COUNT
+			.animationCount = CharacterAnimationCount
 		};
 
 		game->playerSkeletonAnimator.boneBoneSpaceTransforms = push_array<Transform3D>(	persistentMemory,
@@ -1736,14 +1652,13 @@ internal Game * game_load_game(MemoryArena & persistentMemory, PlatformFileHandl
 		game->noblePersonCharacterMotor.transform = &game->noblePersonTransform;
 
 		{
-			using namespace CharacterAnimations;
-			
-			game->noblePersonCharacterMotor.animations[WALK] 	= assets_get_animation(game->assets, AnimationAssetId_character_walk);
-			game->noblePersonCharacterMotor.animations[RUN] 	= assets_get_animation(game->assets, AnimationAssetId_character_run);
-			game->noblePersonCharacterMotor.animations[IDLE]	= assets_get_animation(game->assets, AnimationAssetId_character_idle);
-			game->noblePersonCharacterMotor.animations[JUMP] 	= assets_get_animation(game->assets, AnimationAssetId_character_jump);
-			game->noblePersonCharacterMotor.animations[FALL] 	= assets_get_animation(game->assets, AnimationAssetId_character_fall);
-			game->noblePersonCharacterMotor.animations[CROUCH] = assets_get_animation(game->assets, AnimationAssetId_character_crouch);
+			game->noblePersonCharacterMotor.animations[CharacterAnimation_walk] 	= assets_get_animation(game->assets, AnimationAssetId_character_walk);
+			game->noblePersonCharacterMotor.animations[CharacterAnimation_run] 	= assets_get_animation(game->assets, AnimationAssetId_character_run);
+			game->noblePersonCharacterMotor.animations[CharacterAnimation_idle]	= assets_get_animation(game->assets, AnimationAssetId_character_idle);
+			game->noblePersonCharacterMotor.animations[CharacterAnimation_jump] 	= assets_get_animation(game->assets, AnimationAssetId_character_jump);
+			game->noblePersonCharacterMotor.animations[CharacterAnimation_fall] 	= assets_get_animation(game->assets, AnimationAssetId_character_fall);
+			game->noblePersonCharacterMotor.animations[CharacterAnimation_crouch] 	= assets_get_animation(game->assets, AnimationAssetId_character_crouch);
+			game->noblePersonCharacterMotor.animations[CharacterAnimation_climb] 	= assets_get_animation(game->assets, AnimationAssetId_character_climb);
 		}
 
 		game->noblePersonSkeletonAnimator = 
@@ -1751,7 +1666,7 @@ internal Game * game_load_game(MemoryArena & persistentMemory, PlatformFileHandl
 			.skeleton 		= assets_get_skeleton(game->assets, SkeletonAssetId_character),
 			.animations 	= game->noblePersonCharacterMotor.animations,
 			.weights 		= game->noblePersonCharacterMotor.animationWeights,
-			.animationCount = CharacterAnimations::ANIMATION_COUNT
+			.animationCount = CharacterAnimationCount
 		};
 		game->noblePersonSkeletonAnimator.boneBoneSpaceTransforms = push_array<Transform3D>(	persistentMemory,
 																								game->noblePersonSkeletonAnimator.skeleton->boneCount,
@@ -1858,7 +1773,7 @@ internal Game * game_load_game(MemoryArena & persistentMemory, PlatformFileHandl
 			mesh_generate_tangents(seaMeshAsset);
 			game->seaMesh 		= graphics_memory_push_mesh(platformGraphics, &seaMeshAsset);
 			game->seaMaterial 	= assets_get_material(game->assets, MaterialAssetId_sea);
-			game->seaTransform = transform_matrix({0,0,0}, identity_quaternion, {mapSize, mapSize, 1});
+			game->seaTransform = transform_matrix({0,0,0}, quaternion_identity, {mapSize, mapSize, 1});
 		}
 
 		/// TOTEMS
@@ -1869,10 +1784,10 @@ internal Game * game_load_game(MemoryArena & persistentMemory, PlatformFileHandl
 			v3 position0 = {0,0,0}; 	position0.z = get_terrain_height(game->collisionSystem, position0.xy);
 			v3 position1 = {0,5,0}; 	position1.z = get_terrain_height(game->collisionSystem, position1.xy);
 
-			game->totemTransforms[0] = {position0, identity_quaternion, {1,1,1}};
-			game->totemTransforms[1] = {position1, identity_quaternion, {0.5, 0.5, 0.5}};
+			game->totemTransforms[0] = {position0, quaternion_identity, {1,1,1}};
+			game->totemTransforms[1] = {position1, quaternion_identity, {0.5, 0.5, 0.5}};
 
-			BoxCollider totemCollider = {v3{1,1,5}, identity_quaternion, v3{0,0,2}};
+			BoxCollider totemCollider = {v3{1,1,5}, quaternion_identity, v3{0,0,2}};
 
 			push_static_box_collider(game->collisionSystem, totemCollider, game->totemTransforms[0]);
 			push_static_box_collider(game->collisionSystem, totemCollider, game->totemTransforms[1]);
@@ -1910,14 +1825,12 @@ internal Game * game_load_game(MemoryArena & persistentMemory, PlatformFileHandl
 				game->raccoonCharacterMotors[i].runSpeed = 4;
 
 				{
-					using namespace CharacterAnimations;
-
-					game->raccoonCharacterMotors[i].animations[WALK] 	= assets_get_animation(game->assets, AnimationAssetId_raccoon_empty);
-					game->raccoonCharacterMotors[i].animations[RUN] 	= assets_get_animation(game->assets, AnimationAssetId_raccoon_empty);
-					game->raccoonCharacterMotors[i].animations[IDLE]	= assets_get_animation(game->assets, AnimationAssetId_raccoon_empty);
-					game->raccoonCharacterMotors[i].animations[JUMP] 	= assets_get_animation(game->assets, AnimationAssetId_raccoon_empty);
-					game->raccoonCharacterMotors[i].animations[FALL] 	= assets_get_animation(game->assets, AnimationAssetId_raccoon_empty);
-					game->raccoonCharacterMotors[i].animations[CROUCH] 	= assets_get_animation(game->assets, AnimationAssetId_raccoon_empty);
+					game->raccoonCharacterMotors[i].animations[CharacterAnimation_walk] 	= assets_get_animation(game->assets, AnimationAssetId_raccoon_empty);
+					game->raccoonCharacterMotors[i].animations[CharacterAnimation_run] 	= assets_get_animation(game->assets, AnimationAssetId_raccoon_empty);
+					game->raccoonCharacterMotors[i].animations[CharacterAnimation_idle]	= assets_get_animation(game->assets, AnimationAssetId_raccoon_empty);
+					game->raccoonCharacterMotors[i].animations[CharacterAnimation_jump] 	= assets_get_animation(game->assets, AnimationAssetId_raccoon_empty);
+					game->raccoonCharacterMotors[i].animations[CharacterAnimation_fall] 	= assets_get_animation(game->assets, AnimationAssetId_raccoon_empty);
+					game->raccoonCharacterMotors[i].animations[CharacterAnimation_crouch] 	= assets_get_animation(game->assets, AnimationAssetId_raccoon_empty);
 				}
 			}
 

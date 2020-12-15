@@ -68,11 +68,11 @@ internal void player_camera_update(		PlayerCameraController & controller,
     controller.tumbleDegrees = f32_clamp(controller.tumbleDegrees, controller.minTumble, controller.maxTumble);
 
     f32 cameraDistance = controller.distance;
-    f32 cameraHorizontalDistance = cosine(to_radians(controller.tumbleDegrees)) * cameraDistance;
+    f32 cameraHorizontalDistance = f32_cos(to_radians(controller.tumbleDegrees)) * cameraDistance;
     v3 localPosition =
     {
 		sine(to_radians(controller.orbitDegrees)) * cameraHorizontalDistance,
-		cosine(to_radians(controller.orbitDegrees)) * cameraHorizontalDistance,
+		f32_cos(to_radians(controller.orbitDegrees)) * cameraHorizontalDistance,
 		sine(to_radians(controller.tumbleDegrees)) * cameraDistance
     };
 
@@ -86,7 +86,7 @@ internal void player_camera_update(		PlayerCameraController & controller,
     */
 
     f32 trackSpeed = 10 * elapsedTime;
-    f32 z = interpolate(controller.lastTrackedPosition.z, targetPosition.z, trackSpeed);
+    f32 z = f32_lerp(controller.lastTrackedPosition.z, targetPosition.z, trackSpeed);
 
 
     // Todo(Leo): Maybe track faster on xy plane, instead of teleporting
@@ -102,39 +102,46 @@ internal void player_camera_update(		PlayerCameraController & controller,
     controller.lastTrackedPosition = trackedPosition;
 
 	controller.position = trackedPosition + v3{0,0,controller.baseOffset} + localPosition;
-	controller.direction = -normalize_v3(localPosition);
+	controller.direction = -v3_normalize(localPosition);
 
 	Assert(abs_f32(square_v3_length(controller.direction) - 1.0f) < 0.00001f);
 }
 
+enum EditorCameraControlMode : bool8
+{
+	EditorCameraControlMode_rotate,
+	EditorCameraControlMode_translate,
+};
+
 struct EditorCameraController
 {
-	// State, these change from frame to frame
+	// // State, these change from frame to frame
 	v3 position;
+
+	v3 pivotPosition 		= {0,0,0};
 	v3 direction 			= v3_forward;
-	v3 lastTrackedPosition;
 
 	f32 orbitDegrees 		= 180.0f;
 	f32 tumbleDegrees 		= 0.0f;
+	f32 distance 			= 20.0f;
 
+	EditorCameraControlMode selectedControlMode;
+	EditorCameraControlMode usedControlMode;
 
 	// Properties
-	f32 distance 			= 20.0f;
-	f32 baseOffset 			= 3.0f;//{0, 0, 3.0f};
 	f32 gamepadRotateSpeed 	= 180.0f;
 	f32 mouseRotateSpeed 	= 2;
-
 	f32 rightAndUpMoveSpeed = 8;
-	f32 forwardMoveSpeed 	= 10;
+	f32 zoomSpeed 			= 10;
+	bool32 showPivot		= true;
 
 	static constexpr auto serializedProperties = make_property_list
 	(
-		serialize_property("distance", &EditorCameraController::distance),
-		serialize_property("baseOffset", &EditorCameraController::baseOffset),
 		serialize_property("gamepadRotateSpeed", &EditorCameraController::gamepadRotateSpeed),
 		serialize_property("mouseRotateSpeed", &EditorCameraController::mouseRotateSpeed),
 		serialize_property("rightAndUpMoveSpeed", &EditorCameraController::rightAndUpMoveSpeed),
-		serialize_property("forwardMoveSpeed", &EditorCameraController::forwardMoveSpeed)
+		serialize_property("zoomSpeed", &EditorCameraController::zoomSpeed),
+		serialize_property("showPivot", &EditorCameraController::showPivot)
 	);
 	
 	// Note(Leo): No need to serialize these, they don't so much yield to artistic expression
@@ -143,73 +150,82 @@ struct EditorCameraController
 };
 
 internal void editor_camera_update(		EditorCameraController & controller,
-										v3 targetPosition,
 										PlatformInput * input,
 										f32 elapsedTime)
 {
-	f32 orbitMovement = 0;
-	f32 tumbleMovement = 0;
+	f32 orbitMovement 	= 0;
+	f32 tumbleMovement 	= 0;
 
-	f32 rightMovement = 0;
-	f32 upMovement = 0;
-
+	f32 rightMovement 	= 0;
+	f32 upMovement 		= 0;
 	f32 forwardMovement = 0;
 
-	if (input_is_device_used(input, InputDevice_gamepad))
+	f32 zoomMovement 	= 0;
+
+
+	// Note(Leo): toggle actual selected control mode
+	if (input_button_went_down(input, InputButton_keyboard_ctrl))
 	{
+		controller.selectedControlMode = EditorCameraControlMode(!controller.selectedControlMode);
+	}
+
+	// Note(Leo): Use selected or alternate control mode
+	controller.usedControlMode = input_button_is_down(input, InputButton_keyboard_left_alt) ?
+									EditorCameraControlMode(!controller.selectedControlMode) :
+									controller.selectedControlMode;
+
+	if (controller.usedControlMode == EditorCameraControlMode_rotate)
+	{
+		if (input_button_is_down(input, InputButton_mouse_0))
+		{
+			orbitMovement 	= input_axis_get_value(input, InputAxis_mouse_move_x) * controller.mouseRotateSpeed * elapsedTime;
+    		tumbleMovement 	= input_axis_get_value(input, InputAxis_mouse_move_y) * controller.mouseRotateSpeed * elapsedTime;	
+		}
+
+		zoomMovement = -input_axis_get_value(input, InputAxis_mouse_scroll);
+		zoomMovement *= controller.zoomSpeed * elapsedTime;
+
+ 		// --------------------------------------------------------
+
+	    controller.orbitDegrees += orbitMovement;
+	    controller.tumbleDegrees += tumbleMovement;
+
+	    controller.tumbleDegrees = f32_clamp(controller.tumbleDegrees, controller.minTumble, controller.maxTumble);
+
+	    controller.distance += zoomMovement;
+	   	controller.distance = f32_max(0.5, controller.distance);
+
+	    // controller.direction = v3_normalize(controller.direction);
 	}
 	else
 	{
 		if (input_button_is_down(input, InputButton_mouse_0))
 		{
-			if (input_button_is_down(input, InputButton_keyboard_left_alt))
-			{
-				orbitMovement 	= input_axis_get_value(input, InputAxis_mouse_move_x) * controller.mouseRotateSpeed * elapsedTime;
-	    		tumbleMovement 	= input_axis_get_value(input, InputAxis_mouse_move_y) * controller.mouseRotateSpeed * elapsedTime;	
-			}
-			else
-			{
-				rightMovement 	= input_axis_get_value(input, InputAxis_mouse_move_x) * -controller.rightAndUpMoveSpeed * elapsedTime;
-	    		upMovement 		= input_axis_get_value(input, InputAxis_mouse_move_y) * controller.rightAndUpMoveSpeed * elapsedTime;		
-			}
+			rightMovement 	= input_axis_get_value(input, InputAxis_mouse_move_x) * -controller.rightAndUpMoveSpeed * elapsedTime;
+    		upMovement 		= input_axis_get_value(input, InputAxis_mouse_move_y) * controller.rightAndUpMoveSpeed * elapsedTime;		
 		}
+	
+		forwardMovement = input_axis_get_value(input, InputAxis_mouse_scroll) * controller.zoomSpeed * elapsedTime;
 
-		forwardMovement = input_axis_get_value(input, InputAxis_mouse_scroll);
-		forwardMovement *= controller.forwardMoveSpeed * elapsedTime;
+		v3 viewForward 	= controller.direction;
+		v3 viewRight 	= v3_normalize(v3_cross(viewForward, v3_up));
+		v3 viewUp 		= v3_cross(viewRight, viewForward);
+
+		v3 worldSpaceInput 	= viewRight * rightMovement + viewUp * upMovement + viewForward * forwardMovement;
+
+		controller.pivotPosition += worldSpaceInput;
 	}
 
-    controller.orbitDegrees += orbitMovement;
-    controller.tumbleDegrees += tumbleMovement;
-
-    controller.tumbleDegrees = f32_clamp(controller.tumbleDegrees, controller.minTumble, controller.maxTumble);
-
-    f32 cameraDistance = controller.distance;
-
-    // cameraDistance -= forwardMovement;
-    // cameraDistance = f32_max(0.1f, cameraDistance);
-
-    controller.direction = normalize_v3(controller.direction);
-
-	v3 viewForward 	= controller.direction;
-	v3 viewRight 	= normalize_v3(cross_v3(viewForward, v3_up));
-	v3 viewUp 		= cross_v3(viewRight, viewForward);
-
-
-	v3 worldSpaceInput 	= viewRight * rightMovement + viewUp * upMovement + viewForward * forwardMovement;
-
-	log_debug(FILE_ADDRESS, rightMovement, ", ", forwardMovement, ", ", upMovement);
-
-	controller.position += worldSpaceInput;
-
-    f32 cameraHorizontalDistance = cosine(to_radians(controller.tumbleDegrees)) * cameraDistance;
+    f32 horizontalDistance = f32_cos(to_radians(controller.tumbleDegrees)) * controller.distance;
     v3 localPosition =
     {
-		sine(to_radians(controller.orbitDegrees)) * cameraHorizontalDistance,
-		cosine(to_radians(controller.orbitDegrees)) * cameraHorizontalDistance,
-		sine(to_radians(controller.tumbleDegrees)) * cameraDistance
+		sine(to_radians(controller.orbitDegrees)) * horizontalDistance,
+		f32_cos(to_radians(controller.orbitDegrees)) * horizontalDistance,
+		sine(to_radians(controller.tumbleDegrees)) * controller.distance
     };
 
-	controller.direction = -normalize_v3(localPosition);
+    controller.position 	= controller.pivotPosition + localPosition;
+	controller.direction 	= -v3_normalize(localPosition);
 
 	Assert(abs_f32(square_v3_length(controller.direction) - 1.0f) < 0.00001f && "Too short vector would mean no direction.");
 }
@@ -247,7 +263,7 @@ internal m44 update_free_camera(FreeCameraController & controller, PlatformInput
 	constexpr f32 minHeight = 10;
 	constexpr f32 maxHeight = 50;
 	f32 heightValue = f32_clamp(controller.position.z, minHeight, maxHeight) / maxHeight;
-	f32 moveSpeed 	= interpolate(lowMoveSpeed, highMoveSpeed, heightValue);
+	f32 moveSpeed 	= f32_lerp(lowMoveSpeed, highMoveSpeed, heightValue);
 
 	f32 moveStep 		= moveSpeed * elapsedTime;
 	v3 rightMovement 	= right * input_axis_get_value(input, InputAxis_move_x) * moveStep;
@@ -297,19 +313,19 @@ internal void update_mouse_camera(MouseCameraController & controller, PlatformIn
 	f32 panAngle 	= -1 * mouseInput.x * rotateSpeed * elapsedTime;
 	quaternion pan 	= quaternion_axis_angle(v3_up, panAngle);
 
-	v3 direction 	= rotate_v3(pan, controller.direction);
-	v3 right 		= normalize_v3(cross_v3(direction, v3_up));
+	v3 direction 	= quaternion_rotate_v3(pan, controller.direction);
+	v3 right 		= v3_normalize(v3_cross(direction, v3_up));
 
 	f32 tiltAngle 	= -1 * mouseInput.y * rotateSpeed * elapsedTime;
 	tiltAngle 		= f32_clamp(tiltAngle, -maxTilt, maxTilt);
 	quaternion tilt = quaternion_axis_angle(right, tiltAngle);
 
-	direction 		= rotate_v3(tilt, direction);
+	direction 		= quaternion_rotate_v3(tilt, direction);
 
 	constexpr f32 minHeight = 10;
 	constexpr f32 maxHeight = 50;
 	f32 heightValue = f32_clamp(controller.targetPosition.z, minHeight, maxHeight) / maxHeight;
-	f32 moveSpeed 	= interpolate(lowMoveSpeed, highMoveSpeed, heightValue);
+	f32 moveSpeed 	= f32_lerp(lowMoveSpeed, highMoveSpeed, heightValue);
 
 	f32 moveStep 		= moveSpeed * elapsedTime;
 

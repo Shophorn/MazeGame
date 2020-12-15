@@ -101,7 +101,8 @@ enum AnimationAssetId : s32
 	AnimationAssetId_character_run,
 	AnimationAssetId_character_jump,
 	AnimationAssetId_character_fall,
-
+	AnimationAssetId_character_climb,
+	
 	AnimationAssetIdCount
 };
 

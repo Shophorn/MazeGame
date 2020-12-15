@@ -52,6 +52,9 @@ internal CollisionSystem3D init_collision_system(MemoryArena & allocator)
 	system.staticBoxColliders = push_array<PrecomputedBoxCollider>(allocator, 100, ALLOC_GARBAGE);
 	// system.staticCylinderColliders = push_array<CylinderCollider>(allocator, 100, ALLOC_GARBAGE);
 
+	system.submittedBoxColliders 		= push_array<PrecomputedBoxCollider>(allocator, 1000, ALLOC_GARBAGE);
+	system.submittedCylinderColliders 	= push_array<CylinderCollider>(allocator, 1000, ALLOC_GARBAGE);
+
 	return system;
 }
 
@@ -71,11 +74,10 @@ internal m44 compute_inverse_box_collider_transform(BoxCollider const & collider
 	return colliderMatrix * transformMatrix;
 }
 
-internal void clear_colliders(CollisionSystem3D & system)
+internal void collision_system_reset_submitted_colliders(CollisionSystem3D & system)
 {
-	// Note(Leo): This is reseted, so that it is empty for the new frame
-	system.submittedBoxColliders 		= push_array<PrecomputedBoxCollider>(*global_transientMemory, 100, ALLOC_GARBAGE);
-	system.submittedCylinderColliders 	= push_array<CylinderCollider>(*global_transientMemory, 100, ALLOC_GARBAGE);
+	array_flush(system.submittedBoxColliders);
+	array_flush(system.submittedCylinderColliders);
 }
 
 internal void submit_cylinder_collider(CollisionSystem3D & system, CylinderCollider collider, Transform3D const & transform)
@@ -184,7 +186,7 @@ internal bool32 ray_box_collisions(	Array<PrecomputedBoxCollider> & colliders,
 		}			
 
 		f32 distanceToMin = f32_max(xDistanceToMin, yDistanceToMin);
-		f32 distanceToMax = min_f32(xDistanceToMax, yDistanceToMax);
+		f32 distanceToMax = f32_min(xDistanceToMax, yDistanceToMax);
 		
 
 		if ((distanceToMin > zDistanceToMax) || (zDistanceToMin > distanceToMax))
@@ -194,7 +196,7 @@ internal bool32 ray_box_collisions(	Array<PrecomputedBoxCollider> & colliders,
 		}			
 
 		distanceToMin = f32_max(distanceToMin, zDistanceToMin);
-		distanceToMax = min_f32(distanceToMax, zDistanceToMax);
+		distanceToMax = f32_min(distanceToMax, zDistanceToMax);
 
 		if (0.00001f < distanceToMin && distanceToMin < colliderSpaceRayLength)
 		{
@@ -232,7 +234,7 @@ internal bool32 ray_box_collisions(	Array<PrecomputedBoxCollider> & colliders,
 					outResult->hitPosition = multiply_point(collider.transform, outResult->hitPosition);
 
 					outResult->hitNormal = multiply_direction(collider.transform, outResult->hitNormal);
-					outResult->hitNormal = normalize_v3(outResult->hitNormal);
+					outResult->hitNormal = v3_normalize(outResult->hitNormal);
 				}
 
 			}
@@ -263,7 +265,7 @@ internal bool32 ray_cylinder_collisions (Array<CylinderCollider> colliders, Ray 
 		f32 vt0 = (halfHeight - p.z) / v.z;
 		f32 vt1 = (-halfHeight - p.z) / v.z;
 
-		f32 vtMin = min_f32(vt0, vt1);
+		f32 vtMin = f32_min(vt0, vt1);
 
 		if (vtMin > 0.00001f && vtMin < ray.length)
 		{
@@ -314,7 +316,7 @@ internal bool32 ray_cylinder_collisions (Array<CylinderCollider> colliders, Ray 
 		f32 ht0 = (-b - sqrtD) / (2 * a);
 		f32 ht1 = (-b + sqrtD) / (2 * a);
 
-		f32 ht = min_f32(ht0, ht1);
+		f32 ht = f32_min(ht0, ht1);
 
 		if (ht > 0.00001f && ht < ray.length)
 		{
@@ -331,7 +333,7 @@ internal bool32 ray_cylinder_collisions (Array<CylinderCollider> colliders, Ray 
 					// Note(Leo): Hitposition - center, is weird
 					v3 hitNormal = p + v * ht;
 					hitNormal.z = 0;
-					hitNormal = normalize_v3(hitNormal);
+					hitNormal = v3_normalize(hitNormal);
 					outResult->hitNormal = hitNormal;
 				}
 			}

@@ -47,7 +47,7 @@ internal void update_waters(Waters & waters, f32 elapsedTime)
 	}
 }
 
-internal void waters_instantiate(Waters & waters, PhysicsWorld & physicsWorld, v3 position, f32 level)
+internal void waters_instantiate(Waters & waters, v3 position, f32 level)
 {
 	if (waters.count < waters.capacity)
 	{
@@ -55,10 +55,8 @@ internal void waters_instantiate(Waters & waters, PhysicsWorld & physicsWorld, v
 		waters.count 	+= 1;
 
 		waters.positions[index] = position;
-		waters.rotations[index] = identity_quaternion;
+		waters.rotations[index] = quaternion_identity;
 		waters.levels[index] 	= level;
-
-		// physics_world_push_entity(physicsWorld, {EntityType_water, index});
 	}
 }
 

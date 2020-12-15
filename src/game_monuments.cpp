@@ -75,16 +75,16 @@ internal void monuments_submit_colliders(Monuments const & monuments, CollisionS
 {
 	local_persist Transform3D colliderTransforms [] =
 	{
-		Transform3D {{0, 0, -0.2356}, 	identity_quaternion,					{2, 2, 0.99}},
+		Transform3D {{0, 0, -0.2356}, 	quaternion_identity,					{2, 2, 0.99}},
 		Transform3D {{0, 2, -0.07}, 	quaternion_axis_angle(v3_right, π/4), 	{1.75, 0.575, 0.575}},
 		Transform3D {{0, -2, -0.07}, 	quaternion_axis_angle(v3_right, π/4), 	{1.75, 0.575, 0.575}},
 		Transform3D {{2, 0, -0.07}, 	quaternion_axis_angle(v3_forward, π/4), {0.575, 1.75, 0.575}},
 		Transform3D {{-2, 0, -0.07}, 	quaternion_axis_angle(v3_forward, π/4), {0.575, 1.75, 0.575}},
 
-		Transform3D {{1.75, 1.86, 2}, 	identity_quaternion, {0.67, 0.56, 5}},
-		Transform3D {{-1.75, 1.86, 2}, 	identity_quaternion, {0.67, 0.56, 5}},
-		Transform3D {{1.75, -1.86, 2}, 	identity_quaternion, {0.67, 0.56, 5}},
-		Transform3D {{-1.75, -1.86, 2}, identity_quaternion, {0.67, 0.56, 5}},
+		Transform3D {{1.75, 1.86, 2}, 	quaternion_identity, {0.67, 0.56, 5}},
+		Transform3D {{-1.75, 1.86, 2}, 	quaternion_identity, {0.67, 0.56, 5}},
+		Transform3D {{1.75, -1.86, 2}, 	quaternion_identity, {0.67, 0.56, 5}},
+		Transform3D {{-1.75, -1.86, 2}, quaternion_identity, {0.67, 0.56, 5}},
 	};
 
 	for (s32 i = 0; i < monuments.count; ++i)
@@ -179,10 +179,10 @@ static void monuments_editor(Monuments & monuments, CollisionSystem3D & collisio
 		(
 			v3 position = (monuments.transforms[i].position + v3{0,0,30});
 
-			v3 right = rotate_v3(monuments.transforms[i].rotation, v3_right);
+			v3 right = quaternion_rotate_v3(monuments.transforms[i].rotation, v3_right);
 			debug_draw_line(position - right * 300, position + right * 300, colour_bright_red);										
 
-			v3 forward = rotate_v3(monuments.transforms[i].rotation, v3_forward);
+			v3 forward = quaternion_rotate_v3(monuments.transforms[i].rotation, v3_forward);
 			debug_draw_line(position - forward * 300, position + forward * 300, colour_bright_red);
 		)
 

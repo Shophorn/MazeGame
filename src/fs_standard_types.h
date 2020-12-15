@@ -50,6 +50,7 @@ using f64 = double;
 static_assert(sizeof(f32) == 4, "Invalid type alias for 'f32'");
 static_assert(sizeof(f64) == 8, "Invalid type alias for 'f64'");
 
+// Todo(Leo): put these in headers
 struct v2
 {	
 	f32 x, y;

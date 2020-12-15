@@ -35,6 +35,7 @@ struct Array
 	T * end () { return memory + count; }
 };
 
+/// Todo(Leo): this is maybe stupid
 template<typename T>
 internal Array<T> push_array(MemoryArena & allocator, s64 capacity, AllocOperation options)
 {
@@ -43,9 +44,15 @@ internal Array<T> push_array(MemoryArena & allocator, s64 capacity, AllocOperati
 }
 
 template<typename T>
-internal void clear_array(Array<T> & array)
+internal void array_clear(Array<T> & array)
 {
 	memset(array.memory, 0, sizeof(T) * array.capacity);
+	array.count = 0;
+}
+
+template<typename T>
+internal void array_flush(Array<T> & array)
+{
 	array.count = 0;
 }
 

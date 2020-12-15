@@ -151,10 +151,12 @@ int main()
 	{
 		{ AnimationAssetId_character_idle,		 "cube_head_v3.glb", "Idle" },
 		{ AnimationAssetId_character_walk,		 "cube_head_v3.glb", "Walk" },
-		{ AnimationAssetId_character_run,		 "cube_head_v3.glb", "Run" },
+		// Todo(Leo): lol these are super bad...
+		{ AnimationAssetId_character_run,		 "cube_head_v3_backup_before_adding_animations.glb", "Run" },
 		{ AnimationAssetId_character_jump,		 "cube_head_v3.glb", "JumpUp" },
 		{ AnimationAssetId_character_fall,		 "cube_head_v3.glb", "JumpDown" },
 		{ AnimationAssetId_character_crouch, 	 "cube_head_v3.glb", "Crouch" },
+		{ AnimationAssetId_character_climb, 	 "cube_head_v3.glb", "Climb" },
 	};
 
 	for (auto & animation : animations)

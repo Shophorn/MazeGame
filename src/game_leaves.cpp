@@ -46,12 +46,12 @@ internal Leaves make_leaves(MemoryArena & allocator, s32 capacity)
 
 internal void draw_leaves(Leaves & leaves, f32 elapsedTime, v2 leafScale = {1,1}, v3 colour = {})
 {
-	s32 drawCount = min_f32(leaves.capacity, leaves.count);
+	s32 drawCount = f32_min(leaves.capacity, leaves.count);
 
 	m44 * leafTransforms = push_memory<m44>(*global_transientMemory, drawCount, ALLOC_GARBAGE);
 	for (s32 i = 0; i < drawCount; ++i)
 	{
-		v3 position 			= leaves.position + rotate_v3(leaves.rotation, leaves.localPositions[i]);
+		v3 position 			= leaves.position + quaternion_rotate_v3(leaves.rotation, leaves.localPositions[i]);
 
 		constexpr f32 swayRange = 0.5;
 		leaves.swayPositions[i] = mod_f32(leaves.swayPositions[i] + elapsedTime, swayRange * 4);

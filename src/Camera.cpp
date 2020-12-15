@@ -74,12 +74,12 @@ internal m44 camera_view_matrix(v3 position, v3 direction)
 	// Study: https://www.3dgep.com/understanding-the-view-matrix/
 	// Todo(Leo): try to undeerstand why this is negative
 	v3 yAxis 	= -direction;
-	v3 xAxis 	= normalize_v3(cross_v3(v3_up, yAxis));
+	v3 xAxis 	= v3_normalize(v3_cross(v3_up, yAxis));
 
 	/* Note(Leo): this is not normalized because both components are unit length,
 	AND they are orthogonal so they produce a unit length vector anyway.
 	They are surely orthogonal because xAxis was a cross product from yAxis(with v3_up) */
-	v3 zAxis 	= cross_v3(yAxis, xAxis);
+	v3 zAxis 	= v3_cross(yAxis, xAxis);
 
 	m44 orientation = {
 		xAxis.x, zAxis.x, yAxis.x, 0,
@@ -104,10 +104,10 @@ v3 get_forward(Camera const * camera)
 
 v3 get_up(Camera const * camera)
 {
-	return cross_v3(get_right(camera), camera->direction);
+	return v3_cross(get_right(camera), camera->direction);
 }
 
 v3 get_right(Camera const * camera)
 {
-	return normalize_v3(cross_v3(camera->direction, v3_up));
+	return v3_normalize(v3_cross(camera->direction, v3_up));
 }

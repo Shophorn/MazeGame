@@ -50,9 +50,9 @@ internal v3 multiply_direction(m44 mat, v3 direction)
 {
 	mat = transpose_m44(mat);
 
-	direction = { 	dot_v3(mat[0].xyz, direction),
-					dot_v3(mat[1].xyz, direction),
-					dot_v3(mat[2].xyz, direction) };
+	direction = { 	v3_dot(mat[0].xyz, direction),
+					v3_dot(mat[1].xyz, direction),
+					v3_dot(mat[2].xyz, direction) };
 	return direction;	
 }
 

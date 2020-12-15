@@ -67,6 +67,7 @@ static PlayerInput player_input_from_platform_input(PlatformInput * platformInpu
 
 	playerInput.movement 	= clamp_length_v2(playerInput.movement, 1);
 
+	
 
 	return playerInput;
 }
@@ -77,8 +78,8 @@ CharacterInput update_player_input(	PlayerInputState & 	state,
 {
 	v3 viewForward 		= get_forward(&playerCamera);
 	viewForward.z 		= 0;
-	viewForward 		= normalize_v3(viewForward);
-	v3 viewRight 		= cross_v3(viewForward, v3_up);
+	viewForward 		= v3_normalize(viewForward);
+	v3 viewRight 		= v3_cross(viewForward, v3_up);
 
 	v3 worldSpaceInput 	= viewRight * input.movement.x
 						+ viewForward * input.movement.y;
@@ -88,5 +89,7 @@ CharacterInput update_player_input(	PlayerInputState & 	state,
 	state.events.pickupOrDrop	= input.pickupOrDrop;
 	state.events.interact 		= input.interact;
 
-	return {worldSpaceInput, input.jump, input.crouch};
+	CharacterInput result 	= {worldSpaceInput, input.jump, input.crouch};
+	result.climbInput 		= input.movement;
+	return result;
 } 

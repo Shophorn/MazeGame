@@ -73,13 +73,14 @@ inline f32 f32_lerp(f32 a, f32 b, f32 t)
     return a + t * (b - a);
 }
 
-inline f32 interpolate(f32 from, f32 to, f32 t)
+static f32 f32_unlerp(f32 a, f32 b, f32 value)
 {
-    f32 result = (1.0f - t) * from + t * to;
-    return result;
+    // Todo(Leo): comment on commentors comment on naming
+    // https://www.gamedev.net/articles/programming/general-and-gameplay-programming/inverse-lerp-a-super-useful-yet-often-overlooked-function-r5230/
+    return (value - a) / (b - a);
 }
 
-f32 min_f32(f32 a, f32 b)
+f32 f32_min(f32 a, f32 b)
 {
     return (a < b) ? a : b;
 }
@@ -101,12 +102,19 @@ s32 s32_max(s32 a, s32 b)
 
 internal s32 s32_clamp(s32 value, s32 minValue, s32 maxValue)
 {
-    value = s32_max(value, minValue);
-    value = s32_min(value, maxValue);
+    value = (value < minValue) ? minValue : value;
+    value = (value > maxValue) ? maxValue : value;
     return value;
 }
 
-inline f32 f32_clamp(f32 value, f32 min, f32 max)
+internal s64 s64_clamp(s64 value, s64 minValue, s64 maxValue)
+{
+    value = (value < minValue) ? minValue : value;
+    value = (value > maxValue) ? maxValue : value;
+    return value;
+}
+
+internal f32 f32_clamp(f32 value, f32 min, f32 max)
 {
     value = value < min ? min : value;
     value = value > max ? max : value;
@@ -120,7 +128,7 @@ internal f32 pow_f32(f32 value, f32 pow)
 
 /// ******************************************************************
 /// MATHFUN, fun math stuff :)
-f32 mathfun_smooth_f32 (f32 v)
+f32 f32_mathfun_smooth (f32 v)
 {
     v = v * v * (v * -2 + 3);
     return v;
@@ -153,7 +161,7 @@ inline f32 sine (f32 value)
     return result;
 }
 
-inline f32 cosine(f32 value)
+inline f32 f32_cos(f32 value)
 {
     f32 result = cosf(value);
     return result;

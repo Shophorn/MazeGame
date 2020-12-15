@@ -63,7 +63,7 @@ internal void update_clouds(Clouds & 			clouds,
 							CollisionSystem3D & collisionSystem,
 							f32 				elapsedTime)
 {
-	v3 windDirection = rotate_v3(quaternion_axis_angle(v3_up, clouds.windDirectionAngle), v3_forward);
+	v3 windDirection = quaternion_rotate_v3(quaternion_axis_angle(v3_up, clouds.windDirectionAngle), v3_forward);
 
 	// for (auto & cloud : clouds.clouds)
 	for (s32 i = 0; i < clouds.clouds.count; ++i)
@@ -109,13 +109,13 @@ internal void update_clouds(Clouds & 			clouds,
 					f32 distance 	= random_range(0, cloud.radius);
 					f32 angle 		= random_value() * 2 * π;
 
-					v3 localPosition 	= rotate_v3(quaternion_axis_angle(v3_up, angle), v3_forward) * distance;
+					v3 localPosition 	= quaternion_rotate_v3(quaternion_axis_angle(v3_up, angle), v3_forward) * distance;
 					v3 position 		= cloud.transform.position + localPosition;
 					position.z 			= get_terrain_height(collisionSystem, position.xy);
 
 					selectedWaterDropIndices.push(waters.count);
 
-					waters_instantiate(waters, physicsWorld, position, 0);	
+					waters_instantiate(waters, position, 0);	
 				}
 
 				f32 actualWaterDropGrowth = totalWaterGrowthAmount / selectedWaterDropIndices.count;
@@ -123,7 +123,7 @@ internal void update_clouds(Clouds & 			clouds,
 				for (s32 index : selectedWaterDropIndices)
 				{
 					waters.levels[index] += actualWaterDropGrowth;
-					waters.levels[index] = min_f32(waters.levels[index], waters.fullWaterLevel);
+					waters.levels[index] = f32_min(waters.levels[index], waters.fullWaterLevel);
 				}
 			}
 
@@ -186,7 +186,7 @@ internal void draw_clouds(Clouds & clouds, PlatformGraphics * graphics, GameAsse
 			f32 rainLength 	= clouds.altitude;
 			v3 rainScale 	= {rainRadius, rainRadius, rainLength};
 
-			m44 matrix = transform_matrix(rainPosition, identity_quaternion, rainScale);
+			m44 matrix = transform_matrix(rainPosition, quaternion_identity, rainScale);
 			graphics_draw_meshes(	graphics,
 									1, &matrix,
 									assets_get_mesh(assets, MeshAssetId_rain),

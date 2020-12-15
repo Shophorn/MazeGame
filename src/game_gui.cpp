@@ -112,76 +112,46 @@ bool32 do_gui(Game * game, PlatformInput * input)
 		PushStyleVar(ImGuiStyleVar_IndentSpacing, 16);
 		s32 pushedStyleVarCount = 1;
 
-		local_persist bool skyEditorVisible 		= false;
-		local_persist bool monumentsEditorVisible 	= false;
-		local_persist bool treesEditorVisible 		= false;
-		local_persist bool meshGenEditorVisible 	= false;
-		local_persist bool cloudsEditorVisible 		= false;
-		local_persist bool blocksEditorVisible 		= false;
-		local_persist bool cameraEditorVisible 		= false;
-
-
 		float indentWidth = 16;
 
-		if (CollapsingHeader("Select Views"))
+		if (TreeNodeEx("Sky", ImGuiTreeNodeFlags_Framed))
 		{
-			Indent();
-			
-			Checkbox("Sky", &skyEditorVisible);
-			Checkbox("Monuments", &monumentsEditorVisible);
-			Checkbox("Trees", &treesEditorVisible);
-			Checkbox("Mesh Generation", &meshGenEditorVisible);
-			Checkbox("Clouds", &cloudsEditorVisible);
-			Checkbox("Blocks", &blocksEditorVisible);
-			Checkbox("Camera", &cameraEditorVisible);
-
-			Checkbox("ImGui Demo", &demoWindowVisible);
-
-			Unindent();
-		}
-
-		if (skyEditorVisible && CollapsingHeader("Sky", &skyEditorVisible))
-		{
-			Indent();
 			sky_editor(game->skySettings);
-			Unindent();
+			TreePop();
 		}
 
-		if (monumentsEditorVisible && CollapsingHeader("Monuments", &monumentsEditorVisible))
+
+		if (TreeNodeEx("Monuments", ImGuiTreeNodeFlags_Framed))
 		{
-			Indent();
 			monuments_editor(game->monuments, game->collisionSystem);
-			Unindent();
+			TreePop();
 		}
 
-		if (treesEditorVisible && CollapsingHeader("Trees", &treesEditorVisible))
+		if (TreeNodeEx("Trees", ImGuiTreeNodeFlags_Framed))
 		{
-			Indent();
 			trees_editor(game->trees);
-			Unindent();
+			TreePop();
 		}
 
-		if (cloudsEditorVisible && CollapsingHeader("Clouds", &cloudsEditorVisible))
+		if (TreeNodeEx("Clouds", ImGuiTreeNodeFlags_Framed))
 		{
-			Indent();
 			clouds_editor(game->clouds);
-			Unindent();
+			TreePop();
 		}
 
-		if (blocksEditorVisible && CollapsingHeader("Blocks", &blocksEditorVisible))
+		if (TreeNodeEx("Blocks", ImGuiTreeNodeFlags_Framed))
 		{
-			Indent();
 			building_blocks_editor(	game->scene.buildingBlocks,
 									game->selectedBuildingBlockIndex,
 									game->scene,
 									game->worldCamera,
+									game->editorCamera.pivotPosition,
 									input);
-			Unindent();
+			TreePop();
 		}
 
-		if (cameraEditorVisible && CollapsingHeader("Camera", &cameraEditorVisible))
+		if (TreeNodeEx("Camera", ImGuiTreeNodeFlags_Framed))
 		{
-			Indent();
 
 			PushID("playercamera");
 			Text("Player Camera");
@@ -195,25 +165,23 @@ bool32 do_gui(Game * game, PlatformInput * input)
 
 			PushID("Editor");
 			Text("Editor Camera");
-			DragFloat("Distance", &game->editorCamera.distance, 0.1, 0.1, highest_f32);
-			DragFloat("Base Offset", &game->editorCamera.baseOffset, 0.1);
 			DragFloat("Gamepad Rotate Speed", &game->editorCamera.gamepadRotateSpeed, 0.1);
 			DragFloat("Mouse Rotate Speed", &game->editorCamera.mouseRotateSpeed, 0.1);
 			DragFloat("Right/Up Speed", &game->editorCamera.rightAndUpMoveSpeed, 0.1);
-			DragFloat("Forward Speed", &game->editorCamera.forwardMoveSpeed, 0.1);
+			DragFloat("Zoom Speed", &game->editorCamera.zoomSpeed, 0.1);
+			Checkbox32("Show Pivot", &game->editorCamera.showPivot);
 			PopID();
 
-			Unindent();
+			TreePop();
 		}
 
-		if (meshGenEditorVisible && CollapsingHeader("Mesh Generation", &meshGenEditorVisible))
+		if (TreeNodeEx("Mesh Generation", ImGuiTreeNodeFlags_Framed))
 		{
-			Indent();
 
 			SliderFloat("Grid Scale", &game->metaballGridScale, 0.2, 1);
 			Checkbox32("Draw", &game->drawMCStuff);
 
-			Unindent();
+			TreePop();
 		}
 
 		PopStyleVar(pushedStyleVarCount);

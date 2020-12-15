@@ -2,6 +2,7 @@ static void building_blocks_editor(	Array<m44> & 	blocks,
 									s64 & 			selectedBuildingBlockIndex,
 									Scene & 		scene,
 									Camera & 		worldCamera,
+									v3				cameraPivotPosition,
 									PlatformInput * input)
 {
 	// bool blockEditorOpen = ImGui::Begin("Edit Building Blocks");
@@ -16,7 +17,7 @@ static void building_blocks_editor(	Array<m44> & 	blocks,
 		int selectedIndex = selectedBuildingBlockIndex;
 		if(InputInt("Selected Index", &selectedIndex))
 		{
-			selectedIndex = s32_clamp(selectedIndex, 0, blocks.count - 1);
+			selectedIndex = s64_clamp(selectedIndex, 0, blocks.count - 1);
 			selectedBuildingBlockIndex = selectedIndex;
 		}
 
@@ -24,12 +25,8 @@ static void building_blocks_editor(	Array<m44> & 	blocks,
 		{
 			if (blocks.count < blocks.capacity)
 			{
-				v3 position = multiply_point(blocks[selectedBuildingBlockIndex], {0,0,0}) + v3{0,0,2};
-
-				selectedBuildingBlockIndex = blocks.count;
-				blocks.count += 1;
-
-				blocks[selectedBuildingBlockIndex] = translation_matrix(position);
+				blocks.push(translation_matrix(cameraPivotPosition));
+				selectedBuildingBlockIndex = blocks.count - 1;
 			}
 		}
 
@@ -48,6 +45,7 @@ static void building_blocks_editor(	Array<m44> & 	blocks,
 			if(blocks.count > 0)
 			{
 				array_unordered_remove(blocks, selectedBuildingBlockIndex);
+				selectedBuildingBlockIndex = s64_clamp(selectedBuildingBlockIndex, 0, blocks.count - 1);			
 			}
 		}
 

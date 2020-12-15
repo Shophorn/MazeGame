@@ -4,7 +4,7 @@
 static_assert(std::is_standard_layout_v<quaternion>, "");
 static_assert(std::is_trivial_v<quaternion>, "");
 
-internal constexpr quaternion identity_quaternion = {0, 0, 0, 1};
+internal constexpr quaternion quaternion_identity = {0, 0, 0, 1};
 
 quaternion operator * (quaternion lhs, quaternion rhs);
 
@@ -41,13 +41,13 @@ internal quaternion quaternion_axis_angle(v3 normalizedAxis, f32 angleInRadians)
 	quaternion result =
 	{
 		normalizedAxis * sine(halfAngle),
-		cosine(halfAngle)
+		f32_cos(halfAngle)
 	};
 
 	return result;
 }
 
-internal v3 rotate_v3(quaternion const & q, v3 v)
+internal v3 quaternion_rotate_v3(quaternion const & q, v3 v)
 {
 	// Study(Leo):
 	// https://gamedev.stackexchange.com/questions/28395/rotating-vector3-by-a-quaternion
@@ -58,9 +58,9 @@ internal v3 rotate_v3(quaternion const & q, v3 v)
 	v3 u = q.vector;
 	f32 s = q.w;
 
-	v = 2.0f * dot_v3(u, v) * u
-		+ (s * s - dot_v3(u, u)) * v
-		+ 2.0f * s * cross_v3(v, u);
+	v = 2.0f * v3_dot(u, v) * u
+		+ (s * s - v3_dot(u, u)) * v
+		+ 2.0f * s * v3_cross(v, u);
 
 	return v;
 }
@@ -132,8 +132,8 @@ quaternion operator * (quaternion lhs, quaternion rhs)
 	
 	// https://www.youtube.com/watch?v=BXajpAy5-UI
 	quaternion result = {
-		.vector = rhs.vector * lhs.w + lhs.vector * rhs.w + cross_v3(lhs.vector, rhs.vector),
-		.w 		= lhs.w * rhs.w - dot_v3(lhs.vector, rhs.vector)
+		.vector = rhs.vector * lhs.w + lhs.vector * rhs.w + v3_cross(lhs.vector, rhs.vector),
+		.w 		= lhs.w * rhs.w - v3_dot(lhs.vector, rhs.vector)
 	};
 
 	
@@ -144,8 +144,8 @@ quaternion operator * (quaternion lhs, quaternion rhs)
 quaternion & operator *= (quaternion & lhs, quaternion const & rhs)
 {
 	lhs = {
-		.vector = rhs.vector * lhs.w + lhs.vector * rhs.w + cross_v3(lhs.vector, rhs.vector),
-		.w 		= lhs.w * rhs.w - dot_v3(lhs.vector, rhs.vector)
+		.vector = rhs.vector * lhs.w + lhs.vector * rhs.w + v3_cross(lhs.vector, rhs.vector),
+		.w 		= lhs.w * rhs.w - v3_dot(lhs.vector, rhs.vector)
 	};
 	return lhs;
 }
@@ -156,7 +156,7 @@ f32 dot_quaternion(quaternion a, quaternion b)
 	return result;
 }
 
-quaternion normalize_quaternion(quaternion q)
+quaternion quaternion_normalize(quaternion q)
 {
 	f32 magnitude = magnitude_quaternion(q);
 
@@ -170,11 +170,13 @@ quaternion normalize_quaternion(quaternion q)
 	return result;
 }
 
-quaternion interpolate_quaternion(quaternion from, quaternion to, f32 t)
+quaternion quaternion_lerp(quaternion from, quaternion to, f32 t)
 {
 	// Note(Leo): We could clamp this, but as I remember this was a bug somewhere else, and then we would 
 	// not be able to find it
 	// Assert(t == t && "probably a nan");
+	/*
+	Todo(Leo): We shouldnt care here about these but instead at the call sites, that they send proper inputs
 	if (t < -0.00001f || t > 1.00001f)
 	{
 		// log_debug(0, "häx: ", t);
@@ -182,7 +184,7 @@ quaternion interpolate_quaternion(quaternion from, quaternion to, f32 t)
 	}
 	Assert(from.x == from.x && from.y == from.y && from.z == from.z && from.w == from.w && "probably a nan");
 	Assert(to.x == to.x && to.y == to.y && to.z == to.z && to.w == to.w && "probably a nan");
-
+	*/
 
 	// Note(Leo): This ensures that rotation takes the shorter path
 	f32 dot = dot_quaternion(from, to);
@@ -196,10 +198,10 @@ quaternion interpolate_quaternion(quaternion from, quaternion to, f32 t)
 
 	if (dot > 0.99)
 	{
-		quaternion result = {	interpolate(from.x, to.x, t),
-								interpolate(from.y, to.y, t),
-								interpolate(from.z, to.z, t),
-								interpolate(from.w, to.w, t)};
+		quaternion result = {	f32_lerp(from.x, to.x, t),
+								f32_lerp(from.y, to.y, t),
+								f32_lerp(from.z, to.z, t),
+								f32_lerp(from.w, to.w, t)};
 
 		// quaternion result;
 
@@ -223,7 +225,7 @@ quaternion interpolate_quaternion(quaternion from, quaternion to, f32 t)
 			Assert(false);
 		}
 		// Assert(result.x == result.x && result.y == result.y && result.z == result.z && result.w == result.w && "probably a nan");
-		result = normalize_quaternion(result);
+		result = quaternion_normalize(result);
 		return result;
 	}
 
@@ -250,23 +252,23 @@ quaternion interpolate_quaternion(quaternion from, quaternion to, f32 t)
 
 	quaternion result = {
 		.vector = axis * sine(angle / 2.0f),
-		.w 		= cosine(angle / 2.0f)
+		.w 		= f32_cos(angle / 2.0f)
 	};
 
 	return from * result;
 }
 
-// Todo(Leo): use this function rather than interpolate_quaternion, since we may also need lerp_quaternion, and thus make difference
+// Todo(Leo): use this function rather than quaternion_lerp, since we may also need lerp_quaternion, and thus make difference
 quaternion quaternion_slerp(quaternion from, quaternion to, f32 t)
 {
-	return interpolate_quaternion(from, to, t);
+	return quaternion_lerp(from, to, t);
 }
 
 quaternion quaternion_from_to(v3 from, v3 to)
 {
 	f32 angle = angle_v3(from, to);
 
-	v3 axis = normalize_v3(cross_v3(from, to));
+	v3 axis = v3_normalize(v3_cross(from, to));
 
     f32 cross_x = from.y * to.z - from.z * to.y;
     f32 cross_y = from.z * to.x - from.x * to.z;

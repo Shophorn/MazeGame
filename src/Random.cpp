@@ -59,7 +59,7 @@ internal v3 random_on_unit_circle_xy()
 {
 	f32 angle	= random_value() * 2 * π;
 	f32 sin 	= sine(angle);
-	f32 cos 	= cosine(angle);
+	f32 cos 	= f32_cos(angle);
 
 	v3 result = {cos, sin, 0};
 	return result;

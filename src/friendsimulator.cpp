@@ -29,21 +29,21 @@ Friendsimulator game code main file.
 		ImGui::SetCurrentContext(imguiContext);
 	}
 
-	namespace ImGui
-	{
-	    IMGUI_API bool DragV2(const char* label, v2 * v, float v_speed = 1.0f, float v_min = 0.0f, float v_max = 0.0f, const char* format = "%.3f", ImGuiSliderFlags flags = 0)
-	    {
-	    	return DragFloat2(label, reinterpret_cast<f32*>(v), v_speed, v_min, v_max, format, flags);
-	    }
-	}
 
 #endif
+
+namespace ImGui
+{
+    IMGUI_API bool DragV2(const char* label, v2 * v, float v_speed = 1.0f, float v_min = 0.0f, float v_max = 0.0f, const char* format = "%.3f", ImGuiSliderFlags flags = 0)
+    {
+    	return DragFloat2(label, reinterpret_cast<f32*>(v), v_speed, v_min, v_max, format, flags);
+    }
+}
 
 
 
 static PlatformGraphics * 	platformGraphics;
 static PlatformWindow * 	platformWindow;
-
 static MemoryArena * 		global_transientMemory;
 
 static String push_temp_string (s32 capacity)
@@ -155,14 +155,10 @@ FS_GAME_API bool32 game_update(	MemoryBlock 				gameMemory,
 	platformGraphics 	= graphics;
 	platformWindow 		= window;
 
-
 	/* Note(Leo): This is reinterpreted each frame, we don't know and don't care
 	if it has been moved or whatever in platform layer*/
-	GameState * state = reinterpret_cast<GameState*>(gameMemory.memory);
-
-	// Note(Leo): Testing out this idea
-	// Note(Leo): So far, so good 12.06.2020
-	global_transientMemory = &state->transientMemoryArena;
+	GameState * state 		= reinterpret_cast<GameState*>(gameMemory.memory);
+	global_transientMemory 	= &state->transientMemoryArena;
 
 	// Note(Leo): Free space for current frame.
 	flush_memory_arena(&state->transientMemoryArena);

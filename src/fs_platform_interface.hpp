@@ -135,6 +135,7 @@ enum InputButton : s32
 	InputButton_keyboard_0,
 
 	InputButton_keyboard_left_alt,
+	InputButton_keyboard_ctrl,
 
 	InputButtonCount,
 

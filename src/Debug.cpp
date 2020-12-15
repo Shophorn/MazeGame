@@ -88,10 +88,10 @@ internal void debug_draw_circle_xy(v3 position, f32 radius, v4 color)
 	{
 		s32 point = line * 2;
 
-		points[point] = v3{cosine(line * angle) * radius, sine(line * angle) * radius} + position;
+		points[point] = v3{f32_cos(line * angle) * radius, sine(line * angle) * radius} + position;
 
 		s32 next = (line + 1) % lineCount;
-		points[point + 1] = v3{cosine(next * angle) * radius, sine(next * angle) * radius} + position;
+		points[point + 1] = v3{f32_cos(next * angle) * radius, sine(next * angle) * radius} + position;
 	}
 	graphics_draw_lines(platformGraphics, 32, points, color);
 
@@ -106,13 +106,13 @@ internal void debug_draw_circle_xy(v3 position, f32 radius, v4 color)
 // 	for (s32 i = 0; i < 16; ++i)
 // 	{
 // 		// f32 s = sine(i * angle);
-// 		// f32 c = cosine(i * angle);
+// 		// f32 c = f32_cos(i * angle);
 
-// 		lines[i].start 	= v3{cosine(i * angle) * radius, sine(i * angle) * radius} + position;
+// 		lines[i].start 	= v3{f32_cos(i * angle) * radius, sine(i * angle) * radius} + position;
 
 		// Note(Leo): error was here, should have been: (i + 1) % 16....
 // 		s32 next = (i + i) / 16;
-// 		lines[i].end 	= v3{cosine(next * angle) * radius, sine(next * angle) * radius} + position;
+// 		lines[i].end 	= v3{f32_cos(next * angle) * radius, sine(next * angle) * radius} + position;
 // 	}
 
 // 	debug_draw_lines(lines, 16, color);
@@ -190,12 +190,12 @@ internal void debug_draw_vector(v3 position, v3 vector, v4 color)
 {
 	f32 size 		= 0.1f; 
 	f32 length 		= v3_length(vector);
-	size 			= min_f32(size, length / 2);
+	size 			= f32_min(size, length / 2);
 
-	v3 binormal 	= cross_v3(vector, v3_up);
-	v3 up 			= normalize_v3(cross_v3(vector, binormal));
+	v3 binormal 	= v3_cross(vector, v3_up);
+	v3 up 			= v3_normalize(v3_cross(vector, binormal));
 
-	v3 direction 	= normalize_v3(vector);
+	v3 direction 	= v3_normalize(vector);
 	v3 cornerA 		= position + direction * (length - size) + up * size;
 	v3 cornerB 		= position + direction * (length - size) - up * size;
 

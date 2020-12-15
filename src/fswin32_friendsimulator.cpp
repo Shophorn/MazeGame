@@ -14,6 +14,7 @@ Todo(Leo):
 #include <Windows.h>
 #include <Windowsx.h>
 #include <xinput.h>
+#include <timeapi.h>
 
 #include <objbase.h>
 #include <mmdeviceapi.h>
@@ -249,7 +250,7 @@ FS_ENTRY_POINT
 
 		// ----- MEASURE ELAPSED TIME ----- 
 		{
-			#if defined FS_DEVELOPMENT && 0
+			#if defined FS_DEVELOPMENT && 1
 			{
 				s64 currentTime 				= platform_time_now();
 				f64 elapsedTimeBeforeSleep 		= platform_time_elapsed_seconds(frameFlipTime, currentTime);

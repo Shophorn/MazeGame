@@ -153,6 +153,11 @@ internal quaternion animation_get_rotation(Animation const & animation, s32 chan
 		quaternion previousValue 	= keyframeValues[previousKeyframeIndex];
 		quaternion nextValue 		= keyframeValues[nextKeyframeIndex];
 
+		if (relativeTime < 0 || relativeTime > 1)
+		{
+			log_debug(1, FILE_ADDRESS, "Bad relativeTime = ", relativeTime);
+		}
+
 		result = quaternion_slerp(previousValue, nextValue, relativeTime);
 	}
 	else
@@ -185,7 +190,7 @@ void update_skeleton_animator(SkeletonAnimator & animator, f32 elapsedTime)
 		v3 totalTranslation 	= {};
 		f32 totalAppliedWeight 	= 0;
 
-		quaternion totalRotation = identity_quaternion;
+		quaternion totalRotation = quaternion_identity;
 		f32 rotationTotalAppliedWeight = 0;
 
 		for (s32 a = 0; a < animationCount; ++a)
@@ -217,6 +222,11 @@ void update_skeleton_animator(SkeletonAnimator & animator, f32 elapsedTime)
 				totalRotation = quaternion_slerp(	totalRotation,
 													animation_get_rotation(animation, b, animator.animationTime),
 													weight / rotationTotalAppliedWeight);
+
+				if ((weight / rotationTotalAppliedWeight) < 0 || (weight / rotationTotalAppliedWeight) > 1)
+				{
+					log_debug(1, FILE_ADDRESS, "Bad animation weight = ", (weight / rotationTotalAppliedWeight));
+				}
 			}
 		}
 
@@ -225,9 +235,16 @@ void update_skeleton_animator(SkeletonAnimator & animator, f32 elapsedTime)
 
 		animator.boneBoneSpaceTransforms[b].position = totalTranslation;
 
-
 		f32 rotationDefaultPoseWeight 	= 1 - rotationTotalAppliedWeight;
-		totalRotation 			= quaternion_slerp(totalRotation, bone.boneSpaceDefaultTransform.rotation, rotationDefaultPoseWeight);
+
+		if (rotationDefaultPoseWeight < 0 || rotationDefaultPoseWeight > 1)
+		{
+			log_debug(1, FILE_ADDRESS, "Bad animation weight = ", rotationDefaultPoseWeight);
+		}
+
+		totalRotation 					= quaternion_slerp(	totalRotation,
+															bone.boneSpaceDefaultTransform.rotation,
+															rotationDefaultPoseWeight);
 
 		animator.boneBoneSpaceTransforms[b].rotation = totalRotation;
 	}

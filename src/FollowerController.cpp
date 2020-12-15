@@ -62,7 +62,7 @@ void update_follower_input(	FollowerController 		& controller,
 			we will always keep  moving.
 
 			Todo(Leo): clamping lower end might be clunky, investigate and maybe fix. */
-			inputVector = normalize_v3(toTarget) * f32_clamp(distanceToTarget - controller.stopFollowDistance, 0.05f, 1.0f);
+			inputVector = v3_normalize(toTarget) * f32_clamp(distanceToTarget - controller.stopFollowDistance, 0.05f, 1.0f);
 		}
 		else
 		{
@@ -74,7 +74,7 @@ void update_follower_input(	FollowerController 		& controller,
 	{
 		if (distanceToTarget > controller.startFollowDistance)
 		{
-			inputVector = normalize_v3(toTarget) * f32_clamp(distanceToTarget - controller.startFollowDistance, 0.0f, 1.0f);
+			inputVector = v3_normalize(toTarget) * f32_clamp(distanceToTarget - controller.startFollowDistance, 0.0f, 1.0f);
 			controller.isFollowing = true;
 		}
 		else

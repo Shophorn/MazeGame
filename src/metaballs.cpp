@@ -58,7 +58,7 @@ internal bool32 point_inside_bounds(v3 point, v3 bounds)
 float opSmoothUnion( float d1, float d2, float k )
 {
     float h = f32_clamp(0.5f + 0.5f*(d2-d1)/k, 0.0f, 1.0f);
-    return interpolate(d2, d1, h) - k*h*(1.0f-h);
+    return f32_lerp(d2, d1, h) - k*h*(1.0f-h);
 }
 
 struct VoxelField
@@ -659,7 +659,7 @@ internal void generate_mesh_marching_cubes(	s32 vertexCapacity, Vertex * vertice
 
 				 	constexpr f32 isoLevel = 0;
 				 	f32 t 		= (isoLevel - gridValues[e0]) / (gridValues[e1] - gridValues[e0]);
-				 	v3 position = lerp_v3(gridVertices[e0], gridVertices[e1], t);
+				 	v3 position = v3_lerp(gridVertices[e0], gridVertices[e1], t);
 
 					vertices[vertexCount + i].position = v3{x,y,z} + gridScale * position;
 					vertices[vertexCount + i].texCoord = vertices[vertexCount + i].position.xy;

@@ -57,7 +57,7 @@ struct CharacterControllerSideScroller
 			bool32 rightRayHit		= collisionManager->raycast(rightRayOrigin, rightRay, false); 
 
 			if (rightRayHit)
-				xMovement = min_f32(0.0f, xMovement);
+				xMovement = f32_min(0.0f, xMovement);
 
 			targetRotationRadians = -π / 2.0f;
 		}

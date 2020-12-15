@@ -14,35 +14,48 @@ f32 move_towards(f32 target, f32 elapsedTime, BufferedPercent & buffer)
 	else if (target > buffer.current)
 	{
 		buffer.current += elapsedTime / buffer.duration;
-		buffer.current = min_f32(target, buffer.current);
+		buffer.current = f32_min(target, buffer.current);
 	}
 
 	return buffer.current;
 }
 
-namespace CharacterAnimations
+enum CharacterAnimation
 {
-	enum AnimationType { IDLE, CROUCH, WALK, RUN, JUMP, FALL, ANIMATION_COUNT };
-}
+	CharacterAnimation_idle,
+	CharacterAnimation_crouch,
+	CharacterAnimation_walk,
+	CharacterAnimation_run,
+	CharacterAnimation_jump,
+	CharacterAnimation_fall,
+	CharacterAnimation_climb,
+	CharacterAnimationCount
+};
+
+enum CharacterMovementMode
+{
+	CharacterMovementMode_walking,
+	CharacterMovementMode_climbing
+};
 
 struct CharacterMotor
 {
 	Transform3D * 	transform;
 
-	Animation const * 	animations [CharacterAnimations::ANIMATION_COUNT];
-	f32 				animationWeights [CharacterAnimations::ANIMATION_COUNT];
+	Animation const * 	animations [CharacterAnimationCount];
+	f32 				animationWeights [CharacterAnimationCount];
 
-	BufferedPercent fallPercent = { .duration = 0.2f };
-	BufferedPercent jumpPercent = { .duration = 0.2f };
-	BufferedPercent crouchPercent = { .duration = 0.2f };
-	BufferedPercent grounded = { .duration = 0.5f };
+	BufferedPercent fallPercent 	= { .duration = 0.2f };
+	BufferedPercent jumpPercent 	= { .duration = 0.2f };
+	BufferedPercent crouchPercent 	= { .duration = 0.2f };
+	BufferedPercent grounded 		= { .duration = 0.5f };
 
 	// Properties
 	f32 walkSpeed 	= 3;
 	f32 runSpeed 	= 6;
 	f32 jumpSpeed 	= 6;
 
-	f32 rotationSpeed = to_radians(360);
+	f32 rotationSpeed = 2 * π;
 
 	f32 currentSpeed = 0;
 	/* Note(Leo): As in change of velocity per time unit. These probably
@@ -68,6 +81,10 @@ struct CharacterMotor
 	v3 hitRayNormal;
 
 	f32 	zSpeed;
+
+	CharacterMovementMode movementMode;
+	
+	v3 climbingSurfaceNormal;
 };
 
 struct CharacterInput
@@ -75,15 +92,27 @@ struct CharacterInput
 	v3 inputVector;
 	bool32 jumpInput;
 	bool32 crouchInput;
+
+	bool32 testClimb;
+	v2 climbInput;
 };
 
 void
 update_character_motor( CharacterMotor & 	motor,
-						CharacterInput input,
+						CharacterInput 		input,
 						CollisionSystem3D &	collisionSystem,
-						f32 elapsedTime,
-						s32 debugLevel)
+						f32 				elapsedTime,
+						s32 				debugLevel)
 {
+	if ((motor.movementMode == CharacterMovementMode_climbing) && input.jumpInput)
+	{
+		// Todo(Leo): More likely CharacterMovementMode_falling, but we dont use that yet..
+		motor.movementMode 	= CharacterMovementMode_walking;
+		input.jumpInput 	= false;
+	}
+
+	// -------------------------------------------------
+	
 	v3 inputVector 		= input.inputVector;
 	bool32 jumpInput 	= input.jumpInput;
 	bool32 crouchInput 	= input.crouchInput;
@@ -94,7 +123,7 @@ update_character_motor( CharacterMotor & 	motor,
 	v3 right 	= get_right(*motor.transform);
 
 	// Note(Leo): these are in motor's local space
-	f32 forwardInput	= dot_v3(inputVector, forward);
+	f32 forwardInput	= v3_dot(inputVector, forward);
 
 	f32 rightInput 		= 0;
 	if (square_v3_length(inputVector) > v3_sqr_epsilon)
@@ -115,20 +144,18 @@ update_character_motor( CharacterMotor & 	motor,
 	constexpr f32 walkMinInput 	= 0.00f;
 	constexpr f32 walkMaxInput 	= 0.5f;
 	constexpr f32 runMinInput 	= 0.6f;
-	constexpr f32 runMaxInput 	= 1.0001f; // account for epsilon
-
+	constexpr f32 runMaxInput 	= 1.0001f; //count for epsil
 	constexpr f32 idleToWalkRange = walkMaxInput - walkMinInput; 
 	constexpr f32 walkToRunRange 	= runMaxInput - runMinInput;
 
-	using namespace CharacterAnimations;
 
 	f32 * weights = motor.animationWeights;
-	for (s32 weightIndex = 0; weightIndex < ANIMATION_COUNT; ++weightIndex)
+	for (s32 weightIndex = 0; weightIndex < CharacterAnimationCount; ++weightIndex)
 	{
 		weights[weightIndex] = 0;
 	}
 
-	auto override_weight = [&weights](AnimationType animation, f32 value)
+	auto override_weight = [&weights](CharacterAnimation animation, f32 value)
 	{
 		if (-0.00001f > value || value > 1.00001f)
 		{
@@ -136,7 +163,7 @@ update_character_motor( CharacterMotor & 	motor,
 		}
 
 		Assert(-0.00001f <= value && value <= 1.00001f);// CStringBuilder("Input weight is: ") + value);
-		for (int i = 0; i < ANIMATION_COUNT; ++i)
+		for (int i = 0; i < CharacterAnimationCount; ++i)
 		{
 			weights[i] *= 1 - value;
 
@@ -161,21 +188,21 @@ update_character_motor( CharacterMotor & 	motor,
 
 	if (forwardInput < walkMaxInput)
 	{
-		f32 t 			= (forwardInput - walkMinInput) / idleToWalkRange;
-		speed 			= interpolate(0, motor.walkSpeed, t);
-		speed 			*= (1 - crouchPercent * crouchOverridePowerForSpeed);
+		f32 t = f32_unlerp(walkMinInput, walkMaxInput, forwardInput);
+		speed = f32_lerp(0, motor.walkSpeed, t);
+		speed *= (1 - crouchPercent * crouchOverridePowerForSpeed);
 	}
 	else if (forwardInput < runMaxInput)
 	{
-		f32 t 			= (forwardInput - runMinInput) / walkToRunRange;
-		speed 			= interpolate (motor.walkSpeed, motor.runSpeed, t);
-		speed 			*= (1 - crouchPercent * crouchOverridePowerForSpeed);
+		f32 t = f32_unlerp(runMinInput, runMaxInput, forwardInput);
+		speed = f32_lerp (motor.walkSpeed, motor.runSpeed, t);
+		speed *= (1 - crouchPercent * crouchOverridePowerForSpeed);
 	}
 
 	if (speed > motor.currentSpeed)
 	{
 		motor.currentSpeed += motor.acceleration * elapsedTime;
-		motor.currentSpeed = min_f32(motor.currentSpeed, speed);
+		motor.currentSpeed = f32_min(motor.currentSpeed, speed);
 	}
 	else if (speed < motor.currentSpeed)
 	{
@@ -184,6 +211,7 @@ update_character_motor( CharacterMotor & 	motor,
 	}
 
 	speed = motor.currentSpeed;
+
 
 	// Note(Leo): 0 when landing does not affect, 1 when it affects at max;
 	f32 crouchWeightFromLanding = 0;
@@ -195,9 +223,9 @@ update_character_motor( CharacterMotor & 	motor,
 			motor.landingTimer = f32_max(motor.landingTimer -elapsedTime, 0.0f);
 
 			// Note(Leo): this is basically a relative time passed, to be used in other evaluations too
-			// landingValue = motor.landingDepth * (1 - mathfun_smooth_f32((motor.landingDuration - motor.landingTimer) / motor.landingDuration));
+			// landingValue = motor.landingDepth * (1 - f32_mathfun_smooth((motor.landingDuration - motor.landingTimer) / motor.landingDuration));
 
-			crouchWeightFromLanding = mathfun_smooth_f32(1.0f - abs_f32((motor.landingDuration - (2 * motor.landingTimer)) / motor.landingDuration));
+			crouchWeightFromLanding = f32_mathfun_smooth(1.0f - abs_f32((motor.landingDuration - (2 * motor.landingTimer)) / motor.landingDuration));
 			crouchWeightFromLanding *= motor.landingDepth;
 		}
 		else
@@ -206,93 +234,135 @@ update_character_motor( CharacterMotor & 	motor,
 		}
 	}
 
-	if (speed > 0)
+	if (motor.movementMode == CharacterMovementMode_walking)
 	{
-		v3 direction = forward;
-		f32 distance = elapsedTime * speed;
-
-		constexpr int rayCount = 5;
-		v3 up 	= get_up(*motor.transform);
-
-		v3 rayStartPositions [rayCount];
-		f32 sineStep 	= 2.0f / (rayCount - 1);
-
-		f32 skinwidth = 0.01f;
-		rayStartPositions[0] = rotate_v3(direction * (motor.collisionRadius - skinwidth), up, π / 2.0f);
-		for (int i = 1; i < rayCount; ++i)
+		if (speed > 0)
 		{
-			f32 sine 		= -1.0f + (i - 1) * sineStep;
-			f32 angle 	= -arc_cosine(sine);
-			rayStartPositions[i] = rotate_v3(rayStartPositions[0], up, angle);
-		}
+			v3 rayDirection = forward;
+			f32 rayDistance = elapsedTime * speed;
 
-		RaycastResult rayHitResults[rayCount];
-		s32 rayHitCount = 0;
+			constexpr int rayCount = 5;
+			v3 up 	= get_up(*motor.transform);
 
-		v3 rayDebugHitPoints [2 * rayCount];
-		s32 rayDebugHitCount = 0;
+			v3 rayStartPositions [rayCount];
+			f32 sineStep 	= 2.0f / (rayCount - 1);
 
-		v3 rayDebugMissPoints [2 * rayCount];
-		s32 rayDebugMissCount = 0;
-
-
-		for (int i  = 0; i < rayCount; ++i)
-		{
-			v3 start = rayStartPositions[i] + up * 0.25f + motor.transform->position;
-
-			RaycastResult currentResult;
-			bool32 hit = raycast_3d(&collisionSystem, start, direction, (distance * 2 + skinwidth), &currentResult);
-
-			if (hit)
+			f32 skinwidth = 0.01f;
+			rayStartPositions[0] = v3_rotate(rayDirection * (motor.collisionRadius - skinwidth), up, π / 2.0f);
+			for (int i = 1; i < rayCount; ++i)
 			{
-				rayHitResults[rayHitCount] = currentResult;
-				++rayHitCount;
+				f32 sine 				= -1.0f + (i - 1) * sineStep;
+				f32 angle 				= -arc_cosine(sine);
+				rayStartPositions[i] 	= v3_rotate(rayStartPositions[0], up, angle);
+			}
 
-				rayDebugHitPoints[rayDebugHitCount] = start;
-				rayDebugHitPoints[rayDebugHitCount + 1] = start + direction;
-				rayDebugHitCount += 2;
+			RaycastResult rayHitResults[rayCount];
+			s32 rayHitCount = 0;
 
-				FS_DEBUG(debugLevel, debug_draw_vector(currentResult.hitPosition, currentResult.hitNormal, colour_bright_yellow));
+			for (int i  = 0; i < rayCount; ++i)
+			{
+				v3 start = rayStartPositions[i] + up * 0.25f + motor.transform->position;
+
+				RaycastResult currentResult;
+				bool32 hit = raycast_3d(&collisionSystem, start, rayDirection, (rayDistance * 2 + skinwidth), &currentResult);
+
+				if (hit)
+				{
+					rayHitResults[rayHitCount] = currentResult;
+					++rayHitCount;
+
+					FS_DEBUG(debugLevel, debug_draw_line(start, start + rayDirection, colour_bright_red));
+					FS_DEBUG(debugLevel, debug_draw_vector(currentResult.hitPosition, currentResult.hitNormal, colour_bright_yellow));
+				}
+				else
+				{
+					FS_DEBUG(debugLevel, debug_draw_line(start, start + rayDirection, colour_muted_green));
+				}
+			}
+
+			if (rayHitCount == 0)
+			{
+				motor.transform->position += rayDirection * rayDistance;
 			}
 			else
 			{
-				rayDebugMissPoints[rayDebugMissCount] = start;
-				rayDebugMissPoints[rayDebugMissCount + 1] = start + direction;
-				rayDebugMissCount += 2;
-			}
+				// Note(Leo): if angle is steep and key is pressed, we start climbing
+				v3 movement = rayDirection * rayDistance;
 
-		if (rayDebugHitCount > 0)
-			FS_DEBUG(debugLevel, debug_draw_lines(rayDebugHitCount, rayDebugHitPoints, colour_bright_red));
-		if (rayDebugMissCount > 0)
-			FS_DEBUG(debugLevel, debug_draw_lines(rayDebugMissCount, rayDebugMissPoints, colour_muted_green));
+				// Todo(Leo): only check shortest ray result.
+				for (s32 i = 0; i < rayHitCount; ++i)
+				{
+					f32 projectionLength 	= f32_min(0.0f, v3_dot(movement, rayHitResults[i].hitNormal));
+					v3 projection 			= rayHitResults[i].hitNormal * projectionLength;
+					movement 				-= projection;
+
+					// Todo(Leo): also slow down slide direction if angle is steep, maybe
+
+					f32 steepAngleLimit = f32_cos(to_radians(20));
+					f32 dot 			= v3_dot(rayHitResults[i].hitNormal, -forward);
+
+					if (dot > steepAngleLimit)
+					{
+						// if (input.testClimb) // || !grounded)
+						v3 climbRayStart 		= rayStartPositions[i] + 1.0f * up + motor.transform->position;
+						v3 climbRayDirection 	= rayDirection;
+						climbRayStart 			+= -rayDirection * skinwidth;
+						f32 climbRayLength 		= rayDistance + skinwidth;
+
+						RaycastResult climbRayResult;
+						if (raycast_3d(&collisionSystem, climbRayStart, climbRayDirection, climbRayLength, &climbRayResult))
+						{
+							motor.movementMode 			= CharacterMovementMode_climbing;
+							motor.climbingSurfaceNormal = rayHitResults[i].hitNormal;
+						}
+					}
+				}
+
+				motor.transform->position += movement;
+
+			}
 		}
 
-		if (rayHitCount == 0)
+		// Note(Leo): This IF-STATEMENT is not super important but maybe we dodge a few weird cases. 
+		if (rightInput != 0)
 		{
-			motor.transform->position += direction * distance;
+			/* Note(Leo): input is inverted, because negative input means left,
+			but in our right handed coordinate system, negative rotation means right */
+			quaternion rotation = quaternion_axis_angle(v3_up, -rightInput * motor.rotationSpeed * elapsedTime);
+			motor.transform->rotation = motor.transform->rotation * rotation;
+		}
+	}
+	else if (motor.movementMode == CharacterMovementMode_climbing)
+	{
+		v3 up 	= v3_up;
+		v3 side = v3_normalize(v3_cross(up, motor.climbingSurfaceNormal));
+
+		// Todo(Leo): proper number please
+		v3 rayStart 	= motor.transform->position + v3 {0,0, 1};
+		v3 rayDirection = -motor.climbingSurfaceNormal;
+		f32 rayLength 	= 0.2;
+
+		f32 skinwidth 	= 0.1;
+		rayStart 		+= rayDirection * (motor.collisionRadius - skinwidth);
+		rayLength 		+= skinwidth;
+		
+		RaycastResult rayResult;
+		if (raycast_3d(&collisionSystem, rayStart, rayDirection, rayLength, &rayResult))
+		{
+			// Note(Leo): All good
+			FS_DEBUG_ALWAYS(debug_draw_line(rayStart, rayStart + rayDirection, colour_bright_red));
 		}
 		else
 		{
-			v3 movement = direction * distance;
-
-			for (s32 i = 0; i < rayHitCount; ++i)
-			{
-				f32 projectionLength 	= min_f32(0.0f, dot_v3(movement, rayHitResults[i].hitNormal));
-				v3 projection 			= rayHitResults[i].hitNormal * projectionLength;
-				movement 				-= projection;
-			}
-
-			motor.transform->position += movement;
+			FS_DEBUG_ALWAYS(debug_draw_line(rayStart, rayStart + rayDirection, colour_muted_green));
+			motor.movementMode = CharacterMovementMode_walking;
 		}
-	}
 
-	// Note(Leo): This if is not super important but maybe we dodge a few weird cases. 
-	if (rightInput != 0)
-	{
-		/* Note(Leo): input is inverted, because negative input means left,
-		but in our right handed coordinate system, negative rotation means right */
-		quaternion rotation = quaternion_axis_angle(v3_up, -rightInput * motor.rotationSpeed * elapsedTime);
-		motor.transform->rotation = motor.transform->rotation * rotation;
+		motor.transform->position += up * input.climbInput.y * elapsedTime * 3
+									+ side * input.climbInput.x * elapsedTime * 3;
+
+
+		// Todo(Leo): rotate to face the surface
 	}
 
 	f32 crouchWeightFromJumping = 0;
@@ -305,7 +375,7 @@ update_character_motor( CharacterMotor & 	motor,
 			motor.jumpTimer = f32_max(motor.jumpTimer - elapsedTime, 0.0f);
 
 			// Note(Leo): Sorry future me, math is fun :D If this is confusing try plotting it in desmos.com
-			crouchWeightFromJumping = mathfun_smooth_f32(1.0f - abs_f32((-2 * motor.jumpTimer + motor.jumpDuration) / motor.jumpDuration));
+			crouchWeightFromJumping = f32_mathfun_smooth(1.0f - abs_f32((-2 * motor.jumpTimer + motor.jumpDuration) / motor.jumpDuration));
 		}
 		else
 		{
@@ -331,7 +401,7 @@ update_character_motor( CharacterMotor & 	motor,
 		RaycastResult rayResult;
 		if (raycast_3d(&collisionSystem, groundRayStart, groundRayDirection, groundRayLength, &rayResult))
 		{
-			// Notice: Only store more dramatic state
+			// Note(Leo): Only store more dramatic state
 			groundHeight 	= f32_max(groundHeight, rayResult.hitPosition.z);
 			grounded 		= grounded || motor.transform->position.z < (groundThreshold + groundHeight);
 
@@ -370,16 +440,23 @@ update_character_motor( CharacterMotor & 	motor,
 		motor.isLanding = true;
 	}
 
-	motor.transform->position.z += motor.zSpeed * elapsedTime;
-
-	if ((motor.transform->position.z > groundHeight))
-	{	
-		motor.zSpeed += physics_gravity_acceleration * elapsedTime;
-	}
-	else
+	if (motor.movementMode == CharacterMovementMode_climbing)
 	{
-		motor.zSpeed = f32_max(0.0f, motor.zSpeed);
-        motor.transform->position.z = groundHeight;
+		motor.zSpeed = 0;
+	}
+	else if(motor.movementMode == CharacterMovementMode_walking)
+	{
+		motor.transform->position.z += motor.zSpeed * elapsedTime;
+
+		if ((motor.transform->position.z > groundHeight))
+		{	
+			motor.zSpeed += physics_gravity_acceleration * elapsedTime;
+		}
+		else
+		{
+			motor.zSpeed = f32_max(0.0f, motor.zSpeed);
+	        motor.transform->position.z = groundHeight;
+		}
 	}
 
 	// ----------------------------------------------
@@ -394,33 +471,38 @@ update_character_motor( CharacterMotor & 	motor,
 
 	if (speed < 0.00001f)
 	{
-		weights[IDLE] 	= 1 * (1 - crouchPercent);
-		weights[CROUCH] = 1 * crouchPercent;
+		weights[CharacterAnimation_idle] 	= 1 * (1 - crouchPercent);
+		weights[CharacterAnimation_crouch] = 1 * crouchPercent;
 	}
 	else if (speed < motor.walkSpeed)
 	{
 		f32 t = speed / motor.walkSpeed;
 
-		weights[IDLE] 	= (1 - t) * (1 - crouchPercent);
-		weights[CROUCH] = (1 - t) * crouchPercent;
-		weights[WALK] 	= t;
+		weights[CharacterAnimation_idle] 	= (1 - t) * (1 - crouchPercent);
+		weights[CharacterAnimation_crouch] = (1 - t) * crouchPercent;
+		weights[CharacterAnimation_walk] 	= t;
 
 		f32 crouchValue = crouchPercent;
-		override_weight(CROUCH, crouchValue * crouchOverridePowerForAnimation);
+		override_weight(CharacterAnimation_crouch, crouchValue * crouchOverridePowerForAnimation);
 	}
 	else
 	{
 		f32 t = (speed - motor.walkSpeed) / (motor.runSpeed - motor.walkSpeed);
 
-		weights[WALK] 	= 1 - t;
-		weights[RUN] 	= t;
+		weights[CharacterAnimation_walk] 	= 1 - t;
+		weights[CharacterAnimation_run] 	= t;
 
 		f32 crouchValue = crouchPercent;
-		override_weight(CROUCH, crouchValue * crouchOverridePowerForAnimation);
+		override_weight(CharacterAnimation_crouch, crouchValue * crouchOverridePowerForAnimation);
 	}
 
-	override_weight(FALL, mathfun_smooth_f32(motor.fallPercent.current));
-	override_weight(JUMP, mathfun_smooth_f32(motor.jumpPercent.current));
-	override_weight(CROUCH, f32_max(crouchWeightFromJumping, crouchWeightFromLanding));
+	override_weight(CharacterAnimation_fall, f32_mathfun_smooth(motor.fallPercent.current));
+	override_weight(CharacterAnimation_jump, f32_mathfun_smooth(motor.jumpPercent.current));
+	override_weight(CharacterAnimation_crouch, f32_max(crouchWeightFromJumping, crouchWeightFromLanding));
+
+	if (motor.movementMode == CharacterMovementMode_climbing)
+	{
+		override_weight(CharacterAnimation_climb, 1);
+	}
 	
 } // update_character()

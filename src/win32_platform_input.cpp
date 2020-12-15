@@ -295,6 +295,7 @@ static InputButton win32_input_button_map(WPARAM key)
 		case VK_F4: return InputButton_keyboard_f4;
 
 		case VK_MENU: return InputButton_keyboard_left_alt;
+		case VK_CONTROL: return InputButton_keyboard_ctrl;
 
 		default:
 			return InputButton_invalid;

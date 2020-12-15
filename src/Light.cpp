@@ -110,9 +110,9 @@ get_light_view_projection(Light const * directionalLight, Camera const * camera)
 
 	for (v3 point : points)
 	{
-		xMin = min_f32(xMin, point.x);
-		yMin = min_f32(yMin, point.y);
-		zMin = min_f32(zMin, point.z);
+		xMin = f32_min(xMin, point.x);
+		yMin = f32_min(yMin, point.y);
+		zMin = f32_min(zMin, point.z);
 
 		xMax = f32_max(xMax, point.x);
 		yMax = f32_max(yMax, point.y);

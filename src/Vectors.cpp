@@ -106,7 +106,7 @@ v2 scale_v2 (v2 a, v2 b)
 
 v2 rotate_v2 (v2 vec, f32 angle)
 {
-	f32 cos = cosine(angle);
+	f32 cos = f32_cos(angle);
 	f32 sin = sine(angle);
 
 	vec =
@@ -220,19 +220,19 @@ f32 square_v3_length(v3 v)
 	return sqrMagnitude;
 }
 
-v3 normalize_v3(v3 v)
+v3 v3_normalize(v3 v)
 {
 	v = v / v3_length(v);
 	return v;
 }
 
-f32 dot_v3(v3 a, v3 b)
+f32 v3_dot(v3 a, v3 b)
 {
 	f32 dot = a.x * b.x + a.y * b.y + a.z * b.z;
 	return dot;
 }
 
-v3 cross_v3(v3 lhs, v3 rhs)
+v3 v3_cross(v3 lhs, v3 rhs)
 {
 	lhs = {	lhs.y * rhs.z - lhs.z * rhs.y,
 			lhs.z * rhs.x - lhs.x * rhs.z,
@@ -246,25 +246,12 @@ v3 v3_lerp(v3 a, v3 b, f32 t)
 	return a;
 }
 
-
-v3 lerp_v3(v3 a, v3 b, f32 t)
+v3 v3_rotate(v3 vec, v3 axis, f32 angleInRadians)
 {
-	a = a + t * (b - a);
-	return a;
-}
-
-v3 interpolate_v3(v3 from, v3 to, f32 t)
-{
-	from = from * (1 - t) + to * t;
-	return from;
-}
-
-v3 rotate_v3(v3 vec, v3 axis, f32 angleInRadians)
-{
-	v3 projection = axis * dot_v3(axis, vec);
+	v3 projection = axis * v3_dot(axis, vec);
 	v3 rejection = vec - projection;
 
-	v3 rotatedRejection = rejection * cosine(angleInRadians) + cross_v3(axis, rejection) * sine(angleInRadians);
+	v3 rotatedRejection = rejection * f32_cos(angleInRadians) + v3_cross(axis, rejection) * sine(angleInRadians);
 
 	vec = projection + rotatedRejection;
 	return vec;	
@@ -280,7 +267,7 @@ f32 angle_v3(v3 from, v3 to)
 	if (denominator < v3_sqr_epsilon)
 		return 0.0f;
 
-	f32 dot = f32_clamp(dot_v3(from, to) / denominator, -1.0f, 1.0f);
+	f32 dot = f32_clamp(v3_dot(from, to) / denominator, -1.0f, 1.0f);
 	f32 angle = arc_cosine(dot);
 	return angle;
 }
@@ -288,7 +275,7 @@ f32 angle_v3(v3 from, v3 to)
 f32 signed_angle_v3(v3 from, v3 to, v3 axis)
 {
 	f32 unsignedAngle 	= angle_v3(from, to);
-	f32 sign 			= dot_v3(axis, cross_v3(from, to));
+	f32 sign 			= v3_dot(axis, v3_cross(from, to));
 	return unsignedAngle * sign;
 }
 

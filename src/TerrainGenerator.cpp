@@ -44,12 +44,12 @@ get_height_at(HeightMap const * map, v2 worldScalePosition)
 	f32 value01 	= get_value(x0, y1);
 	f32 value11 	= get_value(x1, y1);
 
-	f32 value0 	= interpolate(value00, value10, xFraction);
-	f32 value1 	= interpolate(value01, value11, xFraction);
+	f32 value0 	= f32_lerp(value00, value10, xFraction);
+	f32 value1 	= f32_lerp(value01, value11, xFraction);
 
-	f32 value 	= interpolate(value0, value1, yFraction);
+	f32 value 	= f32_lerp(value0, value1, yFraction);
 
-	return interpolate(map->minHeight, map->maxHeight, value);
+	return f32_lerp(map->minHeight, map->maxHeight, value);
 }
 
 internal HeightMap
@@ -91,10 +91,10 @@ make_heightmap(MemoryArena * memory, TextureAssetData * texture, u32 gridSize, f
 			f32 height01  = get_value(u0, v1);
 			f32 height11  = get_value(u1, v1);
 
-			f32 height0 	= interpolate(height00, height10, uFraction);
-			f32 height1 	= interpolate(height01, height11, uFraction);
+			f32 height0 	= f32_lerp(height00, height10, uFraction);
+			f32 height1 	= f32_lerp(height01, height11, uFraction);
 
-			f32 height 	= interpolate (height0, height1, vFraction);
+			f32 height 	= f32_lerp (height0, height1, vFraction);
 
 			u64 mapIndex 		= x + gridSize * y;
 			heightValues[mapIndex] 	= height;
@@ -144,7 +144,7 @@ internal void mesh_generate_tangents(s32 vertexCount, Vertex * vertices, s32 ind
 		f32 r = 1.0f / (uv01.x * uv02.y - uv01.y * uv02.x);
 
 		v3 tangent = (p01 * uv02.y - p02 * uv01.y) * r;
-		tangent = normalize_v3(tangent);
+		tangent = v3_normalize(tangent);
 
 		vertexTangents[index0] += tangent;
 		vertexTangents[index1] += tangent;
@@ -153,7 +153,7 @@ internal void mesh_generate_tangents(s32 vertexCount, Vertex * vertices, s32 ind
 
 	for (u32 i = 0; i < vertexCount; ++i)
 	{
-		vertices[i].tangent = normalize_v3(vertexTangents[i]);
+		vertices[i].tangent = v3_normalize(vertexTangents[i]);
 	}
 }
 
@@ -179,7 +179,7 @@ internal void mesh_generate_normals(s32 vertexCount, Vertex * vertices, s32 inde
 		v3 p01 = p1 - p0;
 		v3 p02 = p2 - p0;
 
-		v3 normal = normalize_v3(cross_v3(p01, p02));
+		v3 normal = v3_normalize(v3_cross(p01, p02));
 
 		normals[i0] += normal;
 		normals[i1] += normal;
@@ -188,7 +188,7 @@ internal void mesh_generate_normals(s32 vertexCount, Vertex * vertices, s32 inde
 
 	for (s32 i = 0; i < vertexCount; ++i)
 	{
-		vertices[i].normal = normalize_v3(normals[i]);
+		vertices[i].normal = v3_normalize(normals[i]);
 	}	
 }
 
@@ -215,7 +215,7 @@ internal void mesh_generate_normals (MeshAssetData & mesh)
 		v3 p01 = p1 - p0;
 		v3 p02 = p2 - p0;
 
-		v3 normal = normalize_v3(cross_v3(p01, p02));
+		v3 normal = v3_normalize(v3_cross(p01, p02));
 
 		normals[i0] += normal;
 		normals[i1] += normal;
@@ -224,7 +224,7 @@ internal void mesh_generate_normals (MeshAssetData & mesh)
 
 	for (s32 i = 0; i < vertexCount; ++i)
 	{
-		mesh.vertices[i].normal = normalize_v3(normals[i]);
+		mesh.vertices[i].normal = v3_normalize(normals[i]);
 	}
 }
 

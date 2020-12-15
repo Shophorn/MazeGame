@@ -6,7 +6,7 @@ shophorn @ github
 struct Transform3D
 {
 	v3 position 		= {0, 0, 0};
-	quaternion rotation = identity_quaternion;
+	quaternion rotation = quaternion_identity;
 	v3 scale 			= {1, 1, 1,};
 };
 
