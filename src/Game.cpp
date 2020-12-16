@@ -293,6 +293,7 @@ struct Game
 	Scene scene;
 
 	s64 selectedBuildingBlockIndex;
+	s64 selectedBuildingPipeIndex;
 
 	// ----------------------------------------------
 	
@@ -1198,6 +1199,11 @@ internal bool32 game_game_update(Game * 				game,
 		{
 			submit_box_collider(game->collisionSystem, {{1,1,1}, quaternion_identity, {0,0,0}}, game->scene.buildingBlocks[i]);
 		}
+
+		for (s32 i = 0; i < game->scene.buildingPipes.count; ++i)
+		{
+			// submit_cylinder_collider(game->)
+		}
 	}
 
 	update_skeleton_animator(game->playerSkeletonAnimator, scaledTime);
@@ -1483,7 +1489,13 @@ internal bool32 game_game_update(Game * 				game,
 		graphics_draw_meshes(	platformGraphics,
 								game->scene.buildingBlocks.count,
 								game->scene.buildingBlocks.memory,
-								assets_get_mesh(game->assets, MeshAssetId_cube),
+								assets_get_mesh(game->assets, MeshAssetId_default_cube),
+								assets_get_material(game->assets, MaterialAssetId_building_block));
+
+		graphics_draw_meshes( 	platformGraphics,
+								game->scene.buildingPipes.count,
+								game->scene.buildingPipes.memory,
+								assets_get_mesh(game->assets, MeshAssetId_default_cylinder),
 								assets_get_material(game->assets, MaterialAssetId_building_block));
 	}
 
@@ -1501,7 +1513,7 @@ internal bool32 game_game_update(Game * 				game,
 
 		graphics_draw_meshes(	platformGraphics,
 								1, &transform,
-								assets_get_mesh(game->assets, MeshAssetId_cube),
+								assets_get_mesh(game->assets, MeshAssetId_default_cube),
 								assets_get_material(game->assets, materialId));
 	}
 
@@ -2053,16 +2065,18 @@ internal Game * game_load_game(MemoryArena & persistentMemory, PlatformFileHandl
 	// ----------------------------------------------------------------------------------
 
 	game->scene.buildingBlocks = push_array<m44>(persistentMemory, 1000, ALLOC_GARBAGE);
-	scene_asset_load_2(game->scene);
+	game->scene.buildingPipes = push_array<m44>(persistentMemory, 1000, ALLOC_GARBAGE);
+	scene_asset_load(game->scene);
 
 	game->selectedBuildingBlockIndex = 0;
+	game->selectedBuildingPipeIndex = 0;
 
 	// ----------------------------------------------------------------------------------
 
 	game->backgroundAudio 	= assets_get_audio(game->assets, SoundAssetId_background);
 	game->stepSFX			= assets_get_audio(game->assets, SoundAssetId_step_1);
 	game->stepSFX2			= assets_get_audio(game->assets, SoundAssetId_step_2);
-	game->stepSFX3			= assets_get_audio(game->assets, SoundAssetId_birds);
+	// game->stepSFX3			= assets_get_audio(game->assets, SoundAssetId_birds);
 
 	game->backgroundAudioClip 	= {game->backgroundAudio, 0};
 

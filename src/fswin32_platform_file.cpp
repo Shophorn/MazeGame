@@ -9,14 +9,18 @@ PlatformFileHandle platform_file_open(char const * filename, FileMode fileMode)
 	DWORD access;
 	// Todo(Leo): this should only be enabled in development
 	DWORD share = 0;
+	DWORD creation;
+
 	if(fileMode == FileMode_read)
 	{
-		access = GENERIC_READ;
-		share = FILE_SHARE_READ;
+		access 		= GENERIC_READ;
+		share 		= FILE_SHARE_READ;
+		creation 	= OPEN_EXISTING;
 	}
 	else if (fileMode == FileMode_write)
 	{
-		access = GENERIC_WRITE;
+		access 		= GENERIC_WRITE;
+		creation 	= OPEN_ALWAYS;
 	}
 
 	// Todo(Leo): check lpSecurityAttributes
@@ -24,7 +28,7 @@ PlatformFileHandle platform_file_open(char const * filename, FileMode fileMode)
 								access,
 								share,
 								nullptr,
-								OPEN_ALWAYS,
+								creation,
 								FILE_ATTRIBUTE_NORMAL,
 								nullptr);
 
@@ -52,7 +56,7 @@ void platform_file_close(PlatformFileHandle file)
 	CloseHandle((HANDLE)file);
 }
 
-void platform_file_write (PlatformFileHandle file, s64 position, s64 count, void * memory)
+void platform_file_write (PlatformFileHandle file, s64 position, s64 count, const void * memory)
 {
 	LARGE_INTEGER POSITION; // Note(Leo): lol
 	POSITION.QuadPart = position;

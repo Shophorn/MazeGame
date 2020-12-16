@@ -508,9 +508,22 @@ internal void graphics_draw_leaves(	VulkanContext * context,
 											v3 colour,
 											MaterialHandle materialHandle)
 {
-	Assert(instanceCount > 0 && "Vulkan cannot map memory of size 0, and this function should no be called for 0 meshes");
+	// Assert(instanceCount > 0 && "Vulkan cannot map memory of size 0, and this function should no be called for 0 meshes");
 	// Note(Leo): lets keep this sensible
-	Assert(instanceCount <= 20000);
+	// Assert(instanceCount <= 20000);
+	if (instanceCount == 0)
+	{
+		log_graphics(FILE_ADDRESS, "Drawing 0 meshes!");
+		return;
+	}
+
+	constexpr s64 maxCount = 20000;
+	if (instanceCount > maxCount)
+	{
+		log_graphics(FILE_ADDRESS, "Drawing too many (over 20000) meshes, skipping the rest");
+		instanceCount = maxCount;
+	}
+
 
 	VulkanVirtualFrame * frame 	= fsvulkan_get_current_virtual_frame(context);
 	s64 frameOffset 			= context->leafBufferCapacity * context->virtualFrameIndex;
@@ -591,7 +604,20 @@ internal void graphics_draw_leaves(	VulkanContext * context,
 
 internal void graphics_draw_meshes(VulkanContext * context, s32 count, m44 const * transforms, MeshHandle meshHandle, MaterialHandle materialHandle)
 {
-	Assert(count > 0 && "Vulkan cannot map memory of size 0, and this function should no be called for 0 meshes");
+	if (count == 0)
+	{
+		log_graphics(FILE_ADDRESS, "Drawing 0 meshes!");
+		return;
+	}
+
+	// Todo(Leo): this was speedy addition, look below, we kinda handled this already, do same with leaves also
+	constexpr s64 maxCount = 20000;
+	if (count > maxCount)
+	{
+		log_graphics(FILE_ADDRESS, "Drawing too many (over 20000) meshes, skipping the rest");
+		count = maxCount;
+	}
+
 
 	VulkanVirtualFrame * frame = fsvulkan_get_current_virtual_frame(context);
 

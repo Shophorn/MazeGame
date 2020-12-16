@@ -50,7 +50,7 @@ struct AnimatedSkeleton
 // we could have used new[] and delete [], but then we would have to always
 // remember if pointer was allocated with new or new [], this doesn't care
 template <typename T>
-T * allocate(s32 count)
+T * allocate(s64 count)
 {
 	return reinterpret_cast<T*>(malloc(sizeof(T) * count));
 }
@@ -63,7 +63,7 @@ T * allocate(s32 count)
 using asset_underlying_type = s32;
 
 static std::ofstream 	global_outFile;
-static u64 				global_dataPosition;
+static s64 				global_dataPosition;
 
 static AssetFileHeader2		global_header_2;
 static AssetFileTexture *	global_textureHeaders;
@@ -73,10 +73,25 @@ static AssetFileSkeleton *	global_skeletonHeaders;
 static AssetFileSound *		global_soundHeaders;
 static AssetFileFont *		global_fontHeaders;
 
-static void write(u64 position, u64 size, void * memory)
+static void write(s64 position, s64 size, void * memory)
 {
 	global_outFile.seekp(position);
 	global_outFile.write((char*)memory, size);
+
+	if (global_outFile.bad())
+	{ 
+		std::cout << "global_outFile is bad\n";
+	}
+	
+	if (global_outFile.fail())
+	{
+		std::cout << "global_outFile is fail\n";
+	}
+	
+	if (global_outFile.eof())
+	{
+		std::cout << "global_outFile is eof\n";
+	}
 }
 
 struct AssetCounts
@@ -98,9 +113,9 @@ EXPORT void cook_initialize(char const * filename, AssetCounts & assetCounts)
 	global_header_2.magic 	= asset_file_magic_value;
 	global_header_2.version = asset_file_current_version;
 
-	u64 dataPosition = sizeof(global_header_2);
+	s64 dataPosition = sizeof(global_header_2);
 
-	auto init_header_info = [&dataPosition](auto & info, u64 count, u64 elementSize)
+	auto init_header_info = [&dataPosition](auto & info, s64 count, s64 elementSize)
 	{
 		info 				= {};
 		info.offsetToFirst 	= dataPosition;
@@ -138,6 +153,7 @@ EXPORT void cook_complete()
 	write(global_header_2.fonts.offsetToFirst, 		sizeof(AssetFileFont) * global_header_2.fonts.count, 			global_fontHeaders);	
 
 	std::cout << "global_header written to file \n";
+
 	global_outFile.close();
 
 	free (global_textureHeaders);
@@ -164,8 +180,8 @@ EXPORT void cook_texture(asset_underlying_type id, char const * filename, Textur
 
 	assert(header.channels == 4);
 
-	u64 memorySize 			= data.width * data.height * data.channels;
-	u64 filePosition 		= global_dataPosition;
+	s64 memorySize 			= data.width * data.height * data.channels;
+	s64 filePosition 		= global_dataPosition;
 	global_dataPosition 	+= memorySize;
 
 	write(filePosition, memorySize, data.pixelMemory);
@@ -186,17 +202,17 @@ EXPORT void cook_mesh(asset_underlying_type id, char const * filename, char cons
 	bool32 hasSkinning 						= data.skinning != nullptr;
 	global_meshHeaders[id].hasSkinning 	= hasSkinning;
 
-	u64 filePosition = global_dataPosition;
+	s64 filePosition = global_dataPosition;
 
-	u64 vertexMemorySize = sizeof(Vertex) * data.vertexCount;
+	s64 vertexMemorySize = sizeof(Vertex) * data.vertexCount;
 	write(filePosition, vertexMemorySize, data.vertices);
 	filePosition += vertexMemorySize;
 
-	u64 skinMemorySize = hasSkinning ? sizeof(VertexSkinData) * data.vertexCount : 0;
+	s64 skinMemorySize = hasSkinning ? sizeof(VertexSkinData) * data.vertexCount : 0;
 	write(filePosition, skinMemorySize, data.skinning);
 	filePosition += skinMemorySize;
 
-	u64 indexMemorySize = sizeof(u16) * data.indexCount;
+	s64 indexMemorySize = sizeof(u16) * data.indexCount;
 	write(filePosition, indexMemorySize, data.indices);
 	filePosition += indexMemorySize;
 
@@ -230,7 +246,8 @@ EXPORT void cook_animation(asset_underlying_type id, char const * gltfFileName, 
 	s64 translationValuesSize = data.totalTranslationKeyframeCount * sizeof(v3);
 	s64 rotationValuesSize = data.totalRotationKeyframeCount * sizeof(quaternion);
 
-	u64 & position = global_dataPosition;
+	s64 & position = global_dataPosition;
+	s64 startPosition = position;
 	
 	write(position, translationInfoSize, data.animation.translationChannelInfos);
 	position += translationInfoSize;
@@ -250,7 +267,7 @@ EXPORT void cook_animation(asset_underlying_type id, char const * gltfFileName, 
 	write(position, rotationValuesSize, data.animation.rotations);
 	position += rotationValuesSize;
 
-	std::cout << "COOK ANIMATION: " << gltfFileName << ", " << animationName << "\n";
+	std::cout << "COOK ANIMATION: " << gltfFileName << ", " << animationName << ": " << (global_dataPosition - startPosition) << " bytes at " << startPosition << "\n";
 
 }
 
@@ -261,7 +278,7 @@ EXPORT void cook_skeleton(asset_underlying_type id, char const * gltfFileName, c
 	global_skeletonHeaders[id].dataOffset = global_dataPosition;
 	global_skeletonHeaders[id].boneCount 	= data.bonesCount;
 
-	u64 memorySize = sizeof(AnimatedBone) * data.bonesCount;
+	s64 memorySize = sizeof(AnimatedBone) * data.bonesCount;
 
 	AnimatedBone * dataToWrite = data.bones;
 
@@ -277,20 +294,29 @@ EXPORT void cook_sound(asset_underlying_type id, char const * filename)
 {
 	AudioFile<f32> file;
 	file.load(filename);
-	s32 sampleCount = file.getNumSamplesPerChannel();
+	s64 sampleCount = file.getNumSamplesPerChannel();
+	s64 channelCount = file.getNumChannels();
 
 	global_soundHeaders[id].dataOffset 	= global_dataPosition;
 	global_soundHeaders[id].sampleCount 	= sampleCount;
 
-	u64 memorySizePerChannel = sampleCount * sizeof(f32);
+	s64 memorySizePerChannel = sampleCount * sizeof(f32);
 
-	write(global_dataPosition, memorySizePerChannel, file.samples[0].data());
+	s64 dataStartPosition = global_dataPosition;
+
+	// Todo(Leo): we now mitigate single channelness by storing same data to both channels, which is stupid
+	// Make number of channels available to sound asset info thing. Or label them as sound FX and music, first
+	// of which has single channel and second has two.
+	s64 firstChannelIndex = 0;
+	s64 secondChannelIndex = channelCount == 1 ? 0 : 1;
+
+	write(global_dataPosition, memorySizePerChannel, file.samples[firstChannelIndex].data());
 	global_dataPosition += memorySizePerChannel;
 
-	write(global_dataPosition, memorySizePerChannel, file.samples[1].data());
+	write(global_dataPosition, memorySizePerChannel, file.samples[secondChannelIndex].data());
 	global_dataPosition += memorySizePerChannel;
 
-	std::cout << "COOK AUDIO: " << filename << "\n";
+	std::cout << "COOK AUDIO: " << filename << ": " << (global_dataPosition - dataStartPosition) << " bytes at " << dataStartPosition << "\n";
 
 }
 
@@ -309,10 +335,10 @@ EXPORT void cook_font(asset_underlying_type id, char const * filename)
 
 	assert(data.channels == 4);
 
-	u64 textureMemorySize 		= data.width * data.height * data.channels;
-	u64 characterInfoMemorySize = sizeof(FontCharacterInfo) * Font::characterCount;
+	s64 textureMemorySize 		= data.width * data.height * data.channels;
+	s64 characterInfoMemorySize = sizeof(FontCharacterInfo) * Font::characterCount;
 
-	u64 filePosition 			= global_dataPosition;
+	s64 filePosition 			= global_dataPosition;
 
 	write(filePosition, textureMemorySize, data.pixelMemory);					
 	filePosition += textureMemorySize;
@@ -320,9 +346,11 @@ EXPORT void cook_font(asset_underlying_type id, char const * filename)
 	write(filePosition, characterInfoMemorySize, loadResult.font.characters); 	
 	filePosition += characterInfoMemorySize;
 
+
+	// std::cout << "COOK FONT: " << filename << ", " << data.width << ", " << data.height << ", " << data.channels << "\n";
+	std::cout << "COOK FONT: " << filename << ", " << (filePosition - global_dataPosition) << " bytes at " << filePosition << "\n";
 	global_dataPosition = filePosition;
 
-	std::cout << "COOK FONT: " << filename << ", " << data.width << ", " << data.height << ", " << data.channels << "\n";
 
 	free(data.pixelMemory);
 }

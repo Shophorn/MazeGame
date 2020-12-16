@@ -2,35 +2,39 @@ static void building_blocks_editor(	Array<m44> & 	blocks,
 									s64 & 			selectedBuildingBlockIndex,
 									Scene & 		scene,
 									Camera & 		worldCamera,
-									v3				cameraPivotPosition,
+									v3 &			cameraPivotPosition,
 									PlatformInput * input)
 {
-	// bool blockEditorOpen = ImGui::Begin("Edit Building Blocks");
-	// if (blockEditorOpen)
+	using namespace ImGui;
+
+	if (blocks.count == 0)
 	{
-		using namespace ImGui;
+		selectedBuildingBlockIndex = -1;
+	}
 
-		Value("Count", static_cast<u32>(blocks.count));
-		Value("Capacity", static_cast<u32>(blocks.capacity));
+	Value("Count", static_cast<u32>(blocks.count));
+	Value("Capacity", static_cast<u32>(blocks.capacity));
 
-		// Todo(Leo): this is just quick test without trying s64 aka long long
-		int selectedIndex = selectedBuildingBlockIndex;
-		if(InputInt("Selected Index", &selectedIndex))
+	// Todo(Leo): this is just quick test without trying s64 aka long long
+	int selectedIndex = selectedBuildingBlockIndex;
+	if(InputInt("Selected Index", &selectedIndex))
+	{
+		selectedIndex = s64_clamp(selectedIndex, 0, blocks.count - 1);
+		selectedBuildingBlockIndex = selectedIndex;
+	}
+
+	if(Button("Add"))
+	{
+		if (blocks.count < blocks.capacity)
 		{
-			selectedIndex = s64_clamp(selectedIndex, 0, blocks.count - 1);
-			selectedBuildingBlockIndex = selectedIndex;
+			blocks.push(translation_matrix(cameraPivotPosition));
+			selectedBuildingBlockIndex = blocks.count - 1;
 		}
-
-		if(Button("Add Box"))
-		{
-			if (blocks.count < blocks.capacity)
-			{
-				blocks.push(translation_matrix(cameraPivotPosition));
-				selectedBuildingBlockIndex = blocks.count - 1;
-			}
-		}
-
-		if(Button("Duplicate Box"))
+	}
+	if (blocks.count > 0)
+	{
+		SameLine();
+		if(Button("Duplicate"))
 		{
 			if (blocks.count < blocks.capacity)
 			{
@@ -39,28 +43,29 @@ static void building_blocks_editor(	Array<m44> & 	blocks,
 			}
 		}
 
-
-		if (Button("Delete Box"))
+		SameLine();
+		if (Button("Delete"))
 		{
-			if(blocks.count > 0)
-			{
-				array_unordered_remove(blocks, selectedBuildingBlockIndex);
-				selectedBuildingBlockIndex = s64_clamp(selectedBuildingBlockIndex, 0, blocks.count - 1);			
-			}
+			array_unordered_remove(blocks, selectedBuildingBlockIndex);
+			selectedBuildingBlockIndex = s64_clamp(selectedBuildingBlockIndex, 0, blocks.count - 1);			
 		}
 
-		if (Button("Save Data"))
+		if (Button("Snap Camera"))
 		{
-			editor_scene_asset_write(scene);
+			cameraPivotPosition = multiply_point(blocks[selectedBuildingBlockIndex], {0,0,0});
 		}
-
+		SameLine();
 	}
-	// ImGui::End();
+
+	if (Button("Save Data"))
+	{
+		editor_scene_asset_write(scene);
+	}
 
 	local_persist ImGuizmo::OPERATION operation = ImGuizmo::TRANSLATE;
 	local_persist ImGuizmo::MODE mode 			= ImGuizmo::WORLD;
 
-	// if (blockEditorOpen)
+	if (blocks.count > 0)
 	{
 		if (input_button_went_down(input, InputButton_keyboard_1))
 		{

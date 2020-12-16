@@ -150,6 +150,17 @@ bool32 do_gui(Game * game, PlatformInput * input)
 			TreePop();
 		}
 
+		if (TreeNodeEx("Pipes", ImGuiTreeNodeFlags_Framed))
+		{
+			building_blocks_editor(	game->scene.buildingPipes,
+									game->selectedBuildingPipeIndex,
+									game->scene,
+									game->worldCamera,
+									game->editorCamera.pivotPosition,
+									input);
+			TreePop();
+		}
+
 		if (TreeNodeEx("Camera", ImGuiTreeNodeFlags_Framed))
 		{
 

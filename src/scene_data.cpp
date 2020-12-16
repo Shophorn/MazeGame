@@ -1,21 +1,19 @@
 struct SceneAssetHeader
 {
 	s64 buildingBlockCount;
-	s64 buildingBlockOffset;	
-};
+	s64 buildingBlockOffset;
 
-struct SceneAsset
-{
-	s64 	buildingBlockCount;
-	v3 * 	buildingBlockPositions;
+	s64 buildingPipeCount;
+	s64 buildingPipeOffset;
 };
 
 struct Scene
 {
 	Array<m44> buildingBlocks;
+	Array<m44> buildingPipes;
 };
 
-static void scene_asset_load_2 (Scene & scene)
+static void scene_asset_load (Scene & scene)
 {
 	PlatformFileHandle file = platform_file_open("scene_asset.fs", FileMode_read);
 
@@ -29,47 +27,15 @@ static void scene_asset_load_2 (Scene & scene)
 						sizeof(m44) * header.buildingBlockCount,
 						scene.buildingBlocks.begin());
 
+	Assert(scene.buildingBlocks.capacity >= header.buildingPipeCount);
+	scene.buildingPipes.count = header.buildingPipeCount;
+	platform_file_read( file,
+						header.buildingPipeOffset,
+						sizeof(m44) * header.buildingPipeCount,
+						scene.buildingPipes.begin());
+	
 	platform_file_close(file);
 }
-
-/*
-static SceneAsset scene_asset_load(MemoryArena & allocator, s64 buildingBlockCapacity)
-{
-	SceneAsset result = {};
-
-	PlatformFileHandle file = platform_file_open("scene_asset.fs", FileMode_read);
-
-	SceneAssetHeader header = {};
-
-	platform_file_read(file, 0, sizeof(SceneAssetHeader), &header);
-
-	result.buildingBlockCount 		= header.buildingBlockCount;
-	result.buildingBlockPositions 	= push_memory<v3>(allocator, buildingBlockCapacity, ALLOC_GARBAGE);
-
-	platform_file_read(	file,
-						header.buildingBlockOffset,
-						header.buildingBlockCount * sizeof(v3),
-						result.buildingBlockPositions);
-
-	platform_file_close(file);
-
-	return result;
-};
-*/
-
-// static SceneAsset editor_scene_asset_load(MemoryArena & allocator, EditorSceneAssetDescription const & editorDescription)
-// {
-// 	SceneAsset result = {};
-
-// 	PlatformFileHandle file = platform_file_open("scene_asset.fs", FileMode_read);
-
-// 	SceneAssetHeader header = {};
-
-// 	platform_file_read(file, 0, sizeof(SceneAssetHeader), &header);
-
-// 	result.buildingBlockCount 		= header.buildingBlockCount;
-// 	result.buildingBlockPositions 	= push_memory<v3>(allocator, editorDescription.buildingBlockCapacity, ALLOC_Z);
-// }
 
 static void editor_scene_asset_write(Scene const & scene)
 {
@@ -81,10 +47,14 @@ static void editor_scene_asset_write(Scene const & scene)
 	header.buildingBlockCount 	= scene.buildingBlocks.count;
 	header.buildingBlockOffset 	= fileOffset;
 	s64 buildingBlocksFileSize 	= sizeof(m44) * scene.buildingBlocks.count;
+	platform_file_write(file, fileOffset, buildingBlocksFileSize, scene.buildingBlocks.begin());
+	fileOffset 					+= buildingBlocksFileSize;
 
-	platform_file_write(file, fileOffset, buildingBlocksFileSize, scene.buildingBlocks.memory);
-
-	fileOffset += buildingBlocksFileSize;
+	header.buildingPipeCount 	= scene.buildingPipes.count;
+	header.buildingPipeOffset	= fileOffset;
+	s64 buildingPipesFileSize 	= sizeof(m44) * scene.buildingPipes.count;
+	platform_file_write(file, fileOffset, buildingPipesFileSize, scene.buildingPipes.begin());
+	fileOffset 					+= buildingPipesFileSize;
 
 	platform_file_write(file, 0, sizeof(SceneAssetHeader), &header);
 

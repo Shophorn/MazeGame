@@ -144,6 +144,11 @@ internal bool32 ray_box_collisions(	Array<PrecomputedBoxCollider> & colliders,
 
 		// Study(Leo): this seems to work, but I still have concerns
 		f32 colliderSpaceRayLength = rayLength;
+		{
+			v3 worldSpaceRay 		= normalizedRayDirection * rayLength;
+			v3 colliderSpaceRay 	= multiply_direction(collider.inverseTransform, worldSpaceRay);
+			colliderSpaceRayLength 	= v3_length(colliderSpaceRay);
+		}
 
 		v3 min = {-1,-1,-1};
 		v3 max = {1,1,1};

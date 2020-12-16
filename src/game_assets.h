@@ -33,7 +33,8 @@ enum MeshAssetId : s32
 	MeshAssetId_cloud,
 	MeshAssetId_rain,
 
-	MeshAssetId_cube,
+	MeshAssetId_default_cube,
+	MeshAssetId_default_cylinder,
 
 	MeshAssetIdCount
 };
@@ -120,10 +121,10 @@ enum SoundAssetId : s32
 	SoundAssetId_background,
 	SoundAssetId_step_1,
 	SoundAssetId_step_2,
-	SoundAssetId_birds,
+	// SoundAssetId_birds,
 
-	SoundAssetId_electric_1,
-	SoundAssetId_electric_2,
+	// SoundAssetId_electric_1,
+	// SoundAssetId_electric_2,
 
 	SoundAssetIdCount
 };

@@ -68,8 +68,8 @@ internal GameAssets init_game_assets(MemoryArena * allocator)
 
 	AssetFileHeader2 header2 = {};
 	platform_file_read(assets.file, 0, sizeof(AssetFileHeader2), &header2);
-	Assert(header2.magic = asset_file_magic_value);
-	Assert(header2.version = asset_file_current_version);
+	Assert(header2.magic == asset_file_magic_value);
+	Assert(header2.version == asset_file_current_version);
 
 	Assert(header2.textures.count == TextureAssetIdCount && "Invalid number of textures in asset file");
 	Assert(header2.meshes.count == MeshAssetIdCount && "Invalid number of meshes in asset file");

@@ -455,13 +455,7 @@ update_character_motor( CharacterMotor & 	motor,
 
 		f32 groundRaySkinWidth 	= 1.0f;
 		v3 groundRayDirection 	= -v3_up;
-		// if (motor.movementMode == CharacterMovementMode_climbing)
-		// {
-		// 	v3 up 				= v3_up;
-		// 	v3 side 			= v3_normalize(v3_cross(up, motor.climbingSurfaceNormal));
-		// 	up 					= v3_cross(motor.climbingSurfaceNormal, side);
-		// 	groundRayDirection 	= -up;
-		// }
+		
 		v3 groundRayStart 		= motor.transform->position - groundRayDirection * groundRaySkinWidth;
 		f32 groundRayLength 	= groundRaySkinWidth + f32_max(0.1f, abs_f32(motor.zSpeed));
 
