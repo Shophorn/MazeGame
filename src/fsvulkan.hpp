@@ -202,6 +202,7 @@ struct VulkanVirtualFrame
 	VkCommandBuffer mainCommandBuffer;
 	VkCommandBuffer shadowCommandBuffer;
 	VkCommandBuffer sceneCommandBuffer;
+	VkCommandBuffer debugCommandBuffer;
 
 	// Todo(Leo): These maybe don't need to be separate, but currently it makes things a little more clearer
 	VkCommandBuffer postProcessCommandBuffer;

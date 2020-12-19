@@ -1,0 +1,4 @@
+- clean up game main code
+- graphics and audio separated from platform
+- window and input combined to same platform thing
+- imgui to separate thing (imguizmo too)

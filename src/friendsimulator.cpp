@@ -177,6 +177,10 @@ FS_GAME_API bool32 game_update(	MemoryBlock 				gameMemory,
 	{
 		StereoSoundOutput soundOutput = audio_get_output_buffer(audio);
 		sceneIsAlive = game_game_update(state->loadedGame, input, &soundOutput, elapsedTimeSeconds);
+
+		// Todo(Leo): now that this is actually separate thing, maybe we can unload scene betterly
+		game_render(state->loadedGame);
+
 		audio_release_output_buffer(audio, soundOutput);
 	}
 	else
