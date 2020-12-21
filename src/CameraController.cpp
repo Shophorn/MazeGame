@@ -10,7 +10,7 @@ update_camera_system(	Camera * camera,
 }
 
 
-struct PlayerCameraController
+struct GameCameraController
 {
 	// State, these change from frame to frame
 	v3 position;
@@ -29,10 +29,10 @@ struct PlayerCameraController
 
 	static constexpr auto serializedProperties = make_property_list
 	(
-		serialize_property("distance", &PlayerCameraController::distance),
-		serialize_property("baseOffset", &PlayerCameraController::baseOffset),
-		serialize_property("gamepadRotateSpeed", &PlayerCameraController::gamepadRotateSpeed),
-		serialize_property("mouseRotateSpeed", &PlayerCameraController::mouseRotateSpeed)
+		serialize_property("distance", &GameCameraController::distance),
+		serialize_property("baseOffset", &GameCameraController::baseOffset),
+		serialize_property("gamepadRotateSpeed", &GameCameraController::gamepadRotateSpeed),
+		serialize_property("mouseRotateSpeed", &GameCameraController::mouseRotateSpeed)
 	);
 	
 	// Note(Leo): No need to serialize these, they don't so much yield to artistic expression
@@ -40,7 +40,7 @@ struct PlayerCameraController
 	f32 maxTumble 			= 85.0f;
 };
 
-internal void player_camera_update(		PlayerCameraController & controller,
+internal void player_camera_update(		GameCameraController & controller,
 										v3 targetPosition,
 										PlatformInput * input,
 										f32 elapsedTime)
@@ -104,7 +104,7 @@ internal void player_camera_update(		PlayerCameraController & controller,
 	controller.position = trackedPosition + v3{0,0,controller.baseOffset} + localPosition;
 	controller.direction = -v3_normalize(localPosition);
 
-	Assert(abs_f32(square_v3_length(controller.direction) - 1.0f) < 0.00001f);
+	Assert(abs_f32(v3_sqr_length(controller.direction) - 1.0f) < 0.00001f);
 }
 
 enum EditorCameraControlMode : bool8
@@ -227,7 +227,7 @@ internal void editor_camera_update(		EditorCameraController & controller,
     controller.position 	= controller.pivotPosition + localPosition;
 	controller.direction 	= -v3_normalize(localPosition);
 
-	Assert(abs_f32(square_v3_length(controller.direction) - 1.0f) < 0.00001f && "Too short vector would mean no direction.");
+	Assert(abs_f32(v3_sqr_length(controller.direction) - 1.0f) < 0.00001f && "Too short vector would mean no direction.");
 }
 
 struct FreeCameraController

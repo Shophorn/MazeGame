@@ -1,12 +1,12 @@
 
 internal void game_render(Game * game)
 {
-		auto * XXX_graphics = platformGraphics;
+	auto * graphics = platformGraphics;
 
 
 	/// UPDATE GLOBAL UNIFORMS, Camera. lights etc
 	{
-		update_camera_system(&game->worldCamera, XXX_graphics, platformWindow);
+		update_camera_system(&game->worldCamera, graphics, platformWindow);
 	
 		v3 lightDirection = {0,0,1};
 		lightDirection = quaternion_rotate_v3(quaternion_axis_angle(v3_right, game->skySettings.sunHeightAngle * π), lightDirection);
@@ -33,7 +33,7 @@ internal void game_render(Game * game)
 		light.sunDiscSizeAndFalloff.xy 	= {	game->skySettings.sunDiscSize,
 											game->skySettings.sunDiscFalloff };
 
-		graphics_drawing_update_lighting(XXX_graphics, &light, &game->worldCamera, ambient);
+		graphics_drawing_update_lighting(graphics, &light, &game->worldCamera, ambient);
 		HdrSettings hdrSettings = 
 		{
 			game->skySettings.hdrExposure,
@@ -41,12 +41,12 @@ internal void game_render(Game * game)
 		};
 
 		// Todo(Leo): this really need updating only just before post process, but it doesn't really matter
-		graphics_drawing_update_hdr_settings(XXX_graphics, &hdrSettings);
+		graphics_drawing_update_hdr_settings(graphics, &hdrSettings);
 	}
 
 	/// DRAW SKY
-	graphics_draw_model(XXX_graphics, game->skybox, identity_m44, false, nullptr, 0);
-	// graphics_draw_meshes(XXX_graphics,
+	graphics_draw_model(graphics, game->skybox, identity_m44, false, nullptr, 0);
+	// graphics_draw_meshes(graphics,
 	// 					1, &identity_m44,
 	// 					assets_get_mesh(game->assets, MeshAssetId_skysphere),
 	// 					assets_get_material(game->assets, MaterialAssetId_sky));
@@ -61,17 +61,24 @@ internal void game_render(Game * game)
 		{
 			potTransformMatrices[i] = transform_matrix(game->smallPots.transforms[i]);
 		}
-		graphics_draw_meshes(XXX_graphics, game->smallPots.count, potTransformMatrices, game->potMesh, game->potMaterial);
+		graphics_draw_meshes(graphics, game->smallPots.count, potTransformMatrices, game->potMesh, game->potMaterial);
 	}
 
 	/// DRAW STATIC SCENERY
+	for (auto const & scenery : game->sceneries)
+	{
+		graphics_draw_meshes(	graphics, scenery.count, scenery.transforms,
+								assets_get_mesh(game->assets, scenery.mesh),
+								assets_get_material(game->assets, scenery.material));
+	}
+	
 	{
 		for(s32 i = 0; i < game->terrainCount; ++i)
 		{
-			graphics_draw_meshes(XXX_graphics, 1, game->terrainTransforms + i, game->terrainMeshes[i], game->terrainMaterial);
+			graphics_draw_meshes(graphics, 1, game->terrainTransforms + i, game->terrainMeshes[i], game->terrainMaterial);
 		}
 
-		graphics_draw_meshes(XXX_graphics, 1, &game->seaTransform, game->seaMesh, game->seaMaterial);
+		graphics_draw_meshes(graphics, 1, &game->seaTransform, game->seaMesh, game->seaMaterial);
 
 		auto compute_transform_matrices = [](MemoryArena & allocator, s32 count, Transform3D * transforms)
 		{
@@ -85,14 +92,8 @@ internal void game_render(Game * game)
 			return result;
 		};
 
-		m44 * totemTransforms = compute_transform_matrices(*global_transientMemory, array_count(game->totemTransforms), game->totemTransforms);
-		graphics_draw_meshes(XXX_graphics, array_count(game->totemTransforms), totemTransforms, game->totemMesh, game->totemMaterial);		
-
 		m44 * bigPotTransforms = compute_transform_matrices(*global_transientMemory, game->bigPotTransforms.count, game->bigPotTransforms.memory);
-		graphics_draw_meshes(XXX_graphics, game->bigPotTransforms.count, bigPotTransforms, game->bigPotMesh, game->bigPotMaterial);		
-
-		m44 * robotTransforms = compute_transform_matrices(*global_transientMemory, 1, &game->robotTransform);
-		graphics_draw_meshes(XXX_graphics, 1, robotTransforms, game->robotMesh, game->robotMaterial);
+		graphics_draw_meshes(graphics, game->bigPotTransforms.count, bigPotTransforms, game->bigPotMesh, game->bigPotMaterial);		
 
 		monuments_draw(game->monuments, game->assets);
 	}
@@ -113,19 +114,19 @@ internal void game_render(Game * game)
 			coverTransformMatrices[i] = boxTransformMatrices[i] * transform_matrix(game->boxes.coverLocalTransforms[i]);
 		}
 
-		graphics_draw_meshes(XXX_graphics, game->boxes.count, boxTransformMatrices, boxMesh, material);
-		graphics_draw_meshes(XXX_graphics, game->boxes.count, coverTransformMatrices, boxCoverMesh, material);
+		graphics_draw_meshes(graphics, game->boxes.count, boxTransformMatrices, boxMesh, material);
+		graphics_draw_meshes(graphics, game->boxes.count, coverTransformMatrices, boxCoverMesh, material);
 	}
 
 	/// DEBUG DRAW COLLIDERS
 	{
 		FS_DEBUG_BACKGROUND(collisions_debug_draw_colliders(game->collisionSystem));
-		FS_DEBUG_PLAYER(debug_draw_circle_xy(game->playerCharacterTransform.position + v3{0,0,0.7}, 0.25f, colour_bright_green));
+		FS_DEBUG_PLAYER(debug_draw_circle_xy(game->player.characterTransform.position + v3{0,0,0.7}, 0.25f, colour_bright_green));
 	}
 
 	if (game->drawMCStuff)
 	{
-		graphics_draw_procedural_mesh(	XXX_graphics,
+		graphics_draw_procedural_mesh(	graphics,
 										game->metaballVertexCount, game->metaballVertices,
 										game->metaballIndexCount, game->metaballIndices,
 										game->metaballTransform,
@@ -133,7 +134,7 @@ internal void game_render(Game * game)
 
 		if (game->metaballVertexCount2 > 0 && game->metaballIndexCount2 > 0)
 		{
-			graphics_draw_procedural_mesh(	XXX_graphics,
+			graphics_draw_procedural_mesh(	graphics,
 											game->metaballVertexCount2, game->metaballVertices2,
 											game->metaballIndexCount2, game->metaballIndices2,
 											game->metaballTransform2,
@@ -143,7 +144,7 @@ internal void game_render(Game * game)
 
 	{
 		m44 trainTransformMatrix = transform_matrix(game->trainTransform);
-		graphics_draw_meshes(XXX_graphics, 1, &trainTransformMatrix, game->trainMesh, game->trainMaterial);
+		graphics_draw_meshes(graphics, 1, &trainTransformMatrix, game->trainMesh, game->trainMaterial);
 	}
 
 	/// DRAW RACCOONS
@@ -153,7 +154,7 @@ internal void game_render(Game * game)
 		{
 			raccoonTransformMatrices[i] = transform_matrix(game->raccoonTransforms[i]);
 		}
-		graphics_draw_meshes(XXX_graphics, game->raccoonCount, raccoonTransformMatrices, game->raccoonMesh, game->raccoonMaterial);
+		graphics_draw_meshes(graphics, game->raccoonCount, raccoonTransformMatrices, game->raccoonMesh, game->raccoonMaterial);
 	}
 
 
@@ -165,10 +166,10 @@ internal void game_render(Game * game)
 		
 		// -------------------------------------------------------------------------------
 
-		update_animated_renderer(boneTransformMatrices, game->playerSkeletonAnimator);
+		update_animated_renderer(boneTransformMatrices, game->player.skeletonAnimator);
 
-		graphics_draw_model(XXX_graphics, 	game->playerAnimatedRenderer.model,
-												transform_matrix(game->playerCharacterTransform),
+		graphics_draw_model(graphics, 	game->player.animatedRenderer.model,
+												transform_matrix(game->player.characterTransform),
 												true,
 												boneTransformMatrices, array_count(boneTransformMatrices));
 
@@ -176,7 +177,7 @@ internal void game_render(Game * game)
 
 		update_animated_renderer(boneTransformMatrices, game->noblePersonSkeletonAnimator);
 
-		graphics_draw_model(XXX_graphics, 	game->playerAnimatedRenderer.model,
+		graphics_draw_model(graphics, 	game->player.animatedRenderer.model,
 												transform_matrix(game->noblePersonTransform),
 												true,
 												boneTransformMatrices, array_count(boneTransformMatrices));
@@ -184,15 +185,15 @@ internal void game_render(Game * game)
 
 
 	/// DRAW UNUSED WATER
-	draw_clouds(game->clouds, XXX_graphics, game->assets);
-	draw_waters(game->waters, XXX_graphics, game->assets);
+	draw_clouds(game->clouds, graphics, game->assets);
+	draw_waters(game->waters, graphics, game->assets);
 
 	for (auto & tree : game->trees.array)
 	{
 		m44 transform = transform_matrix(tree.position, tree.rotation, {1,1,1});
 		if (tree.mesh.vertices.count > 0 || tree.mesh.indices.count > 0)
 		{
-			graphics_draw_procedural_mesh(	XXX_graphics,
+			graphics_draw_procedural_mesh(	graphics,
 											tree.mesh.vertices.count, tree.mesh.vertices.memory,
 											tree.mesh.indices.count, tree.mesh.indices.memory,
 											transform, assets_get_material(game->assets, MaterialAssetId_tree));
@@ -205,7 +206,7 @@ internal void game_render(Game * game)
 			{
 				seedTransform[3].z -= 0.3;
 			}
-			graphics_draw_meshes(XXX_graphics, 1, &seedTransform, tree.seedMesh, tree.seedMaterial);
+			graphics_draw_meshes(graphics, 1, &seedTransform, tree.seedMesh, tree.seedMaterial);
 		}
 
 		if (tree.hasFruit)
@@ -219,7 +220,7 @@ internal void game_render(Game * game)
 
 			FS_DEBUG_ALWAYS(debug_draw_circle_xy(fruitPosition, 0.5, colour_bright_red));
 
-			graphics_draw_meshes(XXX_graphics, 1, &fruitTransform, tree.seedMesh, tree.seedMaterial);
+			graphics_draw_meshes(graphics, 1, &fruitTransform, tree.seedMesh, tree.seedMaterial);
 		}
 
 		FS_DEBUG_BACKGROUND(debug_draw_circle_xy(tree.position, 2, colour_bright_red));
@@ -234,13 +235,13 @@ internal void game_render(Game * game)
 
 	/// SCENE BUILDING BLOCKS
 	{
-		graphics_draw_meshes(	XXX_graphics,
+		graphics_draw_meshes(	graphics,
 								game->scene.buildingBlocks.count,
 								game->scene.buildingBlocks.memory,
 								assets_get_mesh(game->assets, MeshAssetId_default_cube),
 								assets_get_material(game->assets, MaterialAssetId_building_block));
 
-		graphics_draw_meshes( 	XXX_graphics,
+		graphics_draw_meshes( 	graphics,
 								game->scene.buildingPipes.count,
 								game->scene.buildingPipes.memory,
 								assets_get_mesh(game->assets, MeshAssetId_default_cylinder),
@@ -259,10 +260,19 @@ internal void game_render(Game * game)
 										MaterialAssetId_raccoon :
 										MaterialAssetId_character;
 
-		graphics_draw_meshes(	XXX_graphics,
+		graphics_draw_meshes(	graphics,
 								1, &transform,
 								assets_get_mesh(game->assets, MeshAssetId_default_cube),
 								assets_get_material(game->assets, materialId));
+	}
+
+	// Castle
+	{
+		m44 transform 	= translation_matrix(game->castlePosition);
+
+		graphics_draw_meshes(	graphics, 1, &transform,
+								assets_get_mesh(game->assets, MeshAssetId_castle_main),
+								assets_get_material(game->assets, MaterialAssetId_building_block));
 	}
 
 }

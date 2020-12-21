@@ -163,13 +163,12 @@ bool32 do_gui(Game * game, PlatformInput * input)
 
 		if (TreeNodeEx("Camera", ImGuiTreeNodeFlags_Framed))
 		{
-
-			PushID("playercamera");
+			PushID("gamecamera");
 			Text("Player Camera");
-			DragFloat("Distance", &game->playerCamera.distance, 0.1, 0.1, highest_f32);
-			DragFloat("Base Offset", &game->playerCamera.baseOffset, 0.1);
-			DragFloat("Gamepad Rotate Speed", &game->playerCamera.gamepadRotateSpeed, 0.1);
-			DragFloat("Mouse Rotate Speed", &game->playerCamera.mouseRotateSpeed, 0.1);
+			DragFloat("Distance", &game->gameCamera.distance, 0.1, 0.1, highest_f32);
+			DragFloat("Base Offset", &game->gameCamera.baseOffset, 0.1);
+			DragFloat("Gamepad Rotate Speed", &game->gameCamera.gamepadRotateSpeed, 0.1);
+			DragFloat("Mouse Rotate Speed", &game->gameCamera.mouseRotateSpeed, 0.1);
 			PopID();
 
 			Spacing();

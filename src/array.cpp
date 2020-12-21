@@ -17,10 +17,14 @@ struct Array
 		return memory[index];
 	}
 
-	void push(T const & value)
+	T & push(T const & value)
 	{
 		Assert(count < capacity);
-		memory[count++] = value;
+
+		s64 index = count++;
+		memory[index] = value;
+
+		return memory[index];
 	}
 
 	bool has_room_for(s64 count)

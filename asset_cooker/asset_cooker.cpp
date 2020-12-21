@@ -128,7 +128,9 @@ int main()
 		{ MeshAssetId_rain,			"cube_2m.glb", 	"Cube" },
 
 		{ MeshAssetId_default_cube,			"cube_2m.glb", 			"Cube" },
-		{ MeshAssetId_default_cylinder, 	"default_cylinder.glb", "Cylinder" }
+		{ MeshAssetId_default_cylinder, 	"default_cylinder.glb", "Cylinder" },
+
+		{ MeshAssetId_castle_main, 	"castle.glb", "castle_main" },
 
 		// Note(Leo): these were lost...
 		// { MeshAssetId_box, 			"box.glb", 		"box" },

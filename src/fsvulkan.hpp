@@ -322,9 +322,9 @@ struct PlatformGraphics
 
     /* Note(Leo): we need a separate sampler for each address mode (and other properties).*/
     VkSampler 	linearRepeatSampler;			
-    VkSampler 	clampSampler;			
 	VkSampler 	nearestRepeatSampler;
-
+    VkSampler 	clampOnEdgeSampler;			
+	VkSampler 	clampToBorderSampler;
 
 	VkFormat 				hdrFormat;
 	FSVulkanHdrSettings 	hdrSettings;

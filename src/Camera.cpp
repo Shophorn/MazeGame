@@ -98,7 +98,7 @@ internal m44 camera_view_matrix(v3 position, v3 direction)
 
 v3 get_forward(Camera const * camera)
 {
-	Assert(abs_f32(square_v3_length(camera->direction) - 1.0f) < 0.00001f);
+	Assert(abs_f32(v3_sqr_length(camera->direction) - 1.0f) < 0.00001f);
 	return camera->direction;
 }
 

@@ -599,7 +599,7 @@ internal void graphics_draw_meshes(VulkanContext * context, s32 count, m44 const
 {
 	if (count == 0)
 	{
-		log_graphics(FILE_ADDRESS, "Drawing 0 meshes!");
+		log_graphics(1, FILE_ADDRESS, "Drawing 0 meshes!");
 		return;
 	}
 

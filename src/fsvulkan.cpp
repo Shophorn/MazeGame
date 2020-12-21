@@ -723,12 +723,12 @@ winapi::create_vulkan_context(Win32PlatformWindow * window)
 	
 		context.linearRepeatSampler = BAD_VULKAN_make_vk_sampler(context.device, VK_SAMPLER_ADDRESS_MODE_REPEAT);
 		context.nearestRepeatSampler = BAD_VULKAN_make_vk_sampler(context.device, VK_SAMPLER_ADDRESS_MODE_REPEAT, VK_FILTER_NEAREST);
-		context.clampSampler = BAD_VULKAN_make_vk_sampler(context.device, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE);
+		context.clampOnEdgeSampler = BAD_VULKAN_make_vk_sampler(context.device, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE);
 		add_cleanup(&context, [](VulkanContext * context)
 		{
 			vkDestroySampler(context->device, context->linearRepeatSampler, nullptr);
 			vkDestroySampler(context->device, context->nearestRepeatSampler, nullptr);
-			vkDestroySampler(context->device, context->clampSampler, nullptr);
+			vkDestroySampler(context->device, context->clampOnEdgeSampler, nullptr);
 		});
 
 		vulkan_create_drawing_resources(&context, window->width, window->height);
