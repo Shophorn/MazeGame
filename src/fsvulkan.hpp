@@ -202,6 +202,7 @@ struct VulkanVirtualFrame
 	VkCommandBuffer mainCommandBuffer;
 	VkCommandBuffer shadowCommandBuffer;
 	VkCommandBuffer sceneCommandBuffer;
+	VkCommandBuffer debugCommandBuffer;
 
 	// Todo(Leo): These maybe don't need to be separate, but currently it makes things a little more clearer
 	VkCommandBuffer postProcessCommandBuffer;
@@ -321,9 +322,9 @@ struct PlatformGraphics
 
     /* Note(Leo): we need a separate sampler for each address mode (and other properties).*/
     VkSampler 	linearRepeatSampler;			
-    VkSampler 	clampSampler;			
 	VkSampler 	nearestRepeatSampler;
-
+    VkSampler 	clampOnEdgeSampler;			
+	VkSampler 	clampToBorderSampler;
 
 	VkFormat 				hdrFormat;
 	FSVulkanHdrSettings 	hdrSettings;

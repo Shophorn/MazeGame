@@ -63,7 +63,7 @@ inline f32 square_f32(f32 value)
     return value * value;
 }
 
-inline f32 square_root_f32 (f32 value)
+inline f32 f32_sqr_root (f32 value)
 {
     return sqrtf(value);
 }

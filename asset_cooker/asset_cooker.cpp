@@ -45,7 +45,7 @@ int main()
 
 	// -------------------------------------------------------------
 
-	_chdir("textures/");
+	_chdir("assets/textures/");
 
 	// Todo(Leo): do this maybe
 	// enum TextureAssetType
@@ -122,12 +122,21 @@ int main()
 		{ MeshAssetId_monument_top_1,	"monuments.glb", "monument_ornament_01" },
 		{ MeshAssetId_monument_top_2, 	"monuments.glb", "monument_ornament_02" },
 
-		{ MeshAssetId_box, 			"box.glb", 		"box" },
-		{ MeshAssetId_box_cover, 	"box.glb",		"cover" },
-		{ MeshAssetId_cloud, 		"cloud.glb", 	"cloud" },
-		{ MeshAssetId_rain,			"cloud.glb", 	"rain" },
+		{ MeshAssetId_box,			"cube_2m.glb", 	"Cube" },
+		{ MeshAssetId_box_cover,	"cube_2m.glb", 	"Cube" },
+		{ MeshAssetId_cloud,		"cube_2m.glb", 	"Cube" },
+		{ MeshAssetId_rain,			"cube_2m.glb", 	"Cube" },
 
-		{ MeshAssetId_cube,			"cube_2m.glb", 	"Cube" },
+		{ MeshAssetId_default_cube,			"cube_2m.glb", 			"Cube" },
+		{ MeshAssetId_default_cylinder, 	"default_cylinder.glb", "Cylinder" },
+
+		{ MeshAssetId_castle_main, 	"castle.glb", "castle_main" },
+
+		// Note(Leo): these were lost...
+		// { MeshAssetId_box, 			"box.glb", 		"box" },
+		// { MeshAssetId_box_cover, 	"box.glb",		"cover" },
+		// { MeshAssetId_cloud, 		"cloud.glb", 	"cloud" },
+		// { MeshAssetId_rain,			"cloud.glb", 	"rain" },
 	};
 
 	for (auto & mesh : meshes)
@@ -152,12 +161,14 @@ int main()
 	{
 		{ AnimationAssetId_character_idle,		 "cube_head_v3.glb", "Idle" },
 		{ AnimationAssetId_character_walk,		 "cube_head_v3.glb", "Walk" },
-		// Todo(Leo): lol these are super bad...
-		{ AnimationAssetId_character_run,		 "cube_head_v3_backup_before_adding_animations.glb", "Run" },
+		{ AnimationAssetId_character_run,		 "cube_head_v3.glb", "Run" },
 		{ AnimationAssetId_character_jump,		 "cube_head_v3.glb", "JumpUp" },
 		{ AnimationAssetId_character_fall,		 "cube_head_v3.glb", "JumpDown" },
 		{ AnimationAssetId_character_crouch, 	 "cube_head_v3.glb", "Crouch" },
-		{ AnimationAssetId_character_climb, 	 "cube_head_v3.glb", "Climb" },
+
+		// Note(Leo): this was lost
+		// { AnimationAssetId_character_climb, 	 "cube_head_v3.glb", "Climb" },
+		{ AnimationAssetId_character_climb, 	 "cube_head_v3.glb", "Walk" },
 	};
 
 	for (auto & animation : animations)
@@ -178,9 +189,12 @@ int main()
 	SoundAssetInfo sounds [] =
 	{
 		{ SoundAssetId_background, 	"Wind-Mark_DiAngelo-1940285615.wav" },
-		{ SoundAssetId_step_1, 		"step_9.wav" },
-		{ SoundAssetId_step_2, 		"step_10.wav" },
-		{ SoundAssetId_birds, 		"Falcon-Mark_Mattingly-169493032.wav" },
+		// { SoundAssetId_step_1, 	"Wind-Mark_DiAngelo-1940285615.wav" },
+		// { SoundAssetId_step_2, 	"Wind-Mark_DiAngelo-1940285615.wav" },
+		{ SoundAssetId_step_1, 		"step_01.wav" },
+		{ SoundAssetId_step_2, 		"step_02.wav" },
+		// { SoundAssetId_birds, 		"step_01.wav" },
+		// { SoundAssetId_birds, 		"Falcon-Mark_Mattingly-169493032.wav" },
 		// { SoundAssetId_electric_1, 	"arc1_freesoundeffects_com_NO_LICENSE.wav" },
 		// { SoundAssetId_electric_2, 	"earcing_freesoundeffects_com_NO_LICENSE.wav" },
 	};

@@ -11,7 +11,7 @@ quaternion operator * (quaternion lhs, quaternion rhs);
 
 f32 magnitude_quaternion (quaternion q)
 {
-	return square_root_f32(q.x*q.x + q.y*q.y + q.z*q.z + q.w*q.w);
+	return f32_sqr_root(q.x*q.x + q.y*q.y + q.z*q.z + q.w*q.w);
 }
 
 f32 square_magnitude_quaternion (quaternion q)

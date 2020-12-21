@@ -242,8 +242,6 @@ asset_cooker_load_animation_glb(char const * filename, char const * animationNam
 {
 	glTFFile const & file = read_gltf_file(filename);
 
-	std::cout << "loading animation: " << animationName << "\n";
-
 	constexpr s32 DEBUG_skeletonBoneCount = CharacterSkeletonBoneCount;
 	static_assert(DEBUG_skeletonBoneCount == 17);
 
@@ -295,8 +293,8 @@ asset_cooker_load_animation_glb(char const * filename, char const * animationNam
 		int inputAccessor 	= samplers[samplerIndex]["input"].GetInt();
 		int outputAccessor 	= samplers[samplerIndex]["output"].GetInt();
 
-		minTime = min_f32(minTime, accessors[inputAccessor]["min"][0].GetFloat());
-		maxTime = max_f32(maxTime, accessors[inputAccessor]["max"][0].GetFloat());
+		minTime = f32_min(minTime, accessors[inputAccessor]["min"][0].GetFloat());
+		maxTime = f32_max(maxTime, accessors[inputAccessor]["max"][0].GetFloat());
 
 
 		// ------------------------------------------------------------------------------
@@ -837,7 +835,7 @@ static void mesh_generate_tangents(s32 vertexCount, Vertex * vertices, s32 index
 		f32 r = 1.0f / (uv01.x * uv02.y - uv01.y * uv02.x);
 
 		v3 tangent = (p01 * uv02.y - p02 * uv01.y) * r;
-		tangent = normalize_v3(tangent);
+		tangent = v3_normalize(tangent);
 
 		vertexTangents[index0] += tangent;
 		vertexTangents[index1] += tangent;
@@ -846,7 +844,7 @@ static void mesh_generate_tangents(s32 vertexCount, Vertex * vertices, s32 index
 
 	for (u32 i = 0; i < vertexCount; ++i)
 	{
-		vertices[i].tangent = normalize_v3(vertexTangents[i]);
+		vertices[i].tangent = v3_normalize(vertexTangents[i]);
 	}
 
 	free(vertexTangents);

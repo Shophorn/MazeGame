@@ -4,10 +4,11 @@ editor camera
 15.12
 ambient occlusion textures
 
-TODO
+16.12
 climbing
-
 pillars to editor
+
+TODO
 wooden balcony blocks
 	--> separate planks maybe
 	--> editor multiselect

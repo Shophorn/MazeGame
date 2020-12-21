@@ -207,7 +207,7 @@ internal VulkanTexture BAD_VULKAN_make_texture(VulkanContext * context, TextureA
 	{
 		.image      = resultImage,
 		.view       = resultView,
-		.sampler 	= asset->addressMode == TextureAddressMode_repeat ? context->linearRepeatSampler : context->clampSampler,
+		.sampler 	= asset->addressMode == TextureAddressMode_repeat ? context->linearRepeatSampler : context->clampOnEdgeSampler,
 
 		.format 	= format,
 
@@ -249,7 +249,7 @@ internal TextureHandle graphics_memory_push_texture(VulkanContext * context, Tex
 // 	VkDescriptorSet descriptorSet 	= fsvulkan_make_texture_descriptor_set(	context,	
 // 																			context->pipelines[GraphicsPipeline_screen_gui].descriptorSetLayout,
 // 																			context->materialDescriptorPool,
-// 																			1, &texture.view, &context->clampSampler);
+// 																			1, &texture.view, &context->clampOnEdgeSampler);
 // 	s64 index = context->loadedGuiTextures.size();
 // 	context->loadedGuiTextures.push_back({texture, descriptorSet});
 

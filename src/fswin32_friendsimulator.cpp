@@ -85,9 +85,9 @@ not need console to be created.
 
 FS_ENTRY_POINT
 {
-	log_application(0,"\n",
-				"\t----- FriendSimulator -----\n",
-				"\tBuild time: ", BUILD_DATE_TIME, "\n");
+	log_application(0,	"\n",
+						"\t----- FriendSimulator -----\n",
+						"\tBuild time: ", BUILD_DATE_TIME, "\n");
 
 	// ----------------------------------------------------------------------------------
 

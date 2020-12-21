@@ -64,7 +64,7 @@ internal FontLoadResult asset_cooker_load_font(char const * fontFilePath)
 	stbtt_InitFont(&fontInfo, fontFileMemory, stbtt_GetFontOffsetForIndex(fontFileMemory, 0));
 	
 	s32 characterSize           = 64;
-	s32 charactersPerDirection  = (s32)ceil_f32(square_root_f32((f32)Font::characterCount));
+	s32 charactersPerDirection  = (s32)ceil_f32(f32_sqr_root((f32)Font::characterCount));
 
 	s32 width   = characterSize * charactersPerDirection;
 	s32 height  = characterSize * charactersPerDirection;

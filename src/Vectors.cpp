@@ -81,7 +81,7 @@ f32 dot_v2(v2 a, v2 b)
 
 f32 v2_length(v2 v)
 {
-	f32 m = square_root_f32(v.x * v.x + v.y * v.y);
+	f32 m = f32_sqr_root(v.x * v.x + v.y * v.y);
 	return m;
 }
 
@@ -210,11 +210,11 @@ constexpr v3 operator - (v3 vec)
 
 f32 v3_length(v3 v)
 {
-	f32 m = square_root_f32(square_f32(v.x) + square_f32(v.y) + square_f32(v.z));
+	f32 m = f32_sqr_root(square_f32(v.x) + square_f32(v.y) + square_f32(v.z));
 	return m;
 }
 
-f32 square_v3_length(v3 v)
+f32 v3_sqr_length(v3 v)
 {
 	f32 sqrMagnitude = square_f32(v.x) + square_f32(v.y) + square_f32(v.z);
 	return sqrMagnitude;
@@ -263,7 +263,7 @@ f32 v3_unsigned_angle(v3 from, v3 to)
 {
 	// Note(Leo): copied from unity3d vector.cs...
 
-	f32 denominator = square_root_f32(square_v3_length(from) * square_v3_length(to));
+	f32 denominator = f32_sqr_root(v3_sqr_length(from) * v3_sqr_length(to));
 	if (denominator < v3_sqr_epsilon)
 		return 0.0f;
 

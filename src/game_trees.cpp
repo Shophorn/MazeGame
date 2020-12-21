@@ -310,7 +310,7 @@ internal void grow_tree_3(Tree & tree, f32 elapsedTime, GetWaterFunc & get_water
 
 				f32 parentArea 				= π * parentBranchStartNodeRadius * parentBranchStartNodeRadius;
 				f32 areaDividedForChildren 	= parentArea / parentBranchChildCount;
-				f32 maxRadiurPerChildren 	= square_root_f32(areaDividedForChildren / π);
+				f32 maxRadiurPerChildren 	= f32_sqr_root(areaDividedForChildren / π);
 
 				maxRadius = maxRadiurPerChildren;
 			}
@@ -318,13 +318,13 @@ internal void grow_tree_3(Tree & tree, f32 elapsedTime, GetWaterFunc & get_water
 			if (startNode.radius < maxRadius)
 			{
 				f32 growthAmount 	= tree.settings->areaGrowthSpeed / π * elapsedTime * waterGrowthFactor;
-				startNode.radius 	= square_root_f32(startNode.radius * startNode.radius + growthAmount);
+				startNode.radius 	= f32_sqr_root(startNode.radius * startNode.radius + growthAmount);
 			}
 
 			if (branch.dontGrowLength && endNode.radius < maxRadius)
 			{
 				f32 growthAmount 	= tree.settings->areaGrowthSpeed / π * elapsedTime * waterGrowthFactor;
-				endNode.radius 	= square_root_f32(endNode.radius * endNode.radius + growthAmount);
+				endNode.radius 	= f32_sqr_root(endNode.radius * endNode.radius + growthAmount);
 			}
 		}
 

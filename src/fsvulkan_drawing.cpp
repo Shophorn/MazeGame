@@ -174,32 +174,21 @@ internal void vulkan_prepare_frame(VulkanContext * context)
 	sceneCmdBeginInfo.pInheritanceInfo 	= &sceneCmdInheritanceInfo;
 
 	VULKAN_CHECK (vkBeginCommandBuffer(frame->sceneCommandBuffer, &sceneCmdBeginInfo));
+	VULKAN_CHECK (vkBeginCommandBuffer(frame->debugCommandBuffer, &sceneCmdBeginInfo));
 
 	// -----------------------------------------------------
 
-	auto postProcessCmdInheritance 			= vk_command_buffer_inheritance_info();
-	postProcessCmdInheritance.renderPass 	= context->screenSpaceRenderPass;
-	postProcessCmdInheritance.framebuffer 	= context->presentFramebuffers[context->virtualFrameIndex];
+	auto screenSpaceCmdInheritance 			= vk_command_buffer_inheritance_info();
+	screenSpaceCmdInheritance.renderPass 	= context->screenSpaceRenderPass;
+	screenSpaceCmdInheritance.framebuffer 	= context->presentFramebuffers[context->virtualFrameIndex];
 
-	auto postProcessCmdBegin 				= vk_command_buffer_begin_info();
-	postProcessCmdBegin.flags 				= VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
+	auto screenSpaceCmdBegin 				= vk_command_buffer_begin_info();
+	screenSpaceCmdBegin.flags 				= VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
 											| VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT;
-	postProcessCmdBegin.pInheritanceInfo 	= &postProcessCmdInheritance;
+	screenSpaceCmdBegin.pInheritanceInfo 	= &screenSpaceCmdInheritance;
 
-	VULKAN_CHECK(vkBeginCommandBuffer(frame->postProcessCommandBuffer, &postProcessCmdBegin));
-
-	// -----------------------------------------------------
-
-	auto guiCmdInheritance 			= vk_command_buffer_inheritance_info();
-	guiCmdInheritance.renderPass 	= context->screenSpaceRenderPass;
-	guiCmdInheritance.framebuffer 	= context->presentFramebuffers[context->virtualFrameIndex];
-
-	auto guiCmdBegin 				= vk_command_buffer_begin_info();
-	guiCmdBegin.flags 				= VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
-									| VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT;
-	guiCmdBegin.pInheritanceInfo 	= &guiCmdInheritance;
-
-	VULKAN_CHECK (vkBeginCommandBuffer(frame->guiCommandBuffer, &guiCmdBegin));
+	VULKAN_CHECK(vkBeginCommandBuffer(frame->postProcessCommandBuffer, &screenSpaceCmdBegin));
+	VULKAN_CHECK (vkBeginCommandBuffer(frame->guiCommandBuffer, &screenSpaceCmdBegin));
 	
 
 	/// RECORD POST-PROCESS / HDR COMMAND BUFFER
@@ -265,7 +254,10 @@ internal void vulkan_render_frame(VulkanContext * context)
 
 	/// SCENE RENDER PASS
 	{
+		// Todo(Low): Do debug lines in separate render pass after post processing, but that requires separate render pass
+
 		VULKAN_CHECK(vkEndCommandBuffer(frame->sceneCommandBuffer));
+		VULKAN_CHECK(vkEndCommandBuffer(frame->debugCommandBuffer));
 
 		VkClearValue clearValues [2] 	= {};
 		clearValues[0].color 			= {0.35f, 0.0f, 0.35f, 1.0f};
@@ -281,6 +273,7 @@ internal void vulkan_render_frame(VulkanContext * context)
 		vkCmdBeginRenderPass(frame->mainCommandBuffer, &sceneRenderPassBegin, VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS);
 		
 		vkCmdExecuteCommands(frame->mainCommandBuffer, 1, &frame->sceneCommandBuffer);
+		vkCmdExecuteCommands(frame->mainCommandBuffer, 1, &frame->debugCommandBuffer);
 		
 		vkCmdEndRenderPass(frame->mainCommandBuffer);
 	}
@@ -508,9 +501,22 @@ internal void graphics_draw_leaves(	VulkanContext * context,
 											v3 colour,
 											MaterialHandle materialHandle)
 {
-	Assert(instanceCount > 0 && "Vulkan cannot map memory of size 0, and this function should no be called for 0 meshes");
+	// Assert(instanceCount > 0 && "Vulkan cannot map memory of size 0, and this function should no be called for 0 meshes");
 	// Note(Leo): lets keep this sensible
-	Assert(instanceCount <= 20000);
+	// Assert(instanceCount <= 20000);
+	if (instanceCount == 0)
+	{
+		log_graphics(FILE_ADDRESS, "Drawing 0 meshes!");
+		return;
+	}
+
+	constexpr s64 maxCount = 20000;
+	if (instanceCount > maxCount)
+	{
+		log_graphics(FILE_ADDRESS, "Drawing too many (over 20000) meshes, skipping the rest");
+		instanceCount = maxCount;
+	}
+
 
 	VulkanVirtualFrame * frame 	= fsvulkan_get_current_virtual_frame(context);
 	s64 frameOffset 			= context->leafBufferCapacity * context->virtualFrameIndex;
@@ -591,7 +597,20 @@ internal void graphics_draw_leaves(	VulkanContext * context,
 
 internal void graphics_draw_meshes(VulkanContext * context, s32 count, m44 const * transforms, MeshHandle meshHandle, MaterialHandle materialHandle)
 {
-	Assert(count > 0 && "Vulkan cannot map memory of size 0, and this function should no be called for 0 meshes");
+	if (count == 0)
+	{
+		log_graphics(1, FILE_ADDRESS, "Drawing 0 meshes!");
+		return;
+	}
+
+	// Todo(Leo): this was speedy addition, look below, we kinda handled this already, do same with leaves also
+	constexpr s64 maxCount = 20000;
+	if (count > maxCount)
+	{
+		log_graphics(FILE_ADDRESS, "Drawing too many (over 20000) meshes, skipping the rest");
+		count = maxCount;
+	}
+
 
 	VulkanVirtualFrame * frame = fsvulkan_get_current_virtual_frame(context);
 
@@ -799,7 +818,7 @@ internal void graphics_draw_procedural_mesh(VulkanContext * context,
 
 internal void graphics_draw_lines(VulkanContext * context, s32 pointCount, v3 const * points, v4 color)
 {
-	VkCommandBuffer commandBuffer = fsvulkan_get_current_virtual_frame(context)->sceneCommandBuffer;
+	VkCommandBuffer commandBuffer = fsvulkan_get_current_virtual_frame(context)->debugCommandBuffer;
 
 	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, context->linePipeline);
 	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, context->linePipelineLayout,

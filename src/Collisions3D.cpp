@@ -31,6 +31,11 @@ struct PrecomputedBoxCollider
 	m44 inverseTransform;
 };
 
+struct TriangleCollider
+{
+	v3 vertices [3];
+};
+
 struct CollisionSystem3D
 {
 	Array<PrecomputedBoxCollider> 	staticBoxColliders;
@@ -39,6 +44,15 @@ struct CollisionSystem3D
 	Array<PrecomputedBoxCollider> 	submittedBoxColliders;
 	Array<CylinderCollider> 		submittedCylinderColliders;
 
+
+	Array<TriangleCollider>			triangleColliders;
+
+	v3 testTriangleCollider [3] =
+	{
+		{-10, 0, 50},
+		{-15, 0, 45},
+		{-5, 0, 45}
+	};
 
 
 	HeightMap 	terrainCollider;
@@ -109,6 +123,15 @@ internal void submit_box_collider(CollisionSystem3D & system, BoxCollider collid
 	system.submittedBoxColliders.push({transformMatrix, inverseMatrix});
 }	
 
+internal void push_static_box_collider(CollisionSystem3D & system, BoxCollider collider, m44 & transformMatrix)
+{
+	m44 colliderMatrix 			= transform_matrix(collider.center, collider.orientation, collider.extents);
+	m44 inverseColliderMatrix 	= inverse_transform_matrix(collider.center, collider.orientation, collider.extents);
+	m44 inverseTransformMatrix 	= m44_inverse(transformMatrix);
+
+	system.staticBoxColliders.push({transformMatrix * colliderMatrix, inverseColliderMatrix * inverseTransformMatrix});
+};
+
 internal void push_static_box_collider(CollisionSystem3D & system, BoxCollider collider, Transform3D const & transform)
 {
 	m44 transformMatrix = compute_box_collider_transform(collider, transform);
@@ -125,6 +148,122 @@ internal f32 get_terrain_height(CollisionSystem3D const & system, v2 position)
 	f32 value = get_height_at(&system.terrainCollider, position);
 	return value;
 }
+
+/// ---------- BETTERLY ORGANIZED COLLISION MATH -------------
+
+static bool ray_triangle_collision (Ray const & ray, v3 const triangleCorners[3], RaycastResult * outResult)
+{
+	// Note(Leo): not used, but insightful maybe
+	// https://www.youtube.com/watch?v=HYAgJN3x4GA
+	
+
+	v3 edge01 = triangleCorners[1] - triangleCorners[0];
+	v3 edge02 = triangleCorners[2] - triangleCorners[0];
+
+	// Todo(Leo): maybe precompute and store with triangleData
+	v3 normal = (v3_cross(edge01, edge02));
+
+
+	// 1. project ray on plane
+	// https://www.scratchapixel.com/lessons/3d-basic-rendering/minimal-ray-tracer-rendering-simple-shapes/ray-plane-and-ray-disk-intersection
+	f32 denominator = v3_dot(ray.direction, normal);
+
+
+	/*
+	Note(Leo): Denominator is dot product between plane normal and ray direction, meaning how much
+	do they point in same direction. If it is zero, ray and plane are parallel and no collision occur.
+
+	// Todo(Leo): is this really so, I think I may have gotten directions the wrong way.
+	If it is less than zero, ray starts from wrong side to begin with. */
+	if (abs_f32(denominator) < 0.00001f)
+	{
+		return false;
+	}
+
+	f32 t = v3_dot(-ray.start + triangleCorners[0], normal) / denominator;
+	// f32 t = v3_dot(ray.start - triangleCorners[0], normal) / denominator;
+
+	// // Note(Leo): d as in plane equation
+	// f32 d = v3_dot(normal, triangleCorners[0]);
+	// f32 t = (v3_dot(ray.start, normal) + d)  / denominator;
+
+	if (t < 0)
+	{
+		return false;
+	}
+
+	v3 pointOnPlane = ray.start + ray.direction * t;
+
+	/// 2. Inside-Outside thing
+	// https://www.scratchapixel.com/lessons/3d-basic-rendering/ray-tracing-rendering-a-triangle/ray-triangle-intersection-geometric-solution
+	{	
+		/*
+		Note(Leo): One edge at a time, test if vector to point on plane is on right(bad) or left(good) side,
+		if bad, we are outside triangle. Cross product direction tells which way we got when tested against normal
+		*/
+
+		v3 edge01 		= triangleCorners[1] - triangleCorners[0];
+		v3 toPoint0 	= pointOnPlane - triangleCorners[0];
+		v3 crossTest0 	= v3_cross(edge01, toPoint0);
+		if (v3_dot(normal, crossTest0) < 0)
+		{
+			return false;
+		}
+
+		v3 edge12 		= triangleCorners[2] - triangleCorners[1];
+		v3 toPoint1 	= pointOnPlane - triangleCorners[1];
+		v3 crossTest1 	= v3_cross(edge12, toPoint1);
+		if (v3_dot(normal, crossTest1) < 0)
+		{
+			return false;
+		}
+
+		v3 edge20 		= triangleCorners[0] - triangleCorners[2];
+		v3 toPoint2 	= pointOnPlane - triangleCorners[2];
+		v3 crossTest2 	= v3_cross(edge20, toPoint2);
+		if (v3_dot(normal, crossTest2) < 0)
+		{
+			return false;
+		}
+	}
+
+
+	if (t > ray.length)
+	{
+		return false;
+	}
+
+
+	outResult->hitPosition 	= pointOnPlane;
+	outResult->hitNormal 	= v3_normalize(normal);
+
+	return true;
+
+
+
+
+
+
+
+	// v3 rayStart = ray.start;
+	// v3 rayEnd 	= ray.start + ray.direction * ray.length;
+
+	// v3 toStart 	= rayStart - triangleCorners[0];
+	// v3 toEnd 	= rayEnd - triangleCorners[0];
+
+	// f32 dot = v3_dot(toStart, toEnd);
+	// if (dot > 0)
+	// {
+	// 	// Note(Leo): both ends are on the same side of the triangle
+	// }
+	// else
+	// {
+
+	// }
+
+	// return false;	
+}
+
 
 /// ----------- COLLISION MATH ---------------
 
@@ -144,6 +283,11 @@ internal bool32 ray_box_collisions(	Array<PrecomputedBoxCollider> & colliders,
 
 		// Study(Leo): this seems to work, but I still have concerns
 		f32 colliderSpaceRayLength = rayLength;
+		{
+			v3 worldSpaceRay 		= normalizedRayDirection * rayLength;
+			v3 colliderSpaceRay 	= multiply_direction(collider.inverseTransform, worldSpaceRay);
+			colliderSpaceRayLength 	= v3_length(colliderSpaceRay);
+		}
 
 		v3 min = {-1,-1,-1};
 		v3 max = {1,1,1};
@@ -204,7 +348,7 @@ internal bool32 ray_box_collisions(	Array<PrecomputedBoxCollider> & colliders,
 
 			v3 colliderSpaceHitPosition = colliderSpaceRayStart + colliderSpaceRayDirection * distanceToMin;
 			v3 hitPosition = multiply_point(collider.transform, colliderSpaceHitPosition);
-			f32 sqrDistance = square_v3_length(hitPosition - rayStart);
+			f32 sqrDistance = v3_sqr_length(hitPosition - rayStart);
 
 			if (sqrDistance < *rayHitSquareDistance)
 			{
@@ -239,7 +383,7 @@ internal bool32 ray_box_collisions(	Array<PrecomputedBoxCollider> & colliders,
 
 			}
 
-			// f32 sqrDistance = square_v3_length(outResult->hitPosition, rayStart);
+			// f32 sqrDistance = v3_sqr_length(outResult->hitPosition, rayStart);
 			// if (sqr)
 			// rayHitSquareDistance = 
 			// // return true;
@@ -312,7 +456,7 @@ internal bool32 ray_cylinder_collisions (Array<CylinderCollider> colliders, Ray 
 			continue;
 		}
 
-		f32 sqrtD = square_root_f32(D);
+		f32 sqrtD = f32_sqr_root(D);
 		f32 ht0 = (-b - sqrtD) / (2 * a);
 		f32 ht1 = (-b + sqrtD) / (2 * a);
 
@@ -367,6 +511,52 @@ raycast_3d(	CollisionSystem3D * system,
 											{rayStart, normalizedRayDirection, rayLength},
 											outResult,
 											&rayHitSquareDistance);
+
+	{
+		Ray ray =
+		{
+			.start 		= rayStart,
+			.direction 	= normalizedRayDirection,
+			.length 	= rayLength
+		};
+
+		for (TriangleCollider const & triangle : system->triangleColliders)
+		{
+			RaycastResult rayResult;
+			bool hit2 = ray_triangle_collision(ray, triangle.vertices, &rayResult);
+
+			if (hit2 && v3_sqr_length(rayStart - rayResult.hitPosition))
+			{
+				*outResult 	= rayResult;
+				hit 		= hit2;
+			}
+		}
+
+
+		// RaycastResult testTriangleResult;
+		// bool testTriangleHit 	= ray_triangle_collision(ray, system->testTriangleCollider, &testTriangleResult);
+
+
+
+
+
+		// f32 sqrDistance 		= v3_sqr_length(ray.start - testTriangleResult.hitPosition);
+
+		// if (testTriangleHit)
+		// {
+		// 	// log_debug("RAY HIT: ", f32_sqr_root(sqrDistance));
+
+		// 	if (sqrDistance < rayHitSquareDistance)
+		// 	{
+		// 		*outResult 	= testTriangleResult;
+		// 		hit 		= testTriangleHit;
+		// 	}
+		// }
+		// else
+		// {
+		// 	log_debug("RAY MISS: ", f32_sqr_root(sqrDistance));
+		// }
+	}
 
 	return hit;
 }

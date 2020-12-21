@@ -93,7 +93,6 @@ struct CharacterInput
 	bool32 jumpInput;
 	bool32 crouchInput;
 
-	bool32 testClimb;
 	v2 climbInput;
 };
 
@@ -126,7 +125,7 @@ update_character_motor( CharacterMotor & 	motor,
 	f32 forwardInput	= v3_dot(inputVector, forward);
 
 	f32 rightInput 		= 0;
-	if (square_v3_length(inputVector) > v3_sqr_epsilon)
+	if (v3_sqr_length(inputVector) > v3_sqr_epsilon)
 	{
 		f32 angle = v2_signed_angle(inputVector.xy, forward.xy);
 		rightInput = f32_clamp(angle, -1.0f, 1.0f);
@@ -252,12 +251,17 @@ update_character_motor( CharacterMotor & 	motor,
 			f32 sineStep 	= 2.0f / (rayCount - 1);
 
 			f32 skinwidth = 0.01f;
-			rayStartPositions[0] = v3_rotate(rayDirection * (motor.collisionRadius - skinwidth), up, π / 2.0f);
+			rayStartPositions[0] = v3_rotate(rayDirection * motor.collisionRadius, up, π / 2.0f);
 			for (int i = 1; i < rayCount; ++i)
 			{
 				f32 sine 				= -1.0f + (i - 1) * sineStep;
 				f32 angle 				= -arc_cosine(sine);
-				rayStartPositions[i] 	= v3_rotate(rayStartPositions[0], up, angle) - skinwidth * rayDirection;
+				rayStartPositions[i] 	= v3_rotate(rayStartPositions[0], up, angle);// - skinwidth * rayDirection;
+			}
+
+			for(v3 & start : rayStartPositions)
+			{
+				start += skinwidth * -rayDirection;
 			}
 
 			f32 rayLength = elapsedTime * speed + skinwidth;
@@ -308,7 +312,7 @@ update_character_motor( CharacterMotor & 	motor,
 
 					v3 climbRayStart 		= rayStartPositions[i] + 1.0f * up + motor.transform->position;
 					v3 climbRayDirection 	= rayDirection;
-					climbRayStart 			+= -rayDirection * skinwidth;
+					// climbRayStart 			+= -rayDirection * skinwidth;
 					f32 climbRayLength 		= 0.5 + skinwidth;
 
 
@@ -359,7 +363,7 @@ update_character_motor( CharacterMotor & 	motor,
 		v3 rayDirection = -motor.climbingSurfaceNormal;
 		f32 rayLength 	= 0.2;
 
-		f32 skinwidth 	= 0.1;
+		f32 skinwidth 	= 0.01;
 		rayStart 		+= rayDirection * (motor.collisionRadius - skinwidth);
 		rayLength 		+= skinwidth;
 		
@@ -380,7 +384,10 @@ update_character_motor( CharacterMotor & 	motor,
 		RaycastResult rayResult;
 		if (raycast_3d(&collisionSystem, rayStart, rayDirection, rayLength, &rayResult))
 		{
-			// Note(Leo): All good
+			// Note(Leo): All good, keep on climbing
+			// Todo(Leo): Check if this is actually climbable
+			motor.climbingSurfaceNormal = rayResult.hitNormal;
+
 			FS_DEBUG_ALWAYS(debug_draw_line(rayStart, rayStart + rayDirection, colour_bright_red));
 		}
 		else
@@ -405,6 +412,7 @@ update_character_motor( CharacterMotor & 	motor,
 			}
 			else
 			{
+				// Note(Leo): climber over vertical edge, fall
 				motor.movementMode = CharacterMovementMode_walking;
 	
 				FS_DEBUG(debugLevel, debug_draw_line(	verticalSecondaryRayStart - verticalSecondaryRayDirection,
@@ -455,13 +463,7 @@ update_character_motor( CharacterMotor & 	motor,
 
 		f32 groundRaySkinWidth 	= 1.0f;
 		v3 groundRayDirection 	= -v3_up;
-		// if (motor.movementMode == CharacterMovementMode_climbing)
-		// {
-		// 	v3 up 				= v3_up;
-		// 	v3 side 			= v3_normalize(v3_cross(up, motor.climbingSurfaceNormal));
-		// 	up 					= v3_cross(motor.climbingSurfaceNormal, side);
-		// 	groundRayDirection 	= -up;
-		// }
+		
 		v3 groundRayStart 		= motor.transform->position - groundRayDirection * groundRaySkinWidth;
 		f32 groundRayLength 	= groundRaySkinWidth + f32_max(0.1f, abs_f32(motor.zSpeed));
 

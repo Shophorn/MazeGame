@@ -224,7 +224,7 @@ static PlatformFileHandle 	FS_PLATFORM_API(platform_file_open) (char const * fil
 static void 				FS_PLATFORM_API(platform_file_close) (PlatformFileHandle);
 static s64 					FS_PLATFORM_API(platform_file_get_size) (PlatformFileHandle);
 static void 				FS_PLATFORM_API(platform_file_read) (PlatformFileHandle, s64 position, s64 count, void * memory);
-static void 				FS_PLATFORM_API(platform_file_write) (PlatformFileHandle, s64 position, s64 count, void * memory);
+static void 				FS_PLATFORM_API(platform_file_write) (PlatformFileHandle, s64 position, s64 count, const void * memory);
 
 static void 				FS_PLATFORM_API(platform_log_write) (s32 count, char const * buffer);
 

@@ -68,8 +68,8 @@ internal GameAssets init_game_assets(MemoryArena * allocator)
 
 	AssetFileHeader2 header2 = {};
 	platform_file_read(assets.file, 0, sizeof(AssetFileHeader2), &header2);
-	Assert(header2.magic = asset_file_magic_value);
-	Assert(header2.version = asset_file_current_version);
+	Assert(header2.magic == asset_file_magic_value);
+	Assert(header2.version == asset_file_current_version);
 
 	Assert(header2.textures.count == TextureAssetIdCount && "Invalid number of textures in asset file");
 	Assert(header2.meshes.count == MeshAssetIdCount && "Invalid number of meshes in asset file");
@@ -184,6 +184,33 @@ internal MeshHandle assets_get_mesh(GameAssets & assets, MeshAssetId id)
 	}
 
 	return handle;
+}
+
+internal MeshAssetData assets_get_mesh_asset_data(GameAssets & assets, MeshAssetId id, MemoryArena & allocator)
+{
+	AssetFileMesh assetMesh = assets.meshHeaders[id];
+
+	u64 vertexMemorySize 	= assetMesh.vertexCount * sizeof(Vertex);
+	u64 skinMemorySize 		= assetMesh.hasSkinning ? assetMesh.vertexCount * sizeof(VertexSkinData) : 0;
+	u64 indexMemorySize 	= assetMesh.indexCount * sizeof(u16);
+	u64 totalMemorySize 	= vertexMemorySize + skinMemorySize + indexMemorySize;
+
+	MeshAssetData data;
+	u8 * dataMemory = push_memory<u8>(allocator, totalMemorySize, ALLOC_GARBAGE);
+
+	platform_file_read(assets.file, assetMesh.dataOffset, totalMemorySize, dataMemory);
+
+	data.vertices 	= reinterpret_cast<Vertex*>(dataMemory);
+	data.skinning 	= assetMesh.hasSkinning ? reinterpret_cast<VertexSkinData*>(dataMemory + vertexMemorySize) : nullptr;
+	data.indices 	= reinterpret_cast<u16*>(dataMemory + vertexMemorySize + skinMemorySize);
+
+	data.vertexCount = assetMesh.vertexCount;
+	data.indexCount = assetMesh.indexCount;
+
+	// Todo(Leo): this is sad, somehow tangents dont come all the way to here
+	mesh_generate_tangents(data);
+
+	return data;
 }
 
 internal TextureHandle assets_get_texture(GameAssets & assets, TextureAssetId id)

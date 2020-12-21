@@ -23,6 +23,8 @@ struct Leaves
 	v3 * 			swayAxes;
 
 	MaterialHandle	material;
+
+	m44 * transientRenderTransforms;
 };
  
 internal void flush_leaves(Leaves & leaves)
@@ -44,10 +46,10 @@ internal Leaves make_leaves(MemoryArena & allocator, s32 capacity)
 	return leaves;
 }
 
-internal void draw_leaves(Leaves & leaves, f32 elapsedTime, v2 leafScale = {1,1}, v3 colour = {})
+internal void leaves_update(Leaves & leaves, f32 elapsedTime,v2 leafScale = {1,1})
 {
-	s32 drawCount = f32_min(leaves.capacity, leaves.count);
 
+	s32 drawCount = f32_min(leaves.capacity, leaves.count);
 	m44 * leafTransforms = push_memory<m44>(*global_transientMemory, drawCount, ALLOC_GARBAGE);
 	for (s32 i = 0; i < drawCount; ++i)
 	{
@@ -65,6 +67,11 @@ internal void draw_leaves(Leaves & leaves, f32 elapsedTime, v2 leafScale = {1,1}
 
 		leafTransforms[i] 		= transform_matrix(	position, rotation,	scale);
 	}
+	leaves.transientRenderTransforms = leafTransforms;
+}
 
-	graphics_draw_leaves(platformGraphics, drawCount, leafTransforms, leaves.colourIndex, colour, leaves.material);
+internal void leaves_draw(Leaves & leaves, v3 colour = {})
+{
+	s32 drawCount = f32_min(leaves.capacity, leaves.count);
+	graphics_draw_leaves(platformGraphics, drawCount, leaves.transientRenderTransforms, leaves.colourIndex, colour, leaves.material);
 }

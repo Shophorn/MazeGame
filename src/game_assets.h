@@ -1,10 +1,6 @@
 /*
 Leo Tamminen
-
 Enumeration definitions that are used both in game and asset cooking pipelines
-
-NOTICE(LEO): This file is also parsed manually by us, in asset cooker, so avoid comments,
-especially ones that contain things like "MeshAssetId _ NNNNNN". This even broke it :)
 */
 
 #include "fs_standard_types.h"
@@ -33,7 +29,10 @@ enum MeshAssetId : s32
 	MeshAssetId_cloud,
 	MeshAssetId_rain,
 
-	MeshAssetId_cube,
+	MeshAssetId_default_cube,
+	MeshAssetId_default_cylinder,
+
+	MeshAssetId_castle_main,
 
 	MeshAssetIdCount
 };
@@ -120,10 +119,10 @@ enum SoundAssetId : s32
 	SoundAssetId_background,
 	SoundAssetId_step_1,
 	SoundAssetId_step_2,
-	SoundAssetId_birds,
+	// SoundAssetId_birds,
 
-	SoundAssetId_electric_1,
-	SoundAssetId_electric_2,
+	// SoundAssetId_electric_1,
+	// SoundAssetId_electric_2,
 
 	SoundAssetIdCount
 };
