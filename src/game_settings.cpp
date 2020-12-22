@@ -68,12 +68,6 @@ internal void write_settings_file(PlatformFileHandle file, Game & game)
 
 	};	
 	for_each_property (append_settings, game_get_serialized_objects(game));
-	for_each_property (append_settings, monuments_get_serialized_objects(game.monuments));
-	// 	serializedObjects
-	// );
-
-	// write_settings_file(file, game_get_serialized_objects(*game));
-	// write_settings_file(file, monuments_get_serialized_objects(game->monuments));
 
 	memory_pop_checkpoint(*global_transientMemory, checkpoint);
 }

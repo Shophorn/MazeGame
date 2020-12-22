@@ -268,12 +268,17 @@ internal void tree_3_add_branch(Tree & tree, s64 parentBranchIndex, v3 position,
 	tree.branches[parentBranchIndex].childBranchCount += 1;
 }
 
-internal void grow_tree_3(Tree & tree, f32 elapsedTime, GetWaterFunc & get_water)
+internal void grow_tree_3(Tree & tree, Game * game, f32 elapsedTime)
 {
 	elapsedTime *= tree.settings->growSpeedScale;
 
 	f32 waterCapacityAvailable 	= tree.settings->waterReservoirCapacity - tree.waterReservoir; 
 	f32 waterDrain 				= f32_min(waterCapacityAvailable, tree.settings->waterDrainSpeed * elapsedTime);
+
+
+	GetWaterFunc get_water = {game_get_waters(game), 0, false};
+
+
 	tree.waterReservoir 		+= get_water(tree.position, waterDrain);
 	
 	tree.waterReservoir         -= tree.settings->waterUsageSpeed * elapsedTime;
@@ -934,7 +939,7 @@ internal void trees_editor(Trees & trees)
 	*/
 }
 
-internal void update_tree_3(Tree & tree, f32 elapsedTime, GetWaterFunc & get_water)
+internal void update_tree_3(Tree & tree, Game * game, f32 elapsedTime)
 {
 	if (tree.breakOnUpdate)
 	{
@@ -943,7 +948,7 @@ internal void update_tree_3(Tree & tree, f32 elapsedTime, GetWaterFunc & get_wat
 
 	if (Tree::globalEnabled && tree.planted && tree.enabled && !tree.resourceLimitReached)
 	{
-		grow_tree_3(tree, elapsedTime, get_water);
+		grow_tree_3(tree, game, elapsedTime);
 		build_tree_3_mesh(tree);
 	}
 
@@ -989,4 +994,17 @@ internal void update_tree_3(Tree & tree, f32 elapsedTime, GetWaterFunc & get_wat
 		// 	}
 		// }
 	}	
+}
+
+internal void trees_update(Trees & trees, Game * game, f32 elapsedTime)
+{
+	for (auto & tree : trees.array)
+	{
+		update_tree_3(tree, game, elapsedTime);
+		
+		tree.leaves.position = tree.position;
+		tree.leaves.rotation = tree.rotation;
+		
+		leaves_update(tree.leaves, elapsedTime, tree.settings->leafSize);
+	}
 }

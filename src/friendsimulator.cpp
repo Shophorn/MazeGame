@@ -137,7 +137,7 @@ static void game_init_state(GameState * state, MemoryBlock memory)
 	u64 transientMemorySize 		= memory.size / 2;
 	state->transientMemoryArena 	= memory_arena(transientMemory, transientMemorySize);
 
-	state->assets 	= init_game_assets(&state->persistentMemoryArena);
+	state->assets 	= game_assets_initialize(&state->persistentMemoryArena);
 	state->gui 		= make_main_menu_gui(state->persistentMemoryArena, state->assets);
 
 	state->isInitialized = true; 

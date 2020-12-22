@@ -81,7 +81,6 @@ struct Player
 	Transform3D 		characterTransform;
 	CharacterMotor 		characterMotor;
 	SkeletonAnimator 	skeletonAnimator;
-	AnimatedRenderer 	animatedRenderer;
 	EntityReference 	carriedEntity;
 };
 

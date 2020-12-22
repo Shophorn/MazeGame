@@ -57,7 +57,7 @@ struct GameAssets
 	PlatformFileHandle 	meshFileHeader;
 };
 
-internal GameAssets init_game_assets(MemoryArena * allocator)
+internal GameAssets game_assets_initialize(MemoryArena * allocator)
 {
 	// Note(Leo): apparently this does indeed set MeshHandles to -1, which is what we want. I do not know why, though.
 	GameAssets assets 	= {};

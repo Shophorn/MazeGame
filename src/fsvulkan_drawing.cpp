@@ -380,13 +380,8 @@ internal void vulkan_render_frame(VulkanContext * context)
 	context->virtualFrameIndex %= VIRTUAL_FRAME_COUNT;
 }
 
-internal void graphics_draw_model(VulkanContext * context, ModelHandle model, m44 transform, bool32 castShadow, m44 const * bones, u32 bonesCount)
+internal void graphics_draw_skinned_mesh(VulkanContext * context, m44 transform, s64 boneCount, m44 * boneTransforms, MeshHandle meshHandle, MaterialHandle materialHandle)
 {
-	/* Todo(Leo): Get rid of these, we can just as well get them directly from user.
-	That is more flexible and then we don't need to save that data in multiple places. */
-	MeshHandle meshHandle           = context->loadedModels[model].mesh;
-	MaterialHandle materialHandle   = context->loadedModels[model].material;
-
 	u32 uniformBufferSize   = sizeof(VulkanModelUniformBuffer);
 
 	VkDeviceSize uniformBufferOffset 	= fsvulkan_get_uniform_memory(*context, sizeof(VulkanModelUniformBuffer));
@@ -396,10 +391,10 @@ internal void graphics_draw_model(VulkanContext * context, ModelHandle model, m4
 	// // Todo(Leo): or even better, get this pointer to game code and write directly to buffer, no copy needed
 	
 	pBuffer->localToWorld 	= transform;
-	pBuffer->isAnimated 	= bonesCount;
+	pBuffer->isAnimated 	= boneCount;
 
-	Assert(bonesCount <= array_count(pBuffer->bonesToLocal));    
-	memory_copy(pBuffer->bonesToLocal, bones, sizeof(m44) * bonesCount);
+	Assert(boneCount <= array_count(pBuffer->bonesToLocal));    
+	memory_copy(pBuffer->bonesToLocal, boneTransforms, sizeof(m44) * boneCount);
 
 	// ---------------------------------------------------------------
 
@@ -410,7 +405,7 @@ internal void graphics_draw_model(VulkanContext * context, ModelHandle model, m4
 
 	Assert(material->pipeline < GraphicsPipeline_screen_gui && "This pipeline does not support mesh rendering");
 
-	VkPipeline pipeline = context->pipelines[material->pipeline].pipeline;
+	VkPipeline pipeline 			= context->pipelines[material->pipeline].pipeline;
 	VkPipelineLayout pipelineLayout = context->pipelines[material->pipeline].pipelineLayout;
 
 	// Material type
@@ -450,30 +445,27 @@ internal void graphics_draw_model(VulkanContext * context, ModelHandle model, m4
 	///////////////////////////
 	///   SHADOW PASS       ///
 	///////////////////////////
-	if (castShadow)
+	vkCmdBindPipeline(frame->shadowCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, context->shadowPipeline);
+
+	vkCmdBindVertexBuffers(frame->shadowCommandBuffer, 0, vertexBindingCount, vertexBuffers, vertexOffsets);
+	vkCmdBindIndexBuffer(frame->shadowCommandBuffer, mesh->bufferReference, mesh->indexOffset, mesh->indexType);
+
+	VkDescriptorSet shadowSets [] =
 	{
-		vkCmdBindPipeline(frame->shadowCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, context->shadowPipeline);
+		context->cameraDescriptorSet[context->virtualFrameIndex],
+		context->modelDescriptorSet[context->virtualFrameIndex],
+	};
 
-		vkCmdBindVertexBuffers(frame->shadowCommandBuffer, 0, vertexBindingCount, vertexBuffers, vertexOffsets);
-		vkCmdBindIndexBuffer(frame->shadowCommandBuffer, mesh->bufferReference, mesh->indexOffset, mesh->indexType);
+	vkCmdBindDescriptorSets(frame->shadowCommandBuffer,
+							VK_PIPELINE_BIND_POINT_GRAPHICS,
+							context->shadowPipelineLayout,
+							0,
+							2,
+							shadowSets,
+							1,
+							&dynamicOffsets[0]);
 
-		VkDescriptorSet shadowSets [] =
-		{
-			context->cameraDescriptorSet[context->virtualFrameIndex],
-			context->modelDescriptorSet[context->virtualFrameIndex],
-		};
-
-		vkCmdBindDescriptorSets(frame->shadowCommandBuffer,
-								VK_PIPELINE_BIND_POINT_GRAPHICS,
-								context->shadowPipelineLayout,
-								0,
-								2,
-								shadowSets,
-								1,
-								&dynamicOffsets[0]);
-
-		vkCmdDrawIndexed(frame->shadowCommandBuffer, mesh->indexCount, 1, 0, 0, 0);
-	}
+	vkCmdDrawIndexed(frame->shadowCommandBuffer, mesh->indexCount, 1, 0, 0, 0);
 }
 
 // Note(Leo): these are notes :)
@@ -603,7 +595,7 @@ internal void graphics_draw_meshes(VulkanContext * context, s32 count, m44 const
 		return;
 	}
 
-	// Todo(Leo): this was speedy addition, look below, we kinda handled this already, do same with leaves also
+	// Todo(Leo): this was hasty addition, look below, we kinda handled this already, do same with leaves also
 	constexpr s64 maxCount = 20000;
 	if (count > maxCount)
 	{
@@ -678,7 +670,10 @@ internal void graphics_draw_meshes(VulkanContext * context, s32 count, m44 const
 	f32 specularStrength 	= 0.5;
 	f32 materialBlock [] = {smoothness, specularStrength};
 
-	vkCmdPushConstants(frame->sceneCommandBuffer, pipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(materialBlock), materialBlock);
+	if (material->pipeline != GraphicsPipeline_skybox)
+	{
+		vkCmdPushConstants(frame->sceneCommandBuffer, pipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(materialBlock), materialBlock);
+	}
 
 	for (s32 i = 0; i < count; ++i)
 	{
@@ -696,6 +691,11 @@ internal void graphics_draw_meshes(VulkanContext * context, s32 count, m44 const
 	///   SHADOW PASS       ///
 	///////////////////////////
 	bool castShadow = true;
+	if (material->pipeline == GraphicsPipeline_skybox)
+	{
+		castShadow = false;
+	}
+
 	if (castShadow)
 	{
 		VkDeviceSize vertexOffsets [] 	= {mesh->vertexOffset, mesh->skinningOffset};

@@ -3,7 +3,7 @@ Leo Tamminen
 
 Scalar types math wrapper
 
-TODO(Leo): Proper unit testing!!
+Todo(Leo): Do we need to test these?
 */
 
 

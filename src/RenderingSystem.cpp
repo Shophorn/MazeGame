@@ -4,28 +4,9 @@ shophorn @ internet
 
 Some excuse for a rendering system
 */
-struct AnimatedRenderer
-{
-	AnimatedSkeleton * 	skeleton;
-	ModelHandle 		model;
 
-	// Options
-	bool32 castShadows = true;
-};
-
-AnimatedRenderer make_animated_renderer (	Transform3D * transform,
-											AnimatedSkeleton * skeleton,
-											ModelHandle model)
-{
-	auto result = AnimatedRenderer {
-			// .transform 	= transform,
-			.skeleton 	= skeleton,
-			.model 		= model,
-		};	
-	return result;		
-}
-
-void update_animated_renderer(m44 * boneTransformMatrices, SkeletonAnimator const & animator)
+	// AnimatedRenderer 	animatedRenderer;
+void skeleton_animator_get_bone_transform_matrices(SkeletonAnimator const & animator, m44 * boneTransformMatrices)
 {
 	/* Note(Leo): Vertex shader where actual deforming happens, needs to know
 	transform from bind position aka default position (i.e. the original position

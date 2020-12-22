@@ -1,9 +1,9 @@
-static void building_blocks_editor(	Array<m44> & 	blocks,
+static void game_scenery_editor(	Array<m44> & 	blocks,
 									s64 & 			selectedBuildingBlockIndex,
-									Scene & 		scene,
 									Camera & 		worldCamera,
 									v3 &			cameraPivotPosition,
-									PlatformInput * input)
+									PlatformInput * input,
+									Game *	 		game)
 {
 	using namespace ImGui;
 
@@ -59,7 +59,7 @@ static void building_blocks_editor(	Array<m44> & 	blocks,
 
 	if (Button("Save Data"))
 	{
-		editor_scene_asset_write(scene);
+		editor_scene_asset_write(game);
 	}
 
 	local_persist ImGuizmo::OPERATION operation = ImGuizmo::TRANSLATE;

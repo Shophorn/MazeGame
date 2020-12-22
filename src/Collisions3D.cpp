@@ -59,7 +59,7 @@ struct CollisionSystem3D
 	v3 			terrainOffset;
 };
 
-internal CollisionSystem3D init_collision_system(MemoryArena & allocator)
+internal CollisionSystem3D collision_system_initialize(MemoryArena & allocator)
 {
 	CollisionSystem3D system = {};
 

@@ -41,9 +41,17 @@ struct Array
 
 /// Todo(Leo): this is maybe stupid
 template<typename T>
-internal Array<T> push_array(MemoryArena & allocator, s64 capacity, AllocOperation options)
+internal Array<T> push_array(MemoryArena & allocator, s64 capacity, AllocOperation allocOp)
 {
-	Array<T> result = {capacity, 0, push_memory<T>(allocator, capacity, options)};
+	Array<T> result = {capacity, 0, push_memory<T>(allocator, capacity, allocOp)};
+	return result;
+}
+
+template<typename T>
+internal Array<T> push_array_2(MemoryArena & allocator, s64 capacity, s64 count, AllocOperation allocOp)
+{
+	Assert(count <= capacity);
+	Array<T> result = {capacity, count, push_memory<T>(allocator, capacity, allocOp)};
 	return result;
 }
 
@@ -85,7 +93,7 @@ internal void array_fill_from_memory(Array<T> & array, s32 sourceCount, T const 
 }
 
 template<typename T>
-internal void array_fill_uninitialized(Array<T> & array)
+internal void array_fill_garbage(Array<T> & array)
 {
 	array.count = array.capacity;
 }

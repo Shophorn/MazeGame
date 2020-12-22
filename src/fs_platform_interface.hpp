@@ -248,14 +248,15 @@ static void 				FS_PLATFORM_API(graphics_drawing_update_camera)(PlatformGraphics
 static void 				FS_PLATFORM_API(graphics_drawing_update_lighting)(PlatformGraphics*, Light const *, Camera const * camera, v3 ambient);
 static void 				FS_PLATFORM_API(graphics_drawing_update_hdr_settings)(PlatformGraphics*, HdrSettings const *);
 
-static void 				FS_PLATFORM_API(graphics_draw_model) (PlatformGraphics*, ModelHandle model, m44 transform, bool32 castShadow, m44 const * bones, u32 boneCount);
+static void 				FS_PLATFORM_API(graphics_draw_skinned_mesh) (	PlatformGraphics*, m44 transform, s64 boneCount, m44 * boneTransforms,
+																			MeshHandle meshHandle, MaterialHandle materialHandle);
 static void 				FS_PLATFORM_API(graphics_draw_meshes) (PlatformGraphics*, s32 count, m44 const * transforms, MeshHandle mesh, MaterialHandle material);
 static void 				FS_PLATFORM_API(graphics_draw_screen_rects) (PlatformGraphics*, s32 count, ScreenRect const * rects, MaterialHandle material, v4 color);
 static void 				FS_PLATFORM_API(graphics_draw_lines) (PlatformGraphics*, s32 pointCount, v3 const * points, v4 color);
 static void 				FS_PLATFORM_API(graphics_draw_procedural_mesh)(	PlatformGraphics*,
-																	s32 vertexCount, Vertex const * vertices,
-																	s32 indexCount, u16 const * indices,
-																	m44 transform, MaterialHandle material);
+																			s32 vertexCount, Vertex const * vertices,
+																			s32 indexCount, u16 const * indices,
+																			m44 transform, MaterialHandle material);
 static void 				FS_PLATFORM_API(graphics_draw_leaves) (PlatformGraphics*, s32 count, m44 const * transforms, s32 colourIndex, v3 colour, MaterialHandle material);
 
 static MeshHandle 			FS_PLATFORM_API(graphics_memory_push_mesh) (PlatformGraphics*, MeshAssetData * asset);
@@ -274,7 +275,7 @@ static void 				FS_PLATFORM_API(audio_release_output_buffer) (PlatformAudio*, St
 
 #pragma endregion PLATFORM API
 
-// Todo(Leo): maybe add condition if not FS_RELEASE
+// Todo(Leo): maybe add condition if not FS_RELEASE or move to separate file??
 struct PlatformApiDescription
 {
 	FS_PLATFORM_FUNC_PTR(platform_file_open) fileOpen;
@@ -309,7 +310,7 @@ struct PlatformApiDescription
 	FS_PLATFORM_FUNC_PTR(graphics_drawing_update_lighting) drawingUpdateLighting;
 	FS_PLATFORM_FUNC_PTR(graphics_drawing_update_hdr_settings) drawingUpdateHdrSettings;
 
-	FS_PLATFORM_FUNC_PTR(graphics_draw_model) drawModel;
+	FS_PLATFORM_FUNC_PTR(graphics_draw_skinned_mesh) drawModel;
 	FS_PLATFORM_FUNC_PTR(graphics_draw_meshes) drawMeshes;
 	FS_PLATFORM_FUNC_PTR(graphics_draw_screen_rects) drawScreenRects;
 	FS_PLATFORM_FUNC_PTR(graphics_draw_lines) drawLines;
@@ -364,7 +365,7 @@ void platform_set_api(PlatformApiDescription * api)
 	FS_PLATFORM_API_SET_FUNCTION(graphics_drawing_update_lighting, api->drawingUpdateLighting);
 	FS_PLATFORM_API_SET_FUNCTION(graphics_drawing_update_hdr_settings, api->drawingUpdateHdrSettings);
 
-	FS_PLATFORM_API_SET_FUNCTION(graphics_draw_model, api->drawModel);
+	FS_PLATFORM_API_SET_FUNCTION(graphics_draw_skinned_mesh, api->drawModel);
 	FS_PLATFORM_API_SET_FUNCTION(graphics_draw_meshes, api->drawMeshes);
 	FS_PLATFORM_API_SET_FUNCTION(graphics_draw_screen_rects, api->drawScreenRects);
 	FS_PLATFORM_API_SET_FUNCTION(graphics_draw_lines, api->drawLines);

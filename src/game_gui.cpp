@@ -52,61 +52,58 @@ bool32 do_gui(Game * game, PlatformInput * input)
 		}
 
 		{
-				constexpr char const * const cameraModeLabels [] = { "Player", "Editor" };
+			constexpr char const * const cameraModeLabels [] = { "Player", "Editor" };
 
-	 			if(BeginCombo("Camera Mode", cameraModeLabels[game->cameraMode]))
+ 			if(BeginCombo("Camera Mode", cameraModeLabels[game->cameraMode]))
+			{
+				for (s32 i = 0; i < CameraModeCount; ++i)
 				{
-					for (s32 i = 0; i < CameraModeCount; ++i)
+					if (Selectable(cameraModeLabels[i], game->cameraMode == static_cast<CameraMode>(i)))
 					{
-						if (Selectable(cameraModeLabels[i], game->cameraMode == static_cast<CameraMode>(i)))
-						{
-							game->cameraMode = static_cast<CameraMode>(i);
-						}
+						game->cameraMode = static_cast<CameraMode>(i);
 					}
-					EndCombo();
 				}
+				EndCombo();
+			}
 
-				constexpr char const * const debugLevelLabels [] = { "Off", "Player", "Player, NPC", "Player, NPC; Background" };
+			constexpr char const * const debugLevelLabels [] = { "Off", "Player", "Player, NPC", "Player, NPC; Background" };
 
-				if (BeginCombo("Debug Level", debugLevelLabels[global_debugLevel]))
+			if (BeginCombo("Debug Level", debugLevelLabels[global_debugLevel]))
+			{
+				for (s32 i = 0; i < array_count(debugLevelLabels); ++i)
 				{
-					for (s32 i = 0; i < array_count(debugLevelLabels); ++i)
+					if (Selectable(debugLevelLabels[i], global_debugLevel == i))
 					{
-						if (Selectable(debugLevelLabels[i], global_debugLevel == i))
-						{
-							global_debugLevel = i;
-						}
+						global_debugLevel = i;
 					}
-					EndCombo();
 				}
+				EndCombo();
+			}
 
-				bool drawDebugShadowTexture = game->drawDebugShadowTexture;
-				Checkbox("Debug Shadow", &drawDebugShadowTexture);
-				game->drawDebugShadowTexture = drawDebugShadowTexture;
+			bool drawDebugShadowTexture = game->editorOptions.drawDebugShadowTexture;
+			Checkbox("Debug Shadow", &drawDebugShadowTexture);
+			game->editorOptions.drawDebugShadowTexture = drawDebugShadowTexture;
 
-				if (Button("Reload Shaders"))
-				{
-					graphics_development_reload_shaders(platformGraphics);
-				}
+			if (Button("Reload Shaders"))
+			{
+				graphics_development_reload_shaders(platformGraphics);
+			}
 
-				InputFloat("Time Scale", &game->timeScale, 0.1f);
+			InputFloat("Time Scale", &game->editorOptions.timeScale, 0.1f);
 
-				if (Button("Read Settings"))
-				{
-					read_settings_file(game_get_serialized_objects(*game));
-					
-					read_settings_file(monuments_get_serialized_objects(game->monuments));
-					monuments_refresh_transforms(game->monuments, game->collisionSystem);
-				}
+			if (Button("Read Settings"))
+			{
+				read_settings_file(game_get_serialized_objects(*game));
+			}
 
-				if (Button("Write Settings"))
-				{
-					PlatformFileHandle file = platform_file_open("settings", FileMode_write);
+			if (Button("Write Settings"))
+			{
+				PlatformFileHandle file = platform_file_open("settings", FileMode_write);
 
-					write_settings_file(file, *game);
+				write_settings_file(file, *game);
 
-					platform_file_close(file);
-				}
+				platform_file_close(file);
+			}
 		}
 
 		PushStyleVar(ImGuiStyleVar_IndentSpacing, 16);
@@ -120,44 +117,31 @@ bool32 do_gui(Game * game, PlatformInput * input)
 			TreePop();
 		}
 
-
-		if (TreeNodeEx("Monuments", ImGuiTreeNodeFlags_Framed))
-		{
-			monuments_editor(game->monuments, game->collisionSystem);
-			TreePop();
-		}
-
 		if (TreeNodeEx("Trees", ImGuiTreeNodeFlags_Framed))
 		{
 			trees_editor(game->trees);
 			TreePop();
 		}
 
-		if (TreeNodeEx("Clouds", ImGuiTreeNodeFlags_Framed))
-		{
-			clouds_editor(game->clouds);
-			TreePop();
-		}
-
 		if (TreeNodeEx("Blocks", ImGuiTreeNodeFlags_Framed))
 		{
-			building_blocks_editor(	game->scene.buildingBlocks,
+			game_scenery_editor(	game->sceneries[game->buildingBlockSceneryIndex].transforms,
 									game->selectedBuildingBlockIndex,
-									game->scene,
 									game->worldCamera,
 									game->editorCamera.pivotPosition,
-									input);
+									input,
+									game);
 			TreePop();
 		}
 
 		if (TreeNodeEx("Pipes", ImGuiTreeNodeFlags_Framed))
 		{
-			building_blocks_editor(	game->scene.buildingPipes,
+			game_scenery_editor(	game->sceneries[game->buildingPipeSceneryIndex].transforms,
 									game->selectedBuildingPipeIndex,
-									game->scene,
 									game->worldCamera,
 									game->editorCamera.pivotPosition,
-									input);
+									input,
+									game);
 			TreePop();
 		}
 
@@ -185,15 +169,6 @@ bool32 do_gui(Game * game, PlatformInput * input)
 			TreePop();
 		}
 
-		if (TreeNodeEx("Mesh Generation", ImGuiTreeNodeFlags_Framed))
-		{
-
-			SliderFloat("Grid Scale", &game->metaballGridScale, 0.2, 1);
-			Checkbox32("Draw", &game->drawMCStuff);
-
-			TreePop();
-		}
-
 		PopStyleVar(pushedStyleVarCount);
 	}
 	ImGui::End();
@@ -207,7 +182,7 @@ bool32 do_gui(Game * game, PlatformInput * input)
 
 	// Todo(Leo) Study: https://www.reddit.com/r/vulkan/comments/fe40bw/vulkan_image_imgui_integration/
 	gui_position({1550, 30});
-	if (game->drawDebugShadowTexture)
+	if (game->editorOptions.drawDebugShadowTexture)
 	{
 		gui_image(GRAPHICS_RESOURCE_SHADOWMAP_GUI_MATERIAL, {300, 300});
 	}
