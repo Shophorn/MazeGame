@@ -104,6 +104,16 @@ bool32 do_gui(Game * game, PlatformInput * input)
 
 				platform_file_close(file);
 			}
+
+			if (game->cameraMode == CameraMode_editor && Button("Player To Camera"))
+			{
+				game->player.characterTransform.position = game->editorCamera.pivotPosition;
+			}
+
+			if (game->cameraMode == CameraMode_editor && Button("Camera To Player"))
+			{
+				game->editorCamera.pivotPosition = game->player.characterTransform.position;
+			}
 		}
 
 		PushStyleVar(ImGuiStyleVar_IndentSpacing, 16);

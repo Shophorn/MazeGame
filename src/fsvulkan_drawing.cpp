@@ -413,10 +413,10 @@ internal void graphics_draw_skinned_mesh(VulkanContext * context, m44 transform,
 	
 	VkDescriptorSet sets [] =
 	{   
-		context->cameraDescriptorSet[context->virtualFrameIndex],
+		context->cameraDescriptorSets[context->virtualFrameIndex],
 		material->descriptorSet,
-		context->modelDescriptorSet[context->virtualFrameIndex],
-		context->lightingDescriptorSet[context->virtualFrameIndex],
+		context->modelDescriptorSet, //[context->virtualFrameIndex],
+		context->lightingDescriptorSets[context->virtualFrameIndex],
 		context->shadowMapTextureDescriptorSet[context->virtualFrameIndex],
 		context->skyGradientDescriptorSet,
 	};
@@ -452,8 +452,8 @@ internal void graphics_draw_skinned_mesh(VulkanContext * context, m44 transform,
 
 	VkDescriptorSet shadowSets [] =
 	{
-		context->cameraDescriptorSet[context->virtualFrameIndex],
-		context->modelDescriptorSet[context->virtualFrameIndex],
+		context->cameraDescriptorSets[context->virtualFrameIndex],
+		context->modelDescriptorSet, //[context->virtualFrameIndex],
 	};
 
 	vkCmdBindDescriptorSets(frame->shadowCommandBuffer,
@@ -532,11 +532,11 @@ internal void graphics_draw_leaves(	VulkanContext * context,
 	// Todo(Leo): These can be bound once per frame, they do not change
 	// Todo(Leo): Except that they need to be bound per pipeline, maybe unless selected binding etc. are identical
 	vkCmdBindDescriptorSets(frame->sceneCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout,
-							0, 1, &context->cameraDescriptorSet[context->virtualFrameIndex],
+							0, 1, &context->cameraDescriptorSets[context->virtualFrameIndex],
 							0, nullptr);
 
 	vkCmdBindDescriptorSets(frame->sceneCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout,
-							1, 1, &context->lightingDescriptorSet[context->virtualFrameIndex],
+							1, 1, &context->lightingDescriptorSets[context->virtualFrameIndex],
 							0, nullptr);
 
 	vkCmdBindDescriptorSets(frame->sceneCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout,
@@ -577,7 +577,7 @@ internal void graphics_draw_leaves(	VulkanContext * context,
 	vkCmdBindPipeline(frame->shadowCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, shadowPipeline);
 
 	vkCmdBindDescriptorSets(frame->shadowCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, shadowPipelineLayout,
-							0, 1, &context->cameraDescriptorSet[context->virtualFrameIndex], 0, nullptr);
+							0, 1, &context->cameraDescriptorSets[context->virtualFrameIndex], 0, nullptr);
 
 	vkCmdBindDescriptorSets(frame->shadowCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, shadowPipelineLayout,
 							1, 1, &materialDescriptorSet, 0, nullptr);
@@ -656,10 +656,10 @@ internal void graphics_draw_meshes(VulkanContext * context, s32 count, m44 const
 
 	VkDescriptorSet sets [] =
 	{   
-		context->cameraDescriptorSet[context->virtualFrameIndex],
+		context->cameraDescriptorSets[context->virtualFrameIndex],
 		material->descriptorSet,
-		context->modelDescriptorSet[context->virtualFrameIndex],
-		context->lightingDescriptorSet[context->virtualFrameIndex],
+		context->modelDescriptorSet, //[context->virtualFrameIndex],
+		context->lightingDescriptorSets[context->virtualFrameIndex],
 		context->shadowMapTextureDescriptorSet[context->virtualFrameIndex],
 		context->skyGradientDescriptorSet,
 	};
@@ -674,7 +674,7 @@ internal void graphics_draw_meshes(VulkanContext * context, s32 count, m44 const
 	{
 		vkCmdPushConstants(frame->sceneCommandBuffer, pipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(materialBlock), materialBlock);
 	}
-
+	
 	for (s32 i = 0; i < count; ++i)
 	{
 		vkCmdBindDescriptorSets(frame->sceneCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout,
@@ -708,8 +708,8 @@ internal void graphics_draw_meshes(VulkanContext * context, s32 count, m44 const
 
 		VkDescriptorSet shadowSets [] =
 		{
-			context->cameraDescriptorSet[context->virtualFrameIndex],
-			context->modelDescriptorSet[context->virtualFrameIndex],
+			context->cameraDescriptorSets[context->virtualFrameIndex],
+			context->modelDescriptorSet, //[context->virtualFrameIndex],
 		};
 
 		for (s32 i = 0; i < count; ++i)
@@ -753,10 +753,10 @@ internal void graphics_draw_procedural_mesh(VulkanContext * context,
 
 	VkDescriptorSet sets [] =
 	{   
-		context->cameraDescriptorSet[context->virtualFrameIndex],
+		context->cameraDescriptorSets[context->virtualFrameIndex],
 		material->descriptorSet,
-		context->modelDescriptorSet[context->virtualFrameIndex],
-		context->lightingDescriptorSet[context->virtualFrameIndex],
+		context->modelDescriptorSet, //[context->virtualFrameIndex],
+		context->lightingDescriptorSets[context->virtualFrameIndex],
 		context->shadowMapTextureDescriptorSet[context->virtualFrameIndex],
 		context->skyGradientDescriptorSet
 	};
@@ -800,8 +800,8 @@ internal void graphics_draw_procedural_mesh(VulkanContext * context,
 
 	VkDescriptorSet shadowSets [] =
 	{
-		context->cameraDescriptorSet[context->virtualFrameIndex],
-		context->modelDescriptorSet[context->virtualFrameIndex],
+		context->cameraDescriptorSets[context->virtualFrameIndex],
+		context->modelDescriptorSet, //[context->virtualFrameIndex],
 	};
 
 	vkCmdBindDescriptorSets(frame->shadowCommandBuffer,
@@ -822,7 +822,7 @@ internal void graphics_draw_lines(VulkanContext * context, s32 pointCount, v3 co
 
 	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, context->linePipeline);
 	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, context->linePipelineLayout,
-							0, 1, &context->cameraDescriptorSet[context->virtualFrameIndex], 0, nullptr);
+							0, 1, &context->cameraDescriptorSets[context->virtualFrameIndex], 0, nullptr);
 
 	VkDeviceSize vertexBufferSize 	= pointCount * sizeof(v3) * 2;
 	VkDeviceSize vertexBufferOffset = fsvulkan_get_dynamic_mesh_memory(*context, vertexBufferSize);
@@ -883,19 +883,19 @@ internal void graphics_draw_screen_rects(	VulkanContext * 	context,
 	pipeline 		= context->pipelines[GraphicsPipeline_screen_gui].pipeline;
 	pipelineLayout 	= context->pipelines[GraphicsPipeline_screen_gui].pipelineLayout;
 
-	vkCmdBindPipeline(frame->sceneCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+	vkCmdBindPipeline(frame->guiCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 	
-	vkCmdBindDescriptorSets(frame->sceneCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout,
+	vkCmdBindDescriptorSets(frame->guiCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout,
 							0, 1, &descriptorSet,
 							0, nullptr);
 
 	// Note(Leo): Color does not change, so we update it only once, this will break if we change shader :(
-	vkCmdPushConstants(frame->sceneCommandBuffer, pipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 64, sizeof(v4), &color);
+	vkCmdPushConstants(frame->guiCommandBuffer, pipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 64, sizeof(v4), &color);
 
 	// TODO(Leo): Instantiatee!
 	for(s32 i = 0; i < count; ++i)
 	{      
-		vkCmdPushConstants( frame->sceneCommandBuffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(ScreenRect), &rects[i]);
-		vkCmdDraw(frame->sceneCommandBuffer, 4, 1, 0, 0);
+		vkCmdPushConstants( frame->guiCommandBuffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(ScreenRect), &rects[i]);
+		vkCmdDraw(frame->guiCommandBuffer, 4, 1, 0, 0);
 	}
 }

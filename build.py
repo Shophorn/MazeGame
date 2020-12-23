@@ -79,6 +79,8 @@ if devbuild:
 			"clang++ "
 			"-shared "
 			"../src/friendsimulator.cpp "
+			# "../src/game_compile.cpp "
+			# "../src/vulkan_compile.cpp "
 			"-o friendsimulator.dll "
 			"-I" + imgui_include + " "
 			+ flags + definitions

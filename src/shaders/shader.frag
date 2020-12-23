@@ -52,11 +52,36 @@ void main()
 	float lightIntensity = ldotn;
 
 
-	float lightDepthFromTexture = texture(lightMap, lightCoords.xy).r;
+	// Note(Leo): lghting projection is orthographic, so no perspective divide
+	vec3 lightProjectionCoords 	= lightCoords.xyz;
+	// Note(Leo): with vulkan z is already on 0 to 1 range (by default):
+	// Todo(Leo): we probably shoud be explicit about it in code
+	lightProjectionCoords.xy 	= lightProjectionCoords.xy * 0.5 + 0.5;
+	
+	float lightDepthFromTexture = texture(lightMap, lightProjectionCoords.xy).r;
 
-	const float epsilon = 0.0001;
-	float inLight = 1.0 - step(lightDepthFromTexture + epsilon, lightCoords.z);// * 0.8;
-	float inLightActual = 1.0 - step(lightDepthFromTexture + epsilon, lightCoords.z);
+	// Todo(Leo): Not const but get from uniform settings
+	// Todo(Leo): change this based on normal of surface related to light direction
+	const float bias = 0.001;
+
+	float closestDepth = lightDepthFromTexture;// + bias;
+	float currentDepth = lightProjectionCoords.z;
+
+
+	// float shadow = step(currentDepth, closestDepth);
+	float shadow = currentDepth - bias > closestDepth ? 1 : 0;
+
+	// outColor = vec4(lightProjectionCoords.xy, 0, 1);
+
+
+	if (lightProjectionCoords.z > 1.0)
+	{
+		shadow = 0.0;
+	}
+
+
+	float inLight = 1.0 - shadow; //step(lightDepthFromTexture + epsilon, lightProjectionCoords.z);// * 0.8;
+
 
 	// SHADOWS
 	// lightIntensity = min(lightIntensity, inLight);	
@@ -86,7 +111,7 @@ void main()
 	vec3 halfVector = normalize(lightDir + viewDirection);
 	float spec = max(0, dot (halfVector, normal));
 	spec = pow(spec, 256 * smoothness);
-	vec3 specularTerm = spec * specularStrength * lightColor * inLightActual;
+	vec3 specularTerm = spec * specularStrength * lightColor * inLight;
 
 	/// -------------------------------------------------
 
@@ -103,5 +128,17 @@ void main()
 
 	// outColor.rgb 	= diffuseTerm + specularTerm + ambientTerm;
 	outColor.rgb 	= diffuseTerm + ambientTerm;
+
+	if(shadow > 0.5)
+	{
+		// outColor.rgb = mix(outColor.rgb, vec3(lightCoords.xy, 0), 0.3);
+
+		if (lightProjectionCoords.x < 0) outColor.rgb = vec3(1,0,0);
+		if (lightProjectionCoords.x > 1) outColor.rgb = vec3(1,0,1);
+		if (lightProjectionCoords.y < 0) outColor.rgb = vec3(0,1,0);
+		if (lightProjectionCoords.y > 1) outColor.rgb = vec3(0,1,1);
+	}
+
+
 	outColor.a 		= tex.a;
 }

@@ -74,8 +74,8 @@ void main ()
 	fragNormal 		= normalize((transpose(inverse(model.localToWorld)) * poseNormal).xyz);
 	
 	lightCoords = camera.lightViewProjection * model.localToWorld * posePosition;//vec4(inPosition, 1.0);
-	lightCoords.xy *= 0.5;
-	lightCoords.xy -= 0.5;
+	// lightCoords.xy *= 0.5;
+	// lightCoords.xy -= 0.5;
 
 	vec4 worldPosition = model.localToWorld * posePosition;
 

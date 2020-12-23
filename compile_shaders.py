@@ -33,7 +33,7 @@ def compile(output_folder):
 		os.system("glslangValidator -V src/shaders/{} -o {}/{}".format(target[0], output_folder, target[1]))
 
 if __name__ == '__main__':
-	output_folder = "shaders"
+	output_folder = "development/shaders"
 	if len(sys.argv) > 1:
 		output_folder = sys.argv[1]
 	compile(output_folder)

@@ -51,7 +51,7 @@ get_light_view_projection(Light const * directionalLight, Camera const * camera)
 		f32 aspectRatio;
 	};
 */
-	f32 shadowDistance = 100;
+	f32 shadowDistance = 200;
 
 	v3 cameraRight 		= get_right(camera);
 	v3 cameraForward 	= get_forward(camera);

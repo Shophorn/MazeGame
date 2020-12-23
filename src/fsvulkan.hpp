@@ -295,16 +295,13 @@ struct PlatformGraphics
     VkDescriptorPool 		persistentDescriptorPool;
 
     VkDescriptorSetLayout 	modelDescriptorSetLayout;
-    VkDescriptorSet 		modelDescriptorSet[VIRTUAL_FRAME_COUNT];
+    VkDescriptorSet 		modelDescriptorSet;
 
 	VkDescriptorSetLayout 	cameraDescriptorSetLayout;
-    VkDescriptorSet 		cameraDescriptorSet[VIRTUAL_FRAME_COUNT];
+    VkDescriptorSet 		cameraDescriptorSets[VIRTUAL_FRAME_COUNT];
 
 	VkDescriptorSetLayout 	lightingDescriptorSetLayout;
-    VkDescriptorSet 		lightingDescriptorSet[VIRTUAL_FRAME_COUNT];
-
-	VkDescriptorSetLayout 	hdrSettingsDescriptorSetLayout;
-	VkDescriptorSet 		hdrSettingsDescriptorSet[VIRTUAL_FRAME_COUNT];
+    VkDescriptorSet 		lightingDescriptorSets[VIRTUAL_FRAME_COUNT];
 
     // VulkanBufferResource sceneUniformBuffer;
     VkDeviceSize 	sceneUniformBufferCapacity;
@@ -314,7 +311,6 @@ struct PlatformGraphics
     // Todo(Leo): Maybe make these also use push constants, that's what hdr setting already do
     FSVulkanCameraUniformBuffer * 	persistentMappedCameraUniformBufferMemory[VIRTUAL_FRAME_COUNT];
     FSVulkanLightingUniformBuffer * persistentMappedLightingUniformBufferMemory[VIRTUAL_FRAME_COUNT];
-    // FSVulkanHdrSettings * 			frameHdrSettings[VIRTUAL_FRAME_COUNT];
 
     // Uncategorized
 	VkCommandPool 			commandPool;
@@ -371,8 +367,6 @@ struct PlatformGraphics
 
     VulkanBufferResource staticMeshPool;
 
-    // VulkanBufferResource modelUniformBuffer[VIRTUAL_FRAME_COUNT];
-
     VkBuffer 		modelUniformBufferBuffer;
     VkDeviceMemory 	modelUniformBufferMemory;
     u8 * 			persistentMappedModelUniformBufferMemory;
@@ -421,7 +415,6 @@ struct PlatformGraphics
     	bool32 reloadShaders;
     } postRenderEvents;
 
-    // bool32 unloadAfterRender = false;
 
     VkBuffer 		leafBuffer;
     VkDeviceMemory 	leafBufferMemory;

@@ -541,7 +541,7 @@ internal void gui_image(MaterialHandle material, v2 size, v4 colour)
 
 	gui.currentPosition.y += yMovement + gui.padding;
 
-	ScreenRect rect = {position, size, {0, 0}, {1, 1}};
+	ScreenRect rect = {position, size, {-0.1, -0.1}, {1.2, 1.2}};
 
 	// if (material == GUI_NO_TEXTURE)
 	// {

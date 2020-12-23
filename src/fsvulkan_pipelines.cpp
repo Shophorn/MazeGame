@@ -672,7 +672,7 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context, u32 targetT
 		auto inputAssemblyState 	= fsvulkan_pipeline_input_assembly_create_info		(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP);
 		// auto viewportState 			= fsvulkan_pipeline_viewport_state_create_info		(1, &common_viewport, 1, &common_scissor);
 		auto rasterizationState 	= fsvulkan_pipeline_rasterization_state_create_info	(VK_CULL_MODE_NONE);
-		auto multisampleState 		= fsvulkan_pipeline_multisample_state_create_info	(context.msaaSamples);
+		auto multisampleState 		= fsvulkan_pipeline_multisample_state_create_info	(VK_SAMPLE_COUNT_1_BIT);
 		auto depthStencilState 		= fsvulkan_pipeline_depth_stencil_create_info		(VK_FALSE, VK_FALSE);
 
 		VkPipelineColorBlendAttachmentState colorBlendAttachment = 
@@ -709,7 +709,7 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context, u32 targetT
 			.pColorBlendState 		= &colorBlendState,
 			// .pDynamicState 			= &dynamicState,
 			.layout 				= context.pipelines[GraphicsPipeline_screen_gui].pipelineLayout,
-			.renderPass 			= context.sceneRenderPass,
+			.renderPass 			= context.screenSpaceRenderPass,
 		};
 
 		vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &context.pipelines[GraphicsPipeline_screen_gui].pipeline);
@@ -1032,9 +1032,11 @@ internal void fsvulkan_initialize_pipelines(VulkanContext & context, u32 targetT
 		{
 			for(s32 i = 0; i < VIRTUAL_FRAME_COUNT; ++i)
 			{	
-				auto allocateInfo = fsvulkan_descriptor_set_allocate_info(	context.drawingResourceDescriptorPool,
-																			1,
-																			&context.screenSpaceDescriptorSetLayout);
+				auto allocateInfo 				= vk_descriptor_set_allocate_info();
+				allocateInfo.descriptorPool 	= context.drawingResourceDescriptorPool;
+				allocateInfo.descriptorSetCount = 1;
+				allocateInfo.pSetLayouts 		= &context.screenSpaceDescriptorSetLayout;
+
 				VULKAN_CHECK(vkAllocateDescriptorSets(	context.device,
 														&allocateInfo,
 														&context.sceneRenderTargetSamplerDescriptors[i]));

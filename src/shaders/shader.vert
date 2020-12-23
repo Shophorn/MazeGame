@@ -44,13 +44,17 @@ void main ()
 	vec3 b = normalize(cross(n, t));
 	tbnMatrix = transpose(mat3(t, b, n));
 
-	lightCoords = camera.lightViewProjection * model.model * vec4(inPosition, 1.0);
-	lightCoords.xy *= 0.5;
-	lightCoords.xy -= 0.5;
+	// lightCoords = camera.lightViewProjection * model.model * vec4(inPosition, 1.0);
+	// lightCoords.xy *= 0.5;
+	// lightCoords.xy -= 0.5;
 
 	vec4 worldPosition = model.model * vec4(inPosition, 1.0);
 
 	fragPosition = worldPosition.xyz;
+	lightCoords = camera.lightViewProjection * model.model * vec4(inPosition, 1.0);
+	// lightCoords.xy *= 0.5;
+	// lightCoords.xy -= 0.5;
+
 	
 	float distance = length((camera.view * worldPosition).xyz);
 	distance = distance - (shadowDistance - transitionDistance);

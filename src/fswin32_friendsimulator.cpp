@@ -62,7 +62,7 @@ not need console to be created.
 
 #include "win32_audio.cpp"
 
-// Todo(Leo): Get rid of this :) It is used in some stupid places anyway
+// Todo(Leo): Get rid of this(vector header) :) It is used in some stupid places anyway
 #include <vector>
 #include "fsvulkan.cpp"
 
@@ -118,8 +118,9 @@ FS_ENTRY_POINT
 		Assert(gameMemory.memory != nullptr);
 	}
 
-	VulkanContext graphics = winapi::create_vulkan_context(&window);
-   
+   	VulkanContext graphics = win32_vulkan_context_create(&window);
+   	// vulkan_context_initialize(&graphics);
+
 
 
 	// Todo(Leo): Move imgui stuff away, maybe after we have imguizmo

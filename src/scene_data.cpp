@@ -7,6 +7,27 @@ struct SceneAssetHeader
 	s64 buildingPipeOffset;
 };
 
+/*
+Todo(Leo): use these
+struct SceneryAssetFileHeader
+{
+	// Todo(Leo): should we use these? Probably not, as this is editor file only. 
+	// If we get more people on team then maybe.
+	// s64 magic;
+	// s64 version;
+	s64 sceneryCount;
+};
+
+struct SceneryAssetInfo
+{
+	s64 offset;
+	s64 count;
+
+	MeshAssetId 	mesh;
+	MaterialAssetId material;
+};
+*/
+
 static void scene_asset_load (Game * game)
 {
 	PlatformFileHandle file = platform_file_open("scene_asset.fs", FileMode_read);
